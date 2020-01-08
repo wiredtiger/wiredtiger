@@ -627,8 +627,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     if (closing)
         LF_SET(WT_REC_VISIBILITY_ERR);
-
-    if (WT_PAGE_IS_INTERNAL(page) || WT_IS_LAS(S2BT(session)))
+    else if (WT_PAGE_IS_INTERNAL(page) || WT_IS_LAS(S2BT(session)))
         ;
     else if (WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_LOOKASIDE);

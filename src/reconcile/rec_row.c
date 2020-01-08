@@ -810,33 +810,6 @@ __wt_rec_row_leaf(
                 WT_ERR(__wt_rec_cell_build_val(
                   session, r, p, size, false, start_ts, start_txn, stop_ts, stop_txn, 0));
                 dictionary = true;
-            } else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
-                /*
-                 * If the underlying value is a removed overflow value, we end up here.
-                 *
-                 * If necessary, when the overflow value was originally removed, reconciliation
-                 * appended a globally visible copy of the value to the key's update list, meaning
-                 * the on-page item isn't accessed after page re-instantiation.
-                 *
-                 * If the key is also a removed overflow item, don't write anything at all.
-                 *
-                 * We don't have to write anything because the code re-instantiating the page gets
-                 * the key to match the saved list of updates from the original page. By not putting
-                 * the key on the page, we'll move the key/value set from a row-store leaf page slot
-                 * to an insert list, but that shouldn't matter.
-                 *
-                 * The reason we bother with the test is because overflows are expensive to write.
-                 * It's hard to imagine a real workload where this test is worth the effort, but
-                 * it's a simple test.
-                 */
-                if (kpack != NULL && kpack->raw == WT_CELL_KEY_OVFL_RM)
-                    goto leaf_insert;
-
-                /*
-                 * The on-page value will never be accessed, write a placeholder record.
-                 */
-                WT_ERR(__wt_rec_cell_build_val(session, r, "ovfl-unused", strlen("ovfl-unused"),
-                  false, start_ts, start_txn, stop_ts, stop_txn, 0));
             } else {
                 val->buf.data = vpack->cell;
                 val->buf.size = __wt_cell_total_len(vpack);
