@@ -303,7 +303,7 @@ restart_read:
                 ++cbt->page_deleted_count;
             continue;
         }
-        return (__wt_value_return(session, cbt, upd));
+        return (__wt_value_return(cbt, upd));
     }
     /* NOTREACHED */
 }
@@ -373,7 +373,7 @@ restart_read:
                     ++cbt->page_deleted_count;
                 continue;
             }
-            return (__wt_value_return(session, cbt, upd));
+            return (__wt_value_return(cbt, upd));
         }
 
         /*
@@ -510,7 +510,7 @@ restart_read_insert:
             }
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
-            return (__wt_value_return(session, cbt, upd));
+            return (__wt_value_return(cbt, upd));
         }
 
         /* Check for the beginning of the page. */
