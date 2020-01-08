@@ -483,13 +483,11 @@ int
 __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 {
     WT_BTREE *btree;
-    WT_CURSOR *cursor;
     WT_UPDATE *upd;
 
     *updp = NULL;
 
     btree = cbt->btree;
-    cursor = &cbt->iface;
     upd = NULL; /* -Wuninitialized */
 
     WT_RET(btree->type == BTREE_ROW ? __cursor_row_search(cbt, false, NULL, NULL) :
