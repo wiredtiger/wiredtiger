@@ -533,7 +533,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     uint32_t btree_id, i;
     uint8_t *p;
     int nentries;
-    bool las_key_saved, local_txn;
+    bool local_txn;
 
     session = (WT_SESSION_IMPL *)cursor->session;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
@@ -607,8 +607,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * below if necessary.
          */
         WT_ASSERT(session, __wt_count_birthmarks(upd) == 0);
-
-        las_key_saved = false;
 
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
