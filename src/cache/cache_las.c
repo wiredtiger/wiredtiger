@@ -798,8 +798,12 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_
             mementop->prepare_state = upd->prepare_state;
         }
 
-        /* Free updates moved to lookaside in eviction as we have exclusive access. */
-        if (F_ISSET(r, WT_REC_EVICT)) {
+        /*
+         * Free updates moved to lookaside in eviction as we have exclusive access.
+         *
+         * PM-1521-FIXME: Enable after WT-5336 fixed.
+         */
+        if (false && F_ISSET(r, WT_REC_EVICT)) {
             upd = upd->next;
             __wt_free_update_list(session, &upd);
             list->onpage_upd->next = NULL;
