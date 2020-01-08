@@ -533,7 +533,7 @@ __las_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t 
  *     Copy one set of saved updates into the database's lookaside table.
  */
 int
-__wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_MULTI *multi)
+__wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
 {
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
@@ -547,7 +547,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_
 #define MAX_REVERSE_MODIFY_NUM 16
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
-    WT_PAGE *page;
     WT_SAVE_UPD *list;
     WT_SESSION_IMPL *session;
     WT_TXN_ISOLATION saved_isolation;
@@ -561,7 +560,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_
     bool las_key_saved, local_txn, squashed;
 
     mementop = NULL;
-    page = r->page;
     session = (WT_SESSION_IMPL *)cursor->session;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = 0;
@@ -796,17 +794,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_
             mementop->durable_ts = upd->durable_ts;
             mementop->start_ts = upd->start_ts;
             mementop->prepare_state = upd->prepare_state;
-        }
-
-        /*
-         * Free updates moved to lookaside in eviction as we have exclusive access.
-         *
-         * PM-1521-FIXME: Enable after WT-5336 fixed.
-         */
-        if (false && F_ISSET(r, WT_REC_EVICT)) {
-            upd = upd->next;
-            __wt_free_update_list(session, &upd);
-            list->onpage_upd->next = NULL;
         }
     }
 
