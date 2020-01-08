@@ -755,7 +755,9 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: connection sweep dhandles removed from hash list",
   "data-handle: connection sweep time-of-death sets", "data-handle: connection sweeps",
   "data-handle: session dhandles swept", "data-handle: session sweep attempts",
-  "lock: checkpoint lock acquisitions",
+  "history: history pages added for eviction during garbage collection",
+  "history: history pages removed for garbage collection",
+  "history: history pages visited for garbage collection", "lock: checkpoint lock acquisitions",
   "lock: checkpoint lock application thread wait time (usecs)",
   "lock: checkpoint lock internal thread wait time (usecs)",
   "lock: dhandle lock application thread time waiting (usecs)",
@@ -1143,6 +1145,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->dh_sweeps = 0;
     stats->dh_session_handles = 0;
     stats->dh_session_sweeps = 0;
+    stats->hs_gc_pages_evict = 0;
+    stats->hs_gc_pages_removed = 0;
+    stats->hs_gc_pages_visited = 0;
     stats->lock_checkpoint_count = 0;
     stats->lock_checkpoint_wait_application = 0;
     stats->lock_checkpoint_wait_internal = 0;
@@ -1582,6 +1587,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->dh_sweeps += WT_STAT_READ(from, dh_sweeps);
     to->dh_session_handles += WT_STAT_READ(from, dh_session_handles);
     to->dh_session_sweeps += WT_STAT_READ(from, dh_session_sweeps);
+    to->hs_gc_pages_evict += WT_STAT_READ(from, hs_gc_pages_evict);
+    to->hs_gc_pages_removed += WT_STAT_READ(from, hs_gc_pages_removed);
+    to->hs_gc_pages_visited += WT_STAT_READ(from, hs_gc_pages_visited);
     to->lock_checkpoint_count += WT_STAT_READ(from, lock_checkpoint_count);
     to->lock_checkpoint_wait_application += WT_STAT_READ(from, lock_checkpoint_wait_application);
     to->lock_checkpoint_wait_internal += WT_STAT_READ(from, lock_checkpoint_wait_internal);
