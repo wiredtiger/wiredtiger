@@ -118,7 +118,8 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
      * use the slower path through configuration parsing functions.
      */
     config = newcfg = NULL;
-    str = v == NULL ? "checkpoint=(),checkpoint_incremental=(),checkpoint_lsn=" : v;
+    str = v == NULL ? "checkpoint=(),checkpoint_mods=(),checkpoint_lsn=" : v;
+    __wt_verbose(session, WT_VERB_BACKUP, "CKPT_SET: str %s", str);
     if (use_base && session->dhandle != NULL) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ASSERT(session, strcmp(session->dhandle->name, fname) == 0);
@@ -626,7 +627,7 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           (int64_t)ckpt->newest_stop_txn, (int64_t)ckpt->write_gen));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
-    __wt_verbose(session, WT_VERB_BACKUP, "CKPTLIST: buf: %s", buf->mem);
+    __wt_verbose(session, WT_VERB_BACKUP, "CKPTLIST: buf: %.*s", (int)buf->size, buf->mem);
 
     return (0);
 }
@@ -644,18 +645,20 @@ __ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *bl
     bool valid;
 
     valid = false;
-    WT_RET(__wt_buf_catfmt(session, buf, ")"));
-    __wt_verbose(session, WT_VERB_BACKUP, "META: called blk_mods %p", (void *)blk_mods);
-    for (i = 0; i < WT_BLKINCR_MAX; ++i, ++blk_mods) {
-        __wt_verbose(session, WT_VERB_BACKUP, "META: flags %d", (int)blk_mods->flags);
-        if (F_ISSET(blk_mods, WT_BLOCK_MODS_VALID))
+    for (i = 0, blk = blk_mods; i < WT_BLKINCR_MAX; ++i, ++blk) {
+        if (F_ISSET(blk, WT_BLOCK_MODS_VALID))
             valid = true;
     }
     if (!valid)
         return (0);
 
+    /*
+     * We have at least one valid modified block list.
+     */
     WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_mods=("));
     for (i = 0, blk = blk_mods; i < WT_BLKINCR_MAX; ++i, ++blk) {
+	if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
+	    continue;
         WT_RET(__wt_buf_catfmt(
           session, buf, "%s%s=(id=%" PRIu32 ",blocks=(", i == 0 ? "" : ",", blk->id_str, i));
         for (entries = 0, p = blk->alloc_list; entries < blk->alloc_list_entries;
@@ -665,7 +668,7 @@ __ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *bl
         WT_RET(__wt_buf_catfmt(session, buf, "))"));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
-    __wt_verbose(session, WT_VERB_BACKUP, "META: buf: %s", buf->mem);
+    __wt_verbose(session, WT_VERB_BACKUP, "META: buf: %.*s", (int)buf->size, buf->mem);
     return (0);
 }
 
@@ -684,6 +687,7 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session, const char *fname, WT_CKPT *ckp
 
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
 
+    WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
     WT_ERR(__ckpt_blkmods_to_meta(session, buf, blk_mods));
 
     has_lsn = ckptlsn != NULL;
