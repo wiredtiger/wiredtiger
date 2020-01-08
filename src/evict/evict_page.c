@@ -646,10 +646,6 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     /* Reconcile the page. */
     ret = __wt_reconcile(session, ref, NULL, flags);
-    /* FIXME-PM1521: Not sure what to do with this */
-    // WT_ASSERT(session, __wt_page_is_modified(page) ||
-    //     __wt_txn_visible_all(session, page->modify->rec_max_txn,
-    //     page->modify->rec_max_timestamp));
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
