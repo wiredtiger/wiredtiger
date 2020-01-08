@@ -129,6 +129,7 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
     }
 
+    WT_STAT_CONN_INCR(session, hs_gc_pages_visited);
     multi_newest_stop_ts = WT_TS_NONE;
     multi_newest_stop_txn = WT_TXN_NONE;
     addr = ref->addr;
@@ -187,6 +188,7 @@ __sync_ref_evict_or_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
+        WT_STAT_CONN_INCR(session, hs_gc_pages_removed);
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
           "%p: page is marked for deletion with parent page: %p", (void *)ref, (void *)ref->home);
         return (__wt_page_parent_modify_set(session, ref, true));
@@ -194,6 +196,7 @@ __sync_ref_evict_or_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Evict the in-memory obsolete page */
     WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
+    WT_STAT_CONN_INCR(session, hs_gc_pages_evict);
     __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
       "%p: is an in-memory obsolete page, added to urgent eviction queue.", (void *)ref);
     return (0);

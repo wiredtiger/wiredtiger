@@ -687,8 +687,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
         }
 
-        upd = prev_upd = NULL;
-        squashed = false;
+        upd = NULL;
 
         /*
          * Get the oldest full update on chain. It is either the oldest update or the second oldest
@@ -708,6 +707,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_
         }
         full_value->data = upd->data;
         full_value->size = upd->size;
+
+        prev_upd = NULL;
+        squashed = false;
 
         /* Flush the updates on stack */
         for (; modifies.size > 0; tmp = full_value, full_value = prev_full_value,
