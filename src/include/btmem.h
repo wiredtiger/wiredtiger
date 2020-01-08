@@ -75,7 +75,6 @@ struct __wt_page_header {
 #define WT_PAGE_EMPTY_V_ALL 0x02u  /* Page has all zero-length values */
 #define WT_PAGE_EMPTY_V_NONE 0x04u /* Page has no zero-length values */
 #define WT_PAGE_ENCRYPTED 0x08u    /* Page is encrypted on disk */
-#define WT_PAGE_LAS_UPDATE 0x10u   /* Page updates in lookaside store */
     uint8_t flags;                 /* 25: flags */
 
     /* A byte of padding, positioned to be added to the flags. */
@@ -282,16 +281,11 @@ struct __wt_page_modify {
              * in memory.
              */
             void *disk_image;
-
-            /* The page has lookaside entries. */
-            bool has_las;
         } r;
 #undef mod_replace
 #define mod_replace u1.r.replace
 #undef mod_disk_image
 #define mod_disk_image u1.r.disk_image
-#undef mod_has_las
-#define mod_has_las u1.r.has_las
 
         struct { /* Multiple replacement blocks */
             struct __wt_multi {
@@ -334,8 +328,6 @@ struct __wt_page_modify {
                 WT_ADDR addr;
                 uint32_t size;
                 uint32_t checksum;
-
-                bool has_las; /* This block has lookaside contents of its own. */
             } * multi;
             uint32_t multi_entries; /* Multiple blocks element count */
         } m;
@@ -758,10 +750,6 @@ struct __wt_page {
  *	thread that set the page to WT_REF_LOCKED has exclusive access, no
  *	other thread may use the WT_REF until the state is changed.
  *
- * WT_REF_LOOKASIDE:
- *	The page is on disk (as per WT_REF_DISK) and has entries in the
- *	lookaside table that must be applied before the page can be read.
- *
  * WT_REF_MEM:
  *	Set by a reading thread once the page has been read from disk; the page
  *	is in the cache and the page reference is OK.
@@ -842,10 +830,9 @@ struct __wt_ref {
 #define WT_REF_DISK 0        /* Page is on disk */
 #define WT_REF_DELETED 1     /* Page is on disk, but deleted */
 #define WT_REF_LOCKED 2      /* Page locked for exclusive access */
-#define WT_REF_LOOKASIDE 3   /* Page is on disk with lookaside */
-#define WT_REF_MEM 4         /* Page is in cache and valid */
-#define WT_REF_READING 5     /* Page being read */
-#define WT_REF_SPLIT 6       /* Parent page split (WT_REF dead) */
+#define WT_REF_MEM 3         /* Page is in cache and valid */
+#define WT_REF_READING 4     /* Page being read */
+#define WT_REF_SPLIT 5       /* Parent page split (WT_REF dead) */
     volatile uint32_t state; /* Page state */
 
     /*
@@ -868,7 +855,6 @@ struct __wt_ref {
 #define ref_ikey key.ikey
 
     WT_PAGE_DELETED *page_del; /* Deleted page information */
-    bool has_las;              /* Lookaside information */
 
 /*
  * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures. Don't clear the history in

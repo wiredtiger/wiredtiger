@@ -1636,13 +1636,6 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
             F_SET(dsk, WT_PAGE_EMPTY_V_NONE);
     }
 
-    /*
-     * Note in the page header if we found updates that weren't globally visible when reconciling
-     * this page.
-     */
-    if (multi->has_las)
-        F_SET(dsk, WT_PAGE_LAS_UPDATE);
-
     dsk->unused = 0;
 
     dsk->version = __wt_process.page_version_ts ? WT_PAGE_VERSION_TS : WT_PAGE_VERSION_ORIG;
@@ -1816,14 +1809,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_PAGE *page;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    bool block_las_evict, orig_has_las;
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
 
     btree = S2BT(session);
     page = r->page;
-    orig_has_las = r->ref->has_las;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
@@ -1866,19 +1857,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     /* Check if there are saved updates that might belong to this block. */
     if (r->supd_next != 0)
         WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block));
-
-    /*
-     * If we are configured to do lookaside eviction for this block or if the original page has
-     * lookaside content, accumulate the range of timestamps seen so far.
-     *
-     * If there is lookaside information attached to the original page then there are records for
-     * this page in the lookaside that need to be accounted into the lookaside information for the
-     * replacement page. It is too expensive to figure out the exact content for the replacement
-     * page, so we take a superset of what is available to us.
-     */
-    block_las_evict = multi->supd != NULL && F_ISSET(r, WT_REC_LOOKASIDE);
-    if (orig_has_las || block_las_evict)
-        multi->has_las = true;
 
     /* Initialize the page header(s). */
     __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);
@@ -2295,7 +2273,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             r->multi->addr.addr = NULL;
             mod->mod_disk_image = r->multi->disk_image;
             r->multi->disk_image = NULL;
-            mod->mod_has_las = r->multi->has_las;
         } else {
             __wt_checkpoint_tree_reconcile_update(session, r->multi->addr.newest_durable_ts,
               r->multi->addr.oldest_start_ts, r->multi->addr.oldest_start_txn,

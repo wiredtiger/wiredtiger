@@ -391,22 +391,15 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          * memory, else discard the page.
          */
         if (mod->mod_disk_image == NULL) {
-            if (mod->mod_has_las) {
-                ref->has_las = mod->mod_has_las;
-                __wt_page_modify_clear(session, ref->page);
-                __wt_ref_out(session, ref);
-                WT_REF_SET_STATE(ref, WT_REF_LOOKASIDE);
-            } else {
-                __wt_ref_out(session, ref);
-                WT_REF_SET_STATE(ref, WT_REF_DISK);
-            }
+            __wt_page_modify_clear(session, ref->page);
+            __wt_ref_out(session, ref);
+            WT_REF_SET_STATE(ref, WT_REF_DISK);
         } else {
             /*
              * The split code works with WT_MULTI structures, build one for the disk image.
              */
             memset(&multi, 0, sizeof(multi));
             multi.disk_image = mod->mod_disk_image;
-            multi.has_las = mod->mod_has_las;
 
             WT_RET(__wt_split_rewrite(session, ref, &multi));
         }
@@ -439,9 +432,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      */
     WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
         switch (child->state) {
-        case WT_REF_DISK:      /* On-disk */
-        case WT_REF_DELETED:   /* On-disk, deleted */
-        case WT_REF_LOOKASIDE: /* On-disk, lookaside */
+        case WT_REF_DISK:    /* On-disk */
+        case WT_REF_DELETED: /* On-disk, deleted */
             break;
         default:
             return (__wt_set_return(session, EBUSY));
@@ -451,9 +443,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_INTL_FOREACH_REVERSE_BEGIN(session, parent->page, child)
     {
         switch (child->state) {
-        case WT_REF_DISK:      /* On-disk */
-        case WT_REF_DELETED:   /* On-disk, deleted */
-        case WT_REF_LOOKASIDE: /* On-disk, lookaside */
+        case WT_REF_DISK:    /* On-disk */
+        case WT_REF_DELETED: /* On-disk, deleted */
             break;
         default:
             return (__wt_set_return(session, EBUSY));
@@ -487,14 +478,6 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             active = __wt_page_del_active(session, child, true);
             child->state = WT_REF_DELETED;
             if (active)
-                return (__wt_set_return(session, EBUSY));
-            break;
-        case WT_REF_LOOKASIDE: /* On-disk, lookaside */
-                               /*
-                                * If the lookaside history is obsolete, the reference can be
-                                * ignored.
-                                */
-            if (child->has_las)
                 return (__wt_set_return(session, EBUSY));
             break;
         default:

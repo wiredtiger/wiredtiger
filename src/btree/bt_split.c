@@ -1594,12 +1594,6 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         break;
     }
 
-    /*
-     * There can be an address or a disk image or both, but if there is neither, there must be a
-     * backing lookaside page.
-     */
-    WT_ASSERT(session, multi->has_las || multi->addr.addr != NULL || multi->disk_image != NULL);
-
     /* If closing the file, there better be an address. */
     WT_ASSERT(session, !closing || multi->addr.addr != NULL);
 
@@ -1634,15 +1628,6 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         addr->type = multi->addr.type;
 
         WT_REF_SET_STATE(ref, WT_REF_DISK);
-    }
-
-    /*
-     * Copy any associated lookaside reference, potentially resetting WT_REF.state. Regardless of a
-     * backing address, WT_REF_LOOKASIDE overrides WT_REF_DISK.
-     */
-    if (multi->has_las) {
-        ref->has_las = multi->has_las;
-        WT_REF_SET_STATE(ref, WT_REF_LOOKASIDE);
     }
 
     /*
@@ -1722,10 +1707,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->state = WT_REF_MEM;
     child->addr = ref->addr;
 
-    /* If there is lookaside content associated with the page being split, copy it to the child. */
-    if (ref->has_las)
-        child->has_las = ref->has_las;
-
     WT_ERR_ASSERT(session, ref->page_del == NULL, WT_PANIC,
       "unexpected page-delete structure when splitting a page");
 
@@ -1787,10 +1768,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child = split_ref[1];
     child->page = right;
     child->state = WT_REF_MEM;
-
-    /* If there is lookaside content associated with the page being split, copy it to the child. */
-    if (ref->has_las)
-        child->has_las = ref->has_las;
 
     if (type == WT_PAGE_ROW_LEAF) {
         WT_ERR(__wt_row_ikey(

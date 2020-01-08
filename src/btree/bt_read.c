@@ -106,9 +106,9 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 
     /*
      * Attempt to set the state to WT_REF_READING for normal reads, or WT_REF_LOCKED, for deleted
-     * pages or pages with lookaside entries. The difference is that checkpoints can skip over clean
-     * pages that are being read into cache, but need to wait for deletes or lookaside updates to be
-     * resolved (in order for checkpoint to write the correct version of the page).
+     * pages. The difference is that checkpoints can skip over clean pages that are being read into
+     * cache, but need to wait for deletes to be resolved (in order for checkpoint to write the
+     * correct version of the page).
      *
      * If successful, we've won the race, read the page.
      */
@@ -117,7 +117,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         new_state = WT_REF_READING;
         break;
     case WT_REF_DELETED:
-    case WT_REF_LOOKASIDE:
         new_state = WT_REF_LOCKED;
         break;
     default:
@@ -129,8 +128,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     final_state = WT_REF_MEM;
 
     /*
-     * Get the address: if there is no address, the page was deleted or had only lookaside entries,
-     * and a subsequent search or insert is forcing re-creation of the name space.
+     * Get the address: if there is no address, the page was deleted and a subsequent search or
+     * insert is forcing re-creation of the name space.
      */
     __wt_ref_info(session, ref, &addr, &addr_size, NULL);
     if (addr == NULL) {
@@ -171,19 +170,11 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, true, &notused));
     tmp.mem = NULL;
 
-    /*
-     * The WT_REF lookaside state should match the page-header state of any page we read.
-     */
-    WT_ASSERT(session, previous_state != WT_REF_LOOKASIDE || ref->page->dsk == NULL ||
-        F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE));
-
 skip_read:
     switch (previous_state) {
     case WT_REF_DELETED:
         /* Move all records to a deleted state. */
         WT_ERR(__wt_delete_page_instantiate(session, ref));
-        break;
-    case WT_REF_LOOKASIDE:
         break;
     }
 
@@ -255,23 +246,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             if (LF_ISSET(WT_READ_DELETED_CHECK) && __wt_delete_page_skip(session, ref, false))
                 return (WT_NOTFOUND);
             goto read;
-        case WT_REF_LOOKASIDE:
-            if (LF_ISSET(WT_READ_CACHE)) {
-                if (!LF_ISSET(WT_READ_LOOKASIDE))
-                    return (WT_NOTFOUND);
-                /*
-                 * If we skip a lookaside page, the tree cannot be left clean: lookaside entries
-                 * must be resolved before the tree can be discarded.
-                 */
-                if (__wt_las_page_skip(session, ref)) {
-                    __wt_tree_modify_set(session);
-                    return (WT_NOTFOUND);
-                }
-            }
-            goto read;
         case WT_REF_DISK:
             /* Limit reads to cache-only, or internal pages only. */
-            if (LF_ISSET(WT_READ_CACHE) ||
+            if ((LF_ISSET(WT_READ_CACHE) && !LF_ISSET(WT_READ_LOOKASIDE)) ||
               (LF_ISSET(WT_READ_CACHE_LEAF) && __wt_ref_is_leaf(session, ref)))
                 return (WT_NOTFOUND);
 

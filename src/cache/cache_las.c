@@ -397,32 +397,6 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __wt_las_page_skip --
- *     Check if we can skip reading a page with lookaside entries, where the page needs to be locked
- *     before checking.
- */
-bool
-__wt_las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    uint32_t previous_state;
-    bool skip;
-
-    if ((previous_state = ref->state) != WT_REF_LOOKASIDE)
-        return (false);
-
-    if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-        return (false);
-
-    skip = __wt_las_page_skip_locked(session, ref);
-
-    /* Restore the state and push the change. */
-    WT_REF_SET_STATE(ref, previous_state);
-    WT_FULL_BARRIER();
-
-    return (skip);
-}
-
-/*
  * __las_insert_updates_verbose --
  *     Display a verbose message once per checkpoint with details about the cache state when
  *     performing a lookaside table write.
@@ -771,10 +745,8 @@ err:
 
     __las_restore_isolation(session, saved_isolation);
 
-    if (ret == 0 && insert_cnt > 0) {
-        multi->has_las = true;
+    if (ret == 0 && insert_cnt > 0)
         __las_insert_updates_verbose(session, btree);
-    }
 
     __wt_scr_free(session, &key);
     /* modify_value is allocated in __wt_modify_pack. Free it if it is allocated. */

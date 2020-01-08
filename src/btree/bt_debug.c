@@ -444,8 +444,6 @@ __wt_debug_disk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char 
         WT_ERR(ds->f(ds, ", empty-all"));
     if (F_ISSET(dsk, WT_PAGE_EMPTY_V_NONE))
         WT_ERR(ds->f(ds, ", empty-none"));
-    if (F_ISSET(dsk, WT_PAGE_LAS_UPDATE))
-        WT_ERR(ds->f(ds, ", LAS-update"));
 
     WT_ERR(ds->f(ds, ", generation %" PRIu64 "\n", dsk->write_gen));
 

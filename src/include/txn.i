@@ -817,7 +817,7 @@ __wt_txn_read(
 lookaside:
     /* If there's no visible update in the update chain or ondisk, check the lookaside file. */
     WT_ASSERT(session, upd == NULL);
-    if (cbt->ref->has_las)
+    if (F_ISSET(S2C(session), WT_CONN_LOOKASIDE_OPEN))
         WT_RET_NOTFOUND_OK(__wt_find_lookaside_upd(session, cbt, &upd, false));
 
     /* There is no BIRTHMARK in lookaside file. */
