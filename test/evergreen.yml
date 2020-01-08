@@ -1723,7 +1723,7 @@ tasks:
           extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row alter=1 backups=1 compaction=1 data_extend=1 prepare=1 rebalance=1 salvage=1 statistics=1 statistics_server=1 verify=1
       - func: "format test"
         vars:
-          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row direct_io=1 firstfit=1 internal_key_truncation=1
+          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row firstfit=1 internal_key_truncation=1
       - func: "format test"
         vars:
           extra_args: leak_memory=0 mmap=1 file_type=row checkpoints=0 in_memory=1 reverse=1 truncate=1
@@ -2067,6 +2067,39 @@ tasks:
             cp ../../../bench/wtperf/split_heavy.wtperf .
             ./wtperf -O ./split_heavy.wtperf -o verbose=2
 
+  - name: static-wt-build-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --disable-shared --with-builtins=snappy,zlib
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+
+            # Delete wt util
+            rm -f wt
+            # Build static wt util
+            make CC='eval "g++ -static"' ${smp_command|}
+            # -V option displays Wiredtiger library version
+            ./wt -V
+
+            if [ $? -ne 0 ]; then
+              echo "Error, WT util is not generated or is not functioning"
+              exit 1
+            fi
+
+            ldd wt || wt_static_build=1
+
+            if [ $wt_static_build -ne 1 ]; then
+              echo "Error, WT util is not statically linked"
+              exit 1
+            fi
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -2103,6 +2136,7 @@ buildvariants:
     - name: format-stress-test
     - name: format-stress-smoke-test
     - name: checkpoint-stress-test
+    - name: static-wt-build-test
 
 - name: ubuntu1804-compilers
   display_name: Ubuntu 18.04 Compilers
