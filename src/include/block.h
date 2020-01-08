@@ -145,7 +145,9 @@ struct __wt_block_mods {
     uint64_t *alloc_list;
     uint64_t alloc_list_entries;
     size_t alloc_size;
-#define WT_BLOCK_MODS_VALID 0x0u /* Entry is valid */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_BLOCK_MODS_VALID 0x1u /* Entry is valid */
+                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };
 

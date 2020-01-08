@@ -388,6 +388,8 @@ __wt_meta_ckptlist_get(
         F_SET(ckpt, WT_CKPT_ADD);
         if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
             F_SET(ckpt, WT_CKPT_BLOCK_MODS);
+        __wt_verbose(session, WT_VERB_BACKUP, "CKPT_GET: flags conn 0x%x ckpt %p 0x%x",
+          (int)S2C(session)->flags, (void *)ckpt, (int)ckpt->flags);
     }
 
     /* Return the array to our caller. */
@@ -582,7 +584,6 @@ int
 __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM *buf)
 {
     WT_CKPT *ckpt;
-    uint64_t entries, *p;
     const char *sep;
 
     sep = "";
@@ -618,24 +619,14 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         WT_RET(__wt_buf_catfmt(session, buf,
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
           ",newest_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",oldest_start_txn=%" PRId64
-          ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64 ",write_gen=%" PRId64
-          ",modified_blocks=(",
+          ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64 ",write_gen=%" PRId64 ")",
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->newest_durable_ts, (int64_t)ckpt->oldest_start_ts,
           (int64_t)ckpt->oldest_start_txn, (int64_t)ckpt->newest_stop_ts,
           (int64_t)ckpt->newest_stop_txn, (int64_t)ckpt->write_gen));
-        /*
-         * We only write out the first two pieces of information. We don't need to write out the
-         * piece that we return to the user indicating a range.
-         */
-        for (entries = 0, p = ckpt->alloc_list; entries < ckpt->alloc_list_entries;
-             ++entries, p += WT_BACKUP_INCR_COMPONENTS)
-            WT_RET(__wt_buf_catfmt(session, buf, "%s%" PRId64 ",%" PRId64, entries == 0 ? "" : ",",
-              (int64_t)p[0], (int64_t)p[1]));
-
-        WT_RET(__wt_buf_catfmt(session, buf, "))"));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
+    __wt_verbose(session, WT_VERB_BACKUP, "CKPTLIST: buf: %s", buf->mem);
 
     return (0);
 }
@@ -653,23 +644,28 @@ __ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *bl
     bool valid;
 
     valid = false;
-    for (i = 0; i < WT_BLKINCR_MAX; ++i, ++blk_mods)
+    WT_RET(__wt_buf_catfmt(session, buf, ")"));
+    __wt_verbose(session, WT_VERB_BACKUP, "META: called blk_mods %p", (void *)blk_mods);
+    for (i = 0; i < WT_BLKINCR_MAX; ++i, ++blk_mods) {
+        __wt_verbose(session, WT_VERB_BACKUP, "META: flags %d", (int)blk_mods->flags);
         if (F_ISSET(blk_mods, WT_BLOCK_MODS_VALID))
             valid = true;
+    }
     if (!valid)
         return (0);
 
     WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_mods=("));
     for (i = 0, blk = blk_mods; i < WT_BLKINCR_MAX; ++i, ++blk) {
-        WT_RET(__wt_buf_catfmt(session, buf,
-	  "%s%s=(id=%" PRIu32 ",blocks=(", i == 0 ? "" : ",", blk->id_str, i));
-        for(entries = 0, p = blk->alloc_list; entries < blk->alloc_list_entries;
-	  ++entries, p += WT_BACKUP_INCR_COMPONENTS)
-	    WT_RET(__wt_buf_catfmt(session, buf, "%s%" PRId64 ",%" PRId64, entries == 0 ? "" : ",",
+        WT_RET(__wt_buf_catfmt(
+          session, buf, "%s%s=(id=%" PRIu32 ",blocks=(", i == 0 ? "" : ",", blk->id_str, i));
+        for (entries = 0, p = blk->alloc_list; entries < blk->alloc_list_entries;
+             ++entries, p += WT_BACKUP_INCR_COMPONENTS)
+            WT_RET(__wt_buf_catfmt(session, buf, "%s%" PRId64 ",%" PRId64, entries == 0 ? "" : ",",
               (int64_t)p[0], (int64_t)p[1]));
-	WT_RET(__wt_buf_catfmt(session, buf, "))"));
+        WT_RET(__wt_buf_catfmt(session, buf, "))"));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
+    __wt_verbose(session, WT_VERB_BACKUP, "META: buf: %s", buf->mem);
     return (0);
 }
 

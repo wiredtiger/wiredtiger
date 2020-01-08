@@ -686,12 +686,14 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, u_int i)
     /*
      * Check if the global entry is valid at our index.
      */
+    __wt_verbose(session, WT_VERB_BACKUP, "VALID: blk %p blk_mod %p i %d flags 0x%x", (void *)blk,
+      (void *)blk_mod, i, (int)blk->flags);
     if (!F_ISSET(blk, WT_BLKINCR_VALID)) {
         free = true;
         setup = false;
     } else {
         if (F_ISSET(blk_mod, WT_BLOCK_MODS_VALID) &&
-	  WT_STRING_MATCH(blk_mod->id_str, blk->id_str, strlen(blk->id_str))) {
+          WT_STRING_MATCH(blk_mod->id_str, blk->id_str, strlen(blk->id_str))) {
             /* We match, keep our entry and don't set up. */
             setup = false;
             free = false;
@@ -702,6 +704,8 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, u_int i)
         }
     }
 
+    __wt_verbose(session, WT_VERB_BACKUP, "VALID: blk %p i %d free %d setup %d", (void *)blk,
+      (int)i, free, setup);
     /*
      * Free any old information if we need to do so.
      */
@@ -722,6 +726,8 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, u_int i)
         blk_mod->alloc_list = NULL;
         blk_mod->alloc_size = 0;
         F_SET(blk_mod, WT_BLOCK_MODS_VALID);
+        __wt_verbose(session, WT_VERB_BACKUP, "VALID SETUP: blk_mod %p id_str %s flags 0x%x",
+          (void *)blk_mod, blk_mod->id_str, (int)blk_mod->flags);
     }
     return (0);
 }
@@ -746,9 +752,12 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
     if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
         ++entries;
 
+    __wt_verbose(session, WT_VERB_BACKUP, "ADD_BLK: entries %" PRIu64, entries);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ci->ckpt_mods[i];
         WT_RET(__ckpt_valid_blk_mods(session, blk_mod, i));
+        __wt_verbose(session, WT_VERB_BACKUP, "ADD_BLK: blk_mod %p flags 0x%x", (void *)blk_mod,
+          blk_mod->flags);
         /*
          * If there is no information at this entry, we're done.
          */
@@ -757,6 +766,8 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 
         start = blk_mod->alloc_list_entries;
         end = start + entries;
+        __wt_verbose(
+          session, WT_VERB_BACKUP, "ADD_BLK: start %" PRIu64 " end %" PRIu64, start, end);
         if (blk_mod->alloc_size == 0) {
             WT_RET(__wt_calloc_def(session, end * WT_BACKUP_INCR_COMPONENTS, &list));
             blk_mod->alloc_list = list;
@@ -767,6 +778,8 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
             list = &blk_mod->alloc_list[start * WT_BACKUP_INCR_COMPONENTS];
         }
         blk_mod->alloc_list_entries = end;
+        __wt_verbose(
+          session, WT_VERB_BACKUP, "ADD_BLK: size %" PRIu64, (uint64_t)blk_mod->alloc_size);
         WT_EXT_FOREACH (ext, ci->alloc.off) {
             *list++ = (uint64_t)ext->off;
             *list++ = (uint64_t)ext->size;
@@ -824,6 +837,8 @@ __ckpt_update(
      * If this is the final block, we append an incomplete copy of the checkpoint information to the
      * avail list for standalone retrieval.
      */
+    __wt_verbose(
+      session, WT_VERB_BACKUP, "CKPT_UPDATE: ckpt %p live %d", (void *)ckpt, (int)is_live);
     if (is_live) {
         /*
          * Copy the INCOMPLETE checkpoint information into the checkpoint.
@@ -867,8 +882,11 @@ __ckpt_update(
      * If this is the live system, the hot backup code needs a list of the blocks we've written for
      * this checkpoint (including the blocks we allocated to write the extent lists).
      */
+    __wt_verbose(
+      session, WT_VERB_BACKUP, "CKPT_UPDATE: ckpt %p flags %x", (void *)ckpt, (int)ckpt->flags);
     if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS)) {
         WT_ASSERT(session, is_live == true);
+        __wt_verbose(session, WT_VERB_BACKUP, "CKPT_UPDATE: call ADD_BLK %p", (void *)ci);
         WT_RET(__ckpt_add_blk_mods(session, ci));
     }
 
