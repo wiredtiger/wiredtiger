@@ -345,58 +345,6 @@ __wt_las_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t se
 }
 
 /*
- * __wt_las_page_skip_locked --
- *     Check if we can skip reading a page with lookaside entries, where the page is already locked.
- */
-bool
-__wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_ADDR *addr;
-    WT_TXN *txn;
-
-    txn = &session->txn;
-
-    /*
-     * Skip lookaside pages if reading without a timestamp and all the updates in lookaside are in
-     * the past.
-     *
-     * Lookaside eviction preferentially chooses the newest updates when creating page images with
-     * no stable timestamp. If a stable timestamp has been set, we have to visit the page because
-     * eviction chooses old version of records in that case.
-     *
-     * One case where we may need to visit the page is if lookaside eviction is active in tree 2
-     * when a checkpoint has started and is working its way through tree 1. In that case, lookaside
-     * may have created a page image with updates in the future of the checkpoint.
-     *
-     * We also need to instantiate a lookaside page if this is an update operation in progress or
-     * transaction is in prepared state.
-     */
-    if (F_ISSET(txn, WT_TXN_PREPARE | WT_TXN_UPDATE))
-        return (false);
-
-    if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
-        return (false);
-
-    /*
-     * Everything in lookaside must be older than the newest stop transaction id for this page. If
-     * we're trying to read past that transaction id then we can ignore this page's history.
-     */
-    if ((addr = (WT_ADDR *)ref->addr) != NULL &&
-      (addr->newest_stop_txn <= txn->snap_min || addr->oldest_start_txn > txn->snap_max))
-        return (true);
-
-    /*
-     * Otherwise, if not reading at a timestamp, the page's history is in the past, so the page
-     * image is correct if it contains the most recent versions of everything and nothing was
-     * prepared.
-     */
-    if (!F_ISSET(txn, WT_TXN_HAS_TS_READ))
-        return (true);
-
-    return (false);
-}
-
-/*
  * __las_insert_updates_verbose --
  *     Display a verbose message once per checkpoint with details about the cache state when
  *     performing a lookaside table write.
