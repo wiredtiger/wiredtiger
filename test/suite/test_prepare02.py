@@ -60,18 +60,15 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor("table:mytable", None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.alter("table:mytable",
-                "access_pattern_hint=random"), msg)
+            lambda: self.session.alter("table:mytable", "access_pattern_hint=random"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.create("table:mytable1",
-                "key_format=S,value_format=S"), msg)
+            lambda: self.session.create("table:mytable1", "key_format=S,value_format=S"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.compact("table:mytable"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.drop("table:mytable", None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.join(cursor, cursor,
-                "compare=gt,count=10"), msg)
+            lambda: self.session.join(cursor, cursor, "compare=gt,count=10"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.log_flush("sync=on"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -79,15 +76,13 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.rebalance("table:mytable", None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.rename("table:mytable", "table:mynewtable",
-                None), msg)
+            lambda: self.session.rename("table:mytable", "table:mynewtable", None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.reset(), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.salvage("table:mytable", None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.truncate("table:mytable",
-                None, None, None), msg)
+            lambda: self.session.truncate("table:mytable", None, None, None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.upgrade("table:mytable", None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -97,8 +92,7 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.prepare_transaction("prepare_timestamp=2a"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction(
-                "read_timestamp=2a"), msg)
+            lambda: self.session.timestamp_transaction("read_timestamp=2a"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.checkpoint(), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
