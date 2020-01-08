@@ -18,7 +18,6 @@ static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
 static int __rec_split_row_promote(WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
 static int __rec_split_write(WT_SESSION_IMPL *, WT_RECONCILE *, WT_REC_CHUNK *, WT_ITEM *, bool);
-static int __rec_write_check_complete(WT_RECONCILE *, int);
 static void __rec_write_page_status(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_write_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int __rec_write_wrapup_err(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
@@ -189,8 +188,14 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_LAS(btree))
         __wt_cache_update_lookaside_score(session, r->updates_seen, r->updates_unstable);
 
-    /* Check for a successful reconciliation. */
-    WT_TRET(__rec_write_check_complete(r, ret));
+    /*
+     * Tests in this function are lookaside tests and tests to decide if rewriting a page in memory
+     * is worth doing. In-memory configurations can't use a lookaside table, and we ignore page
+     * rewrite desirability checks for in-memory eviction because a small cache can force us to
+     * rewrite every possible page.
+     */
+    if (F_ISSET(r, WT_REC_IN_MEMORY))
+        ret = 0;
 
     /* Wrap up the page reconciliation. */
     if (ret == 0 && (ret = __rec_write_wrapup(session, r, page)) == 0)
@@ -268,28 +273,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * again as part of that walk.
      */
     return (__wt_page_parent_modify_set(session, ref, true));
-}
-
-/*
- * __rec_write_check_complete --
- *     Check that reconciliation should complete.
- */
-static int
-__rec_write_check_complete(WT_RECONCILE *r, int tret)
-{
-    /*
-     * Tests in this function are lookaside tests and tests to decide if rewriting a page in memory
-     * is worth doing. In-memory configurations can't use a lookaside table, and we ignore page
-     * rewrite desirability checks for in-memory eviction because a small cache can force us to
-     * rewrite every possible page.
-     */
-    if (F_ISSET(r, WT_REC_IN_MEMORY))
-        return (0);
-
-    /* Don't continue if we have already given up. */
-    WT_RET(tret);
-
-    return (0);
 }
 
 /*
