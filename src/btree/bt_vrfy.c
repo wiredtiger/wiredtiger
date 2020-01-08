@@ -390,14 +390,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
                   addr->newest_stop_txn));
         }
     }
-
-    /* Optionally dump the timestamp range. */
-    if (vs->dump_timestamps) {
-        addr = ref->addr;
-        if (addr != NULL)
-            WT_RET(__wt_msg(session, "<%lu, %lu>", addr->oldest_start_ts, addr->newest_stop_ts));
-    }
-
+    
     /* Track the shape of the tree. */
     if (WT_PAGE_IS_INTERNAL(page))
         ++vs->depth_internal[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];
