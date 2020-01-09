@@ -1683,7 +1683,7 @@ struct __wt_session {
 	 * @config{dump_pages, Display the contents of in-memory pages as they are verified\, using
 	 * the application's message handler\, intended for debugging., a boolean flag; default \c
 	 * false.}
-	 * @config{dump_timestamps, Display aggregated timestamp ranges as pages are verified\,
+	 * @config{dump_time_pairs, Display aggregated time pair ranges as pages are verified\,
 	 * using the application's message handler\, intended for debugging., a boolean flag;
 	 * default \c false.}
 	 * @config{strict, Treat any verification problem as an error; by default\, verify will

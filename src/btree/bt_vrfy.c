@@ -22,13 +22,13 @@ typedef struct {
 
 #define WT_VRFY_DUMP(vs)                                                                 \
     ((vs)->dump_address || (vs)->dump_blocks || (vs)->dump_layout || (vs)->dump_pages || \
-      (vs)->dump_timestamps)
+      (vs)->dump_time_pairs)
 
     bool dump_address; /* Configure: dump special */
     bool dump_blocks;
     bool dump_layout;
     bool dump_pages;
-    bool dump_timestamps;
+    bool dump_time_pairs;
     /* Page layout information */
     uint64_t depth, depth_internal[100], depth_leaf[100];
 
@@ -63,8 +63,8 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
     vs->dump_pages = cval.val != 0;
 
-    WT_RET(__wt_config_gets(session, cfg, "dump_timestamps", &cval));
-    vs->dump_timestamps = cval.val != 0;
+    WT_RET(__wt_config_gets(session, cfg, "dump_time_pairs", &cval));
+    vs->dump_time_pairs = cval.val != 0;
 
 #if !defined(HAVE_DIAGNOSTIC)
     if (vs->dump_blocks || vs->dump_pages)
@@ -375,11 +375,11 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
       __wt_page_type_string(page->type));
 
     /* Optionally dump the address/timestamp information. */
-    if (vs->dump_address || vs->dump_timestamps) {
+    if (vs->dump_address || vs->dump_time_pairs) {
         WT_RET(__wt_msg(session, "%s", __wt_page_type_string(page->type)));
         if (vs->dump_address)
             WT_RET(__wt_msg(session, "\t%s", __wt_page_addr_string(session, ref, vs->tmp1)));
-        if (vs->dump_timestamps) {
+        if (vs->dump_time_pairs) {
             addr = ref->addr;
             if (addr != NULL)
                 WT_RET(__wt_msg(session, "\t<%lx:%lx, %lx:%lx>", addr->oldest_start_ts,
