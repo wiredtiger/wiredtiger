@@ -128,7 +128,7 @@ __dump_page_col_var(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ERR(__wt_illegal_value(session, unpack->raw));
         }
         WT_ERR(__wt_msg(session, "T: <%s:%" PRIu64 ", %s:%" PRIu64 ">",
-          __wt_timestamp_to_string(unpack->start_ts, ts_string[0]), unpack->start_txn, 
+          __wt_timestamp_to_string(unpack->start_ts, ts_string[0]), unpack->start_txn,
           __wt_timestamp_to_string(unpack->stop_ts, ts_string[1]), unpack->stop_txn));
         recno += rle;
     }
@@ -178,7 +178,7 @@ __dump_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
             WT_ERR(__wt_illegal_value(session, unpack->raw));
         }
         WT_ERR(__wt_msg(session, "T: <%s:%" PRIu64 ", %s:%" PRIu64 ">",
-          __wt_timestamp_to_string(unpack->start_ts, ts_string[0]), unpack->start_txn, 
+          __wt_timestamp_to_string(unpack->start_ts, ts_string[0]), unpack->start_txn,
           __wt_timestamp_to_string(unpack->stop_ts, ts_string[1]), unpack->stop_txn));
     }
 
