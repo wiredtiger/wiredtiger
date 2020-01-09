@@ -2103,13 +2103,10 @@ tasks:
   - name: compatibility-test-for-wiredtiger-releases
     commands:
       - func: "get project"
-      - command: shell.exec
+      - command: subprocess.exec
         params:
           working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-            test/evergreen/compatibility_test_for_wiredtiger_releases.sh
+          command: bash test/evergreen/compatibility_test_for_wiredtiger_releases.sh
 
 buildvariants:
 - name: ubuntu1804
