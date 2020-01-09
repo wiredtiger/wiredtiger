@@ -638,11 +638,18 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
     WT_DECL_RET;
     WT_TXN *txn;
     WT_UPDATE *upd;
+    uint32_t txn_flags;
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
     txn = &session->txn;
 
     WT_RET(__wt_open_cursor(session, op->btree->dhandle->name, NULL, open_cursor_cfg, &cursor));
+
+    /*
+     * Transaction error and prepare are cleared temporarily as cursor functions are not allowed
+     * after an error or a prepared transaction.
+     */
+    txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR | WT_TXN_PREPARE);
 
     switch (op->type) {
     case WT_TXN_OP_BASIC_COL:
@@ -651,13 +658,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
         break;
     case WT_TXN_OP_BASIC_ROW:
     case WT_TXN_OP_INMEM_ROW:
-        /*
-         * Transaction prepare is cleared temporarily as cursor functions are not allowed for
-         * prepared transactions.
-         */
-        F_CLR(txn, WT_TXN_PREPARE);
+        F_CLR(txn, txn_flags);
         __wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
-        F_SET(txn, WT_TXN_PREPARE);
+        F_SET(txn, txn_flags);
         break;
     case WT_TXN_OP_NONE:
     case WT_TXN_OP_REF_DELETE:
@@ -667,8 +670,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
         break;
     }
 
+    F_CLR(txn, txn_flags);
     WT_WITH_BTREE(
       session, op->btree, ret = __wt_btcur_search_uncommitted((WT_CURSOR_BTREE *)cursor, &upd));
+    F_SET(txn, txn_flags);
     WT_ERR(ret);
 
     /* If we haven't found anything then there's an error. */
@@ -1111,6 +1116,14 @@ err:
      */
     if (locked)
         __wt_readunlock(session, &txn_global->visibility_rwlock);
+
+    /*
+     * Check for a prepared transaction, and quit: we can't ignore the error and we can't roll back
+     * a prepared transaction.
+     */
+    if (prepare)
+        WT_PANIC_RET(session, ret, "failed to commit prepared transaction, failing the system");
+
     WT_TRET(__wt_txn_rollback(session, cfg));
     return (ret);
 }
