@@ -1595,9 +1595,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         break;
     }
 
-    /*
-     * There can be an address or a disk image or both.
-     */
+    /* There can be an address or a disk image or both. */
     WT_ASSERT(session, multi->addr.addr != NULL || multi->disk_image != NULL);
 
     /* If closing the file, there better be an address. */
