@@ -1359,6 +1359,7 @@ methods = {
         using the application's message handler, intended for debugging''',
         type='boolean'),
 <<<<<<< HEAD
+<<<<<<< HEAD
     Config('dump_time_pairs', 'false', r'''
         Display aggregated time pair ranges as pages are verified,
         using the application's message handler, intended for debugging.
@@ -1366,6 +1367,10 @@ methods = {
 =======
     Config('dump_timestamps', 'false', r'''
         Display aggregated timestamp ranges as pages are verified,
+=======
+    Config('dump_time_pairs', 'false', r'''
+        Display aggregated time pair ranges as pages are verified,
+>>>>>>> Rename timestamps to time pairs
         using the application's message handler, intended for debugging''',
 >>>>>>> WT-5345 Add dump timestamp to wt verify config options
         type='boolean'),
