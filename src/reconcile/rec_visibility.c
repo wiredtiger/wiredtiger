@@ -183,7 +183,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t 
         save_upd = true;
 
     /* No need to save updates if everything is globally visible. */
-    return save_upd && __wt_txn_visible_all(session, max_txn, max_ts);
+    return save_upd && !__wt_txn_visible_all(session, max_txn, max_ts);
 }
 
 /*
