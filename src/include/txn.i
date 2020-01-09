@@ -759,6 +759,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     size_t size;
 
     WT_CLEAR(buf);
+    start.txnid = WT_TXN_NONE;
+    start.timestamp = WT_TS_NONE;
+    stop.txnid = WT_TXN_MAX;
+    stop.timestamp = WT_TS_MAX;
 
     *updp = NULL;
     for (; upd != NULL; upd = upd->next) {
