@@ -2100,6 +2100,17 @@ tasks:
               exit 1
             fi
 
+  - name: compatibility-test-for-wiredtiger-releases
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            test/evergreen/compatibility_test_for_wiredtiger_releases.sh
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -2234,6 +2245,7 @@ buildvariants:
   - ubuntu1804-test
   tasks:
     - name: compatibility-test-for-mongodb-releases
+    - name: compatibility-test-for-wiredtiger-releases
 
 - name: windows-64
   display_name: Windows 64-bit
