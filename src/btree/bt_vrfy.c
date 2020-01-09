@@ -382,7 +382,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
         if (vs->dump_timestamps) {
             addr = ref->addr;
             if (addr != NULL)
-                WT_RET(__wt_msg(session, "\t<%lx:%lx, %lx:%lx>", addr->oldest_start_ts, 
+                WT_RET(__wt_msg(session, "\t<%lx:%lx, %lx:%lx>", addr->oldest_start_ts,
                   addr->oldest_start_txn, addr->newest_stop_ts, addr->newest_stop_txn));
         }
     }
