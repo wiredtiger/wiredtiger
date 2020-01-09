@@ -1325,7 +1325,7 @@ methods = {
         behavior (for example, a leaked block)''',
         type='boolean')
 ]),
-
+'WT_SESSION.dump' : Method([]),
 'WT_SESSION.begin_transaction' : Method([
     Config('ignore_prepare', 'false', r'''
         whether to ignore the updates by other prepared transactions as part of

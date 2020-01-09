@@ -28,6 +28,7 @@ src/btree/bt_discard.c
 src/btree/bt_handle.c
 src/btree/bt_huffman.c
 src/btree/bt_import.c
+src/btree/bt_inspect.c
 src/btree/bt_io.c
 src/btree/bt_misc.c
 src/btree/bt_ovfl.c

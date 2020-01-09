@@ -25,6 +25,7 @@ static int dump_table_config(WT_SESSION *, WT_CURSOR *, WT_CURSOR *, const char 
 static int dump_table_parts_config(WT_SESSION *, WT_CURSOR *, const char *, const char *, bool);
 static int dup_json_string(const char *, char **);
 static int print_config(WT_SESSION *, const char *, const char *, bool, bool);
+static int dump_internal(WT_SESSION *, const char *, const char *);
 static int usage(void);
 
 static FILE *fp;
@@ -38,14 +39,14 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     WT_SESSION_IMPL *session_impl;
     int ch, i;
     char *checkpoint, *ofile, *p, *simpleuri, *uri;
-    bool hex, json, reverse;
+    bool hex, json, reverse, internal;
 
     session_impl = (WT_SESSION_IMPL *)session;
 
     cursor = NULL;
     checkpoint = ofile = simpleuri = uri = NULL;
-    hex = json = reverse = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "c:f:jrx")) != EOF)
+    hex = json = reverse = internal = false;
+    while ((ch = __wt_getopt(progname, argc, argv, "c:f:jrxi")) != EOF)
         switch (ch) {
         case 'c':
             checkpoint = __wt_optarg;
@@ -61,6 +62,9 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             break;
         case 'x':
             hex = true;
+            break;
+        case 'i':
+            internal = true;
             break;
         case '?':
         default:
@@ -79,6 +83,10 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         return (usage());
     }
 
+    if (internal && (reverse || json || hex || ofile != NULL || checkpoint != NULL)) {
+        fprintf(stderr, "%s: the -i option does not support other flags yet\n", progname);
+        return (usage());
+    }
     /* Open any optional output file. */
     if (ofile == NULL)
         fp = stdout;
@@ -99,17 +107,11 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 
         if ((uri = util_uri(session, argv[i], "table")) == NULL)
             goto err;
-
         WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
         if (checkpoint != NULL)
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
         WT_ERR(
           __wt_buf_catfmt(session_impl, tmp, "dump=%s", json ? "json" : (hex ? "hex" : "print")));
-        if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
-            fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
-              session->strerror(session, ret));
-            goto err;
-        }
 
         if ((simpleuri = strdup(uri)) == NULL) {
             (void)util_err(session, errno, NULL);
@@ -117,19 +119,28 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         }
         if ((p = strchr(simpleuri, '(')) != NULL)
             *p = '\0';
-        if (dump_config(session, simpleuri, cursor, hex, json) != 0)
-            goto err;
 
-        if (dump_record(cursor, reverse, json) != 0)
-            goto err;
-        if (json && dump_json_table_end(session) != 0)
-            goto err;
-
-        ret = cursor->close(cursor);
-        cursor = NULL;
-        if (ret != 0) {
-            (void)util_err(session, ret, NULL);
-            goto err;
+        /* Internal flag should be calling the session API and skip all other formatting */
+        if (internal) {
+            WT_ERR(dump_internal(session, uri, NULL));
+        } else {
+            if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
+                fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
+                session->strerror(session, ret));
+                goto err;
+            }
+            if (dump_config(session, simpleuri, cursor, hex, json) != 0)
+                goto err;
+            if (dump_record(cursor, reverse, json) != 0)
+                goto err;
+            if (json && dump_json_table_end(session) != 0)
+                goto err;
+            ret = cursor->close(cursor);
+            cursor = NULL;
+            if (ret != 0) {
+                (void)util_err(session, ret, NULL);
+                goto err;
+            }
         }
     }
     if (json && dump_json_end(session) != 0)
@@ -139,7 +150,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 err:
         ret = 1;
     }
-
     if (cursor != NULL && (ret = cursor->close(cursor)) != 0)
         ret = util_err(session, ret, NULL);
     if (ofile != NULL && (ret = fclose(fp)) != 0)
@@ -621,12 +631,29 @@ print_config(WT_SESSION *session, const char *key, const char *cfg, bool json, b
     return (0);
 }
 
+/*
+ * dump_internal --
+ *     Call session API to output a key/value pair and timestamps respectivcely, by entering the
+ *     internals of the BT.
+ */
+static int
+dump_internal(WT_SESSION *session, const char *uri, const char *config)
+{
+    WT_DECL_RET;
+    dump_prefix(session, false, false);
+    dump_suffix(session, false);
+    if ((ret = session->dump(session, uri, config)) != 0) {
+        (void)util_err(session, ret, "session.verify: %s", uri);
+    }
+    return (ret);
+}
+
 static int
 usage(void)
 {
     (void)fprintf(stderr,
       "usage: %s %s "
-      "dump [-jrx] [-c checkpoint] [-f output-file] uri\n",
+      "dump [-jrxi] [-c checkpoint] [-f output-file] uri\n",
       progname, usage_prefix);
     return (1);
 }
