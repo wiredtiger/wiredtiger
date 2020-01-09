@@ -58,7 +58,7 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->iface.value.data = &cbt->v;
     } else {
 restart_read:
-        WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd, true));
+        WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
         if (upd == NULL) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
@@ -115,7 +115,7 @@ new_page:
         cbt->ins = NULL;
     if (cbt->ins != NULL)
 restart_read:
-    WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd, false));
+    WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
     if (upd == NULL) {
         cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
         cbt->iface.value.data = &cbt->v;
@@ -157,7 +157,7 @@ new_page:
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 restart_read:
-        WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd, true));
+        WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
 
         if (upd == NULL)
             continue;
@@ -230,7 +230,7 @@ restart_read:
         cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
         upd = NULL;
         if (cbt->ins != NULL)
-            WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd, true));
+            WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
         if (upd != NULL) {
             if (upd->type == WT_UPDATE_TOMBSTONE) {
                 if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
@@ -356,7 +356,7 @@ restart_read_insert:
         if ((ins = cbt->ins) != NULL) {
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
-            WT_RET(__wt_txn_read(session, cbt, ins->upd, &upd, true));
+            WT_RET(__wt_txn_read(session, cbt, ins->upd, &upd));
             if (upd == NULL)
                 continue;
             if (upd->type == WT_UPDATE_TOMBSTONE) {
@@ -391,7 +391,7 @@ restart_read_insert:
 restart_read_page:
         rip = &page->pg_row[cbt->slot];
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
-        WT_RET(__wt_txn_read(session, cbt, WT_ROW_UPDATE(page, rip), &upd, false));
+        WT_RET(__wt_txn_read(session, cbt, WT_ROW_UPDATE(page, rip), &upd));
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
             if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                 ++cbt->page_deleted_count;
