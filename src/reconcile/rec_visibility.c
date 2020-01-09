@@ -156,7 +156,8 @@ err:
  *     Return if we need to save the update chain
  */
 static bool
-__rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t max_txn, wt_timestamp_t max_ts, uint64_t flags)
+__rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t max_txn,
+  wt_timestamp_t max_ts, uint64_t flags)
 {
     /* Always save updates for in-memory database. */
     if (LF_ISSET(WT_REC_IN_MEMORY))
