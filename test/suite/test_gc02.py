@@ -41,39 +41,6 @@ class test_gc02(test_gc_base):
     conn_config = 'cache_size=1GB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
-    def large_updates(self, uri, value, ds, nrows, commit_ts):
-        # Update a large number of records.
-        session = self.session
-        cursor = session.open_cursor(uri)
-        for i in range(1, nrows + 1):
-            session.begin_transaction()
-            cursor[ds.key(i)] = value
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-        cursor.close()
-
-    def large_modifies(self, uri, value, ds, location, nbytes, nrows, commit_ts):
-        # Load a slight modification.
-        session = self.session
-        cursor = session.open_cursor(uri)
-        session.begin_transaction()
-        for i in range(1, nrows):
-            cursor.set_key(i)
-            mods = [wiredtiger.Modify(value, location, nbytes)]
-            self.assertEqual(cursor.modify(mods), 0)
-        session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-        cursor.close()
-
-    def check(self, check_value, uri, nrows, read_ts):
-        session = self.session
-        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
-        cursor = session.open_cursor(uri)
-        count = 0
-        for k, v in cursor:
-            self.assertEqual(v, check_value)
-            count += 1
-        session.rollback_transaction()
-        self.assertEqual(count, nrows)
-
     def test_gc(self):
         nrows = 100000
 
@@ -92,12 +59,15 @@ class test_gc02(test_gc_base):
         self.large_updates(uri, bigvalue, ds, nrows, 10)
 
         # Check that all updates are seen
-        #self.check(bigvalue, uri, nrows, 20)
+        #self.check(bigvalue, uri, nrows, 10)
 
-        self.large_updates(uri, bigvalue2, ds, nrows, 20)
+        self.large_updates(uri, bigvalue2, ds, nrows, 100)
 
         # Check that the new updates are only seen after the update timestamp
         #self.check(bigvalue2, uri, nrows, 100)
+
+        # Check that old updates are seen
+        #self.check(bigvalue, uri, nrows, 10)
 
         # Checkpoint to ensure that the history store is checkpointed and no clean
         self.session.checkpoint()
@@ -116,19 +86,22 @@ class test_gc02(test_gc_base):
         self.large_modifies(uri, 'C', ds, 30, 1, nrows, 130)
 
         # set of update operations with increased timestamp
-        self.large_updates(uri, bigvalue2, ds, nrows, 150)
-
-        # Check that the new updates are only seen after the update timestamp
-        #self.check(bigvalue2, uri, nrows, 150)
+        self.large_updates(uri, bigvalue, ds, nrows, 150)
 
         # set of update operations with increased timestamp
-        self.large_updates(uri, bigvalue, ds, nrows, 180)
-
-        # Check that the new updates are only seen after the update timestamp
-        #self.check(bigvalue, uri, nrows, 180)
+        self.large_updates(uri, bigvalue2, ds, nrows, 180)
 
         # set of update operations with increased timestamp
-        self.large_updates(uri, bigvalue2, ds, nrows, 200)
+        self.large_updates(uri, bigvalue, ds, nrows, 200)
+
+        # Check that the new updates are only seen after the update timestamp
+        #self.check(bigvalue, uri, nrows, 150)
+
+        # Check that the new updates are only seen after the update timestamp
+        #self.check(bigvalue2, uri, nrows, 180)
+
+        # Check that the new updates are only seen after the update timestamp
+        #self.check(bigvalue, uri, nrows, 200)
 
         # Pin oldest and stable to timestamp 200.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(200) +
@@ -139,7 +112,7 @@ class test_gc02(test_gc_base):
         self.check_gc_stats()
 
         # Check that the new updates are only seen after the update timestamp
-        #self.check(bigvalue2, uri, nrows, 200)
+        #self.check(bigvalue, uri, nrows, 200)
 
         # When this limitation is fixed we'll need to uncomment the calls to self.check
         # and fix self.check_gc_stats.
