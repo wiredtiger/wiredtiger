@@ -404,10 +404,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      *
      * Additionally lookaside reconciliation is not set skip saving an update.
      *
-     * No need to save updates if everything is globally visible.
+     * When in eviction, save updates if we have uncommitted updates or we need to write to
+     * lookaside. When in checkpoint, save updates if we need to write to lookaside and we have
+     * selected an onpage value. No need to save updates if everything is globally visible.
      */
-    if ((F_ISSET(r, WT_REC_EVICT) || (F_ISSET(r, WT_REC_CHECKPOINT) &&
-                                       F_ISSET(r, WT_REC_LOOKASIDE) && upd_select->upd != NULL)) &&
+    if (((F_ISSET(r, WT_REC_EVICT) && (list_uncommitted || F_ISSET(r, WT_REC_LOOKASIDE))) ||
+          (F_ISSET(r, WT_REC_CHECKPOINT) && F_ISSET(r, WT_REC_LOOKASIDE) &&
+            upd_select->upd != NULL)) &&
       !__wt_txn_visible_all(session, max_txn, max_ts)) {
         WT_ASSERT(session, r->max_txn != WT_TS_NONE);
 
