@@ -8,8 +8,23 @@
 
 #include "wt_internal.h"
 
+static int __ckpt_load_blk_mods(WT_SESSION_IMPL *, const char *, WT_BLOCK_CKPT *);
 static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __ckpt_update(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT_BLOCK_CKPT *);
+
+/*
+ * __wt_block_get_blkmods --
+ *     Return a pointer to the live list of block modifications array.
+ */
+int
+__wt_block_get_blkmods(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_MODS *blkmodsp)
+{
+    WT_UNUSED(session);
+    if (blkmodsp == NULL)
+        return (0);
+    blkmodsp = &block->live.ckpt_mods[0];
+    return (0);
+}
 
 /*
  * __wt_block_ckpt_init --
@@ -42,6 +57,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
     WT_BLOCK_CKPT *ci, _ci;
     WT_DECL_RET;
     uint8_t *endp;
+    char *config;
 
     /*
      * Sometimes we don't find a root page (we weren't given a checkpoint, or the checkpoint was
@@ -50,6 +66,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
     *root_addr_sizep = 0;
 
     ci = NULL;
+    config = NULL;
 
     if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
         __wt_ckpt_verbose(session, block, "load", NULL, addr);
@@ -75,6 +92,8 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
 #endif
         ci = &block->live;
         WT_ERR(__wt_block_ckpt_init(session, ci, "live"));
+        WT_ERR(__wt_metadata_search(session, block->name, &config));
+        WT_ERR(__ckpt_load_blk_mods(session, config, ci));
     }
 
     /*
@@ -130,6 +149,7 @@ err:
     /* Checkpoints don't need the original information, discard it. */
     if (checkpoint)
         __wt_block_ckpt_destroy(session, ci);
+    __wt_free(session, config);
 
     return (ret);
 }
@@ -793,6 +813,94 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
         }
     }
     return (0);
+}
+
+/*
+ * __ckpt_load_blk_mods --
+ *     Load the block information from the metadata.
+ */
+static int
+__ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT *ci)
+{
+    WT_BLKINCR *blkincr;
+    WT_BLOCK_MODS *blk_mod;
+    WT_CONFIG blkconf;
+    WT_CONFIG_ITEM b, k, v;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    uint64_t entries, i, *list;
+    const char *p;
+
+    conn = S2C(session);
+    WT_RET(__wt_config_getones(session, config, "checkpoint_mods", &v));
+    __wt_config_subinit(session, &blkconf, &v);
+    /*
+     * Load block lists. Ignore any that have an id string that is not known.
+     *
+     * Remove those not known (TODO).
+     */
+    while (__wt_config_next(&blkconf, &k, &v) == 0) {
+        /*
+         * See if this is a valid backup string.
+         */
+        for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+            blkincr = &conn->incr_backups[i];
+            if (blkincr->id_str != NULL && WT_STRING_MATCH(blkincr->id_str, k.str, k.len))
+                break;
+        }
+        if (i == WT_BLKINCR_MAX)
+            /*
+             * This is the place to note that we want to remove an unknown id.
+             */
+            continue;
+
+        /*
+         * We have a valid entry. Load the block information.
+         */
+        blk_mod = &ci->ckpt_mods[i];
+        ret = __wt_config_subgets(session, &v, "blocks", &b);
+        WT_RET_NOTFOUND_OK(ret);
+        if (ret != WT_NOTFOUND) {
+            p = b.str;
+            if (*p != '(')
+                goto format;
+            if (p[1] != ')') {
+                for (entries = 0; p < b.str + b.len; ++p)
+                    if (*p == ',')
+                        ++entries;
+                if (p[-1] != ')' || ++entries % 2 != 0)
+                    goto format;
+
+                /* This is now the number of actual entries. */
+                entries /= 2;
+                blk_mod->alloc_list_entries = entries;
+                /*
+                 * Make space for the range field.
+                 */
+                WT_RET(__wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &list));
+                blk_mod->alloc_list = list;
+                for (i = 0, p = b.str + 1; *p != ')'; ++i, ++list) {
+                    if (sscanf(p, "%" SCNu64 "[,)]", list) != 1)
+                        goto format;
+                    for (; *p != ',' && *p != ')'; ++p)
+                        ;
+                    /*
+                     * The modified block lists are in pairs. After each pair, insert the
+                     * WT_BACKUP_RANGE token.
+                     */
+                    if (i % WT_BACKUP_INCR_COMPONENTS == 1) {
+                        *(++list) = WT_BACKUP_RANGE;
+                        ++i;
+                    }
+                    if (*p == ',')
+                        ++p;
+                }
+            }
+        }
+    }
+    return (0);
+format:
+    WT_RET_MSG(session, WT_ERROR, "corrupted modified block list");
 }
 
 /*

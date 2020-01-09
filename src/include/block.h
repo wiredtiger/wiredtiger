@@ -202,6 +202,7 @@ struct __wt_bm {
     int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
     int (*corrupt)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
+    int (*get_blkmods)(WT_BM *, WT_SESSION_IMPL *, WT_BLOCK_MODS *);
     bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
     int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
     int (*preload)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);

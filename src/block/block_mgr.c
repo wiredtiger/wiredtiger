@@ -312,6 +312,28 @@ __bm_free_readonly(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, siz
 }
 
 /*
+ * __bm_get_blkmods --
+ *     Get modified block list for this file.
+ */
+static int
+__bm_get_blkmods(WT_BM *bm, WT_SESSION_IMPL *session, WT_BLOCK_MODS *blkmodp)
+{
+    return (__wt_block_get_blkmods(session, bm->block, blkmodp));
+}
+
+/*
+ * __bm_get_blkmods_readonly --
+ *     Get modified block list for this file; readonly version.
+ */
+static int
+__bm_get_blkmods_readonly(WT_BM *bm, WT_SESSION_IMPL *session, WT_BLOCK_MODS *blkmodp)
+{
+    WT_UNUSED(blkmodp);
+
+    return (__bm_readonly(bm, session));
+}
+
+/*
  * __bm_is_mapped --
  *     Return if the file is mapped into memory.
  */
@@ -566,6 +588,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
     bm->compact_start = __bm_compact_start;
     bm->corrupt = __wt_bm_corrupt;
     bm->free = __bm_free;
+    bm->get_blkmods = __bm_get_blkmods;
     bm->is_mapped = __bm_is_mapped;
     bm->map_discard = __bm_map_discard;
     bm->preload = __wt_bm_preload;
@@ -592,6 +615,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
         bm->compact_skip = __bm_compact_skip_readonly;
         bm->compact_start = __bm_compact_start_readonly;
         bm->free = __bm_free_readonly;
+        bm->get_blkmods = __bm_get_blkmods_readonly;
         bm->salvage_end = __bm_salvage_end_readonly;
         bm->salvage_next = __bm_salvage_next_readonly;
         bm->salvage_start = __bm_salvage_start_readonly;

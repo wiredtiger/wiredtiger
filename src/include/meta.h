@@ -96,9 +96,6 @@ struct __wt_ckpt {
     wt_timestamp_t newest_stop_ts;
     uint64_t newest_stop_txn;
 
-    uint64_t *alloc_list; /* Checkpoint allocation list */
-    uint64_t alloc_list_entries;
-
     WT_ITEM addr; /* Checkpoint cookie string */
     WT_ITEM raw;  /* Checkpoint cookie raw */
 

@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+#if 0
 /*
  * __alloc_merge --
  *     Merge two allocation lists.
@@ -62,6 +63,7 @@ __alloc_merge(
     }
     *res_cnt = total;
 }
+#endif
 
 /*
  * __curbackup_incr_next --
@@ -70,19 +72,15 @@ __alloc_merge(
 static int
 __curbackup_incr_next(WT_CURSOR *cursor)
 {
+    WT_BLOCK_MODS *blk_mods;
     WT_BTREE *btree;
-    WT_CKPT *ckpt, *ckptbase;
     WT_CURSOR_BACKUP *cb;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     wt_off_t size;
-    uint64_t *a, *b, *current, *next;
-    uint64_t entries, total;
-    uint32_t raw;
-    bool start, stop;
-
-    ckptbase = NULL;
-    a = b = NULL;
+    uint64_t entries;
+    uint64_t *list, *p;
+    uint32_t i, raw;
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     btree = cb->incr_cursor == NULL ? NULL : ((WT_CURSOR_BTREE *)cb->incr_cursor)->btree;
@@ -117,80 +115,47 @@ __curbackup_incr_next(WT_CURSOR *cursor)
     } else {
         /*
          * We don't have this object's incremental information, and it's not a full file copy. Get a
-         * list of the checkpoints available for the file and flag the starting/stopping ones. It
-         * shouldn't be possible to specify checkpoints that no longer exist, but check anyway.
+         * list of the block modifications for the file. The block modifications are from the
+         * incremental identifier starting point. Walk the list looking for one with a source of our
+         * id.
          */
-        ret = __wt_meta_ckptlist_get(session, cb->incr_file, false, &ckptbase);
-        WT_ERR(ret == WT_NOTFOUND ? ENOENT : ret);
+        blk_mods = NULL;
+        WT_ERR(__wt_btree_get_blkmods(session, btree, blk_mods));
+        for (i = 0; i < WT_BLKINCR_MAX; ++i, ++blk_mods)
+            if (strcmp(blk_mods->id_str, cb->incr_src) == 0)
+                break;
+        /*
+         * XXX Need to coordinate with checkpoint? Cannot have checkpoint changing the block list
+         * while we walk it. It might reallocate it, freeing our memory out from under us.
+         */
 
         /*
-         * Count up the maximum number of block entries we might have to merge, and allocate a pair
-         * of temporary arrays in which to do the merge.
+         * There is no block information from this source identifier. There is no information to
+         * return to the user.
          */
-        entries = 0;
-        WT_CKPT_FOREACH (ckptbase, ckpt)
-            entries += ckpt->alloc_list_entries;
-        WT_ERR(__wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &a));
-        WT_ERR(__wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &b));
-
-        /* Merge the block lists into a final list of blocks to copy. */
-        start = stop = false;
-        total = 0;
-        current = NULL;
-        next = a;
-        WT_CKPT_FOREACH (ckptbase, ckpt) {
-            if (strcmp(ckpt->name, cb->incr_start->ckpt_name) == 0) {
-                start = true;
-#if 0
-                WT_ERR_ASSERT(session, ckpt->alloc_list_entries == 0, __wt_panic(session),
-                  "incremental backup start checkpoint has allocation list blocks");
-#endif
-                continue;
-            }
-            if (start == true) {
-                if (strcmp(ckpt->name, cb->incr_stop->ckpt_name) == 0)
-                    stop = true;
-
-                __alloc_merge(
-                  current, total, ckpt->alloc_list, ckpt->alloc_list_entries, next, &total);
-                current = next;
-                next = next == a ? b : a;
-            }
-
-            if (stop == true)
-                break;
-        }
-
-        if (!start)
-            WT_ERR_MSG(session, ENOENT, "incremental backup start checkpoint %s not found",
-              cb->incr_start->ckpt_name);
-        if (!stop)
-            WT_ERR_MSG(session, ENOENT, "incremental backup stop checkpoint %s not found",
-              cb->incr_stop->ckpt_name);
-
-        /* There may be nothing that needs copying. */
-        if (total == 0)
+        if (i == WT_BLKINCR_MAX)
             WT_ERR(WT_NOTFOUND);
 
-        if (next == a) {
-            cb->incr_list = b;
-            b = NULL;
-        } else {
-            cb->incr_list = a;
-            a = NULL;
-        }
-        cb->incr_list_count = total;
+        /*
+         * Set up our list to return to the user.
+         */
+        WT_ASSERT(session, F_ISSET(blk_mods, WT_BLOCK_MODS_VALID));
+        WT_ERR(__wt_calloc_def(
+          session, blk_mods->alloc_list_entries * WT_BACKUP_INCR_COMPONENTS, &cb->incr_list));
+        cb->incr_list_count = blk_mods->alloc_list_entries;
         cb->incr_list_offset = 0;
-        WT_ERR(__wt_scr_alloc(session, 0, &cb->incr_block));
+        for (entries = 0, list = cb->incr_list, p = blk_mods->alloc_list;
+             entries < blk_mods->alloc_list_entries; ++entries, p += WT_BACKUP_INCR_COMPONENTS) {
+            *list++ = p[0];
+            *list++ = p[1];
+            *list++ = p[2];
+        }
         cb->incr_init = true;
 
         F_SET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
     }
 
 err:
-    __wt_free(session, a);
-    __wt_free(session, b);
-    __wt_meta_ckptlist_free(session, &ckptbase);
     F_SET(cursor, raw);
     API_END_RET(session, ret);
 }
@@ -206,7 +171,6 @@ __wt_curbackup_free_incr(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     if (cb->incr_cursor != NULL)
         __wt_cursor_close(cb->incr_cursor);
     __wt_free(session, cb->incr_list);
-    __wt_scr_free(session, &cb->incr_block);
 }
 
 /*

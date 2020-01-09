@@ -61,7 +61,6 @@ struct __wt_cursor_backup {
     uint64_t incr_list_count;  /* Count of file offset/size/type triples */
     uint64_t incr_list_offset; /* Current offset */
     uint64_t incr_size;        /* Maximum transfer size */
-    WT_ITEM *incr_block;       /* Current block of data */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CURBACKUP_DUP 0x01u        /* Duplicated backup cursor */

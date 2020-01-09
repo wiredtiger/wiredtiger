@@ -414,9 +414,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 {
     WT_CONFIG_ITEM a;
     WT_DECL_RET;
-    uint64_t entries, i, *list;
     char timebuf[64];
-    const char *p;
 
     /*
      * Copy the name, address (raw and hex), order and time into the slot. If there's no address,
@@ -466,49 +464,6 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ckpt->oldest_start_txn = ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_NONE : (uint64_t)a.val;
     __wt_check_addr_validity(session, ckpt->oldest_start_ts, ckpt->oldest_start_txn,
       ckpt->newest_stop_ts, ckpt->newest_stop_txn);
-
-    /*
-     * Load any modified block lists from incremental backups.
-     */
-    ret = __wt_config_subgets(session, v, "modified_blocks", &a);
-    WT_RET_NOTFOUND_OK(ret);
-    if (ret != WT_NOTFOUND) {
-        p = a.str;
-        if (*p != '(')
-            goto format;
-        if (p[1] != ')') {
-            for (entries = 0; p < a.str + a.len; ++p)
-                if (*p == ',')
-                    ++entries;
-            if (p[-1] != ')' || ++entries % 2 != 0)
-                goto format;
-
-            /* This is now the number of actual entries. */
-            entries /= 2;
-            ckpt->alloc_list_entries = entries;
-            /*
-             * Make space for the range field.
-             */
-            WT_RET(__wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &list));
-            ckpt->alloc_list = list;
-            for (i = 0, p = a.str + 1; *p != ')'; ++i, ++list) {
-                if (sscanf(p, "%" SCNu64 "[,)]", list) != 1)
-                    goto format;
-                for (; *p != ',' && *p != ')'; ++p)
-                    ;
-                /*
-                 * The modified block lists are in pairs. After each pair, insert the
-                 * WT_BACKUP_RANGE token.
-                 */
-                if (i % WT_BACKUP_INCR_COMPONENTS == 1) {
-                    *(++list) = WT_BACKUP_RANGE;
-                    ++i;
-                }
-                if (*p == ',')
-                    ++p;
-            }
-        }
-    }
 
     WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
     if (a.len == 0)
@@ -657,8 +612,8 @@ __ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *bl
      */
     WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_mods=("));
     for (i = 0, blk = blk_mods; i < WT_BLKINCR_MAX; ++i, ++blk) {
-	if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
-	    continue;
+        if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
+            continue;
         WT_RET(__wt_buf_catfmt(
           session, buf, "%s%s=(id=%" PRIu32 ",blocks=(", i == 0 ? "" : ",", blk->id_str, i));
         for (entries = 0, p = blk->alloc_list; entries < blk->alloc_list_entries;
@@ -734,7 +689,6 @@ __wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         return;
 
     __wt_free(session, ckpt->name);
-    __wt_free(session, ckpt->alloc_list);
     __wt_free(session, ckpt->block_metadata);
     __wt_free(session, ckpt->block_checkpoint);
     __wt_buf_free(session, &ckpt->addr);

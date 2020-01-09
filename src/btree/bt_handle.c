@@ -15,6 +15,17 @@ static int __btree_preload(WT_SESSION_IMPL *);
 static int __btree_tree_open_empty(WT_SESSION_IMPL *, bool);
 
 /*
+ * __wt_btree_get_blkmods --
+ *     Get the in-memory block modification list for a btree.
+ */
+int
+__wt_btree_get_blkmods(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_BLOCK_MODS *blkmodsp)
+{
+    WT_ASSERT(session, btree->bm != NULL);
+    return (btree->bm->get_blkmods(btree->bm, session, blkmodsp));
+}
+
+/*
  * __wt_btree_page_version_config --
  *     Select a Btree page format.
  */
