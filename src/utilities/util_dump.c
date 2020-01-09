@@ -46,7 +46,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     cursor = NULL;
     checkpoint = ofile = simpleuri = uri = NULL;
     hex = json = reverse = internal = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "c:f:jrxi")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "c:f:ijrx")) != EOF)
         switch (ch) {
         case 'c':
             checkpoint = __wt_optarg;
@@ -126,7 +126,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         } else {
             if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
                 fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
-                session->strerror(session, ret));
+                  session->strerror(session, ret));
                 goto err;
             }
             if (dump_config(session, simpleuri, cursor, hex, json) != 0)
@@ -633,8 +633,8 @@ print_config(WT_SESSION *session, const char *key, const char *cfg, bool json, b
 
 /*
  * dump_internal --
- *     Call session API to output a key/value pair and timestamps respectivcely, by entering the
- *     internals of the BT.
+ *     Call session API to output a key/value pair and timestamps respectively, by entering the
+ *     internals of the btree.
  */
 static int
 dump_internal(WT_SESSION *session, const char *uri, const char *config)
@@ -653,7 +653,7 @@ usage(void)
 {
     (void)fprintf(stderr,
       "usage: %s %s "
-      "dump [-jrxi] [-c checkpoint] [-f output-file] uri\n",
+      "dump [-ijrx] [-c checkpoint] [-f output-file] uri\n",
       progname, usage_prefix);
     return (1);
 }
