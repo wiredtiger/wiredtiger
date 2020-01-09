@@ -28,7 +28,10 @@ __wt_meta_checkpoint(
     char *config;
 
     config = NULL;
-    btree = S2BT(session);
+    if (session->dhandle != NULL)
+        btree = S2BT(session);
+    else
+        btree = NULL;
 
     /* Clear the returned information. */
     memset(ckpt, 0, sizeof(*ckpt));

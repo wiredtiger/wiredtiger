@@ -97,7 +97,7 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
     filecfg[1] = a->data;
     filecfg[2] = checkpoint_list;
     filecfg[3] = "checkpoint_lsn=";
-    filecfg[4] = "checkpoint_incremental=";
+    filecfg[4] = "checkpoint_mods=";
     WT_WITH_SCHEMA_LOCK(session,
       ret = __wt_snprintf(fileid, sizeof(fileid), "id=%" PRIu32, ++S2C(session)->next_file_id));
     WT_ERR(ret);
