@@ -74,7 +74,6 @@ class test_gc02(test_gc_base):
         session.rollback_transaction()
         self.assertEqual(count, nrows)
 
-    @unittest.skip("Temporarily disabled")
     def test_gc(self):
         nrows = 100000
 
