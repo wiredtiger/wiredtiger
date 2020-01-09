@@ -96,6 +96,7 @@ __dump_page_col_var(WT_SESSION_IMPL *session, WT_REF *ref)
     uint64_t recno, rle;
     uint32_t i;
     char tag[64];
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     btree = S2BT(session);
     page = ref->page;
@@ -126,8 +127,9 @@ __dump_page_col_var(WT_SESSION_IMPL *session, WT_REF *ref)
         default:
             WT_ERR(__wt_illegal_value(session, unpack->raw));
         }
-        WT_ERR(__wt_msg(session, "T: <%" PRIu64 ":%" PRIu64 ", %" PRIu64 ":%" PRIu64 ">",
-          unpack->start_ts, unpack->start_txn, unpack->stop_ts, unpack->stop_txn));
+        WT_ERR(__wt_msg(session, "T: <%s:%" PRIu64 ", %s:%" PRIu64 ">",
+          __wt_timestamp_to_string(unpack->start_ts, ts_string[0]), unpack->start_txn, 
+          __wt_timestamp_to_string(unpack->stop_ts, ts_string[1]), unpack->stop_txn));
         recno += rle;
     }
 err:
@@ -151,6 +153,8 @@ __dump_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_ROW *rip;
     uint32_t i;
 
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+
     unpack = &_unpack;
     btree = S2BT(session);
 
@@ -173,8 +177,9 @@ __dump_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
         default:
             WT_ERR(__wt_illegal_value(session, unpack->raw));
         }
-        WT_ERR(__wt_msg(session, "T: <%" PRIu64 ":%" PRIu64 ", %" PRIu64 ":%" PRIu64 ">",
-          unpack->start_ts, unpack->start_txn, unpack->stop_ts, unpack->stop_txn));
+        WT_ERR(__wt_msg(session, "T: <%s:%" PRIu64 ", %s:%" PRIu64 ">",
+          __wt_timestamp_to_string(unpack->start_ts, ts_string[0]), unpack->start_txn, 
+          __wt_timestamp_to_string(unpack->stop_ts, ts_string[1]), unpack->stop_txn));
     }
 
 err:

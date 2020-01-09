@@ -780,6 +780,10 @@ session_ops(WT_SESSION *session)
         error_check(session->verify(session, "table:mytable", NULL));
         /*! [Verify a table] */
 
+        /*! [Dump a table] */
+        error_check(session->dump(session, "table:mytable", NULL));
+        /*! [Dump a table] */
+        
         /*
          * We can't call the backup function because it includes absolute paths for documentation
          * purposes that don't exist on test systems. That said, we have to reference the function

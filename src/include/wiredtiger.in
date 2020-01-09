@@ -1698,6 +1698,8 @@ struct __wt_session {
 	 *
 	 * Dumps a table, printing K/V pairs and the tables internal information
 	 *
+	 * @snippet ex_all.c Verify a table
+	 *
 	 * @exclusive
 	 *
 	 * @param session the session handle
