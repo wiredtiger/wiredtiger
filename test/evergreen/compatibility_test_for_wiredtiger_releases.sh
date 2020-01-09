@@ -19,9 +19,7 @@ BUILD_DIR="build_posix"    # The relative directory of WiredTiger repo tree
 get_release()
 { 
 	prev_cnt=$1
-
 	rel=$(git tag | grep -v release | egrep "^[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2}" | tail -$prev_cnt | head -1)
-
 	echo "$rel"
 }
 
