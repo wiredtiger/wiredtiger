@@ -18,7 +18,8 @@ noinst_PROGRAMS += test_random_abort
 
 test_random_directio_SOURCES = random_directio/main.c random_directio/util.c
 noinst_PROGRAMS += test_random_directio
-all_TESTS += random_directio/smoke.sh
+# Temporarily disabled
+# all_TESTS += random_directio/smoke.sh
 
 test_rwlock_SOURCES = rwlock/main.c
 noinst_PROGRAMS += test_rwlock

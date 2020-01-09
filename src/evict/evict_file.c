@@ -65,8 +65,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * later.
          */
         if (syncop == WT_SYNC_CLOSE && __wt_page_is_modified(page))
-            WT_ERR(__wt_reconcile(
-              session, ref, NULL, WT_REC_EVICT | WT_REC_LOOKASIDE | WT_REC_VISIBLE_ALL));
+            WT_ERR(__wt_reconcile(session, ref, NULL, WT_REC_EVICT | WT_REC_VISIBLE_ALL));
 
         /*
          * We can't evict the page just returned to us (it marks our place in the tree), so move the
