@@ -224,7 +224,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
 
     /* Sanity check flag combinations. */
-    WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT | WT_READ_LOOKASIDE) ||
+    WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT) ||
         LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF));
     WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_CHECK) || !LF_ISSET(WT_READ_DELETED_SKIP));
 
@@ -248,7 +248,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             goto read;
         case WT_REF_DISK:
             /* Limit reads to cache-only, or internal pages only. */
-            if ((LF_ISSET(WT_READ_CACHE) && !LF_ISSET(WT_READ_LOOKASIDE)) ||
+            if (LF_ISSET(WT_READ_CACHE) ||
               (LF_ISSET(WT_READ_CACHE_LEAF) && __wt_ref_is_leaf(session, ref)))
                 return (WT_NOTFOUND);
 

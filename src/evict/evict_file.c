@@ -41,8 +41,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     /* Walk the tree, discarding pages. */
-    walk_flags =
-      WT_READ_CACHE | WT_READ_NO_EVICT | (syncop == WT_SYNC_CLOSE ? WT_READ_LOOKASIDE : 0);
+    walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT;
     next_ref = NULL;
     WT_ERR(__wt_tree_walk(session, &next_ref, walk_flags));
     while ((ref = next_ref) != NULL) {

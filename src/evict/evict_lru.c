@@ -473,7 +473,7 @@ __wt_evict_create(WT_SESSION_IMPL *session)
     /*
      * Create the eviction thread group. Set the group size to the maximum allowed sessions.
      */
-    session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_LOOKASIDE | WT_THREAD_PANIC_FAIL;
+    session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL;
     WT_RET(__wt_thread_group_create(session, &conn->evict_threads, "eviction-server",
       conn->evict_threads_min, conn->evict_threads_max, session_flags, __wt_evict_thread_chk,
       __wt_evict_thread_run, __wt_evict_thread_stop));
