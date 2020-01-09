@@ -92,8 +92,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
 #endif
         ci = &block->live;
         WT_ERR(__wt_block_ckpt_init(session, ci, "live"));
-        WT_ERR(__wt_metadata_search(session, block->name, &config));
-        WT_ERR(__ckpt_load_blk_mods(session, config, ci));
+        WT_ERR(__ckpt_load_blk_mods(session, S2BT(session)->config, ci));
     }
 
     /*
@@ -832,6 +831,8 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT
     const char *p;
 
     conn = S2C(session);
+    if (config == NULL)
+        return (0);
     WT_RET(__wt_config_getones(session, config, "checkpoint_mods", &v));
     __wt_config_subinit(session, &blkconf, &v);
     /*

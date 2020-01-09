@@ -23,10 +23,12 @@ int
 __wt_meta_checkpoint(
   WT_SESSION_IMPL *session, const char *fname, const char *checkpoint, WT_CKPT *ckpt)
 {
+    WT_BTREE *btree;
     WT_DECL_RET;
     char *config;
 
     config = NULL;
+    btree = S2BT(session);
 
     /* Clear the returned information. */
     memset(ckpt, 0, sizeof(*ckpt));
@@ -44,6 +46,8 @@ __wt_meta_checkpoint(
      * default checkpoint, it's creation, return "no data" and let our caller handle it.
      */
     if (checkpoint == NULL) {
+        if (btree != NULL)
+            WT_ERR(__wt_strdup(session, config, &btree->config));
         if ((ret = __ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
             ret = 0;
             ckpt->addr.data = ckpt->raw.data = NULL;
