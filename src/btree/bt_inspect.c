@@ -168,7 +168,7 @@ __dump_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
         case WT_CELL_VALUE_OVFL:
         case WT_CELL_VALUE_SHORT:
             WT_ERR(__wt_page_cell_data_ref(session, page, unpack, val));
-            WT_ERR(dump_cell_data(session, btree->value_format, "V:", val->data, val->size));
+            WT_ERR(__dump_cell_data(session, btree->value_format, "V:", val->data, val->size));
             break;
         default:
             WT_ERR(__wt_illegal_value(session, unpack->raw));
