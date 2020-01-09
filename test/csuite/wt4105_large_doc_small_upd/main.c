@@ -132,8 +132,7 @@ main(int argc, char *argv[])
             modify_entry.data.size = strlen(modify_entry.data.data);
             modify_entry.offset = offset;
             modify_entry.size = modify_entry.data.size;
-            /* PM-1521-FIXME: Increased timeout from 1 to 5 to pass the test. */
-            (void)alarm(5);
+            (void)alarm(1);
             testutil_check(c->modify(c, &modify_entry, 1));
             (void)alarm(0);
             testutil_check(session2->commit_transaction(session2, NULL));
