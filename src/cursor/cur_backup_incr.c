@@ -8,63 +8,6 @@
 
 #include "wt_internal.h"
 
-#if 0
-/*
- * __alloc_merge --
- *     Merge two allocation lists.
- */
-static void
-__alloc_merge(
-  uint64_t *a, uint64_t a_cnt, uint64_t *b, uint64_t b_cnt, uint64_t *res, uint64_t *res_cnt)
-{
-    uint64_t total;
-
-    /*
-     * The block allocation list is saved with just offsets and lengths. We add in the type for the
-     * return result.
-     */
-    for (total = 0; a_cnt > 0 || b_cnt > 0; ++total, res += WT_BACKUP_INCR_COMPONENTS) {
-        res[2] = WT_BACKUP_RANGE;
-        if (a_cnt > 0 && b_cnt > 0) {
-            if (a[0] <= b[0]) {
-                res[0] = a[0];
-                if (a[0] + a[1] < b[0])
-                    res[1] = a[1];
-                else {
-                    res[1] = (b[0] + b[1]) - a[0];
-                    b += WT_BACKUP_INCR_COMPONENTS;
-                    --b_cnt;
-                }
-                a += WT_BACKUP_INCR_COMPONENTS;
-                --a_cnt;
-            } else if (b[0] <= a[0]) {
-                res[0] = b[0];
-                if (b[0] + b[1] < a[0])
-                    res[1] = b[1];
-                else {
-                    res[1] = (a[0] + a[1]) - b[0];
-                    a += WT_BACKUP_INCR_COMPONENTS;
-                    --a_cnt;
-                }
-                b += WT_BACKUP_INCR_COMPONENTS;
-                --b_cnt;
-            }
-        } else if (a_cnt > 0) {
-            res[0] = a[0];
-            res[1] = a[1];
-            a += WT_BACKUP_INCR_COMPONENTS;
-            --a_cnt;
-        } else if (b_cnt > 0) {
-            res[0] = b[0];
-            res[1] = b[1];
-            b += WT_BACKUP_INCR_COMPONENTS;
-            --b_cnt;
-        }
-    }
-    *res_cnt = total;
-}
-#endif
-
 /*
  * __curbackup_incr_next --
  *     WT_CURSOR->next method for the btree cursor type when configured with incremental_backup.
@@ -121,6 +64,13 @@ __curbackup_incr_next(WT_CURSOR *cursor)
          */
         blk_mods = NULL;
         WT_ERR(__wt_btree_get_blkmods(session, btree, blk_mods));
+        /*
+         * If there is no block modification information for this file, there is no information to
+         * return to the user.
+         */
+        if (blk_mods == NULL)
+            WT_ERR(WT_NOTFOUND);
+
         for (i = 0; i < WT_BLKINCR_MAX; ++i, ++blk_mods)
             if (strcmp(blk_mods->id_str, cb->incr_src) == 0)
                 break;
@@ -185,7 +135,6 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     WT_DECL_ITEM(open_checkpoint);
     WT_DECL_ITEM(open_uri);
     WT_DECL_RET;
-    size_t i;
     const char **new_cfg;
 
     cb = (WT_CURSOR_BACKUP *)cursor;
@@ -195,7 +144,6 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     new_cfg = NULL;
 
     WT_ASSERT(session, other_cb->incr_start != NULL);
-    WT_ASSERT(session, other_cb->incr_stop != NULL);
     if (F_ISSET(other_cb->incr_start, WT_BLKINCR_FULL)) {
         __wt_verbose(session, WT_VERB_BACKUP, "Forcing full file copies for id %s",
           other_cb->incr_start->id_str);
@@ -210,7 +158,6 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     cursor->get_value = __wt_cursor_get_value_notsup;
     cb->incr_granularity = other_cb->incr_granularity;
     cb->incr_start = other_cb->incr_start;
-    cb->incr_stop = other_cb->incr_stop;
 
     /*
      * Set up the incremental backup information, if we are not forcing a full file copy. We need an
@@ -221,19 +168,8 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
         WT_ERR(__wt_buf_fmt(session, open_uri, "file:%s", cb->incr_file));
         __wt_free(session, cb->incr_file);
         WT_ERR(__wt_strdup(session, open_uri->data, &cb->incr_file));
-        WT_ASSERT(session, cb->incr_start->ckpt_name != NULL);
-        WT_ASSERT(session, cb->incr_stop->ckpt_name != NULL);
-        WT_ERR(__wt_scr_alloc(session, 0, &open_checkpoint));
-        WT_ERR(__wt_buf_fmt(session, open_checkpoint, "checkpoint=%s", cb->incr_start->ckpt_name));
-        for (i = 0; cfg[i] != NULL; ++i)
-            ;
-        WT_ERR(__wt_calloc_def(session, i + 2, &new_cfg));
-        for (i = 0; cfg[i] != NULL; ++i)
-            new_cfg[i] = cfg[i];
-        new_cfg[i++] = open_checkpoint->data;
-        new_cfg[i] = NULL;
 
-        WT_ERR(__wt_curfile_open(session, cb->incr_file, NULL, new_cfg, &cb->incr_cursor));
+        WT_ERR(__wt_curfile_open(session, cb->incr_file, NULL, cfg, &cb->incr_cursor));
         WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
         WT_ERR(__wt_strdup(session, cb->incr_cursor->internal_uri, &cb->incr_cursor->internal_uri));
     } else

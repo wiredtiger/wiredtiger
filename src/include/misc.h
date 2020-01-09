@@ -305,8 +305,6 @@
 struct __wt_blkincr {
     const char *id_str; /* User's name for this backup. */
 #define WT_BLKINCR_NOCKPT "NoCheckpoint"
-    const char *ckpt_name; /* Requires WT-5115. All checkpoints must be this name */
-    void *data;            /* Blocks */
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_BLKINCR_FULL 0x1u  /* This has no checkpoint, always do full file */
 #define WT_BLKINCR_INUSE 0x2u /* This entry is active */

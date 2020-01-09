@@ -44,7 +44,7 @@ __wt_backup_destroy(WT_SESSION_IMPL *session)
     WT_ERR(__wt_fopen(session, WT_BLKINCR_BACKUP_TMP, WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &fs));
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &S2C(session)->incr_backups[i];
-        WT_ERR(__wt_fprintf(session, fs, "%s\n%s\n", blk->id_str, blk->ckpt_name));
+        WT_ERR(__wt_fprintf(session, fs, "%s\n", blk->id_str));
         /*
          * XXX Write out block data. There is none if there's no checkpoint information.
          * if (blk->data != NULL)
@@ -52,7 +52,6 @@ __wt_backup_destroy(WT_SESSION_IMPL *session)
          * __wt_free(session, blk->data);
          */
         __wt_free(session, blk->id_str);
-        __wt_free(session, blk->ckpt_name);
     }
     ret = __wt_sync_and_rename(session, &fs, WT_BLKINCR_BACKUP_TMP, WT_BLKINCR_BACKUP);
 err:
@@ -117,16 +116,9 @@ __wt_backup_open(WT_SESSION_IMPL *session)
         if (buf->size == 0)
             WT_PANIC_RET(
               session, WT_PANIC, "%s: invalid incremental backup file", WT_BLKINCR_BACKUP);
-        WT_ERR(__wt_strdup(session, buf->data, &blk->ckpt_name));
-        if (WT_STRING_MATCH(blk->ckpt_name, WT_BLKINCR_NOCKPT, strlen(WT_BLKINCR_NOCKPT)))
-            F_SET(blk, WT_BLKINCR_FULL);
-        else
-            /* Third is the block data. */
-            /* XXX WT_ERR(__wt_getline(session, fs, buf)) */
-            F_SET(blk, WT_BLKINCR_VALID);
-        __wt_verbose(session, WT_VERB_BACKUP,
-          "OPEN: Using backup slot %u %p for id %s, checkpoint name %s", i, (void *)blk,
-          blk->id_str, blk->ckpt_name);
+        F_SET(blk, WT_BLKINCR_VALID);
+        __wt_verbose(session, WT_VERB_BACKUP, "OPEN: Using backup slot %u %p for id %s", i,
+          (void *)blk, blk->id_str);
         ++i;
     }
 err:
@@ -228,10 +220,9 @@ __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force
      */
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
-        __wt_verbose(session, WT_VERB_BACKUP, "RELEASE: free blk %p id %s ckpt %s", (void *)blk,
-          blk->id_str, blk->ckpt_name);
+        __wt_verbose(
+          session, WT_VERB_BACKUP, "RELEASE: free blk %p id %s", (void *)blk, blk->id_str);
         __wt_free(session, blk->id_str);
-        __wt_free(session, blk->ckpt_name);
         F_CLR(blk, WT_BLKINCR_VALID);
     }
     conn->ckpt_incr_granularity = 0;
@@ -379,12 +370,13 @@ err:
  *     Add the identifier for block based incremental backup.
  */
 static int
-__backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CURSOR_BACKUP *cb)
+__backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
 {
     WT_BLKINCR *blk;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     u_int i;
+    const char *ckpt;
 
     conn = S2C(session);
     blk = NULL;
@@ -408,33 +400,27 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CURSOR_BACKUP
           session, WT_VERB_BACKUP, "Freeing and reusing backup slot with old id %s", blk->id_str);
     /* Free anything that was there. */
     __wt_free(session, blk->id_str);
-    __wt_free(session, blk->ckpt_name);
     WT_ERR(__wt_strndup(session, cval->str, cval->len, &blk->id_str));
     /*
      * Get the most recent checkpoint name. For now just use the one that is part of the metadata.
-     * XXX Need to make sure this checkpoint does not go away.
+     * We only care whether or not a checkpoint exists, so immediately free it.
      */
-    ret = __wt_meta_checkpoint_last_name(session, WT_METAFILE_URI, &blk->ckpt_name);
+    ret = __wt_meta_checkpoint_last_name(session, WT_METAFILE_URI, &ckpt);
+    __wt_free(session, ckpt);
     if (ret != 0 && ret != WT_NOTFOUND)
         WT_ERR(ret);
     if (ret == WT_NOTFOUND) {
         /*
-         * If we don't find a checkpoint, save a special string for the durable file.
+         * If we don't find a checkpoint, not all backup files need to be full copy.
          */
         __wt_verbose(session, WT_VERB_BACKUP, "ID %s: Did not find any metadata checkpoint for %s.",
           blk->id_str, WT_METAFILE_URI);
-        WT_ERR(
-          __wt_strndup(session, WT_BLKINCR_NOCKPT, strlen(WT_BLKINCR_NOCKPT), &blk->ckpt_name));
         F_SET(blk, WT_BLKINCR_FULL);
     } else {
-        __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %u for id %s, checkpoint name %s",
-          i, blk->id_str, blk->ckpt_name);
+        __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %u for id %s", i, blk->id_str);
         F_CLR(blk, WT_BLKINCR_FULL);
     }
     F_SET(blk, WT_BLKINCR_VALID);
-    cb->incr_stop = blk;
-    __wt_verbose(session, WT_VERB_BACKUP, "ADD_ID: incr_stop(blk) %p id %s ckpt %s, flags 0x%x",
-      (void *)cb->incr_stop, cb->incr_stop->id_str, cb->incr_stop->ckpt_name, (int)blk->flags);
     return (0);
 
 err:
@@ -465,8 +451,7 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
                 WT_RET_MSG(session, EINVAL, "Incremental backup structure already in use");
             if (incrp != NULL)
                 *incrp = blk;
-            __wt_verbose(session, WT_VERB_BACKUP, "Found backup slot %u for id %s checkpoint %s", i,
-              blk->id_str, blk->ckpt_name);
+            __wt_verbose(session, WT_VERB_BACKUP, "Found backup slot %u for id %s", i, blk->id_str);
             return (0);
         }
     }
@@ -577,8 +562,8 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             WT_RET_MSG(session, EINVAL,
               "Incremental source identifier can only be specified on a primary backup cursor");
         WT_RET(__backup_find_id(session, &cval, &cb->incr_start));
-        __wt_verbose(session, WT_VERB_BACKUP, "CONFIG: incr_start %p id %s ckpt %s",
-          (void *)cb->incr_start, cb->incr_start->id_str, cb->incr_start->ckpt_name);
+        __wt_verbose(session, WT_VERB_BACKUP, "CONFIG: incr_start %p id %s", (void *)cb->incr_start,
+          cb->incr_start->id_str);
         /* XXX might not need this incr_src field */
         WT_RET(__wt_strndup(session, cval.str, cval.len, &cb->incr_src));
         F_SET(cb->incr_start, WT_BLKINCR_INUSE);
@@ -600,7 +585,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         if (ret != WT_NOTFOUND)
             WT_ERR_MSG(session, EINVAL, "Incremental identifier already exists");
 
-        WT_ERR(__backup_add_id(session, &cval, cb));
+        WT_ERR(__backup_add_id(session, &cval));
         /* XXX might not need this incr_this field */
         WT_ERR(__wt_strndup(session, cval.str, cval.len, &cb->incr_this));
         incremental_config = true;
