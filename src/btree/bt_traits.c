@@ -54,9 +54,9 @@ __bt_col_fix_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
     WT_UNUSED(updp);
 
     /*
-     * If search returned an insert object, there may or may not be a matching on-page
-     * object, we have to check. Fixed-length column-store pages don't have slots, but
-     * map one-to-one to keys, check for retrieval past the end of the page.
+     * If search returned an insert object, there may or may not be a matching on-page object, we
+     * have to check. Fixed-length column-store pages don't have slots, but map one-to-one to keys,
+     * check for retrieval past the end of the page.
      */
     *valid = false;
     if (cbt->recno >= cbt->ref->ref_recno + cbt->ref->page->entries)
