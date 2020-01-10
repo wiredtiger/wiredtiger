@@ -48,7 +48,7 @@ __bt_row_huffman(WT_SESSION_IMPL *session, size_t len)
  * __bt_col_fix_cursor_valid --
  *     Check cursor validity for col fix.
  */
-int
+static int
 __bt_col_fix_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
 {
     WT_UNUSED(updp);
@@ -68,8 +68,8 @@ __bt_col_fix_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
  * __bt_col_var_cursor_valid --
  *     Check cursor validity for col var.
  */
-static bool
-__bt_col_var_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
+static int
+__bt_col_var_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
 {
     WT_CELL *cell;
     WT_COL *cip;
