@@ -797,7 +797,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         return (0);
 
     /*
-     * If the start time pair is visible then we need to return on the ondisk value.
+     * If the start time pair is visible then we need to return the ondisk value.
      *
      * FIXME-PM-1521: This should be probably be refactored to return a buffer of bytes rather than
      * an update. This allocation is expensive and doesn't serve a purpose other than to work within
