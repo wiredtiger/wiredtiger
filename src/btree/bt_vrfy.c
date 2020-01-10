@@ -369,7 +369,6 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
     addr = NULL;
     bm = S2BT(session)->bm;
     page = ref->page;
-    addr = NULL;
 
     unpack = &_unpack;
 

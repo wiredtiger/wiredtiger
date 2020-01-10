@@ -1370,9 +1370,14 @@ methods = {
 =======
     Config('dump_time_pairs', 'false', r'''
         Display aggregated time pair ranges as pages are verified,
+<<<<<<< HEAD
 >>>>>>> Rename timestamps to time pairs
         using the application's message handler, intended for debugging''',
 >>>>>>> WT-5345 Add dump timestamp to wt verify config options
+=======
+        using the application's message handler, intended for debugging.
+        Output is of the format "ts/txn, ts/txn"''',
+>>>>>>> Fix print format and variable initialisation
         type='boolean'),
     Config('strict', 'false', r'''
         Treat any verification problem as an error; by default, verify will
