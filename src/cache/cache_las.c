@@ -754,22 +754,23 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                  * updates in the middle.
                  */
                 nentries = MAX_REVERSE_MODIFY_NUM;
-                if (upd->type == WT_UPDATE_MODIFY && modifies.size > 0 &&
-                  __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
-                    entries, &nentries) == 0) {
-                    WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
-                    WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
-                      WT_UPDATE_MODIFY, modify_value, stop_ts_pair));
-                    __wt_scr_free(session, &modify_value);
-                    modify_value = NULL;
-                } else
-                    WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
-                      WT_UPDATE_STANDARD, full_value, stop_ts_pair));
+                if (!F_ISSET(upd, WT_UPDATE_HISTORY_STORE)) {
+                    if (upd->type == WT_UPDATE_MODIFY && modifies.size > 0 &&
+                      __wt_calc_modify(session, prev_full_value, full_value,
+                        prev_full_value->size / 10, entries, &nentries) == 0) {
+                        WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
+                        WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
+                          WT_UPDATE_MODIFY, modify_value, stop_ts_pair));
+                        __wt_scr_free(session, &modify_value);
+                        modify_value = NULL;
+                    } else
+                        WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
+                          WT_UPDATE_STANDARD, full_value, stop_ts_pair));
 
-                /* Flag the update as now in the lookaside file. */
-                F_SET(upd, WT_UPDATE_HISTORY_STORE);
-                ++insert_cnt;
-
+                    /* Flag the update as now in the lookaside file. */
+                    F_SET(upd, WT_UPDATE_HISTORY_STORE);
+                    ++insert_cnt;
+                }
                 if (squashed) {
                     WT_STAT_CONN_INCR(session, cache_hs_write_squash);
                     squashed = false;
