@@ -224,6 +224,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_STAT_CONN_INCR(session, cache_write_hs);
         WT_STAT_DATA_INCR(session, cache_write_hs);
     }
+    if (r->leave_dirty) {
+        WT_STAT_CONN_INCR(session, cache_write_restore);
+        WT_STAT_DATA_INCR(session, cache_write_restore);
+    }
     if (r->multi_next > btree->rec_multiblock_max)
         btree->rec_multiblock_max = r->multi_next;
 
@@ -1867,11 +1871,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         if (r->leave_dirty)
             r->cache_write_restore = true;
 
-        /*
-         * Lookaside eviction writes disk images, but if no entries were used, copy the disk image.
-         */
+        /* If there are uncommitted changes and no entries were used, copy the disk image. */
         if (r->leave_dirty && chunk->entries == 0)
             goto copy_image;
+        /* If no entries were used, we have nothing to do. */
+        else if (chunk->entries == 0)
+            return (0);
     }
 
     /*

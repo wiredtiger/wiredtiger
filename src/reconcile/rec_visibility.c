@@ -157,7 +157,7 @@ err:
  */
 static bool
 __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t max_txn,
-  wt_timestamp_t max_ts, uint64_t flags)
+  wt_timestamp_t max_ts, bool list_uncommitted, uint64_t flags)
 {
     /* Always save updates for in-memory database. */
     if (LF_ISSET(WT_REC_IN_MEMORY))
@@ -165,6 +165,9 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t 
 
     if (!LF_ISSET(WT_REC_LOOKASIDE))
         return false;
+
+    if (LF_ISSET(WT_REC_EVICT) && list_uncommitted)
+        return true;
 
     /* When in checkpoint, no need to save update if no onpage value is selected. */
     if (LF_ISSET(WT_REC_CHECKPOINT) && selected_upd == NULL)
@@ -257,8 +260,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
 
         /* Track the first update with non-zero timestamp. */
-        if (upd->durable_ts > max_ts)
-            max_ts = upd->durable_ts;
+        if (upd->start_ts > max_ts)
+            max_ts = upd->start_ts;
 
         /* Always select the newest committed update to write to disk */
         if (upd_select->upd == NULL)
@@ -434,7 +437,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      *
      * Additionally lookaside reconciliation is not set skip saving an update.
      */
-    if (__rec_need_save_upd(session, upd_select->upd, max_txn, max_ts, r->flags)) {
+    if (__rec_need_save_upd(
+          session, upd_select->upd, max_txn, max_ts, list_uncommitted, r->flags)) {
         WT_ASSERT(session, r->max_txn != WT_TS_NONE);
 
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
