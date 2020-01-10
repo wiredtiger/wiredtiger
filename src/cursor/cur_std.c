@@ -237,7 +237,6 @@ __wt_cursor_copy_release_item(WT_CURSOR *cursor, WT_ITEM *item) WT_GCC_FUNC_ATTR
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    void *extra_mem;
 
     session = (WT_SESSION_IMPL *)cursor->session;
 
@@ -248,18 +247,10 @@ __wt_cursor_copy_release_item(WT_CURSOR *cursor, WT_ITEM *item) WT_GCC_FUNC_ATTR
      * currently in use, free that as well.
      */
     if (WT_DATA_IN_ITEM(item)) {
-        /*
-         * We need an extra allocation and a free of it at the right time. Otherwise, with some
-         * allocators, we may get the exact same memory address back in the item. and we will never
-         * catch any accesses to the original memory. Ideally, We want the memory originally used by
-         * the item to end up on the malloc free list when we return.
-         */
-        WT_ERR(__wt_malloc(session, item->size, &extra_mem));
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_buf_set(session, tmp, item->data, item->size));
         __wt_explicit_overwrite(item->mem, item->memsize);
         __wt_buf_free(session, item);
-        __wt_free(session, extra_mem);
         WT_ERR(__wt_buf_set(session, item, tmp->data, tmp->size));
     } else if (item->mem != NULL) {
         __wt_explicit_overwrite(item->mem, item->memsize);
