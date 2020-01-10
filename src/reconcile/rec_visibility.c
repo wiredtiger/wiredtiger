@@ -214,7 +214,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * prepared transaction IDs are globally visible, need to check the update state as well.
          *
          * The checkpoint transaction doesn't pin the oldest txn id, therefore the r->last_running
-         * can move beyond the checkpoint transaction id. Need to do a proper visiblity check for
+         * can move beyond the checkpoint transaction id. Need to do a proper visibility check for
          * metadata pages. Otherwise, eviction may select uncommitted metadata updates to write to
          * disk.
          */
