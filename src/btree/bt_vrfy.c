@@ -364,10 +364,11 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
     WT_REF *child_ref;
     uint64_t recno;
     uint32_t entry, i;
+    char ts_string[WT_TS_INT_STRING_SIZE];
 
+    addr = NULL;
     bm = S2BT(session)->bm;
     page = ref->page;
-    addr = NULL;
 
     unpack = &_unpack;
 
@@ -382,8 +383,10 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
         if (vs->dump_time_pairs) {
             addr = ref->addr;
             if (addr != NULL)
-                WT_RET(__wt_msg(session, "\t<%lx:%lx, %lx:%lx>", addr->oldest_start_ts,
-                  addr->oldest_start_txn, addr->newest_stop_ts, addr->newest_stop_txn));
+                WT_RET(__wt_msg(session, "\t%s/%" PRIu64 ",%s/%" PRIu64,
+                  __wt_timestamp_to_string(addr->oldest_start_ts, ts_string),
+                  addr->oldest_start_txn, __wt_timestamp_to_string(addr->newest_stop_ts, ts_string),
+                  addr->newest_stop_txn));
         }
     }
 

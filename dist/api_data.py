@@ -1321,7 +1321,8 @@ methods = {
         type='boolean'),
     Config('dump_time_pairs', 'false', r'''
         Display aggregated time pair ranges as pages are verified,
-        using the application's message handler, intended for debugging''',
+        using the application's message handler, intended for debugging.
+        Output is of the format "ts/txn, ts/txn"''',
         type='boolean'),
     Config('strict', 'false', r'''
         Treat any verification problem as an error; by default, verify will
