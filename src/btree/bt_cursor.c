@@ -218,7 +218,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
 
     if (updp != NULL)
         *updp = NULL;
-    *valid = false;
+
     bt_traits = cbt->btree->bt_traits;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
 

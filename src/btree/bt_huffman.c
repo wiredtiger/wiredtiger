@@ -196,8 +196,8 @@ int
 __wt_btree_huffman_open(WT_SESSION_IMPL *session)
 {
     struct __wt_huffman_table *table;
-    WT_BTREE *btree;
     const WT_BT_TRAITS *bt_traits;
+    WT_BTREE *btree;
     WT_CONFIG_ITEM key_conf, value_conf;
     WT_DECL_RET;
     u_int entries, numbytes;

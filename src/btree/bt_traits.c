@@ -14,7 +14,7 @@ static int __bt_row_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *v
 static int
 __bt_col_fix_huffman(WT_SESSION_IMPL *session, size_t len)
 {
-    (void)len; /* Unused */
+    WT_UNUSED(len);
     WT_RET_MSG(session, EINVAL, "fixed-size column-store files may not be Huffman encoded");
 }
 
@@ -39,9 +39,8 @@ __bt_col_var_huffman(WT_SESSION_IMPL *session, size_t len)
 static int
 __bt_row_huffman(WT_SESSION_IMPL *session, size_t len)
 {
-    /* Unused parameters */
-    (void)session;
-    (void)len;
+    WT_UNUSED(session);
+    WT_UNUSED(len);
     return (0);
 }
 
@@ -52,12 +51,14 @@ __bt_row_huffman(WT_SESSION_IMPL *session, size_t len)
 int
 __bt_col_fix_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
 {
-    (void)updp; /* Unused */
-                /*
-                 * If search returned an insert object, there may or may not be a matching on-page
-                 * object, we have to check. Fixed-length column-store pages don't have slots, but
-                 * map one-to-one to keys, check for retrieval past the end of the page.
-                 */
+    WT_UNUSED(updp);
+
+    /*
+     * If search returned an insert object, there may or may not be a matching on-page
+     * object, we have to check. Fixed-length column-store pages don't have slots, but
+     * map one-to-one to keys, check for retrieval past the end of the page.
+     */
+    *valid = false;
     if (cbt->recno >= cbt->ref->ref_recno + cbt->ref->page->entries)
         return (0);
     *valid = true;
@@ -71,12 +72,16 @@ __bt_col_fix_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
 static int
 __bt_col_var_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
 {
+    WT_CELL *cell;
+    WT_COL *cip;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
 
-    (void)updp; /* Unused */
+    WT_UNUSED(updp);
+    *valid = false;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     page = cbt->ref->page;
+
     /* The search function doesn't check for empty pages. */
     if (page->entries == 0)
         return (0);
@@ -98,7 +103,9 @@ __bt_col_var_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
      * deletes are written into the backing store; check the cell for a record already deleted when
      * read.
      */
-    if (__wt_cell_type(WT_COL_PTR(page, &page->pg_var[cbt->slot])) == WT_CELL_DEL)
+    cip = &page->pg_var[cbt->slot];
+    cell = WT_COL_PTR(page, cip);
+    if (__wt_cell_type(cell) == WT_CELL_DEL)
         return (0);
     *valid = true;
     return (0);
@@ -115,6 +122,7 @@ __bt_row_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
     WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
 
+    *valid = false;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     page = cbt->ref->page;
     /* The search function doesn't check for empty pages. */
