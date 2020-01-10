@@ -116,9 +116,6 @@ __wt_value_return_buf(
             stop->txnid = unpack.stop_txn;
         }
 
-        /* FIXME-PM-1521: Temporarily disabled due to large number of failed tests */
-        // WT_ASSERT(session, !__wt_txn_visible(session, unpack.stop_txn, unpack.stop_ts) &&
-        //     __wt_txn_visible(session, unpack.start_txn, unpack.start_ts));
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
@@ -133,9 +130,6 @@ __wt_value_return_buf(
             stop->txnid = unpack.stop_txn;
         }
 
-        /* FIXME-PM-1521: Temporarily disabled due to large number of failed tests */
-        // WT_ASSERT(session, !__wt_txn_visible(session, unpack.stop_txn, unpack.stop_ts) &&
-        //     __wt_txn_visible(session, unpack.start_txn, unpack.start_ts));
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
