@@ -202,6 +202,7 @@ __curfile_search(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, search, cbt->btree);
     WT_ERR(__cursor_checkkey(cursor));
+    WT_ERR(__cursor_copy_release_key(cursor));
     WT_ERR(__cursor_copy_release_value(cursor));
 
     time_start = __wt_clock(session);
@@ -233,6 +234,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, search_near, cbt->btree);
     WT_ERR(__cursor_checkkey(cursor));
+    WT_ERR(__cursor_copy_release_key(cursor));
     WT_ERR(__cursor_copy_release_value(cursor));
 
     time_start = __wt_clock(session);
@@ -406,6 +408,7 @@ __curfile_remove(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_REMOVE_API_CALL(cursor, session, cbt->btree);
     WT_ERR(__cursor_checkkey(cursor));
+    WT_ERR(__cursor_copy_release_key(cursor));
     WT_ERR(__cursor_copy_release_value(cursor));
 
     time_start = __wt_clock(session);
