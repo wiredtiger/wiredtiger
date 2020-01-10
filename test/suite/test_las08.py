@@ -76,7 +76,6 @@ class test_las08(wttest.WiredTigerTestCase):
         cursor.close()
         session.close()
 
-    @unittest.skip("Temporarily disabled until update restore also writes to lookaside")
     def test_uncommitted_updates_not_written_to_lookaside(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -107,7 +106,6 @@ class test_las08(wttest.WiredTigerTestCase):
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
-    @unittest.skip("Temporarily disabled until update restore also writes to lookaside")
     def test_prepared_updates_not_written_to_lookaside(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -122,7 +120,7 @@ class test_las08(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(1, 10000):
-            cursor[i] = value1
+            cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Load another 5Mb of data with a later timestamp.
