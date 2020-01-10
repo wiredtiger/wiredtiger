@@ -58,7 +58,6 @@ __bt_col_fix_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
      * have to check. Fixed-length column-store pages don't have slots, but map one-to-one to keys,
      * check for retrieval past the end of the page.
      */
-    *valid = false;
     if (cbt->recno >= cbt->ref->ref_recno + cbt->ref->page->entries)
         return (0);
     *valid = true;
@@ -69,8 +68,8 @@ __bt_col_fix_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
  * __bt_col_var_cursor_valid --
  *     Check cursor validity for col var.
  */
-static int
-__bt_col_var_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
+static bool
+__bt_col_var_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 {
     WT_CELL *cell;
     WT_COL *cip;
@@ -78,7 +77,6 @@ __bt_col_var_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
     WT_SESSION_IMPL *session;
 
     WT_UNUSED(updp);
-    *valid = false;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     page = cbt->ref->page;
 
@@ -122,7 +120,6 @@ __bt_row_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
     WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
 
-    *valid = false;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     page = cbt->ref->page;
     /* The search function doesn't check for empty pages. */
