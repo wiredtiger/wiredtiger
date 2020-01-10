@@ -344,12 +344,12 @@ typedef uint64_t wt_timestamp_t;
 #include "msvc.h"
 #endif
 /*
- * GLIBC 2.26 and later use the openat syscall to implement open.
- * Set this flag so that our strace tests know to expect this.
+ * GLIBC 2.26 and later use the openat syscall to implement open. Set this flag so that our strace
+ * tests know to expect this.
  */
 #ifdef __GLIBC_PREREQ
 #if __GLIBC_PREREQ(2, 26)
-#define	WT_USE_OPENAT 1
+#define WT_USE_OPENAT 1
 #endif
 #endif
 
