@@ -213,10 +213,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * a concurrent transaction commits or rolls back while we are examining its updates. As
          * prepared transaction IDs are globally visible, need to check the update state as well.
          *
-         * We avoid the checkpoint transaction pinning the oldest txn id. Therefore, the
-         * r->las_running can move beyond checkpoint transaction id. Need to do a proper visiblity
-         * check for metadata pages. Otherwise, eviction may select uncommitted metadata updates to
-         * write to disk
+         * The checkpoint transaction doesn't pin the oldest txn id, therefore the r->last_running
+         * can move beyond the checkpoint transaction id. Need to do a proper visiblity check for
+         * metadata pages. Otherwise, eviction may select uncommitted metadata updates to write to
+         * disk.
          */
         if (F_ISSET(r, WT_REC_VISIBLE_ALL) && !WT_IS_METADATA(session->dhandle) ?
             WT_TXNID_LE(r->last_running, txnid) :
