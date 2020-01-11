@@ -235,9 +235,6 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
      * being read into memory right now, though, and the page could switch to an in-memory state at
      * any time. Lock down the structure, just to be safe.
      */
-    if (ref->page_del == NULL)
-        return (true);
-
     if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
         return (false);
 

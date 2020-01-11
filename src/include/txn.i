@@ -814,7 +814,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
 
     /* If there's no visible update in the update chain or ondisk, check the lookaside file. */
     WT_ASSERT(session, upd == NULL);
-    if (F_ISSET(S2C(session), WT_CONN_LOOKASIDE_OPEN))
+    if (F_ISSET(S2C(session), WT_CONN_LOOKASIDE_OPEN) &&
+      !F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE))
         WT_RET_NOTFOUND_OK(__wt_find_lookaside_upd(session, cbt, &upd, false));
 
     /* There is no BIRTHMARK in lookaside file. */
