@@ -422,32 +422,20 @@ path_setup(const char *home)
 }
 
 /*
- * rng --
- *     Return a random number.
+ * rng_slow --
+ *     Return a random number, doing the real work.
  */
 uint32_t
-rng(WT_RAND_STATE *rnd)
+rng_slow(WT_RAND_STATE *rnd)
 {
     u_long ulv;
     uint32_t v;
     char *endptr, buf[64];
 
     /*
-     * Threaded operations have their own RNG information, otherwise we use the default.
-     */
-    if (rnd == NULL)
-        rnd = &g.rnd;
-
-    /*
      * We can reproduce a single-threaded run based on the random numbers used in the initial run,
      * plus the configuration files.
-     *
-     * Check g.replay and g.rand_log_stop: multithreaded runs log/replay until they get to the
-     * operations phase, then turn off log/replay, threaded operation order can't be replayed.
      */
-    if (g.rand_log_stop)
-        return (__wt_random(rnd));
-
     if (g.replay) {
         if (fgets(buf, sizeof(buf), g.randfp) == NULL) {
             if (feof(g.randfp)) {
