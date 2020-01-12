@@ -267,12 +267,9 @@ wts_ops(bool lastrun)
         if (fourths != -1)
             --fourths;
         if (quit_fourths != -1 && --quit_fourths == 0) {
+            fprintf(stderr, "%s\n", "format run more than 15 minutes past the maximum time");
             fprintf(stderr, "%s\n",
-              "format run more than 15 minutes past the maximum "
-              "time");
-            fprintf(stderr, "%s\n",
-              "format run dumping cache and transaction state, "
-              "then aborting the process");
+              "format run dumping cache and transaction state, then aborting the process");
 
             /*
              * If the library is deadlocked, we might just join the mess, set a timer to limit our

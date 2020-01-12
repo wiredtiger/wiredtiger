@@ -248,9 +248,7 @@ config_cache(void)
     if (config_is_perm("cache")) {
         if (config_is_perm("cache_minimum") && g.c_cache_minimum != 0 &&
           g.c_cache < g.c_cache_minimum)
-            testutil_die(EINVAL,
-              "minimum cache set larger than cache "
-              "(%" PRIu32 " > %" PRIu32 ")",
+            testutil_die(EINVAL, "minimum cache set larger than cache (%" PRIu32 " > %" PRIu32 ")",
               g.c_cache_minimum, g.c_cache);
         return;
     }
@@ -645,9 +643,7 @@ config_pct(void)
     /* Cursor modify isn't possible for fixed-length column store. */
     if (g.type == FIX) {
         if (config_is_perm("modify_pct") && g.c_modify_pct != 0)
-            testutil_die(EINVAL,
-              "WT_CURSOR.modify not supported by fixed-length "
-              "column store");
+            testutil_die(EINVAL, "WT_CURSOR.modify not supported by fixed-length column store");
         list[CONFIG_MODIFY_ENTRY].order = 0;
         *list[CONFIG_MODIFY_ENTRY].vp = 0;
     }
@@ -661,9 +657,8 @@ config_pct(void)
     if (g.c_isolation_flag == ISOLATION_READ_COMMITTED ||
       g.c_isolation_flag == ISOLATION_READ_UNCOMMITTED) {
         if (config_is_perm("isolation") && config_is_perm("modify_pct") && g.c_modify_pct != 0)
-            testutil_die(EINVAL,
-              "WT_CURSOR.modify only supported with "
-              "snapshot isolation transactions");
+            testutil_die(
+              EINVAL, "WT_CURSOR.modify only supported with snapshot isolation transactions");
 
         list[CONFIG_MODIFY_ENTRY].order = 0;
         *list[CONFIG_MODIFY_ENTRY].vp = 0;
@@ -737,13 +732,11 @@ config_transaction(void)
     if (g.c_txn_timestamps) {
         if (prepare_requires_ts || config_is_perm("transaction_timestamps")) {
             if (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("isolation"))
-                testutil_die(EINVAL,
-                  "transaction_timestamps or prepare require "
-                  "isolation=snapshot");
+                testutil_die(
+                  EINVAL, "transaction_timestamps or prepare require isolation=snapshot");
             if (g.c_txn_freq != 100 && config_is_perm("transaction-frequency"))
-                testutil_die(EINVAL,
-                  "transaction_timestamps or prepare require "
-                  "transaction-frequency=100");
+                testutil_die(
+                  EINVAL, "transaction_timestamps or prepare require transaction-frequency=100");
         } else if ((g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("isolation")) ||
           (g.c_txn_freq != 100 && config_is_perm("transaction-frequency")))
             config_single("transaction_timestamps=off", false);
