@@ -271,8 +271,6 @@ main(int argc, char *argv[])
         printf("%4" PRIu32 ": %s, %s (%" PRIu64 " seconds)\n", g.run_cnt, g.c_data_source,
           g.c_file_type, now - start);
         fflush(stdout);
-
-        val_teardown(); /* Teardown keys/values */
     }
 
     testutil_assertfmt(g.run_cnt > 1, "%s", "format failed to complete a single test run");

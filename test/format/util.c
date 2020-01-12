@@ -162,6 +162,11 @@ val_init(void)
 {
     size_t i;
 
+    /* Discard any previous value initialization. */
+    free(val_base);
+    val_base = NULL;
+    val_dup_data_len = val_len = 0;
+
     /*
      * Set initial buffer contents to recognizable text.
      *
@@ -174,14 +179,6 @@ val_init(void)
         val_base[i] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i % 26];
 
     val_dup_data_len = value_len(NULL, (uint64_t)mmrand(NULL, 1, 20), g.c_value_min, g.c_value_max);
-}
-
-void
-val_teardown(void)
-{
-    free(val_base);
-    val_base = NULL;
-    val_dup_data_len = val_len = 0;
 }
 
 void
