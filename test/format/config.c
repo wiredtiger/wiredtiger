@@ -33,6 +33,7 @@ static void config_cache(void);
 static void config_checkpoint(void);
 static void config_checksum(void);
 static void config_compression(const char *);
+static void config_directio(void);
 static void config_encryption(void);
 static const char *config_file_type(u_int);
 static bool config_fix(void);
@@ -177,6 +178,7 @@ config_setup(void)
     config_encryption();
 
     /* Configuration based on the configuration already chosen. */
+    config_directio();
     config_pct();
     config_cache();
 
@@ -407,6 +409,48 @@ config_compression(const char *conf_name)
 
     testutil_check(__wt_snprintf(confbuf, sizeof(confbuf), "%s=%s", conf_name, cstr));
     config_single(confbuf, false);
+}
+
+/*
+ * config_directio
+ *     Direct I/O configuration.
+ */
+static void
+config_directio(void)
+{
+    /*
+     * We don't roll the dice and set direct I/O, it has to be set explicitly. For that reason, any
+     * incompatible "permanent" option set with direct I/O is a configuration error.
+     */
+    if (!g.c_direct_io)
+        return;
+
+    /*
+     * Direct I/O may not work with backups, doing copies through the buffer cache after configuring
+     * direct I/O in Linux won't work. If direct I/O is configured, turn off backups.
+     */
+    if (g.c_backups) {
+        if (config_is_perm("backups"))
+            testutil_die(EINVAL, "backups are incompatible with direct I/O");
+        config_single("backups=off", false);
+    }
+
+    /*
+     * Turn off all external programs. Direct I/O is really, really slow on some machines and it can
+     * take hours for a job to run. External programs don't have timers running so it looks like
+     * format just hung, and the 15-minute timeout isn't effective. We could play games to handle
+     * child process termination, but it's not worth the effort.
+     */
+    if (g.c_rebalance) {
+        if (config_is_perm("rebalance"))
+            testutil_die(EINVAL, "rebalance is incompatible with direct I/O");
+        config_single("rebalance=off", false);
+    }
+    if (g.c_salvage) {
+        if (config_is_perm("salvage"))
+            testutil_die(EINVAL, "salvage is incompatible with direct I/O");
+        config_single("salvage=off", false);
+    }
 }
 
 /*
