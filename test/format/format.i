@@ -61,6 +61,22 @@ read_op(WT_CURSOR *cursor, read_operation op, int *exactp)
 }
 
 /*
+ * expired --
+ *     Return if the run timer has expired.
+ */
+static inline bool
+expired(void)
+{
+    uint64_t now;
+
+    if (g.c_timer == 0)
+        return (false);
+
+    __wt_seconds(NULL, &now);
+    return ((now - g.start) > g.c_timer * 60);
+}
+
+/*
  * mmrand --
  *     Return a random value between a min/max pair, inclusive.
  */

@@ -78,6 +78,8 @@ typedef struct {
     WT_CONNECTION *wts_conn;
     WT_EXTENSION_API *wt_api;
 
+    uint64_t start;
+
     bool rand_log_stop; /* Logging turned off */
     FILE *randfp;       /* Random number log */
 

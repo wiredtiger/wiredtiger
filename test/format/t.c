@@ -67,7 +67,7 @@ signal_handler(int signo)
 int
 main(int argc, char *argv[])
 {
-    time_t start;
+    uint64_t now, start;
     int ch, onerun, reps;
     const char *config, *home;
 
@@ -76,6 +76,7 @@ main(int argc, char *argv[])
     config = NULL;
 
     (void)testutil_set_progname(argv);
+    __wt_seconds(NULL, &g.start);
 
 /*
  * Windows and Linux support different sets of signals, be conservative about installing handlers.
@@ -197,48 +198,54 @@ main(int argc, char *argv[])
     printf("%s: process %" PRIdMAX " running\n", progname, (intmax_t)getpid());
     fflush(stdout);
     while (++g.run_cnt <= g.c_runs || g.c_runs == 0) {
-        startup(); /* Start a run */
+        if (expired())
+            break;
 
+        startup();           /* Start a run */
         config_setup();      /* Run configuration */
         config_print(false); /* Dump run configuration */
         key_init();          /* Setup keys/values */
         val_init();
 
-        start = time(NULL);
+        __wt_seconds(NULL, &start);
         track("starting up", 0ULL, NULL);
 
         wts_open(g.home, true, &g.wts_conn);
         wts_init();
 
-        wts_load();                     /* Load initial records */
+        /* Load and verify initial records */
+        if (expired())
+            break;
+        wts_load();
+        if (expired())
+            break;
         wts_verify("post-bulk verify"); /* Verify */
 
-        /*
-         * If we're not doing any operations, scan the bulk-load, copy the statistics and we're
-         * done. Otherwise, loop reading and operations, with a verify after each set.
-         */
-        if (g.c_timer == 0 && g.c_ops == 0) {
+        for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps) {
+            if (expired())
+                break;
             wts_read_scan(); /* Read scan */
-            wts_stats();     /* Statistics */
-        } else
-            for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps) {
-                wts_read_scan(); /* Read scan */
 
-                /* Operations */
-                wts_ops(reps == FORMAT_OPERATION_REPS);
+            /* Operations */
+            if (expired())
+                break;
+            wts_ops(reps == FORMAT_OPERATION_REPS);
 
-                /*
-                 * Copy out the run's statistics after the last set of operations.
-                 *
-                 * XXX Verify closes the underlying handle and discards the statistics, read them
-                 * first.
-                 */
-                if (reps == FORMAT_OPERATION_REPS)
-                    wts_stats();
+            /*
+             * Copy out the run's statistics after the last set of operations.
+             *
+             * Verify closes the underlying handle and discards the statistics, read them first.
+             */
+            if (expired())
+                break;
+            if (reps == FORMAT_OPERATION_REPS)
+                wts_stats();
 
-                /* Verify */
-                wts_verify("post-ops verify");
-            }
+            /* Verify */
+            if (expired())
+                break;
+            wts_verify("post-ops verify");
+        }
 
         track("shutting down", 0ULL, NULL);
         wts_close();
@@ -246,22 +253,29 @@ main(int argc, char *argv[])
         /*
          * Rebalance testing.
          */
+        if (expired())
+            break;
         wts_rebalance();
 
         /*
          * Salvage testing.
          */
+        if (expired())
+            break;
         wts_salvage();
 
         /* Overwrite the progress line with a completion line. */
         if (!g.c_quiet)
             printf("\r%78s\r", " ");
-        printf("%4" PRIu32 ": %s, %s (%.0f seconds)\n", g.run_cnt, g.c_data_source, g.c_file_type,
-          difftime(time(NULL), start));
+        __wt_seconds(NULL, &now);
+        printf("%4" PRIu32 ": %s, %s (%" PRIu64 " seconds)\n", g.run_cnt, g.c_data_source,
+          g.c_file_type, now - start);
         fflush(stdout);
 
         val_teardown(); /* Teardown keys/values */
     }
+
+    testutil_assertfmt(g.run_cnt > 1, "%s", "format failed to complete a single test run");
 
     /* Flush/close any logging information. */
     fclose_and_clear(&g.logfp);

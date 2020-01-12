@@ -111,20 +111,24 @@ wts_load(void)
     if (g.c_txn_timestamps)
         bulk_begin_transaction(session);
 
-    for (;;) {
-        if (++g.key_cnt > g.c_rows) {
-            g.key_cnt = g.rows = g.c_rows;
-            break;
-        }
-
-        /* Report on progress every 100 inserts. */
+    while (++g.key_cnt <= g.c_rows) {
+        /* Do some checking every 10K operations. */
         if (g.key_cnt % 10000 == 0) {
+            /* Report on progress. */
             track("bulk load", g.key_cnt, NULL);
 
+            /* Restart the enclosing transaction so we don't overflow the cache. */
             if (g.c_txn_timestamps) {
                 bulk_commit_transaction(session);
                 bulk_begin_transaction(session);
             }
+
+            /*
+             * The bulk load is the first place we stress the underlying I/O system, and it may not
+             * be sufficient. Check if the run timer has expired.
+             */
+            if (expired())
+                break;
         }
 
         key_gen(&key, g.key_cnt);
@@ -170,9 +174,6 @@ wts_load(void)
                 bulk_begin_transaction(session);
             }
 
-            g.rows = --g.key_cnt;
-            g.c_rows = (uint32_t)g.key_cnt;
-
             if (g.c_insert_pct > 5)
                 g.c_insert_pct = 5;
             if (g.c_delete_pct < 20)
@@ -180,6 +181,11 @@ wts_load(void)
             break;
         }
     }
+
+    /* We may have exited the loop early, reset all of our counters to match our insert count. */
+    --g.key_cnt;
+    g.rows = g.key_cnt;
+    g.c_rows = (uint32_t)g.key_cnt;
 
     if (g.c_txn_timestamps)
         bulk_commit_transaction(session);
