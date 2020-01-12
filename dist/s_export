@@ -22,6 +22,9 @@ check()
 	(sed -e '/^#/d' s_export.list &&
 	eval $NM |
 	sed 's/.* //' |
+	egrep -v '^__bt' |
+	egrep -v '^__las' |
+	egrep -v '^__rec' |
 	egrep -v '^__wt' |
 	egrep -v '^[A-Z]+') |
 	sort |
