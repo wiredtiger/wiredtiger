@@ -31,7 +31,7 @@
 #
 
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import wiredtiger, wttest, unittest
 
 def timestamp_str(t):
     return '%x' % t
@@ -39,6 +39,7 @@ def timestamp_str(t):
 class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
     session_config = 'isolation=snapshot'
 
+    @unittest.skip("Temporarily disabled")
     def test_timestamp_range(self):
         base = 'timestamp11'
         uri = 'file:' + base

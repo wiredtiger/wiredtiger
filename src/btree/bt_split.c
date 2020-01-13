@@ -808,7 +808,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
             __wt_free(session, next_ref->page_del->update_list);
             __wt_free(session, next_ref->page_del);
         }
-        __wt_page_las_free(session, &next_ref->page_las);
 
         /* Free the backing block and address. */
         WT_TRET(__wt_ref_block_free(session, next_ref));
@@ -1389,8 +1388,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     uint64_t recno;
     uint32_t i, slot;
 
-    WT_ASSERT(session, !multi->has_las);
-
     /*
      * In 04/2016, we removed column-store record numbers from the WT_PAGE structure, leading to
      * hard-to-debug problems because we corrupt the page if we search it using the wrong initial
@@ -1597,20 +1594,14 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         break;
     }
 
-    /*
-     * There can be an address or a disk image or both, but if there is neither, there must be a
-     * backing lookaside page.
-     */
-    WT_ASSERT(session, multi->has_las || multi->addr.addr != NULL || multi->disk_image != NULL);
+    /* There can be an address or a disk image or both. */
+    WT_ASSERT(session, multi->addr.addr != NULL || multi->disk_image != NULL);
 
     /* If closing the file, there better be an address. */
     WT_ASSERT(session, !closing || multi->addr.addr != NULL);
 
     /* If closing the file, there better not be any saved updates. */
     WT_ASSERT(session, !closing || multi->supd == NULL);
-
-    /* If there are saved updates, there better be a disk image. */
-    WT_ASSERT(session, multi->supd == NULL || multi->disk_image != NULL);
 
     /* Verify any disk image we have. */
     WT_ASSERT(session, multi->disk_image == NULL ||
@@ -1637,28 +1628,6 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         addr->type = multi->addr.type;
 
         WT_REF_SET_STATE(ref, WT_REF_DISK);
-    }
-
-    /*
-     * Copy any associated lookaside reference, potentially resetting WT_REF.state. Regardless of a
-     * backing address, WT_REF_LOOKASIDE overrides WT_REF_DISK.
-     */
-    if (multi->page_las.max_txn != WT_TXN_NONE) {
-        /*
-         * We should not have a disk image if we did lookaside eviction.
-         */
-        WT_ASSERT(session, !multi->has_las || multi->disk_image == NULL);
-
-        WT_RET(__wt_calloc_one(session, &ref->page_las));
-        *ref->page_las = multi->page_las;
-
-        WT_REF_SET_STATE(ref, WT_REF_LOOKASIDE);
-
-        /*
-         * Successfully copied the LAS contents into WT_REF. Remove the LAS reference from
-         * multi-block entry.
-         */
-        WT_CLEAR(multi->page_las);
     }
 
     /*
@@ -1738,12 +1707,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->state = WT_REF_MEM;
     child->addr = ref->addr;
 
-    /* If there is lookaside content associated with the page being split, copy it to the child. */
-    if (ref->page_las != NULL) {
-        WT_ERR(__wt_calloc_one(session, &child->page_las));
-        *child->page_las = *ref->page_las;
-    }
-
     WT_ERR_ASSERT(session, ref->page_del == NULL, WT_PANIC,
       "unexpected page-delete structure when splitting a page");
 
@@ -1805,12 +1768,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child = split_ref[1];
     child->page = right;
     child->state = WT_REF_MEM;
-
-    /* If there is lookaside content associated with the page being split, copy it to the child. */
-    if (ref->page_las != NULL) {
-        WT_ERR(__wt_calloc_one(session, &child->page_las));
-        *child->page_las = *ref->page_las;
-    }
 
     if (type == WT_PAGE_ROW_LEAF) {
         WT_ERR(__wt_row_ikey(
@@ -1990,15 +1947,11 @@ err:
 
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[0]->ref_ikey);
-        if (split_ref[0]->page_las != NULL)
-            __wt_page_las_free(session, &split_ref[0]->page_las);
         __wt_free(session, split_ref[0]);
     }
     if (split_ref[1] != NULL) {
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[1]->ref_ikey);
-        if (split_ref[1]->page_las != NULL)
-            __wt_page_las_free(session, &split_ref[1]->page_las);
         __wt_free(session, split_ref[1]);
     }
     if (right != NULL) {

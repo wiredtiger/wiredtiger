@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import wiredtiger, wttest, unittest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -63,6 +63,7 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase):
             (self.ds.is_lsm() or self.uri == 'lsm')
 
     # Test durable timestamp.
+    @unittest.skip("Temporarily disabled")
     def test_durable_rollback_to_stable(self):
         if self.skip():
             return
@@ -111,7 +112,7 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase):
             self.assertEquals(cursor.next(), 0)
         session.commit_transaction()
 
-        # Check that latest value is same as first  update value.
+        # Check that latest value is same as first update value.
         self.assertEquals(cursor.reset(), 0)
         session.begin_transaction()
         self.assertEquals(cursor.next(), 0)

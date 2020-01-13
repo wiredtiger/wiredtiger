@@ -211,7 +211,6 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
 {
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_PAGE_LOOKASIDE *page_las;
     uint32_t read_flags;
     bool local_read;
 
@@ -232,6 +231,8 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
      */
     local_read = false;
     read_flags = WT_READ_WONT_NEED;
+#if 0
+    /* FIXME: Fixing rollback to stable is a separate project. */
     if ((page_las = ref->page_las) != NULL) {
         if (rollback_timestamp < page_las->max_ondisk_ts) {
             WT_ASSERT(session, !F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
@@ -243,6 +244,7 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
         if (rollback_timestamp < page_las->min_skipped_ts)
             page_las->min_skipped_ts = rollback_timestamp;
     }
+#endif
 
     /* Review deleted page saved to the ref */
     if (ref->page_del != NULL && rollback_timestamp < ref->page_del->durable_timestamp)

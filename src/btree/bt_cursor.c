@@ -482,16 +482,11 @@ int
 __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 {
     WT_BTREE *btree;
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    WT_UPDATE *las_upd, *upd;
+    WT_UPDATE *upd;
 
     *updp = NULL;
 
     btree = cbt->btree;
-    cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cursor->session;
     upd = NULL; /* -Wuninitialized */
 
     WT_RET(btree->type == BTREE_ROW ? __cursor_row_search(cbt, false, NULL, NULL) :
@@ -531,25 +526,10 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
     }
 
     /*
-     * In the case of prepare, there could be uncommitted updates in the lookaside newer than those
-     * in the update list.
-     *
-     * TODO: WT-5209: Possible performance improvement: If this key doesn't have an on-disk value,
-     * The latest update in the update chain will be newer than the updates in lookaside. That newer
-     * record will be prepared update we are looking for.
+     * Like regular uncommitted updates, pages with prepared updates are pinned to the cache and can
+     * never be written to the history store. Therefore, there is no need to do a search here for
+     * uncommitted updates.
      */
-    if (cbt->ref->page_las != NULL && cbt->ref->page_las->has_prepares) {
-        if ((ret = __wt_find_lookaside_upd(session, cbt, &las_upd, true)) == 0) {
-            if (upd == NULL || upd->start_ts < las_upd->start_ts) {
-                WT_ASSERT(session, las_upd->prepare_state == WT_PREPARE_INPROGRESS);
-                upd = las_upd;
-            } else {
-                __wt_free_update_list(session, &las_upd);
-                WT_STAT_CONN_INCR(session, cache_hs_read_wasted);
-            }
-        }
-        WT_RET_NOTFOUND_OK(ret);
-    }
 
     *updp = upd;
     return (0);

@@ -253,6 +253,7 @@ class test_bug008(wttest.WiredTigerTestCase):
     # the cursor in the insert list with a set of invisible updates, the right
     # fallback happens, whether the correct position is in the page slots or
     # the insert list.)
+    @unittest.skip("Temporarily disabled")
     def test_search_invisible_two(self):
         # Populate the tree and reopen the connection, forcing it to disk
         # and moving the records to an on-page format.

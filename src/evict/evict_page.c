@@ -390,25 +390,16 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
          * memory, else discard the page.
          */
-        __wt_page_las_free(session, &ref->page_las);
         if (mod->mod_disk_image == NULL) {
-            if (mod->mod_page_las.max_txn != WT_TXN_NONE) {
-                WT_RET(__wt_calloc_one(session, &ref->page_las));
-                *ref->page_las = mod->mod_page_las;
-                __wt_page_modify_clear(session, ref->page);
-                __wt_ref_out(session, ref);
-                WT_REF_SET_STATE(ref, WT_REF_LOOKASIDE);
-            } else {
-                __wt_ref_out(session, ref);
-                WT_REF_SET_STATE(ref, WT_REF_DISK);
-            }
+            __wt_page_modify_clear(session, ref->page);
+            __wt_ref_out(session, ref);
+            WT_REF_SET_STATE(ref, WT_REF_DISK);
         } else {
             /*
              * The split code works with WT_MULTI structures, build one for the disk image.
              */
             memset(&multi, 0, sizeof(multi));
             multi.disk_image = mod->mod_disk_image;
-            multi.page_las = mod->mod_page_las;
 
             WT_RET(__wt_split_rewrite(session, ref, &multi));
         }
@@ -441,9 +432,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
      */
     WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
         switch (child->state) {
-        case WT_REF_DISK:      /* On-disk */
-        case WT_REF_DELETED:   /* On-disk, deleted */
-        case WT_REF_LOOKASIDE: /* On-disk, lookaside */
+        case WT_REF_DISK:    /* On-disk */
+        case WT_REF_DELETED: /* On-disk, deleted */
             break;
         default:
             return (__wt_set_return(session, EBUSY));
@@ -453,9 +443,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_INTL_FOREACH_REVERSE_BEGIN(session, parent->page, child)
     {
         switch (child->state) {
-        case WT_REF_DISK:      /* On-disk */
-        case WT_REF_DELETED:   /* On-disk, deleted */
-        case WT_REF_LOOKASIDE: /* On-disk, lookaside */
+        case WT_REF_DISK:    /* On-disk */
+        case WT_REF_DELETED: /* On-disk, deleted */
             break;
         default:
             return (__wt_set_return(session, EBUSY));
@@ -491,14 +480,6 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             if (active)
                 return (__wt_set_return(session, EBUSY));
             break;
-        case WT_REF_LOOKASIDE: /* On-disk, lookaside */
-                               /*
-                                * If the lookaside history is obsolete, the reference can be
-                                * ignored.
-                                */
-            if (__wt_page_las_active(session, child))
-                return (__wt_set_return(session, EBUSY));
-            break;
         default:
             return (__wt_set_return(session, EBUSY));
         }
@@ -521,7 +502,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_DECL_RET;
     WT_PAGE *page;
     uint32_t flags;
-    bool closing, lookaside_retry, *lookaside_retryp, modified;
+    bool closing, modified;
 
     *inmem_splitp = false;
 
@@ -624,8 +605,6 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * memory.
      */
     cache = conn->cache;
-    lookaside_retry = false;
-    lookaside_retryp = NULL;
 
     if (closing)
         LF_SET(WT_REC_VISIBILITY_ERR);
@@ -634,9 +613,9 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     else if (WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_LOOKASIDE);
     else if (F_ISSET(conn, WT_CONN_IN_MEMORY))
-        LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
+        LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB);
     else {
-        LF_SET(WT_REC_UPDATE_RESTORE);
+        LF_SET(WT_REC_LOOKASIDE);
 
         /*
          * Scrub if we're supposed to or toss it in sometimes if we are in debugging mode.
@@ -644,36 +623,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         if (F_ISSET(cache, WT_CACHE_EVICT_SCRUB) ||
           (F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE) && __wt_random(&session->rnd) % 3 == 0))
             LF_SET(WT_REC_SCRUB);
-
-        /*
-         * If the cache is under pressure with many updates that can't be evicted, check if
-         * reconciliation suggests trying the lookaside table.
-         */
-        if (!WT_IS_METADATA(session->dhandle) && F_ISSET(cache, WT_CACHE_EVICT_LOOKASIDE) &&
-          !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE)) {
-            if (F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE) && __wt_random(&session->rnd) % 10 == 0) {
-                LF_CLR(WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
-                LF_SET(WT_REC_LOOKASIDE);
-            }
-            lookaside_retryp = &lookaside_retry;
-        }
     }
 
     /* Reconcile the page. */
-    ret = __wt_reconcile(session, ref, NULL, flags, lookaside_retryp);
-    WT_ASSERT(session, __wt_page_is_modified(page) ||
-        __wt_txn_visible_all(session, page->modify->rec_max_txn, page->modify->rec_max_timestamp));
-
-    /*
-     * If reconciliation fails but reports it might succeed if we use the lookaside table, try again
-     * with the lookaside table, allowing the eviction of pages we'd otherwise have to retain in
-     * cache to support older readers.
-     */
-    if (ret == EBUSY && lookaside_retry) {
-        LF_CLR(WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
-        LF_SET(WT_REC_LOOKASIDE);
-        ret = __wt_reconcile(session, ref, NULL, flags, NULL);
-    }
+    ret = __wt_reconcile(session, ref, NULL, flags);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
@@ -695,7 +648,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * Success: assert that the page is clean or reconciliation was configured to save updates.
      */
     WT_ASSERT(
-      session, !__wt_page_is_modified(page) || LF_ISSET(WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE));
+      session, !__wt_page_is_modified(page) || LF_ISSET(WT_REC_LOOKASIDE | WT_REC_IN_MEMORY));
 
     return (0);
 }

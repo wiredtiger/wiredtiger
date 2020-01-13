@@ -84,7 +84,6 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     previous_state = ref->state;
     switch (previous_state) {
     case WT_REF_DISK:
-    case WT_REF_LOOKASIDE:
         break;
     default:
         return (0);
@@ -173,7 +172,6 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
                 locked = true;
             break;
         case WT_REF_DISK:
-        case WT_REF_LOOKASIDE:
         case WT_REF_READING:
         default:
             return (__wt_illegal_value(session, current_state));
@@ -237,13 +235,10 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
      * being read into memory right now, though, and the page could switch to an in-memory state at
      * any time. Lock down the structure, just to be safe.
      */
-    if (ref->page_del == NULL && ref->page_las == NULL)
-        return (true);
-
     if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
         return (false);
 
-    skip = !__wt_page_del_active(session, ref, visible_all) && !__wt_page_las_active(session, ref);
+    skip = !__wt_page_del_active(session, ref, visible_all);
 
     /*
      * The page_del structure can be freed as soon as the delete is stable: it is only read when the
