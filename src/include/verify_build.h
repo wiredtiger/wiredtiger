@@ -50,10 +50,7 @@ __wt_verify_build(void)
 {
     /* Check specific structures weren't padded. */
     WT_SIZE_CHECK(WT_BLOCK_DESC, WT_BLOCK_DESC_SIZE);
-#if 0
-    /* FIXME: Calculate the expected size now we've removed lookaside structure. */
     WT_SIZE_CHECK(WT_REF, WT_REF_SIZE);
-#endif
 
     /*
      * WT_UPDATE is special: we arrange fields to avoid padding within the structure but it could be
