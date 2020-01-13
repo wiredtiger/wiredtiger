@@ -146,6 +146,7 @@ __bt_row_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
     return (0);
 }
 
+#ifdef HAVE_DIAGNOSTIC
 /*
  * __bt_col_cursor_key_order_check --
  *     Check key ordering for column-store cursor movements.
@@ -215,3 +216,4 @@ err:
 
     return (ret);
 }
+#endif

@@ -500,7 +500,9 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 int
 __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
+#ifdef HAVE_DIAGNOSTIC
     const WT_BT_TRAITS *bt_traits;
+#endif
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_PAGE *page;
@@ -508,7 +510,9 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     uint32_t flags;
     bool newpage, restart;
 
+#ifdef HAVE_DIAGNOSTIC
     bt_traits = cbt->btree->bt_traits;
+#endif
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
 
