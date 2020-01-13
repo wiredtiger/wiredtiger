@@ -748,8 +748,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             if (retrieve_modify) {
                 /*
                  * Here we need to set the read timestamp of the transaction to be the start
-                 * timestamp of the update, otherwise when we search we will see the tombstone
-                 * value associated with the update and return not found.
+                 * timestamp of the update, otherwise when we search we will see the tombstone value
+                 * associated with the update and return not found.
                  */
                 txn->read_timestamp = upd->start_ts;
                 F_SET(txn, WT_TXN_HAS_TS_READ);
