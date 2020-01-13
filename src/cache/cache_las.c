@@ -710,7 +710,11 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
           (uint64_t)las_size, max_las_size);
 
 err:
-    /* Resolve the transaction. */
+    /* Resolve the transaction. Clear the read timestamp in case we errored after setting it. */
+    if (F_ISSET(txn, WT_TXN_HAS_TS_READ)){
+        F_CLR(txn, WT_TXN_HAS_TS_READ);
+        txn->read_timestamp = 0;
+    }
     if (local_txn) {
         if (ret == 0)
             ret = __wt_txn_commit(session, NULL);
