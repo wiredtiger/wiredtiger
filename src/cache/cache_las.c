@@ -554,10 +554,10 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     wt_off_t las_size;
     WT_TIME_PAIR stop_ts_pair;
     uint64_t insert_cnt, max_las_size;
-    uint32_t mementos_cnt, btree_id, i, j;
+    uint32_t mementos_cnt, btree_id, i, err_pos;
     uint8_t *p;
     int nentries;
-    bool las_key_saved, local_txn, squashed;
+    bool las_key_saved, local_txn, squashed, txn_rollbacked;
 
     mementop = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
@@ -565,7 +565,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     insert_cnt = 0;
     mementos_cnt = 0;
     btree_id = btree->id;
-    local_txn = false;
+    local_txn = txn_rollbacked = false;
     __wt_modify_vector_init(session, &modifies);
 
     if (!btree->lookaside_entries)
@@ -809,15 +809,20 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 err:
     /* Resolve the transaction. */
     if (local_txn) {
-        if (ret == 0)
+        if (ret == 0) {
             ret = __wt_txn_commit(session, NULL);
-        else
+            txn_rollbacked = ret != 0;
+        } else {
             WT_TRET(__wt_txn_rollback(session, NULL));
+            txn_rollbacked = true;
+        }
 
-        if (ret != 0) {
-            i = WT_MIN(multi->supd_entries, i + 1);
-            /* Traverse the keys again to unflag the updates inserted to lookaside. */
-            for (j = 0, list = multi->supd; j < i; ++j, ++list) {
+        if (txn_rollbacked) {
+            /* We only need to clear the flag on the updates up to where the error occurs. */
+            err_pos = WT_MIN(multi->supd_entries, i + 1);
+
+            /* Traverse the keys again to clear the flags on updates inserted to lookaside. */
+            for (i = 0, list = multi->supd; i < err_pos; ++i, ++list) {
                 if (list->onpage_upd == NULL)
                     continue;
 
@@ -826,11 +831,12 @@ err:
                     if (upd->txnid == WT_TXN_ABORTED)
                         continue;
 
-                    /* Unflag the update. */
+                    /* Clear the flag. */
                     F_CLR(upd, WT_UPDATE_HISTORY_STORE);
                 }
             }
         }
+
         __las_restore_isolation(session, saved_isolation);
         F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
     }
