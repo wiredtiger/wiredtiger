@@ -307,8 +307,8 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
  *     Check an address block's timestamps.
  */
 static int
-__verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
-    WT_REF *parent_ref, WT_CELL_UNPACK *parent_unpack, WT_VSTUFF *vs)
+__verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, WT_REF *parent_ref,
+  WT_CELL_UNPACK *parent_unpack, WT_VSTUFF *vs)
 {
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -341,20 +341,20 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack,
         WT_RET_MSG(session, WT_ERROR,
           "child page reference at %s has oldest start timestamp %s"
           "older than internal parent page reference at %s"
-          "oldest start timestamp %s", 
+          "oldest start timestamp %s",
           __wt_page_addr_string(session, ref, vs->tmp1),
-          __wt_timestamp_to_string(unpack->oldest_start_ts, ts_string[1]),
+          __wt_timestamp_to_string(unpack->oldest_start_ts, ts_string[0]),
           __wt_page_addr_string(session, parent_ref, vs->tmp2),
-          __wt_timestamp_to_string(parent_unpack->oldest_start_ts, ts_string[3]));
+          __wt_timestamp_to_string(parent_unpack->oldest_start_ts, ts_string[1]));
     if (parent_unpack->newest_stop_ts < unpack->newest_stop_ts)
         WT_RET_MSG(session, WT_ERROR,
           "child page reference at %s has newest stop timestamp %s"
           "older than internal parent page reference at %s"
-          "newest stop timestamp %s", 
+          "newest stop timestamp %s",
           __wt_page_addr_string(session, ref, vs->tmp1),
-          __wt_timestamp_to_string(unpack->newest_stop_ts, ts_string[1]),
+          __wt_timestamp_to_string(unpack->newest_stop_ts, ts_string[0]),
           __wt_page_addr_string(session, parent_ref, vs->tmp2),
-          __wt_timestamp_to_string(parent_unpack->newest_stop_ts, ts_string[3]));
+          __wt_timestamp_to_string(parent_unpack->newest_stop_ts, ts_string[1]));
     return (0);
 }
 
