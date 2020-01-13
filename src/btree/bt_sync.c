@@ -129,7 +129,7 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /* Ignore internal pages, these are taken care of during reconciliation. */
-    if (ref->addr != NULL && !__wt_ref_is_leaf(session, ref)) {
+    if (!__wt_ref_is_leaf(session, ref)) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping internal page with parent: %p",
           (void *)ref, (void *)ref->home);
         return (false);
