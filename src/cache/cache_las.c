@@ -559,16 +559,17 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     uint32_t mementos_cnt, btree_id, i;
     uint8_t *p, prepare_state, upd_type;
     int nentries;
-    bool las_key_saved, local_txn, retrieve_modify, squashed;
+    bool las_key_saved, local_txn, squashed;
 
     mementop = NULL;
+    prev_upd = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
     txn = &session->txn;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = 0;
     mementos_cnt = 0;
     btree_id = btree->id;
-    local_txn = retrieve_modify = false;
+    local_txn = false;
     __wt_modify_vector_init(session, &modifies);
 
     if (!btree->lookaside_entries)
@@ -702,12 +703,27 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         /* If we popped a modify then it should be flagged as in the history store. */
         if (upd->type == WT_UPDATE_MODIFY) {
             WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_HISTORY_STORE));
-            retrieve_modify = true;
+            __wt_modify_vector_peek(&modifies, &prev_upd);
+            /*
+             * Retrieve the full value of the modify from the history store. This avoid us having to
+             * iterate the full update list associated with the modify and recalculating the reverse
+             * deltas. Here we need to set the read timestamp of the transaction to be the start
+             * timestamp of the update, otherwise when we search we will see the tombstone value
+             * associated with the update and return not found.
+             */
+            txn->read_timestamp = upd->start_ts;
+            F_SET(txn, WT_TXN_HAS_TS_READ);
+            cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid, prev_upd->start_ts,
+              prev_upd->txnid);
+            WT_ERR(cursor->search(cursor));
+            WT_ERR(
+              cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, full_value));
+            txn->read_timestamp = 0;
+            F_CLR(txn, WT_TXN_HAS_TS_READ);
+        } else {
+            /* The key didn't exist back then, which is globally visible. */
+            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
         }
-
-        /* The key didn't exist back then, which is globally visible. */
-        WT_ASSERT(session,
-          retrieve_modify || upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
 
         /* Skip TOMBSTONE at the end of the update chain. */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
@@ -720,7 +736,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         full_value->data = upd->data;
         full_value->size = upd->size;
 
-        prev_upd = NULL;
         squashed = false;
 
         /* Flush the updates on stack. */
@@ -740,29 +755,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
                 /* The update newer to a TOMBSTONE must be a full update. */
                 WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
-            }
-
-            /*
-             * Retrieve the full value of the modify from the history store. This avoid us having to
-             * iterate the full update list associated with the modify and recalculating the reverse
-             * deltas.
-             */
-            if (retrieve_modify) {
-                /*
-                 * Here we need to set the read timestamp of the transaction to be the start
-                 * timestamp of the update, otherwise when we search we will see the tombstone value
-                 * associated with the update and return not found.
-                 */
-                txn->read_timestamp = upd->start_ts;
-                F_SET(txn, WT_TXN_HAS_TS_READ);
-                cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid,
-                  stop_ts_pair.timestamp, stop_ts_pair.txnid);
-                WT_ERR(cursor->search(cursor));
-                WT_ERR(cursor->get_value(
-                  cursor, &durable_timestamp, &prepare_state, &upd_type, full_value));
-                txn->read_timestamp = 0;
-                F_CLR(txn, WT_TXN_HAS_TS_READ);
-                retrieve_modify = false;
             }
 
             if (prev_upd->type == WT_UPDATE_MODIFY) {
