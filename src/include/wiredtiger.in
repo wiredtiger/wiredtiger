@@ -1698,17 +1698,17 @@ struct __wt_session {
 	 *
 	 * Dumps a table, printing K/V pairs and the tables internal information
 	 *
+	 *
 	 * @snippet ex_all.c Verify a table
 	 *
 	 * @exclusive
 	 *
 	 * @param session the session handle
 	 * @param name the URI of the table or file to upgrade
-	 * @configempty{WT_SESSION.dump, see dist/api_data.py}
 	 * @ebusy_errors
 	 */
 	int __F(dump)(WT_SESSION *session,
-	    const char *name, const char *config);
+	    const char *name);
 
 	/*!
 	 * @name Transactions

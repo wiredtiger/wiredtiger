@@ -1599,13 +1599,12 @@ err:
  *     WT_SESSION->dump method.
  */
 static int
-__session_dump(WT_SESSION *wt_session, const char *uri, const char *config)
+__session_dump(WT_SESSION *wt_session, const char *uri)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    WT_UNUSED(config);
 
     SESSION_API_CALL_NOCONF(session, dump);
 

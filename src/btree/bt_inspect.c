@@ -9,13 +9,14 @@
 #include "wt_internal.h"
 
 static int __dump_tree(WT_SESSION_IMPL *, WT_REF *);
-static int __dump_cell_data(WT_SESSION_IMPL *, const char *, const char *, const void *, size_t);
+static int __dump_cell_data(WT_SESSION_IMPL *, const char *, const char *, WT_ITEM *);
 static int __dump_page_col_var(WT_SESSION_IMPL *, WT_REF *);
 static int __dump_page_row_leaf(WT_SESSION_IMPL *, WT_PAGE *);
-
+static int __dump_page_col_fix(WT_SESSION_IMPL *, const WT_PAGE_HEADER *);
 /*
  * __wt_dump --
- *     Dump the table
+ *     Dump the table, by iterating through btree and printing all K/V pairs and the timestamp
+ *     information.
  */
 int
 __wt_dump(WT_SESSION_IMPL *session, const char *cfg[])
@@ -32,7 +33,10 @@ __wt_dump(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __dump_tree --
- *     Dump the tree, by iterating through tree
+ *     Dump the tree, recursively descend through it in depth-first fashion. Then print all the K/V
+ *     pairs and along with the timestamp information that is present in each leaf page. The page
+ *     argument was physically verified (so we know it's correctly formed), and the in-memory
+ *     version built.
  */
 static int
 __dump_tree(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -44,14 +48,21 @@ __dump_tree(WT_SESSION_IMPL *session, WT_REF *ref)
 
     page = ref->page;
 
+    /*
+     * If a tree is empty (just created), it won't have a disk image; if there is no disk image,
+     * we're done.
+     */
     if ((dsk = ref->page->dsk) == NULL) {
         return (0);
     }
+
     /*
-     * Check overflow pages and timestamps. Done in one function as both checks require walking the
-     * page cells and we don't want to do it twice.
+     * Dump the leaf pages
      */
     switch (page->type) {
+    case WT_PAGE_COL_FIX:
+        WT_RET(__dump_page_col_fix(session, dsk));
+        break;
     case WT_PAGE_COL_VAR:
         WT_RET(__dump_page_col_var(session, ref));
         break;
@@ -60,13 +71,13 @@ __dump_tree(WT_SESSION_IMPL *session, WT_REF *ref)
         break;
     }
 
-    /* Check tree connections and recursively descend the tree. */
+    /* recursively descend the tree. */
     switch (page->type) {
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
-        /* For each entry in an internal page, verify the subtree. */
+        /* For each entry in an internal page, iterate through the subtree. */
         WT_INTL_FOREACH_BEGIN (session, page, child_ref) {
-            /* Iterate through tree using depth-firth traversal */
+            /* Iterate through tree using depth-first traversal */
             WT_RET(__wt_page_in(session, child_ref, 0));
             ret = __dump_tree(session, child_ref);
             WT_TRET(__wt_page_release(session, child_ref, 0));
@@ -79,8 +90,33 @@ __dump_tree(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __dump_page_col_fix --
+ *     Dump the leaf page in a column store tree. Iterates through each column cell and unpacks the
+ *     content of the cell to print the K/V pairs
+ */
+static int
+__dump_page_col_fix(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk)
+{
+    WT_BTREE *btree;
+    uint64_t recno;
+    uint32_t i;
+    uint8_t v;
+
+    btree = S2BT(session);
+
+    WT_FIX_FOREACH (btree, dsk, v, i) {
+        WT_RET(__wt_msg(session, "\t%" PRIu64 "\t{", dsk->recno));
+        WT_RET(__wt_msg(session, "#%c%c", __wt_hex((v & 0xf0) >> 4), __wt_hex(v & 0x0f)));
+        WT_RET(__wt_msg(session, "}\n"));
+        ++recno;
+    }
+    return (0);
+}
+
+/*
  * __dump_page_col_var --
- *     Dump the leaf page in a column store tree.
+ *     Dump the leaf page in a column store tree. Iterates through each column cell and unpacks the
+ *     content of the cell to print the K/V pairs
  */
 static int
 __dump_page_col_var(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -89,13 +125,11 @@ __dump_page_col_var(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_CELL *cell;
     WT_CELL_UNPACK *unpack, _unpack;
     WT_COL *cip;
-    WT_DECL_ITEM(key);
     WT_DECL_ITEM(val);
     WT_DECL_RET;
     WT_PAGE *page;
     uint64_t recno, rle;
     uint32_t i;
-    char tag[64];
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     btree = S2BT(session);
@@ -103,7 +137,6 @@ __dump_page_col_var(WT_SESSION_IMPL *session, WT_REF *ref)
     recno = ref->ref_recno;
     unpack = &_unpack;
 
-    WT_ERR(__wt_scr_alloc(session, 256, &key));
     WT_ERR(__wt_scr_alloc(session, 256, &val));
 
     WT_COL_FOREACH (page, cip, i) {
@@ -114,7 +147,6 @@ __dump_page_col_var(WT_SESSION_IMPL *session, WT_REF *ref)
             recno += rle;
             continue;
         }
-        WT_ERR(__wt_snprintf(tag, sizeof(tag), "%" PRIu64 " %" PRIu64, recno, rle));
         WT_ERR(__wt_msg(session, "K: %" PRIu64, recno));
         switch (unpack->raw) {
         case WT_CELL_VALUE:
@@ -122,7 +154,7 @@ __dump_page_col_var(WT_SESSION_IMPL *session, WT_REF *ref)
         case WT_CELL_VALUE_OVFL:
         case WT_CELL_VALUE_SHORT:
             WT_ERR(__wt_page_cell_data_ref(session, page, unpack, val));
-            WT_ERR(__dump_cell_data(session, btree->value_format, "V:", val->data, val->size));
+            WT_ERR(__dump_cell_data(session, btree->value_format, "V:", val));
             break;
         default:
             WT_ERR(__wt_illegal_value(session, unpack->raw));
@@ -133,14 +165,14 @@ __dump_page_col_var(WT_SESSION_IMPL *session, WT_REF *ref)
         recno += rle;
     }
 err:
-    __wt_scr_free(session, &key);
     __wt_scr_free(session, &val);
     return (ret);
 }
 
 /*
  * __dump_page_row_leaf --
- *     Dump the leaf page in a row store tree.
+ *     Dump the leaf page in a row store btree. Iterates through each row cell and unpacks the
+ *     content of the cell to print the K/V pairs and timestamp information
  */
 static int
 __dump_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
@@ -152,7 +184,6 @@ __dump_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_DECL_RET;
     WT_ROW *rip;
     uint32_t i;
-
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     unpack = &_unpack;
@@ -163,7 +194,7 @@ __dump_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     WT_ROW_FOREACH (page, rip, i) {
         WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
-        WT_ERR(__dump_cell_data(session, btree->key_format, "K:", key->data, key->size));
+        WT_ERR(__dump_cell_data(session, btree->key_format, "K:", key));
 
         __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
         switch (unpack->raw) {
@@ -172,7 +203,7 @@ __dump_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
         case WT_CELL_VALUE_OVFL:
         case WT_CELL_VALUE_SHORT:
             WT_ERR(__wt_page_cell_data_ref(session, page, unpack, val));
-            WT_ERR(__dump_cell_data(session, btree->value_format, "V:", val->data, val->size));
+            WT_ERR(__dump_cell_data(session, btree->value_format, "V:", val));
             break;
         default:
             WT_ERR(__wt_illegal_value(session, unpack->raw));
@@ -190,11 +221,10 @@ err:
 
 /*
  * __dump_cell_data --
- *     Dump the cell data
+ *     Dump the cell data, with configurations of format, print the contents of the cell.
  */
 static int
-__dump_cell_data(
-  WT_SESSION_IMPL *session, const char *format, const char *tag, const void *data_arg, size_t size)
+__dump_cell_data(WT_SESSION_IMPL *session, const char *format, const char *tag, WT_ITEM *item)
 {
     WT_DECL_ITEM(a);
     WT_DECL_ITEM(b);
@@ -203,17 +233,17 @@ __dump_cell_data(
     WT_ERR(__wt_scr_alloc(session, 512, &a));
     WT_ERR(__wt_scr_alloc(session, 512, &b));
 
-    if (size == 0)
+    if (item->size == 0)
         WT_ERR(__wt_msg(session, "%s%s", tag == NULL ? "" : tag, tag == NULL ? "" : " "));
 
-    if (WT_STREQ(format, "S") && ((char *)data_arg)[size - 1] != '\0') {
-        WT_ERR(__wt_buf_fmt(session, a, "%.*s", (int)size, (char *)data_arg));
-        data_arg = a->data;
-        size = a->size + 1;
+    if (WT_STREQ(format, "S") && ((char *)item->data)[item->size - 1] != '\0') {
+        WT_ERR(__wt_buf_fmt(session, a, "%.*s", (int)item->size, (char *)item->data));
+        item->data = a->data;
+        item->size = a->size + 1;
     }
 
     WT_ERR(__wt_msg(session, "%s%s%s", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
-      __wt_buf_set_printable_format(session, data_arg, size, format, b)));
+      __wt_buf_set_printable_format(session, item->data, item->size, format, b)));
 
 err:
     __wt_scr_free(session, &a);

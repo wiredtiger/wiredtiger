@@ -25,7 +25,7 @@ static int dump_table_config(WT_SESSION *, WT_CURSOR *, WT_CURSOR *, const char 
 static int dump_table_parts_config(WT_SESSION *, WT_CURSOR *, const char *, const char *, bool);
 static int dup_json_string(const char *, char **);
 static int print_config(WT_SESSION *, const char *, const char *, bool, bool);
-static int dump_internal(WT_SESSION *, const char *, const char *);
+static int dump_internal(WT_SESSION *, const char *);
 static int usage(void);
 
 static FILE *fp;
@@ -122,7 +122,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 
         /* Internal flag should be calling the session API and skip all other formatting */
         if (internal) {
-            WT_ERR(dump_internal(session, uri, NULL));
+            WT_ERR(dump_internal(session, uri));
         } else {
             if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
                 fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
@@ -637,12 +637,12 @@ print_config(WT_SESSION *session, const char *key, const char *cfg, bool json, b
  *     internals of the btree.
  */
 static int
-dump_internal(WT_SESSION *session, const char *uri, const char *config)
+dump_internal(WT_SESSION *session, const char *uri)
 {
     WT_DECL_RET;
     dump_prefix(session, false, false);
     dump_suffix(session, false);
-    if ((ret = session->dump(session, uri, config)) != 0) {
+    if ((ret = session->dump(session, uri)) != 0) {
         (void)util_err(session, ret, "session.verify: %s", uri);
     }
     return (ret);

@@ -781,7 +781,7 @@ session_ops(WT_SESSION *session)
         /*! [Verify a table] */
 
         /*! [Dump a table] */
-        error_check(session->dump(session, "table:mytable", NULL));
+        error_check(session->dump(session, "table:mytable"));
         /*! [Dump a table] */
 
         /*
