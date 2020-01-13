@@ -1954,6 +1954,21 @@ tasks:
           format_test_script_args: -S
           times: 16
 
+  - name: race-condition-stress-sanitizer-test
+    # set an evergreen timeout of 25 hours
+    exec_timeout_secs: 90000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC="/opt/mongodbtoolchain/v3/bin/clang -fsanitize=address" PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer"
+          posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
+      - func: "format test script"
+        vars:
+          # set a format.sh timeout of 24 hours
+          format_test_script_args: -R -t 1440
+          test_env_vars: ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
+
   - name: recovery-stress-test
     #set a 25 hours timeout
     exec_timeout_secs: 90000
@@ -2100,6 +2115,14 @@ tasks:
               exit 1
             fi
 
+  - name: compatibility-test-for-wiredtiger-releases
+    commands:
+      - func: "get project"
+      - command: subprocess.exec
+        params:
+          working_dir: "wiredtiger"
+          command: bash test/evergreen/compatibility_test_for_wiredtiger_releases.sh
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -2135,6 +2158,7 @@ buildvariants:
     - name: split-stress-test
     - name: format-stress-test
     - name: format-stress-smoke-test
+    - name: race-condition-stress-sanitizer-test
     - name: checkpoint-stress-test
     - name: static-wt-build-test
 
@@ -2234,6 +2258,7 @@ buildvariants:
   - ubuntu1804-test
   tasks:
     - name: compatibility-test-for-mongodb-releases
+    - name: compatibility-test-for-wiredtiger-releases
 
 - name: windows-64
   display_name: Windows 64-bit
