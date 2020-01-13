@@ -179,10 +179,8 @@ __wt_rec_child_modify(
              * We should never be here during eviction: active child pages in an evicted page's
              * subtree fails the eviction attempt.
              */
-            if (F_ISSET(r, WT_REC_EVICT) && __wt_page_las_active(session, ref)) {
-                WT_ASSERT(session, false);
+            if (F_ISSET(r, WT_REC_EVICT) && __wt_page_las_active(session, ref))
                 return (__wt_set_return(session, EBUSY));
-            }
 
             /*
              * A page evicted with lookaside entries may not have an address, if no updates were
