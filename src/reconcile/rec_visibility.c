@@ -128,8 +128,7 @@ __rec_append_orig_value(
      * matches the lowest possible transaction ID and timestamp, do nothing.
      */
     if (upd->type == WT_UPDATE_BIRTHMARK) {
-        /* FIXME-PM-1521: temporarily disable the assert until we figured out what is wrong */
-        /* WT_ASSERT(session, append->start_ts == upd->start_ts && append->txnid == upd->txnid); */
+        WT_ASSERT(session, append->start_ts == upd->start_ts && append->txnid == upd->txnid);
         append->next = upd->next;
     }
 
