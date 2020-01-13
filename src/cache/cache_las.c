@@ -309,6 +309,8 @@ __wt_las_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session
     if (F_ISSET(session, WT_SESSION_LOOKASIDE_CURSOR))
         *cursorp = session->las_cursor;
     else {
+		WT_ASSERT(session, strcmp(session->name, "sweep-server") != 0 &&
+ 			strcmp(session->name, "eviction-server") != 0);
         for (;;) {
             __wt_spin_lock(session, &cache->las_lock);
             for (i = 0; i < WT_LAS_NUM_SESSIONS; i++) {
@@ -354,6 +356,7 @@ __wt_las_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t se
 
     if ((cursor = *cursorp) == NULL)
         return (0);
+
     *cursorp = NULL;
 
     /* Reset the cursor. */
