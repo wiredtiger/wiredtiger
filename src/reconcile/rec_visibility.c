@@ -238,9 +238,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * point can move forward during reconciliation so we use a cached copy to avoid races when
          * a concurrent transaction commits or rolls back while we are examining its updates. As
          * prepared transaction IDs are globally visible, need to check the update state as well.
+         *
+         * The checkpoint transaction doesn't pin the oldest txn id, therefore the r->last_running
+         * can move beyond the checkpoint transaction id. Need to do a proper visibility check for
+         * metadata pages. Otherwise, eviction may select uncommitted metadata updates to write to
+         * disk.
          */
-        if (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
-                                             !__txn_visible_id(session, txnid)) {
+        if (F_ISSET(r, WT_REC_VISIBLE_ALL) && !WT_IS_METADATA(session->dhandle) ?
+            WT_TXNID_LE(r->last_running, txnid) :
+            !__txn_visible_id(session, txnid)) {
             list_uncommitted = true;
             continue;
         }
@@ -293,13 +299,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /*
      * The checkpoint transaction is special. Make sure we never write metadata updates from a
      * checkpoint in a concurrent session.
-     *
-     * FIXME-PM-1521: temporarily disable the assert until we figured out what is wrong
      */
-    // WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) || upd == NULL ||
-    //     upd->txnid == WT_TXN_NONE || upd->txnid != S2C(session)->txn_global.checkpoint_state.id
-    //     ||
-    //     WT_SESSION_IS_CHECKPOINT(session));
+    WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) || upd == NULL ||
+        upd->txnid == WT_TXN_NONE || upd->txnid != S2C(session)->txn_global.checkpoint_state.id ||
+        WT_SESSION_IS_CHECKPOINT(session));
 
     /* If all of the updates were aborted, quit. */
     if (first_txn_upd == NULL) {
