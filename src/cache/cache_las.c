@@ -700,14 +700,8 @@ err:
                 if (list->onpage_upd == NULL)
                     continue;
 
-                for (upd = list->onpage_upd; upd != NULL; upd = upd->next) {
-                    /* Skip aborted transactions. */
-                    if (upd->txnid == WT_TXN_ABORTED)
-                        continue;
-
-                    /* Clear the flag. */
+                for (upd = list->onpage_upd; upd != NULL; upd = upd->next)
                     F_CLR(upd, WT_UPDATE_HISTORY_STORE);
-                }
             }
         }
 
