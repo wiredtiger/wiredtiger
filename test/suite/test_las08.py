@@ -47,7 +47,7 @@ class test_las08(wttest.WiredTigerTestCase):
         return val
 
     def test_modify_insert_to_las(self):
-        uri = "table:test_modify01"
+        uri = "table:test_las08"
         create_params = 'value_format=S,key_format=i'
         value1 = 'a' * 1000
         self.session.create(uri, create_params)
