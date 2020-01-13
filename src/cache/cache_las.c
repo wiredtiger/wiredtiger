@@ -810,7 +810,7 @@ err:
     if (local_txn) {
         if (ret == 0) {
             ret = __wt_txn_commit(session, NULL);
-            /* Tranverse the keys again to flag the updates inserted to lookaside. */
+            /* Traverse the keys again to flag the updates inserted to lookaside. */
             for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
                 if (list->onpage_upd == NULL)
                     continue;
