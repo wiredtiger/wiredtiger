@@ -461,6 +461,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = 0;
     btree_id = btree->id;
+    i = 0;
     local_txn = txn_rollbacked = false;
     __wt_modify_vector_init(session, &modifies);
 
@@ -690,12 +691,12 @@ err:
             txn_rollbacked = true;
         }
 
-        if (txn_rollbacked) {
+        if (txn_rollbacked && multi->supd_entries > 0) {
             /* We only need to clear the flag on the updates up to where the error occurs. */
-            err_pos = WT_MIN(multi->supd_entries, i + 1);
+            err_pos = WT_MIN(multi->supd_entries - 1, i);
 
             /* Traverse the keys again to clear the flags on updates inserted to lookaside. */
-            for (i = 0, list = multi->supd; i < err_pos; ++i, ++list) {
+            for (i = 0, list = multi->supd; i <= err_pos; ++i, ++list) {
                 if (list->onpage_upd == NULL)
                     continue;
 
