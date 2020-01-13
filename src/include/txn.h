@@ -64,6 +64,14 @@ typedef enum {
 #define WT_TS_INT_STRING_SIZE (2 * 10 + 3 + 1)
 
 /*
+ * We need an appropriately sized buffer for formatted time pairs. This is for
+ * time pairs of the form time_stamp + slash + transaction_id, which gives
+ * the max digits of a timestamp + slash + the max digits of a 8 byte integer
+ * + a trailing nul byte.
+ */
+#define WT_TP_STRING_SIZE (WT_TS_INT_STRING_SIZE + 1 + 20 + 1)
+
+/*
  * Perform an operation at the specified isolation level.
  *
  * This is fiddly: we can't cope with operations that begin transactions
