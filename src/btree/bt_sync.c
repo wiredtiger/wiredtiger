@@ -315,7 +315,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     __wt_txn_get_snapshot(session);
                 leaf_bytes += page->memory_footprint;
                 ++leaf_pages;
-                WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT, NULL));
+                WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT));
             }
         }
         break;
@@ -471,7 +471,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
             tried_eviction = false;
 
-            WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags, NULL));
+            WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
             /*
              * Update checkpoint IO tracking data if configured to log verbose progress messages.

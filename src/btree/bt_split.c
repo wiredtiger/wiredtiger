@@ -1603,9 +1603,6 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     /* If closing the file, there better not be any saved updates. */
     WT_ASSERT(session, !closing || multi->supd == NULL);
 
-    /* If there are saved updates, there better be a disk image. */
-    WT_ASSERT(session, multi->supd == NULL || multi->disk_image != NULL);
-
     /* Verify any disk image we have. */
     WT_ASSERT(session, multi->disk_image == NULL ||
         __wt_verify_dsk_image(
