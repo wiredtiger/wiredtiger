@@ -129,13 +129,13 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /* Ignore internal pages, these are taken care of during reconciliation. */
-    if ((ref->addr != NULL && !__wt_ref_is_leaf(session, ref)) ||
-      (ref->page != NULL && WT_PAGE_IS_INTERNAL(ref->page))) {
+    if (ref->addr != NULL && !__wt_ref_is_leaf(session, ref)) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping internal page with parent: %p",
           (void *)ref, (void *)ref->home);
         return (false);
     }
 
+    WT_STAT_CONN_INCR(session, hs_gc_pages_visited);
     multi_newest_stop_ts = WT_TS_NONE;
     multi_newest_stop_txn = WT_TXN_NONE;
     addr = ref->addr;
@@ -194,6 +194,7 @@ __sync_ref_evict_or_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
+        WT_STAT_CONN_INCR(session, hs_gc_pages_removed);
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
           "%p: page is marked for deletion with parent page: %p", (void *)ref, (void *)ref->home);
         return (__wt_page_parent_modify_set(session, ref, true));
@@ -201,6 +202,7 @@ __sync_ref_evict_or_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Evict the in-memory obsolete page */
     WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
+    WT_STAT_CONN_INCR(session, hs_gc_pages_evict);
     __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
       "%p: is an in-memory obsolete page, added to urgent eviction queue.", (void *)ref);
     return (0);
@@ -438,6 +440,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (WT_PAGE_IS_INTERNAL(page)) {
                 internal_bytes += page->memory_footprint;
                 ++internal_pages;
+                /* Slow down checkpoints. */
+                if (F_ISSET(conn, WT_CONN_DEBUG_SLOW_CKPT))
+                    __wt_sleep(0, 10000);
             } else {
                 leaf_bytes += page->memory_footprint;
                 ++leaf_pages;
@@ -455,9 +460,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * if eviction fails (the page may stay in cache clean but with history that cannot be
              * discarded), that is not wasted effort because checkpoint doesn't need to write the
              * page again.
+             *
+             * Once the transaction has given up it's snapshot it is no longer safe to reconcile
+             * pages. That happens prior to the final metadata checkpoint.
              */
             if (!WT_PAGE_IS_INTERNAL(page) && page->read_gen == WT_READGEN_WONT_NEED &&
-              !tried_eviction) {
+              !tried_eviction && F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT)) {
                 ret = __wt_page_release_evict(session, walk, 0);
                 walk = NULL;
                 WT_ERR_BUSY_OK(ret);

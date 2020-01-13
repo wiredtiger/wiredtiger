@@ -222,9 +222,9 @@ err:
          * It is possible that an eviction failure occurs to a page that is not added by a
          * checkpoint thread, but we consider those scenarios are limited.
          */
-        if (WT_IS_LAS(S2BT(session))) {
+        if (WT_IS_LAS(S2BT(session)) && ret == EBUSY) {
             WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
-            WT_STAT_CONN_INCR(session, cache_eviction_history_store_pages_queued_urgent_again);
+            WT_STAT_CONN_INCR(session, cache_eviction_hs_pages_queued_urgent_again);
             __wt_yield();
         }
 

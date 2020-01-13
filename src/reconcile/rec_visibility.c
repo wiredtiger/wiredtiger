@@ -223,6 +223,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             r->update_prepared = list_uncommitted = true;
             if (upd->start_ts > max_ts)
                 max_ts = upd->start_ts;
+
+            /*
+             * Track the oldest update not on the page, used to decide whether reads can use the
+             * page image, hence using the start rather than the durable timestamp.
+             */
+            if (upd->start_ts < r->min_skipped_ts)
+                r->min_skipped_ts = upd->start_ts;
             continue;
         }
 
@@ -248,7 +255,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 return (__wt_set_return(session, EBUSY));
         } else if (first_stable_upd == NULL) {
             /*
-             * Track the first update in the chain that is stable.
+             * Track the first update in the chain that is stable, used to decide whether reads can
+             * use the page image, hence using the start rather than the durable timestamp.
              */
             first_stable_upd = upd;
 
