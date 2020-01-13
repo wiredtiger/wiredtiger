@@ -686,6 +686,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             }
 
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
+            if (F_ISSET(upd, WT_UPDATE_HISTORY_STORE))
+                break;
         }
 
         upd = NULL;
