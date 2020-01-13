@@ -809,7 +809,7 @@ err:
     /* Resolve the transaction. */
     if (local_txn) {
         if (ret == 0) {
-            ret = __wt_txn_commit(session, NULL);   
+            ret = __wt_txn_commit(session, NULL);
             if (ret == 0)
                 /* Traverse the keys again to flag the updates inserted to lookaside. */
                 for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
@@ -818,14 +818,14 @@ err:
 
                     /* Skip aborted transactions. */
                     for (upd = list->onpage_upd->next; upd != NULL && upd->txnid == WT_TXN_ABORTED;
-                        upd = upd->next)
+                         upd = upd->next)
                         ;
 
                     /*
-                    * Flag the update as now in the lookaside file. It is enough to only flag the first
-                    * update that is inserted to las and we know that the older updates are all in las
-                    * as well.
-                    */
+                     * Flag the update as now in the lookaside file. It is enough to only flag the
+                     * first update that is inserted to las and we know that the older updates are
+                     * all in las as well.
+                     */
                     if (upd != NULL)
                         F_SET(upd, WT_UPDATE_HISTORY_STORE);
                 }
