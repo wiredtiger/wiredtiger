@@ -78,11 +78,11 @@ class test_las04(wttest.WiredTigerTestCase):
             # For in-memory configurations, we simply ignore any lookaside
             # related configuration.
             self.assertEqual(
-                self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
+                self.get_stat(wiredtiger.stat.conn.cache_hs_ondisk_max),
                 0)
         else:
             self.assertEqual(
-                self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
+                self.get_stat(wiredtiger.stat.conn.cache_hs_ondisk_max),
                 self.init_stat_val)
 
         reconfigure = lambda: self.conn.reconfigure(
@@ -99,11 +99,11 @@ class test_las04(wttest.WiredTigerTestCase):
 
         if self.in_memory:
             self.assertEqual(
-                self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
+                self.get_stat(wiredtiger.stat.conn.cache_hs_ondisk_max),
                 0)
         else:
             self.assertEqual(
-                self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
+                self.get_stat(wiredtiger.stat.conn.cache_hs_ondisk_max),
                 self.reconfig_stat_val)
 
 if __name__ == '__main__':

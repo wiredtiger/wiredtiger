@@ -348,7 +348,7 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             __bit_setv(
               r->first_free, WT_INSERT_RECNO(ins) - pageref->ref_recno, btree->bitcnt, *upd->data);
             /* Free the update if it is external. */
-            if (upd->ext != 0)
+            if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                 __wt_free_update_list(session, &upd);
         }
     }
@@ -424,7 +424,7 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         }
 
         /* Free the update if it is external. */
-        if (upd != NULL && upd->ext != 0)
+        if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
             __wt_free_update_list(session, &upd);
 
         /*
@@ -443,7 +443,7 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
 err:
     /* Free the update if it is external. */
-    if (upd != NULL && upd->ext != 0)
+    if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
         __wt_free_update_list(session, &upd);
 
     return (ret);
@@ -745,7 +745,7 @@ __wt_rec_col_var(
          */
         WT_ERR(__wt_dsk_cell_data_ref(session, WT_PAGE_COL_VAR, vpack, orig));
 
-    record_loop:
+record_loop:
         /*
          * Generate on-page entries: loop repeat records, looking for WT_INSERT entries matching the
          * record number. The WT_INSERT lists are in sorted order, so only need check the next one.
@@ -780,8 +780,9 @@ __wt_rec_col_var(
                 ins = WT_SKIP_NEXT(ins);
             }
 
-            update_no_copy = upd == NULL || upd->ext == 0; /* No data copy */
-            repeat_count = 1;                              /* Single record */
+            update_no_copy =
+              upd == NULL || !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK); /* No data copy */
+            repeat_count = 1;                                             /* Single record */
             deleted = false;
 
             if (upd != NULL) {
@@ -803,24 +804,6 @@ __wt_rec_col_var(
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));
                 }
-            } else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
-                /*
-                 * If doing an update save and restore, and the underlying value is a removed
-                 * overflow value, we end up here.
-                 *
-                 * If necessary, when the overflow value was originally removed, reconciliation
-                 * appended a globally visible copy of the value to the key's update list, meaning
-                 * the on-page item isn't accessed after page re-instantiation.
-                 *
-                 * Assert the case.
-                 */
-                WT_ASSERT(session, F_ISSET(r, WT_REC_UPDATE_RESTORE));
-
-                /*
-                 * The on-page value will never be accessed, write a placeholder record.
-                 */
-                data = "ovfl-unused";
-                size = WT_STORE_SIZE(strlen("ovfl-unused"));
             } else {
                 update_no_copy = false; /* Maybe data copy */
 
@@ -930,7 +913,7 @@ compare:
             }
 
             /* Free the update if it is external. */
-            if (upd != NULL && upd->ext != 0)
+            if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                 __wt_free_update_list(session, &upd);
 
             last.start_ts = start_ts;
@@ -999,7 +982,8 @@ compare:
             stop_txn = upd_select.stop_txn;
         }
         while (src_recno <= n) {
-            update_no_copy = upd == NULL || upd->ext == 0; /* No data copy */
+            update_no_copy =
+              upd == NULL || !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK); /* No data copy */
             deleted = false;
 
             /*
@@ -1067,12 +1051,15 @@ compare:
              * the same thing.
              */
             if (rle != 0) {
+                /*
+                 * FIXME-PM-1521: Follow up issue with clang in WT-5341.
+                 */
                 if ((!__wt_process.page_version_ts ||
                       (last.start_ts == start_ts && last.start_txn == start_txn &&
                         last.stop_ts == stop_ts && last.stop_txn == stop_txn)) &&
                   ((deleted && last.deleted) ||
-                      (!deleted && !last.deleted && last.value->size == size &&
-                        memcmp(last.value->data, data, size) == 0))) {
+                      (!deleted && !last.deleted && last.value->size != 0 &&
+                        last.value->size == size && memcmp(last.value->data, data, size) == 0))) {
                     ++rle;
                     goto next;
                 }
@@ -1097,7 +1084,7 @@ compare:
             }
 
             /* Free the update if it is external. */
-            if (upd != NULL && upd->ext != 0)
+            if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                 __wt_free_update_list(session, &upd);
 
             /* Ready for the next loop, reset the RLE counter. */
@@ -1136,7 +1123,7 @@ next:
 
 err:
     /* Free the update if it is external. */
-    if (upd != NULL && upd->ext != 0)
+    if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
         __wt_free_update_list(session, &upd);
 
     __wt_scr_free(session, &orig);

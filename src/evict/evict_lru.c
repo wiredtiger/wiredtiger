@@ -567,7 +567,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
         WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOOKASIDE_CURSOR));
 
         las_tree = ((WT_CURSOR_BTREE *)session->las_cursor)->btree;
-        cache->bytes_lookaside = las_tree->bytes_inmem;
+        cache->bytes_hs = las_tree->bytes_inmem;
     }
 
     /*
@@ -1783,8 +1783,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * create "deserts" in trees where no good eviction candidates can be found. Abandon the
          * walk if we get into that situation.
          */
-        give_up = !__wt_cache_aggressive(session) && !F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
-          pages_seen > min_pages &&
+        give_up = !__wt_cache_aggressive(session) && !WT_IS_LAS(btree) && pages_seen > min_pages &&
           (pages_queued == 0 || (pages_seen / pages_queued) > (min_pages / target_pages));
         if (give_up) {
             /*
@@ -1884,7 +1883,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * by definition and we want to free space.
          */
         if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-          F_ISSET(btree, WT_BTREE_LOOKASIDE))
+          WT_IS_LAS(btree))
             goto fast;
 
         /*
@@ -2299,6 +2298,10 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
             if (ret == WT_ROLLBACK) {
                 --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_fail_cache);
+                if (timer)
+                    WT_IGNORE_RET(__wt_msg(session,
+                      "Application thread returned a rollback error because "
+                      "it was forced to evict and eviction is stuck"));
             }
             WT_ERR(ret);
         }

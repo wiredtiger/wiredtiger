@@ -295,8 +295,8 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, cache_bytes_internal, cache->bytes_internal);
     WT_STAT_SET(session, stats, cache_bytes_leaf, leaf);
     if (F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN)) {
-        WT_STAT_SET(session, stats, cache_bytes_lookaside,
-          __wt_cache_bytes_plus_overhead(cache, cache->bytes_lookaside));
+        WT_STAT_SET(
+          session, stats, cache_bytes_hs, __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs));
     }
     WT_STAT_SET(session, stats, cache_bytes_other, __wt_cache_bytes_other(cache));
 
@@ -307,7 +307,7 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, cache_eviction_state, cache->flags);
     WT_STAT_SET(session, stats, cache_eviction_aggressive_set, cache->evict_aggressive_score);
     WT_STAT_SET(session, stats, cache_eviction_empty_score, cache->evict_empty_score);
-    WT_STAT_SET(session, stats, cache_lookaside_score, __wt_cache_lookaside_score(cache));
+    WT_STAT_SET(session, stats, cache_hs_score, __wt_cache_lookaside_score(cache));
 
     WT_STAT_SET(session, stats, cache_eviction_active_workers, conn->evict_threads.current_threads);
     WT_STAT_SET(

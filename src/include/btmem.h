@@ -32,9 +32,8 @@
 #define WT_REC_IN_MEMORY 0x04u
 #define WT_REC_LOOKASIDE 0x08u
 #define WT_REC_SCRUB 0x10u
-#define WT_REC_UPDATE_RESTORE 0x20u
-#define WT_REC_VISIBILITY_ERR 0x40u
-#define WT_REC_VISIBLE_ALL 0x80u
+#define WT_REC_VISIBILITY_ERR 0x20u
+#define WT_REC_VISIBLE_ALL 0x40u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
@@ -1113,8 +1112,11 @@ struct __wt_update {
      */
     volatile uint8_t prepare_state; /* prepare state */
 
-    /* Temp: Remove after integrating las cursors with btree cursors */
-    uint8_t ext;
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_UPDATE_HISTORY_STORE 0x1u      /* Update has been written to history store. */
+#define WT_UPDATE_RESTORED_FROM_DISK 0x2u /* Update is temporary retrieved from LAS. */
+                                          /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint8_t flags;
 
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use

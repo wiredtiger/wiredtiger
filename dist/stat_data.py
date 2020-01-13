@@ -72,6 +72,10 @@ class DhandleStat(Stat):
     prefix = 'data-handle'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, DhandleStat.prefix, desc, flags)
+class HistoryStat(Stat):
+    prefix = 'history'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, HistoryStat.prefix, desc, flags)
 class JoinStat(Stat):
     prefix = ''  # prefix is inserted dynamically
     def __init__(self, name, desc, flags=''):
@@ -205,7 +209,7 @@ connection_stats = [
     CacheStat('cache_bytes_internal', 'tracked bytes belonging to internal pages in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_inuse', 'bytes currently in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_leaf', 'tracked bytes belonging to leaf pages in the cache', 'no_clear,no_scale,size'),
-    CacheStat('cache_bytes_lookaside', 'bytes belonging to the cache overflow table in the cache', 'no_clear,no_scale,size'),
+    CacheStat('cache_bytes_hs', 'bytes belonging to the history store table in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_max', 'maximum bytes configured', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_other', 'bytes not belonging to page images in the cache', 'no_clear,no_scale,size'),
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
@@ -283,24 +287,20 @@ connection_stats = [
     CacheStat('cache_hazard_checks', 'hazard pointer check calls'),
     CacheStat('cache_hazard_max', 'hazard pointer maximum array length', 'max_aggregate,no_scale'),
     CacheStat('cache_hazard_walks', 'hazard pointer check entries walked'),
+    CacheStat('cache_hs_cursor_wait_application', 'history store cursor application thread wait time (usecs)'),
+    CacheStat('cache_hs_cursor_wait_internal', 'history store cursor internal thread wait time (usecs)'),
+    CacheStat('cache_hs_insert', 'history store table insert calls'),
+    CacheStat('cache_hs_ondisk', 'history store table on-disk size', 'no_clear,no_scale,size'),
+    CacheStat('cache_hs_ondisk_max', 'history store table max on-disk size', 'no_clear,no_scale,size'),
+    CacheStat('cache_hs_read', 'history store table reads'),
+    CacheStat('cache_hs_read_miss', 'history store table reads missed'),
+    CacheStat('cache_hs_read_squash', 'history store table reads requiring squashed modifies'),
+    CacheStat('cache_hs_read_wasted', 'history store table reads wasted'),
+    CacheStat('cache_hs_score', 'history store score', 'no_clear,no_scale'),
+    CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
-    CacheStat('cache_lookaside_cursor_wait_application', 'cache overflow cursor application thread wait time (usecs)'),
-    CacheStat('cache_lookaside_cursor_wait_internal', 'cache overflow cursor internal thread wait time (usecs)'),
-    CacheStat('cache_lookaside_entries', 'cache overflow table entries', 'no_clear,no_scale'),
-    CacheStat('cache_lookaside_insert', 'cache overflow table insert calls'),
-    CacheStat('cache_lookaside_ondisk', 'cache overflow table on-disk size', 'no_clear,no_scale,size'),
-    CacheStat('cache_lookaside_ondisk_max', 'cache overflow table max on-disk size', 'no_clear,no_scale,size'),
-    CacheStat('cache_lookaside_read', 'cache overflow table update reads'),
-    CacheStat('cache_lookaside_read_miss', 'cache overflow table update reads missed'),
-    CacheStat('cache_lookaside_read_squash', 'cache overflow table update reads requiring squashed modifies'),
-    CacheStat('cache_lookaside_read_wasted', 'cache overflow table update reads wasted'),
-    CacheStat('cache_lookaside_remove', 'cache overflow table remove calls'),
-    CacheStat('cache_lookaside_score', 'cache overflow score', 'no_clear,no_scale'),
-    CacheStat('cache_lookaside_write_squash', 'cache overflow table update writes requiring squashed modifies'),
     CacheStat('cache_overhead', 'percentage overhead', 'no_clear,no_scale'),
-    CacheStat('cache_page_instantiate_read_lookaside', 'pages read into cache requiring cache overflow entries.'),
-    CacheStat('cache_page_instantiate_read_lookaside_checkpoint', 'pages read into cache by checkpoint requiring cache overflow entries.'),
     CacheStat('cache_pages_dirty', 'tracked dirty pages in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
@@ -314,7 +314,7 @@ connection_stats = [
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_app_count', 'application threads page write from cache to disk count'),
     CacheStat('cache_write_app_time', 'application threads page write from cache to disk time (usecs)'),
-    CacheStat('cache_write_lookaside', 'page written requiring cache overflow records'),
+    CacheStat('cache_write_hs', 'page written requiring history store records'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
 
     ##########################################
@@ -383,6 +383,13 @@ connection_stats = [
     DhandleStat('dh_sweep_remove', 'connection sweep dhandles removed from hash list'),
     DhandleStat('dh_sweep_tod', 'connection sweep time-of-death sets'),
     DhandleStat('dh_sweeps', 'connection sweeps'),
+
+    ##########################################
+    # History statistics
+    ##########################################
+    HistoryStat('hs_gc_pages_evict', 'history pages added for eviction during garbage collection'),
+    HistoryStat('hs_gc_pages_removed', 'history pages removed for garbage collection'),
+    HistoryStat('hs_gc_pages_visited', 'history pages visited for garbage collection'),
 
     ##########################################
     # Locking statistics
@@ -573,7 +580,7 @@ connection_stats = [
     TxnStat('txn_durable_queue_inserts', 'durable timestamp queue inserts total'),
     TxnStat('txn_durable_queue_len', 'durable timestamp queue length'),
     TxnStat('txn_durable_queue_walked', 'durable timestamp queue entries walked'),
-    TxnStat('txn_fail_cache', 'transaction failures due to cache overflow'),
+    TxnStat('txn_fail_cache', 'transaction failures due to history store'),
     TxnStat('txn_pinned_checkpoint_range', 'transaction range of IDs currently pinned by a checkpoint', 'no_clear,no_scale'),
     TxnStat('txn_pinned_range', 'transaction range of IDs currently pinned', 'no_clear,no_scale'),
     TxnStat('txn_pinned_snapshot_range', 'transaction range of IDs currently pinned by named snapshots', 'no_clear,no_scale'),
@@ -593,7 +600,7 @@ connection_stats = [
     TxnStat('txn_read_queue_len', 'read timestamp queue length'),
     TxnStat('txn_read_queue_walked', 'read timestamp queue entries walked'),
     TxnStat('txn_rollback', 'transactions rolled back'),
-    TxnStat('txn_rollback_las_removed', 'rollback to stable updates removed from cache overflow'),
+    TxnStat('txn_rollback_hs_removed', 'rollback to stable updates removed from history store'),
     TxnStat('txn_rollback_to_stable', 'rollback to stable calls'),
     TxnStat('txn_rollback_upd_aborted', 'rollback to stable updates aborted'),
     TxnStat('txn_set_ts', 'set timestamp calls'),
@@ -703,18 +710,16 @@ dsrc_stats = [
     CacheStat('cache_eviction_walks_gave_up_no_targets', 'eviction walks gave up because they saw too many pages and found no candidates'),
     CacheStat('cache_eviction_walks_gave_up_ratio', 'eviction walks gave up because they saw too many pages and found too few candidates'),
     CacheStat('cache_eviction_walks_stopped', 'eviction walks gave up because they restarted their walk twice'),
+    CacheStat('cache_hs_read', 'history store table reads'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
-    CacheStat('cache_lookaside_read', 'cache overflow table update reads'),
-    CacheStat('cache_page_instantiate_read_lookaside', 'pages read into cache requiring cache overflow entries.'),
-    CacheStat('cache_page_instantiate_read_lookaside_checkpoint', 'pages read into cache by checkpoint requiring cache overflow entries.'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
     CacheStat('cache_read', 'pages read into cache'),
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
     CacheStat('cache_write', 'pages written from cache'),
-    CacheStat('cache_write_lookaside', 'page written requiring cache overflow records'),
+    CacheStat('cache_write_hs', 'page written requiring history store records'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
 
     ##########################################

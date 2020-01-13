@@ -30,14 +30,15 @@ import time
 from helper import copy_wiredtiger_home
 import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
+from test_gc01 import test_gc_base
 
 def timestamp_str(t):
     return '%x' % t
 
 # test_gc02.py
 # Test that checkpoint cleans the obsolete lookaside internal pages.
-class test_gc02(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=1GB,log=(enabled)'
+class test_gc02(test_gc_base):
+    conn_config = 'cache_size=1GB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
     def large_updates(self, uri, value, ds, nrows, commit_ts):
@@ -100,6 +101,7 @@ class test_gc02(wttest.WiredTigerTestCase):
 
         # Checkpoint to ensure that the history store is checkpointed and no clean
         self.session.checkpoint()
+        self.check_gc_stats()
 
         # Pin oldest and stable to timestamp 100.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(100) +
@@ -134,11 +136,13 @@ class test_gc02(wttest.WiredTigerTestCase):
 
         # Checkpoint to ensure that the history store is cleaned
         self.session.checkpoint()
+        self.check_gc_stats()
 
         # Check that the new updates are only seen after the update timestamp
         #self.check(bigvalue2, uri, nrows, 200)
 
         # When this limitation is fixed we'll need to uncomment the calls to self.check
+        # and fix self.check_gc_stats.
         self.KNOWN_LIMITATION('values stored by this test are not yet validated')
 
 if __name__ == '__main__':

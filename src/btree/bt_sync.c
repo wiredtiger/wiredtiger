@@ -114,43 +114,65 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     wt_timestamp_t multi_newest_stop_ts;
     uint64_t multi_newest_stop_txn;
     uint32_t i;
+    bool obsolete;
 
     /* Ignore root pages as they can never be deleted. */
-    if (__wt_ref_is_root(ref))
+    if (__wt_ref_is_root(ref)) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping root page", (void *)ref);
         return (false);
+    }
 
     /* Ignore internal pages, these are taken care of during reconciliation. */
-    if (!__wt_ref_is_leaf(session, ref))
+    if (!__wt_ref_is_leaf(session, ref)) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping internal page with parent: %p",
+          (void *)ref, (void *)ref->home);
         return (false);
+    }
 
-    /* Check for the page obsolete, if the page is modified and reconciled. */
-    mod = (ref->page != NULL) ? (ref->page->modify) : NULL;
-    if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE)
-        return (__wt_txn_visible_all(
-          session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts));
-
+    WT_STAT_CONN_INCR(session, hs_gc_pages_visited);
     multi_newest_stop_ts = WT_TS_NONE;
     multi_newest_stop_txn = WT_TXN_NONE;
-    if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
+    addr = ref->addr;
+    mod = (ref->page != NULL) ? (ref->page->modify) : NULL;
+
+    /* Check for the page obsolete, if the page is modified and reconciled. */
+    if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+          "%p: page obsolete check with reconciled replace block stop time pair txn "
+          "and timestamp: %" PRIu64 ", %" PRIu64,
+          (void *)ref, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts);
+        obsolete = __wt_txn_visible_all(
+          session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts);
+    } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         /* Calculate the max stop time pair by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
             multi_newest_stop_ts = WT_MAX(multi_newest_stop_ts, multi->addr.newest_stop_ts);
             multi_newest_stop_txn = WT_MAX(multi_newest_stop_txn, multi->addr.newest_stop_txn);
         }
-        return (__wt_txn_visible_all(session, multi_newest_stop_txn, multi_newest_stop_ts));
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+          "%p: page obsolete check with reconciled multi block stop time pair txn "
+          "and timestamp: %" PRIu64 ", %" PRIu64,
+          (void *)ref, multi_newest_stop_txn, multi_newest_stop_ts);
+        obsolete = __wt_txn_visible_all(session, multi_newest_stop_txn, multi_newest_stop_ts);
+    } else if (!__wt_off_page(ref->home, addr)) {
+        /* Check if the page is obsolete using the page disk address. */
+        __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+          "%p: page obsolete check with unpacked address stop time pair txn "
+          "and timestamp: %" PRIu64 ", %" PRIu64,
+          (void *)ref, vpack.newest_stop_txn, vpack.newest_stop_ts);
+        obsolete = __wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts);
+    } else {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+          "%p: page obsolete check with off page address stop time pair txn "
+          "and timestamp: %" PRIu64 ", %" PRIu64,
+          (void *)ref, addr->newest_stop_txn, addr->newest_stop_ts);
+        obsolete = __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts);
     }
 
-    /* Check if the page is obsolete using the page disk address. */
-    addr = ref->addr;
-    if (addr != NULL) {
-        if (!__wt_off_page(ref->home, addr)) {
-            __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
-            return (__wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts));
-        }
-        return (__wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
-    }
-
-    return (false);
+    if (obsolete)
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: page is found as obsolete", (void *)ref);
+    return (obsolete);
 }
 
 /*
@@ -166,11 +188,17 @@ __sync_ref_evict_or_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
+        WT_STAT_CONN_INCR(session, hs_gc_pages_removed);
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+          "%p: page is marked for deletion with parent page: %p", (void *)ref, (void *)ref->home);
         return (__wt_page_parent_modify_set(session, ref, true));
     }
 
     /* Evict the in-memory obsolete page */
     WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
+    WT_STAT_CONN_INCR(session, hs_gc_pages_evict);
+    __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+      "%p: is an in-memory obsolete page, added to urgent eviction queue.", (void *)ref);
     return (0);
 }
 
@@ -187,6 +215,10 @@ __sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
     uint32_t slot;
 
     WT_INTL_INDEX_GET(session, parent->page, pindex);
+    __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+      "%p: traversing the internal page %p for obsolete child pages", (void *)parent,
+      (void *)parent->page);
+
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
@@ -213,7 +245,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_TXN *txn;
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
-    uint32_t flags;
+    uint32_t flags, rec_flags;
     bool is_las, timer, tried_eviction;
 
     conn = S2C(session);
@@ -283,7 +315,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     __wt_txn_get_snapshot(session);
                 leaf_bytes += page->memory_footprint;
                 ++leaf_pages;
-                WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT, NULL));
+                WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT));
             }
         }
         break;
@@ -323,7 +355,17 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         btree->syncing = WT_BTREE_SYNC_WAIT;
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         btree->syncing = WT_BTREE_SYNC_RUNNING;
-        is_las = F_ISSET(btree, WT_BTREE_LOOKASIDE);
+        is_las = WT_IS_LAS(btree);
+
+        /*
+         * Add in lookaside reconciliation for standard files.
+         *
+         * FIXME-PM-1521: Remove the is_las check, and assert that no updates from lookaside are
+         * copied to lookaside recursively.
+         */
+        rec_flags = WT_REC_CHECKPOINT;
+        if (!is_las && !WT_IS_METADATA(btree->dhandle))
+            rec_flags |= WT_REC_LOOKASIDE;
 
         /* Write all dirty in-cache pages. */
         LF_SET(WT_READ_NO_EVICT);
@@ -392,6 +434,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (WT_PAGE_IS_INTERNAL(page)) {
                 internal_bytes += page->memory_footprint;
                 ++internal_pages;
+                /* Slow down checkpoints. */
+                if (F_ISSET(conn, WT_CONN_DEBUG_SLOW_CKPT))
+                    __wt_sleep(0, 10000);
             } else {
                 leaf_bytes += page->memory_footprint;
                 ++leaf_pages;
@@ -409,9 +454,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * if eviction fails (the page may stay in cache clean but with history that cannot be
              * discarded), that is not wasted effort because checkpoint doesn't need to write the
              * page again.
+             *
+             * Once the transaction has given up it's snapshot it is no longer safe to reconcile
+             * pages. That happens prior to the final metadata checkpoint.
              */
             if (!WT_PAGE_IS_INTERNAL(page) && page->read_gen == WT_READGEN_WONT_NEED &&
-              !tried_eviction) {
+              !tried_eviction && F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT)) {
                 ret = __wt_page_release_evict(session, walk, 0);
                 walk = NULL;
                 WT_ERR_BUSY_OK(ret);
@@ -423,7 +471,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
             tried_eviction = false;
 
-            WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT, NULL));
+            WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags));
 
             /*
              * Update checkpoint IO tracking data if configured to log verbose progress messages.

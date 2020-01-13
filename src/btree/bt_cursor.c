@@ -274,7 +274,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
         WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
         if (upd != NULL) {
             if (upd->type == WT_UPDATE_TOMBSTONE) {
-                if (upd->ext != 0)
+                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                     __wt_free_update_list(session, &upd);
                 return (0);
             }
@@ -354,7 +354,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
             WT_RET(__wt_txn_read(session, cbt, page->modify->mod_row_update[cbt->slot], &upd));
             if (upd != NULL) {
                 if (upd->type == WT_UPDATE_TOMBSTONE) {
-                    if (upd->ext != 0)
+                    if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                         __wt_free_update_list(session, &upd);
                     return (0);
                 }
@@ -545,7 +545,7 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
                 upd = las_upd;
             } else {
                 __wt_free_update_list(session, &las_upd);
-                WT_STAT_CONN_INCR(session, cache_lookaside_read_wasted);
+                WT_STAT_CONN_INCR(session, cache_hs_read_wasted);
             }
         }
         WT_RET_NOTFOUND_OK(ret);
@@ -690,28 +690,35 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
      * WT_CURSOR.search, ignore pinned pages in the case of column-store, search-near isn't an
      * interesting enough case for column-store to add the complexity needed to avoid the tree
      * search.
-     *
-     * Set the "insert" flag for the btree row-store search; we may intend to position the cursor at
-     * the end of the tree, rather than match an existing record.
      */
     valid = false;
     if (btree->type == BTREE_ROW && __cursor_page_pinned(cbt, true)) {
         __wt_txn_cursor_op(session);
 
+        /*
+         * Set the "insert" flag for row-store search; we may intend to position the cursor at the
+         * the end of the tree, rather than match an existing record. (LSM requires this semantic.)
+         */
         WT_ERR(__cursor_row_search(cbt, true, cbt->ref, &leaf_found));
 
         /*
-         * Search-near is trickier than search when searching an already pinned page. If search
-         * returns the first or last page slots, discard the results and search the full tree as the
-         * neighbor pages might offer better matches. This test is simplistic as we're ignoring
-         * append lists (there may be no page slots or we might be legitimately positioned after the
-         * last page slot). Ignore those cases, it makes things too complicated.
+         * Only use the pinned page search results if search returns an exact match or a slot other
+         * than the page's boundary slots, if that's not the case, a neighbor page might offer a
+         * better match. This test is simplistic as we're ignoring append lists (there may be no
+         * page slots or we might be legitimately positioned after the last page slot). Ignore those
+         * cases, it makes things too complicated.
          */
-        if (leaf_found && cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)
+        if (leaf_found &&
+          (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
             WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
     }
     if (!valid) {
         WT_ERR(__cursor_func_init(cbt, true));
+
+        /*
+         * Set the "insert" flag for row-store search; we may intend to position the cursor at the
+         * the end of the tree, rather than match an existing record. (LSM requires this semantic.)
+         */
         WT_ERR(btree->type == BTREE_ROW ? __cursor_row_search(cbt, true, NULL, NULL) :
                                           __cursor_col_search(cbt, NULL, NULL));
         WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
@@ -1178,7 +1185,7 @@ err:
          * subsequent iteration can succeed, we cannot return success.)
          */
         if (0) {
-        search_notfound:
+search_notfound:
             ret = WT_NOTFOUND;
             if (!iterating && !positioned && F_ISSET(cursor, WT_CURSTD_OVERWRITE))
                 ret = 0;
@@ -1274,10 +1281,19 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     /* If our caller configures for a local search and we have a page pinned, do that search. */
     if (F_ISSET(cursor, WT_CURSTD_UPDATE_LOCAL) && __cursor_page_pinned(cbt, true)) {
         __wt_txn_cursor_op(session);
+        WT_ERR(__wt_txn_autocommit_check(session));
 
         WT_ERR(btree->type == BTREE_ROW ? __cursor_row_search(cbt, true, cbt->ref, &leaf_found) :
                                           __cursor_col_search(cbt, cbt->ref, &leaf_found));
-        if (leaf_found)
+        /*
+         * Only use the pinned page search results if search returns an exact match or a slot other
+         * than the page's boundary slots, if that's not the case, the record might belong on an
+         * entirely different page. This test is simplistic as we're ignoring append lists (there
+         * may be no page slots or we might be legitimately positioned after the last page slot).
+         * Ignore those cases, it makes things too complicated.
+         */
+        if (leaf_found &&
+          (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
             goto update_local;
     }
 
@@ -1797,6 +1813,8 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
     session = (WT_SESSION_IMPL *)start->iface.session;
     btree = start->btree;
     WT_STAT_DATA_INCR(session, cursor_truncate);
+
+    WT_RET(__wt_txn_autocommit_check(session));
 
     /*
      * For recovery, log the start and stop keys for a truncate operation, not the individual
