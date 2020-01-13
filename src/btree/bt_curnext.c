@@ -388,95 +388,6 @@ restart_read_page:
 
 #ifdef HAVE_DIAGNOSTIC
 /*
- * __cursor_key_order_check_col --
- *     Check key ordering for column-store cursor movements.
- */
-static int
-__cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
-{
-    int cmp;
-
-    cmp = 0; /* -Werror=maybe-uninitialized */
-
-    if (cbt->lastrecno != WT_RECNO_OOB) {
-        if (cbt->lastrecno < cbt->recno)
-            cmp = -1;
-        if (cbt->lastrecno > cbt->recno)
-            cmp = 1;
-    }
-
-    if (cbt->lastrecno == WT_RECNO_OOB || (next && cmp < 0) || (!next && cmp > 0)) {
-        cbt->lastrecno = cbt->recno;
-        return (0);
-    }
-
-    WT_PANIC_RET(session, EINVAL, "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64
-                                  " then "
-                                  "key %" PRIu64,
-      next ? "next" : "prev", cbt->lastrecno, cbt->recno);
-}
-
-/*
- * __cursor_key_order_check_row --
- *     Check key ordering for row-store cursor movements.
- */
-static int
-__cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
-{
-    WT_BTREE *btree;
-    WT_DECL_ITEM(a);
-    WT_DECL_ITEM(b);
-    WT_DECL_RET;
-    WT_ITEM *key;
-    int cmp;
-
-    btree = S2BT(session);
-    key = &cbt->iface.key;
-    cmp = 0; /* -Werror=maybe-uninitialized */
-
-    if (cbt->lastkey->size != 0)
-        WT_RET(__wt_compare(session, btree->collator, cbt->lastkey, key, &cmp));
-
-    if (cbt->lastkey->size == 0 || (next && cmp < 0) || (!next && cmp > 0))
-        return (__wt_buf_set(session, cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
-
-    WT_ERR(__wt_scr_alloc(session, 512, &a));
-    WT_ERR(__wt_scr_alloc(session, 512, &b));
-
-    WT_PANIC_ERR(session, EINVAL,
-      "WT_CURSOR.%s out-of-order returns: returned key %.1024s then "
-      "key %.1024s",
-      next ? "next" : "prev", __wt_buf_set_printable_format(session, cbt->lastkey->data,
-                                cbt->lastkey->size, btree->key_format, a),
-      __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, b));
-
-err:
-    __wt_scr_free(session, &a);
-    __wt_scr_free(session, &b);
-
-    return (ret);
-}
-
-/*
- * __wt_cursor_key_order_check --
- *     Check key ordering for cursor movements.
- */
-int
-__wt_cursor_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
-{
-    switch (cbt->ref->page->type) {
-    case WT_PAGE_COL_FIX:
-    case WT_PAGE_COL_VAR:
-        return (__cursor_key_order_check_col(session, cbt, next));
-    case WT_PAGE_ROW_LEAF:
-        return (__cursor_key_order_check_row(session, cbt, next));
-    default:
-        return (__wt_illegal_value(session, cbt->ref->page->type));
-    }
-    /* NOTREACHED */
-}
-
-/*
  * __wt_cursor_key_order_init --
  *     Initialize key ordering checks for cursor movements after a successful search.
  */
@@ -589,6 +500,7 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 int
 __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
+    const WT_BT_TRAITS *bt_traits;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_PAGE *page;
@@ -596,6 +508,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     uint32_t flags;
     bool newpage, restart;
 
+    bt_traits = cbt->btree->bt_traits;
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
 
@@ -702,7 +615,7 @@ err:
          * we call prev key 10 will be returned which will be same as earlier returned key.
          */
         if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV))
-            ret = __wt_cursor_key_order_check(session, cbt, true);
+            ret = bt_traits->cursor_key_order_check(session, cbt, true);
 #endif
         break;
     case WT_PREPARE_CONFLICT:

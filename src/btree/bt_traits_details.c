@@ -145,3 +145,73 @@ __bt_row_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
     *valid = true;
     return (0);
 }
+
+/*
+ * __bt_col_cursor_key_order_check --
+ *     Check key ordering for column-store cursor movements.
+ */
+int
+__bt_col_cursor_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
+{
+    int cmp;
+
+    cmp = 0; /* -Werror=maybe-uninitialized */
+
+    if (cbt->lastrecno != WT_RECNO_OOB) {
+        if (cbt->lastrecno < cbt->recno)
+            cmp = -1;
+        if (cbt->lastrecno > cbt->recno)
+            cmp = 1;
+    }
+
+    if (cbt->lastrecno == WT_RECNO_OOB || (next && cmp < 0) || (!next && cmp > 0)) {
+        cbt->lastrecno = cbt->recno;
+        return (0);
+    }
+
+    WT_PANIC_RET(session, EINVAL, "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64
+                                  " then "
+                                  "key %" PRIu64,
+      next ? "next" : "prev", cbt->lastrecno, cbt->recno);
+}
+
+/*
+ * __bt_row_cursor_key_order_check --
+ *     Check key ordering for row-store cursor movements.
+ */
+int
+__bt_row_cursor_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
+{
+    WT_BTREE *btree;
+    WT_DECL_ITEM(a);
+    WT_DECL_ITEM(b);
+    WT_DECL_RET;
+    WT_ITEM *key;
+    int cmp;
+
+    btree = S2BT(session);
+    key = &cbt->iface.key;
+    cmp = 0; /* -Werror=maybe-uninitialized */
+
+    if (cbt->lastkey->size != 0)
+        WT_RET(__wt_compare(session, btree->collator, cbt->lastkey, key, &cmp));
+
+    if (cbt->lastkey->size == 0 || (next && cmp < 0) || (!next && cmp > 0))
+        return (__wt_buf_set(session, cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
+
+    WT_ERR(__wt_scr_alloc(session, 512, &a));
+    WT_ERR(__wt_scr_alloc(session, 512, &b));
+
+    WT_PANIC_ERR(session, EINVAL,
+      "WT_CURSOR.%s out-of-order returns: returned key %.1024s then "
+      "key %.1024s",
+      next ? "next" : "prev", __wt_buf_set_printable_format(session, cbt->lastkey->data,
+                                cbt->lastkey->size, btree->key_format, a),
+      __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, b));
+
+err:
+    __wt_scr_free(session, &a);
+    __wt_scr_free(session, &b);
+
+    return (ret);
+}
