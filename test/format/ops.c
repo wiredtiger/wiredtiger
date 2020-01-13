@@ -121,7 +121,7 @@ TINFO **tinfo_list;
  *     Perform a number of operations in a set of threads.
  */
 void
-wts_ops(bool lastrun)
+wts_ops(u_int ops_seconds, bool lastrun)
 {
     TINFO *tinfo, total;
     WT_CONNECTION *conn;
@@ -160,10 +160,10 @@ wts_ops(bool lastrun)
             g.c_ops = g.c_threads;
         thread_ops = g.c_ops / g.c_threads;
     }
-    if (g.c_timer == 0)
+    if (ops_seconds == 0)
         fourths = quit_fourths = -1;
     else {
-        fourths = ((int64_t)g.c_timer * 4 * 60) / FORMAT_OPERATION_REPS;
+        fourths = ops_seconds * 4;
         quit_fourths = fourths + 15 * 4 * 60;
     }
 

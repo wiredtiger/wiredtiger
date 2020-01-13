@@ -68,6 +68,7 @@ int
 main(int argc, char *argv[])
 {
     uint64_t now, start;
+    u_int ops_seconds;
     int ch, onerun, reps;
     const char *config, *home;
 
@@ -76,7 +77,6 @@ main(int argc, char *argv[])
     config = NULL;
 
     (void)testutil_set_progname(argv);
-    __wt_seconds(NULL, &g.start);
 
 /*
  * Windows and Linux support different sets of signals, be conservative about installing handlers.
@@ -195,11 +195,22 @@ main(int argc, char *argv[])
     testutil_check(pthread_rwlock_init(&g.death_lock, NULL));
     testutil_check(pthread_rwlock_init(&g.ts_lock, NULL));
 
+    /*
+     * Calculate how long each operations loop should run. Take any timer value and convert it to
+     * seconds, then allocate 15 seconds to do initialization, verification, rebalance and/or
+     * salvage tasks after the operations loop finishes. This is not intended to be exact in any
+     * way, just enough to get us into an acceptable range of run times. The reason for this is
+     * because we want to consume the legitimate run-time, but we also need to do the end-of-run
+     * checking in all cases, even if we run out of time, otherwise it won't get done. So, in
+     * summary pick a reasonable time and then don't check for timer expiration once the main
+     * operations loop completes.
+     */
+    ops_seconds = g.c_timer == 0 ? 0 : ((g.c_timer * 60) - 15) / FORMAT_OPERATION_REPS;
+
     printf("%s: process %" PRIdMAX " running\n", progname, (intmax_t)getpid());
     fflush(stdout);
     while (++g.run_cnt <= g.c_runs || g.c_runs == 0) {
-        if (expired())
-            break;
+        __wt_seconds(NULL, &start);
 
         startup();           /* Start a run */
         config_setup();      /* Run configuration */
@@ -207,45 +218,28 @@ main(int argc, char *argv[])
         key_init();          /* Setup keys/values */
         val_init();
 
-        __wt_seconds(NULL, &start);
         track("starting up", 0ULL, NULL);
 
         wts_open(g.home, true, &g.wts_conn);
         wts_init();
 
         /* Load and verify initial records */
-        if (expired())
-            break;
         wts_load();
-        if (expired())
-            break;
-        wts_verify("post-bulk verify"); /* Verify */
+        wts_verify("post-bulk verify");
+        wts_read_scan();
 
-        for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps) {
-            if (expired())
-                break;
-            wts_read_scan(); /* Read scan */
+        /* Operations. */
+        for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
+            wts_ops(ops_seconds, reps == FORMAT_OPERATION_REPS);
 
-            /* Operations */
-            if (expired())
-                break;
-            wts_ops(reps == FORMAT_OPERATION_REPS);
+        /* Copy out the run's statistics. */
+        wts_stats();
 
-            /*
-             * Copy out the run's statistics after the last set of operations.
-             *
-             * Verify closes the underlying handle and discards the statistics, read them first.
-             */
-            if (expired())
-                break;
-            if (reps == FORMAT_OPERATION_REPS)
-                wts_stats();
-
-            /* Verify */
-            if (expired())
-                break;
-            wts_verify("post-ops verify");
-        }
+        /*
+         * Verify the objects. Verify closes the underlying handle and discards the statistics, read
+         * them first.
+         */
+        wts_verify("post-ops verify");
 
         track("shutting down", 0ULL, NULL);
         wts_close();
@@ -253,15 +247,11 @@ main(int argc, char *argv[])
         /*
          * Rebalance testing.
          */
-        if (expired())
-            break;
         wts_rebalance();
 
         /*
          * Salvage testing.
          */
-        if (expired())
-            break;
         wts_salvage();
 
         /* Overwrite the progress line with a completion line. */
@@ -272,8 +262,6 @@ main(int argc, char *argv[])
           g.c_file_type, now - start);
         fflush(stdout);
     }
-
-    testutil_assertfmt(g.run_cnt > 1, "%s", "format failed to complete a single test run");
 
     /* Flush/close any logging information. */
     fclose_and_clear(&g.logfp);
