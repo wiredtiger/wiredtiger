@@ -345,112 +345,18 @@ __wt_las_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t se
 }
 
 /*
- * __wt_las_page_skip_locked --
- *     Check if we can skip reading a page with lookaside entries, where the page is already locked.
- */
-bool
-__wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_TXN *txn;
-
-    txn = &session->txn;
-
-    /*
-     * Skip lookaside pages if reading without a timestamp and all the updates in lookaside are in
-     * the past.
-     *
-     * Lookaside eviction preferentially chooses the newest updates when creating page images with
-     * no stable timestamp. If a stable timestamp has been set, we have to visit the page because
-     * eviction chooses old version of records in that case.
-     *
-     * One case where we may need to visit the page is if lookaside eviction is active in tree 2
-     * when a checkpoint has started and is working its way through tree 1. In that case, lookaside
-     * may have created a page image with updates in the future of the checkpoint.
-     *
-     * We also need to instantiate a lookaside page if this is an update operation in progress or
-     * transaction is in prepared state.
-     */
-    if (F_ISSET(txn, WT_TXN_PREPARE | WT_TXN_UPDATE))
-        return (false);
-
-    if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
-        return (false);
-
-    /*
-     * If some of the page's history overlaps with the reader's snapshot then we have to read it.
-     */
-    if (WT_TXNID_LE(txn->snap_min, ref->page_las->max_txn))
-        return (false);
-
-    /*
-     * Otherwise, if not reading at a timestamp, the page's history is in the past, so the page
-     * image is correct if it contains the most recent versions of everything and nothing was
-     * prepared.
-     */
-    if (!F_ISSET(txn, WT_TXN_HAS_TS_READ))
-        return (!ref->page_las->has_prepares && ref->page_las->min_skipped_ts == WT_TS_MAX);
-
-    /*
-     * Skip lookaside history if reading as of a timestamp, we evicted new versions of data and all
-     * the updates are in the past. This is not possible for prepared updates, because the commit
-     * timestamp was not known when the page was evicted.
-     *
-     * Otherwise, skip reading lookaside history if everything on the page is older than the read
-     * timestamp, and the oldest update in lookaside newer than the page is in the future of the
-     * reader. This seems unlikely, but is exactly what eviction tries to do when a checkpoint is
-     * running.
-     */
-    if (!ref->page_las->has_prepares && ref->page_las->min_skipped_ts == WT_TS_MAX &&
-      txn->read_timestamp >= ref->page_las->max_ondisk_ts)
-        return (true);
-
-    if (txn->read_timestamp >= ref->page_las->max_ondisk_ts &&
-      txn->read_timestamp < ref->page_las->min_skipped_ts)
-        return (true);
-
-    return (false);
-}
-
-/*
- * __wt_las_page_skip --
- *     Check if we can skip reading a page with lookaside entries, where the page needs to be locked
- *     before checking.
- */
-bool
-__wt_las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    uint32_t previous_state;
-    bool skip;
-
-    if ((previous_state = ref->state) != WT_REF_LOOKASIDE)
-        return (false);
-
-    if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-        return (false);
-
-    skip = __wt_las_page_skip_locked(session, ref);
-
-    /* Restore the state and push the change. */
-    WT_REF_SET_STATE(ref, previous_state);
-    WT_FULL_BARRIER();
-
-    return (skip);
-}
-
-/*
  * __las_insert_updates_verbose --
  *     Display a verbose message once per checkpoint with details about the cache state when
  *     performing a lookaside table write.
  */
 static void
-__las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI *multi)
+__las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     double pct_dirty, pct_full;
     uint64_t ckpt_gen_current, ckpt_gen_last;
     uint32_t btree_id;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     btree_id = btree->id;
 
@@ -475,17 +381,11 @@ __las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI
         __wt_verbose(session, WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
           "Page reconciliation triggered lookaside write: file ID %" PRIu32
           ". "
-          "Max txn ID %" PRIu64
-          ", max ondisk timestamp %s, "
-          "first skipped ts %s. "
           "Current history store file size: %" PRId64
           ", "
           "cache dirty: %2.3f%% , "
           "cache use: %2.3f%%",
-          btree_id, multi->page_las.max_txn,
-          __wt_timestamp_to_string(multi->page_las.max_ondisk_ts, ts_string[0]),
-          __wt_timestamp_to_string(multi->page_las.min_skipped_ts, ts_string[1]),
-          WT_STAT_READ(conn->stats, cache_hs_ondisk), pct_dirty, pct_full);
+          btree_id, WT_STAT_READ(conn->stats, cache_hs_ondisk), pct_dirty, pct_full);
     }
 
     /* Never skip updating the tracked generation */
@@ -537,12 +437,10 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 {
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
-    WT_DECL_ITEM(mementos);
     WT_DECL_ITEM(modify_value);
     WT_DECL_ITEM(prev_full_value);
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_KEY_MEMENTO *mementop;
 /* If the limit is exceeded, we will insert a full update to lookaside */
 #define MAX_REVERSE_MODIFY_NUM 16
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
@@ -554,16 +452,14 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     wt_off_t las_size;
     WT_TIME_PAIR stop_ts_pair;
     uint64_t insert_cnt, max_las_size;
-    uint32_t mementos_cnt, btree_id, i;
+    uint32_t btree_id, i;
     uint8_t *p;
     int nentries;
-    bool las_key_saved, local_txn, squashed;
+    bool local_txn, squashed;
 
-    mementop = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = 0;
-    mementos_cnt = 0;
     btree_id = btree->id;
     local_txn = false;
     __wt_modify_vector_init(session, &modifies);
@@ -579,8 +475,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-
-    WT_ERR(__wt_scr_alloc(session, 0, &mementos));
 
     WT_ERR(__wt_scr_alloc(session, 0, &full_value));
 
@@ -636,8 +530,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          */
         WT_ASSERT(session, __wt_count_birthmarks(upd) == 0);
 
-        las_key_saved = false;
-
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
          * update or a tombstone.
@@ -668,19 +560,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         for (; upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
-
-            /* We have at least one LAS record from this key, save a copy of the key */
-            if (!las_key_saved) {
-                /* Extend the buffer if needed */
-                WT_ERR(
-                  __wt_buf_extend(session, mementos, (mementos_cnt + 1) * sizeof(WT_KEY_MEMENTO)));
-                mementop = (WT_KEY_MEMENTO *)mementos->mem + mementos_cnt;
-                WT_CLEAR(mementop->key);
-                WT_ERR(__wt_buf_set(session, &mementop->key, key->data, key->size));
-                mementop->txnid = WT_TXN_ABORTED;
-                las_key_saved = true;
-                mementos_cnt++;
-            }
 
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
         }
@@ -784,17 +663,11 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * in the lookaside table. (We check the length because row-store doesn't write zero-length
          * data items.)
          */
-        if (upd->size > 0) {
+        if (upd->size > 0)
             /* Make sure that we are generating a birthmark for an in-memory update. */
             WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK) &&
                 (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY) &&
                 upd == list->onpage_upd);
-
-            mementop->txnid = upd->txnid;
-            mementop->durable_ts = upd->durable_ts;
-            mementop->start_ts = upd->start_ts;
-            mementop->prepare_state = upd->prepare_state;
-        }
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
@@ -819,28 +692,13 @@ err:
 
     __las_restore_isolation(session, saved_isolation);
 
-    if (ret == 0 && mementos_cnt > 0)
-        ret = __wt_calloc(session, mementos_cnt, sizeof(WT_KEY_MEMENTO), &multi->page_las.mementos);
-
-    if (ret == 0 && (insert_cnt > 0 || mementos_cnt > 0)) {
-        WT_ASSERT(session, multi->page_las.max_txn != WT_TXN_NONE);
-        multi->has_las = true;
-        if (mementos_cnt > 0) {
-            memcpy(multi->page_las.mementos, mementos->mem, mementos_cnt * sizeof(WT_KEY_MEMENTO));
-            multi->page_las.mementos_cnt = mementos_cnt;
-        }
-        __las_insert_updates_verbose(session, btree, multi);
-    }
+    if (ret == 0 && insert_cnt > 0)
+        __las_insert_updates_verbose(session, btree);
 
     __wt_scr_free(session, &key);
-    /* Free all the key mementos if there was a failure */
-    if (ret != 0)
-        for (i = 0, mementop = mementos->mem; i < mementos_cnt; i++, mementop++)
-            __wt_buf_free(session, &mementop->key);
     /* modify_value is allocated in __wt_modify_pack. Free it if it is allocated. */
     if (modify_value != NULL)
         __wt_scr_free(session, &modify_value);
-    __wt_scr_free(session, &mementos);
     __wt_modify_vector_free(&modifies);
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &prev_full_value);
