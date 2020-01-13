@@ -110,8 +110,6 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
     }
     if (LF_ISSET(WT_PAGE_ENCRYPTED))
         LF_CLR(WT_PAGE_ENCRYPTED);
-    if (LF_ISSET(WT_PAGE_LAS_UPDATE))
-        LF_CLR(WT_PAGE_LAS_UPDATE);
     if (flags != 0)
         WT_RET_VRFY(session, "page at %s has invalid flags set: 0x%" PRIx8, tag, flags);
 
@@ -564,7 +562,7 @@ __verify_dsk_row(
             current->size = prefix + unpack->size;
         }
 
-    key_compare:
+key_compare:
         /*
          * Compare the current key against the last key.
          *
@@ -777,7 +775,7 @@ __verify_dsk_col_var(
                 goto match_err;
         } else if (cell_type == WT_CELL_VALUE && last.data != NULL && last.size == unpack->size &&
           memcmp(last.data, unpack->data, last.size) == 0)
-        match_err:
+match_err:
         WT_RET_VRFY(session, "data entries %" PRIu32 " and %" PRIu32
                              " on page at %s are identical and should "
                              "have been run-length encoded",

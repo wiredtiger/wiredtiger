@@ -15,7 +15,7 @@
 char *
 __wt_timestamp_to_string(wt_timestamp_t ts, char *ts_string)
 {
-    WT_IGNORE_RET(__wt_snprintf(ts_string, WT_TS_INT_STRING_SIZE, "(%" PRIu32 ",%" PRIu32 ")",
+    WT_IGNORE_RET(__wt_snprintf(ts_string, WT_TS_INT_STRING_SIZE, "(%" PRIu32 ", %" PRIu32 ")",
       (uint32_t)((ts >> 32) & 0xffffffff), (uint32_t)(ts & 0xffffffff)));
     return (ts_string);
 }
@@ -250,8 +250,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
 
     WT_STAT_CONN_INCR(session, txn_query_ts);
     WT_RET(__wt_config_gets(session, cfg, "get", &cval));
-    if (WT_STRING_MATCH("all_committed", cval.str, cval.len) ||
-      WT_STRING_MATCH("all_durable", cval.str, cval.len)) {
+    if (WT_STRING_MATCH("all_durable", cval.str, cval.len)) {
         if (!txn_global->has_durable_timestamp)
             return (WT_NOTFOUND);
         ts = txn_global->durable_timestamp;

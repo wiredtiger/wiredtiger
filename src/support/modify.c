@@ -73,7 +73,7 @@ __wt_modify_idempotent(const void *modify)
  *     Pack a modify structure into a buffer.
  */
 int
-__wt_modify_pack(WT_CURSOR *cursor, WT_ITEM **modifyp, WT_MODIFY *entries, int nentries)
+__wt_modify_pack(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries, WT_ITEM **modifyp)
 {
     WT_ITEM *modify;
     WT_SESSION_IMPL *session;
@@ -82,6 +82,7 @@ __wt_modify_pack(WT_CURSOR *cursor, WT_ITEM **modifyp, WT_MODIFY *entries, int n
     int i;
 
     session = (WT_SESSION_IMPL *)cursor->session;
+    *modifyp = NULL;
 
     /*
      * Build the in-memory modify value. It's the entries count, followed by the modify structure
@@ -435,7 +436,7 @@ __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_DECL_ITEM(modify);
     WT_DECL_RET;
 
-    WT_ERR(__wt_modify_pack(cursor, &modify, entries, nentries));
+    WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
     WT_ERR(__wt_modify_apply(cursor, modify->data));
 
 err:

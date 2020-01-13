@@ -256,38 +256,13 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
     /* Free any address allocation. */
     __wt_ref_addr_free(session, ref);
 
-    /* Free any lookaside or page-deleted information. */
-    __wt_page_las_free(session, &ref->page_las);
+    /* Free any page-deleted information. */
     if (ref->page_del != NULL) {
         __wt_free(session, ref->page_del->update_list);
         __wt_free(session, ref->page_del);
     }
 
     __wt_overwrite_and_free_len(session, ref, WT_REF_CLEAR_SIZE);
-}
-
-/*
- * __wt_page_las_free --
- *     Free the lookaside information for a page.
- */
-void
-__wt_page_las_free(WT_SESSION_IMPL *session, WT_PAGE_LOOKASIDE **page_lasp)
-{
-    WT_KEY_MEMENTO *mementop;
-    WT_PAGE_LOOKASIDE *page_las;
-    uint32_t i;
-
-    page_las = *page_lasp;
-    if (page_las == NULL)
-        return;
-
-    if (page_las->mementos != NULL) {
-        for (i = 0, mementop = page_las->mementos; i < page_las->mementos_cnt; i++, mementop++)
-            __wt_buf_free(session, &mementop->key);
-        __wt_free(session, page_las->mementos);
-    }
-    __wt_free(session, page_las);
-    *page_lasp = NULL;
 }
 
 /*

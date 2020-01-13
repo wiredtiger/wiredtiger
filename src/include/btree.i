@@ -839,10 +839,6 @@ __wt_row_leaf_key_info(
             *ikeyp = NULL;
         if (cellp != NULL)
             *cellp = WT_PAGE_REF_OFFSET(page, WT_CELL_DECODE_OFFSET(v));
-        if (datap != NULL) {
-            *(void **)datap = NULL;
-            *sizep = 0;
-        }
         return (false);
     case WT_K_FLAG:
         /* Encoded key: no instantiated key, no cell. */
@@ -999,6 +995,9 @@ __wt_row_leaf_value_cell(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
     WT_CELL_UNPACK unpack;
     size_t size;
     void *copy, *key;
+
+    size = 0;   /* -Werror=maybe-uninitialized */
+    key = NULL; /* -Werror=maybe-uninitialized */
 
     /* If we already have an unpacked key cell, use it. */
     if (kpack != NULL)
@@ -1162,23 +1161,6 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
         return (true);
     return (visible_all ? !__wt_txn_visible_all(session, page_del->txnid, page_del->timestamp) :
                           !__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
-}
-
-/*
- * __wt_page_las_active --
- *     Return if lookaside data for a page is still required.
- */
-static inline bool
-__wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_PAGE_LOOKASIDE *page_las;
-
-    if ((page_las = ref->page_las) == NULL)
-        return (false);
-    if (page_las->min_skipped_ts != WT_TS_MAX || page_las->has_prepares)
-        return (true);
-
-    return (!__wt_txn_visible_all(session, page_las->max_txn, page_las->max_ondisk_ts));
 }
 
 /*

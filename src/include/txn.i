@@ -35,6 +35,50 @@ __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t old_state
 }
 
 /*
+ * __wt_txn_context_prepare_check --
+ *     Return an error if the current transaction is in the prepare state.
+ */
+static inline int
+__wt_txn_context_prepare_check(WT_SESSION_IMPL *session)
+{
+    if (F_ISSET(&session->txn, WT_TXN_PREPARE))
+        WT_RET_MSG(session, EINVAL, "not permitted in a prepared transaction");
+    return (0);
+}
+
+/*
+ * __wt_txn_context_check --
+ *     Complain if a transaction is/isn't running.
+ */
+static inline int
+__wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
+{
+    if (requires_txn && !F_ISSET(&session->txn, WT_TXN_RUNNING))
+        WT_RET_MSG(session, EINVAL, "only permitted in a running transaction");
+    if (!requires_txn && F_ISSET(&session->txn, WT_TXN_RUNNING))
+        WT_RET_MSG(session, EINVAL, "not permitted in a running transaction");
+    return (0);
+}
+
+/*
+ * __wt_txn_err_chk --
+ *     Check the transaction hasn't already failed.
+ */
+static inline int
+__wt_txn_err_chk(WT_SESSION_IMPL *session)
+{
+    /* Allow transaction rollback, but nothing else. */
+    if (!F_ISSET(&(session->txn), WT_TXN_ERROR) ||
+      strcmp(session->name, "rollback_transaction") != 0)
+        return (0);
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_ASSERT(session, !F_ISSET(&(session->txn), WT_TXN_ERROR));
+#endif
+    WT_RET_MSG(session, EINVAL, "additional transaction operations attempted after error");
+}
+
+/*
  * __wt_txn_timestamp_flags --
  *     Set transaction related timestamp flags.
  */
@@ -77,7 +121,7 @@ __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
     WT_ASSERT(session, txn->mod_count > 0 && recno != WT_RECNO_OOB);
     op = txn->mod + txn->mod_count - 1;
 
-    if (WT_SESSION_IS_CHECKPOINT(session) || F_ISSET(op->btree, WT_BTREE_LOOKASIDE) ||
+    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_LAS(op->btree) ||
       WT_IS_METADATA(op->btree->dhandle))
         return;
 
@@ -109,7 +153,7 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 
     op = txn->mod + txn->mod_count - 1;
 
-    if (WT_SESSION_IS_CHECKPOINT(session) || F_ISSET(op->btree, WT_BTREE_LOOKASIDE) ||
+    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_LAS(op->btree) ||
       WT_IS_METADATA(op->btree->dhandle))
         return (0);
 
@@ -377,7 +421,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     op->u.op_upd = upd;
 
     /* Use the original transaction time pair for the lookaside inserts */
-    if (WT_DHANDLE_IS_LOOKASIDE(session)) {
+    if (WT_IS_LAS(S2BT(session))) {
         upd->txnid = session->orig_txnid_to_las;
         upd->start_ts = session->orig_timestamp_to_las;
     } else {
@@ -441,9 +485,8 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      * Take a local copy of these IDs in case they are updated while we are checking visibility.
      */
     oldest_id = txn_global->oldest_id;
-    include_checkpoint_txn =
-      btree == NULL || (!F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
-                         btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
+    include_checkpoint_txn = btree == NULL ||
+      (!WT_IS_LAS(btree) && btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
     if (!include_checkpoint_txn)
         return (oldest_id);
 
@@ -494,9 +537,8 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      * If there is no active checkpoint or this handle is up to date with the active checkpoint then
      * it's safe to ignore the checkpoint ID in the visibility check.
      */
-    include_checkpoint_txn =
-      btree == NULL || (!F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
-                         btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
+    include_checkpoint_txn = btree == NULL ||
+      (!WT_IS_LAS(btree) && btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
     if (!include_checkpoint_txn)
         return;
 
@@ -711,7 +753,16 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
 {
+    WT_ITEM buf;
+    WT_TIME_PAIR start, stop;
     WT_VISIBLE_TYPE upd_visible;
+    size_t size;
+
+    WT_CLEAR(buf);
+    start.txnid = WT_TXN_NONE;
+    start.timestamp = WT_TS_NONE;
+    stop.txnid = WT_TXN_MAX;
+    stop.timestamp = WT_TS_MAX;
 
     *updp = NULL;
     for (; upd != NULL; upd = upd->next) {
@@ -727,9 +778,44 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         if (upd_visible == WT_VISIBLE_PREPARE)
             return (WT_PREPARE_CONFLICT);
     }
+    WT_ASSERT(session, upd == NULL);
 
-    /* If there's no visible update in the update chain, check the lookaside file. */
-    if (__wt_page_las_active(session, cbt->ref))
+    /* If there is no ondisk value, there can't be anything in lookaside either. */
+    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX)
+        return (0);
+
+    /* Check the ondisk value. */
+    WT_RET(__wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop));
+
+    /*
+     * If the stop pair is set, that means that there is a tombstone at that time. If the stop time
+     * pair is visible to our txn then that means we've just spotted a tombstone and should return
+     * "not found".
+     */
+    if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
+      __wt_txn_visible(session, stop.txnid, stop.timestamp))
+        return (0);
+
+    /*
+     * If the start time pair is visible then we need to return the ondisk value.
+     *
+     * FIXME-PM-1521: This should be probably be refactored to return a buffer of bytes rather than
+     * an update. This allocation is expensive and doesn't serve a purpose other than to work within
+     * the current system.
+     */
+    if (__wt_txn_visible(session, start.txnid, start.timestamp)) {
+        WT_RET(__wt_update_alloc(session, &buf, &upd, &size, WT_UPDATE_STANDARD));
+        upd->txnid = start.txnid;
+        upd->start_ts = upd->durable_ts = start.timestamp;
+        F_SET(upd, WT_UPDATE_RESTORED_FROM_DISK);
+        *updp = upd;
+        return (0);
+    }
+
+    /* If there's no visible update in the update chain or ondisk, check the lookaside file. */
+    WT_ASSERT(session, upd == NULL);
+    if (F_ISSET(S2C(session), WT_CONN_LOOKASIDE_OPEN) &&
+      !F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE))
         WT_RET_NOTFOUND_OK(__wt_find_lookaside_upd(session, cbt, &upd, false));
 
     /* There is no BIRTHMARK in lookaside file. */

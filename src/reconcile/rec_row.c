@@ -612,8 +612,9 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             break;
         case WT_UPDATE_STANDARD:
             /* Take the value from the update. */
-            WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, upd->ext != 0,
-              start_ts, start_txn, stop_ts, stop_txn, 0));
+            WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size,
+              F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK), start_ts, start_txn, stop_ts, stop_txn,
+              0));
             break;
         case WT_UPDATE_TOMBSTONE:
             continue;
@@ -622,7 +623,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             WT_ERR(ret);
         }
         /* Free the update if it is external. */
-        if (upd->ext != 0)
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
             __wt_free_update_list(session, &upd);
 
         /* Build key cell. */
@@ -663,7 +664,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 
 err:
     /* Free the update if it is external. */
-    if (upd != NULL && upd->ext != 0)
+    if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
         __wt_free_update_list(session, &upd);
 
     return (ret);
@@ -809,39 +810,6 @@ __wt_rec_row_leaf(
                 WT_ERR(__wt_rec_cell_build_val(
                   session, r, p, size, false, start_ts, start_txn, stop_ts, stop_txn, 0));
                 dictionary = true;
-            } else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
-                /*
-                 * If doing an update save and restore, and the underlying value is a removed
-                 * overflow value, we end up here.
-                 *
-                 * If necessary, when the overflow value was originally removed, reconciliation
-                 * appended a globally visible copy of the value to the key's update list, meaning
-                 * the on-page item isn't accessed after page re-instantiation.
-                 *
-                 * Assert the case.
-                 */
-                WT_ASSERT(session, F_ISSET(r, WT_REC_UPDATE_RESTORE));
-
-                /*
-                 * If the key is also a removed overflow item, don't write anything at all.
-                 *
-                 * We don't have to write anything because the code re-instantiating the page gets
-                 * the key to match the saved list of updates from the original page. By not putting
-                 * the key on the page, we'll move the key/value set from a row-store leaf page slot
-                 * to an insert list, but that shouldn't matter.
-                 *
-                 * The reason we bother with the test is because overflows are expensive to write.
-                 * It's hard to imagine a real workload where this test is worth the effort, but
-                 * it's a simple test.
-                 */
-                if (kpack != NULL && kpack->raw == WT_CELL_KEY_OVFL_RM)
-                    goto leaf_insert;
-
-                /*
-                 * The on-page value will never be accessed, write a placeholder record.
-                 */
-                WT_ERR(__wt_rec_cell_build_val(session, r, "ovfl-unused", strlen("ovfl-unused"),
-                  false, start_ts, start_txn, stop_ts, stop_txn, 0));
             } else {
                 val->buf.data = vpack->cell;
                 val->buf.size = __wt_cell_total_len(vpack);
@@ -870,8 +838,9 @@ __wt_rec_row_leaf(
                 break;
             case WT_UPDATE_STANDARD:
                 /* Take the value from the update. */
-                WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, upd->ext != 0,
-                  start_ts, start_txn, stop_ts, stop_txn, 0));
+                WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size,
+                  F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK), start_ts, start_txn, stop_ts,
+                  stop_txn, 0));
                 dictionary = true;
                 break;
             case WT_UPDATE_TOMBSTONE:
@@ -906,7 +875,7 @@ __wt_rec_row_leaf(
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
             /* Free the update if it is external. */
-            if (upd->ext != 0)
+            if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                 __wt_free_update_list(session, &upd);
         }
 
@@ -1006,7 +975,7 @@ build:
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
 
-    leaf_insert:
+leaf_insert:
         /* Write any K/V pairs inserted into the page after this key. */
         if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip))) != NULL)
             WT_ERR(__rec_row_leaf_insert(session, r, ins));
@@ -1017,7 +986,7 @@ build:
 
 err:
     /* Free the update if it is external. */
-    if (upd != NULL && upd->ext != 0)
+    if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
         __wt_free_update_list(session, &upd);
 
     __wt_scr_free(session, &tmpkey);

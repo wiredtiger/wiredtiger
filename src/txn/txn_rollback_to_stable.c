@@ -21,13 +21,12 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
     WT_ITEM las_key, las_value;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t durable_timestamp, las_timestamp, rollback_timestamp;
-    uint64_t las_total, las_txnid;
+    uint64_t las_txnid;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, upd_type;
 
     conn = S2C(session);
     cursor = NULL;
-    las_total = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
 
     /*
@@ -45,7 +44,6 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 
     /* Walk the file. */
     while ((ret = cursor->next(cursor)) == 0) {
-        ++las_total;
         WT_ERR(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
 
         /* Check the file ID so we can skip durable tables */
@@ -65,14 +63,11 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
          */
         if (rollback_timestamp < durable_timestamp) {
             WT_ERR(cursor->remove(cursor));
-            WT_STAT_CONN_INCR(session, txn_rollback_las_removed);
-            --las_total;
+            WT_STAT_CONN_INCR(session, txn_rollback_hs_removed);
         }
     }
     WT_ERR_NOTFOUND_OK(ret);
 err:
-    if (ret == 0)
-        conn->cache->las_insert_count = las_total;
     WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
     F_CLR(session, WT_SESSION_READ_WONT_NEED);
@@ -216,7 +211,6 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
 {
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_PAGE_LOOKASIDE *page_las;
     uint32_t read_flags;
     bool local_read;
 
@@ -237,6 +231,8 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
      */
     local_read = false;
     read_flags = WT_READ_WONT_NEED;
+#if 0
+    /* FIXME: Fixing rollback to stable is a separate project. */
     if ((page_las = ref->page_las) != NULL) {
         if (rollback_timestamp < page_las->max_ondisk_ts) {
             WT_ASSERT(session, !F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
@@ -248,6 +244,7 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
         if (rollback_timestamp < page_las->min_skipped_ts)
             page_las->min_skipped_ts = rollback_timestamp;
     }
+#endif
 
     /* Review deleted page saved to the ref */
     if (ref->page_del != NULL && rollback_timestamp < ref->page_del->durable_timestamp)
