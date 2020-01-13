@@ -53,7 +53,7 @@ class test_las08(wttest.WiredTigerTestCase):
             return str(i)
         return i
 
-    def check_ckpt_las(self, expected_data_value, expected_las_value, expected_start_ts, expected_stop_ts):
+    def check_ckpt_las(self, expected_data_value, expected_las_value, expected_las_start_ts, expected_las_stop_ts):
         session = self.conn.open_session(self.session_config)
         session.checkpoint()
         # Check the data file value
@@ -63,7 +63,7 @@ class test_las08(wttest.WiredTigerTestCase):
         cursor.close()
         # Check the lookaside file value
         cursor = session.open_cursor("file:WiredTigerLAS.wt", None, 'checkpoint=WiredTigerCheckpoint')
-        for _, _, start_ts, _, stop_ts, _, _, _, type, value in cursor:
+        for _, _, las_start_ts, _, las_stop_ts, _, _, _, type, value in cursor:
             # No WT_UPDATE_TOMBSTONE in lookaside
             self.assertNotEqual(type, 5)
             # No WT_UPDATE_BIRTHMARK in lookaside
@@ -71,8 +71,8 @@ class test_las08(wttest.WiredTigerTestCase):
             # WT_UPDATE_STANDARD
             if (type == 4):
                 self.assertEqual(value.decode(), expected_las_value + '\x00')
-                self.assertEqual(start_ts, expected_start_ts)
-                self.assertEqual(stop_ts, expected_stop_ts)
+                self.assertEqual(las_start_ts, expected_las_start_ts)
+                self.assertEqual(las_stop_ts, expected_las_stop_ts)
         cursor.close()
         session.close()
 
