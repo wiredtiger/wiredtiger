@@ -761,7 +761,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                     WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
                       WT_UPDATE_MODIFY, modify_value, stop_ts_pair));
                     __wt_scr_free(session, &modify_value);
-                    modify_value = NULL;
                 } else
                     WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
                       WT_UPDATE_STANDARD, full_value, stop_ts_pair));
