@@ -1164,23 +1164,6 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 }
 
 /*
- * __wt_page_las_active --
- *     Return if lookaside data for a page is still required.
- */
-static inline bool
-__wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_PAGE_LOOKASIDE *page_las;
-
-    if ((page_las = ref->page_las) == NULL)
-        return (false);
-    if (page_las->min_skipped_ts != WT_TS_MAX || page_las->has_prepares)
-        return (true);
-
-    return (!__wt_txn_visible_all(session, page_las->max_txn, page_las->max_ondisk_ts));
-}
-
-/*
  * __wt_btree_can_evict_dirty --
  *     Check whether eviction of dirty pages or splits are permitted in the current tree. We cannot
  *     evict dirty pages or split while a checkpoint is in progress, unless the checkpoint thread is
