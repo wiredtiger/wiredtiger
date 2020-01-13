@@ -554,7 +554,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     wt_off_t las_size;
     WT_TIME_PAIR stop_ts_pair;
     uint64_t insert_cnt, max_las_size;
-    uint32_t mementos_cnt, btree_id, i;
+    uint32_t mementos_cnt, btree_id, i, j;
     uint8_t *p;
     int nentries;
     bool las_key_saved, local_txn, squashed;
@@ -765,6 +765,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                     WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
                       WT_UPDATE_STANDARD, full_value, stop_ts_pair));
 
+                /* Flag the update as now in the lookaside file. */
+                F_SET(upd, WT_UPDATE_HISTORY_STORE);
                 ++insert_cnt;
 
                 if (squashed) {
@@ -807,29 +809,28 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 err:
     /* Resolve the transaction. */
     if (local_txn) {
-        if (ret == 0) {
+        if (ret == 0)
             ret = __wt_txn_commit(session, NULL);
-            if (ret == 0)
-                /* Traverse the keys again to flag the updates inserted to lookaside. */
-                for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
-                    if (list->onpage_upd == NULL)
+        else
+            WT_TRET(__wt_txn_rollback(session, NULL));
+
+        if (ret != 0) {
+            i = WT_MIN(multi->supd_entries, i + 1);
+            /* Traverse the keys again to unflag the updates inserted to lookaside. */
+            for (j = 0, list = multi->supd; j < i; ++j, ++list) {
+                if (list->onpage_upd == NULL)
+                    continue;
+
+                for (upd = list->onpage_upd; upd != NULL; upd = upd->next) {
+                    /* Skip aborted transactions. */
+                    if (upd->txnid == WT_TXN_ABORTED)
                         continue;
 
-                    /* Skip aborted transactions. */
-                    for (upd = list->onpage_upd->next; upd != NULL && upd->txnid == WT_TXN_ABORTED;
-                         upd = upd->next)
-                        ;
-
-                    /*
-                     * Flag the update as now in the lookaside file. It is enough to only flag the
-                     * first update that is inserted to las and we know that the older updates are
-                     * all in las as well.
-                     */
-                    if (upd != NULL)
-                        F_SET(upd, WT_UPDATE_HISTORY_STORE);
+                    /* Unflag the update. */
+                    F_CLR(upd, WT_UPDATE_HISTORY_STORE);
                 }
-        } else
-            WT_TRET(__wt_txn_rollback(session, NULL));
+            }
+        }
         __las_restore_isolation(session, saved_isolation);
         F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
     }
