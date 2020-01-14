@@ -14,11 +14,8 @@ const struct __wt_bt_traits BT_COL_VAR_TRAITS = {
 #endif
 };
 const struct __wt_bt_traits BT_ROW_TRAITS = {
-  __bt_row_huffman,
-  __bt_row_cursor_valid,
+  __bt_row_huffman, __bt_row_cursor_valid,
 #ifdef HAVE_DIAGNOSTIC
-  __bt_row_cursor_key_order_init,
-  __bt_row_cursor_key_order_check,
-  __bt_cursor_key_order_reset,
+  __bt_row_cursor_key_order_init, __bt_row_cursor_key_order_check, __bt_cursor_key_order_reset,
 #endif
 };
