@@ -402,6 +402,12 @@ __las_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t 
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *las_value,
   WT_TIME_PAIR stop_ts_pair)
 {
+    /*
+     * Only deltas or full updates should be written to the lookaside. More specifically, we should
+     * NOT be writing tombstone records in the lookaside table.
+     */
+    WT_ASSERT(session, type == WT_UPDATE_STANDARD || type == WT_UPDATE_MODIFY);
+
     cursor->set_key(
       cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts_pair.timestamp, stop_ts_pair.txnid);
 
