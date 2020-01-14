@@ -4,6 +4,8 @@ extern int __bt_row_huffman(WT_SESSION_IMPL *session, size_t len);
 extern int __bt_col_fix_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid);
 extern int __bt_col_var_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid);
 extern int __bt_row_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid);
+extern void __bt_col_cursor_iterate_setup(WT_CURSOR_BTREE *cbt);
+extern void __bt_row_cursor_iterate_setup(WT_CURSOR_BTREE *cbt);
 #ifdef HAVE_DIAGNOSTIC
 extern int __bt_col_cursor_key_order_init(WT_CURSOR_BTREE *cbt);
 extern int __bt_row_cursor_key_order_init(WT_CURSOR_BTREE *cbt);

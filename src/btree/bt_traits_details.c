@@ -146,6 +146,56 @@ __bt_row_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
     return (0);
 }
 
+/*
+ * __bt_col_cursor_iterate_setup --
+ *     Set up cursor for col table.
+ */
+void
+__bt_col_cursor_iterate_setup(WT_CURSOR_BTREE *cbt)
+{
+    WT_PAGE *page;
+
+    page = cbt->ref->page;
+
+    /*
+     * For column-store pages, calculate the largest record on the page.
+     */
+    cbt->last_standard_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(cbt->ref) :
+                                                               __col_fix_last_recno(cbt->ref);
+
+    /* If we're traversing the append list, set the reference. */
+    if (cbt->ins_head != NULL && cbt->ins_head == WT_COL_APPEND(page))
+        F_SET(cbt, WT_CBT_ITERATE_APPEND);
+}
+
+/*
+ * __bt_row_cursor_iterate_setup --
+ *     Set up cursor for row table.
+ */
+void
+__bt_row_cursor_iterate_setup(WT_CURSOR_BTREE *cbt)
+{
+    WT_PAGE *page;
+
+    page = cbt->ref->page;
+
+    /*
+     * For row-store pages, we need a single item that tells us the part of the page we're
+     * walking (otherwise switching from next to prev and vice-versa is just too complicated),
+     * so we map the WT_ROW and WT_INSERT_HEAD insert array slots into a single name space: slot
+     * 1 is the "smallest key insert list", slot 2 is WT_ROW[0], slot 3 is WT_INSERT_HEAD[0],
+     * and so on. This means WT_INSERT lists are odd-numbered slots, and WT_ROW array slots are
+     * even-numbered slots.
+     */
+    cbt->row_iteration_slot = (cbt->slot + 1) * 2;
+    if (cbt->ins_head != NULL) {
+        if (cbt->ins_head == WT_ROW_INSERT_SMALLEST(page))
+            cbt->row_iteration_slot = 1;
+        else
+            cbt->row_iteration_slot += 1;
+    }
+}
+
 #ifdef HAVE_DIAGNOSTIC
 /*
  * __bt_col_cursor_key_order_init --

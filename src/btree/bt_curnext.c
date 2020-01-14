@@ -393,8 +393,9 @@ restart_read_page:
 void
 __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 {
-    WT_PAGE *page;
+    const WT_BT_TRAITS *bt_traits;
 
+    bt_traits = cbt->btree->bt_traits;
     /*
      * We don't currently have to do any setup when we switch between next and prev calls, but I'm
      * sure we will someday -- I'm leaving support here for both flags for that reason.
@@ -414,39 +415,12 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
      */
     if (cbt->ref == NULL) {
 #ifdef HAVE_DIAGNOSTIC
-        cbt->btree->bt_traits->cursor_key_order_reset(cbt);
+        bt_traits->cursor_key_order_reset(cbt);
 #endif
         return;
     }
 
-    page = cbt->ref->page;
-    if (page->type == WT_PAGE_ROW_LEAF) {
-        /*
-         * For row-store pages, we need a single item that tells us the part of the page we're
-         * walking (otherwise switching from next to prev and vice-versa is just too complicated),
-         * so we map the WT_ROW and WT_INSERT_HEAD insert array slots into a single name space: slot
-         * 1 is the "smallest key insert list", slot 2 is WT_ROW[0], slot 3 is WT_INSERT_HEAD[0],
-         * and so on. This means WT_INSERT lists are odd-numbered slots, and WT_ROW array slots are
-         * even-numbered slots.
-         */
-        cbt->row_iteration_slot = (cbt->slot + 1) * 2;
-        if (cbt->ins_head != NULL) {
-            if (cbt->ins_head == WT_ROW_INSERT_SMALLEST(page))
-                cbt->row_iteration_slot = 1;
-            else
-                cbt->row_iteration_slot += 1;
-        }
-    } else {
-        /*
-         * For column-store pages, calculate the largest record on the page.
-         */
-        cbt->last_standard_recno = page->type == WT_PAGE_COL_VAR ? __col_var_last_recno(cbt->ref) :
-                                                                   __col_fix_last_recno(cbt->ref);
-
-        /* If we're traversing the append list, set the reference. */
-        if (cbt->ins_head != NULL && cbt->ins_head == WT_COL_APPEND(page))
-            F_SET(cbt, WT_CBT_ITERATE_APPEND);
-    }
+    bt_traits->cursor_iterate_setup(cbt);
 }
 
 /*
