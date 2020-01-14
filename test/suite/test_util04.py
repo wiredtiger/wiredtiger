@@ -36,7 +36,6 @@ class test_util04(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_util04.a'
     nentries = 1000
 
-    @unittest.skip("Temporarily disabled")
     def test_drop_process(self):
         """
         Test drop in a 'wt' process
