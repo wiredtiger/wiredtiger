@@ -445,6 +445,9 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 int
 __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 {
+#ifdef HAVE_DIAGNOSTIC
+    const WT_BT_TRAITS *bt_traits;
+#endif
     WT_BTREE *btree;
     WT_CURFILE_STATE state;
     WT_CURSOR *cursor;
@@ -454,6 +457,9 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     bool leaf_found, valid;
 
     btree = cbt->btree;
+#ifdef HAVE_DIAGNOSTIC
+    bt_traits = btree->bt_traits;
+#endif
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cursor->session;
     upd = NULL; /* -Wuninitialized */
@@ -518,7 +524,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
 #ifdef HAVE_DIAGNOSTIC
     if (ret == 0)
-        WT_ERR(__wt_cursor_key_order_init(cbt));
+        WT_ERR(bt_traits->cursor_key_order_init(cbt));
 #endif
 
 err:
@@ -536,6 +542,9 @@ err:
 int
 __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 {
+#ifdef HAVE_DIAGNOSTIC
+    const WT_BT_TRAITS *bt_traits;
+#endif
     WT_BTREE *btree;
     WT_CURFILE_STATE state;
     WT_CURSOR *cursor;
@@ -546,6 +555,9 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     bool leaf_found, valid;
 
     btree = cbt->btree;
+#ifdef HAVE_DIAGNOSTIC
+    bt_traits = btree->bt_traits;
+#endif
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cursor->session;
     upd = NULL; /* -Wuninitialized */
@@ -670,7 +682,7 @@ err:
 
 #ifdef HAVE_DIAGNOSTIC
     if (ret == 0)
-        WT_TRET(__wt_cursor_key_order_init(cbt));
+        WT_TRET(bt_traits->cursor_key_order_init(cbt));
 #endif
 
     if (ret != 0) {

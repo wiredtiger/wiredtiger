@@ -388,34 +388,6 @@ restart_read_page:
 
 #ifdef HAVE_DIAGNOSTIC
 /*
- * __wt_cursor_key_order_init --
- *     Initialize key ordering checks for cursor movements after a successful search.
- */
-int
-__wt_cursor_key_order_init(WT_CURSOR_BTREE *cbt)
-{
-    WT_SESSION_IMPL *session;
-
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
-
-    /*
-     * Cursor searches set the position for cursor movements, set the last-key value for diagnostic
-     * checking.
-     */
-    switch (cbt->ref->page->type) {
-    case WT_PAGE_COL_FIX:
-    case WT_PAGE_COL_VAR:
-        cbt->lastrecno = cbt->recno;
-        return (0);
-    case WT_PAGE_ROW_LEAF:
-        return (__wt_buf_set(session, cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
-    default:
-        return (__wt_illegal_value(session, cbt->ref->page->type));
-    }
-    /* NOTREACHED */
-}
-
-/*
  * __wt_cursor_key_order_reset --
  *     Turn off key ordering checks for cursor movements.
  */

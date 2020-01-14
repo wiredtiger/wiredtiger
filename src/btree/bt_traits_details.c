@@ -148,6 +148,30 @@ __bt_row_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
 
 #ifdef HAVE_DIAGNOSTIC
 /*
+ * __bt_col_cursor_key_order_init --
+ *     Initialize key ordering checks for cursor movements after a successful search for col table.
+ */
+int
+__bt_col_cursor_key_order_init(WT_CURSOR_BTREE *cbt)
+{
+    cbt->lastrecno = cbt->recno;
+    return (0);
+}
+
+/*
+ * __bt_row_cursor_key_order_init --
+ *     Initialize key ordering checks for cursor movements after a successful search for row table.
+ */
+int
+__bt_row_cursor_key_order_init(WT_CURSOR_BTREE *cbt)
+{
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    return (__wt_buf_set(session, cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
+}
+
+/*
  * __bt_col_cursor_key_order_check --
  *     Check key ordering for column-store cursor movements.
  */
