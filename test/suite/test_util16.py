@@ -37,6 +37,7 @@ class test_util16(wttest.WiredTigerTestCase, suite_subprocess):
     tablename2 = 'test_util16.b'
     nentries = 1000
 
+    @unittest.skip("Temporarily disabled")
     def test_rename_process(self):
         """
         Test alter in a 'wt' process
