@@ -98,6 +98,7 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         finally:
             cursor.close()
 
+    @unittest.skip("Temporarily disabled")
     def test_json_cursor(self):
         """
         Create JSON cursors and test them directly, also test
