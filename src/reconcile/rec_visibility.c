@@ -352,10 +352,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
         if (upd != NULL) {
             /* The beginning of the validity window is the selected update's time pair. */
-            if (upd->start_ts < upd_select->stop_ts)
-                upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
-            if (upd->txnid < upd_select->stop_txn)
-                upd_select->start_txn = upd->txnid;
+            WT_ASSERT(
+              session, upd->start_ts < upd_select->stop_ts && upd->txnid < upd_select->stop_txn);
+            upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
+            upd_select->start_txn = upd->txnid;
         } else {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL);
@@ -378,10 +378,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * but this logic still isn't correct and should be handled properly when we begin the
              * recovery work.
              */
-            if (vpack->start_ts < upd_select->stop_ts)
-                upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
-            if (vpack->start_txn < upd_select->stop_txn)
-                upd_select->start_txn = vpack->start_txn;
+            WT_ASSERT(session,
+              vpack->start_ts < upd_select->start_ts && vpack->start_txn < upd_select->start_txn);
+            upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
+            upd_select->start_txn = vpack->start_txn;
             /*
              * Leaving the update unset means that we can skip reconciling. If we've set the stop
              * time pair because of a tombstone after the on-disk value, we still have work to do so

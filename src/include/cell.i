@@ -17,10 +17,6 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, u
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (stop_ts == WT_TS_NONE) {
-        __wt_errx(session, "stop timestamp of 0");
-        WT_ASSERT(session, stop_ts != WT_TS_NONE);
-    }
     if (start_ts > stop_ts) {
         __wt_errx(session, "a start timestamp %s newer than its stop timestamp %s",
           __wt_timestamp_to_string(start_ts, ts_string[0]),
@@ -28,10 +24,6 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, u
         WT_ASSERT(session, start_ts <= stop_ts);
     }
 
-    if (stop_txn == WT_TXN_NONE) {
-        __wt_errx(session, "stop transaction ID of 0");
-        WT_ASSERT(session, stop_txn != WT_TXN_NONE);
-    }
     if (start_txn > stop_txn) {
         __wt_errx(session, "a start transaction ID %" PRIu64
                            " newer than its stop "
@@ -107,10 +99,6 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_t
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (newest_stop_ts == WT_TS_NONE) {
-        __wt_errx(session, "newest stop timestamp of 0");
-        WT_ASSERT(session, newest_stop_ts != WT_TS_NONE);
-    }
     if (oldest_start_ts > newest_stop_ts) {
         __wt_errx(session,
           "an oldest start timestamp %s newer than its newest "
@@ -118,10 +106,6 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_t
           __wt_timestamp_to_string(oldest_start_ts, ts_string[0]),
           __wt_timestamp_to_string(newest_stop_ts, ts_string[1]));
         WT_ASSERT(session, oldest_start_ts <= newest_stop_ts);
-    }
-    if (newest_stop_txn == WT_TXN_NONE) {
-        __wt_errx(session, "newest stop transaction of 0");
-        WT_ASSERT(session, newest_stop_txn != WT_TXN_NONE);
     }
     if (oldest_start_txn > newest_stop_txn) {
         __wt_errx(session, "an oldest start transaction %" PRIu64
@@ -656,7 +640,7 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         uint64_t stop_txn;
         uint32_t len;
     } copy;
-    uint64_t txnid_tmp, v;
+    uint64_t v;
     const uint8_t *p;
     uint8_t flags;
 
@@ -762,22 +746,18 @@ restart:
         if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(__wt_vunpack_uint(
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->oldest_start_ts));
-        if (LF_ISSET(WT_CELL_TXN_START)) {
-            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &txnid_tmp));
-            /* Transaction ids from a previous startup generation must be ignored. */
-            if (dsk->write_gen > S2C(session)->base_write_gen)
-                unpack->oldest_start_txn = txnid_tmp;
-        }
+        if (LF_ISSET(WT_CELL_TXN_START))
+            WT_RET(__wt_vunpack_uint(
+              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->oldest_start_txn));
         if (LF_ISSET(WT_CELL_TS_STOP)) {
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->newest_stop_ts));
             unpack->newest_stop_ts += unpack->oldest_start_ts;
         }
         if (LF_ISSET(WT_CELL_TXN_STOP)) {
-            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &txnid_tmp));
-            /* Transaction ids from a previous startup generation must be ignored. */
-            if (dsk->write_gen > S2C(session)->base_write_gen)
-                unpack->newest_stop_txn = txnid_tmp + unpack->oldest_start_txn;
+            WT_RET(__wt_vunpack_uint(
+              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->newest_stop_txn));
+            unpack->newest_stop_txn += unpack->oldest_start_txn;
         }
         __wt_check_addr_validity(session, unpack->oldest_start_ts, unpack->oldest_start_txn,
           unpack->newest_stop_ts, unpack->newest_stop_txn);
@@ -793,21 +773,15 @@ restart:
 
         if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->start_ts));
-        if (LF_ISSET(WT_CELL_TXN_START)) {
-            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &txnid_tmp));
-            /* Transaction ids from a previous startup generation must be ignored. */
-            if (dsk->write_gen > S2C(session)->base_write_gen)
-                unpack->start_txn = txnid_tmp;
-        }
+        if (LF_ISSET(WT_CELL_TXN_START))
+            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->start_txn));
         if (LF_ISSET(WT_CELL_TS_STOP)) {
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->stop_ts));
             unpack->stop_ts += unpack->start_ts;
         }
         if (LF_ISSET(WT_CELL_TXN_STOP)) {
-            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &txnid_tmp));
-            /* Transaction ids from a previous startup generation must be ignored. */
-            if (dsk->write_gen > S2C(session)->base_write_gen)
-                unpack->stop_txn = txnid_tmp + unpack->start_txn;
+            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->stop_txn));
+            unpack->stop_txn += unpack->start_txn;
         }
         __cell_check_value_validity(
           session, unpack->start_ts, unpack->start_txn, unpack->stop_ts, unpack->stop_txn);
@@ -820,6 +794,31 @@ restart:
      */
     if (cell->__chunk[0] & WT_CELL_64V) /* skip value */
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->v));
+
+    /*
+     * If the page came from a previous run, reset the transaction ids and timestamps to "none" as
+     * appropriate. Transaction ids shouldn't persist between runs so these are always set to
+     * "none". Timestamps should persist between runs however, the absence of a timestamp (in the
+     * case of a non-timestamped write) should default to "none" rather than "max" as usual.
+     *
+     * Note that it is stil necessary to unpack each value above even if we end up overwriting them
+     * since values in a cell need to be unpacked sequentially.
+     */
+    if (dsk->write_gen <= S2C(session)->base_write_gen) {
+        unpack->start_txn = WT_TXN_NONE;
+        unpack->stop_txn = WT_TXN_NONE;
+        unpack->oldest_start_txn = WT_TXN_NONE;
+        unpack->newest_stop_txn = WT_TXN_NONE;
+        /*
+         * If either of these timestamps are set to "max", we know that there was no value on the
+         * cell. In that case, we should reset the timestamp to 0 as it should be visible to
+         * everyone.
+         */
+        if (unpack->stop_ts == WT_TS_MAX)
+            unpack->stop_ts = WT_TS_NONE;
+        if (unpack->newest_stop_ts == WT_TS_MAX)
+            unpack->newest_stop_ts = WT_TS_NONE;
+    }
 
     /*
      * Handle special actions for a few different cell types and set the data length (deleted cells
