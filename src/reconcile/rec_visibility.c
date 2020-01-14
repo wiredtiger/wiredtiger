@@ -122,10 +122,9 @@ __rec_append_orig_value(
 
     /*
      * If we're saving the original value for a birthmark, transfer over the transaction ID and
-     * clear out the birthmark update.
-     *
-     * Else, set the entry's transaction information to the lowest possible value. Cleared memory
-     * matches the lowest possible transaction ID and timestamp, do nothing.
+     * clear out the birthmark update. Else, set the entry's transaction information to the lowest
+     * possible value (as cleared memory matches the lowest possible transaction ID and timestamp,
+     * do nothing).
      */
     if (upd->type == WT_UPDATE_BIRTHMARK) {
         /* FIXME-PM-1521: temporarily disable the assert until we figured out what is wrong */
@@ -139,9 +138,10 @@ __rec_append_orig_value(
     /* Append the new entry into the update list. */
     WT_PUBLISH(upd->next, append);
 
+    /* Replace the birthmark with an aborted transaction. */
     if (upd->type == WT_UPDATE_BIRTHMARK) {
-        upd->type = WT_UPDATE_STANDARD;
-        upd->txnid = WT_TXN_ABORTED;
+        WT_ORDERED_WRITE(upd->txnid, WT_TXN_ABORTED);
+        WT_ORDERED_WRITE(upd->type, WT_UPDATE_STANDARD);
     }
 
     __wt_cache_page_inmem_incr(session, page, total_size);
