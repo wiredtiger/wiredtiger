@@ -1222,16 +1222,11 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
         txn->read_timestamp = WT_TS_NONE;
         return;
     }
-#ifdef HAVE_DIAGNOSTIC
-    {
-        WT_TXN_GLOBAL *txn_global;
-        wt_timestamp_t pinned_ts;
 
-        txn_global = &S2C(session)->txn_global;
-        pinned_ts = txn_global->pinned_timestamp;
-        WT_ASSERT(session, txn->read_timestamp >= pinned_ts);
-    }
-#endif
+    /* Assert the read timestamp is greater than or equal to the pinned timestamp. */
+    WT_RET_ASSERT(session, txn->read_timestamp >= S2C(session)->txn_global.pinned_timestamp, EINVAL,
+      "transaction's read timestamp less than the global pinned timestamp");
+
     flags = txn->flags;
     LF_CLR(WT_TXN_PUBLIC_TS_READ);
 
