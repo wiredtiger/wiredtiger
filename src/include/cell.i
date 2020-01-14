@@ -801,7 +801,7 @@ restart:
      * "none". Timestamps should persist between runs however, the absence of a timestamp (in the
      * case of a non-timestamped write) should default to "none" rather than "max" as usual.
      *
-     * Note that it is stil necessary to unpack each value above even if we end up overwriting them
+     * Note that it is still necessary to unpack each value above even if we end up overwriting them
      * since values in a cell need to be unpacked sequentially.
      */
     if (dsk->write_gen <= S2C(session)->base_write_gen) {

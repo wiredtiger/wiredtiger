@@ -379,7 +379,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * recovery work.
              */
             WT_ASSERT(session,
-              vpack->start_ts < upd_select->start_ts && vpack->start_txn < upd_select->start_txn);
+              vpack->start_ts < upd_select->stop_ts && vpack->start_txn < upd_select->stop_txn);
             upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
             upd_select->start_txn = vpack->start_txn;
             /*
