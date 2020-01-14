@@ -375,12 +375,16 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __wt_page_addr_string(session, ref, vs->tmp1),
       __wt_page_type_string(page->type));
 
-    /* Optionally dump the address/timestamp information. */
-    if ((vs->dump_address || vs->dump_time_pairs) && !vs->dump_pages) {
+    /*
+     * Optionally dump the address/time pair information. dump_blocks prints time pairs and
+     * dump_pages dumps addresses and time pairs so here we try to avoid printing duplicate
+     * information when multiple -d options are provided.
+     */
+    if ((vs->dump_address || (vs->dump_time_pairs && !vs->dump_blocks)) && !vs->dump_pages) {
         WT_RET(__wt_msg(session, "%s", __wt_page_type_string(page->type)));
         if (vs->dump_address)
             WT_RET(__wt_msg(session, "\t%s", __wt_page_addr_string(session, ref, vs->tmp1)));
-        if (vs->dump_time_pairs) {
+        if (vs->dump_time_pairs && !vs->dump_blocks) {
             addr = ref->addr;
             if (addr != NULL)
                 WT_RET(__wt_msg(session, "\t%s,%s", __wt_time_pair_to_string(addr->oldest_start_ts,
