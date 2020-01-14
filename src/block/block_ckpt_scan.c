@@ -12,19 +12,17 @@
  * It wasn't possible to open standalone files in historic WiredTiger databases, you're done if you
  * lose the file's associated metadata. That was a mistake and this code is the workaround. What we
  * need to crack a file is database metadata plus a list of active checkpoints as of the file's
- * clean
- * shutdown (normally stored in the database metadata). The last write done in a block manager's
- * checkpoint is the avail list. If current metadata and checkpoint information is included in that
- * write, we're close. We can open the file, read the blocks, scan until we find the avail list, and
- * read the metadata and checkpoint information from there.
+ * clean shutdown (normally stored in the database metadata). The last write done in a block
+ * manager's checkpoint is the avail list. If current metadata and checkpoint information is
+ * included in that write, we're close. We can open the file, read the blocks, scan until we find
+ * the avail list, and read the metadata and checkpoint information from there.
  *	Two problems remain: first, the checkpoint information isn't correct until we write the
  * avail list and the checkpoint information has to include the avail list address plus the final
  * file size after the write. Fortunately, when scanning the file for the avail lists, we're
- * figuring
- * out exactly the information needed to fix up the checkpoint information we wrote, that is, the
- * avail list's offset, size and checksum triplet. As for the final file size, we allocate all space
- * in the file before we calculate block checksums, so we can do that space allocation, then fill in
- * the final file size before calculating the checksum and writing the actual block.
+ * figuring out exactly the information needed to fix up the checkpoint information we wrote, that
+ * is, the avail list's offset, size and checksum triplet. As for the final file size, we allocate
+ * all space in the file before we calculate block checksums, so we can do that space allocation,
+ * then fill in the final file size before calculating the checksum and writing the actual block.
  *  The second problem is we have to be able to find the avail lists that include checkpoint
  * information (ignoring previous files created by previous releases, and, of course, making
  * upgrade/downgrade work seamlessly). Extent lists are written to their own pages, and we could
