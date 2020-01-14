@@ -485,7 +485,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     F_SET(cursor, WT_CURSTD_UPDATE_LOCAL);
 
     /* Enter each update in the boundary's list into the lookaside store. */
-    for (supd_index = 0, list = multi->supd; supd_index < multi->supd_entries; ++supd_index, ++list) {
+    for (supd_index = 0, list = multi->supd; supd_index < multi->supd_entries;
+         ++supd_index, ++list) {
         /* If no onpage_upd is selected, we don't need to insert anything to lookaside */
         if (list->onpage_upd == NULL)
             continue;
