@@ -1227,16 +1227,17 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
     WT_RET_ASSERT(session, txn->read_timestamp >= S2C(session)->txn_global.pinned_timestamp, EINVAL,
       "transaction's read timestamp less than the global pinned timestamp");
 
-    flags = txn->flags;
-    LF_CLR(WT_TXN_PUBLIC_TS_READ);
-
     /*
      * Notify other threads that our transaction is inactive and can be cleaned up safely from the
      * read timestamp queue whenever the next thread walks the queue. We do not need to remove it
      * now.
      */
-    WT_PUBLISH(txn->clear_read_q, true);
+    txn->clear_read_q = true;
+
+    flags = txn->flags;
+    LF_CLR(WT_TXN_PUBLIC_TS_READ);
     WT_PUBLISH(txn->flags, flags);
+
     txn->read_timestamp = WT_TS_NONE;
 }
 
