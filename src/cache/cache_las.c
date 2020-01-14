@@ -711,7 +711,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
 err:
     /* Resolve the transaction. Clear the read timestamp if we got an error after setting it. */
-    if (F_ISSET(txn, WT_TXN_HAS_TS_READ)){
+    if (F_ISSET(txn, WT_TXN_HAS_TS_READ)) {
         F_CLR(txn, WT_TXN_HAS_TS_READ);
         txn->read_timestamp = 0;
     }
