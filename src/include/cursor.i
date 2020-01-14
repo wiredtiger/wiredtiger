@@ -18,29 +18,17 @@ __cursor_set_recno(WT_CURSOR_BTREE *cbt, uint64_t v)
 }
 
 /*
- * __cursor_copy_release_key --
- *     Release memory used by the key in cursor copy debug mode.
+ * __cursor_copy_release --
+ *     Release memory used by the key and value in cursor copy debug mode.
  */
 static inline int
-__cursor_copy_release_key(WT_CURSOR *cursor)
+__cursor_copy_release(WT_CURSOR *cursor)
 {
-    if (!F_ISSET(S2C((WT_SESSION_IMPL *)cursor->session), WT_CONN_DEBUG_CURSOR_COPY))
-        return (0);
-
-    return (__wt_cursor_copy_release_item(cursor, &cursor->key));
-}
-
-/*
- * __cursor_copy_release_value --
- *     Release memory used by the value in cursor copy debug mode.
- */
-static inline int
-__cursor_copy_release_value(WT_CURSOR *cursor)
-{
-    if (!F_ISSET(S2C((WT_SESSION_IMPL *)cursor->session), WT_CONN_DEBUG_CURSOR_COPY))
-        return (0);
-
-    return (__wt_cursor_copy_release_item(cursor, &cursor->value));
+    if (F_ISSET(S2C((WT_SESSION_IMPL *)cursor->session), WT_CONN_DEBUG_CURSOR_COPY)) {
+        WT_RET(__wt_cursor_copy_release_item(cursor, &cursor->key));
+        WT_RET(__wt_cursor_copy_release_item(cursor, &cursor->value));
+    }
+    return (0);
 }
 
 /*

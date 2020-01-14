@@ -241,21 +241,15 @@ __wt_cursor_copy_release_item(WT_CURSOR *cursor, WT_ITEM *item) WT_GCC_FUNC_ATTR
     session = (WT_SESSION_IMPL *)cursor->session;
 
     /*
-     * If we own the memory for the item, make a copy and use that instead. That allows us to
-     * overwrite and free the original memory, potentially uncovering programming errors related to
-     * retaining pointers to key/value memory beyond API boundaries. If the item has memory not
-     * currently in use, free that as well.
+     * Whether or not we own the memory for the item, make a copy of the data and use that instead.
+     * That allows us to overwrite and free memory owned by the item, potentially uncovering
+     * programming errors related to retaining pointers to key/value memory beyond API boundaries.
      */
-    if (WT_DATA_IN_ITEM(item)) {
-        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-        WT_ERR(__wt_buf_set(session, tmp, item->data, item->size));
-        __wt_explicit_overwrite(item->mem, item->memsize);
-        __wt_buf_free(session, item);
-        WT_ERR(__wt_buf_set(session, item, tmp->data, tmp->size));
-    } else if (item->mem != NULL) {
-        __wt_explicit_overwrite(item->mem, item->memsize);
-        __wt_buf_free(session, item);
-    }
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+    WT_ERR(__wt_buf_set(session, tmp, item->data, item->size));
+    __wt_explicit_overwrite(item->mem, item->memsize);
+    __wt_buf_free(session, item);
+    WT_ERR(__wt_buf_set(session, item, tmp->data, tmp->size));
 err:
     __wt_scr_free(session, &tmp);
     return (ret);
@@ -429,7 +423,7 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
     tmp.mem = NULL;
 
     CURSOR_API_CALL(cursor, session, set_key, NULL);
-    WT_ERR(__cursor_copy_release_key(cursor));
+    WT_ERR(__cursor_copy_release(cursor));
     if (F_ISSET(cursor, WT_CURSTD_KEY_SET) && WT_DATA_IN_ITEM(buf)) {
         tmp = *buf;
         buf->mem = NULL;
@@ -581,7 +575,7 @@ __wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap)
     tmp.mem = NULL;
 
     CURSOR_API_CALL(cursor, session, set_value, NULL);
-    WT_ERR(__cursor_copy_release_value(cursor));
+    WT_ERR(__cursor_copy_release(cursor));
     if (F_ISSET(cursor, WT_CURSTD_VALUE_SET) && WT_DATA_IN_ITEM(buf)) {
         tmp = *buf;
         buf->mem = NULL;
