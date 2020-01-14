@@ -318,13 +318,19 @@ __cursor_kv_return(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 static inline int
 __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 {
+#ifdef HAVE_DIAGNOSTIC
+    const WT_BT_TRAITS *bt_traits;
+#endif
     WT_SESSION_IMPL *session;
 
+#ifdef HAVE_DIAGNOSTIC
+    bt_traits = cbt->btree->bt_traits;
+#endif
     session = (WT_SESSION_IMPL *)cbt->iface.session;
 
     if (reenter) {
 #ifdef HAVE_DIAGNOSTIC
-        __wt_cursor_key_order_reset(cbt);
+        bt_traits->cursor_key_order_reset(cbt);
 #endif
         WT_RET(__cursor_reset(cbt));
     }

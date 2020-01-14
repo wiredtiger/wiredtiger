@@ -546,9 +546,6 @@ restart_read_page:
 int
 __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 {
-#ifdef HAVE_DIAGNOSTIC
-    const WT_BT_TRAITS *bt_traits;
-#endif
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_PAGE *page;
@@ -556,9 +553,6 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     uint32_t flags;
     bool newpage, restart;
 
-#ifdef HAVE_DIAGNOSTIC
-    bt_traits = cbt->btree->bt_traits;
-#endif
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
 
@@ -667,7 +661,7 @@ err:
          * we call next key 2 will be returned which will be same as earlier returned key.
          */
         if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT))
-            ret = bt_traits->cursor_key_order_check(session, cbt, false);
+            ret = cbt->btree->bt_traits->cursor_key_order_check(session, cbt, false);
 #endif
         break;
     case WT_PREPARE_CONFLICT:

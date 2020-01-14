@@ -4,6 +4,7 @@ struct __wt_bt_traits {
 #ifdef HAVE_DIAGNOSTIC
     int (*cursor_key_order_init)(WT_CURSOR_BTREE *cbt);
     int (*cursor_key_order_check)(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next);
+    void (*cursor_key_order_reset)(WT_CURSOR_BTREE *cbt);
 #endif
 };
 

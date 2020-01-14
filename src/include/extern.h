@@ -1598,7 +1598,6 @@ extern void __wt_conn_stat_init(WT_SESSION_IMPL *session);
 extern void __wt_connection_destroy(WT_CONNECTION_IMPL *conn);
 extern void __wt_curbackup_free_incr(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb);
 extern void __wt_cursor_close(WT_CURSOR *cursor);
-extern void __wt_cursor_key_order_reset(WT_CURSOR_BTREE *cbt);
 extern void __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle);
 extern void __wt_cursor_set_key(WT_CURSOR *cursor, ...);
 extern void __wt_cursor_set_key_notsup(WT_CURSOR *cursor, ...);

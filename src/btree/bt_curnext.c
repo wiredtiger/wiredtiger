@@ -386,22 +386,6 @@ restart_read_page:
     /* NOTREACHED */
 }
 
-#ifdef HAVE_DIAGNOSTIC
-/*
- * __wt_cursor_key_order_reset --
- *     Turn off key ordering checks for cursor movements.
- */
-void
-__wt_cursor_key_order_reset(WT_CURSOR_BTREE *cbt)
-{
-    /*
-     * Clear the last-key returned, it doesn't apply.
-     */
-    cbt->lastkey->size = 0;
-    cbt->lastrecno = WT_RECNO_OOB;
-}
-#endif
-
 /*
  * __wt_btcur_iterate_setup --
  *     Initialize a cursor for iteration, usually based on a search.
@@ -430,7 +414,7 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
      */
     if (cbt->ref == NULL) {
 #ifdef HAVE_DIAGNOSTIC
-        __wt_cursor_key_order_reset(cbt);
+        cbt->btree->bt_traits->cursor_key_order_reset(cbt);
 #endif
         return;
     }
@@ -472,9 +456,6 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 int
 __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 {
-#ifdef HAVE_DIAGNOSTIC
-    const WT_BT_TRAITS *bt_traits;
-#endif
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_PAGE *page;
@@ -482,9 +463,6 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     uint32_t flags;
     bool newpage, restart;
 
-#ifdef HAVE_DIAGNOSTIC
-    bt_traits = cbt->btree->bt_traits;
-#endif
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
 
@@ -591,7 +569,7 @@ err:
          * we call prev key 10 will be returned which will be same as earlier returned key.
          */
         if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV))
-            ret = bt_traits->cursor_key_order_check(session, cbt, true);
+            ret = cbt->btree->bt_traits->cursor_key_order_check(session, cbt, true);
 #endif
         break;
     case WT_PREPARE_CONFLICT:

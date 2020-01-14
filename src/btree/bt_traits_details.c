@@ -240,4 +240,18 @@ err:
 
     return (ret);
 }
+
+/*
+ * __bt_cursor_key_order_reset --
+ *     Turn off key ordering checks for cursor movements.
+ */
+void
+__bt_cursor_key_order_reset(WT_CURSOR_BTREE *cbt)
+{
+    /*
+     * Clear the last-key returned, it doesn't apply.
+     */
+    cbt->lastkey->size = 0;
+    cbt->lastrecno = WT_RECNO_OOB;
+}
 #endif

@@ -11,4 +11,5 @@ extern int __bt_col_cursor_key_order_check(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next);
 extern int __bt_row_cursor_key_order_check(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next);
+extern void __bt_cursor_key_order_reset(WT_CURSOR_BTREE *cbt);
 #endif

@@ -509,7 +509,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
      * Under some conditions we end up using the underlying cursor.next to walk through the object.
      * Since there are multiple calls, we can hit the cursor-order checks, turn them off.
      */
-    __wt_cursor_key_order_reset(cbt);
+    btree->bt_traits->cursor_key_order_reset(cbt);
 #endif
     /*
      * If we don't have a current position in the tree, or if retrieving random values without
