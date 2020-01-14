@@ -885,7 +885,7 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
         WT_RET(ds->f(ds, ", page-state=%" PRIu32, mod->page_state));
     WT_RET(ds->f(ds, ", memory-size %" WT_SIZET_FMT, page->memory_footprint));
     if (addr != NULL)
-        WT_RET(ds->f(ds, ", start stop time-pairs %s,%s",
+        WT_RET(ds->f(ds, ", start stop ts/txn %s,%s",
           __wt_time_pair_to_string(addr->oldest_start_ts, addr->oldest_start_txn, tp_string[0]),
           __wt_time_pair_to_string(addr->newest_stop_ts, addr->newest_stop_txn, tp_string[1])));
     WT_RET(ds->f(ds, "\n"));
