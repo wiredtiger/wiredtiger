@@ -77,10 +77,6 @@ struct __wt_page_header {
 
     /* A byte of padding, positioned to be added to the flags. */
     uint8_t unused; /* 26: unused padding */
-
-#define WT_PAGE_VERSION_ORIG 0 /* Original version */
-#define WT_PAGE_VERSION_TS 1   /* Timestamps added */
-    uint8_t version;           /* 27: version */
 };
 /*
  * WT_PAGE_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler inserts

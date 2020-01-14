@@ -31,12 +31,7 @@
  * include checkpoint information (ignoring previous files created by previous
  * releases, and, of course, making upgrade/downgrade work seamlessly). Extent
  * lists are written to their own pages, and we could version this change using
- * the page header version. Extent lists have WT_PAGE_BLOCK_MANAGER page types,
- * we could version this change using the upcoming WT_PAGE_VERSION_TS upgrade.
- * However, that requires waiting a release (we would have to first release a
- * version that ignores those new page header versions so downgrade works), and
- * we're not planning a release that writes WT_PAGE_VERSION_TS page headers for
- * awhile. Happily, historic WiredTiger releases have a bug. Extent lists
+ * the page header version. Happily, historic WiredTiger releases have a bug. Extent lists
  * consist of a set of offset/size pairs, with magic offset/size pairs at the
  * beginning and end of the list. Historic releases only verified the offset of
  * the special pair at the end of the list, ignoring the size. To detect avail

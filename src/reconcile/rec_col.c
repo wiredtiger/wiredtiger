@@ -877,9 +877,8 @@ compare:
              * record number, we've been doing that all along.
              */
             if (rle != 0) {
-                if ((!__wt_process.page_version_ts ||
-                      (last.start_ts == start_ts && last.start_txn == start_txn &&
-                        last.stop_ts == stop_ts && last.stop_txn == stop_txn)) &&
+                if ((last.start_ts == start_ts && last.start_txn == start_txn &&
+                      last.stop_ts == stop_ts && last.stop_txn == stop_txn) &&
                   ((deleted && last.deleted) ||
                       (!deleted && !last.deleted && last.value->size == size &&
                         memcmp(last.value->data, data, size) == 0))) {
@@ -992,9 +991,8 @@ compare:
              */
             if (src_recno < n) {
                 deleted = true;
-                if (last.deleted && (!__wt_process.page_version_ts ||
-                                      (last.start_ts == start_ts && last.start_txn == start_txn &&
-                                        last.stop_ts == stop_ts && last.stop_txn == stop_txn))) {
+                if (last.deleted && (last.start_ts == start_ts && last.start_txn == start_txn &&
+                                      last.stop_ts == stop_ts && last.stop_txn == stop_txn)) {
                     /*
                      * The record adjustment is decremented by one so we can naturally fall into the
                      * RLE accounting below, where we increment rle by one, then continue in the
@@ -1054,9 +1052,8 @@ compare:
                 /*
                  * FIXME-PM-1521: Follow up issue with clang in WT-5341.
                  */
-                if ((!__wt_process.page_version_ts ||
-                      (last.start_ts == start_ts && last.start_txn == start_txn &&
-                        last.stop_ts == stop_ts && last.stop_txn == stop_txn)) &&
+                if ((last.start_ts == start_ts && last.start_txn == start_txn &&
+                      last.stop_ts == stop_ts && last.stop_txn == stop_txn) &&
                   ((deleted && last.deleted) ||
                       (!deleted && !last.deleted && last.value->size != 0 &&
                         last.value->size == size && memcmp(last.value->data, data, size) == 0))) {
