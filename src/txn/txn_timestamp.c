@@ -1224,8 +1224,7 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
     }
 
     /* Assert the read timestamp is greater than or equal to the pinned timestamp. */
-    WT_RET_ASSERT(session, txn->read_timestamp >= S2C(session)->txn_global.pinned_timestamp, EINVAL,
-      "transaction's read timestamp less than the global pinned timestamp");
+    WT_ASSERT(session, txn->read_timestamp >= S2C(session)->txn_global.pinned_timestamp);
 
     /*
      * Notify other threads that our transaction is inactive and can be cleaned up safely from the
