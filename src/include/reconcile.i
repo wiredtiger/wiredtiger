@@ -48,7 +48,7 @@ __wt_rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *newest_durable_ts,
   uint64_t *newest_stop_txnp)
 {
     /*
-     * It the page is not fixed-length column-store, where we don't maintain timestamps at all, set
+     * If the page is not fixed-length column-store, where we don't maintain timestamps at all, set
      * the oldest/newest timestamps to values at the end of their expected range so they're
      * corrected as we process key/value items. Otherwise, set the oldest/newest timestamps to
      * simple durability.
