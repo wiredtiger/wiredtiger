@@ -345,6 +345,39 @@ __wt_las_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t se
 }
 
 /*
+ * __las_get_value --
+ *     Get the value associated with an update from lookaside. Providing a read timestamp to avoid
+ *     finding a tombstone.
+ */
+static int
+__las_get_value(WT_CURSOR *cursor, WT_BTREE *btree, WT_UPDATE *upd, wt_timestamp_t start_ts,
+  uint64_t start_txnid, WT_ITEM *key, WT_ITEM *full_value)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    WT_TXN *txn;
+    wt_timestamp_t durable_ts;
+    uint8_t upd_type, prepare_state;
+
+    session = (WT_SESSION_IMPL *)cursor->session;
+    txn = &session->txn;
+
+    /* This function should not overwrite a pre-existing read timestamp. */
+    WT_ASSERT(session, txn->read_timestamp == WT_TS_NONE && !F_ISSET(txn, WT_TXN_HAS_TS_READ));
+
+    txn->read_timestamp = upd->start_ts;
+    F_SET(txn, WT_TXN_HAS_TS_READ);
+
+    cursor->set_key(cursor, btree->id, key, upd->start_ts, upd->txnid, start_ts, start_txnid);
+    WT_ERR(cursor->search(cursor));
+    WT_ERR(cursor->get_value(cursor, &durable_ts, &prepare_state, &upd_type, full_value));
+err:
+    F_CLR(txn, WT_TXN_HAS_TS_READ);
+    txn->read_timestamp = WT_TS_NONE;
+    return (ret);
+}
+
+/*
  * __las_insert_updates_verbose --
  *     Display a verbose message once per checkpoint with details about the cache state when
  *     performing a lookaside table write.
@@ -454,15 +487,16 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_SAVE_UPD *list;
     WT_SESSION_IMPL *session;
     WT_TXN_ISOLATION saved_isolation;
-    WT_UPDATE *upd, *prev_upd;
-    wt_off_t las_size;
+    WT_UPDATE *prev_upd, *upd;
     WT_TIME_PAIR stop_ts_pair;
+    wt_off_t las_size;
     uint64_t insert_cnt, max_las_size;
     uint32_t btree_id, supd_index, err_pos;
     uint8_t *p;
     int nentries;
     bool local_txn, squashed, txn_rolled_back;
 
+    prev_upd = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = 0;
@@ -546,11 +580,11 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * the chain. It also assumes the onpage_upd selected cannot be a TOMBSTONE and the update
          * newer to a TOMBSTONE must be a full update.
          *
-         * The algorithm walks from the oldest update to the newest update and build full updates
-         * along the way. It sets the stop time pair of the update to the start time pair of the
-         * next update, squashes the updates that are from the same transaction and of the same
-         * start timestamp, calculates reverse modification if prev_upd is a MODIFY, and inserts the
-         * update to lookaside.
+         * The algorithm walks from the oldest update, or the most recently inserted into history
+         * store update. To the newest update and build full updates along the way. It sets the stop
+         * time pair of the update to the start time pair of the next update, squashes the updates
+         * that are from the same transaction and of the same start timestamp, calculates reverse
+         * modification if prev_upd is a MODIFY, and inserts the update to lookaside.
          *
          * It deals with the following scenarios:
          * 1) We only have full updates on the chain and we only insert full updates to lookaside.
@@ -558,7 +592,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * reverse the modifies and insert the reversed modifies to lookaside if it is not the
          * newest update written to lookaside and the reverse operation is successful.
          * With regard to the example, we insert U -> RM -> U to lookaside.
-         * 3) We have tombstones in the middle of the chain, i.e.,
+         * 3) We have tombstones in the middle of the chain, i.e.
          * U (selected onpage value) -> U -> T -> M -> U.
          * We write the stop time pair of M with the start time pair of the tombstone and skip the
          * tombstone.
@@ -570,6 +604,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 continue;
 
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
+            if (F_ISSET(upd, WT_UPDATE_HISTORY_STORE))
+                break;
         }
 
         upd = NULL;
@@ -580,8 +616,23 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          */
         WT_ASSERT(session, modifies.size > 0);
         __wt_modify_vector_pop(&modifies, &upd);
-        /* The key didn't exist back then, which is globally visible. */
-        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
+
+        /* If we popped a modify then it should be flagged as in the history store. */
+        if (upd->type == WT_UPDATE_MODIFY) {
+            WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_HISTORY_STORE));
+            __wt_modify_vector_peek(&modifies, &prev_upd);
+            /*
+             * Retrieve the full value of the modify from the history store. This avoid us having to
+             * iterate the full update list associated with the modify and recalculating the reverse
+             * deltas.
+             */
+            WT_ERR(__las_get_value(
+              cursor, btree, upd, prev_upd->start_ts, prev_upd->txnid, key, full_value));
+        } else {
+            /* The key didn't exist back then, which is globally visible. */
+            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
+        }
+
         /* Skip TOMBSTONE at the end of the update chain. */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
@@ -593,25 +644,22 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         full_value->data = upd->data;
         full_value->size = upd->size;
 
-        prev_upd = NULL;
         squashed = false;
 
-        /* Flush the updates on stack */
+        /* Flush the updates on stack. */
         for (; modifies.size > 0; tmp = full_value, full_value = prev_full_value,
                                   prev_full_value = tmp, upd = prev_upd) {
-            /* Should not see BIRTHMARK or TOMBSTONE */
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
             __wt_modify_vector_pop(&modifies, &prev_upd);
             stop_ts_pair.timestamp = prev_upd->start_ts;
             stop_ts_pair.txnid = prev_upd->txnid;
 
-            /* Skip TOMBSTONE */
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
                 __wt_modify_vector_pop(&modifies, &prev_upd);
 
-                /* The update newer to a TOMBSTONE must be a full update */
+                /* The update newer to a TOMBSTONE must be a full update. */
                 WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
             }
 
@@ -641,21 +689,22 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                  * updates in the middle.
                  */
                 nentries = MAX_REVERSE_MODIFY_NUM;
-                if (upd->type == WT_UPDATE_MODIFY && modifies.size > 0 &&
-                  __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
-                    entries, &nentries) == 0) {
-                    WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
-                    WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
-                      WT_UPDATE_MODIFY, modify_value, stop_ts_pair));
-                    __wt_scr_free(session, &modify_value);
-                } else
-                    WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
-                      WT_UPDATE_STANDARD, full_value, stop_ts_pair));
+                if (!F_ISSET(upd, WT_UPDATE_HISTORY_STORE)) {
+                    if (upd->type == WT_UPDATE_MODIFY && modifies.size > 0 &&
+                      __wt_calc_modify(session, prev_full_value, full_value,
+                        prev_full_value->size / 10, entries, &nentries) == 0) {
+                        WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
+                        WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
+                          WT_UPDATE_MODIFY, modify_value, stop_ts_pair));
+                        __wt_scr_free(session, &modify_value);
+                    } else
+                        WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
+                          WT_UPDATE_STANDARD, full_value, stop_ts_pair));
 
-                /* Flag the update as now in the lookaside file. */
-                F_SET(upd, WT_UPDATE_HISTORY_STORE);
-                ++insert_cnt;
-
+                    /* Flag the update as now in the lookaside file. */
+                    F_SET(upd, WT_UPDATE_HISTORY_STORE);
+                    ++insert_cnt;
+                }
                 if (squashed) {
                     WT_STAT_CONN_INCR(session, cache_hs_write_squash);
                     squashed = false;
