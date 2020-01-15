@@ -1049,12 +1049,13 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
 }
 
 /*
- * __wt_ref_info --
- *     Return the addr/size and type triplet for a reference.
+ * __wt_ref_info_all --
+ *     Return the addr/size, type and start/stop time pairs for a reference.
  */
 static inline void
-__wt_ref_info(
-  WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
+__wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep,
+  u_int *typep, wt_timestamp_t *start_ts, wt_timestamp_t *stop_ts, uint64_t *start_txn,
+  uint64_t *stop_txn)
 {
     WT_ADDR *addr;
     WT_CELL_UNPACK *unpack, _unpack;
@@ -1093,13 +1094,40 @@ __wt_ref_info(
                 *typep = 0;
                 break;
             }
+        if (start_ts != NULL)
+            *start_ts = addr->oldest_start_ts;
+        if (start_txn != NULL)
+            *start_txn = addr->oldest_start_txn;
+        if (stop_ts != NULL)
+            *stop_ts = addr->oldest_start_ts;
+        if (stop_txn != NULL)
+            *stop_txn = addr->oldest_start_txn;
     } else {
         __wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
         *addrp = unpack->data;
         *sizep = unpack->size;
         if (typep != NULL)
             *typep = unpack->type;
+        if (start_ts != NULL)
+            *start_ts = unpack->oldest_start_ts;
+        if (start_txn != NULL)
+            *start_txn = unpack->oldest_start_txn;
+        if (stop_ts != NULL)
+            *stop_ts = unpack->oldest_start_ts;
+        if (stop_txn != NULL)
+            *stop_txn = unpack->oldest_start_txn;
     }
+}
+
+/*
+ * __wt_ref_info --
+ *     Return the addr/size and type triplet for a reference.
+ */
+static inline void
+__wt_ref_info(
+  WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
+{
+    __wt_ref_info_all(session, ref, addrp, sizep, typep, NULL, NULL, NULL, NULL);
 }
 
 /*

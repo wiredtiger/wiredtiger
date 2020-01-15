@@ -118,8 +118,15 @@ __wt_ref_state_string(u_int state)
 const char *
 __wt_page_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
 {
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    wt_timestamp_t start_ts;
+    wt_timestamp_t stop_ts;
     size_t addr_size;
+    uint64_t start_txn;
+    uint64_t stop_txn;
     const uint8_t *addr;
+    char tp_string[2][WT_TP_STRING_SIZE];
 
     if (__wt_ref_is_root(ref)) {
         buf->data = "[Root]";
@@ -127,8 +134,16 @@ __wt_page_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
         return (buf->data);
     }
 
-    __wt_ref_info(session, ref, &addr, &addr_size, NULL);
-    return (__wt_addr_string(session, addr, addr_size, buf));
+    __wt_ref_info_all(
+      session, ref, &addr, &addr_size, NULL, &start_ts, &stop_ts, &start_txn, &stop_txn);
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+    WT_ERR(__wt_buf_fmt(session, buf, "%s %s,%s", __wt_addr_string(session, addr, addr_size, tmp),
+      __wt_time_pair_to_string(start_ts, start_txn, tp_string[0]),
+      __wt_time_pair_to_string(start_ts, start_txn, tp_string[1])));
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (buf->data);
 }
 
 /*

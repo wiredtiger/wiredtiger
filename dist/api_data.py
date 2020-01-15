@@ -1358,27 +1358,6 @@ methods = {
         Display the contents of in-memory pages as they are verified,
         using the application's message handler, intended for debugging''',
         type='boolean'),
-<<<<<<< HEAD
-<<<<<<< HEAD
-    Config('dump_time_pairs', 'false', r'''
-        Display aggregated time pair ranges as pages are verified,
-        using the application's message handler, intended for debugging.
-        Output is of the format "ts/txn, ts/txn"''',
-=======
-    Config('dump_timestamps', 'false', r'''
-        Display aggregated timestamp ranges as pages are verified,
-=======
-    Config('dump_time_pairs', 'false', r'''
-        Display aggregated time pair ranges as pages are verified,
-<<<<<<< HEAD
->>>>>>> Rename timestamps to time pairs
-        using the application's message handler, intended for debugging''',
->>>>>>> WT-5345 Add dump timestamp to wt verify config options
-=======
-        using the application's message handler, intended for debugging.
-        Output is of the format "ts/txn, ts/txn"''',
->>>>>>> Fix print format and variable initialisation
-        type='boolean'),
     Config('strict', 'false', r'''
         Treat any verification problem as an error; by default, verify will
         warn, but not fail, in the case of errors that won't affect future
