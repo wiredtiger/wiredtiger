@@ -25,6 +25,7 @@ static int dump_table_config(WT_SESSION *, WT_CURSOR *, WT_CURSOR *, const char 
 static int dump_table_parts_config(WT_SESSION *, WT_CURSOR *, const char *, const char *, bool);
 static int dup_json_string(const char *, char **);
 static int print_config(WT_SESSION *, const char *, const char *, bool, bool);
+static int time_pair_to_timestamp(WT_SESSION_IMPL *, char *, WT_ITEM *);
 static int usage(void);
 
 static FILE *fp;
@@ -33,25 +34,30 @@ int
 util_dump(WT_SESSION *session, int argc, char *argv[])
 {
     WT_CURSOR *cursor;
+    WT_DECL_ITEM(timestamp_buf);
     WT_DECL_ITEM(tmp);
+    WT_DECL_ITEM(tmp2);
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl;
     int ch, i;
-    char *checkpoint, *ofile, *p, *simpleuri, *uri;
+    char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
     bool hex, json, reverse;
 
     session_impl = (WT_SESSION_IMPL *)session;
 
     cursor = NULL;
-    checkpoint = ofile = simpleuri = uri = NULL;
+    checkpoint = ofile = simpleuri = uri = timestamp = NULL;
     hex = json = reverse = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "c:f:jrx")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "c:f:t:jrx")) != EOF)
         switch (ch) {
         case 'c':
             checkpoint = __wt_optarg;
             break;
         case 'f':
             ofile = __wt_optarg;
+            break;
+        case 't':
+            timestamp = __wt_optarg;
             break;
         case 'j':
             json = true;
@@ -89,6 +95,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         goto err;
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
+    WT_RET(__wt_scr_alloc(session_impl, 0, &tmp2));
+    WT_RET(__wt_scr_alloc(session_impl, 0, &timestamp_buf));
     for (i = 0; i < argc; i++) {
         if (json && i > 0)
             if (dump_json_separator(session) != 0)
@@ -103,6 +111,17 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
         if (checkpoint != NULL)
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
+        if (timestamp != NULL) {
+            WT_ERR(time_pair_to_timestamp(session_impl, timestamp, timestamp_buf));
+            WT_ERR(__wt_buf_catfmt(
+              session_impl, tmp2, "read_timestamp=%s,", (char *)timestamp_buf->data));
+            WT_ERR(__wt_buf_catfmt(session_impl, tmp2, "isolation=snapshot,"));
+            if ((ret = session->begin_transaction(session, (char *)tmp2->data)) != 0) {
+                fprintf(stderr, "%s: begin transaction failed: %s\n", progname,
+                  session->strerror(session, ret));
+                goto err;
+            }
+        }
         WT_ERR(
           __wt_buf_catfmt(session_impl, tmp, "dump=%s", json ? "json" : (hex ? "hex" : "print")));
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
@@ -146,10 +165,32 @@ err:
         ret = util_err(session, errno, NULL);
 
     __wt_scr_free(session_impl, &tmp);
+    __wt_scr_free(session_impl, &tmp2);
+    __wt_scr_free(session_impl, &timestamp_buf);
     free(uri);
     free(simpleuri);
 
     return (ret);
+}
+
+/*
+ * time_pair_to_timestamp --
+ *     Convert a timestamp output format to timestamp representation.
+ */
+static int
+time_pair_to_timestamp(WT_SESSION_IMPL *session_impl, char *ts_string, WT_ITEM *buf)
+{
+    uint64_t timestamp;
+    uint32_t first, second;
+
+    if (ts_string[0] == '(') {
+        sscanf(ts_string, "(%u,%u)", &first, &second);
+        timestamp = ((unsigned long long)first << 32) | second;
+    } else
+        timestamp = strtoul(ts_string, NULL, 10);
+
+    WT_RET(__wt_buf_catfmt(session_impl, buf, "%lx", timestamp));
+    return 0;
 }
 
 /*
