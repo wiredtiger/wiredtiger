@@ -192,7 +192,7 @@ class test_shared_cache01(wttest.WiredTigerTestCase):
             'requires a percentage value for eviction checkpoint target/')
 
     # Test verbose output
-    @unittest.skip("Temporarily disabled")
+    @unittest.skip("Verbose output handling")
     def test_shared_cache_verbose(self):
         nops = 1000
         self.openConnections(
