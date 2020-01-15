@@ -202,7 +202,6 @@ class test_history_store06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
-    @unittest.skip("Temporarily disabled")
     def test_history_store_prepare_reads(self):
         # Create a small table.
         uri = "table:test_history_store06"

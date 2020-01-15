@@ -62,7 +62,6 @@ class test_history_store07(wttest.WiredTigerTestCase):
         session.rollback_transaction()
         self.assertEqual(count, nrows)
 
-    @unittest.skip("Temporarily disabled")
     def test_history_store(self):
         nrows = 10000
 
