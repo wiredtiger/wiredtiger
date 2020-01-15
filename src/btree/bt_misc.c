@@ -133,13 +133,12 @@ __wt_page_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
         buf->size = strlen("[Root]");
         return (buf->data);
     }
-
     __wt_ref_info_all(
       session, ref, &addr, &addr_size, NULL, &start_ts, &stop_ts, &start_txn, &stop_txn);
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_buf_fmt(session, buf, "%s %s,%s", __wt_addr_string(session, addr, addr_size, tmp),
-      __wt_time_pair_to_string(start_ts, start_txn, tp_string[0]),
-      __wt_time_pair_to_string(start_ts, start_txn, tp_string[1])));
+      addr != NULL ? __wt_time_pair_to_string(start_ts, start_txn, tp_string[0]) : "-/-",
+      addr != NULL ? __wt_time_pair_to_string(start_ts, start_txn, tp_string[1]) : "-/-"));
 
 err:
     __wt_scr_free(session, &tmp);
