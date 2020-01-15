@@ -62,7 +62,6 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
         return self.keyfmt == 'r' and \
             (self.ds.is_lsm() or self.uri == 'lsm')
 
-    @unittest.skip("Temporarily disabled")
     # Test durable timestamp.
     def test_durable_ts01(self):
         if self.skip():
