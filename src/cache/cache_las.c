@@ -572,11 +572,11 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * the chain. It also assumes the onpage_upd selected cannot be a TOMBSTONE and the update
          * newer to a TOMBSTONE must be a full update.
          *
-         * The algorithm walks from the oldest update to the newest update and build full updates
-         * along the way. It sets the stop time pair of the update to the start time pair of the
-         * next update, squashes the updates that are from the same transaction and of the same
-         * start timestamp, calculates reverse modification if prev_upd is a MODIFY, and inserts the
-         * update to lookaside.
+         * The algorithm walks from the oldest update, or the most recently inserted into history
+         * store update. To the newest update and build full updates along the way. It sets the stop
+         * time pair of the update to the start time pair of the next update, squashes the updates
+         * that are from the same transaction and of the same start timestamp, calculates reverse
+         * modification if prev_upd is a MODIFY, and inserts the update to lookaside.
          *
          * It deals with the following scenarios:
          * 1) We only have full updates on the chain and we only insert full updates to lookaside.
@@ -584,7 +584,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * reverse the modifies and insert the reversed modifies to lookaside if it is not the
          * newest update written to lookaside and the reverse operation is successful.
          * With regard to the example, we insert U -> RM -> U to lookaside.
-         * 3) We have tombstones in the middle of the chain, i.e.,
+         * 3) We have tombstones in the middle of the chain, i.e.
          * U (selected onpage value) -> U -> T -> M -> U.
          * We write the stop time pair of M with the start time pair of the tombstone and skip the
          * tombstone.
