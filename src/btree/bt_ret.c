@@ -74,7 +74,8 @@ __key_return(WT_CURSOR_BTREE *cbt)
  *     Change a buffer to reference an internal original-page return value.
  */
 int
-__wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf)
+__wt_value_return_buf(
+  WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_PAIR *start, WT_TIME_PAIR *stop)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -91,6 +92,9 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf)
     page = ref->page;
     cursor = &cbt->iface;
 
+    /* Must provide either both start and stop as output parameters or neither. */
+    WT_ASSERT(session, (start != NULL && stop != NULL) || (start == NULL && stop == NULL));
+
     if (page->type == WT_PAGE_ROW_LEAF) {
         rip = &page->pg_row[cbt->slot];
 
@@ -105,10 +109,13 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf)
 
         /* Take the value from the original page cell. */
         __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
+        if (start != NULL && stop != NULL) {
+            start->timestamp = unpack.start_ts;
+            start->txnid = unpack.start_txn;
+            stop->timestamp = unpack.stop_ts;
+            stop->txnid = unpack.stop_txn;
+        }
 
-        /* FIXME-PM-1521: Temporarily disabled due to large number of failed tests */
-        // WT_ASSERT(session, !__wt_txn_visible(session, unpack.stop_txn, unpack.stop_ts) &&
-        //     __wt_txn_visible(session, unpack.start_txn, unpack.start_ts));
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
@@ -116,10 +123,13 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf)
         /* Take the value from the original page cell. */
         cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
         __wt_cell_unpack(session, page, cell, &unpack);
+        if (start != NULL && stop != NULL) {
+            start->timestamp = unpack.start_ts;
+            start->txnid = unpack.start_txn;
+            stop->timestamp = unpack.stop_ts;
+            stop->txnid = unpack.stop_txn;
+        }
 
-        /* FIXME-PM-1521: Temporarily disabled due to large number of failed tests */
-        // WT_ASSERT(session, !__wt_txn_visible(session, unpack.stop_txn, unpack.stop_ts) &&
-        //     __wt_txn_visible(session, unpack.start_txn, unpack.start_ts));
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
@@ -139,7 +149,7 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf)
 static inline int
 __value_return(WT_CURSOR_BTREE *cbt)
 {
-    return (__wt_value_return_buf(cbt, cbt->ref, &cbt->iface.value));
+    return (__wt_value_return_buf(cbt, cbt->ref, &cbt->iface.value, NULL, NULL));
 }
 
 /*

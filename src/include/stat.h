@@ -395,7 +395,6 @@ struct __wt_connection_stats {
     int64_t cache_hs_read;
     int64_t cache_hs_read_miss;
     int64_t cache_hs_read_squash;
-    int64_t cache_hs_read_wasted;
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
     int64_t cache_inmem_split;

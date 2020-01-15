@@ -371,7 +371,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         LF_SET(WT_READ_NO_EVICT);
 
         /* Read pages with lookaside entries and evict them asap. */
-        LF_SET(WT_READ_LOOKASIDE | WT_READ_WONT_NEED);
+        LF_SET(WT_READ_WONT_NEED);
 
         /* Read internal pages if it is history store */
         if (is_las) {

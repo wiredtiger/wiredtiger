@@ -13,7 +13,6 @@ static void __rec_destroy(WT_SESSION_IMPL *, void *);
 static int __rec_destroy_session(WT_SESSION_IMPL *);
 static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
 static int __rec_las_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *);
-static void __rec_las_wrapup_err(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
 static int __rec_split_row_promote(WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
@@ -1566,13 +1565,6 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
             F_SET(dsk, WT_PAGE_EMPTY_V_NONE);
     }
 
-    /*
-     * Note in the page header if we found updates that weren't globally visible when reconciling
-     * this page.
-     */
-    if (multi->page_las.max_txn != WT_TXN_NONE)
-        F_SET(dsk, WT_PAGE_LAS_UPDATE);
-
     dsk->unused = 0;
 
     dsk->version = __wt_process.page_version_ts ? WT_PAGE_VERSION_TS : WT_PAGE_VERSION_ORIG;
@@ -1744,17 +1736,14 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE *page;
-    WT_PAGE_LOOKASIDE *orig_page_las;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    bool block_las_evict;
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
 
     btree = S2BT(session);
     page = r->page;
-    orig_page_las = r->ref->page_las;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
@@ -1797,30 +1786,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     /* Check if there are saved updates that might belong to this block. */
     if (r->supd_next != 0)
         WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block));
-
-    /*
-     * If we are configured to do lookaside eviction for this block or if the original page has
-     * lookaside content, accumulate the range of timestamps seen so far.
-     *
-     * If there is lookaside information attached to the original page then there are records for
-     * this page in the lookaside that need to be accounted into the lookaside information for the
-     * replacement page. It is too expensive to figure out the exact content for the replacement
-     * page, so we take a superset of what is available to us.
-     */
-    block_las_evict = multi->supd != NULL && F_ISSET(r, WT_REC_LOOKASIDE);
-    if (orig_page_las != NULL || block_las_evict) {
-        multi->page_las.max_txn = WT_MAX(
-          orig_page_las != NULL ? orig_page_las->max_txn : 0, block_las_evict ? r->max_txn : 0);
-        multi->page_las.max_ondisk_ts =
-          WT_MAX(orig_page_las != NULL ? orig_page_las->max_ondisk_ts : 0,
-            block_las_evict ? r->max_ondisk_ts : 0);
-        multi->page_las.min_skipped_ts =
-          WT_MIN(orig_page_las != NULL ? orig_page_las->min_skipped_ts : WT_TS_MAX,
-            block_las_evict ? r->min_skipped_ts : WT_TS_MAX);
-        multi->page_las.has_prepares = orig_page_las != NULL && orig_page_las->has_prepares;
-
-        WT_ASSERT(session, multi->page_las.max_txn != WT_TXN_NONE);
-    }
 
     /* Initialize the page header(s). */
     __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);
@@ -2231,7 +2196,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             r->multi->addr.addr = NULL;
             mod->mod_disk_image = r->multi->disk_image;
             r->multi->disk_image = NULL;
-            mod->mod_page_las = r->multi->page_las;
         } else {
             __wt_checkpoint_tree_reconcile_update(session, r->multi->addr.newest_durable_ts,
               r->multi->addr.oldest_start_ts, r->multi->addr.oldest_start_txn,
@@ -2309,14 +2273,6 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 WT_TRET(__wt_btree_block_free(session, multi->addr.addr, multi->addr.size));
         }
 
-    /*
-     * If using the lookaside table eviction path and we found updates that weren't globally visible
-     * when reconciling this page, we might have already copied them into the database's lookaside
-     * store. Remove them.
-     */
-    if (F_ISSET(r, WT_REC_LOOKASIDE))
-        __rec_las_wrapup_err(session, r);
-
     WT_TRET(__wt_ovfl_track_wrapup_err(session, page));
 
     return (ret);
@@ -2355,33 +2311,6 @@ __rec_las_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 err:
     WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
     return (ret);
-}
-
-/*
- * __rec_las_wrapup_err --
- *     Discard any saved updates from the database's lookaside buffer.
- */
-static void
-__rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
-{
-    WT_KEY_MEMENTO *mementop;
-    WT_MULTI *multi;
-    uint32_t i, j;
-
-    /*
-     * Note the additional check for whether lookaside table entries for this page have been
-     * written.
-     */
-    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-        if (multi->supd != NULL && multi->has_las) {
-            if (multi->page_las.mementos_cnt != 0) {
-                WT_ASSERT(session, multi->page_las.mementos != NULL);
-                for (j = 0, mementop = multi->page_las.mementos; j < multi->page_las.mementos_cnt;
-                     j++, mementop++)
-                    __wt_buf_free(session, &mementop->key);
-            }
-            __wt_free(session, multi->page_las.mementos);
-        }
 }
 
 /*
