@@ -509,6 +509,8 @@ extern int __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor
 extern int __wt_cursor_cached(WT_CURSOR *cursor) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_compare_notsup(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_cursor_copy_release_item(WT_CURSOR *cursor, WT_ITEM *item)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_dup_position(WT_CURSOR *to_dup, WT_CURSOR *cursor)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_equals(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
@@ -550,6 +552,10 @@ extern int __wt_cursor_reconfigure_notsup(WT_CURSOR *cursor, const char *config)
 extern int __wt_cursor_reopen_notsup(WT_CURSOR *cursor, bool check_only)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_search_near_notsup(WT_CURSOR *cursor, int *exact)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1601,13 +1607,11 @@ extern void __wt_cursor_key_order_reset(WT_CURSOR_BTREE *cbt);
 extern void __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle);
 extern void __wt_cursor_set_key(WT_CURSOR *cursor, ...);
 extern void __wt_cursor_set_key_notsup(WT_CURSOR *cursor, ...);
-extern void __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap);
 extern void __wt_cursor_set_notsup(WT_CURSOR *cursor);
 extern void __wt_cursor_set_raw_key(WT_CURSOR *cursor, WT_ITEM *key);
 extern void __wt_cursor_set_raw_value(WT_CURSOR *cursor, WT_ITEM *value);
 extern void __wt_cursor_set_value(WT_CURSOR *cursor, ...);
 extern void __wt_cursor_set_value_notsup(WT_CURSOR *cursor, ...);
-extern void __wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap);
 extern void __wt_curstat_cache_walk(WT_SESSION_IMPL *session);
 extern void __wt_curstat_dsrc_final(WT_CURSOR_STAT *cst);
 extern void __wt_curtable_set_key(WT_CURSOR *cursor, ...);
@@ -1959,6 +1963,8 @@ static inline int __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 static inline int __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_context_prepare_check(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_txn_err_chk(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_id_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

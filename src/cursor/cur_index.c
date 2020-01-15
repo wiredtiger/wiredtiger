@@ -19,12 +19,34 @@ __curindex_get_value(WT_CURSOR *cursor, ...)
     WT_SESSION_IMPL *session;
     va_list ap;
 
-    va_start(ap, cursor);
     JOINABLE_CURSOR_API_CALL(cursor, session, get_value, NULL);
-    WT_ERR(__wt_curindex_get_valuev(cursor, ap));
+
+    va_start(ap, cursor);
+    ret = __wt_curindex_get_valuev(cursor, ap);
+    va_end(ap);
 
 err:
-    va_end(ap);
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curindex_set_valuev --
+ *     WT_CURSOR->set_value implementation for index cursors.
+ */
+static int
+__curindex_set_valuev(WT_CURSOR *cursor, va_list ap)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    WT_UNUSED(ap);
+
+    JOINABLE_CURSOR_API_CALL(cursor, session, set_value, NULL);
+    WT_ERR_MSG(session, ENOTSUP, "WT_CURSOR.set_value not supported for index cursors");
+
+err:
+    cursor->saved_err = ret;
+    F_CLR(cursor, WT_CURSTD_VALUE_SET);
     API_END_RET(session, ret);
 }
 
@@ -35,16 +57,11 @@ err:
 static void
 __curindex_set_value(WT_CURSOR *cursor, ...)
 {
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
+    va_list ap;
 
-    JOINABLE_CURSOR_API_CALL(cursor, session, set_value, NULL);
-    WT_ERR_MSG(session, ENOTSUP, "WT_CURSOR.set_value not supported for index cursors");
-
-err:
-    cursor->saved_err = ret;
-    F_CLR(cursor, WT_CURSTD_VALUE_SET);
-    API_END(session, ret);
+    va_start(ap, cursor);
+    WT_IGNORE_RET(__curindex_set_valuev(cursor, ap));
+    va_end(ap);
 }
 
 /*
