@@ -129,19 +129,20 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     confchk_WT_CONNECTION_reconfigure_statistics_log_subconfigs, 5},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"checkpoint_slow\","
-    "\"lookaside_sweep_race\",\"split_1\",\"split_2\",\"split_3\","
-    "\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
+    "\"history_store_sweep_race\",\"split_1\",\"split_2\",\"split_3\""
+    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"verbose", "list", NULL,
     "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
     "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
     "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"handleops\",\"log\",\"lookaside\""
-    ",\"lookaside_activity\",\"lsm\",\"lsm_manager\",\"metadata\","
-    "\"mutex\",\"overflow\",\"read\",\"rebalance\",\"reconcile\","
-    "\"recovery\",\"recovery_progress\",\"salvage\",\"shared_cache\","
-    "\"split\",\"temporary\",\"thread_group\",\"timestamp\","
-    "\"transaction\",\"verify\",\"version\",\"write\"]",
+    ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
+    "\"history_store\",\"history_store_activity\",\"lsm\","
+    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
+    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+    "\"version\",\"write\"]",
     NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
@@ -575,8 +576,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"checkpoint_slow\","
-    "\"lookaside_sweep_race\",\"split_1\",\"split_2\",\"split_3\","
-    "\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
+    "\"history_store_sweep_race\",\"split_1\",\"split_2\",\"split_3\""
+    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -586,12 +587,13 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
     "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
     "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"handleops\",\"log\",\"lookaside\""
-    ",\"lookaside_activity\",\"lsm\",\"lsm_manager\",\"metadata\","
-    "\"mutex\",\"overflow\",\"read\",\"rebalance\",\"reconcile\","
-    "\"recovery\",\"recovery_progress\",\"salvage\",\"shared_cache\","
-    "\"split\",\"temporary\",\"thread_group\",\"timestamp\","
-    "\"transaction\",\"verify\",\"version\",\"write\"]",
+    ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
+    "\"history_store\",\"history_store_activity\",\"lsm\","
+    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
+    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+    "\"version\",\"write\"]",
     NULL, 0},
   {"write_through", "list", NULL, "choices=[\"data\",\"log\"]", NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
@@ -642,8 +644,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"checkpoint_slow\","
-    "\"lookaside_sweep_race\",\"split_1\",\"split_2\",\"split_3\","
-    "\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
+    "\"history_store_sweep_race\",\"split_1\",\"split_2\",\"split_3\""
+    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -653,12 +655,13 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
     "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
     "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"handleops\",\"log\",\"lookaside\""
-    ",\"lookaside_activity\",\"lsm\",\"lsm_manager\",\"metadata\","
-    "\"mutex\",\"overflow\",\"read\",\"rebalance\",\"reconcile\","
-    "\"recovery\",\"recovery_progress\",\"salvage\",\"shared_cache\","
-    "\"split\",\"temporary\",\"thread_group\",\"timestamp\","
-    "\"transaction\",\"verify\",\"version\",\"write\"]",
+    ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
+    "\"history_store\",\"history_store_activity\",\"lsm\","
+    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
+    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+    "\"version\",\"write\"]",
     NULL, 0},
   {"version", "string", NULL, NULL, NULL, 0},
   {"write_through", "list", NULL, "choices=[\"data\",\"log\"]", NULL, 0},
@@ -709,8 +712,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"checkpoint_slow\","
-    "\"lookaside_sweep_race\",\"split_1\",\"split_2\",\"split_3\","
-    "\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
+    "\"history_store_sweep_race\",\"split_1\",\"split_2\",\"split_3\""
+    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -718,12 +721,13 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
     "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
     "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"handleops\",\"log\",\"lookaside\""
-    ",\"lookaside_activity\",\"lsm\",\"lsm_manager\",\"metadata\","
-    "\"mutex\",\"overflow\",\"read\",\"rebalance\",\"reconcile\","
-    "\"recovery\",\"recovery_progress\",\"salvage\",\"shared_cache\","
-    "\"split\",\"temporary\",\"thread_group\",\"timestamp\","
-    "\"transaction\",\"verify\",\"version\",\"write\"]",
+    ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
+    "\"history_store\",\"history_store_activity\",\"lsm\","
+    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
+    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+    "\"version\",\"write\"]",
     NULL, 0},
   {"version", "string", NULL, NULL, NULL, 0},
   {"write_through", "list", NULL, "choices=[\"data\",\"log\"]", NULL, 0},
@@ -774,8 +778,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"checkpoint_slow\","
-    "\"lookaside_sweep_race\",\"split_1\",\"split_2\",\"split_3\","
-    "\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
+    "\"history_store_sweep_race\",\"split_1\",\"split_2\",\"split_3\""
+    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -783,12 +787,13 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
     "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
     "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"handleops\",\"log\",\"lookaside\""
-    ",\"lookaside_activity\",\"lsm\",\"lsm_manager\",\"metadata\","
-    "\"mutex\",\"overflow\",\"read\",\"rebalance\",\"reconcile\","
-    "\"recovery\",\"recovery_progress\",\"salvage\",\"shared_cache\","
-    "\"split\",\"temporary\",\"thread_group\",\"timestamp\","
-    "\"transaction\",\"verify\",\"version\",\"write\"]",
+    ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
+    "\"history_store\",\"history_store_activity\",\"lsm\","
+    "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
+    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
+    "\"version\",\"write\"]",
     NULL, 0},
   {"write_through", "list", NULL, "choices=[\"data\",\"log\"]", NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};

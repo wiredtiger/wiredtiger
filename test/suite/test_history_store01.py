@@ -33,15 +33,15 @@ from wtdataset import SimpleDataSet
 def timestamp_str(t):
     return '%x' % t
 
-# test_las01.py
-# Smoke tests to ensure lookaside tables are working.
-class test_las01(wttest.WiredTigerTestCase):
+# test_history_store01.py
+# Smoke tests to ensure history store tables are working.
+class test_history_store01(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
     def large_updates(self, session, uri, value, ds, nrows, timestamp=False):
-        # Update a large number of records, we'll hang if the lookaside table
+        # Update a large number of records, we'll hang if the history store table
         # isn't doing its thing.
         cursor = session.open_cursor(uri)
         for i in range(1, 10000):
@@ -55,7 +55,7 @@ class test_las01(wttest.WiredTigerTestCase):
         cursor.close()
 
     def large_modifies(self, session, uri, offset, ds, nrows, timestamp=False):
-        # Modify a large number of records, we'll hang if the lookaside table
+        # Modify a large number of records, we'll hang if the history store table
         # isn't doing its thing.
         cursor = session.open_cursor(uri)
         for i in range(1, 10000):
@@ -93,9 +93,9 @@ class test_las01(wttest.WiredTigerTestCase):
         conn.close()
 
     @unittest.skip("Temporarily disabled")
-    def test_las(self):
+    def test_history_store(self):
         # Create a small table.
-        uri = "table:test_las01"
+        uri = "table:test_history_store01"
         nrows = 100
         ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
         ds.populate()

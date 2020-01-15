@@ -223,7 +223,7 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
              */
             WT_TRET_NOTFOUND_OK(cursor->reopen(cursor, false));
         else if (session->event_handler->handle_close != NULL &&
-          strcmp(cursor->internal_uri, WT_LAS_URI) != 0)
+          strcmp(cursor->internal_uri, WT_HISTORY_STORE_URI) != 0)
             /*
              * Notify the user that we are closing the cursor handle via the registered close
              * callback.

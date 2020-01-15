@@ -28,8 +28,8 @@
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_REC_CHECKPOINT 0x01u
 #define WT_REC_EVICT 0x02u
-#define WT_REC_IN_MEMORY 0x04u
-#define WT_REC_LOOKASIDE 0x08u
+#define WT_REC_HISTORY_STORE 0x04u
+#define WT_REC_IN_MEMORY 0x08u
 #define WT_REC_SCRUB 0x10u
 #define WT_REC_VISIBILITY_ERR 0x20u
 #define WT_REC_VISIBLE_ALL 0x40u
@@ -189,9 +189,9 @@ struct __wt_ovfl_reuse {
 };
 
 /*
- * Lookaside table support: when a page is being reconciled for eviction and has updates that might
- * be required by earlier readers in the system, the updates are written into a lookaside table, and
- * restored as necessary if the page is read.
+ * History store table support: when a page is being reconciled for eviction and has updates that
+ * might be required by earlier readers in the system, the updates are written into the history
+ * store table, and restored as necessary if the page is read.
  *
  * The first part of the key is comprised of a file ID, record key (byte-string for row-store,
  * record number for column-store) and timestamp. This allows us to search efficiently for a given
@@ -204,21 +204,21 @@ struct __wt_ovfl_reuse {
  *	- update type
  *	- value.
  *
- * As the key for the lookaside table is different for row- and column-store, we store both key
- * types in a WT_ITEM, building/parsing them in the code, because otherwise we'd need two lookaside
- * files with different key formats. We could make the lookaside table's key standard by moving the
- * source key into the lookaside table value, but that doesn't make the coding any simpler, and it
- * makes the lookaside table's value more likely to overflow the page size when the row-store key is
- * relatively large.
+ * As the key for the history store table is different for row- and column-store, we store both key
+ * types in a WT_ITEM, building/parsing them in the code, because otherwise we'd need two
+ * history store files with different key formats. We could make the history store table's key
+ * standard by moving the source key into the history store table value, but that doesn't make the
+ * coding any simpler, and it makes the history store table's value more likely to overflow the page
+ * size when the row-store key is relatively large.
  */
 #ifdef HAVE_BUILTIN_EXTENSION_SNAPPY
-#define WT_LOOKASIDE_COMPRESSOR "snappy"
+#define WT_HISTORY_STORE_COMPRESSOR "snappy"
 #else
-#define WT_LOOKASIDE_COMPRESSOR "none"
+#define WT_HISTORY_STORE_COMPRESSOR "none"
 #endif
-#define WT_LAS_CONFIG                                                               \
+#define WT_HISTORY_STORE_CONFIG                                                     \
     "key_format=" WT_UNCHECKED_STRING(IuQQQQ) ",value_format=" WT_UNCHECKED_STRING( \
-      QBBu) ",block_compressor=" WT_LOOKASIDE_COMPRESSOR                            \
+      QBBu) ",block_compressor=" WT_HISTORY_STORE_COMPRESSOR                        \
             ",leaf_value_max=64MB"                                                  \
             ",prefix_compression=true"
 
@@ -304,7 +304,7 @@ struct __wt_page_modify {
 
                 /*
                  * List of unresolved updates. Updates are either a row-store insert or update list,
-                 * or column-store insert list. When creating lookaside records, there is an
+                 * or column-store insert list. When creating history store records, there is an
                  * additional value, the committed item's transaction information.
                  *
                  * If there are unresolved updates, the block wasn't written and there will always
@@ -452,7 +452,7 @@ struct __wt_page_modify {
 #define WT_PM_REC_REPLACE 3    /* Reconciliation: single block */
     uint8_t rec_result;        /* Reconciliation state */
 
-#define WT_PAGE_RS_LOOKASIDE 0x1
+#define WT_PAGE_RS_HISTORY_STORE 0x1
 #define WT_PAGE_RS_RESTORED 0x2
     uint8_t restore_state; /* Created by restoring updates */
 };

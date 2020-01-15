@@ -712,7 +712,7 @@ err:
 
     /*
      * Destroy the eviction threads that were started in support of recovery. They will be restarted
-     * once the lookaside table is created.
+     * once the history store table is created.
      */
     if (eviction_started)
         WT_TRET(__wt_evict_destroy(session));

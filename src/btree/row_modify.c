@@ -310,7 +310,8 @@ __wt_update_obsolete_check(
      *
      * Birthmarks are a special case: once a birthmark becomes obsolete, it can be discarded if
      * there is a globally visible update before it and subsequent reads will see the on-page value
-     * (as expected). Inserting updates into the lookaside table relies on this behavior to avoid
+     * (as expected). Inserting updates into the history store table relies on this behavior to
+     * avoid
      * creating update chains with multiple birthmarks. We cannot discard the birthmark if it's the
      * first globally visible update as the previous updates can be aborted and be freed causing the
      * entire update chain being removed.
@@ -349,7 +350,7 @@ __wt_update_obsolete_check(
         }
     }
 
-    __wt_cache_update_lookaside_score(session, upd_seen, upd_unstable);
+    __wt_cache_update_history_store_score(session, upd_seen, upd_unstable);
 
     /*
      * We cannot discard this WT_UPDATE structure, we can only discard WT_UPDATE structures
