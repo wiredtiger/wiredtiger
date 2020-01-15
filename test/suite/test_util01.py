@@ -32,6 +32,9 @@ import wiredtiger, wttest
 
 _python3 = (sys.version_info >= (3, 0, 0))
 
+def timestamp_str(t):
+    return '%x' % t
+
 # test_util01.py
 #    Utilities: wt dump, as well as the dump cursor
 class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
@@ -46,6 +49,7 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
 
     tablename = 'test_util01.a'
     nentries = 1000
+    session_config = 'isolation=snapshot'
     stringclass = ''.__class__
 
     def compare_config(self, expected_cfg, actual_cfg):
@@ -141,7 +145,20 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
         # The output from dump is a 'u' format.
         return b.strip(b'\x00').decode() + '\n'
 
-    def dump(self, usingapi, hexoutput):
+    def write_entries(self, cursor, expectout, hexoutput, commit_timestamp, read_timestamp):
+        if commit_timestamp:
+            self.session.begin_transaction()
+        for i in range(0, self.nentries):
+            key = self.get_key(i)
+            value = self.get_value(i)
+            cursor[key] = value
+            if (commit_timestamp == None or commit_timestamp < read_timestamp):
+                expectout.write(self.dumpstr(key, hexoutput))
+                expectout.write(self.dumpstr(value, hexoutput))
+        if commit_timestamp:
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_timestamp))
+
+    def dump(self, usingapi, hexoutput, commit_timestamp, read_timestamp):
         params = self.table_config()
         self.session.create('table:' + self.tablename, params)
         cursor = self.session.open_cursor('table:' + self.tablename, None, None)
@@ -161,12 +178,7 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
                 expectout.write('table:' + self.tablename + '\n')
                 expectout.write('colgroups=,columns=,' + params + '\n')
                 expectout.write('Data\n')
-            for i in range(0, self.nentries):
-                key = self.get_key(i)
-                value = self.get_value(i)
-                cursor[key] = value
-                expectout.write(self.dumpstr(key, hexoutput))
-                expectout.write(self.dumpstr(value, hexoutput))
+            self.write_entries(cursor, expectout, hexoutput, commit_timestamp, read_timestamp)
         cursor.close()
 
         self.pr('calling dump')
@@ -186,22 +198,30 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
                 dumpargs = ["dump"]
                 if hexoutput:
                     dumpargs.append("-x")
+                if read_timestamp:
+                    dumpargs.append("-t " + timestamp_str(read_timestamp))
                 dumpargs.append(self.tablename)
                 self.runWt(dumpargs, outfilename="dump.out")
 
         self.assertTrue(self.compare_files("expect.out", "dump.out"))
 
     def test_dump_process(self):
-        self.dump(False, False)
+        self.dump(False, False, None, None)
 
     def test_dump_process_hex(self):
-        self.dump(False, True)
+        self.dump(False, True, None, None)
 
     def test_dump_api(self):
-        self.dump(True, False)
+        self.dump(True, False, None, None)
 
     def test_dump_api_hex(self):
-        self.dump(True, True)
+        self.dump(True, True, None, None)
+
+    def test_dump_process_timestamp_all(self):
+        self.dump(False, False, 12 , 10)
+
+    def test_dump_process_timestamp_none(self):
+        self.dump(False, False, 5 , 3)
 
 if __name__ == '__main__':
     wttest.run()
