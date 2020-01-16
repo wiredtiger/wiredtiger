@@ -373,8 +373,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          * 1-for-1 page swap: Update the parent to reference the replacement page.
          *
          * A page evicted with history store entries may not have an address, if no updates were
-         * visible
-         * to reconciliation.
+         * visible to reconciliation.
          *
          * Publish: a barrier to ensure the structure fields are set before the state change makes
          * the page available to readers.

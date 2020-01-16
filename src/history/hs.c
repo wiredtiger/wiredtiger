@@ -414,7 +414,7 @@ __hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
         WT_IGNORE_RET_BOOL(__wt_eviction_dirty_needed(session, &pct_dirty));
 
         __wt_verbose(session, WT_VERB_HS | WT_VERB_HS_ACTIVITY,
-          "Page reconciliation triggered hs write: file ID %" PRIu32
+          "Page reconciliation triggered history store write: file ID %" PRIu32
           ". "
           "Current history store file size: %" PRId64
           ", "
@@ -755,7 +755,8 @@ err:
             /* We only need to clear the flag on the updates up to where the error occurs. */
             err_pos = WT_MIN(multi->supd_entries - 1, supd_index);
 
-            /* Traverse the keys again to clear the flags on updates inserted to the history store.
+            /*
+             * Traverse the keys again to clear the flags on updates inserted to the history store.
              */
             for (supd_index = 0, list = multi->supd; supd_index <= err_pos; ++supd_index, ++list) {
                 if (list->onpage_upd == NULL)
