@@ -1123,8 +1123,8 @@ __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
     txn->clear_durable_q = true;
 
     /*
-     * Serialize clearing the flag with setting the queue state. The serialization has been here
-     * for awhile, but nobody remembers if or why it's necessary.
+     * Serialize clearing the flag with setting the queue state. The serialization has been here for
+     * awhile, but nobody remembers if or why it's necessary.
      */
     flags = txn->flags;
     LF_CLR(WT_TXN_TS_PUBLISHED);
@@ -1239,8 +1239,8 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
     txn->clear_read_q = true;
 
     /*
-     * Serialize clearing the flag with setting the queue state. The serialization has been here
-     * for awhile, but nobody remembers if or why it's necessary.
+     * Serialize clearing the flag with setting the queue state. The serialization has been here for
+     * awhile, but nobody remembers if or why it's necessary.
      */
     flags = txn->flags;
     LF_CLR(WT_TXN_PUBLIC_TS_READ);
