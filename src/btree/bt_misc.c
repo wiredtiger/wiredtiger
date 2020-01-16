@@ -98,8 +98,6 @@ __wt_ref_state_string(u_int state)
         return ("deleted");
     case WT_REF_LOCKED:
         return ("locked");
-    case WT_REF_LOOKASIDE:
-        return ("lookaside");
     case WT_REF_MEM:
         return ("memory");
     case WT_REF_READING:

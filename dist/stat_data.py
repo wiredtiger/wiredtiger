@@ -295,7 +295,6 @@ connection_stats = [
     CacheStat('cache_hs_read', 'history store table reads'),
     CacheStat('cache_hs_read_miss', 'history store table reads missed'),
     CacheStat('cache_hs_read_squash', 'history store table reads requiring squashed modifies'),
-    CacheStat('cache_hs_read_wasted', 'history store table reads wasted'),
     CacheStat('cache_hs_score', 'history store score', 'no_clear,no_scale'),
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
