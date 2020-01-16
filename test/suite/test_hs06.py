@@ -33,7 +33,7 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' % t
 
-# test_history_store06.py
+# test_hs06.py
 # Verify that triggering history store usage does not cause a spike in memory usage
 # to form an update chain from the history store contents.
 #
@@ -42,7 +42,7 @@ def timestamp_str(t):
 #
 # TODO: Uncomment the checks after the main portion of the relevant history
 # project work is complete.
-class test_history_store06(wttest.WiredTigerTestCase):
+class test_hs06(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
@@ -68,9 +68,9 @@ class test_history_store06(wttest.WiredTigerTestCase):
         return i
 
     @unittest.skip("Temporarily disabled")
-    def test_history_store_reads(self):
+    def test_hs_reads(self):
         # Create a small table.
-        uri = "table:test_history_store06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -126,9 +126,9 @@ class test_history_store06(wttest.WiredTigerTestCase):
 
     # WT-5336 causing the read at timestamp 4 returning the value committed at timestamp 5 or 3
     @unittest.skip("Temporarily disabled until WT-5336 is fixed")
-    def test_history_store_modify_reads(self):
+    def test_hs_modify_reads(self):
         # Create a small table.
-        uri = "table:test_history_store06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -202,9 +202,9 @@ class test_history_store06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
-    def test_history_store_prepare_reads(self):
+    def test_hs_prepare_reads(self):
         # Create a small table.
-        uri = "table:test_history_store06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -256,9 +256,9 @@ class test_history_store06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     @unittest.skip("Temporarily disabled")
-    def test_history_store_multiple_updates(self):
+    def test_hs_multiple_updates(self):
         # Create a small table.
-        uri = "table:test_history_store06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -296,9 +296,9 @@ class test_history_store06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     @unittest.skip("Temporarily disabled")
-    def test_history_store_multiple_modifies(self):
+    def test_hs_multiple_modifies(self):
         # Create a small table.
-        uri = "table:test_history_store06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -341,9 +341,9 @@ class test_history_store06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
-    def test_history_store_instantiated_modify(self):
+    def test_hs_instantiated_modify(self):
         # Create a small table.
-        uri = "table:test_history_store06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -382,7 +382,7 @@ class test_history_store06(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Make a bunch of updates to another table to flush everything out of cache.
-        uri2 = 'table:test_history_store06_extra'
+        uri2 = 'table:test_hs06_extra'
         self.session.create(uri2, create_params)
         cursor2 = self.session.open_cursor(uri2)
         for i in range(1, 10000):
@@ -402,9 +402,9 @@ class test_history_store06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
-    def test_history_store_modify_birthmark_is_base_update(self):
+    def test_hs_modify_birthmark_is_base_update(self):
         # Create a small table.
-        uri = "table:test_history_store06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -444,7 +444,7 @@ class test_history_store06(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
         # Make a bunch of updates to another table to flush everything out of cache.
-        uri2 = 'table:test_history_store06_extra'
+        uri2 = 'table:test_hs06_extra'
         self.session.create(uri2, create_params)
         cursor2 = self.session.open_cursor(uri2)
         for i in range(1, 10000):
@@ -466,9 +466,9 @@ class test_history_store06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     @unittest.skip("Temporarily disabled")
-    def test_history_store_rec_modify(self):
+    def test_hs_rec_modify(self):
         # Create a small table.
-        uri = "table:test_history_store06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 

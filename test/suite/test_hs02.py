@@ -33,9 +33,9 @@ from wtdataset import SimpleDataSet
 def timestamp_str(t):
     return '%x' % t
 
-# test_history_store02.py
+# test_hs02.py
 # Test that truncate with history store entries and timestamps gives expected results.
-class test_history_store02(wttest.WiredTigerTestCase):
+class test_hs02(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,log=(enabled)'
     session_config = 'isolation=snapshot'
@@ -62,7 +62,7 @@ class test_history_store02(wttest.WiredTigerTestCase):
         self.assertEqual(count, nrows)
 
     @unittest.skip("Temporarily disabled")
-    def test_history_store(self):
+    def test_hs(self):
         nrows = 10000
 
         # Create a table without logging to ensure we get "skew_newest" history store eviction

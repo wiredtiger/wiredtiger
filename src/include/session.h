@@ -93,7 +93,7 @@ struct __wt_session_impl {
     WT_COMPACT_STATE *compact; /* Compaction information */
     enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } compact_state;
 
-    WT_CURSOR *history_store_cursor; /* History store table cursor */
+    WT_CURSOR *hs_cursor; /* History store table cursor */
 
     /* Original transaction time pair to use for the history store inserts */
     uint64_t orig_txnid_to_las;
@@ -174,7 +174,7 @@ struct __wt_session_impl {
 #define WT_SESSION_BACKUP_DUP 0x0000002u
 #define WT_SESSION_CACHE_CURSORS 0x0000004u
 #define WT_SESSION_CAN_WAIT 0x0000008u
-#define WT_SESSION_HISTORY_STORE_CURSOR 0x0000010u
+#define WT_SESSION_HS_CURSOR 0x0000010u
 #define WT_SESSION_IGNORE_CACHE_SIZE 0x0000020u
 #define WT_SESSION_INTERNAL 0x0000040u
 #define WT_SESSION_LOCKED_CHECKPOINT 0x0000080u

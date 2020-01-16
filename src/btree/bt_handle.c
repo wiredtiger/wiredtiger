@@ -248,9 +248,8 @@ __wt_btree_close(WT_SESSION_IMPL *session)
      * Verify the history store state. If the history store is open and this btree has history store
      * entries, it can't be a metadata file, nor can it be the history store file.
      */
-    WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_HISTORY_STORE_OPEN) ||
-        !btree->history_store_entries ||
-        (!WT_IS_METADATA(btree->dhandle) && !WT_IS_HISTORY_STORE(btree)));
+    WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_HS_OPEN) || !btree->hs_entries ||
+        (!WT_IS_METADATA(btree->dhandle) && !WT_IS_HS(btree)));
 
     /*
      * If we turned eviction off and never turned it back on, do that now, otherwise the counter

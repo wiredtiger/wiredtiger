@@ -121,7 +121,7 @@ __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
     WT_ASSERT(session, txn->mod_count > 0 && recno != WT_RECNO_OOB);
     op = txn->mod + txn->mod_count - 1;
 
-    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HISTORY_STORE(op->btree) ||
+    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree) ||
       WT_IS_METADATA(op->btree->dhandle))
         return;
 
@@ -153,7 +153,7 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 
     op = txn->mod + txn->mod_count - 1;
 
-    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HISTORY_STORE(op->btree) ||
+    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree) ||
       WT_IS_METADATA(op->btree->dhandle))
         return (0);
 
@@ -421,7 +421,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     op->u.op_upd = upd;
 
     /* Use the original transaction time pair for the history store inserts */
-    if (WT_IS_HISTORY_STORE(S2BT(session))) {
+    if (WT_IS_HS(S2BT(session))) {
         upd->txnid = session->orig_txnid_to_las;
         upd->start_ts = session->orig_timestamp_to_las;
     } else {
@@ -485,9 +485,8 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      * Take a local copy of these IDs in case they are updated while we are checking visibility.
      */
     oldest_id = txn_global->oldest_id;
-    include_checkpoint_txn =
-      btree == NULL || (!WT_IS_HISTORY_STORE(btree) &&
-                         btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
+    include_checkpoint_txn = btree == NULL ||
+      (!WT_IS_HS(btree) && btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
     if (!include_checkpoint_txn)
         return (oldest_id);
 
@@ -538,9 +537,8 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      * If there is no active checkpoint or this handle is up to date with the active checkpoint then
      * it's safe to ignore the checkpoint ID in the visibility check.
      */
-    include_checkpoint_txn =
-      btree == NULL || (!WT_IS_HISTORY_STORE(btree) &&
-                         btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
+    include_checkpoint_txn = btree == NULL ||
+      (!WT_IS_HS(btree) && btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
     if (!include_checkpoint_txn)
         return;
 
@@ -816,9 +814,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     WT_ASSERT(session, upd == NULL);
-    if (F_ISSET(S2C(session), WT_CONN_HISTORY_STORE_OPEN) &&
-      !F_ISSET(S2BT(session), WT_BTREE_HISTORY_STORE))
-        WT_RET_NOTFOUND_OK(__wt_find_history_store_upd(session, cbt, &upd, false));
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
+        WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, cbt, &upd, false));
 
     /* There is no BIRTHMARK in the history store file. */
     WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_BIRTHMARK);

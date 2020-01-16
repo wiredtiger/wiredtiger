@@ -54,8 +54,8 @@ typedef enum __wt_cache_op {
     WT_SYNC_WRITE_LEAVES
 } WT_CACHE_OP;
 
-#define WT_HISTORY_STORE_FILE_MIN (100 * WT_MEGABYTE)
-#define WT_HISTORY_STORE_NUM_SESSIONS 5
+#define WT_HS_FILE_MIN (100 * WT_MEGABYTE)
+#define WT_HS_NUM_SESSIONS 5
 
 /*
  * WiredTiger cache structure.
@@ -182,26 +182,25 @@ struct __wt_cache {
      * varies between 0, if reconciliation always sees updates that are globally visible and hence
      * can be discarded, to 100 if no updates are globally visible.
      */
-    int32_t evict_history_store_score;
+    int32_t evict_hs_score;
 
     /*
      * Shared history store lock, session and cursor, used by threads accessing the history store
      * table (other than eviction server and worker threads, all of which have their own history
      * store cursors).
      */
-    WT_SPINLOCK history_store_lock;
-    WT_SESSION_IMPL *history_store_session[WT_HISTORY_STORE_NUM_SESSIONS];
-    bool history_store_session_inuse[WT_HISTORY_STORE_NUM_SESSIONS];
+    WT_SPINLOCK hs_lock;
+    WT_SESSION_IMPL *hs_session[WT_HS_NUM_SESSIONS];
+    bool hs_session_inuse[WT_HS_NUM_SESSIONS];
 
-    uint32_t history_store_fileid; /* History store table file ID */
+    uint32_t hs_fileid; /* History store table file ID */
 
     /*
-     * The "history_store_activity" verbose messages are throttled to once per checkpoint. To
-     * accomplish this we track the checkpoint generation for the most recent read and write verbose
-     * messages.
+     * The "history_activity" verbose messages are throttled to once per checkpoint. To accomplish
+     * this we track the checkpoint generation for the most recent read and write verbose messages.
      */
-    uint64_t history_store_verb_gen_read;
-    uint64_t history_store_verb_gen_write;
+    uint64_t hs_verb_gen_read;
+    uint64_t hs_verb_gen_write;
 
     /*
      * Cache pool information.
@@ -227,15 +226,15 @@ struct __wt_cache {
     uint32_t pool_flags;           /* Cache pool flags */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CACHE_EVICT_CLEAN 0x001u         /* Evict clean pages */
-#define WT_CACHE_EVICT_CLEAN_HARD 0x002u    /* Clean % blocking app threads */
-#define WT_CACHE_EVICT_DEBUG_MODE 0x004u    /* Aggressive debugging mode */
-#define WT_CACHE_EVICT_DIRTY 0x008u         /* Evict dirty pages */
-#define WT_CACHE_EVICT_DIRTY_HARD 0x010u    /* Dirty % blocking app threads */
-#define WT_CACHE_EVICT_HISTORY_STORE 0x020u /* Try history store eviction */
-#define WT_CACHE_EVICT_NOKEEP 0x040u        /* Don't add read pages to cache */
-#define WT_CACHE_EVICT_SCRUB 0x080u         /* Scrub dirty pages */
-#define WT_CACHE_EVICT_URGENT 0x100u        /* Pages are in the urgent queue */
+#define WT_CACHE_EVICT_CLEAN 0x001u      /* Evict clean pages */
+#define WT_CACHE_EVICT_CLEAN_HARD 0x002u /* Clean % blocking app threads */
+#define WT_CACHE_EVICT_DEBUG_MODE 0x004u /* Aggressive debugging mode */
+#define WT_CACHE_EVICT_DIRTY 0x008u      /* Evict dirty pages */
+#define WT_CACHE_EVICT_DIRTY_HARD 0x010u /* Dirty % blocking app threads */
+#define WT_CACHE_EVICT_HS 0x020u         /* Try history store eviction */
+#define WT_CACHE_EVICT_NOKEEP 0x040u     /* Don't add read pages to cache */
+#define WT_CACHE_EVICT_SCRUB 0x080u      /* Scrub dirty pages */
+#define WT_CACHE_EVICT_URGENT 0x100u     /* Pages are in the urgent queue */
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 #define WT_CACHE_EVICT_ALL (WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_DIRTY)
     uint32_t flags;
@@ -275,7 +274,7 @@ struct __wt_cache_pool {
  * Optimize comparisons against the history store URI, flag handles that reference the history store
  * file.
  */
-#define WT_IS_HISTORY_STORE(btree) F_ISSET(btree, WT_BTREE_HISTORY_STORE)
+#define WT_IS_HS(btree) F_ISSET(btree, WT_BTREE_HS)
 
 /* Flags used with __wt_evict */
 /* AUTOMATIC FLAG VALUE GENERATION START */

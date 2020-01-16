@@ -1026,8 +1026,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * transaction timestamp. Those records should already have the original time pair
                  * when they are inserted into the history store.
                  */
-                if (conn->cache->history_store_fileid != 0 &&
-                  fileid == conn->cache->history_store_fileid)
+                if (conn->cache->hs_fileid != 0 && fileid == conn->cache->hs_fileid)
                     break;
 
                 __wt_txn_op_set_timestamp(session, op);
@@ -1162,8 +1161,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         /* Assert it's not an update to the history store file. */
-        WT_ASSERT(session,
-          S2C(session)->cache->history_store_fileid == 0 || !WT_IS_HISTORY_STORE(op->btree));
+        WT_ASSERT(session, S2C(session)->cache->hs_fileid == 0 || !WT_IS_HS(op->btree));
 
         /* Metadata updates should never be prepared. */
         WT_ASSERT(session, !WT_IS_METADATA(op->btree->dhandle));
@@ -1280,8 +1278,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
             upd = op->u.op_upd;
 
             if (!prepare) {
-                if (S2C(session)->cache->history_store_fileid != 0 &&
-                  op->btree->id == S2C(session)->cache->history_store_fileid)
+                if (S2C(session)->cache->hs_fileid != 0 &&
+                  op->btree->id == S2C(session)->cache->hs_fileid)
                     break;
                 WT_ASSERT(session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
                 upd->txnid = WT_TXN_ABORTED;

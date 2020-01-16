@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_history_store04.py
+# test_hs04.py
 #   Test file_max configuration and reconfiguration for the history store table.
 #
 
@@ -36,8 +36,8 @@ from wtscenario import make_scenarios
 # Taken from src/include/misc.h.
 WT_MB = 1048576
 
-class test_history_store04(wttest.WiredTigerTestCase):
-    uri = 'table:history_store_04'
+class test_hs04(wttest.WiredTigerTestCase):
+    uri = 'table:hs_04'
     in_memory_values = [
         ('false', dict(in_memory=False)),
         ('none', dict(in_memory=None)),
@@ -71,7 +71,7 @@ class test_history_store04(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    def test_history_store(self):
+    def test_hs(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         if self.in_memory:

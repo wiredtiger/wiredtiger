@@ -162,7 +162,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t 
     if (LF_ISSET(WT_REC_IN_MEMORY))
         return true;
 
-    if (!LF_ISSET(WT_REC_HISTORY_STORE))
+    if (!LF_ISSET(WT_REC_HS))
         return false;
 
     if (LF_ISSET(WT_REC_EVICT) && list_uncommitted)
@@ -428,7 +428,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
 
     /* Should not see uncommitted changes in the history store */
-    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HISTORY_STORE) || !list_uncommitted);
+    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !list_uncommitted);
 
     r->leave_dirty |= list_uncommitted;
 

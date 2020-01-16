@@ -34,9 +34,9 @@ from wtdataset import SimpleDataSet
 def timestamp_str(t):
     return '%x' % t
 
-# test_history_store07.py
+# test_hs07.py
 # Test that LAS sweep cleans the obsolete history store entries and gives expected results.
-class test_history_store07(wttest.WiredTigerTestCase):
+class test_hs07(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,log=(enabled)'
     session_config = 'isolation=snapshot'
@@ -62,7 +62,7 @@ class test_history_store07(wttest.WiredTigerTestCase):
         session.rollback_transaction()
         self.assertEqual(count, nrows)
 
-    def test_history_store(self):
+    def test_hs(self):
         nrows = 10000
 
         # Create a table without logging to ensure we get "skew_newest" history store eviction

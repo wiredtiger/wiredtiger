@@ -9,20 +9,20 @@
 #include "wt_internal.h"
 
 /*
- * __txn_rollback_to_stable_history_store_fixup --
+ * __txn_rollback_to_stable_hs_fixup --
  *     Remove any updates that need to be rolled back from the history store file.
  */
 static int
-__txn_rollback_to_stable_history_store_fixup(WT_SESSION_IMPL *session)
+__txn_rollback_to_stable_hs_fixup(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_ITEM history_store_key, history_store_value;
+    WT_ITEM hs_key, hs_value;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t durable_timestamp, history_store_timestamp, rollback_timestamp;
-    uint64_t history_store_txnid;
-    uint32_t history_store_btree_id, session_flags;
+    wt_timestamp_t durable_timestamp, hs_timestamp, rollback_timestamp;
+    uint64_t hs_txnid;
+    uint32_t hs_btree_id, session_flags;
     uint8_t prepare_state, upd_type;
 
     conn = S2C(session);
@@ -37,26 +37,24 @@ __txn_rollback_to_stable_history_store_fixup(WT_SESSION_IMPL *session)
     txn_global = &conn->txn_global;
     WT_ORDERED_READ(rollback_timestamp, txn_global->stable_timestamp);
 
-    __wt_history_store_cursor(session, &cursor, &session_flags);
+    __wt_hs_cursor(session, &cursor, &session_flags);
 
     /* Discard pages we read as soon as we're done with them. */
     F_SET(session, WT_SESSION_READ_WONT_NEED);
 
     /* Walk the file. */
     while ((ret = cursor->next(cursor)) == 0) {
-        WT_ERR(cursor->get_key(cursor, &history_store_btree_id, &history_store_key,
-          &history_store_timestamp, &history_store_txnid));
+        WT_ERR(cursor->get_key(cursor, &hs_btree_id, &hs_key, &hs_timestamp, &hs_txnid));
 
         /* Check the file ID so we can skip durable tables */
-        if (history_store_btree_id >= conn->stable_rollback_maxfile)
+        if (hs_btree_id >= conn->stable_rollback_maxfile)
             WT_PANIC_RET(session, EINVAL,
               "file ID %" PRIu32 " in the history store table larger than max %" PRIu32,
-              history_store_btree_id, conn->stable_rollback_maxfile);
-        if (__bit_test(conn->stable_rollback_bitstring, history_store_btree_id))
+              hs_btree_id, conn->stable_rollback_maxfile);
+        if (__bit_test(conn->stable_rollback_bitstring, hs_btree_id))
             continue;
 
-        WT_ERR(cursor->get_value(
-          cursor, &durable_timestamp, &prepare_state, &upd_type, &history_store_value));
+        WT_ERR(cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, &hs_value));
 
         /*
          * Entries with no timestamp will have a timestamp of zero, which will fail the following
@@ -69,7 +67,7 @@ __txn_rollback_to_stable_history_store_fixup(WT_SESSION_IMPL *session)
     }
     WT_ERR_NOTFOUND_OK(ret);
 err:
-    WT_TRET(__wt_history_store_cursor_close(session, &cursor, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, &cursor, session_flags));
 
     F_CLR(session, WT_SESSION_READ_WONT_NEED);
 
@@ -454,14 +452,14 @@ __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      * Configuring history store eviction off isn't atomic, safe because the flag is only otherwise
      * set when closing down the database. Assert to avoid confusion in the future.
      */
-    WT_ASSERT(session, !F_ISSET(conn, WT_CONN_EVICTION_NO_HISTORY_STORE));
-    F_SET(conn, WT_CONN_EVICTION_NO_HISTORY_STORE);
+    WT_ASSERT(session, !F_ISSET(conn, WT_CONN_EVICTION_NO_HS));
+    F_SET(conn, WT_CONN_EVICTION_NO_HS);
 
     WT_ERR(__wt_conn_btree_apply(session, NULL, __txn_rollback_eviction_drain, NULL, cfg));
 
     WT_ERR(__txn_rollback_to_stable_check(session));
 
-    F_CLR(conn, WT_CONN_EVICTION_NO_HISTORY_STORE);
+    F_CLR(conn, WT_CONN_EVICTION_NO_HS);
 
     /*
      * Allocate a non-durable btree bitstring. We increment the global value before using it, so the
@@ -477,10 +475,10 @@ __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      * used to check which history store records should be removed.
      */
     if (!F_ISSET(conn, WT_CONN_IN_MEMORY))
-        WT_ERR(__txn_rollback_to_stable_history_store_fixup(session));
+        WT_ERR(__txn_rollback_to_stable_hs_fixup(session));
 
 err:
-    F_CLR(conn, WT_CONN_EVICTION_NO_HISTORY_STORE);
+    F_CLR(conn, WT_CONN_EVICTION_NO_HS);
     __wt_free(session, conn->stable_rollback_bitstring);
     return (ret);
 }

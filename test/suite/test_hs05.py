@@ -34,10 +34,10 @@ from wtdataset import SimpleDataSet
 def timestamp_str(t):
     return '%x' % t
 
-# test_history_store05.py
-# Verify history_store_score reflects cache pressure due to history
+# test_hs05.py
+# Verify hs_score reflects cache pressure due to history
 # even if we're not yet actively pushing into the history store file.
-class test_history_store05(wttest.WiredTigerTestCase):
+class test_hs05(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
@@ -63,11 +63,11 @@ class test_history_store05(wttest.WiredTigerTestCase):
         score_diff = score_end - score_start
         self.pr("After large updates score start: " + str(score_start))
         self.pr("After large updates score end: " + str(score_end))
-        self.pr("After large updates history_store score diff: " + str(score_diff))
+        self.pr("After large updates hs score diff: " + str(score_diff))
 
-    def test_checkpoint_history_store_reads(self):
+    def test_checkpoint_hs_reads(self):
         # Create a small table.
-        uri = "table:test_history_store05"
+        uri = "table:test_hs05"
         nrows = 100
         ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
         ds.populate()

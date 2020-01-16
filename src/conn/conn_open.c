@@ -219,7 +219,7 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_meta_track_init(session));
 
     /* Create the history store table. */
-    WT_RET(__wt_history_store_create(session, cfg));
+    WT_RET(__wt_hs_create(session, cfg));
 
     /*
      * Start eviction threads. NOTE: Eviction must be started after the history store table is

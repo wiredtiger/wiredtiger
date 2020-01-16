@@ -772,7 +772,7 @@ __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
  */
 restart:
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        if (WT_IS_METADATA(dhandle) || strcmp(dhandle->name, WT_HISTORY_STORE_URI) == 0 ||
+        if (WT_IS_METADATA(dhandle) || strcmp(dhandle->name, WT_HS_URI) == 0 ||
           WT_PREFIX_MATCH(dhandle->name, WT_SYSTEM_PREFIX))
             continue;
 
@@ -782,7 +782,7 @@ restart:
     }
 
     /* Shut down the history store table after all eviction is complete. */
-    WT_TRET(__wt_history_store_destroy(session));
+    WT_TRET(__wt_hs_destroy(session));
 
     /*
      * Closing the files may have resulted in entries on our default session's list of open data

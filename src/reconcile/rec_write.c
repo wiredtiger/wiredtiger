@@ -12,7 +12,7 @@ static void __rec_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *);
 static void __rec_destroy(WT_SESSION_IMPL *, void *);
 static int __rec_destroy_session(WT_SESSION_IMPL *);
 static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
-static int __rec_history_store_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *);
+static int __rec_hs_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
 static int __rec_split_row_promote(WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
@@ -37,7 +37,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
-      LF_ISSET(WT_REC_HISTORY_STORE) ? ", history_store" : "");
+      LF_ISSET(WT_REC_HS) ? ", history store" : "");
 
     /*
      * Sanity check flags.
@@ -184,8 +184,8 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Update the global history store score. Only use observations during eviction, not checkpoints
      * and don't count eviction of the history store table itself.
      */
-    if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_HISTORY_STORE(btree))
-        __wt_cache_update_history_store_score(session, r->updates_seen, r->updates_unstable);
+    if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_HS(btree))
+        __wt_cache_update_hs_score(session, r->updates_seen, r->updates_unstable);
 
     /*
      * Tests in this function are history store tests and tests to decide if rewriting a page in
@@ -219,9 +219,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_STAT_CONN_INCR(session, rec_pages_eviction);
         WT_STAT_DATA_INCR(session, rec_pages_eviction);
     }
-    if (r->cache_write_history_store) {
-        WT_STAT_CONN_INCR(session, cache_write_history_store);
-        WT_STAT_DATA_INCR(session, cache_write_history_store);
+    if (r->cache_write_hs) {
+        WT_STAT_CONN_INCR(session, cache_write_hs);
+        WT_STAT_DATA_INCR(session, cache_write_hs);
     }
     if (r->leave_dirty) {
         WT_STAT_CONN_INCR(session, cache_write_restore);
@@ -315,8 +315,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          *
          * PM-1521-FIXME: What will we do for in memory database?
          */
-        WT_ASSERT(session,
-          !F_ISSET(r, WT_REC_EVICT) || F_ISSET(r, WT_REC_HISTORY_STORE | WT_REC_IN_MEMORY));
+        WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) || F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY));
 
         /*
          * We have written the page, but something prevents it from being evicted. If we wrote the
@@ -324,7 +323,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * checkpoint would write. Make sure that checkpoint visits the page and (if necessary)
          * fixes things up.
          */
-        if (r->history_store_skew_newest)
+        if (r->hs_skew_newest)
             mod->first_dirty_txn = WT_TXN_FIRST;
     } else {
         /*
@@ -536,21 +535,20 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     if (F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DEBUG_MODE) &&
       __wt_random(&session->rnd) % 3 == 0)
-        r->history_store_skew_newest = false;
+        r->hs_skew_newest = false;
     else
-        r->history_store_skew_newest =
-          LF_ISSET(WT_REC_HISTORY_STORE) && LF_ISSET(WT_REC_VISIBLE_ALL);
+        r->hs_skew_newest = LF_ISSET(WT_REC_HS) && LF_ISSET(WT_REC_VISIBLE_ALL);
 
-    if (r->history_store_skew_newest && !__wt_btree_immediately_durable(session) &&
+    if (r->hs_skew_newest && !__wt_btree_immediately_durable(session) &&
       txn_global->has_stable_timestamp &&
       ((btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT) &&
          txn_global->stable_is_pinned) ||
-          FLD_ISSET(page->modify->restore_state, WT_PAGE_RS_HISTORY_STORE) ||
+          FLD_ISSET(page->modify->restore_state, WT_PAGE_RS_HS) ||
           page->modify->last_stable_timestamp == txn_global->stable_timestamp))
         r->las_skew_newest = false;
 
     /* When operating on the history store table, we should never try history store eviction. */
-    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_HISTORY_STORE) || !LF_ISSET(WT_REC_HISTORY_STORE));
+    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_HS) || !LF_ISSET(WT_REC_HS));
 
     /*
      * History store table eviction is configured when eviction gets aggressive,
@@ -568,7 +566,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * now, turn it off.
      */
     if (page->type == WT_PAGE_COL_FIX)
-        LF_CLR(WT_REC_HISTORY_STORE);
+        LF_CLR(WT_REC_HS);
 
     r->flags = flags;
 
@@ -641,7 +639,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     r->salvage = salvage;
 
-    r->cache_write_history_store = r->cache_write_restore = false;
+    r->cache_write_hs = r->cache_write_restore = false;
 
     /*
      * The fake cursor used to figure out modified update values points to the enclosing WT_REF as a
@@ -1832,7 +1830,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
             return (__wt_set_return(session, EBUSY));
 
-        r->cache_write_history_store = true;
+        r->cache_write_hs = true;
 
         if (r->leave_dirty)
             r->cache_write_restore = true;
@@ -2136,8 +2134,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      *
      * If no updates were saved, no need to write to the history store.
      */
-    if (F_ISSET(r, WT_REC_HISTORY_STORE) && r->supd_next > 0)
-        WT_RET(__rec_history_store_wrapup(session, r));
+    if (F_ISSET(r, WT_REC_HS) && r->supd_next > 0)
+        WT_RET(__rec_hs_wrapup(session, r));
 
     /*
      * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
@@ -2280,11 +2278,11 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 }
 
 /*
- * __rec_history_store_wrapup --
+ * __rec_hs_wrapup --
  *     Copy all of the saved updates into the database's history store table.
  */
 static int
-__rec_history_store_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -2298,11 +2296,11 @@ __rec_history_store_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     if (i == r->multi_next)
         return (0);
 
-    __wt_history_store_cursor(session, &cursor, &session_flags);
+    __wt_hs_cursor(session, &cursor, &session_flags);
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
-            WT_ERR(__wt_history_store_insert_updates(cursor, S2BT(session), r->page, multi));
+            WT_ERR(__wt_hs_insert_updates(cursor, S2BT(session), r->page, multi));
             if (!r->leave_dirty) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
@@ -2310,7 +2308,7 @@ __rec_history_store_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         }
 
 err:
-    WT_TRET(__wt_history_store_cursor_close(session, &cursor, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, &cursor, session_flags));
     return (ret);
 }
 

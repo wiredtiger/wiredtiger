@@ -33,9 +33,9 @@ from wtdataset import SimpleDataSet
 def timestamp_str(t):
     return '%x' % t
 
-# test_prepare_history_store01.py
+# test_prepare_hs01.py
 # test to ensure history store eviction is working for prepared transactions.
-class test_prepare_history_store01(wttest.WiredTigerTestCase):
+class test_prepare_hs01(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB'
 
@@ -102,9 +102,9 @@ class test_prepare_history_store01(wttest.WiredTigerTestCase):
             sessions[j].close()
 
     @unittest.skip("Temporarily disabled")
-    def test_prepare_history_store(self):
+    def test_prepare_hs(self):
         # Create a small table.
-        uri = "table:test_prepare_history_store01"
+        uri = "table:test_prepare_hs01"
         nrows = 100
         ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
         ds.populate()

@@ -265,7 +265,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
      * Skip files that are never involved in a checkpoint. Skip the history store file as it is,
      * checkpointed manually later.
      */
-    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || WT_IS_HISTORY_STORE(btree))
+    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || WT_IS_HS(btree))
         return (0);
 
     /*
@@ -397,7 +397,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
          * Don't scrub when the history store table is in use: scrubbing is counter-productive in
          * that case.
          */
-        if (F_ISSET(cache, WT_CACHE_EVICT_HISTORY_STORE))
+        if (F_ISSET(cache, WT_CACHE_EVICT_HS))
             break;
 
         /*
@@ -726,7 +726,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    WT_DATA_HANDLE *history_store_dhandle;
+    WT_DATA_HANDLE *hs_dhandle;
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
@@ -739,7 +739,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
     cache = conn->cache;
-    history_store_dhandle = NULL;
+    hs_dhandle = NULL;
     txn = &session->txn;
     txn_global = &conn->txn_global;
     saved_isolation = session->isolation;
@@ -854,15 +854,15 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Get an LAS dhandle. If the LAS file is opened for a special operation this will return EBUSY
      * which we treat as an error.
      */
-    WT_ERR(__wt_session_get_dhandle(session, WT_HISTORY_STORE_URI, NULL, NULL, 0));
-    history_store_dhandle = session->dhandle;
+    WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
+    hs_dhandle = session->dhandle;
 
     /*
      * TODO: It is possible that we don't have a LAS file in certain recovery scenarios. As such we
      * could get a NULL dhandle.
      */
-    if (history_store_dhandle != NULL) {
-        WT_WITH_DHANDLE(session, history_store_dhandle, ret = __wt_checkpoint(session, cfg));
+    if (hs_dhandle != NULL) {
+        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
         WT_ERR(ret);
     }
 
@@ -894,8 +894,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
 
     /* Sync the history store file. */
-    if (history_store_dhandle != NULL)
-        WT_WITH_DHANDLE(session, history_store_dhandle, ret = __wt_checkpoint_sync(session, NULL));
+    if (hs_dhandle != NULL)
+        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_sync(session, NULL));
 
     time_stop = __wt_clock(session);
     fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
@@ -1099,7 +1099,7 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
 #undef WT_CHECKPOINT_SESSION_FLAGS
 #define WT_CHECKPOINT_SESSION_FLAGS (WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE)
 #undef WT_CHECKPOINT_SESSION_FLAGS_OFF
-#define WT_CHECKPOINT_SESSION_FLAGS_OFF (WT_SESSION_HISTORY_STORE_CURSOR)
+#define WT_CHECKPOINT_SESSION_FLAGS_OFF (WT_SESSION_HS_CURSOR)
     orig_flags = F_MASK(session, WT_CHECKPOINT_SESSION_FLAGS | WT_CHECKPOINT_SESSION_FLAGS_OFF);
     F_SET(session, WT_CHECKPOINT_SESSION_FLAGS);
     F_CLR(session, WT_CHECKPOINT_SESSION_FLAGS_OFF);

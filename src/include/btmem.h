@@ -28,7 +28,7 @@
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_REC_CHECKPOINT 0x01u
 #define WT_REC_EVICT 0x02u
-#define WT_REC_HISTORY_STORE 0x04u
+#define WT_REC_HS 0x04u
 #define WT_REC_IN_MEMORY 0x08u
 #define WT_REC_SCRUB 0x10u
 #define WT_REC_VISIBILITY_ERR 0x20u
@@ -212,13 +212,13 @@ struct __wt_ovfl_reuse {
  * size when the row-store key is relatively large.
  */
 #ifdef HAVE_BUILTIN_EXTENSION_SNAPPY
-#define WT_HISTORY_STORE_COMPRESSOR "snappy"
+#define WT_HS_COMPRESSOR "snappy"
 #else
-#define WT_HISTORY_STORE_COMPRESSOR "none"
+#define WT_HS_COMPRESSOR "none"
 #endif
-#define WT_HISTORY_STORE_CONFIG                                                     \
+#define WT_HS_CONFIG                                                                \
     "key_format=" WT_UNCHECKED_STRING(IuQQQQ) ",value_format=" WT_UNCHECKED_STRING( \
-      QBBu) ",block_compressor=" WT_HISTORY_STORE_COMPRESSOR                        \
+      QBBu) ",block_compressor=" WT_HS_COMPRESSOR                                   \
             ",leaf_value_max=64MB"                                                  \
             ",prefix_compression=true"
 
@@ -452,7 +452,7 @@ struct __wt_page_modify {
 #define WT_PM_REC_REPLACE 3    /* Reconciliation: single block */
     uint8_t rec_result;        /* Reconciliation state */
 
-#define WT_PAGE_RS_HISTORY_STORE 0x1
+#define WT_PAGE_RS_HS 0x1
 #define WT_PAGE_RS_RESTORED 0x2
     uint8_t restore_state; /* Created by restoring updates */
 };
@@ -1054,7 +1054,7 @@ struct __wt_update {
     volatile uint8_t prepare_state; /* prepare state */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_UPDATE_HISTORY_STORE 0x1u      /* Update has been written to history store. */
+#define WT_UPDATE_HS 0x1u                 /* Update has been written to history store. */
 #define WT_UPDATE_RESTORED_FROM_DISK 0x2u /* Update is temporary retrieved from LAS. */
                                           /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;

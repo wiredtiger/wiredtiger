@@ -28,7 +28,7 @@ struct __wt_reconcile {
     /*
      * Track the oldest running transaction and whether to skew history store to the newest update.
      */
-    bool history_store_skew_newest;
+    bool hs_skew_newest;
     uint64_t last_running;
 
     /* Track the page's min/maximum transactions. */
@@ -150,9 +150,9 @@ struct __wt_reconcile {
     size_t min_space_avail; /* Remaining space in this chunk to put a minimum size boundary */
 
     /*
-     * Saved update list, supporting WT_REC_HISTORY_STORE configurations. While reviewing updates
-     * for each page, we save WT_UPDATE lists here, and then move them to per-block areas as the
-     * blocks are defined.
+     * Saved update list, supporting WT_REC_HS configurations. While reviewing updates for each
+     * page, we save WT_UPDATE lists here, and then move them to per-block areas as the blocks are
+     * defined.
      */
     WT_SAVE_UPD *supd; /* Saved updates */
     uint32_t supd_next;
@@ -225,8 +225,8 @@ struct __wt_reconcile {
 
     WT_SALVAGE_COOKIE *salvage; /* If it's a salvage operation */
 
-    bool cache_write_history_store; /* Used the history store table */
-    bool cache_write_restore;       /* Used update/restoration */
+    bool cache_write_hs;      /* Used the history store table */
+    bool cache_write_restore; /* Used update/restoration */
 
     uint32_t tested_ref_state; /* Debugging information */
 

@@ -33,9 +33,9 @@ from wtdataset import SimpleDataSet
 def timestamp_str(t):
     return '%x' % t
 
-# test_history_store01.py
+# test_hs01.py
 # Smoke tests to ensure history store tables are working.
-class test_history_store01(wttest.WiredTigerTestCase):
+class test_hs01(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
@@ -92,9 +92,9 @@ class test_history_store01(wttest.WiredTigerTestCase):
         session.close()
         conn.close()
 
-    def test_history_store(self):
+    def test_hs(self):
         # Create a small table.
-        uri = "table:test_history_store01"
+        uri = "table:test_hs01"
         nrows = 100
         ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
         ds.populate()

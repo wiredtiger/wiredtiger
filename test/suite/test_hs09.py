@@ -33,14 +33,14 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' % t
 
-# test_history_store09.py
+# test_hs09.py
 # Verify that we write the newest committed version to data store and the
 # second newest committed version to history store.
-class test_history_store09(wttest.WiredTigerTestCase):
+class test_hs09(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
-    uri = "table:test_history_store09"
+    uri = "table:test_hs09"
     key_format_values = [
         ('column', dict(key_format='r')),
         ('integer', dict(key_format='i')),
@@ -76,7 +76,7 @@ class test_history_store09(wttest.WiredTigerTestCase):
         cursor.close()
         session.close()
 
-    def test_uncommitted_updates_not_written_to_history_store(self):
+    def test_uncommitted_updates_not_written_to_hs(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)
@@ -106,7 +106,7 @@ class test_history_store09(wttest.WiredTigerTestCase):
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
-    def test_prepared_updates_not_written_to_history_store(self):
+    def test_prepared_updates_not_written_to_hs(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)

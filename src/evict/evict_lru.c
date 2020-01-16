@@ -473,7 +473,7 @@ __wt_evict_create(WT_SESSION_IMPL *session)
     /*
      * Create the eviction thread group. Set the group size to the maximum allowed sessions.
      */
-    session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_HISTORY_STORE | WT_THREAD_PANIC_FAIL;
+    session_flags = WT_THREAD_CAN_WAIT | WT_THREAD_HS | WT_THREAD_PANIC_FAIL;
     WT_RET(__wt_thread_group_create(session, &conn->evict_threads, "eviction-server",
       conn->evict_threads_min, conn->evict_threads_max, session_flags, __wt_evict_thread_chk,
       __wt_evict_thread_run, __wt_evict_thread_stop));
@@ -537,7 +537,7 @@ __wt_evict_destroy(WT_SESSION_IMPL *session)
 static bool
 __evict_update_work(WT_SESSION_IMPL *session)
 {
-    WT_BTREE *history_store_tree;
+    WT_BTREE *hs_tree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     double dirty_target, dirty_trigger, target, trigger;
@@ -563,11 +563,11 @@ __evict_update_work(WT_SESSION_IMPL *session)
     if (!__evict_queue_empty(cache->evict_urgent_queue, false))
         LF_SET(WT_CACHE_EVICT_URGENT);
 
-    if (F_ISSET(conn, WT_CONN_HISTORY_STORE_OPEN)) {
-        WT_ASSERT(session, F_ISSET(session, WT_SESSION_HISTORY_STORE_CURSOR));
+    if (F_ISSET(conn, WT_CONN_HS_OPEN)) {
+        WT_ASSERT(session, F_ISSET(session, WT_SESSION_HS_CURSOR));
 
-        history_store_tree = ((WT_CURSOR_BTREE *)session->history_store_cursor)->btree;
-        cache->bytes_hs = history_store_tree->bytes_inmem;
+        hs_tree = ((WT_CURSOR_BTREE *)session->hs_cursor)->btree;
+        cache->bytes_hs = hs_tree->bytes_inmem;
     }
 
     /*
@@ -613,9 +613,9 @@ __evict_update_work(WT_SESSION_IMPL *session)
      *     dirty trigger.
      */
     if (__wt_cache_stuck(session) ||
-      (__wt_cache_history_store_score(cache) > 80 &&
+      (__wt_cache_hs_score(cache) > 80 &&
           dirty_inuse > (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200))
-        LF_SET(WT_CACHE_EVICT_HISTORY_STORE);
+        LF_SET(WT_CACHE_EVICT_HS);
 
     /*
      * With an in-memory cache, we only do dirty eviction in order to scrub pages.
@@ -1783,8 +1783,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * create "deserts" in trees where no good eviction candidates can be found. Abandon the
          * walk if we get into that situation.
          */
-        give_up = !__wt_cache_aggressive(session) && !WT_IS_HISTORY_STORE(btree) &&
-          pages_seen > min_pages &&
+        give_up = !__wt_cache_aggressive(session) && !WT_IS_HS(btree) && pages_seen > min_pages &&
           (pages_queued == 0 || (pages_seen / pages_queued) > (min_pages / target_pages));
         if (give_up) {
             /*
@@ -1884,7 +1883,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * pressure by definition and we want to free space.
          */
         if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-          WT_IS_HISTORY_STORE(btree))
+          WT_IS_HS(btree))
             goto fast;
 
         /*
@@ -1893,9 +1892,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * dirty so we can do history store eviction. We also mark the tree dirty to avoid an
          * assertion that we don't discard dirty pages from a clean tree.
          */
-        if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD) &&
-          !F_ISSET(conn, WT_CONN_EVICTION_NO_HISTORY_STORE) && !WT_PAGE_IS_INTERNAL(page) &&
-          !modified && page->modify != NULL &&
+        if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD) && !F_ISSET(conn, WT_CONN_EVICTION_NO_HS) &&
+          !WT_PAGE_IS_INTERNAL(page) && !modified && page->modify != NULL &&
           !__wt_txn_visible_all(
               session, page->modify->rec_max_txn, page->modify->rec_max_timestamp)) {
             __wt_page_modify_set(session, page);

@@ -393,8 +393,8 @@ __wt_sweep_create(WT_SESSION_IMPL *session)
      * Sweep should have it's own history store cursor to avoid blocking reads and eviction when
      * processing drops.
      */
-    if (F_ISSET(conn, WT_CONN_HISTORY_STORE_OPEN))
-        WT_RET(__wt_history_store_cursor_open(session));
+    if (F_ISSET(conn, WT_CONN_HS_OPEN))
+        WT_RET(__wt_hs_cursor_open(session));
 
     WT_RET(__wt_cond_alloc(session, "handle sweep server", &conn->sweep_cond));
 
