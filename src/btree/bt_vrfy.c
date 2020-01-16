@@ -48,7 +48,6 @@ static const char *__verify_timestamp_to_pretty_string(wt_timestamp_t);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 static int __verify_ts_stable_cmp(
   WT_SESSION_IMPL *, WT_ITEM *, WT_REF *, uint32_t, wt_timestamp_t, wt_timestamp_t, WT_VSTUFF *);
-
 static int __verify_history_tree(WT_SESSION_IMPL *, WT_CELL_UNPACK *, WT_VSTUFF *);
 /*
  * __verify_config --
