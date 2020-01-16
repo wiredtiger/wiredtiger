@@ -344,13 +344,13 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-#if WT_IO_VIA_MMAP
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-close: fd=%d\n",
-                 file_handle->name, pfh->fd);
+    if(S2C(session)->mmap) {
+        __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-close: fd=%d\n",
+                     file_handle->name, pfh->fd);
 
-    if (pfh->mmap_buf != NULL)
-        __wt_unmap_region(file_handle, wt_session);
-#endif
+        if (pfh->mmap_buf != NULL)
+            __wt_unmap_region(file_handle, wt_session);
+    }
 
     /* Close the file handle. */
     if (pfh->fd != -1) {
@@ -435,7 +435,6 @@ __posix_file_read(
     return (0);
 }
 
-#if WT_IO_VIA_MMAP
 static int
 __posix_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep);
 
@@ -459,8 +458,10 @@ __posix_file_read_mmap(
                  file_handle->name, pfh->fd, offset, (uint64_t)len,
                  (void*)pfh->mmap_buf, (uint64_t)pfh->mmap_size);
 
+    WT_ASSERT(session, S2C(session)->mmap);
+
     if (!pfh->mmap_file_mappable)
-	goto syscall;
+        goto syscall;
 
     /* Indicate that we might be using the mapped area */
     (void)__wt_atomic_addv32(&pfh->mmap_usecount, 1);
@@ -470,7 +471,7 @@ __posix_file_read_mmap(
      * resized, we defer to the regular system call.
      */
     if (pfh->mmap_buf != 0 &&
-	pfh->mmap_size >= (size_t)offset + len && !pfh->mmap_resizing) {
+        pfh->mmap_size >= (size_t)offset + len && !pfh->mmap_resizing) {
 
         memcpy(buf, (void *)(pfh->mmap_buf + offset), len);
 
@@ -487,7 +488,6 @@ syscall:
         return __posix_file_read(file_handle, wt_session, offset, len, buf);
     }
 }
-#endif
 
 /*
  * __posix_file_size --
@@ -568,23 +568,23 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-#if WT_IO_VIA_MMAP
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: size=%" PRId64 ","
-		 "mapped size=%" PRIu64 "\n", file_handle->name, len, (uint64_t)pfh->mmap_size);
+    if (S2C(session)->mmap) {
+        __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: size=%" PRId64 ","
+                     "mapped size=%" PRIu64 "\n", file_handle->name, len, (uint64_t)pfh->mmap_size);
 
-    if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != len)
-	__wt_drain_mmap_users(file_handle, wt_session);
-#endif
+        if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != len)
+            __wt_drain_mmap_users(file_handle, wt_session);
+    }
 
     WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
     if (ret == 0) {
-#if WT_IO_VIA_MMAP
-        /* Remap the region with the new size */
-	if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != len) {
-            __wt_remap_region(file_handle, wt_session);
-	    WT_STAT_CONN_INCRV(session, block_remap_region_trunc, 1);
-	}
-#endif
+        if (S2C(session)->mmap) {
+            /* Remap the region with the new size */
+            if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != len) {
+                __wt_remap_region(file_handle, wt_session);
+                WT_STAT_CONN_INCRV(session, block_remap_region_trunc, 1);
+            }
+        }
         return (0);
     }
     WT_RET_MSG(session, ret, "%s: handle-truncate: ftruncate", file_handle->name);
@@ -630,7 +630,6 @@ __posix_file_write(
     return (0);
 }
 
-#if WT_IO_VIA_MMAP
 /*
  * __posix_file_write_mmap --
  *     Write the buffer into the mmapped region.
@@ -654,9 +653,10 @@ __posix_file_write_mmap(
                  file_handle->name, pfh->fd, offset, (uint64_t)len,
                  (void*)pfh->mmap_buf, (uint64_t)pfh->mmap_size);
 
+    WT_ASSERT(session, S2C(session)->mmap);
 
     if (!pfh->mmap_file_mappable)
-	goto syscall;
+        goto syscall;
 
     /* Indicate that we might be using the mapped area */
     (void)__wt_atomic_addv32(&pfh->mmap_usecount, 1);
@@ -666,7 +666,7 @@ __posix_file_write_mmap(
      * resized, we defer to the regular system call.
      */
     if (pfh->mmap_buf != NULL &&
-	pfh->mmap_size >= (size_t)offset + len && !pfh->mmap_resizing) {
+        pfh->mmap_size >= (size_t)offset + len && !pfh->mmap_resizing) {
 
         memcpy( (void*)(pfh->mmap_buf + offset), buf, len);
 
@@ -678,26 +678,24 @@ __posix_file_write_mmap(
     }
     else {
         /* Signal that we won't be using the mmapped buffer after all. */
-	(void)__wt_atomic_subv32(&pfh->mmap_usecount, 1);
+        (void)__wt_atomic_subv32(&pfh->mmap_usecount, 1);
 syscall:
         ret = __posix_file_write(file_handle, wt_session, offset, len, buf);
 
-	/*
-	 * If we are here and the file is mappable, we must have extended its size.
-	 * Remap the region with the new size.
-	 */
-	if (pfh->mmap_file_mappable && ret == 0 && ((remap_opportunities++) % REMAP_SKIP == 0)) {
-	    __wt_verbose(session, WT_VERB_FILEOPS, "%s, write-mmap-remap: mapped len=%" PRIu64 "\n",
-			 file_handle->name, (uint64_t)pfh->mmap_size);
-	    __wt_drain_mmap_users(file_handle, wt_session);
-	    __wt_remap_region(file_handle, wt_session);
-	    WT_STAT_CONN_INCRV(session, block_remap_region_write, 1);
-	}
-	return ret;
+        /*
+         * If we are here and the file is mappable, we must have extended its size.
+         * Remap the region with the new size.
+         */
+        if (pfh->mmap_file_mappable && ret == 0 && ((remap_opportunities++) % REMAP_SKIP == 0)) {
+            __wt_verbose(session, WT_VERB_FILEOPS, "%s, write-mmap-remap: mapped len=%" PRIu64 "\n",
+                         file_handle->name, (uint64_t)pfh->mmap_size);
+            __wt_drain_mmap_users(file_handle, wt_session);
+            __wt_remap_region(file_handle, wt_session);
+            WT_STAT_CONN_INCRV(session, block_remap_region_write, 1);
+        }
+        return ret;
     }
 }
-#endif
-
 
 /*
  * __posix_open_file_cloexec --
@@ -858,17 +856,17 @@ directory_open:
     file_handle = (WT_FILE_HANDLE *)pfh;
     WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
-#if WT_IO_VIA_MMAP
-    /*
-     * We are going to use mmap for I/O. So let's mmap the file
-     * on opening.
-     */
-    if (file_type == WT_FS_OPEN_FILE_TYPE_DATA || file_type == WT_FS_OPEN_FILE_TYPE_LOG) {
-	pfh->mmap_file_mappable = true;
-	pfh->mmap_prot = LF_ISSET(WT_FS_OPEN_READONLY) ? PROT_READ : PROT_READ | PROT_WRITE;
-	__wt_map_region(file_handle, wt_session);
+    if (S2C(session)->mmap) {
+        /*
+         * We are going to use mmap for I/O. So let's mmap the file
+         * on opening.
+         */
+        if (file_type == WT_FS_OPEN_FILE_TYPE_DATA || file_type == WT_FS_OPEN_FILE_TYPE_LOG) {
+            pfh->mmap_file_mappable = true;
+            pfh->mmap_prot = LF_ISSET(WT_FS_OPEN_READONLY) ? PROT_READ : PROT_READ | PROT_WRITE;
+            __wt_map_region(file_handle, wt_session);
+        }
     }
-#endif
 
     file_handle->close = __posix_file_close;
 #if defined(HAVE_POSIX_FADVISE)
@@ -893,11 +891,12 @@ directory_open:
 #endif
     file_handle->fh_unmap = __wt_posix_unmap;
 #endif
-#if WT_IO_VIA_MMAP
-    file_handle->fh_read = __posix_file_read_mmap;
-#else
-    file_handle->fh_read = __posix_file_read;
-#endif
+
+    if (conn->mmap)
+        file_handle->fh_read = __posix_file_read_mmap;
+    else
+        file_handle->fh_read = __posix_file_read;
+
     file_handle->fh_size = __posix_file_size;
     file_handle->fh_sync = __posix_file_sync;
 #ifdef HAVE_SYNC_FILE_RANGE
@@ -906,11 +905,12 @@ directory_open:
 #ifdef HAVE_FTRUNCATE
     file_handle->fh_truncate = __posix_file_truncate;
 #endif
-#if WT_IO_VIA_MMAP
-    file_handle->fh_write = __posix_file_write_mmap;
-#else
-    file_handle->fh_write = __posix_file_write;
-#endif
+
+    if (conn->mmap)
+        file_handle->fh_write = __posix_file_write_mmap;
+    else
+        file_handle->fh_write = __posix_file_write;
+
     *file_handlep = file_handle;
 
     return (0);
@@ -966,7 +966,6 @@ __wt_os_posix(WT_SESSION_IMPL *session)
     return (0);
 }
 
-#if WT_IO_VIA_MMAP
 /*
  * Wait until all the sessions using the memory mapped
  * region are done.
@@ -986,6 +985,7 @@ __wt_drain_mmap_users(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     __wt_verbose(session, WT_VERB_FILEOPS, "%s, drain-mmap-users: buffer=%p\n",
                  file_handle->name, (void*)pfh->mmap_buf);
 
+    WT_ASSERT(session, S2C(session)->mmap);
     WT_ASSERT(session, pfh->mmap_file_mappable);
 
   wait:
@@ -1012,14 +1012,15 @@ __wt_drain_mmap_users(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
  * may not flush the metadata prior to data being written. Therefore, the block may be
  * reallocated or lost upon crash.
  *
- * There are several ways to avoid this behaviour:
- * (1) To not use DAX. The downside is caching the data in the buffer cache, which is
- * probably not necessary if the storage device is persistent RAM.
+ * WiredTiger currently disallows using the mmap option with the direct I/O option.
+ * We are relying on the user correctly specifying the direct I/O option if they
+ * mount a file system as DAX. If we did not wish to rely on the user supplying
+ * the correct flags, we have two options:
  *
- * (2) Use MAP_SYNC flag available on some versions of Linux. The downside is being
+ * (1) Use MAP_SYNC flag available on some versions of Linux. The downside is being
  * Linux-specific and not extensively tested (this is a recent flag).
  *
- * (3) Always fsync when we unmap the file. In our implementation, if a session extends
+ * (2) Always fsync when we unmap the file. In our implementation, if a session extends
  * the file by writing a new block beyond the current file size, we always unmap the
  * file and then re-map it before allowing any reads or writes via mmap into the new block.
  * If we sync the file upon unmapping, we will be certain that the metadata is persistent.
@@ -1035,16 +1036,17 @@ __wt_map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
+    WT_ASSERT(session, S2C(session)->mmap);
     WT_ASSERT(session, pfh->mmap_file_mappable);
     WT_ASSERT(session, pfh->mmap_prot);
 
     if( __posix_file_size((WT_FILE_HANDLE *)pfh, wt_session, &file_size))
-	WT_RET_MSG(session, __wt_errno(), "%s: __posix_file_size", file_handle->name);
+        WT_RET_MSG(session, __wt_errno(), "%s: __posix_file_size", file_handle->name);
 
     if (file_size <= 0) {
         if (pfh->mmap_buf != NULL)
             __wt_unmap_region(file_handle, wt_session);
-	return 0;
+        return 0;
     }
 
     /* If the buffer was previously mapped, try to remap it to the same address */
@@ -1081,6 +1083,7 @@ __wt_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     __wt_verbose(session, WT_VERB_FILEOPS, "%s, remap-region: buffer=%p\n",
                  file_handle->name, (void*)pfh->mmap_buf);
 
+    WT_ASSERT(session, S2C(session)->mmap);
     WT_ASSERT(session, pfh->mmap_file_mappable);
 
     if (pfh->mmap_buf)
@@ -1097,7 +1100,6 @@ __wt_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 int
 __wt_unmap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
-
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
@@ -1108,6 +1110,7 @@ __wt_unmap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-unmap: buffer=%p, size=%" PRIu64 "\n",
                  file_handle->name, (void*)pfh->mmap_buf, (uint64_t)pfh->mmap_size);
 
+    WT_ASSERT(session, S2C(session)->mmap);
     WT_ASSERT(session, pfh->mmap_file_mappable);
 
     ret = munmap(pfh->mmap_buf, pfh->mmap_size);
@@ -1121,4 +1124,3 @@ __wt_unmap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     return ret;
 }
-#endif

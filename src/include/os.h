@@ -130,8 +130,6 @@ struct __wt_file_handle_win {
 
 #else
 
-#define WT_IO_VIA_MMAP 1
-
 struct __wt_file_handle_posix {
     WT_FILE_HANDLE iface;
 
@@ -142,15 +140,13 @@ struct __wt_file_handle_posix {
 
     bool direct_io; /* O_DIRECT configured */
 
-#if WT_IO_VIA_MMAP
+    /* The memory buffer and variables if we use mmap for I/O */
     char                *mmap_buf;
     bool                 mmap_file_mappable;
     int                  mmap_prot;
     volatile uint32_t    mmap_resizing;
     size_t               mmap_size;
     volatile uint32_t    mmap_usecount;
-
-#endif
 };
 #endif
 
@@ -190,9 +186,8 @@ struct __wt_fstream {
     int (*fstr_printf)(WT_SESSION_IMPL *, WT_FSTREAM *, const char *, va_list);
 };
 
-#if WT_IO_VIA_MMAP
 void __wt_drain_mmap_users(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
 int __wt_map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
 int __wt_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
 int __wt_unmap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
-#endif
+

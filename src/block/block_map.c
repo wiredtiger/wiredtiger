@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *      All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -24,7 +24,7 @@ __wt_block_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_regionp, 
     *(void **)mapped_cookiep = NULL;
 
     /* Map support is configurable. */
-    if (!S2C(session)->mmap)
+    if (!S2C(session)->mmap_ckpt)
         return (0);
 
     /*
