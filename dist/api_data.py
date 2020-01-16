@@ -1338,8 +1338,9 @@ methods = {
 'WT_SESSION.upgrade' : Method([]),
 'WT_SESSION.verify' : Method([
     Config('dump_address', 'false', r'''
-        Display addresses and page types as pages are verified,
-        using the application's message handler, intended for debugging''',
+        Display page addresses, start and stop time pairs and page types as
+        pages are verified, using the application's message handler,
+        intended for debugging''',
         type='boolean'),
     Config('dump_blocks', 'false', r'''
         Display the contents of on-disk blocks as they are verified,
