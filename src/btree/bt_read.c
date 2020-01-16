@@ -602,15 +602,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
         WT_STAT_DATA_INCR(session, cache_pages_requested);
     }
 
-    /*
-     * If a page has grown too large, we'll try and forcibly evict it before making it available to
-     * the caller. There are a variety of cases where that's not possible. Don't involve a thread
-     * resolving a transaction in forced eviction, they're usually making the problem better.
-     */
-    evict_skip = F_ISSET(session, WT_SESSION_RESOLVE) || LF_ISSET(WT_READ_NO_SPLIT) ||
-      btree->evict_disabled > 0 || btree->lsm_primary;
-
-    for (stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;;) {
+    for (evict_skip = stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;
+         ;) {
         switch (current_state = ref->state) {
         case WT_REF_DELETED:
             if (LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT))
@@ -646,9 +639,7 @@ read:
                   session, true, !F_ISSET(&session->txn, WT_TXN_HAS_ID), NULL));
             WT_RET(__page_read(session, ref, flags));
 
-            /*
-             * We just read a page, don't evict it before we have a chance to use it.
-             */
+            /* We just read a page, don't evict it before we have a chance to use it. */
             evict_skip = true;
 
             /*
@@ -720,9 +711,13 @@ read:
                 __wt_tree_modify_set(session);
 
             /*
-             * Check if the page requires forced eviction.
+             * If a page has grown too large, we'll try and forcibly evict it before making it
+             * available to the caller. There are a variety of cases where that's not possible.
+             * Don't involve a thread resolving a transaction in forced eviction, they're usually
+             * making the problem better.
              */
-            if (evict_skip)
+            if (evict_skip || F_ISSET(session, WT_SESSION_RESOLVE) || LF_ISSET(WT_READ_NO_SPLIT) ||
+              btree->evict_disabled > 0 || btree->lsm_primary)
                 goto skip_evict;
 
             /*
