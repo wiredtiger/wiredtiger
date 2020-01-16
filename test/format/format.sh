@@ -17,8 +17,8 @@ onintr()
 trap 'onintr' 2
 
 usage() {
-	echo "usage: $0 [-aFSv] [-b format-binary] [-c config] "
-	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [format-configuration]"
+	echo "usage: $0 [-aFSv] [-c config] "
+	echo "    [-b format-binary] [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [format-configuration]"
 	echo
 	echo "    -a           abort/recovery testing (defaults to off)"
 	echo "    -b binary    format binary (defaults to "./t")"
