@@ -38,20 +38,6 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 /*
- * signal_timer --
- *     Alarm signal handler, report the signal and drop core.
- */
-static void signal_timer(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-static void
-signal_timer(int signo)
-{
-    fprintf(stderr, "format alarm timed out\n");
-    fprintf(stderr, "format caught signal %d, aborting the process\n", signo);
-    fflush(stderr);
-    __wt_abort(NULL);
-}
-
-/*
  * signal_handler --
  *     Generic signal handler, report the signal and exit.
  */
@@ -59,10 +45,64 @@ static void signal_handler(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 signal_handler(int signo)
 {
-    fprintf(stderr, "format caught signal %d, exiting\n", signo);
+    fprintf(stderr, "format caught signal '%s', exiting\n", strsignal(signo));
     fflush(stderr);
     exit(0);
 }
+
+/*
+ * signal_timer --
+ *     Alarm signal handler.
+ */
+static void signal_timer(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+static void
+signal_timer(int signo)
+{
+    /*
+     * If configured with direct I/O, we can see really long run times depending on how the test
+     * machine is configured. If a direct I/O run, ignore the timer and exit successfully.
+     */
+    if (g.c_direct_io) {
+        fprintf(stderr, "format caught signal '%s', exiting\n", strsignal(signo));
+        fflush(stderr);
+        exit(0);
+    }
+
+    /* Note, format.sh checks for this message, so be cautious in changing the format. */
+    fprintf(stderr, "format alarm timed out\n");
+    fprintf(stderr, "format caught signal '%s', aborting the process\n", strsignal(signo));
+    fflush(stderr);
+    __wt_abort(NULL);
+}
+
+/*
+ * set_alarm --
+ *     Set a timer.
+ */
+void
+set_alarm(u_int seconds)
+{
+#ifdef HAVE_TIMER_CREATE
+    struct itimerspec timer_val;
+    timer_t timer_id;
+
+    testutil_check(timer_create(CLOCK_REALTIME, NULL, &timer_id));
+    memset(&timer_val, 0, sizeof(timer_val));
+    timer_val.it_value.tv_sec = seconds;
+    timer_val.it_value.tv_nsec = 0;
+    testutil_check(timer_settime(timer_id, 0, &timer_val, NULL));
+#endif
+}
+
+/* TIMED_OP --
+ *	Set a 5 minute timer and perform an operation.
+ */
+#define TIMED_OP(call)     \
+    do {                   \
+        set_alarm(5 * 60); \
+        call;              \
+        set_alarm(0);      \
+    } while (0)
 
 int
 main(int argc, char *argv[])
@@ -80,7 +120,7 @@ main(int argc, char *argv[])
 
 /*
  * Windows and Linux support different sets of signals, be conservative about installing handlers.
- * If we time out, we want a core dump, otherwise, just exit.
+ * If we time out unexpectedly, we want a core dump, otherwise, just exit.
  */
 #ifdef SIGALRM
     (void)signal(SIGALRM, signal_timer);
@@ -224,22 +264,22 @@ main(int argc, char *argv[])
         wts_init();
 
         /* Load and verify initial records */
-        wts_load();
-        wts_verify("post-bulk verify");
-        wts_read_scan();
+        TIMED_OP(wts_load());
+        TIMED_OP(wts_verify("post-bulk verify"));
+        TIMED_OP(wts_read_scan());
 
         /* Operations. */
         for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
             wts_ops(ops_seconds, reps == FORMAT_OPERATION_REPS);
 
         /* Copy out the run's statistics. */
-        wts_stats();
+        TIMED_OP(wts_stats());
 
         /*
          * Verify the objects. Verify closes the underlying handle and discards the statistics, read
          * them first.
          */
-        wts_verify("post-ops verify");
+        TIMED_OP(wts_verify("post-ops verify"));
 
         track("shutting down", 0ULL, NULL);
         wts_close();
@@ -247,12 +287,12 @@ main(int argc, char *argv[])
         /*
          * Rebalance testing.
          */
-        wts_rebalance();
+        TIMED_OP(wts_rebalance());
 
         /*
          * Salvage testing.
          */
-        wts_salvage();
+        TIMED_OP(wts_salvage());
 
         /* Overwrite the progress line with a completion line. */
         if (!g.c_quiet)

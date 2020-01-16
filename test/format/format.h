@@ -344,6 +344,7 @@ WT_THREAD_RET random_kv(void *);
 void path_setup(const char *);
 int read_row_worker(WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
 uint32_t rng_slow(WT_RAND_STATE *);
+void set_alarm(u_int);
 void set_core_off(void);
 void snap_init(TINFO *, uint64_t, bool);
 void snap_repeat_single(WT_CURSOR *, TINFO *);

@@ -61,25 +61,6 @@ modify_repl_init(void)
 }
 
 /*
- * set_alarm --
- *     Set a timer.
- */
-static void
-set_alarm(void)
-{
-#ifdef HAVE_TIMER_CREATE
-    struct itimerspec timer_val;
-    timer_t timer_id;
-
-    testutil_check(timer_create(CLOCK_REALTIME, NULL, &timer_id));
-    memset(&timer_val, 0, sizeof(timer_val));
-    timer_val.it_value.tv_sec = 60 * 2;
-    timer_val.it_value.tv_nsec = 0;
-    testutil_check(timer_settime(timer_id, 0, &timer_val, NULL));
-#endif
-}
-
-/*
  * set_core_off --
  *     Turn off core dumps.
  */
@@ -103,7 +84,10 @@ random_failure(void)
 {
     static char *core = NULL;
 
-    /* Let our caller know. */
+    /*
+     * Let our caller know. Note, format.sh checks for this message, so be cautious in changing the
+     * format.
+     */
     printf("%s: aborting to test recovery\n", progname);
     fflush(stdout);
 
@@ -272,10 +256,10 @@ wts_ops(u_int ops_seconds, bool lastrun)
               "format run dumping cache and transaction state, then aborting the process");
 
             /*
-             * If the library is deadlocked, we might just join the mess, set a timer to limit our
-             * exposure.
+             * If the library is deadlocked, we might just join the mess, set a two-minute timer to
+             * limit our exposure.
              */
-            set_alarm();
+            set_alarm(120);
 
             (void)conn->debug_info(conn, "txn");
             (void)conn->debug_info(conn, "cache");

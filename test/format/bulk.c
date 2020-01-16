@@ -80,7 +80,6 @@ wts_load(void)
     WT_DECL_RET;
     WT_ITEM key, value;
     WT_SESSION *session;
-    uint64_t now, start;
     bool is_bulk;
 
     conn = g.wts_conn;
@@ -112,7 +111,6 @@ wts_load(void)
     if (g.c_txn_timestamps)
         bulk_begin_transaction(session);
 
-    __wt_seconds(NULL, &start);
     while (++g.key_cnt <= g.c_rows) {
         /* Do some checking every 10K operations. */
         if (g.key_cnt % 10000 == 0) {
@@ -124,14 +122,6 @@ wts_load(void)
                 bulk_commit_transaction(session);
                 bulk_begin_transaction(session);
             }
-
-            /*
-             * The bulk load is the first place we stress the underlying I/O system, and it may not
-             * be sufficient. If we can't bulk-load in a minute, call it done.
-             */
-            __wt_seconds(NULL, &now);
-            testutil_assertfmt((now - start) < 60, "%s",
-              "format unable to bulk load in 60 seconds, aborting the run");
         }
 
         key_gen(&key, g.key_cnt);
