@@ -62,7 +62,7 @@ class test_hs09(wttest.WiredTigerTestCase):
             self.assertEqual(value, expected_data_value)
         cursor.close()
         # Check the history store file value
-        cursor = session.open_cursor("file:WiredTigerLAS.wt", None, 'checkpoint=WiredTigerCheckpoint')
+        cursor = session.open_cursor("file:WiredTigerHS.wt", None, 'checkpoint=WiredTigerCheckpoint')
         for _, _, las_start_ts, _, las_stop_ts, _, _, _, type, value in cursor:
             # No WT_UPDATE_TOMBSTONE in the history store
             self.assertNotEqual(type, 5)
