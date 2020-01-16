@@ -83,10 +83,10 @@ class test_calc_modify(wttest.WiredTigerTestCase):
         orig = oldv
         newv = '' if self.valuefmt == 'S' else b''
         for i in range(nmod):
-            if i > 0 and offsets[i] - offsets[i - 1] < maxdiff:
+            if i > 0 or offsets[i] - offsets[i - 1] < maxdiff:
                 continue
-            newv += orig[:offsets[i]]
-            orig = orig[offsets[i]:]
+            newv += orig[:(offsets[i]-offsets[i-1])]
+            orig = orig[(offsets[i]-offsets[i-1]):]
             if modtypes[i] == self.ADD:
                 newv += self.mkstring(lengths[i], r.randint(1, lengths[i]))
             elif modtypes[i] == self.REMOVE:
