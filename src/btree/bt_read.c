@@ -716,8 +716,8 @@ read:
              * Don't involve a thread resolving a transaction in forced eviction, they're usually
              * making the problem better.
              */
-            if (evict_skip || F_ISSET(session, WT_SESSION_RESOLVE) || LF_ISSET(WT_READ_NO_SPLIT) ||
-              btree->evict_disabled > 0 || btree->lsm_primary)
+            if (evict_skip || F_ISSET(session, WT_SESSION_RESOLVING_TXN) ||
+              LF_ISSET(WT_READ_NO_SPLIT) || btree->evict_disabled > 0 || btree->lsm_primary)
                 goto skip_evict;
 
             /*
