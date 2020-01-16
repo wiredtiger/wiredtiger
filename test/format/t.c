@@ -45,7 +45,7 @@ static void signal_handler(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 signal_handler(int signo)
 {
-    fprintf(stderr, "format caught signal '%s', exiting\n", strsignal(signo));
+    fprintf(stderr, "format caught signal %d, exiting without error\n", signo);
     fflush(stderr);
     exit(0);
 }
@@ -63,14 +63,14 @@ signal_timer(int signo)
      * machine is configured. If a direct I/O run, ignore the timer and exit successfully.
      */
     if (g.c_direct_io) {
-        fprintf(stderr, "format caught signal '%s', exiting\n", strsignal(signo));
+        fprintf(stderr, "format caught signal %d, exiting without error\n", signo);
         fflush(stderr);
         exit(0);
     }
 
     /* Note, format.sh checks for this message, so be cautious in changing the format. */
     fprintf(stderr, "format alarm timed out\n");
-    fprintf(stderr, "format caught signal '%s', aborting the process\n", strsignal(signo));
+    fprintf(stderr, "format caught signal %d, aborting the process\n", signo);
     fflush(stderr);
     __wt_abort(NULL);
 }
