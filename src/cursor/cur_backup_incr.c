@@ -9,21 +9,105 @@
 #include "wt_internal.h"
 
 /*
+ * __curbackup_incr_blkmods --
+ *     Get the block modifications for a tree from its metadata and fill in the backup cursor's
+ *     information with it.
+ */
+static int
+__curbackup_incr_blkmods(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BACKUP *cb)
+{
+    WT_CONFIG blkconf;
+    WT_CONFIG_ITEM b, k, v;
+    WT_DECL_RET;
+    uint64_t entries, i, *list;
+    char *config;
+    const char *p;
+
+    WT_ASSERT(session, btree != NULL);
+    WT_ASSERT(session, btree->dhandle != NULL);
+    WT_RET(__wt_metadata_search(session, btree->dhandle->name, &config));
+    WT_RET(__wt_config_getones(session, config, "checkpoint_mods", &v));
+    __wt_config_subinit(session, &blkconf, &v);
+    WT_ASSERT(session, cb->incr_start != NULL);
+    while (__wt_config_next(&blkconf, &k, &v) == 0) {
+        /*
+         * First see if we have information for this source identifier.
+         */
+        if (WT_STRING_MATCH(cb->incr_start->id_str, k.str, k.len) == 0)
+            continue;
+
+        /*
+         * We found a match. Load the block information into the cursor.
+         */
+        ret = __wt_config_subgets(session, &v, "blocks", &b);
+
+        WT_RET_NOTFOUND_OK(ret);
+        if (ret != WT_NOTFOUND) {
+            __wt_verbose(session, WT_VERB_BACKUP, "CURBACKUP BLKMODS: id %s found blocks %.*s",
+              cb->incr_start->id_str, (int)b.len, b.str);
+            p = b.str;
+            if (*p != '(')
+                goto format;
+            if (p[1] != ')') {
+                for (entries = 0; p < b.str + b.len; ++p)
+                    if (*p == ',')
+                        ++entries;
+                if (p[-1] != ')' || ++entries % 2 != 0)
+                    goto format;
+
+                /* This is now the number of actual entries. */
+                entries /= 2;
+                /*
+                 * Make space for the range field.
+                 */
+                WT_RET(
+                  __wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &cb->incr_list));
+                cb->incr_list_count = entries * WT_BACKUP_INCR_COMPONENTS;
+                cb->incr_list_offset = 0;
+                list = cb->incr_list;
+                /*
+                 * Copy the block list to the cursor.
+                 */
+                for (i = 0, p = b.str + 1; *p != ')'; ++i, ++list) {
+                    if (sscanf(p, "%" SCNu64 "[,)]", list) != 1)
+                        goto format;
+                    for (; *p != ',' && *p != ')'; ++p)
+                        ;
+                    /*
+                     * The modified block lists are in pairs. After each pair, insert the
+                     * WT_BACKUP_RANGE token.
+                     */
+                    if (i % WT_BACKUP_INCR_COMPONENTS == 1) {
+                        *(++list) = WT_BACKUP_RANGE;
+                        ++i;
+                    }
+                    if (*p == ',')
+                        ++p;
+                }
+            }
+            cb->incr_init = true;
+        } else
+            __wt_verbose(session, WT_VERB_BACKUP, "LOAD: no blocks %.*s", (int)k.len, k.str);
+    }
+    return (0);
+format:
+    WT_RET_MSG(session, WT_ERROR, "corrupted modified block list");
+}
+
+/*
  * __curbackup_incr_next --
  *     WT_CURSOR->next method for the btree cursor type when configured with incremental_backup.
  */
 static int
 __curbackup_incr_next(WT_CURSOR *cursor)
 {
-    WT_BLOCK_MODS *blk_mods;
     WT_BTREE *btree;
     WT_CURSOR_BACKUP *cb;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     wt_off_t size;
-    uint64_t entries;
-    uint64_t *list, *p;
-    uint32_t i, raw;
+    uint64_t list_off;
+    uint32_t raw;
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     btree = cb->incr_cursor == NULL ? NULL : ((WT_CURSOR_BTREE *)cb->incr_cursor)->btree;
@@ -40,13 +124,17 @@ __curbackup_incr_next(WT_CURSOR *cursor)
          * If we returned all of the data, step to the next block, otherwise return the next chunk
          * of the current block.
          */
-        if (cb->incr_list[cb->incr_list_offset + 1] <= cb->incr_granularity)
+        if (cb->incr_granularity == 0 ||
+          cb->incr_list[cb->incr_list_offset + 1] <= cb->incr_granularity)
             cb->incr_list_offset += WT_BACKUP_INCR_COMPONENTS;
         else {
             cb->incr_list[cb->incr_list_offset] += cb->incr_granularity;
             cb->incr_list[cb->incr_list_offset + 1] -= cb->incr_granularity;
             cb->incr_list[cb->incr_list_offset + 2] = WT_BACKUP_RANGE;
         }
+        list_off = cb->incr_list_offset;
+        __wt_cursor_set_key(cursor, cb->incr_list[list_off], cb->incr_list[list_off + 1],
+          cb->incr_list[list_off + 2]);
     } else if (btree == NULL || F_ISSET(cb, WT_CURBACKUP_FORCE_FULL)) {
         /* We don't have this object's incremental information, and it's a full file copy. */
         WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
@@ -62,46 +150,16 @@ __curbackup_incr_next(WT_CURSOR *cursor)
          * incremental identifier starting point. Walk the list looking for one with a source of our
          * id.
          */
-        blk_mods = NULL;
-        WT_ERR(__wt_btree_get_blkmods(session, btree, blk_mods));
+        WT_ERR(__curbackup_incr_blkmods(session, btree, cb));
         /*
          * If there is no block modification information for this file, there is no information to
          * return to the user.
          */
-        if (blk_mods == NULL)
+        if (cb->incr_list == NULL)
             WT_ERR(WT_NOTFOUND);
-
-        for (i = 0; i < WT_BLKINCR_MAX; ++i, ++blk_mods)
-            if (strcmp(blk_mods->id_str, cb->incr_src) == 0)
-                break;
-        /*
-         * XXX Need to coordinate with checkpoint? Cannot have checkpoint changing the block list
-         * while we walk it. It might reallocate it, freeing our memory out from under us.
-         */
-
-        /*
-         * There is no block information from this source identifier. There is no information to
-         * return to the user.
-         */
-        if (i == WT_BLKINCR_MAX)
-            WT_ERR(WT_NOTFOUND);
-
-        /*
-         * Set up our list to return to the user.
-         */
-        WT_ASSERT(session, F_ISSET(blk_mods, WT_BLOCK_MODS_VALID));
-        WT_ERR(__wt_calloc_def(
-          session, blk_mods->alloc_list_entries * WT_BACKUP_INCR_COMPONENTS, &cb->incr_list));
-        cb->incr_list_count = blk_mods->alloc_list_entries;
-        cb->incr_list_offset = 0;
-        for (entries = 0, list = cb->incr_list, p = blk_mods->alloc_list;
-             entries < blk_mods->alloc_list_entries; ++entries, p += WT_BACKUP_INCR_COMPONENTS) {
-            *list++ = p[0];
-            *list++ = p[1];
-            *list++ = p[2];
-        }
-        cb->incr_init = true;
-
+        list_off = cb->incr_list_offset;
+        __wt_cursor_set_key(cursor, cb->incr_list[list_off], cb->incr_list[list_off + 1],
+          cb->incr_list[list_off + 2]);
         F_SET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
     }
 

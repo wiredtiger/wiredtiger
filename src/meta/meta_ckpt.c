@@ -49,10 +49,8 @@ __wt_meta_checkpoint(
      * default checkpoint, it's creation, return "no data" and let our caller handle it.
      */
     if (checkpoint == NULL) {
-        if (btree != NULL) {
-            __wt_errx(session, "Save config %s to btree", config);
+        if (btree != NULL)
             WT_ERR(__wt_strdup(session, config, &btree->config));
-        }
         if ((ret = __ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
             ret = 0;
             ckpt->addr.data = ckpt->raw.data = NULL;
@@ -128,7 +126,6 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
      */
     config = newcfg = NULL;
     str = v == NULL ? "checkpoint=(),checkpoint_mods=(),checkpoint_lsn=" : v;
-    __wt_verbose(session, WT_VERB_BACKUP, "CKPT_SET: str %s", str);
     if (use_base && session->dhandle != NULL) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ASSERT(session, strcmp(session->dhandle->name, fname) == 0);
@@ -398,8 +395,6 @@ __wt_meta_ckptlist_get(
         F_SET(ckpt, WT_CKPT_ADD);
         if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
             F_SET(ckpt, WT_CKPT_BLOCK_MODS);
-        __wt_verbose(session, WT_VERB_BACKUP, "CKPT_GET: flags conn 0x%x ckpt %p 0x%x",
-          (int)S2C(session)->flags, (void *)ckpt, (int)ckpt->flags);
     }
 
     /* Return the array to our caller. */
@@ -591,7 +586,6 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           (int64_t)ckpt->newest_stop_txn, (int64_t)ckpt->write_gen));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
-    __wt_verbose(session, WT_VERB_BACKUP, "CKPTLIST: buf: %.*s", (int)buf->size, buf->mem);
 
     return (0);
 }
@@ -632,7 +626,6 @@ __ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *bl
         WT_RET(__wt_buf_catfmt(session, buf, "))"));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
-    __wt_verbose(session, WT_VERB_BACKUP, "META: buf: %.*s", (int)buf->size, buf->mem);
     return (0);
 }
 

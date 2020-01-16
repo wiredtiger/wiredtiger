@@ -302,11 +302,15 @@ take_incr_backup(WT_SESSION *session, int i)
     uint64_t offset, size, type;
     size_t alloc, count;
     int j, ret, rfd, wfd;
-    char buf[1024], h[256];
+    char buf[1024], h[256], *tmp;
+    size_t tmp_sz;
     const char *filename;
+    bool first;
 
     /*! [incremental backup using block transfer]*/
 
+    tmp = NULL;
+    tmp_sz = 0;
     /* Open the backup data source for incremental backup. */
     (void)snprintf(buf, sizeof(buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 1, i);
     error_check(session->open_cursor(session, "backup:", NULL, buf, &backup_cur));
@@ -323,42 +327,43 @@ take_incr_backup(WT_SESSION *session, int i)
         (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename);
         printf("Copying backup: %s\n", buf);
         error_check(system(buf));
-#if 0
-        (void)snprintf(buf, sizeof(buf), "%s/%s", home, filename);
-        printf("Open source %s for reading\n", buf);
-        error_check(rfd = open(buf, O_RDONLY, 0));
-        (void)snprintf(h, sizeof(h), "%s.%d", home_incr, i);
-        (void)snprintf(buf, sizeof(buf), "%s/%s", h, filename);
-        printf("Open dest %s for writing\n", buf);
-        error_check(wfd = open(buf, O_WRONLY, 0));
-#endif
+        first = true;
 
         (void)snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename);
         error_check(session->open_cursor(session, NULL, backup_cur, buf, &incr_cur));
         printf("Taking incremental %d: File %s\n", i, filename);
         while ((ret = incr_cur->next(incr_cur)) == 0) {
             error_check(incr_cur->get_key(incr_cur, &offset, &size, &type));
-            printf("Incremental %s: KEY: Off %" PRIu64 " Size: %" PRIu64 " Type: %" PRIu64 "\n",
-              filename, offset, size, type);
             scan_end_check(type == WT_BACKUP_FILE || type == WT_BACKUP_RANGE);
+            printf("Incremental %s: KEY: Off %" PRIu64 " Size: %" PRIu64 " %s\n", filename, offset,
+              size, type == WT_BACKUP_FILE ? "WT_BACKUP_FILE" : "WT_BACKUP_RANGE");
             if (type == WT_BACKUP_RANGE) {
                 /*
                  * We should never get a range key after a whole file so the read file descriptor
                  * should be valid. If the read descriptor is valid, so it the write one.
                  */
-                scan_end_check(rfd != -1);
-                printf("Incremental %s: Range Offset: %" PRIu64 " Size: %" PRIu64 "\n", filename,
-                  offset, size);
+                if (tmp_sz < size) {
+                    error_sys_check(tmp = realloc(tmp, size));
+                    tmp_sz = size;
+                }
+                if (first) {
+                    (void)snprintf(buf, sizeof(buf), "%s/%s", home, filename);
+                    printf("Open source %s for reading\n", buf);
+                    error_sys_check(rfd = open(buf, O_RDONLY, 0));
+                    (void)snprintf(h, sizeof(h), "%s.%d", home_incr, i);
+                    (void)snprintf(buf, sizeof(buf), "%s/%s", h, filename);
+                    printf("Open dest %s for writing\n", buf);
+                    error_sys_check(wfd = open(buf, O_WRONLY, 0));
+                    first = false;
+                }
+
                 error_sys_check(lseek(rfd, (wt_off_t)offset, SEEK_SET));
-                error_sys_check(read(rfd, buf, (size_t)size));
+                error_sys_check(read(rfd, tmp, (size_t)size));
                 error_sys_check(lseek(wfd, (wt_off_t)offset, SEEK_SET));
-                error_sys_check(write(wfd, buf, (size_t)size));
+                error_sys_check(write(wfd, tmp, (size_t)size));
             } else {
-/* Whole file, so close both files and just copy the whole thing. */
-#if 0
-                error_check(close(rfd));
-                error_check(close(wfd));
-#endif
+                /* Whole file, so close both files and just copy the whole thing. */
+                testutil_assert(first == true);
                 rfd = wfd = -1;
                 (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename);
                 printf("Incremental: Whole file copy: %s\n", buf);
@@ -366,6 +371,7 @@ take_incr_backup(WT_SESSION *session, int i)
             }
         }
         scan_end_check(ret == WT_NOTFOUND);
+        /* Done processing this file. Close incremental cursor. */
         error_check(incr_cur->close(incr_cur));
 
         /* Close file descriptors if they're open. */
@@ -386,8 +392,10 @@ take_incr_backup(WT_SESSION *session, int i)
     }
     scan_end_check(ret == WT_NOTFOUND);
 
+    /* Done processing all files. Close backup cursor. */
     error_check(backup_cur->close(backup_cur));
     error_check(finalize_files(flist, count));
+    free(tmp);
     /*! [incremental backup using block transfer]*/
 }
 
@@ -469,6 +477,7 @@ main(int argc, char *argv[])
 
     printf("Final comparison: dumping and comparing data\n");
     error_check(compare_backups(0));
+    free(last_flist);
 
     /*
      * Reopen the connection to verify that the forced stop should remove incremental information.

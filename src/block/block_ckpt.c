@@ -13,20 +13,6 @@ static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __ckpt_update(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT_BLOCK_CKPT *);
 
 /*
- * __wt_block_get_blkmods --
- *     Return a pointer to the live list of block modifications array.
- */
-int
-__wt_block_get_blkmods(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_MODS *blkmodsp)
-{
-    WT_UNUSED(session);
-    if (blkmodsp == NULL)
-        return (0);
-    blkmodsp = &block->live.ckpt_mods[0];
-    return (0);
-}
-
-/*
  * __wt_block_ckpt_init --
  *     Initialize a checkpoint structure.
  */
@@ -92,6 +78,8 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
 #endif
         ci = &block->live;
         WT_ERR(__wt_block_ckpt_init(session, ci, "live"));
+        __wt_verbose(session, WT_VERB_BACKUP, "BT_CKPT_LOAD: %p %s", (void *)&S2BT(session)->config,
+          S2BT(session)->config);
         WT_ERR(__ckpt_load_blk_mods(session, S2BT(session)->config, ci));
     }
 
@@ -776,8 +764,6 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 
         start = blk_mod->alloc_list_entries;
         end = start + entries;
-        __wt_verbose(
-          session, WT_VERB_BACKUP, "ADD_BLK: start %" PRIu64 " end %" PRIu64, start, end);
         if (blk_mod->alloc_size == 0) {
             WT_RET(__wt_calloc_def(session, end * WT_BACKUP_INCR_COMPONENTS, &list));
             blk_mod->alloc_list = list;
@@ -788,8 +774,6 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
             list = &blk_mod->alloc_list[start * WT_BACKUP_INCR_COMPONENTS];
         }
         blk_mod->alloc_list_entries = end;
-        __wt_verbose(
-          session, WT_VERB_BACKUP, "ADD_BLK: size %" PRIu64, (uint64_t)blk_mod->alloc_size);
         WT_EXT_FOREACH (ext, ci->alloc.off) {
             *list++ = (uint64_t)ext->off;
             *list++ = (uint64_t)ext->size;
@@ -846,6 +830,8 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT
          */
         for (i = 0; i < WT_BLKINCR_MAX; ++i) {
             blkincr = &conn->incr_backups[i];
+            __wt_verbose(session, WT_VERB_BACKUP, "LOAD: incr_backup %d id %s, config id %.*s",
+              (int)i, blkincr->id_str, (int)k.len, k.str);
             if (blkincr->id_str != NULL && WT_STRING_MATCH(blkincr->id_str, k.str, k.len))
                 break;
         }
@@ -862,6 +848,7 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT
         ret = __wt_config_subgets(session, &v, "blocks", &b);
         WT_RET_NOTFOUND_OK(ret);
         if (ret != WT_NOTFOUND) {
+            __wt_verbose(session, WT_VERB_BACKUP, "LOAD: found blocks %.*s", (int)b.len, b.str);
             p = b.str;
             if (*p != '(')
                 goto format;
@@ -897,7 +884,8 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT
                         ++p;
                 }
             }
-        }
+        } else
+            __wt_verbose(session, WT_VERB_BACKUP, "LOAD: no blocks %.*s", (int)k.len, k.str);
     }
     return (0);
 format:
