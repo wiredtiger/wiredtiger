@@ -605,15 +605,10 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     /*
      * If a page has grown too large, we'll try and forcibly evict it before making it available to
      * the caller. There are a variety of cases where that's not possible. Don't involve a thread
-     * resolving a transaction in forced eviction, they're making the problem better.
+     * resolving a transaction in forced eviction, they're usually making the problem better.
      */
-    evict_skip = false;
-    if (LF_ISSET(WT_READ_NO_SPLIT) || btree->evict_disabled > 0 || btree->lsm_primary)
-        evict_skip = true;
-    if (session->name != NULL && (strcmp(session->name, "WT_SESSION.commit_transaction") == 0 ||
-                                   strcmp(session->name, "WT_SESSION.prepare_transaction") == 0 ||
-                                   strcmp(session->name, "WT_SESSION.rollback_transaction") == 0))
-        evict_skip = true;
+    evict_skip = F_ISSET(session, WT_SESSION_RESOLVE) || LF_ISSET(WT_READ_NO_SPLIT) ||
+      btree->evict_disabled > 0 || btree->lsm_primary;
 
     for (stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;;) {
         switch (current_state = ref->state) {
