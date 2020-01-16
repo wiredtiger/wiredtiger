@@ -32,9 +32,9 @@
 
 /*
  * JIRA ticket reference: WT-4803 Test case description: This test is checking the functionality of
- * the lookaside file_max configuration. When the size of the lookaside file exceeds this value, we
- * expect to panic. Failure mode: If we receive a panic in the test cases we weren't expecting to
- * and vice versa.
+ * the history store file_max configuration. When the size of the history store file exceeds this
+ * value, we expect to panic. Failure mode: If we receive a panic in the test cases we weren't
+ * expecting to and vice versa.
  */
 
 #define NUM_KEYS 2000
@@ -104,7 +104,7 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
      * Open a snapshot isolation transaction in another session. This forces the cache to retain all
      * previous values. Then update all keys with a new value in the original session while keeping
      * that snapshot transaction open. With the large value buffer, small cache and lots of keys,
-     * this will force a lot of lookaside usage.
+     * this will force a lot of history store usage.
      *
      * When the file_max setting is small, the maximum size should easily be reached and we should
      * panic. When the maximum size is large or not set, then we should succeed.
@@ -188,21 +188,22 @@ main(int argc, char **argv)
     testutil_check(testutil_parse_opts(argc, argv, &opts));
 
     /*
-     * The lookaside is unbounded. We don't expect any failure since we can use as much as needed.
+     * The history store is unbounded. We don't expect any failure since we can use as much as
+     * needed.
      */
     expect_panic = false;
     testutil_check(test_las_workload(&opts, "0"));
 
     /*
-     * The lookaside is limited to 5GB. This is more than enough for this workload so we don't
+     * The history store is limited to 5GB. This is more than enough for this workload so we don't
      * expect any failure.
      */
     expect_panic = false;
     testutil_check(test_las_workload(&opts, "5GB"));
 
     /*
-     * The lookaside is limited to 100MB. This is insufficient for this workload so we're expecting
-     * a failure.
+     * The history store is limited to 100MB. This is insufficient for this workload so we're
+     * expecting a failure.
      */
     expect_panic = true;
     testutil_check(test_las_workload(&opts, "100MB"));

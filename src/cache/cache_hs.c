@@ -220,8 +220,8 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
     btree = ((WT_CURSOR_BTREE *)cursor)->btree;
 
     /* Track the history store file ID. */
-    if (S2C(session)->cache->history_fileid == 0)
-        S2C(session)->cache->history_fileid = btree->id;
+    if (S2C(session)->cache->hs_fileid == 0)
+        S2C(session)->cache->hs_fileid = btree->id;
 
     /*
      * Set special flags for the history store table: the history store flag (used, for example, to

@@ -545,7 +545,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
          txn_global->stable_is_pinned) ||
           FLD_ISSET(page->modify->restore_state, WT_PAGE_RS_HS) ||
           page->modify->last_stable_timestamp == txn_global->stable_timestamp))
-        r->las_skew_newest = false;
+        r->hs_skew_newest = false;
 
     /* When operating on the history store table, we should never try history store eviction. */
     WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_HS) || !LF_ISSET(WT_REC_HS));

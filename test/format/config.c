@@ -450,7 +450,7 @@ config_encryption(void)
 static bool
 config_fix(void)
 {
-    /* Fixed-length column stores don't support the lookaside table, so no modify operations. */
+    /* Fixed-length column stores don't support the history store table, so no modify operations. */
     if (config_is_perm("modify_pct"))
         return (false);
     return (true);

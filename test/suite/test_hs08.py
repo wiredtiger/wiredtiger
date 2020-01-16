@@ -35,7 +35,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_hs08.py
-# Verify modify insert into lookaside logic.
+# Verify modify insert into history store logic.
 class test_hs08(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=100MB,statistics=(all)'
     session_config = 'isolation=snapshot'
