@@ -82,6 +82,8 @@ signal_timer(int signo)
 void
 set_alarm(u_int seconds)
 {
+    (void)seconds;
+
 #ifdef HAVE_TIMER_CREATE
     struct itimerspec timer_val;
     timer_t timer_id;
