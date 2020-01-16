@@ -313,7 +313,7 @@ __wt_update_obsolete_check(
      * (as expected). Inserting updates into the history store table relies on this behavior to
      * avoid creating update chains with multiple birthmarks. We cannot discard the birthmark if
      * it's the first globally visible update as the previous updates can be aborted and be freed
-     * causing the 448entire update chain being removed.
+     * causing the entire update chain being removed.
      */
     for (first = prev = NULL, upd_visible_all_seen = false, count = 0; upd != NULL;
          prev = upd, upd = upd->next, count++) {
