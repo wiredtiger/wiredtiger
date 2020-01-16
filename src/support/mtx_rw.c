@@ -228,7 +228,7 @@ stall:
         if (new.u.s.readers_queued++ == 0)
             new.u.s.reader = new.u.s.next;
         ticket = new.u.s.reader;
-        WT_ASSERT(session,new.u.s.readers_queued != 0);
+        WT_ASSERT(session, new.u.s.readers_queued != 0);
         if (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v))
             break;
     }
