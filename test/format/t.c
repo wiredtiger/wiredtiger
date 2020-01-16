@@ -47,7 +47,7 @@ signal_handler(int signo)
 {
     fprintf(stderr, "format caught signal %d, exiting without error\n", signo);
     fflush(stderr);
-    exit(0);
+    exit(EXIT_SUCCESS);
 }
 
 /*
@@ -59,20 +59,23 @@ static void
 signal_timer(int signo)
 {
     /*
-     * If configured with direct I/O, we can see really long run times depending on how the test
-     * machine is configured. If a direct I/O run, ignore the timer and exit successfully.
+     * Direct I/O configurations can result in really long run times depending on how the test
+     * machine is configured. If a direct I/O run timed out, don't bother dropping core.
      */
     if (g.c_direct_io) {
-        fprintf(stderr, "format caught signal %d, exiting without error\n", signo);
+        fprintf(stderr, "format direct I/O configuration timed out\n");
+        fprintf(stderr, "format caught signal %d, exiting with error\n", signo);
         fflush(stderr);
-        exit(0);
+        exit(EXIT_FAILURE);
     }
 
     /* Note, format.sh checks for this message, so be cautious in changing the format. */
     fprintf(stderr, "format alarm timed out\n");
-    fprintf(stderr, "format caught signal %d, aborting the process\n", signo);
+    fprintf(stderr, "format caught signal %d, exiting with error\n", signo);
+    fprintf(stderr, "format attempting to create a core dump\n");
     fflush(stderr);
     __wt_abort(NULL);
+    /* NOTREACHED */
 }
 
 /*
