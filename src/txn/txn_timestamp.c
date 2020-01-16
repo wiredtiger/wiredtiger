@@ -1114,15 +1114,16 @@ __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
 
     if (!F_ISSET(txn, WT_TXN_TS_PUBLISHED))
         return;
-    flags = txn->flags;
-    LF_CLR(WT_TXN_TS_PUBLISHED);
 
     /*
      * Notify other threads that our transaction is inactive and can be cleaned up safely from the
      * durable timestamp queue whenever the next thread walks the queue. We do not need to remove it
      * now.
      */
-    WT_PUBLISH(txn->clear_durable_q, true);
+    txn->clear_durable_q = true;
+
+    flags = txn->flags;
+    LF_CLR(WT_TXN_TS_PUBLISHED);
     WT_PUBLISH(txn->flags, flags);
 }
 
