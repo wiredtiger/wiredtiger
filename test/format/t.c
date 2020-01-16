@@ -82,8 +82,6 @@ signal_timer(int signo)
 void
 set_alarm(u_int seconds)
 {
-    (void)seconds;
-
 #ifdef HAVE_TIMER_CREATE
     struct itimerspec timer_val;
     timer_t timer_id;
@@ -94,6 +92,7 @@ set_alarm(u_int seconds)
     timer_val.it_value.tv_nsec = 0;
     testutil_check(timer_settime(timer_id, 0, &timer_val, NULL));
 #endif
+    (void)seconds;
 }
 
 /* TIMED_OP --
