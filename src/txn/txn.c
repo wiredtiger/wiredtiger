@@ -871,8 +871,33 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
     return (0);
 }
 
-/* File object comparison macro for the insertion sort of transaction operations. */
-#define WT_TXN_OP_CMP_LT(entry1, entry2) ((entry1).btree->id < ((entry2).btree->id))
+/*
+ * __txn_mod_compare --
+ *     Qsort comparison routine for transaction modify list.
+ */
+static int
+__txn_mod_compare(const void *a, const void *b)
+{
+    WT_TXN_OP *aopt, *bopt;
+
+    aopt = (WT_TXN_OP *)a;
+    bopt = (WT_TXN_OP *)b;
+
+    /* If the files are different, order by ID. */
+    if (aopt->btree->id != bopt->btree->id)
+        return (aopt->btree->id < bopt->btree->id);
+
+    /*
+     * If the files are the same, order by the key. Row-store collators require WT_SESSION pointers,
+     * and we don't have one. Compare the keys if there's no collator, otherwise return equality.
+     * Column-store is always easy.
+     */
+    if (aopt->type == WT_TXN_OP_BASIC_ROW || aopt->type == WT_TXN_OP_INMEM_ROW)
+        return (aopt->btree->collator == NULL ?
+            __wt_lex_compare(&aopt->u.op_row.key, &bopt->u.op_row.key) :
+            0);
+    return (aopt->u.op_col.recno < bopt->u.op_col.recno);
+}
 
 /*
  * __wt_txn_commit --
@@ -1011,11 +1036,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
-     * file are done at the same time. The assumption is there won't be enough modifications in a
-     * single transaction to justify the memory allocation and additional work of a qsort call.
+     * page within the file are done at the same time.
      */
     if (prepare)
-        WT_INSERTION_SORT(txn->mod, txn->mod_count, WT_TXN_OP, WT_TXN_OP_CMP_LT);
+        __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* Process and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -1291,11 +1315,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
-     * file are done at the same time. The assumption is there won't be enough modifications in a
-     * single transaction to justify the memory allocation and additional work of a qsort call.
+     * page within the file are done at the same time.
      */
     if (prepare)
-        WT_INSERTION_SORT(txn->mod, txn->mod_count, WT_TXN_OP, WT_TXN_OP_CMP_LT);
+        __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
 
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
