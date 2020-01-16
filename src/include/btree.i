@@ -1129,7 +1129,7 @@ __wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, 
 
 /*
  * __wt_ref_info --
- *     Return the addr/size and type triplet for a reference.
+ *     Return the address, size and type triplet for a reference.
  */
 static inline void
 __wt_ref_info(

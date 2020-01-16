@@ -16,6 +16,7 @@ char *
 __wt_time_pair_to_string(wt_timestamp_t timestamp, uint64_t txn_id, char *tp_string)
 {
     char ts_string[WT_TS_INT_STRING_SIZE];
+
     WT_IGNORE_RET(__wt_snprintf(tp_string, WT_TP_STRING_SIZE, "%s/%" PRIu64,
       __wt_timestamp_to_string(timestamp, ts_string), txn_id));
     return (tp_string);
