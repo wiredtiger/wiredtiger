@@ -49,6 +49,7 @@ static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUF
 static int __verify_ts_stable_cmp(
   WT_SESSION_IMPL *, WT_ITEM *, WT_REF *, uint32_t, wt_timestamp_t, wt_timestamp_t, WT_VSTUFF *);
 
+static int __verify_history_tree(WT_SESSION_IMPL *, WT_CELL_UNPACK *, WT_VSTUFF *);
 /*
  * __verify_config --
  *     Debugging: verification supports dumping pages in various formats.
@@ -380,6 +381,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_scr_alloc(session, 0, &vs->tmp3));
     WT_ERR(__wt_scr_alloc(session, 0, &vs->tmp4));
 
+    
+
     /* Check configuration strings. */
     WT_ERR(__verify_config(session, cfg, vs));
 
@@ -425,6 +428,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
         /* Skip trees with no root page. */
         if (root_addr_size != 0) {
+            WT_ERR(__verify_history_tree(session, NULL, vs));
             WT_ERR(__wt_btree_tree_open(session, root_addr, root_addr_size));
 
             if (WT_VRFY_DUMP(vs))
@@ -580,6 +584,37 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
           __verify_addr_string(session, ref, vs->tmp1), unpack->oldest_start_txn,
           unpack->newest_stop_txn);
     return (0);
+}
+
+static int
+__verify_history_tree(WT_SESSION_IMPL *session, WT_CELL_UNPACK *addr_unpack, WT_VSTUFF *vs)
+{
+    WT_CURSOR *cursor;
+    uint32_t session_flags, las_btree_id;
+    WT_ITEM las_key;
+    WT_DECL_RET;
+    WT_TIME_PAIR las_start, las_stop;
+
+    (void) addr_unpack;
+    (void) vs;
+    // Set our Cursor to the start
+    __wt_las_cursor(session, &cursor, &session_flags);
+
+    //cursor = session->las_cursor;
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &las_btree_id, &las_key, 
+        &las_start.timestamp, &las_start.txnid, &las_stop.timestamp, &las_stop.txnid));
+        WT_RET(__wt_msg(session, "BtreeID == %u\n, Timestamp == %lu\n, Transaction ID == %lu", 
+            las_btree_id, las_start.timestamp, las_start.txnid));
+        // do stuff
+        // int dataStoreValue = // help
+
+        // iterate to next record
+        // __F(next)(cursor)
+    }
+err:
+    printf("andrew told me to put this here\n");
+    return (ret);
 }
 
 /*
