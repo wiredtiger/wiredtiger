@@ -88,6 +88,7 @@ CreateFileMappingW
 CreateFileW
 Crummey
 CustomersPhone
+DAX
 DECL
 DECR
 DESC
@@ -251,6 +252,7 @@ MULTI
 MULTIBLOCK
 MUTEX
 Manos
+mappable
 MapViewOfFile
 Marsaglia's
 Mellor
@@ -1323,6 +1325,7 @@ unistd
 unlink
 unlinked
 unmap
+unmapped
 unmarshall
 unmarshalled
 unmerged

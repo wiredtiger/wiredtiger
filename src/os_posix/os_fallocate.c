@@ -38,7 +38,11 @@ __posix_std_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
         if (ret == 0)
             if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset) {
                 /* Remap the region with the new size */
-                __wt_remap_region(file_handle, wt_session);
+                ret = __wt_remap_region(file_handle, wt_session);
+                if (ret) {
+                    S2C(session)->mmap = false;
+                    __wt_err(session, ret, "Could not remap file. Mmap option disabled.");
+                }
                 WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
             }
     return (ret);
@@ -80,7 +84,11 @@ __posix_sys_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
         if (ret == 0)
             if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset) {
                 /* Remap the region with the new size */
-                __wt_remap_region(file_handle, wt_session);
+                ret = __wt_remap_region(file_handle, wt_session);
+                if (ret) {
+                    S2C(session)->mmap = false;
+                    __wt_err(session, ret, "Could not remap file. Mmap option disabled.");
+                }
                 WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
             }
     return (ret);
@@ -117,7 +125,11 @@ __posix_posix_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_
         if (ret == 0)
             if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset) {
                 /* Remap the region with the new size */
-                __wt_remap_region(file_handle, wt_session);
+                ret = __wt_remap_region(file_handle, wt_session);
+                if (ret) {
+                    S2C(session)->mmap = false;
+                    __wt_err(session, ret, "Could not remap file. Mmap option disabled.");
+                }
                 WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
             }
 
