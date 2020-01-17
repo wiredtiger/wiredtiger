@@ -1749,6 +1749,7 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     WT_REF *ref, **refp;
     WT_TRACK *trk;
     uint32_t i;
+    u_int decr_cnt;
 
     addr = NULL;
 
@@ -1757,7 +1758,7 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     WT_ERR(__slvg_modify_init(session, page));
 
     pindex = WT_INTL_INDEX_GET_SAFE(page);
-    for (refp = pindex->index, i = 0; i < ss->pages_next; ++i) {
+    for (refp = pindex->index, decr_cnt = 0, i = 0; i < ss->pages_next; ++i) {
         if ((trk = ss->pages[i]) == NULL)
             continue;
 
@@ -1802,13 +1803,30 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
             WT_ERR(__slvg_ovfl_ref_all(session, trk));
         }
         ++ref;
+
+        /*
+         * !!!
+         * There's a risk the page we're building is too large for the cache. The right fix would be
+         * to write the keys out to an on-disk file and delay allocating the page image until we're
+         * ready to reconcile the new root page, and then read keys in from that backing file during
+         * the reconciliation of the root page. For now, make sure the eviction threads don't see us
+         * as a threat.
+         */
+        if (page->memory_footprint > 10 * WT_MEGABYTE) {
+            ++decr_cnt;
+            __wt_cache_page_inmem_decr(session, page, 10 * WT_MEGABYTE);
+        }
     }
 
+    if (decr_cnt != 0)
+        __wt_cache_page_inmem_incr(session, page, decr_cnt * 10 * WT_MEGABYTE);
     __wt_root_ref_init(session, &ss->root_ref, page, false);
 
     if (0) {
 err:
         __wt_free(session, addr);
+        if (decr_cnt != 0)
+            __wt_cache_page_inmem_incr(session, page, decr_cnt * 10 * WT_MEGABYTE);
         __wt_page_out(session, &page);
     }
     return (ret);
