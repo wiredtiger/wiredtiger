@@ -43,8 +43,8 @@ class test_las09(wttest.WiredTigerTestCase):
     uri = "table:test_las09"
     key_format_values = [
         ('column', dict(key_format='r')),
-        #('integer', dict(key_format='i')),
-        #('string', dict(key_format='S')),
+        ('integer', dict(key_format='i')),
+        ('string', dict(key_format='S')),
     ]
     scenarios = make_scenarios(key_format_values)
 
