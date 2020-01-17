@@ -1752,13 +1752,14 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     u_int decr_cnt;
 
     addr = NULL;
+    decr_cnt = 0;
 
     /* Allocate a row-store root (internal) page and fill it in. */
     WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, leaf_cnt, true, &page));
     WT_ERR(__slvg_modify_init(session, page));
 
     pindex = WT_INTL_INDEX_GET_SAFE(page);
-    for (refp = pindex->index, decr_cnt = 0, i = 0; i < ss->pages_next; ++i) {
+    for (refp = pindex->index, i = 0; i < ss->pages_next; ++i) {
         if ((trk = ss->pages[i]) == NULL)
             continue;
 
