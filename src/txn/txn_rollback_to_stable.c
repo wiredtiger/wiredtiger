@@ -546,8 +546,7 @@ __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      */
     conn->stable_rollback_maxfile = conn->next_file_id + 1;
     WT_ERR(__bit_alloc(session, conn->stable_rollback_maxfile, &conn->stable_rollback_bitstring));
-    WT_ERR(
-      __wt_rollback_to_stable_apply_all(session, __txn_rollback_to_stable_btree, NULL, cfg));
+    WT_ERR(__wt_rollback_to_stable_apply_all(session, __txn_rollback_to_stable_btree, NULL, cfg));
 
     /*
      * Clear any offending content from the lookaside file. This must be done after the in-memory
