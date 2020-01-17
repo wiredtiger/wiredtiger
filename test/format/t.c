@@ -98,14 +98,15 @@ set_alarm(u_int seconds)
     (void)seconds;
 }
 
-/* TIMED_OP --
- *	Set a 5 minute timer and perform an operation.
+/*
+ * TIMED_OP --
+ *	Set a 15 minute timer and perform an operation.
  */
-#define TIMED_OP(call)     \
-    do {                   \
-        set_alarm(5 * 60); \
-        call;              \
-        set_alarm(0);      \
+#define TIMED_OP(call)      \
+    do {                    \
+        set_alarm(15 * 60); \
+        call;               \
+        set_alarm(0);       \
     } while (0)
 
 int
