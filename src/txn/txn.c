@@ -869,7 +869,7 @@ err:
  * __txn_mod_compare --
  *     Qsort comparison routine for transaction modify list.
  */
-static int
+static int WT_CDECL
 __txn_mod_compare(const void *a, const void *b)
 {
     WT_TXN_OP *aopt, *bopt;
