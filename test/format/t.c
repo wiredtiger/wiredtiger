@@ -99,14 +99,16 @@ set_alarm(u_int seconds)
 }
 
 /*
- * TIMED_OP --
- *	Set a 15 minute timer and perform an operation.
+ * TIMED_MAJOR_OP --
+ *	Set a timer and perform a major operation (for example, verify or salvage).
  */
-#define TIMED_OP(call)      \
-    do {                    \
-        set_alarm(15 * 60); \
-        call;               \
-        set_alarm(0);       \
+#define TIMED_MAJOR_OP(call)                   \
+    do {                                       \
+        if (g.c_major_timeout != 0)            \
+            set_alarm(g.c_major_timeout * 60); \
+        call;                                  \
+        if (g.c_major_timeout != 0)            \
+            set_alarm(0);                      \
     } while (0)
 
 int
@@ -269,22 +271,22 @@ main(int argc, char *argv[])
         wts_init();
 
         /* Load and verify initial records */
-        TIMED_OP(wts_load());
-        TIMED_OP(wts_verify("post-bulk verify"));
-        TIMED_OP(wts_read_scan());
+        TIMED_MAJOR_OP(wts_load());
+        TIMED_MAJOR_OP(wts_verify("post-bulk verify"));
+        TIMED_MAJOR_OP(wts_read_scan());
 
         /* Operations. */
         for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
             wts_ops(ops_seconds, reps == FORMAT_OPERATION_REPS);
 
         /* Copy out the run's statistics. */
-        TIMED_OP(wts_stats());
+        TIMED_MAJOR_OP(wts_stats());
 
         /*
          * Verify the objects. Verify closes the underlying handle and discards the statistics, read
          * them first.
          */
-        TIMED_OP(wts_verify("post-ops verify"));
+        TIMED_MAJOR_OP(wts_verify("post-ops verify"));
 
         track("shutting down", 0ULL, NULL);
         wts_close();
@@ -292,12 +294,12 @@ main(int argc, char *argv[])
         /*
          * Rebalance testing.
          */
-        TIMED_OP(wts_rebalance());
+        TIMED_MAJOR_OP(wts_rebalance());
 
         /*
          * Salvage testing.
          */
-        TIMED_OP(wts_salvage());
+        TIMED_MAJOR_OP(wts_salvage());
 
         /* Overwrite the progress line with a completion line. */
         if (!g.c_quiet)
