@@ -37,6 +37,7 @@ static int __verify_page_cell(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_
 static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
+static int __verify_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 
 /*
@@ -103,11 +104,11 @@ __verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp
 }
 
 /*
- * __verify_layout --
+ * __dump_layout --
  *     Dump the tree shape.
  */
 static int
-__verify_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
+__dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
 {
     size_t i;
     uint64_t total;
@@ -129,6 +130,94 @@ __verify_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
             WT_RET(__wt_msg(session, "\t%03" WT_SIZET_FMT ": %" PRIu64, i, vs->depth_leaf[i]));
             vs->depth_leaf[i] = 0;
         }
+    return (0);
+}
+
+/*
+ * __verify_page_hs --
+ *     Verify a page against the history store.
+ */
+static int
+__verify_page_hs(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
+{
+    WT_DECL_ITEM(key);
+    WT_DECL_RET;
+    WT_PAGE *page;
+    WT_ROW *rip;
+    // WT_UPDATE *upd;
+    uint32_t i;
+
+    WT_UNUSED(vs);
+    page = ref->page;
+    WT_RET(__wt_scr_alloc(session, 256, &key));
+
+    /* Dump the page's K/V pairs. */
+    WT_ROW_FOREACH (page, rip, i) {
+        WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
+        WT_ERR(__wt_verify_key_hs(session, key));
+    }
+
+err:
+    __wt_scr_free(session, &key);
+    return (ret);
+}
+
+/*
+ * __wt_verify_key_hs --
+ *     Verify a key against the history store.
+ */
+int
+__wt_verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key)
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    WT_BTREE *btree;
+    WT_CURSOR *hs_cursor;
+    WT_DECL_ITEM(hs_key);
+    WT_DECL_RET;
+    WT_TIME_PAIR start, stop;
+    uint32_t hs_btree_id, session_flags;
+    int cmp, exact;
+    bool first;
+
+    btree = S2BT(session);
+    hs_btree_id = btree->id;
+    first = true;
+    stop.timestamp = 0;
+    stop.txnid = 0;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+
+    /*
+     * Open a history store cursor positioned at the end of the data store key (the newest record)
+     * and iterate backwards until we reach a different key or btree.
+     */
+    __wt_hs_cursor(session, &hs_cursor, &session_flags);
+    hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
+    WT_ERR(hs_cursor->search_near(hs_cursor, &exact));
+
+    /* If we jumped to the next key, go back to the previous key */
+    if (exact > 0)
+        WT_ERR(hs_cursor->prev(hs_cursor));
+
+    for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &start.timestamp, &start.txnid,
+          &stop.timestamp, &stop.txnid));
+
+        if (hs_btree_id != btree->id)
+            break;
+
+        WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+        if (cmp != 0)
+            break;
+
+        WT_ERR(__wt_debug_cursor_hs(session, hs_cursor, first, true, true));
+        first = false;
+    }
+
+err:
+    __wt_scr_free(session, &hs_key);
+    WT_RET(__wt_hs_cursor_close(session, &hs_cursor, session_flags));
+
     return (0);
 }
 
@@ -259,7 +348,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
         /* Display the tree shape. */
         if (vs->dump_layout)
-            WT_ERR(__verify_layout(session, vs));
+            WT_ERR(__dump_layout(session, vs));
     }
 
 done:
@@ -452,6 +541,7 @@ recno_chk:
     switch (page->type) {
     case WT_PAGE_ROW_LEAF:
         WT_RET(__verify_row_leaf_key_order(session, ref, vs));
+        WT_RET(__verify_page_hs(session, ref, vs));
         break;
     }
 

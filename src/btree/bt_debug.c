@@ -696,11 +696,11 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
 }
 
 /*
- * __wt_debug_cursor_hs --
+ * __wt_debug_cursor_tree_hs --
  *     Dump the history store tree given a user cursor.
  */
 int
-__wt_debug_cursor_hs(void *cursor_arg, const char *ofile)
+__wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_CONNECTION_IMPL *conn;
@@ -715,6 +715,57 @@ __wt_debug_cursor_hs(void *cursor_arg, const char *ofile)
         return (0);
     cbt = (WT_CURSOR_BTREE *)hs_session->hs_cursor;
     return (__wt_debug_tree_all(hs_session, cbt->btree, NULL, ofile));
+}
+
+/*
+ * __wt_debug_cursor_hs --
+ *     Dump information about a single history store cursor.
+ */
+int
+__wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, bool dump_key,
+  bool dump_time_pairs, bool dump_value)
+{
+    WT_DBG *ds, _ds;
+    WT_DECL_ITEM(hs_key);
+    WT_DECL_RET;
+    WT_ITEM hs_value;
+    WT_TIME_PAIR start, stop;
+    wt_timestamp_t hs_durable_ts;
+    uint32_t hs_btree_id;
+    uint8_t hs_prep_state, hs_upd_type;
+    char tp_string[2][WT_TP_STRING_SIZE];
+
+    if (hs_cursor == NULL)
+        return (0);
+
+    ds = &_ds;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+    WT_ERR(__debug_config(session, ds, NULL));
+
+    if (dump_key || dump_time_pairs)
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &start.timestamp, &start.txnid,
+          &stop.timestamp, &stop.txnid));
+
+    if (dump_key)
+        WT_ERR(__debug_item_key(ds, "K", hs_key->data, hs_key->size));
+
+    if (dump_time_pairs)
+        WT_ERR(ds->f(ds, "\t%c %s,%s\n", 'T',
+          __wt_time_pair_to_string(start.timestamp, start.txnid, tp_string[0]),
+          __wt_time_pair_to_string(stop.timestamp, stop.txnid, tp_string[1])));
+
+    if (dump_value) {
+        WT_ERR(
+          hs_cursor->get_value(hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type, &hs_value));
+        WT_ERR(__debug_item_value(ds, "V", hs_value.data, hs_value.size));
+    }
+
+err:
+    __wt_scr_free(session, &hs_key);
+    WT_TRET(__debug_wrapup(ds));
+
+    return (ret);
 }
 
 /*

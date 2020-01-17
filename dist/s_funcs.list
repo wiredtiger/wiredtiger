@@ -18,6 +18,7 @@ __wt_debug_addr
 __wt_debug_addr_print
 __wt_debug_cursor_hs
 __wt_debug_cursor_page
+__wt_debug_cursor_tree_hs
 __wt_debug_offset
 __wt_debug_set_verbose
 __wt_debug_tree
