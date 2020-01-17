@@ -81,9 +81,10 @@ class test_calc_modify(wttest.WiredTigerTestCase):
         self.pr("modtypes: %s" % modtypes)
 
         orig = oldv
+        #print("ORIG" == str(orig))
         newv = '' if self.valuefmt == 'S' else b''
-        for i in range(nmod):
-            if i > 0 or offsets[i] - offsets[i - 1] < maxdiff:
+        for i in range(1, nmod):
+            if i > 0 and offsets[i] - offsets[i - 1] < maxdiff:
                 continue
             newv += orig[:(offsets[i]-offsets[i-1])]
             orig = orig[(offsets[i]-offsets[i-1]):]
@@ -95,6 +96,8 @@ class test_calc_modify(wttest.WiredTigerTestCase):
                 newv += self.mkstring(lengths[i], r.randint(1, lengths[i]))
                 orig = orig[lengths[i]:]
         newv += orig
+        #print("NEWV " + str(newv))
+        
 
         self.pr("oldv: %s" % oldv)
         self.pr("newv: %s" % newv)
