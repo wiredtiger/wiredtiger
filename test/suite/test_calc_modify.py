@@ -83,7 +83,7 @@ class test_calc_modify(wttest.WiredTigerTestCase):
         orig = oldv
         newv = '' if self.valuefmt == 'S' else b''
         for i in range(1, nmod):
-            if i > 0 and offsets[i] - offsets[i - 1] < maxdiff:
+            if offsets[i] - offsets[i - 1] < maxdiff:
                 continue
             newv += orig[:(offsets[i]-offsets[i-1])]
             orig = orig[(offsets[i]-offsets[i-1]):]
