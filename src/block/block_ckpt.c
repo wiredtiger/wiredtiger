@@ -78,8 +78,6 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
 #endif
         ci = &block->live;
         WT_ERR(__wt_block_ckpt_init(session, ci, "live"));
-        __wt_verbose(session, WT_VERB_BACKUP, "BT_CKPT_LOAD: %p %s", (void *)&S2BT(session)->config,
-          S2BT(session)->config);
         WT_ERR(__ckpt_load_blk_mods(session, S2BT(session)->config, ci));
     }
 

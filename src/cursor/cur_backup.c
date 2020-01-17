@@ -53,6 +53,7 @@ __wt_backup_destroy(WT_SESSION_IMPL *session)
          */
         __wt_free(session, blk->id_str);
     }
+    /* Flush the stream and rename the file into place. */
     ret = __wt_sync_and_rename(session, &fs, WT_BLKINCR_BACKUP_TMP, WT_BLKINCR_BACKUP);
 err:
     WT_TRET(__wt_fclose(session, &fs));
@@ -63,7 +64,7 @@ err:
 
 /*
  * __wt_backup_open --
- *     Shut down any incremental backup information.
+ *     Restore any incremental backup information.
  */
 int
 __wt_backup_open(WT_SESSION_IMPL *session)
@@ -84,18 +85,13 @@ __wt_backup_open(WT_SESSION_IMPL *session)
         return (0);
 
     /*
-     * Read any block information.
+     * Read any id information.
      */
     WT_ERR(__wt_fopen(session, WT_BLKINCR_BACKUP, 0, WT_STREAM_READ, &fs));
     WT_ERR(__wt_scr_alloc(session, 512, &buf));
     i = 0;
     /*
-     * Read in each id string, checkpoint name and its block data.
-     *
-     * XXX This means that this value cannot change between restarts. So an older durable backup
-     * file could contain more entries than a current library can accept. This value is not
-     * user-configurable so risk is low. We could just save whatever we find and then stop but we
-     * have no way to know which entries may be more recent.
+     * Read in each id string.
      */
     while (i < WT_BLKINCR_MAX) {
         /* First is the id string. */
@@ -106,16 +102,6 @@ __wt_backup_open(WT_SESSION_IMPL *session)
         blk = &S2C(session)->incr_backups[i];
         WT_ERR(__wt_strdup(session, buf->data, &blk->id_str));
 
-        /* Second is the checkpoint name. */
-        WT_ERR(__wt_getline(session, fs, buf));
-        /*
-         * If we have no more to read, that is a bug. This info is written in groups. We could
-         * consider just breaking out of the loop so that any earlier valid information we have
-         * could be used, rather than having a panic. But things should be written together.
-         */
-        if (buf->size == 0)
-            WT_PANIC_RET(
-              session, WT_PANIC, "%s: invalid incremental backup file", WT_BLKINCR_BACKUP);
         F_SET(blk, WT_BLKINCR_VALID);
         __wt_verbose(session, WT_VERB_BACKUP, "OPEN: Using backup slot %u %p for id %s", i,
           (void *)blk, blk->id_str);

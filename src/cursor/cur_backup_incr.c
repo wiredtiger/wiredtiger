@@ -43,8 +43,6 @@ __curbackup_incr_blkmods(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BA
 
         WT_RET_NOTFOUND_OK(ret);
         if (ret != WT_NOTFOUND) {
-            __wt_verbose(session, WT_VERB_BACKUP, "CURBACKUP BLKMODS: id %s found blocks %.*s",
-              cb->incr_start->id_str, (int)b.len, b.str);
             p = b.str;
             if (*p != '(')
                 goto format;

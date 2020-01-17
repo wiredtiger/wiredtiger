@@ -607,8 +607,10 @@ __ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *bl
         if (F_ISSET(blk, WT_BLOCK_MODS_VALID))
             valid = true;
     }
-    if (!valid)
+    if (!valid) {
+        WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_mods="));
         return (0);
+    }
 
     /*
      * We have at least one valid modified block list.

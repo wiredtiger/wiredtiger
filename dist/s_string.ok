@@ -511,6 +511,7 @@ bitpos
 bitstring
 bitwise
 blk
+blkmods
 bm
 bnd
 bool

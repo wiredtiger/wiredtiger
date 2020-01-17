@@ -343,7 +343,8 @@ take_incr_backup(WT_SESSION *session, int i)
                  * should be valid. If the read descriptor is valid, so it the write one.
                  */
                 if (tmp_sz < size) {
-                    error_sys_check(tmp = realloc(tmp, size));
+                    tmp = realloc(tmp, size);
+                    testutil_assert(tmp != NULL);
                     tmp_sz = size;
                 }
                 if (first) {
@@ -449,6 +450,7 @@ main(int argc, char *argv[])
         error_check(compare_backups(i));
     }
 
+    printf("Close and reopen the connection\n");
     /*
      * Close and reopen the connection to illustrate the durability of id information.
      */
