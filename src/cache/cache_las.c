@@ -121,8 +121,10 @@ __wt_las_stats_update(WT_SESSION_IMPL *session)
      * the rest of the statistics in the lookaside data source stat cursor, but we own that
      * namespace so we don't have to worry about users seeing inconsistent data source information.
      */
-    if (FLD_ISSET(conn->stat_flags, WT_STAT_CLEAR))
+    if (FLD_ISSET(conn->stat_flags, WT_STAT_CLEAR)) {
         WT_STAT_SET(session, dstats, cursor_update, 0);
+        WT_STAT_SET(session, dstats, cursor_remove, 0);
+    }
 }
 
 /*
