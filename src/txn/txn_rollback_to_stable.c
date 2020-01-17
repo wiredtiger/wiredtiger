@@ -304,7 +304,7 @@ __txn_rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rol
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while ((ret = __wt_tree_walk(
-              session, &ref, WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
+              session, &ref, WT_READ_CACHE_LEAF | WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL) {
         if (WT_PAGE_IS_INTERNAL(ref->page)) {
             WT_INTL_FOREACH_BEGIN (session, ref->page, child_ref) {
@@ -433,6 +433,84 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __rollback_to_stable_btree_apply --
+ *     Apply a function to all files listed in the metadata, apart from the metadata and history
+ *     store file.
+ */
+static inline int
+__rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
+  int (*file_func)(WT_SESSION_IMPL *, const char *[]),
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
+{
+    WT_DECL_RET;
+    int t_ret;
+    const char *uri;
+    bool skip;
+
+    /*
+     * Accumulate errors but continue through to the end of the metadata.
+     */
+    while ((t_ret = cursor->next(cursor)) == 0) {
+        if ((t_ret = cursor->get_key(cursor, &uri)) != 0 || strcmp(uri, WT_METAFILE_URI) == 0 ||
+          strcmp(uri, WT_LAS_URI) == 0) {
+            WT_TRET(t_ret);
+            continue;
+        }
+
+        skip = false;
+        if (name_func != NULL && (t_ret = name_func(session, uri, &skip)) != 0) {
+            WT_TRET(t_ret);
+            continue;
+        }
+
+        if (file_func == NULL || skip || !WT_PREFIX_MATCH(uri, "file:"))
+            continue;
+
+        /*
+         * We need to pull the handle into the session handle cache and make sure it's referenced to
+         * stop other internal code dropping the handle (e.g in LSM when cleaning up obsolete
+         * chunks). Holding the schema lock isn't enough.
+         *
+         * Handles that are busy are skipped without the whole operation failing. This deals among
+         * other cases with checkpoint encountering handles that are locked (e.g., for bulk loads or
+         * verify operations).
+         */
+        if ((t_ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0)) != 0) {
+            WT_TRET_BUSY_OK(t_ret);
+            continue;
+        }
+
+        WT_SAVE_DHANDLE(session, WT_TRET(file_func(session, cfg)));
+        WT_TRET(__wt_session_release_dhandle(session));
+    }
+    WT_TRET_NOTFOUND_OK(t_ret);
+
+    return (ret);
+}
+
+/*
+ * __wt_rollback_to_stable_apply_all --
+ *     Apply a function to all files listed in the metadata, apart from the metadata and history
+ *     store file.
+ */
+static int
+__wt_rollback_to_stable_apply_all(WT_SESSION_IMPL *session,
+  int (*file_func)(WT_SESSION_IMPL *, const char *[]),
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+
+    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    WT_SAVE_DHANDLE(
+      session, ret = __rollback_to_stable_btree_apply(session, cursor, file_func, name_func, cfg));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+
+    return (ret);
+}
+
+/*
  * __txn_rollback_to_stable --
  *     Rollback all in-memory state related to timestamps more recent than the passed in timestamp.
  */
@@ -468,7 +546,8 @@ __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      */
     conn->stable_rollback_maxfile = conn->next_file_id + 1;
     WT_ERR(__bit_alloc(session, conn->stable_rollback_maxfile, &conn->stable_rollback_bitstring));
-    WT_ERR(__wt_conn_btree_apply(session, NULL, __txn_rollback_to_stable_btree, NULL, cfg));
+    WT_ERR(
+      __wt_rollback_to_stable_apply_all(session, NULL, __txn_rollback_to_stable_btree, NULL, cfg));
 
     /*
      * Clear any offending content from the lookaside file. This must be done after the in-memory
