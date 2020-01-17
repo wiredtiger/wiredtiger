@@ -33,7 +33,7 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' % t
 
-# test_las08.py
+# test_las09.py
 # Verify that we write the newest committed version to data store and the
 # second newest committed version to history store.
 class test_las09(wttest.WiredTigerTestCase):
