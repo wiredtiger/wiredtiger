@@ -137,6 +137,7 @@ class test_las09(wttest.WiredTigerTestCase):
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
+    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
     def test_write_newest_version_to_data_store(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
