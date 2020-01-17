@@ -300,10 +300,9 @@ take_incr_backup(WT_SESSION *session, int i)
     FILELIST *flist;
     WT_CURSOR *backup_cur, *incr_cur;
     uint64_t offset, size, type;
-    size_t alloc, count;
+    size_t alloc, count, tmp_sz;
     int j, ret, rfd, wfd;
     char buf[1024], h[256], *tmp;
-    size_t tmp_sz;
     const char *filename;
     bool first;
 
