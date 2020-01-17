@@ -161,6 +161,7 @@ typedef struct {
     uint32_t c_logging_file_max;
     uint32_t c_logging_prealloc;
     uint32_t c_lsm_worker_threads;
+    uint32_t c_major_timeout;
     uint32_t c_memory_page_max;
     uint32_t c_merge_max;
     uint32_t c_mmap;
