@@ -531,10 +531,6 @@ static bool
 __rec_row_zero_len(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, uint64_t start_txn,
   wt_timestamp_t stop_ts, uint64_t stop_txn)
 {
-    /* Before timestamps were stored on pages, it was always possible. */
-    if (!__wt_process.page_version_ts)
-        return (true);
-
     /*
      * The item must be globally visible because we're not writing anything on the page.
      */
