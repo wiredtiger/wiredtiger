@@ -1179,15 +1179,12 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
         WT_REF_SET_STATE(ref, WT_REF_DISK);
 
         /*
-         * If the page's key range is unmodified from when we read it
-         * (in other words, we didn't merge part of this page with
-         * another page), we can use the page without change, and the
-         * only thing we need to do is mark all overflow records the
-         * page references as in-use.
+         * If the page's key range is unmodified from when we read it (in other words, we didn't
+         * merge part of this page with another page), we can use the page without change, and the
+         * only thing we need to do is mark all overflow records the page references as in-use.
          *
-         * If we did merge with another page, we have to build a page
-         * reflecting the updated key range.  Note, that requires an
-         * additional pass to free the merge page's backing blocks.
+         * If we did merge with another page, we have to build a page reflecting the updated key
+         * range. Note, that requires an additional pass to free the merge page's backing blocks.
          */
         if (F_ISSET(trk, WT_TRACK_MERGE)) {
             ss->merge_free = true;
@@ -1787,15 +1784,12 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
         WT_REF_SET_STATE(ref, WT_REF_DISK);
 
         /*
-         * If the page's key range is unmodified from when we read it
-         * (in other words, we didn't merge part of this page with
-         * another page), we can use the page without change, and the
-         * only thing we need to do is mark all overflow records the
-         * page references as in-use.
+         * If the page's key range is unmodified from when we read it (in other words, we didn't
+         * merge part of this page with another page), we can use the page without change, and the
+         * only thing we need to do is mark all overflow records the page references as in-use.
          *
-         * If we did merge with another page, we have to build a page
-         * reflecting the updated key range.  Note, that requires an
-         * additional pass to free the merge page's backing blocks.
+         * If we did merge with another page, we have to build a page reflecting the updated key
+         * range. Note, that requires an additional pass to free the merge page's backing blocks.
          */
         if (F_ISSET(trk, WT_TRACK_MERGE)) {
             ss->merge_free = true;
