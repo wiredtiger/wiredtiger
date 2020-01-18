@@ -68,25 +68,13 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
- * __sync_dup_walk --
- *     Duplicate a tree walk point.
+ * __sync_dup_hazard_pointer --
+ *     Get a duplicate hazard pointer.
  */
 static inline int
-__sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF **dupp)
+__sync_dup_hazard_pointer(WT_SESSION_IMPL *session, WT_REF *walk, WT_REF **dupp)
 {
-    WT_REF *old;
     bool busy;
-
-    if ((old = *dupp) != NULL) {
-        *dupp = NULL;
-        WT_RET(__wt_page_release(session, old, flags));
-    }
-
-    /* It is okay to duplicate a walk before it starts. */
-    if (walk == NULL || __wt_ref_is_root(walk)) {
-        *dupp = walk;
-        return (0);
-    }
 
     /* Get a duplicate hazard pointer. */
     for (;;) {
@@ -107,6 +95,29 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 
     *dupp = walk;
     return (0);
+}
+
+/*
+ * __sync_dup_walk --
+ *     Duplicate a tree walk point.
+ */
+static inline int
+__sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF **dupp)
+{
+    WT_REF *old;
+
+    if ((old = *dupp) != NULL) {
+        *dupp = NULL;
+        WT_RET(__wt_page_release(session, old, flags));
+    }
+
+    /* It is okay to duplicate a walk before it starts. */
+    if (walk == NULL || __wt_ref_is_root(walk)) {
+        *dupp = walk;
+        return (0);
+    }
+
+    return (__sync_dup_hazard_pointer(session, walk, dupp));
 }
 
 /*
@@ -149,38 +160,45 @@ err:
 }
 
 /*
- * __sync_ref_is_obsolete --
- *     Return whether the ref is obsolete according to the newest stop time pair.
+ * __sync_ref_obsolete_check --
+ *     Check whether the ref is obsolete according to the newest stop time pair and handle the
+ *     obsolete page.
  */
-static bool
-__sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
+static int
+__sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rlp)
 {
     WT_ADDR *addr;
     WT_CELL_UNPACK vpack;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
+    WT_REF *dup;
     wt_timestamp_t multi_newest_stop_ts;
     uint64_t multi_newest_stop_txn;
-    uint32_t i;
+    uint32_t i, previous_state;
     bool obsolete;
 
     /* Ignore root pages as they can never be deleted. */
     if (__wt_ref_is_root(ref)) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping root page", (void *)ref);
-        return (false);
+        return (0);
     }
 
     /* Ignore deleted pages. */
     if (ref->state == WT_REF_DELETED) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping deleted page", (void *)ref);
-        return (false);
+        return (0);
     }
+
+    /* Lock the ref to avoid any change before it is checked for obsolete. */
+    previous_state = ref->state;
+    if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+        return (0);
 
     /* Ignore internal pages, these are taken care of during reconciliation. */
     if (ref->addr != NULL && !__wt_ref_is_leaf(session, ref)) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping internal page with parent: %p",
           (void *)ref, (void *)ref->home);
-        return (false);
+        return (0);
     }
 
     WT_STAT_CONN_INCR(session, hs_gc_pages_visited);
@@ -224,39 +242,32 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
         obsolete = __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts);
     }
 
-    if (obsolete)
+    if (obsolete) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: page is found as obsolete", (void *)ref);
-    return (obsolete);
-}
 
-/*
- * __sync_ref_evict_or_mark_deleted --
- *     Evict the in memory page or delete the on disk page.
- */
-static int
-__sync_ref_evict_or_mark_deleted(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_REF_LIST *rlp)
-{
-    WT_REF *dup;
+        /*
+         * Mark the page as deleted and also set the parent page as dirty. This is to ensure the
+         * parent page must be written during checkpoint and the child page discarded.
+         */
+        if (previous_state == WT_REF_DISK) {
+            WT_REF_SET_STATE(ref, WT_REF_DELETED);
+            WT_STAT_CONN_INCR(session, hs_gc_pages_removed);
+            __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+              "%p: page is marked for deletion with parent page: %p", (void *)ref,
+              (void *)ref->home);
+            return (__wt_page_parent_modify_set(session, ref, true));
+        }
 
-    /*
-     * Mark the page as deleted and also set the parent page as dirty. This is to ensure the parent
-     * page must be written during checkpoint and the child page discarded.
-     */
-    if (WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
-        WT_REF_SET_STATE(ref, WT_REF_DELETED);
-        WT_STAT_CONN_INCR(session, hs_gc_pages_removed);
+        /* Add the in-memory obsolete history store page into the list of pages to be evicted. */
+        WT_REF_SET_STATE(ref, previous_state);
+        WT_RET(__sync_dup_hazard_pointer(session, ref, &dup));
+        WT_RET(__sync_ref_list_add(session, rlp, dup));
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
-          "%p: page is marked for deletion with parent page: %p", (void *)ref, (void *)ref->home);
-        return (__wt_page_parent_modify_set(session, ref, true));
+          "%p: is an in-memory obsolete page, stored for eviction.", (void *)dup);
+        return (0);
     }
 
-    /* Store the in-memory obsolete page */
-    dup = NULL;
-    WT_RET(__sync_dup_walk(session, ref, flags, &dup));
-    WT_RET(__sync_ref_list_add(session, rlp, dup));
-    __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
-      "%p: is an in-memory obsolete page, stored for eviction.", (void *)dup);
+    WT_REF_SET_STATE(ref, previous_state);
     return (0);
 }
 
@@ -266,8 +277,7 @@ __sync_ref_evict_or_mark_deleted(
  *     deleted.
  */
 static int
-__sync_ref_int_obsolete_cleanup(
-  WT_SESSION_IMPL *session, WT_REF *parent, uint32_t flags, WT_REF_LIST *rlp)
+__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent, WT_REF_LIST *rlp)
 {
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
@@ -281,17 +291,7 @@ __sync_ref_int_obsolete_cleanup(
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
-        /*
-         * Process all the child pages that are not in memory. All the in-memory child pages should
-         * have been already validated for obsolete. Even if the state changes while we are checking
-         * it doesn't cause any problem as it may not be removed in this checkpoint.
-         *
-         * One more reason behind not processing in-memory child pages is because the page may get
-         * evicted while we are checking for page obsolete as we don't have a hazard pointer on the
-         * child page.
-         */
-        if (ref->state == WT_REF_DISK && __sync_ref_is_obsolete(session, ref))
-            WT_RET(__sync_ref_evict_or_mark_deleted(session, ref, flags, rlp));
+        WT_RET(__sync_ref_obsolete_check(session, ref, rlp));
     }
 
     return (0);
@@ -463,7 +463,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             /* Traverse through the internal page for obsolete child pages. */
             if (is_las && WT_PAGE_IS_INTERNAL(walk->page)) {
                 WT_WITH_PAGE_INDEX(
-                  session, ret = __sync_ref_int_obsolete_cleanup(session, walk, flags, &ref_list));
+                  session, ret = __sync_ref_int_obsolete_cleanup(session, walk, &ref_list));
                 WT_ERR(ret);
             }
 
@@ -482,13 +482,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     btree->rec_max_txn = mod->rec_max_txn;
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
-
-                /*
-                 * Check whether the tree is lookaside btree and verify whether the page contents
-                 * are obsolete.
-                 */
-                if (is_las && __sync_ref_is_obsolete(session, walk))
-                    WT_ERR(__sync_ref_evict_or_mark_deleted(session, walk, flags, &ref_list));
 
                 continue;
             }
