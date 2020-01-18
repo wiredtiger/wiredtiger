@@ -906,15 +906,6 @@ struct __wt_ref {
 #endif
 
 /*
- * A list of WT_REF's.
- */
-struct __wt_ref_list {
-    WT_REF **list;
-    int entry;     /* next entry available in list */
-    int max_entry; /* how many allocated in list */
-};
-
-/*
  * WT_ROW --
  * Each in-memory page row-store leaf page has an array of WT_ROW structures:
  * this is created from on-page data when a page is read from the file.  It's

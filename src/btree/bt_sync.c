@@ -9,6 +9,15 @@
 #include "wt_internal.h"
 
 /*
+ * A list of WT_REF's.
+ */
+typedef struct {
+    WT_REF **list;
+    size_t entry;     /* next entry available in list */
+    size_t max_entry; /* how many allocated in list */
+} WT_REF_LIST;
+
+/*
  * __sync_checkpoint_can_skip --
  *     There are limited conditions under which we can skip writing a dirty page during checkpoint.
  */
@@ -108,25 +117,33 @@ static int
 __sync_ref_list_add(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, WT_REF *ref)
 {
     if (rlp->entry + 1 >= rlp->max_entry)
-        WT_RET(__wt_realloc(
-          session, NULL, (size_t)(rlp->max_entry += 10) * sizeof(WT_REF *), &rlp->list));
+        WT_RET(__wt_realloc_def(session, &rlp->max_entry, rlp->max_entry + 10, &rlp->list));
 
     rlp->list[rlp->entry++] = ref;
     return (0);
 }
 
 /*
- * __sync_ref_list_free --
- *     Free the list.
+ * __sync_ref_list_pop --
+ *     Add the stored ref to urgent eviction queue and free the list.
  */
 static void
-__sync_ref_list_free(WT_SESSION_IMPL *session, WT_REF_LIST *rlp)
+__sync_ref_list_pop(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, uint32_t flags)
 {
-    if (rlp->list == NULL)
-        return;
+    WT_DECL_RET;
+    size_t i;
 
+    for (i = 0; i < rlp->entry; i++) {
+        WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, rlp->list[i]));
+        WT_ERR(__wt_page_release(session, rlp->list[i], flags));
+        WT_STAT_CONN_INCR(session, hs_gc_pages_evict);
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+          "%p: is an in-memory obsolete page, added to urgent eviction queue.",
+          (void *)rlp->list[i]);
+    }
+
+err:
     __wt_free(session, rlp->list);
-    rlp->list = NULL;
     rlp->entry = 0;
     rlp->max_entry = 0;
 }
@@ -170,7 +187,7 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     multi_newest_stop_ts = WT_TS_NONE;
     multi_newest_stop_txn = WT_TXN_NONE;
     addr = ref->addr;
-    mod = (ref->page != NULL) ? (ref->page->modify) : NULL;
+    mod = ref->page == NULL ? NULL : ref->page->modify;
 
     /* Check for the page obsolete, if the page is modified and reconciled. */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
@@ -264,7 +281,16 @@ __sync_ref_int_obsolete_cleanup(
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
-        if (__sync_ref_is_obsolete(session, ref))
+        /*
+         * Process all the child pages that are not in memory. All the in-memory child pages should
+         * have been already validated for obsolete. Even if the state changes while we are checking
+         * it doesn't cause any problem as it may not be removed in this checkpoint.
+         *
+         * One more reason behind not processing in-memory child pages is because the page may get
+         * evicted while we are checking for page obsolete as we don't have a hazard pointer on the
+         * child page.
+         */
+        if (ref->state == WT_REF_DISK && __sync_ref_is_obsolete(session, ref))
             WT_RET(__sync_ref_evict_or_mark_deleted(session, ref, flags, rlp));
     }
 
@@ -289,7 +315,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
-    int i;
     bool is_las, timer, tried_eviction;
 
     conn = S2C(session);
@@ -430,17 +455,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             WT_ERR(__wt_tree_walk(session, &walk, flags));
 
             if (walk == NULL) {
-                if (is_las) {
-                    for (i = 0; i < ref_list.entry; i++) {
-                        WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref_list.list[i]));
-                        WT_ERR(__wt_page_release(session, ref_list.list[i], flags));
-                        WT_STAT_CONN_INCR(session, hs_gc_pages_evict);
-                        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
-                          "%p: is an in-memory obsolete page, added to urgent eviction queue.",
-                          (void *)ref_list.list[i]);
-                    }
-                    __sync_ref_list_free(session, &ref_list);
-                }
+                if (is_las)
+                    __sync_ref_list_pop(session, &ref_list, flags);
                 break;
             }
 
@@ -466,6 +482,13 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     btree->rec_max_txn = mod->rec_max_txn;
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
+
+                /*
+                 * Check whether the tree is lookaside btree and verify whether the page contents
+                 * are obsolete.
+                 */
+                if (is_las && __sync_ref_is_obsolete(session, walk))
+                    WT_ERR(__sync_ref_evict_or_mark_deleted(session, walk, flags, &ref_list));
 
                 continue;
             }
@@ -556,7 +579,7 @@ err:
     WT_TRET(__wt_page_release(session, prev, flags));
 
     if (is_las)
-        __sync_ref_list_free(session, &ref_list);
+        __wt_free(session, ref_list.list);
 
     /*
      * If we got a snapshot in order to write pages, and there was no snapshot active when we
