@@ -578,8 +578,9 @@ err:
     WT_TRET(__wt_page_release(session, walk, flags));
     WT_TRET(__wt_page_release(session, prev, flags));
 
+    /* On error, Process the ref that are saved and free the list. */
     if (is_las)
-        __wt_free(session, ref_list.list);
+        __sync_ref_list_pop(session, &ref_list, flags);
 
     /*
      * If we got a snapshot in order to write pages, and there was no snapshot active when we
