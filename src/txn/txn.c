@@ -1262,6 +1262,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+        /* Assert it's not an update to the lookaside file. */
+        WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 || !WT_IS_LAS(op->btree));
+
         /* Metadata updates should never be rolled back. */
         WT_ASSERT(session, !WT_IS_METADATA(op->btree->dhandle));
         if (WT_IS_METADATA(op->btree->dhandle))

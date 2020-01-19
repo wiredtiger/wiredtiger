@@ -493,18 +493,17 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_TIME_PAIR stop_ts_pair;
     wt_off_t las_size;
     uint64_t insert_cnt, max_las_size;
-    uint32_t btree_id, supd_index, err_pos;
+    uint32_t btree_id, i;
     uint8_t *p;
     int nentries;
-    bool local_txn, squashed, txn_rolled_back;
+    bool local_txn, squashed;
 
     prev_upd = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = 0;
     btree_id = btree->id;
-    supd_index = 0;
-    local_txn = txn_rolled_back = false;
+    local_txn = false;
     __wt_modify_vector_init(session, &modifies);
 
     if (!btree->lookaside_entries)
@@ -527,8 +526,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     F_SET(cursor, WT_CURSTD_UPDATE_LOCAL);
 
     /* Enter each update in the boundary's list into the lookaside store. */
-    for (supd_index = 0, list = multi->supd; supd_index < multi->supd_entries;
-         ++supd_index, ++list) {
+    for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
         /* If no onpage_upd is selected, we don't need to insert anything to lookaside */
         if (list->onpage_upd == NULL)
             continue;
@@ -741,34 +739,10 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 err:
     /* Resolve the transaction. */
     if (local_txn) {
-        if (ret == 0) {
+        if (ret == 0)
             ret = __wt_txn_commit(session, NULL);
-            txn_rolled_back = ret != 0;
-        } else {
+        else
             WT_TRET(__wt_txn_rollback(session, NULL));
-            txn_rolled_back = true;
-        }
-
-        if (txn_rolled_back && multi->supd_entries > 0) {
-            /* We only need to clear the flag on the updates up to where the error occurs. */
-            err_pos = WT_MIN(multi->supd_entries - 1, supd_index);
-
-            /* Traverse the keys again to clear the flags on updates inserted to lookaside. */
-            for (supd_index = 0, list = multi->supd; supd_index <= err_pos; ++supd_index, ++list) {
-                if (list->onpage_upd == NULL)
-                    continue;
-
-                /*
-                 * Clear the flag on all updates in the chain regardless of whether we wrote the
-                 * entry to lookaside. That means we might clear the flag for updates that are in
-                 * lookaside, but that's safe and getting this correct is not worth the complexity
-                 * of tracking which specific updates were written in the transaction.
-                 */
-                for (upd = list->onpage_upd; upd != NULL; upd = upd->next)
-                    F_CLR(upd, WT_UPDATE_HISTORY_STORE);
-            }
-        }
-
         __las_restore_isolation(session, saved_isolation);
         F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
     }
