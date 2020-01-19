@@ -481,7 +481,7 @@ __posix_file_read_mmap(
         /* Signal that we won't be using the mapped buffer after all. */
         (void)__wt_atomic_subv32(&pfh->mmap_usecount, 1);
 syscall:
-        return __posix_file_read(file_handle, wt_session, offset, len, buf);
+        return (__posix_file_read(file_handle, wt_session, offset, len, buf));
     }
 }
 
@@ -697,7 +697,7 @@ syscall:
             }
             WT_STAT_CONN_INCRV(session, block_remap_region_write, 1);
         }
-        return ret;
+        return (ret);
     }
 }
 
@@ -1065,7 +1065,7 @@ __wt_map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     if (file_size <= 0) {
         if (pfh->mmap_buf != NULL)
             __wt_unmap_region(file_handle, wt_session);
-        return 0;
+        return (0);
     }
 
     /* If the buffer was previously mapped, try to remap it to the same address */
@@ -1082,7 +1082,7 @@ __wt_map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
                                            ", "
                                            "mapped buffer=%p\n",
       file_handle->name, pfh->fd, (uint64_t)pfh->mmap_size, (void *)pfh->mmap_buf);
-    return 0;
+    return (0);
 }
 
 /*
@@ -1092,7 +1092,6 @@ __wt_map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 int
 __wt_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
-
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
@@ -1114,7 +1113,7 @@ __wt_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     /* We are done resizing the buffer */
     (void)__wt_atomic_subv32(&pfh->mmap_resizing, 1);
 
-    return ret;
+    return (ret);
 }
 
 /*
