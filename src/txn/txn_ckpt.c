@@ -732,7 +732,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_ISOLATION saved_isolation;
     wt_timestamp_t ckpt_tmp_ts;
-    uint64_t fsync_duration_usecs, generation, time_start, time_stop;
+    uint64_t fsync_duration_usecs, generation, time_start, time_stop, time_start_hs, time_stop_hs,
+      hs_ckpt_duration_usecs;
     u_int i;
     bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
     void *saved_meta_next;
@@ -845,6 +846,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_txn_checkpoint_log(session, full, WT_TXN_LOG_CKPT_START, NULL));
 
     __checkpoint_timing_stress(session);
+    time_start_hs = __wt_clock(session);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
 
     /* Checkpoint the history store file at snapshot isolation but first refresh our snapshot. */
@@ -865,7 +867,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_WITH_DHANDLE(session, las_dhandle, ret = __wt_checkpoint(session, cfg));
         WT_ERR(ret);
     }
-
+    time_stop_hs = __wt_clock(session);
+    hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
+    WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
     /*
      * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't
      * bother restoring the handle since it doesn't make sense to carry a handle across a
