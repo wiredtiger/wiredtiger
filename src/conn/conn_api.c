@@ -1790,6 +1790,12 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         WT_RET(__wt_calloc_def(session, conn->debug_ckpt_cnt, &conn->debug_ckpt));
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.cursor_copy", &cval));
+    if (cval.val)
+        F_SET(conn, WT_CONN_DEBUG_CURSOR_COPY);
+    else
+        F_CLR(conn, WT_CONN_DEBUG_CURSOR_COPY);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.eviction", &cval));
     if (cval.val)
         F_SET(cache, WT_CACHE_EVICT_DEBUG_MODE);
@@ -2486,7 +2492,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     }
     WT_ERR(__wt_verbose_config(session, cfg));
     WT_ERR(__wt_timing_stress_config(session, cfg));
-    __wt_btree_page_version_config(session);
 
     /* Set up operation tracking if configured. */
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));

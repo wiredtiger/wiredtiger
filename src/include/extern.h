@@ -34,6 +34,8 @@ extern bool __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern char *__wt_time_pair_to_string(wt_timestamp_t timestamp, uint64_t txn_id, char *tp_string)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern char *__wt_timestamp_to_string(wt_timestamp_t ts, char *ts_string)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const WT_CONFIG_ENTRY *__wt_conn_config_match(const char *method)
@@ -508,6 +510,8 @@ extern int __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor
 extern int __wt_cursor_cached(WT_CURSOR *cursor) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_compare_notsup(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_cursor_copy_release_item(WT_CURSOR *cursor, WT_ITEM *item)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_dup_position(WT_CURSOR *to_dup, WT_CURSOR *cursor)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cursor_equals(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
@@ -1578,7 +1582,6 @@ extern void __wt_btcur_init(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt);
 extern void __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt);
 extern void __wt_btcur_open(WT_CURSOR_BTREE *cbt);
 extern void __wt_btree_huffman_close(WT_SESSION_IMPL *session);
-extern void __wt_btree_page_version_config(WT_SESSION_IMPL *session);
 extern void __wt_cache_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type);
 extern void __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing);
@@ -2138,6 +2141,9 @@ static inline void __wt_rec_incr(
 static inline void __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref);
 static inline void __wt_ref_info(
   WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep);
+static inline void __wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp,
+  size_t *sizep, u_int *typep, wt_timestamp_t *start_ts, wt_timestamp_t *stop_ts,
+  uint64_t *start_txn, uint64_t *stop_txn);
 static inline void __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep);
 static inline void __wt_ref_key_clear(WT_REF *ref);
 static inline void __wt_ref_key_onpage_set(WT_PAGE *page, WT_REF *ref, WT_CELL_UNPACK *unpack);
