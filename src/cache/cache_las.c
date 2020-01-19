@@ -750,6 +750,8 @@ err:
         }
 
         if (txn_rolled_back && multi->supd_entries > 0) {
+            WT_STAT_CONN_INCR(session, hs_txn_rollback);
+
             /* We only need to clear the flag on the updates up to where the error occurs. */
             err_pos = WT_MIN(multi->supd_entries - 1, supd_index);
 

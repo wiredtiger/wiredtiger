@@ -757,7 +757,8 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: session dhandles swept", "data-handle: session sweep attempts",
   "history: history pages added for eviction during garbage collection",
   "history: history pages removed for garbage collection",
-  "history: history pages visited for garbage collection", "lock: checkpoint lock acquisitions",
+  "history: history pages visited for garbage collection",
+  "history: history store transactions rolled back", "lock: checkpoint lock acquisitions",
   "lock: checkpoint lock application thread wait time (usecs)",
   "lock: checkpoint lock internal thread wait time (usecs)",
   "lock: dhandle lock application thread time waiting (usecs)",
@@ -1148,6 +1149,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->hs_gc_pages_evict = 0;
     stats->hs_gc_pages_removed = 0;
     stats->hs_gc_pages_visited = 0;
+    stats->hs_txn_rollback = 0;
     stats->lock_checkpoint_count = 0;
     stats->lock_checkpoint_wait_application = 0;
     stats->lock_checkpoint_wait_internal = 0;
@@ -1590,6 +1592,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->hs_gc_pages_evict += WT_STAT_READ(from, hs_gc_pages_evict);
     to->hs_gc_pages_removed += WT_STAT_READ(from, hs_gc_pages_removed);
     to->hs_gc_pages_visited += WT_STAT_READ(from, hs_gc_pages_visited);
+    to->hs_txn_rollback += WT_STAT_READ(from, hs_txn_rollback);
     to->lock_checkpoint_count += WT_STAT_READ(from, lock_checkpoint_count);
     to->lock_checkpoint_wait_application += WT_STAT_READ(from, lock_checkpoint_wait_application);
     to->lock_checkpoint_wait_internal += WT_STAT_READ(from, lock_checkpoint_wait_internal);
