@@ -127,9 +127,7 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 static int
 __sync_ref_list_add(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, WT_REF *ref)
 {
-    if (rlp->entry + 1 >= rlp->max_entry)
-        WT_RET(__wt_realloc_def(session, &rlp->max_entry, rlp->max_entry + 10, &rlp->list));
-
+    WT_RET(__wt_realloc_def(session, &rlp->max_entry, rlp->entry + 1, &rlp->list));
     rlp->list[rlp->entry++] = ref;
     return (0);
 }
