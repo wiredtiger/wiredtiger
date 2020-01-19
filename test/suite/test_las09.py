@@ -33,10 +33,10 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' % t
 
-# test_las08.py
+# test_las09.py
 # Verify that we write the newest committed version to data store and the
 # second newest committed version to history store.
-class test_las08(wttest.WiredTigerTestCase):
+class test_las09(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
@@ -76,6 +76,7 @@ class test_las08(wttest.WiredTigerTestCase):
         cursor.close()
         session.close()
 
+    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
     def test_uncommitted_updates_not_written_to_lookaside(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -106,6 +107,7 @@ class test_las08(wttest.WiredTigerTestCase):
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
+    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
     def test_prepared_updates_not_written_to_lookaside(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -137,6 +139,7 @@ class test_las08(wttest.WiredTigerTestCase):
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
+    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
     def test_write_newest_version_to_data_store(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -161,6 +164,7 @@ class test_las08(wttest.WiredTigerTestCase):
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
+    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
     def test_write_deleted_version_to_data_store(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
