@@ -86,7 +86,7 @@ class test_hs02(wttest.WiredTigerTestCase):
         # Check that all updates are seen
         self.check(bigvalue, uri, nrows // 3, 1)
 
-        # Check to see the  history store working with old timestamp
+        # Check to see the history store working with old timestamp
         bigvalue2 = "ddddd" * 100
         self.large_updates(uri, bigvalue2, ds, nrows, 100)
 
