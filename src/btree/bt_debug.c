@@ -697,7 +697,7 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
 
 /*
  * __wt_debug_cursor_hs --
- *     Dump the LAS tree given a user cursor.
+ *     Dump the history store tree given a user cursor.
  */
 int
 __wt_debug_cursor_hs(void *cursor_arg, const char *ofile)

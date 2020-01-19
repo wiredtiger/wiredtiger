@@ -141,7 +141,7 @@ __wt_hs_create(WT_SESSION_IMPL *session, const char **cfg)
     conn = S2C(session);
     cache = conn->cache;
 
-    /* Read-only and in-memory configurations don't need the LAS table. */
+    /* Read-only and in-memory configurations don't need the history store table. */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
@@ -217,7 +217,7 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
 
     /*
      * Retrieve the btree from the cursor, rather than the session because we don't always switch
-     * the LAS handle in to the session before entering this function.
+     * the store history handle in to the session before entering this function.
      */
     btree = ((WT_CURSOR_BTREE *)cursor)->btree;
 
@@ -737,7 +737,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
     max_hs_size = ((WT_CURSOR_BTREE *)cursor)->btree->file_max;
     if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
-        WT_PANIC_ERR(session, WT_PANIC, "WiredTigerLAS: file size of %" PRIu64
+        WT_PANIC_ERR(session, WT_PANIC, "WiredTigerHS: file size of %" PRIu64
                                         " exceeds maximum "
                                         "size %" PRIu64,
           (uint64_t)hs_size, max_hs_size);

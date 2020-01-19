@@ -851,15 +851,15 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_txn_get_snapshot(session);
 
     /*
-     * Get an LAS dhandle. If the LAS file is opened for a special operation this will return EBUSY
-     * which we treat as an error.
+     * Get a history store dhandle. If the history store file is opened for a special operation this
+     * will return EBUSY which we treat as an error.
      */
     WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
     hs_dhandle = session->dhandle;
 
     /*
-     * TODO: It is possible that we don't have a LAS file in certain recovery scenarios. As such we
-     * could get a NULL dhandle.
+     * TODO: It is possible that we don't have a history store file in certain recovery scenarios.
+     * As such we could get a NULL dhandle.
      */
     if (hs_dhandle != NULL) {
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));

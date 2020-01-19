@@ -73,7 +73,7 @@ class test_hs03(wttest.WiredTigerTestCase):
         cursor.close()
         self.session.checkpoint()
 
-        # Check to see LAS working with old timestamp.
+        # Check to see the history store working with old timestamp.
         bigvalue2 = b"ddddd" * 100
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
         hs_writes_start = self.get_stat(stat.conn.cache_write_hs)

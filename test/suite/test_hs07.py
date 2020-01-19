@@ -35,7 +35,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_hs07.py
-# Test that LAS sweep cleans the obsolete history store entries and gives expected results.
+# Test that the history store sweep cleans the obsolete history store entries and gives expected results.
 class test_hs07(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,log=(enabled)'
