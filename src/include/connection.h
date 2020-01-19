@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *      All rights reserved.
+ *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -11,7 +11,7 @@
  *******************************************/
 /*
  * WT_PROCESS --
- *      Per-process information for the library.
+ *	Per-process information for the library.
  */
 struct __wt_process {
     WT_SPINLOCK spinlock; /* Per-process spinlock */
@@ -35,7 +35,7 @@ extern WT_PROCESS __wt_process;
 
 /*
  * WT_KEYED_ENCRYPTOR --
- *      An list entry for an encryptor with a unique (name, keyid).
+ *	A list entry for an encryptor with a unique (name, keyid).
  */
 struct __wt_keyed_encryptor {
     const char *keyid;       /* Key id of encryptor */
@@ -49,7 +49,7 @@ struct __wt_keyed_encryptor {
 
 /*
  * WT_NAMED_COLLATOR --
- *      A collator list entry
+ *	A collator list entry
  */
 struct __wt_named_collator {
     const char *name;                   /* Name of collator */
@@ -59,7 +59,7 @@ struct __wt_named_collator {
 
 /*
  * WT_NAMED_COMPRESSOR --
- *      A compressor list entry
+ *	A compressor list entry
  */
 struct __wt_named_compressor {
     const char *name;          /* Name of compressor */
@@ -70,7 +70,7 @@ struct __wt_named_compressor {
 
 /*
  * WT_NAMED_DATA_SOURCE --
- *      A data source list entry
+ *	A data source list entry
  */
 struct __wt_named_data_source {
     const char *prefix;   /* Name of data source */
@@ -81,7 +81,7 @@ struct __wt_named_data_source {
 
 /*
  * WT_NAMED_ENCRYPTOR --
- *      An encryptor list entry
+ *	An encryptor list entry
  */
 struct __wt_named_encryptor {
     const char *name;        /* Name of encryptor */
@@ -96,7 +96,7 @@ struct __wt_named_encryptor {
 
 /*
  * WT_NAMED_EXTRACTOR --
- *      An extractor list entry
+ *	An extractor list entry
  */
 struct __wt_named_extractor {
     const char *name;                    /* Name of extractor */
@@ -106,7 +106,7 @@ struct __wt_named_extractor {
 
 /*
  * WT_CONN_CHECK_PANIC --
- *      Check if we've panicked and return the appropriate error.
+ *	Check if we've panicked and return the appropriate error.
  */
 #define WT_CONN_CHECK_PANIC(conn) (F_ISSET(conn, WT_CONN_PANIC) ? WT_PANIC : 0)
 #define WT_SESSION_CHECK_PANIC(session) WT_CONN_CHECK_PANIC(S2C(session))
@@ -150,8 +150,7 @@ struct __wt_named_extractor {
 
 /*
  * WT_CONN_HOTBACKUP_START --
- *      Macro to set connection data appropriately for when we commence hot
- *      backup.
+ *	Macro to set connection data appropriately for when we commence hot backup.
  */
 #define WT_CONN_HOTBACKUP_START(conn)   \
     do {                                \
@@ -161,7 +160,7 @@ struct __wt_named_extractor {
 
 /*
  * WT_CONNECTION_IMPL --
- *      Implementation of WT_CONNECTION
+ *	Implementation of WT_CONNECTION
  */
 struct __wt_connection_impl {
     WT_CONNECTION iface;

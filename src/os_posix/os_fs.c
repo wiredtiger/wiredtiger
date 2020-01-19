@@ -549,7 +549,6 @@ __posix_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 #endif
 
 #ifdef HAVE_FTRUNCATE
-
 /*
  * __posix_file_truncate --
  *     POSIX ftruncate.
@@ -640,11 +639,10 @@ static int
 __posix_file_write_mmap(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
 {
+    static int remap_opportunities = 0;
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
-    static int remap_opportunities = 0;
-    const int REMAP_SKIP = 10;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
@@ -683,11 +681,12 @@ __posix_file_write_mmap(
 syscall:
         ret = __posix_file_write(file_handle, wt_session, offset, len, buf);
 
-        /*
-         * If we are here and the file is mappable, we must have extended its size. Remap the region
-         * with the new size.
-         */
-        if (pfh->mmap_file_mappable && ret == 0 && ((remap_opportunities++) % REMAP_SKIP == 0)) {
+/*
+ * If we are here and the file is mappable, we must have extended its size. Remap the region with
+ * the new size.
+ */
+#define WT_REMAP_SKIP 10
+        if (pfh->mmap_file_mappable && ret == 0 && ((remap_opportunities++) % WT_REMAP_SKIP == 0)) {
             __wt_verbose(session, WT_VERB_FILEOPS, "%s, write-mmap-remap: mapped len=%" PRIu64 "\n",
               file_handle->name, (uint64_t)pfh->mmap_size);
             __wt_drain_mmap_users(file_handle, wt_session);
@@ -861,7 +860,7 @@ directory_open:
     file_handle = (WT_FILE_HANDLE *)pfh;
     WT_ERR(__wt_strdup(session, name, &file_handle->name));
 
-    if (S2C(session)->mmap) {
+    if (conn->mmap) {
         /*
          * We are going to use mmap for I/O. So let's mmap the file on opening.
          */
@@ -974,21 +973,19 @@ __wt_os_posix(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_drain_mmap_users --
- *
- *
- *
- * Wait until all the sessions using the memory mapped region are done.
- *
  * Here is the synchronization protocol to prevent race conditions when a session is remapping the
- *     file while others might be reading or writing it:
+ * file while others might be reading or writing it:
  *
  * Every time someone reads or writes from the mapped region, they increment the "use" count via
- *     cas. If someone wants to change the file size, they set the "stop" flag. If a session sees
- *     the stop flag, it does not read via mmap, but resorts to the regular syscall. The session
- *     that set the stop flag spin-waits until the "use" count goes to zero. Then it changes the
- *     file size and remaps the region without synchronization. Once all that is done, it resets the
- *     "stop" flag.
+ * cas. If someone wants to change the file size, they set the "stop" flag. If a session sees
+ * the stop flag, it does not read via mmap, but resorts to the regular syscall. The session
+ * that set the stop flag spin-waits until the "use" count goes to zero. Then it changes the
+ * file size and remaps the region without synchronization. Once all that is done, it resets the
+ * "stop" flag.
+ */
+/*
+ * __wt_drain_mmap_users --
+ *     Wait until all the sessions using the memory mapped region are done.
  */
 void
 __wt_drain_mmap_users(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
@@ -1025,21 +1022,15 @@ wait:
 }
 
 /*
- * __wt_map_region --
- *
- *
- *
- * Map the virtual address region backed by a file into our address space.
- *
  * This LWN article (https://lwn.net/Articles/731706/) describes a potential problem when mmap is
- *     used over a direct-access (DAX) file system. If a new block is created and then the file is
- *     memory-mapped and the client writes to that block via mmap directly into storage (via DAX),
- *     the file system may not know that the data was written, so it may not flush the metadata
- *     prior to data being written. Therefore, the block may be reallocated or lost upon crash.
+ * used over a direct-access (DAX) file system. If a new block is created and then the file is
+ * memory-mapped and the client writes to that block via mmap directly into storage (via DAX),
+ * the file system may not know that the data was written, so it may not flush the metadata
+ * prior to data being written. Therefore, the block may be reallocated or lost upon crash.
  *
  * WiredTiger currently disallows using the mmap option with the direct I/O option. We are relying
- *     on the user correctly specifying the direct I/O option if they mount a file system as DAX. If
- *     we did not wish to rely on the user supplying the correct flags, we have two options:
+ * on the user correctly specifying the direct I/O option if they mount a file system as DAX. If
+ * we did not wish to rely on the user supplying the correct flags, we have two options:
  *
  * (1) Use MAP_SYNC flag available on some versions of Linux. The downside is being Linux-specific
  *     and not extensively tested (this is a recent flag).
@@ -1049,13 +1040,17 @@ wait:
  *     before allowing any reads or writes via mmap into the new block. If we sync the file upon
  *     unmapping, we will be certain that the metadata is persistent.
  */
+/*
+ * __wt_map_region --
+ *     Map the virtual address region backed by a file into our address space.
+ */
 int
 __wt_map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
-    void *previous_address;
     wt_off_t file_size;
+    void *previous_address;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;

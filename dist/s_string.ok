@@ -252,7 +252,6 @@ MULTI
 MULTIBLOCK
 MUTEX
 Manos
-mappable
 MapViewOfFile
 Marsaglia's
 Mellor
@@ -260,6 +259,7 @@ Memrata
 Metadata
 Mewhort
 Mitzenmacher
+Mmap
 MongoDB
 MoveFileExW
 Multi
@@ -967,6 +967,7 @@ mT
 madvise
 majorp
 malloc
+mappable
 marshall
 marshalled
 maxCLevel
@@ -1326,6 +1327,7 @@ unlink
 unlinked
 unmap
 unmapped
+unmapping
 unmarshall
 unmarshalled
 unmerged
