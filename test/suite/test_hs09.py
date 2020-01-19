@@ -76,7 +76,12 @@ class test_hs09(wttest.WiredTigerTestCase):
         cursor.close()
         session.close()
 
+<<<<<<< HEAD:test/suite/test_hs09.py
     def test_uncommitted_updates_not_written_to_hs(self):
+=======
+    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
+    def test_uncommitted_updates_not_written_to_lookaside(self):
+>>>>>>> pm-1521-durable-history:test/suite/test_las09.py
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)
@@ -106,7 +111,12 @@ class test_hs09(wttest.WiredTigerTestCase):
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
+<<<<<<< HEAD:test/suite/test_hs09.py
     def test_prepared_updates_not_written_to_hs(self):
+=======
+    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
+    def test_prepared_updates_not_written_to_lookaside(self):
+>>>>>>> pm-1521-durable-history:test/suite/test_las09.py
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)
@@ -137,6 +147,7 @@ class test_hs09(wttest.WiredTigerTestCase):
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
+    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
     def test_write_newest_version_to_data_store(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -161,6 +172,7 @@ class test_hs09(wttest.WiredTigerTestCase):
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
+    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
     def test_write_deleted_version_to_data_store(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
