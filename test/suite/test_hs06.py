@@ -290,7 +290,6 @@ class test_hs06(wttest.WiredTigerTestCase):
 
         # Ensure that we see the last of the two updates that got applied.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
-        self.session.breakpoint()
         for i in range(1, 11):
             self.assertEquals(cursor[self.create_key(i)], value3)
         self.session.rollback_transaction()

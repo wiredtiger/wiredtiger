@@ -746,6 +746,10 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     return (__wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE);
 }
 
+/*
+ * __upd_alloc_tombstone --
+ *     Allocate a tombstone update at a given transaction id and timestamp.
+ */
 static int
 __upd_alloc_tombstone(
   WT_SESSION_IMPL *session, WT_UPDATE **updp, uint64_t txnid, wt_timestamp_t start_ts)

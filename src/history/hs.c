@@ -346,10 +346,9 @@ __wt_hs_cursor_close(
         for (i = 0; i < WT_HS_NUM_SESSIONS; i++)
             if (cursor->session == &cache->hs_session[i]->iface) {
                 cache->hs_session_inuse[i] = false;
-                if (reader) {
+                if (reader)
                     cache->hs_session[i]->iface.rollback_transaction(
                       &cache->hs_session[i]->iface, NULL);
-                }
                 break;
             }
         __wt_spin_unlock(session, &cache->hs_lock);
