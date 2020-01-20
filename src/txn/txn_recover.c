@@ -661,7 +661,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
     /*
      * Recovery can touch more data than fits in cache, so it relies on regular eviction to manage
-     * paging. Start eviction threads for recovery without LAS cursors.
+     * paging. Start eviction threads for recovery without history store cursors.
      */
     WT_ERR(__wt_evict_create(session));
     eviction_started = true;
@@ -712,7 +712,7 @@ err:
 
     /*
      * Destroy the eviction threads that were started in support of recovery. They will be restarted
-     * once the lookaside table is created.
+     * once the history store table is created.
      */
     if (eviction_started)
         WT_TRET(__wt_evict_destroy(session));

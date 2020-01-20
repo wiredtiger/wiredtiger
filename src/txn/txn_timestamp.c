@@ -9,6 +9,20 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_time_pair_to_string --
+ *     Converts a time pair to a standard string representation.
+ */
+char *
+__wt_time_pair_to_string(wt_timestamp_t timestamp, uint64_t txn_id, char *tp_string)
+{
+    char ts_string[WT_TS_INT_STRING_SIZE];
+
+    WT_IGNORE_RET(__wt_snprintf(tp_string, WT_TP_STRING_SIZE, "%s/%" PRIu64,
+      __wt_timestamp_to_string(timestamp, ts_string), txn_id));
+    return (tp_string);
+}
+
+/*
  * __wt_timestamp_to_string --
  *     Convert a timestamp to the MongoDB string representation.
  */
@@ -1114,15 +1128,20 @@ __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
 
     if (!F_ISSET(txn, WT_TXN_TS_PUBLISHED))
         return;
-    flags = txn->flags;
-    LF_CLR(WT_TXN_TS_PUBLISHED);
 
     /*
      * Notify other threads that our transaction is inactive and can be cleaned up safely from the
      * durable timestamp queue whenever the next thread walks the queue. We do not need to remove it
      * now.
      */
-    WT_PUBLISH(txn->clear_durable_q, true);
+    txn->clear_durable_q = true;
+
+    /*
+     * Serialize clearing the flag with setting the queue state. The serialization has been here for
+     * awhile, but nobody remembers if or why it's necessary.
+     */
+    flags = txn->flags;
+    LF_CLR(WT_TXN_TS_PUBLISHED);
     WT_PUBLISH(txn->flags, flags);
 }
 
@@ -1222,26 +1241,25 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
         txn->read_timestamp = WT_TS_NONE;
         return;
     }
-#ifdef HAVE_DIAGNOSTIC
-    {
-        WT_TXN_GLOBAL *txn_global;
-        wt_timestamp_t pinned_ts;
 
-        txn_global = &S2C(session)->txn_global;
-        pinned_ts = txn_global->pinned_timestamp;
-        WT_ASSERT(session, txn->read_timestamp >= pinned_ts);
-    }
-#endif
-    flags = txn->flags;
-    LF_CLR(WT_TXN_PUBLIC_TS_READ);
+    /* Assert the read timestamp is greater than or equal to the pinned timestamp. */
+    WT_ASSERT(session, txn->read_timestamp >= S2C(session)->txn_global.pinned_timestamp);
 
     /*
      * Notify other threads that our transaction is inactive and can be cleaned up safely from the
      * read timestamp queue whenever the next thread walks the queue. We do not need to remove it
      * now.
      */
-    WT_PUBLISH(txn->clear_read_q, true);
+    txn->clear_read_q = true;
+
+    /*
+     * Serialize clearing the flag with setting the queue state. The serialization has been here for
+     * awhile, but nobody remembers if or why it's necessary.
+     */
+    flags = txn->flags;
+    LF_CLR(WT_TXN_PUBLIC_TS_READ);
     WT_PUBLISH(txn->flags, flags);
+
     txn->read_timestamp = WT_TS_NONE;
 }
 
