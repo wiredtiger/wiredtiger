@@ -298,7 +298,7 @@ __sweep_server(void *arg)
 
         /*
          * See if it is time to sweep the data handles. Those are swept less frequently than the
-         * lookaside table by default and the frequency is controlled by a user setting.
+         * history store table by default and the frequency is controlled by a user setting.
          */
         if (!cv_signalled && (now - last < sweep_interval))
             continue;
@@ -390,11 +390,11 @@ __wt_sweep_create(WT_SESSION_IMPL *session)
     session = conn->sweep_session;
 
     /*
-     * Sweep should have it's own lookaside cursor to avoid blocking reads and eviction when
+     * Sweep should have it's own history store cursor to avoid blocking reads and eviction when
      * processing drops.
      */
-    if (F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN))
-        WT_RET(__wt_las_cursor_open(session));
+    if (F_ISSET(conn, WT_CONN_HS_OPEN))
+        WT_RET(__wt_hs_cursor_open(session));
 
     WT_RET(__wt_cond_alloc(session, "handle sweep server", &conn->sweep_cond));
 

@@ -20,15 +20,15 @@ struct __wt_reconcile {
     uint32_t flags; /* Caller's configuration */
 
     /*
-     * Track start/stop checkpoint generations to decide if lookaside table records are correct.
+     * Track start/stop checkpoint generations to decide if history store table records are correct.
      */
     uint64_t orig_btree_checkpoint_gen;
     uint64_t orig_txn_checkpoint_gen;
 
     /*
-     * Track the oldest running transaction and whether to skew lookaside to the newest update.
+     * Track the oldest running transaction and whether to skew history store to the newest update.
      */
-    bool las_skew_newest;
+    bool hs_skew_newest;
     uint64_t last_running;
 
     /* Track the page's min/maximum transactions. */
@@ -150,9 +150,9 @@ struct __wt_reconcile {
     size_t min_space_avail; /* Remaining space in this chunk to put a minimum size boundary */
 
     /*
-     * Saved update list, supporting WT_REC_LOOKASIDE configurations. While reviewing updates for
-     * each page, we save WT_UPDATE lists here, and then move them to per-block areas as the blocks
-     * are defined.
+     * Saved update list, supporting WT_REC_HS configurations. While reviewing updates for each
+     * page, we save WT_UPDATE lists here, and then move them to per-block areas as the blocks are
+     * defined.
      */
     WT_SAVE_UPD *supd; /* Saved updates */
     uint32_t supd_next;

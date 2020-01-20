@@ -34,9 +34,9 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' % t
 
-# test_las08.py
-# Verify modify insert into lookaside logic.
-class test_las08(wttest.WiredTigerTestCase):
+# test_hs08.py
+# Verify modify insert into history store logic.
+class test_hs08(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=100MB,statistics=(all)'
     session_config = 'isolation=snapshot'
 
@@ -47,7 +47,7 @@ class test_las08(wttest.WiredTigerTestCase):
         return val
 
     def test_modify_insert_to_las(self):
-        uri = "table:test_las08"
+        uri = "table:test_hs08"
         create_params = 'value_format=S,key_format=i'
         value1 = 'a' * 1000
         self.session.create(uri, create_params)
@@ -79,8 +79,8 @@ class test_las08(wttest.WiredTigerTestCase):
         self.session.checkpoint('use_timestamp=true')
 
         # Validate that we did write at least once to the history store.
-        las_writes = self.get_stat(stat.conn.cache_write_hs)
-        self.assertGreaterEqual(las_writes, 1)
+        hs_writes = self.get_stat(stat.conn.cache_write_hs)
+        self.assertGreaterEqual(hs_writes, 1)
 
         # Validate that we see the correct value at each of the timestamps.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
@@ -113,8 +113,8 @@ class test_las08(wttest.WiredTigerTestCase):
         self.session.checkpoint('use_timestamp=true')
 
         # Validate that we wrote to the history store again.
-        las_writes = self.get_stat(stat.conn.cache_write_hs)
-        self.assertGreaterEqual(las_writes, 2)
+        hs_writes = self.get_stat(stat.conn.cache_write_hs)
+        self.assertGreaterEqual(hs_writes, 2)
 
         # Validate that we see the expected value on the modifies, this
         # scenario tests the logic that will retrieve a full value for

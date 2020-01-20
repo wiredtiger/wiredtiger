@@ -2208,9 +2208,9 @@ struct __wt_connection {
 	 * to detect inappropriate references to memory owned by cursors., a boolean flag; default
 	 * \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction, if true\, modify internal algorithms
-	 * to change skew to force lookaside eviction to happen more aggressively.  This includes
-	 * but is not limited to not skewing newest\, not favoring leaf pages\, and modifying the
-	 * eviction score mechanism., a boolean flag; default \c false.}
+	 * to change skew to force history store eviction to happen more aggressively.  This
+	 * includes but is not limited to not skewing newest\, not favoring leaf pages\, and
+	 * modifying the eviction score mechanism., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_exact, if true\, reallocation of memory will only
 	 * provide the exact amount requested.  This will help with spotting memory allocation
 	 * issues more easily., a boolean flag; default \c false.}
@@ -2375,7 +2375,7 @@ struct __wt_connection {
 	 * following options: \c "api"\, \c "backup"\, \c "block"\, \c "checkpoint"\, \c
 	 * "checkpoint_gc"\, \c "checkpoint_progress"\, \c "compact"\, \c "compact_progress"\, \c
 	 * "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c
-	 * "handleops"\, \c "log"\, \c "lookaside"\, \c "lookaside_activity"\, \c "lsm"\, \c
+	 * "handleops"\, \c "log"\, \c "history_store"\, \c "history_store_activity"\, \c "lsm"\, \c
 	 * "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "overflow"\, \c "read"\, \c "rebalance"\,
 	 * \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "salvage"\, \c
 	 * "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\, \c "timestamp"\, \c
@@ -2816,7 +2816,7 @@ struct __wt_connection {
  * on the next cursor operation.  This allows memory sanitizers to detect inappropriate references
  * to memory owned by cursors., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * eviction, if true\, modify internal algorithms to change skew to force lookaside eviction to
+ * eviction, if true\, modify internal algorithms to change skew to force history store eviction to
  * happen more aggressively.  This includes but is not limited to not skewing newest\, not favoring
  * leaf pages\, and modifying the eviction score mechanism., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;realloc_exact, if true\, reallocation of memory will only provide
@@ -3064,9 +3064,9 @@ struct __wt_connection {
  * <code>"verbose=[evictserver\,read]"</code>., a list\, with values chosen from the following
  * options: \c "api"\, \c "backup"\, \c "block"\, \c "checkpoint"\, \c "checkpoint_gc"\, \c
  * "checkpoint_progress"\, \c "compact"\, \c "compact_progress"\, \c "error_returns"\, \c "evict"\,
- * \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c "handleops"\, \c "log"\, \c "lookaside"\,
- * \c "lookaside_activity"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c
- * "overflow"\, \c "read"\, \c "rebalance"\, \c "reconcile"\, \c "recovery"\, \c
+ * \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c "handleops"\, \c "log"\, \c
+ * "history_store"\, \c "history_store_activity"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c
+ * "mutex"\, \c "overflow"\, \c "read"\, \c "rebalance"\, \c "reconcile"\, \c "recovery"\, \c
  * "recovery_progress"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c
  * "thread_group"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write";
  * default empty.}

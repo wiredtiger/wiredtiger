@@ -504,7 +504,7 @@ connection_runtime_config = [
             type='boolean'),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force
-            lookaside eviction to happen more aggressively. This includes but
+            history store eviction to happen more aggressively. This includes but
             is not limited to not skewing newest, not favoring leaf pages,
             and modifying the eviction score mechanism.''',
             type='boolean'),
@@ -685,7 +685,7 @@ connection_runtime_config = [
         intended for use with internal stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_sweep', 'checkpoint_slow', 'lookaside_sweep_race',
+        'aggressive_sweep', 'checkpoint_slow', 'history_store_sweep_race',
         'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6',
         'split_7', 'split_8']),
     Config('verbose', '', r'''
@@ -707,8 +707,8 @@ connection_runtime_config = [
             'fileops',
             'handleops',
             'log',
-            'lookaside',
-            'lookaside_activity',
+            'history_store',
+            'history_store_activity',
             'lsm',
             'lsm_manager',
             'metadata',
