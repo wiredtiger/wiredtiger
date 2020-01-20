@@ -233,8 +233,8 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
         CONFIG_APPEND(p, ",aggressive_sweep");
     if (g.c_timing_stress_checkpoint)
         CONFIG_APPEND(p, ",checkpoint_slow");
-    if (g.c_timing_stress_lookaside_sweep)
-        CONFIG_APPEND(p, ",lookaside_sweep_race");
+    if (g.c_timing_stress_hs_sweep)
+        CONFIG_APPEND(p, ",history_store_sweep_race");
     if (g.c_timing_stress_split_1)
         CONFIG_APPEND(p, ",split_1");
     if (g.c_timing_stress_split_2)
@@ -273,14 +273,6 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 
     if (max == 0)
         testutil_die(ENOMEM, "wiredtiger_open configuration buffer too small");
-
-    /*
-     * Direct I/O may not work with backups, doing copies through the buffer cache after configuring
-     * direct I/O in Linux won't work. If direct I/O is configured, turn off backups. This isn't a
-     * great place to do this check, but it's only here we have the configuration string.
-     */
-    if (strstr(config, "direct_io") != NULL)
-        g.c_backups = 0;
 
     testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
 

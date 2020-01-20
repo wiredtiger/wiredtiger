@@ -91,13 +91,11 @@ noinst_PROGRAMS += test_wt2853_perf
 
 test_wt2909_checkpoint_integrity_SOURCES = wt2909_checkpoint_integrity/main.c
 noinst_PROGRAMS += test_wt2909_checkpoint_integrity
-# Temporarily disabled
-# all_TESTS += test_wt2909_checkpoint_integrity
+all_TESTS += test_wt2909_checkpoint_integrity
 
 test_wt2999_join_extractor_SOURCES = wt2999_join_extractor/main.c
 noinst_PROGRAMS += test_wt2999_join_extractor
-# Temporarily disabled
-# all_TESTS += test_wt2999_join_extractor
+all_TESTS += test_wt2999_join_extractor
 
 test_wt3120_filesys_SOURCES = wt3120_filesys/main.c
 noinst_PROGRAMS += test_wt3120_filesys

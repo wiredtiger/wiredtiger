@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_checkpoint03.py
-#   Test that checkpoint writes out updates to the lookaside file.
+#   Test that checkpoint writes out updates to the history store file.
 #
 
 from suite_subprocess import suite_subprocess
@@ -50,7 +50,7 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor.close()
         return val
 
-    def test_checkpoint_writes_to_lookaside(self):
+    def test_checkpoint_writes_to_hs(self):
         # Create a basic table.
         self.session.create(self.uri, 'key_format=i,value_format=i')
         self.session.begin_transaction()
@@ -72,11 +72,11 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
         # Call checkpoint.
         self.session.checkpoint()
 
-        # Validate that we wrote to lookaside, note that the lookaside statistic is not counting
-        # how many writes we did, just that we did write. Hence for multiple writes it may only
-        # increment a single time.
-        las_writes = self.get_stat(stat.conn.cache_write_hs)
-        self.assertGreaterEqual(las_writes, 1)
+        # Validate that we wrote to history store, note that the history store statistic is not
+        # counting how many writes we did, just that we did write. Hence for multiple writes it may
+        # only increment a single time.
+        hs_writes = self.get_stat(stat.conn.cache_write_hs)
+        self.assertGreaterEqual(hs_writes, 1)
 
         # Add a new update.
         self.session.begin_transaction()
@@ -84,10 +84,10 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.commit_transaction('commit_timestamp=5')
         self.session.checkpoint()
 
-        # Check that we wrote something to lookaside in the last checkpoint we ran, as we should've
-        # written the previous update.
-        las_writes = self.get_stat(stat.conn.cache_write_hs)
-        self.assertGreaterEqual(las_writes, 2)
+        # Check that we wrote something to the history store in the last checkpoint we ran, as we
+        # should've written the previous update.
+        hs_writes = self.get_stat(stat.conn.cache_write_hs)
+        self.assertGreaterEqual(hs_writes, 2)
 
         # Close the connection.
         self.close_conn()

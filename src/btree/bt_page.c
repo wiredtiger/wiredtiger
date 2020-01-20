@@ -320,8 +320,7 @@ static inline bool
 __unstable_skip(WT_CELL_UNPACK *unpack)
 {
     /* Skip unstable entries after downgrade to releases without validity windows. */
-    return ((unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) &&
-      !__wt_process.page_version_ts);
+    return unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX;
 }
 
 /*

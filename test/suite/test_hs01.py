@@ -33,15 +33,15 @@ from wtdataset import SimpleDataSet
 def timestamp_str(t):
     return '%x' % t
 
-# test_las01.py
-# Smoke tests to ensure lookaside tables are working.
-class test_las01(wttest.WiredTigerTestCase):
+# test_hs01.py
+# Smoke tests to ensure history store tables are working.
+class test_hs01(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
     def large_updates(self, session, uri, value, ds, nrows, timestamp=False):
-        # Update a large number of records, we'll hang if the lookaside table
+        # Update a large number of records, we'll hang if the history store table
         # isn't doing its thing.
         cursor = session.open_cursor(uri)
         for i in range(1, 10000):
@@ -55,7 +55,7 @@ class test_las01(wttest.WiredTigerTestCase):
         cursor.close()
 
     def large_modifies(self, session, uri, offset, ds, nrows, timestamp=False):
-        # Modify a large number of records, we'll hang if the lookaside table
+        # Modify a large number of records, we'll hang if the history store table
         # isn't doing its thing.
         cursor = session.open_cursor(uri)
         for i in range(1, 10000):
@@ -93,9 +93,9 @@ class test_las01(wttest.WiredTigerTestCase):
         conn.close()
 
     @unittest.skip("Temporarily disabled")
-    def test_las(self):
+    def test_hs(self):
         # Create a small table.
-        uri = "table:test_las01"
+        uri = "table:test_hs01"
         nrows = 100
         ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
         ds.populate()
@@ -111,7 +111,7 @@ class test_las01(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Scenario: 1
-        # Check to see if LAS is working with the old snapshot.
+        # Check to see if the history store is working with the old snapshot.
         bigvalue1 = b"bbbbb" * 100
         self.session.snapshot("name=xxx")
         # Update the values in different session after snapshot.
@@ -121,7 +121,7 @@ class test_las01(wttest.WiredTigerTestCase):
         self.session.snapshot("drop=(all)")
 
         # Scenario: 2
-        # Check to see if LAS is working with the old reader.
+        # Check to see if the history store is working with the old reader.
         bigvalue2 = b"ccccc" * 100
         session2 = self.conn.open_session()
         session2.begin_transaction('isolation=snapshot')
@@ -132,7 +132,7 @@ class test_las01(wttest.WiredTigerTestCase):
         session2.close()
 
         # Scenario: 3
-        # Check to see LAS working with modify operations.
+        # Check to see the history store working with modify operations.
         bigvalue3 = b"ccccc" * 100
         bigvalue3 = b'AA' + bigvalue3[2:]
         session2 = self.conn.open_session()
@@ -148,7 +148,7 @@ class test_las01(wttest.WiredTigerTestCase):
         session2.close()
 
         # Scenario: 4
-        # Check to see if LAS is working with the old timestamp.
+        # Check to see if the history store is working with the old timestamp.
         bigvalue4 = b"ddddd" * 100
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
         self.large_updates(self.session, uri, bigvalue4, ds, nrows, timestamp=True)

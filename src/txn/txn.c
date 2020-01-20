@@ -781,7 +781,8 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
         if (op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_BASIC_ROW) {
             /*
-             * Search for prepared updates, so that they will be restored, if moved to lookaside.
+             * Search for prepared updates, so that they will be restored, if moved to the history
+             * store.
              */
             if (F_ISSET(txn, WT_TXN_PREPARE)) {
                 WT_RET(__wt_open_cursor(
@@ -1021,11 +1022,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 }
 
                 /*
-                 * Don't reset the timestamp of the lookaside records with lookaside transaction
-                 * timestamp. Those records should already have the original time pair when they are
-                 * inserted into lookaside.
+                 * Don't reset the timestamp of the history store records with history store
+                 * transaction timestamp. Those records should already have the original time pair
+                 * when they are inserted into the history store.
                  */
-                if (conn->cache->las_fileid != 0 && fileid == conn->cache->las_fileid)
+                if (conn->cache->hs_fileid != 0 && fileid == conn->cache->hs_fileid)
                     break;
 
                 __wt_txn_op_set_timestamp(session, op);
@@ -1159,8 +1160,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-        /* Assert it's not an update to the lookaside file. */
-        WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 || !WT_IS_LAS(op->btree));
+        /* Assert it's not an update to the history store file. */
+        WT_ASSERT(session, S2C(session)->cache->hs_fileid == 0 || !WT_IS_HS(op->btree));
 
         /* Metadata updates should never be prepared. */
         WT_ASSERT(session, !WT_IS_METADATA(op->btree->dhandle));
@@ -1262,8 +1263,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-        /* Assert it's not an update to the lookaside file. */
-        WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 || !WT_IS_LAS(op->btree));
+        /* Assert it's not an update to the history store file. */
+        WT_ASSERT(session, S2C(session)->cache->hs_fileid == 0 || !WT_IS_HS(op->btree));
 
         /* Metadata updates should never be rolled back. */
         WT_ASSERT(session, !WT_IS_METADATA(op->btree->dhandle));
@@ -1280,8 +1281,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
             upd = op->u.op_upd;
 
             if (!prepare) {
-                if (S2C(session)->cache->las_fileid != 0 &&
-                  op->btree->id == S2C(session)->cache->las_fileid)
+                if (S2C(session)->cache->hs_fileid != 0 &&
+                  op->btree->id == S2C(session)->cache->hs_fileid)
                     break;
                 WT_ASSERT(session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
                 upd->txnid = WT_TXN_ABORTED;

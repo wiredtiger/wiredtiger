@@ -48,7 +48,7 @@ class test_gc_base(wttest.WiredTigerTestCase):
         #self.assertGreater(c[stat.conn.hs_gc_pages_removed][2], 0)
         c.close()
 
-# Test that checkpoint cleans the obsolete lookaside pages.
+# Test that checkpoint cleans the obsolete history store pages.
 class test_gc01(test_gc_base):
     # Force a small cache.
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'

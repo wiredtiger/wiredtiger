@@ -54,14 +54,20 @@ typedef enum {
 #define WT_TS_MAX UINT64_MAX /* End of time */
 
 /*
- * We format timestamps in a couple of ways, declare appropriate sized buffers.
- * Hexadecimal is 2x the size of the value. MongoDB format (high/low pairs of
- * 4B unsigned integers, with surrounding parenthesis and dividing comma), is
- * 2x the maximum digits from a 4B unsigned integer + 3. Both sizes include a
- * trailing nul byte as well.
+ * We format timestamps in a couple of ways, declare appropriate sized buffers. Hexadecimal is 2x
+ * the size of the value. MongoDB format (high/low pairs of 4B unsigned integers, with surrounding
+ * parenthesis and separating comma and space), is 2x the maximum digits from a 4B unsigned integer
+ * plus 4. Both sizes include a trailing null byte as well.
  */
 #define WT_TS_HEX_STRING_SIZE (2 * sizeof(wt_timestamp_t) + 1)
-#define WT_TS_INT_STRING_SIZE (2 * 10 + 3 + 1)
+#define WT_TS_INT_STRING_SIZE (2 * 10 + 4 + 1)
+
+/*
+ * We need an appropriately sized buffer for formatted time pairs. This is for time pairs of the
+ * form (time_stamp, slash and transaction_id), which gives the max digits of a timestamp plus slash
+ * plus max digits of a 8 byte integer with a trailing null byte.
+ */
+#define WT_TP_STRING_SIZE (WT_TS_INT_STRING_SIZE + 1 + 20 + 1)
 
 /*
  * Perform an operation at the specified isolation level.

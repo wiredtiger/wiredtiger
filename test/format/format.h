@@ -66,7 +66,7 @@ typedef struct {
     char *home_backup_init;  /* Initialize backup command */
     char *home_config;       /* Run CONFIG file path */
     char *home_init;         /* Initialize home command */
-    char *home_lasdump;      /* LAS dump filename */
+    char *home_hsdump;       /* HS dump filename */
     char *home_log;          /* Operation log file path */
     char *home_pagedump;     /* Page dump filename */
     char *home_rand;         /* RNG log file path */
@@ -185,7 +185,7 @@ typedef struct {
     uint32_t c_timer;
     uint32_t c_timing_stress_aggressive_sweep;
     uint32_t c_timing_stress_checkpoint;
-    uint32_t c_timing_stress_lookaside_sweep;
+    uint32_t c_timing_stress_hs_sweep;
     uint32_t c_timing_stress_split_1;
     uint32_t c_timing_stress_split_2;
     uint32_t c_timing_stress_split_3;
@@ -343,7 +343,8 @@ void key_init(void);
 WT_THREAD_RET random_kv(void *);
 void path_setup(const char *);
 int read_row_worker(WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
-uint32_t rng(WT_RAND_STATE *);
+uint32_t rng_slow(WT_RAND_STATE *);
+void set_alarm(u_int);
 void set_core_off(void);
 void snap_init(TINFO *, uint64_t, bool);
 void snap_repeat_single(WT_CURSOR *, TINFO *);
@@ -357,13 +358,12 @@ void val_gen(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void val_gen_init(WT_ITEM *);
 void val_gen_teardown(WT_ITEM *);
 void val_init(void);
-void val_teardown(void);
 void wts_close(void);
 void wts_dump(const char *, bool);
 void wts_init(void);
 void wts_load(void);
 void wts_open(const char *, bool, WT_CONNECTION **);
-void wts_ops(bool);
+void wts_ops(u_int, bool);
 void wts_read_scan(void);
 void wts_rebalance(void);
 void wts_reopen(void);

@@ -33,16 +33,16 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' % t
 
-# test_las06.py
-# Verify that triggering lookaside usage does not cause a spike in memory usage
-# to form an update chain from the lookaside contents.
+# test_hs06.py
+# Verify that triggering history store usage does not cause a spike in memory usage
+# to form an update chain from the history store contents.
 #
-# The required value should be fetched from lookaside and then passed straight
+# The required value should be fetched from the history store and then passed straight
 # back to the user without putting together an update chain.
 #
 # TODO: Uncomment the checks after the main portion of the relevant history
 # project work is complete.
-class test_las06(wttest.WiredTigerTestCase):
+class test_hs06(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
@@ -68,9 +68,9 @@ class test_las06(wttest.WiredTigerTestCase):
         return i
 
     @unittest.skip("Temporarily disabled")
-    def test_las_reads(self):
+    def test_hs_reads(self):
         # Create a small table.
-        uri = "table:test_las06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -104,7 +104,7 @@ class test_las06(wttest.WiredTigerTestCase):
         start_usage = self.get_non_page_image_memory_usage()
 
         # Whenever we request something out of cache of timestamp 2, we should
-        # be reading it straight from lookaside without initialising a full
+        # be reading it straight from the history store without initialising a full
         # update chain of every version of the data.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
         for i in range(1, 10000):
@@ -126,9 +126,9 @@ class test_las06(wttest.WiredTigerTestCase):
 
     # WT-5336 causing the read at timestamp 4 returning the value committed at timestamp 5 or 3
     @unittest.skip("Temporarily disabled until WT-5336 is fixed")
-    def test_las_modify_reads(self):
+    def test_hs_modify_reads(self):
         # Create a small table.
-        uri = "table:test_las06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -174,7 +174,7 @@ class test_las06(wttest.WiredTigerTestCase):
         expected = str().join(expected)
 
         # Whenever we request something of timestamp 3, this should be a modify
-        # op. We should looking forwards in lookaside until we find the
+        # op. We should looking forwards in the history store until we find the
         # newest whole update (timestamp 4).
         #
         # t5: value1 (full update on page)
@@ -202,10 +202,9 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
-    @unittest.skip("Temporarily disabled")
-    def test_las_prepare_reads(self):
+    def test_hs_prepare_reads(self):
         # Create a small table.
-        uri = "table:test_las06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -237,7 +236,7 @@ class test_las06(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Try to read every key of the prepared data again.
-        # Ensure that we read the lookaside to find the prepared update and
+        # Ensure that we read the history store to find the prepared update and
         # return a prepare conflict as appropriate.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
         for i in range(1, 11):
@@ -257,9 +256,9 @@ class test_las06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     @unittest.skip("Temporarily disabled")
-    def test_las_multiple_updates(self):
+    def test_hs_multiple_updates(self):
         # Create a small table.
-        uri = "table:test_las06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -297,9 +296,9 @@ class test_las06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     @unittest.skip("Temporarily disabled")
-    def test_las_multiple_modifies(self):
+    def test_hs_multiple_modifies(self):
         # Create a small table.
-        uri = "table:test_las06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -342,9 +341,9 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
-    def test_las_instantiated_modify(self):
+    def test_hs_instantiated_modify(self):
         # Create a small table.
-        uri = "table:test_las06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -374,7 +373,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
         # Since the stable timestamp is still at 1, there will be no birthmark record.
-        # Lookaside instantiation should choose this update since it is the most recent.
+        # History store instantiation should choose this update since it is the most recent.
         # We want to check that it gets converted into a standard update as appropriate.
         for i in range(1, 11):
             self.session.begin_transaction()
@@ -383,7 +382,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Make a bunch of updates to another table to flush everything out of cache.
-        uri2 = 'table:test_las06_extra'
+        uri2 = 'table:test_hs06_extra'
         self.session.create(uri2, create_params)
         cursor2 = self.session.open_cursor(uri2)
         for i in range(1, 10000):
@@ -403,9 +402,9 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
-    def test_las_modify_birthmark_is_base_update(self):
+    def test_hs_modify_birthmark_is_base_update(self):
         # Create a small table.
-        uri = "table:test_las06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -417,7 +416,7 @@ class test_las06(wttest.WiredTigerTestCase):
             'oldest_timestamp=' + timestamp_str(1) + ',stable_timestamp=' + timestamp_str(1))
 
         # The base update is at timestamp 1.
-        # When we lookaside evict these pages, the base update will be used as the birthmark since
+        # When we history store evict these pages, the base update will be used as the birthmark since
         # it's the only thing behind the stable timestamp.
         cursor = self.session.open_cursor(uri)
         for i in range(1, 10000):
@@ -445,7 +444,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
         # Make a bunch of updates to another table to flush everything out of cache.
-        uri2 = 'table:test_las06_extra'
+        uri2 = 'table:test_hs06_extra'
         self.session.create(uri2, create_params)
         cursor2 = self.session.open_cursor(uri2)
         for i in range(1, 10000):
@@ -467,9 +466,9 @@ class test_las06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     @unittest.skip("Temporarily disabled")
-    def test_las_rec_modify(self):
+    def test_hs_rec_modify(self):
         # Create a small table.
-        uri = "table:test_las06"
+        uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
@@ -512,8 +511,8 @@ class test_las06(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(6))
 
-        # Checkpoint such that the modifies will be selected. When we grab it from lookaside, we'll
-        # need to unflatten it before using it for reconciliation.
+        # Checkpoint such that the modifies will be selected. When we grab it from the history
+        # store, we'll need to unflatten it before using it for reconciliation.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
         self.session.checkpoint()
 
