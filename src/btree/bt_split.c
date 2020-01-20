@@ -801,8 +801,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         }
 
         /*
-         * The page-delete and lookaside memory weren't added to the parent's footprint, ignore it
-         * here.
+         * The page-delete and history store memory weren't added to the parent's footprint, ignore
+         * it here.
          */
         if (next_ref->page_del != NULL) {
             __wt_free(session, next_ref->page_del->update_list);

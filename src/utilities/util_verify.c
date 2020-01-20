@@ -17,9 +17,9 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     size_t size;
     int ch;
     char *config, *dump_offsets, *uri;
-    bool dump_address, dump_blocks, dump_layout, dump_pages, dump_time_pairs;
+    bool dump_address, dump_blocks, dump_layout, dump_pages;
 
-    dump_address = dump_blocks = dump_layout = dump_pages = dump_time_pairs = false;
+    dump_address = dump_blocks = dump_layout = dump_pages = false;
     config = dump_offsets = uri = NULL;
     while ((ch = __wt_getopt(progname, argc, argv, "d:")) != EOF)
         switch (ch) {
@@ -41,8 +41,6 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                 dump_offsets = __wt_optarg + strlen("dump_offsets=");
             } else if (strcmp(__wt_optarg, "dump_pages") == 0)
                 dump_pages = true;
-            else if (strcmp(__wt_optarg, "dump_time_pairs") == 0)
-                dump_time_pairs = true;
             else
                 return (usage());
             break;
@@ -60,20 +58,19 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         return (1);
 
     /* Build the configuration string as necessary. */
-    if (dump_address || dump_blocks || dump_layout || dump_offsets != NULL || dump_pages ||
-      dump_time_pairs) {
+    if (dump_address || dump_blocks || dump_layout || dump_offsets != NULL || dump_pages) {
         size = strlen("dump_address,") + strlen("dump_blocks,") + strlen("dump_layout,") +
-          strlen("dump_pages,") + strlen("dump_time_pairs,") + strlen("dump_offsets[],") +
+          strlen("dump_pages,") + strlen("dump_offsets[],") +
           (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + 20;
         if ((config = malloc(size)) == NULL) {
             ret = util_err(session, errno, NULL);
             goto err;
         }
-        if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s%s",
+        if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s",
                dump_address ? "dump_address," : "", dump_blocks ? "dump_blocks," : "",
                dump_layout ? "dump_layout," : "", dump_offsets != NULL ? "dump_offsets=[" : "",
                dump_offsets != NULL ? dump_offsets : "", dump_offsets != NULL ? "]," : "",
-               dump_pages ? "dump_pages," : "", dump_time_pairs ? "dump_time_pairs," : "")) != 0) {
+               dump_pages ? "dump_pages," : "")) != 0) {
             (void)util_err(session, ret, NULL);
             goto err;
         }
@@ -102,6 +99,6 @@ usage(void)
       "verify %s\n",
       progname, usage_prefix,
       "[-d dump_address | dump_blocks | dump_layout | "
-      "dump_offsets=#,# | dump_pages | dump_time_pairs] uri");
+      "dump_offsets=#,# | dump_pages] uri");
     return (1);
 }

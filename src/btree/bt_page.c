@@ -324,7 +324,7 @@ __unstable_skip(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNP
      * wiredtiger_open connections.
      */
     return ((unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) &&
-      (S2C(session)->base_write_gen > dsk->write_gen || !__wt_process.page_version_ts));
+      S2C(session)->base_write_gen > dsk->write_gen);
 }
 
 /*

@@ -313,7 +313,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
-    bool is_las, timer, tried_eviction;
+    bool is_hs, timer, tried_eviction;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -423,26 +423,26 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         btree->syncing = WT_BTREE_SYNC_WAIT;
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         btree->syncing = WT_BTREE_SYNC_RUNNING;
-        is_las = WT_IS_LAS(btree);
+        is_hs = WT_IS_HS(btree);
 
         /*
-         * Add in lookaside reconciliation for standard files.
+         * Add in history store reconciliation for standard files.
          *
-         * FIXME-PM-1521: Remove the is_las check, and assert that no updates from lookaside are
-         * copied to lookaside recursively.
+         * FIXME-PM-1521: Remove the history store check, and assert that no updates from the
+         * history store are copied to the history store recursively.
          */
         rec_flags = WT_REC_CHECKPOINT;
-        if (!is_las && !WT_IS_METADATA(btree->dhandle))
-            rec_flags |= WT_REC_LOOKASIDE;
+        if (!is_hs && !WT_IS_METADATA(btree->dhandle))
+            rec_flags |= WT_REC_HS;
 
         /* Write all dirty in-cache pages. */
         LF_SET(WT_READ_NO_EVICT);
 
-        /* Read pages with lookaside entries and evict them asap. */
+        /* Read pages with history store entries and evict them asap. */
         LF_SET(WT_READ_WONT_NEED);
 
         /* Read internal pages if it is history store */
-        if (is_las) {
+        if (is_hs) {
             LF_CLR(WT_READ_CACHE);
             LF_SET(WT_READ_CACHE_LEAF);
             memset(&ref_list, 0, sizeof(ref_list));
@@ -459,7 +459,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
 
             /* Traverse through the internal page for obsolete child pages. */
-            if (is_las && WT_PAGE_IS_INTERNAL(walk->page)) {
+            if (is_hs && WT_PAGE_IS_INTERNAL(walk->page)) {
                 WT_WITH_PAGE_INDEX(
                   session, ret = __sync_ref_int_obsolete_cleanup(session, walk, &ref_list));
                 WT_ERR(ret);

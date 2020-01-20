@@ -37,7 +37,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_gc03.py
-# Test that checkpoint cleans the obsolete lookaside pages that are in-memory.
+# Test that checkpoint cleans the obsolete history store pages that are in-memory.
 class test_gc03(test_gc_base):
     conn_config = 'cache_size=4GB,log=(enabled),statistics=(all),statistics_log=(wait=0,on_close=true)'
     session_config = 'isolation=snapshot'

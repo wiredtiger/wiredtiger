@@ -766,12 +766,13 @@ __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
     __wt_session_close_cache(session);
 
 /*
- * Close open data handles: first, everything apart from metadata and lookaside (as closing a normal
- * file may write metadata and read lookaside entries). Then close whatever is left open.
+ * Close open data handles: first, everything apart from metadata and the history store (as closing
+ * a normal file may write metadata and read history store entries). Then close whatever is left
+ * open.
  */
 restart:
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        if (WT_IS_METADATA(dhandle) || strcmp(dhandle->name, WT_LAS_URI) == 0 ||
+        if (WT_IS_METADATA(dhandle) || strcmp(dhandle->name, WT_HS_URI) == 0 ||
           WT_PREFIX_MATCH(dhandle->name, WT_SYSTEM_PREFIX))
             continue;
 
@@ -780,8 +781,8 @@ restart:
         goto restart;
     }
 
-    /* Shut down the lookaside table after all eviction is complete. */
-    WT_TRET(__wt_las_destroy(session));
+    /* Shut down the history store table after all eviction is complete. */
+    WT_TRET(__wt_hs_destroy(session));
 
     /*
      * Closing the files may have resulted in entries on our default session's list of open data

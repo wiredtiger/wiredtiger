@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_las04.py
-#   Test file_max configuration and reconfiguration for the lookaside table.
+# test_hs04.py
+#   Test file_max configuration and reconfiguration for the history store table.
 #
 
 import wiredtiger, wttest
@@ -36,8 +36,8 @@ from wtscenario import make_scenarios
 # Taken from src/include/misc.h.
 WT_MB = 1048576
 
-class test_las04(wttest.WiredTigerTestCase):
-    uri = 'table:las_04'
+class test_hs04(wttest.WiredTigerTestCase):
+    uri = 'table:hs_04'
     in_memory_values = [
         ('false', dict(in_memory=False)),
         ('none', dict(in_memory=None)),
@@ -71,11 +71,11 @@ class test_las04(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    def test_las(self):
+    def test_hs(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         if self.in_memory:
-            # For in-memory configurations, we simply ignore any lookaside
+            # For in-memory configurations, we simply ignore any history store
             # related configuration.
             self.assertEqual(
                 self.get_stat(wiredtiger.stat.conn.cache_hs_ondisk_max),
