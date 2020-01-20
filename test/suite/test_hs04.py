@@ -60,7 +60,7 @@ class test_hs04(wttest.WiredTigerTestCase):
     def conn_config(self):
         config = 'statistics=(fast)'
         if self.init_file_max is not None:
-            config += ',cache_overflow=(file_max={})'.format(self.init_file_max)
+            config += ',history_store=(file_max={})'.format(self.init_file_max)
         if self.in_memory is not None:
             config += ',in_memory=' + ('true' if self.in_memory else 'false')
         return config
@@ -86,7 +86,7 @@ class test_hs04(wttest.WiredTigerTestCase):
                 self.init_stat_val)
 
         reconfigure = lambda: self.conn.reconfigure(
-            'cache_overflow=(file_max={})'.format(self.reconfig_file_max))
+            'history_store=(file_max={})'.format(self.reconfig_file_max))
 
         # We expect an error when the statistic value is None because the value
         # is out of range.
