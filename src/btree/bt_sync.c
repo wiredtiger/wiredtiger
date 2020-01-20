@@ -193,7 +193,9 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
         return (0);
 
     /* Ignore internal pages, these are taken care of during reconciliation. */
-    if (ref->addr != NULL && !__wt_ref_is_leaf(session, ref)) {
+    if ((ref->addr != NULL && !__wt_ref_is_leaf(session, ref)) ||
+      (ref->page != NULL && WT_PAGE_IS_INTERNAL(ref->page))) {
+        WT_REF_SET_STATE(ref, previous_state);
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping internal page with parent: %p",
           (void *)ref, (void *)ref->home);
         return (0);
@@ -232,7 +234,7 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
           "and timestamp: %" PRIu64 ", %" PRIu64,
           (void *)ref, vpack.newest_stop_txn, vpack.newest_stop_ts);
         obsolete = __wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts);
-    } else {
+    } else if (addr != NULL) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
           "%p: page obsolete check with off page address stop time pair txn "
           "and timestamp: %" PRIu64 ", %" PRIu64,
