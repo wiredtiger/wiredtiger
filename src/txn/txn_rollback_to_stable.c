@@ -449,7 +449,7 @@ __txn_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor
         WT_RET(cursor->get_key(cursor, &uri));
 
         /* Ignore metadata and history store files. */
-        if (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_LAS_URI) == 0)
+        if (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_HS_URI) == 0)
             continue;
 
         skip = false;
