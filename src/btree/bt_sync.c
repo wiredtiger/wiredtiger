@@ -321,7 +321,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     txn = &session->txn;
     tried_eviction = false;
     time_start = time_stop = 0;
-    is_las = false;
+    is_hs = false;
 
     /* Only visit pages in cache and don't bump page read generations. */
     flags = WT_READ_CACHE | WT_READ_NO_GEN;
@@ -453,7 +453,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             WT_ERR(__wt_tree_walk(session, &walk, flags));
 
             if (walk == NULL) {
-                if (is_las)
+                if (is_hs)
                     __sync_ref_list_pop(session, &ref_list, flags);
                 break;
             }
@@ -570,7 +570,7 @@ err:
     WT_TRET(__wt_page_release(session, prev, flags));
 
     /* On error, Process the ref that are saved and free the list. */
-    if (is_las)
+    if (is_hs)
         __sync_ref_list_pop(session, &ref_list, flags);
 
     /*
