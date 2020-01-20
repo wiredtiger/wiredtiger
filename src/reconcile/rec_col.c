@@ -989,12 +989,6 @@ compare:
             } else if (upd == NULL)
                 deleted = true;
             else {
-                durable_ts = upd_select.durable_ts;
-                start_ts = upd_select.start_ts;
-                start_txn = upd_select.start_txn;
-                stop_ts = upd_select.stop_ts;
-                stop_txn = upd_select.stop_txn;
-
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
                     /*
