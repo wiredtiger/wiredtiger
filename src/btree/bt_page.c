@@ -313,17 +313,6 @@ __inmem_col_var_repeats(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t *np)
 }
 
 /*
- * __unstable_skip --
- *     Optionally skip unstable entries
- */
-static inline bool
-__unstable_skip(WT_CELL_UNPACK *unpack)
-{
-    /* Skip unstable entries after downgrade to releases without validity windows. */
-    return unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX;
-}
-
-/*
  * __inmem_col_var --
  *     Build in-memory index for variable-length, data-only leaf pages in column-store trees.
  */
@@ -353,12 +342,6 @@ __inmem_col_var(
     indx = 0;
     cip = page->pg_var;
     WT_CELL_FOREACH_BEGIN (session, btree, page->dsk, unpack) {
-        /* Optionally skip unstable values */
-        if (check_unstable && __unstable_skip(&unpack)) {
-            --page->entries;
-            continue;
-        }
-
         WT_COL_PTR_SET(cip, WT_PAGE_DISK_OFFSET(page, unpack.cell));
         cip++;
 
@@ -573,12 +556,6 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool check_unstable)
             ++rip;
             break;
         case WT_CELL_VALUE:
-            /* Optionally skip unstable values */
-            if (check_unstable && __unstable_skip(&unpack)) {
-                --rip;
-                --page->entries;
-            }
-
             /*
              * Simple values without compression can be directly referenced on the page to avoid
              * repeatedly unpacking their cells.
@@ -587,11 +564,6 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool check_unstable)
                 __wt_row_leaf_value_set(page, rip - 1, &unpack);
             break;
         case WT_CELL_VALUE_OVFL:
-            /* Optionally skip unstable values */
-            if (check_unstable && __unstable_skip(&unpack)) {
-                --rip;
-                --page->entries;
-            }
             break;
         default:
             return (__wt_illegal_value(session, unpack.type));
