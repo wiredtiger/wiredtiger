@@ -248,7 +248,7 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
  *     Return a history store cursor.
  */
 void
-__wt_hs_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_flags)
+__wt_hs_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_flags, bool reader)
 {
     WT_CACHE *cache;
     int i;
@@ -279,6 +279,12 @@ __wt_hs_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_
                 if (!cache->hs_session_inuse[i]) {
                     *cursorp = cache->hs_session[i]->hs_cursor;
                     cache->hs_session_inuse[i] = true;
+                    if (reader) {
+                        cache->hs_session[i]->iface.begin_transaction(
+                          &cache->hs_session[i]->iface, "isolation=snapshot");
+                        WT_ASSERT(session, 0 == __wt_txn_set_read_timestamp(cache->hs_session[i],
+                                                  session->txn.read_timestamp));
+                    }
                     break;
                 }
             }
@@ -307,7 +313,8 @@ __wt_hs_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_
  *     Discard a history store cursor.
  */
 int
-__wt_hs_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t session_flags)
+__wt_hs_cursor_close(
+  WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t session_flags, bool reader)
 {
     WT_CACHE *cache;
     WT_CURSOR *cursor;
@@ -339,6 +346,10 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t ses
         for (i = 0; i < WT_HS_NUM_SESSIONS; i++)
             if (cursor->session == &cache->hs_session[i]->iface) {
                 cache->hs_session_inuse[i] = false;
+                if (reader) {
+                    cache->hs_session[i]->iface.rollback_transaction(
+                      &cache->hs_session[i]->iface, NULL);
+                }
                 break;
             }
         __wt_spin_unlock(session, &cache->hs_lock);
@@ -878,7 +889,7 @@ __wt_find_hs_upd(
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     /* Open a history store table cursor. */
-    __wt_hs_cursor(session, &hs_cursor, &session_flags);
+    __wt_hs_cursor(session, &hs_cursor, &session_flags, true);
 
     /*
      * After positioning our cursor, we're stepping backwards to find the correct update. Since the
@@ -1033,7 +1044,7 @@ err:
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
 
-    WT_TRET(__wt_hs_cursor_close(session, &hs_cursor, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, &hs_cursor, session_flags, true));
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &upd);

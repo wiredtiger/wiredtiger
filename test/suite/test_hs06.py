@@ -202,6 +202,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
+    @unittest.skip("Temporarily disabled")
     def test_hs_prepare_reads(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -255,7 +256,6 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEquals(value2, cursor[self.create_key(i)])
         self.session.rollback_transaction()
 
-    @unittest.skip("Temporarily disabled")
     def test_hs_multiple_updates(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -291,6 +291,7 @@ class test_hs06(wttest.WiredTigerTestCase):
 
         # Ensure that we see the last of the two updates that got applied.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
+        self.session.breakpoint()
         for i in range(1, 11):
             self.assertEquals(cursor[self.create_key(i)], value3)
         self.session.rollback_transaction()
@@ -341,6 +342,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
+    @unittest.skip("Temporarily disabled")
     def test_hs_instantiated_modify(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -402,6 +404,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
+    @unittest.skip("Temporarily disabled")
     def test_hs_modify_birthmark_is_base_update(self):
         # Create a small table.
         uri = "table:test_hs06"
