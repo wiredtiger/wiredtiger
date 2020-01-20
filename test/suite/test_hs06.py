@@ -202,7 +202,6 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
-    @unittest.skip("Temporarily disabled")
     def test_hs_prepare_reads(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -296,7 +295,6 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEquals(cursor[self.create_key(i)], value3)
         self.session.rollback_transaction()
 
-    @unittest.skip("Temporarily disabled")
     def test_hs_multiple_modifies(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -342,7 +340,6 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
-    @unittest.skip("Temporarily disabled")
     def test_hs_instantiated_modify(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -404,7 +401,6 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
-    @unittest.skip("Temporarily disabled")
     def test_hs_modify_birthmark_is_base_update(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -468,7 +464,6 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
-    @unittest.skip("Temporarily disabled")
     def test_hs_rec_modify(self):
         # Create a small table.
         uri = "table:test_hs06"
