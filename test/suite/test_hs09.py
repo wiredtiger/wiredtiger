@@ -53,7 +53,7 @@ class test_hs09(wttest.WiredTigerTestCase):
             return str(i)
         return i
 
-    def check_ckpt_las(self, expected_data_value, expected_las_value, expected_las_start_ts, expected_las_stop_ts):
+    def chech_ckpt_hs(self, expected_data_value, expected_hs_value, expected_hs_start_ts, expected_hs_stop_ts):
         session = self.conn.open_session(self.session_config)
         session.checkpoint()
         # Check the data file value
@@ -63,16 +63,16 @@ class test_hs09(wttest.WiredTigerTestCase):
         cursor.close()
         # Check the history store file value
         cursor = session.open_cursor("file:WiredTigerHS.wt", None, 'checkpoint=WiredTigerCheckpoint')
-        for _, _, las_start_ts, _, las_stop_ts, _, _, _, type, value in cursor:
+        for _, _, hs_start_ts, _, hs_stop_ts, _, _, _, type, value in cursor:
             # No WT_UPDATE_TOMBSTONE in the history store
             self.assertNotEqual(type, 5)
             # No WT_UPDATE_BIRTHMARK in the history store
             self.assertNotEqual(type, 1)
             # WT_UPDATE_STANDARD
             if (type == 4):
-                self.assertEqual(value.decode(), expected_las_value + '\x00')
-                self.assertEqual(las_start_ts, expected_las_start_ts)
-                self.assertEqual(las_stop_ts, expected_las_stop_ts)
+                self.assertEqual(value.decode(), expected_hs_value + '\x00')
+                self.assertEqual(hs_start_ts, expected_hs_start_ts)
+                self.assertEqual(hs_stop_ts, expected_hs_stop_ts)
         cursor.close()
         session.close()
 
@@ -105,7 +105,7 @@ class test_hs09(wttest.WiredTigerTestCase):
         for i in range(1, 11):
             cursor[self.create_key(i)] = value3
 
-        self.check_ckpt_las(value2, value1, 2, 3)
+        self.chech_ckpt_hs(value2, value1, 2, 3)
 
     @unittest.skip("Temporarily disabled until WT-5448 is fixed")
     def test_prepared_updates_not_written_to_hs(self):
@@ -137,7 +137,7 @@ class test_hs09(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value3
         self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(4))
 
-        self.check_ckpt_las(value2, value1, 2, 3)
+        self.chech_ckpt_hs(value2, value1, 2, 3)
 
     @unittest.skip("Temporarily disabled until WT-5448 is fixed")
     def test_write_newest_version_to_data_store(self):
@@ -162,7 +162,7 @@ class test_hs09(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
-        self.check_ckpt_las(value2, value1, 2, 3)
+        self.chech_ckpt_hs(value2, value1, 2, 3)
 
     @unittest.skip("Temporarily disabled until WT-5448 is fixed")
     def test_write_deleted_version_to_data_store(self):
@@ -195,7 +195,7 @@ class test_hs09(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.remove(), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
-        self.check_ckpt_las(value2, value1, 2, 3)
+        self.chech_ckpt_hs(value2, value1, 2, 3)
 
 if __name__ == '__main__':
     wttest.run()
