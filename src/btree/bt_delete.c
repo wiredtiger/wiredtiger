@@ -18,9 +18,9 @@
  * pages of the truncate range, then walks the tree with a flag so the tree walk code skips reading
  * eligible pages within the range and instead just marks them as deleted, by changing their WT_REF
  * state to WT_REF_DELETED. Pages ineligible for this fast path include pages already in the cache,
- * having overflow items, or requiring lookaside records. Ineligible pages are read and have their
- * rows updated/deleted individually. The transaction for the delete operation is stored in memory
- * referenced by the WT_REF.page_del field.
+ * having overflow items, or requiring history store records. Ineligible pages are read and have
+ * their rows updated/deleted individually. The transaction for the delete operation is stored in
+ * memory referenced by the WT_REF.page_del field.
  *
  * Future cursor walks of the tree will skip the deleted page based on the transaction stored for
  * the delete, but it gets more complicated if a read is done using a random key, or a cursor walk
@@ -343,7 +343,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * Allocate the per-page update array if one doesn't already exist. (It might already exist
-     * because deletes are instantiated after lookaside table updates.)
+     * because deletes are instantiated after the history store table updates.)
      */
     if (page->entries != 0 && page->modify->mod_row_update == NULL)
         WT_RET(__wt_calloc_def(session, page->entries, &page->modify->mod_row_update));

@@ -127,8 +127,7 @@ __rec_append_orig_value(
      * do nothing).
      */
     if (upd->type == WT_UPDATE_BIRTHMARK) {
-        /* FIXME-PM-1521: temporarily disable the assert until we figured out what is wrong */
-        /* WT_ASSERT(session, append->start_ts == upd->start_ts && append->txnid == upd->txnid); */
+        WT_ASSERT(session, append->start_ts == upd->start_ts && append->txnid == upd->txnid);
         append->next = upd->next;
     }
 
@@ -163,7 +162,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t 
     if (LF_ISSET(WT_REC_IN_MEMORY))
         return true;
 
-    if (!LF_ISSET(WT_REC_LOOKASIDE))
+    if (!LF_ISSET(WT_REC_HS))
         return false;
 
     if (LF_ISSET(WT_REC_EVICT) && list_uncommitted)
@@ -421,15 +420,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     if (upd != NULL && upd->type == WT_UPDATE_BIRTHMARK) {
         /*
          * Resolve the birthmark now regardless of whether the update being written to the data file
-         * is the same as it was the previous reconciliation. Otherwise lookaside can end up with
-         * two birthmark records in the same update chain.
+         * is the same as it was the previous reconciliation. Otherwise the history store can end up
+         * with two birthmark records in the same update chain.
          */
         WT_ERR(__rec_append_orig_value(session, page, upd, vpack));
         upd_select->upd = NULL;
     }
 
-    /* Should not see uncommitted changes in lookaside */
-    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE) || !list_uncommitted);
+    /* Should not see uncommitted changes in the history store */
+    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !list_uncommitted);
 
     r->leave_dirty |= list_uncommitted;
 
@@ -438,7 +437,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * skip saving the update as saving the update will cause reconciliation to think there is work
      * that needs to be done when there might not be.
      *
-     * Additionally lookaside reconciliation is not set skip saving an update.
+     * Additionally history store reconciliation is not set skip saving an update.
      */
     if (__rec_need_save_upd(
           session, upd_select->upd, max_txn, max_ts, list_uncommitted, r->flags)) {

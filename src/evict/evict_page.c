@@ -372,8 +372,8 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
         /*
          * 1-for-1 page swap: Update the parent to reference the replacement page.
          *
-         * A page evicted with lookaside entries may not have an address, if no updates were visible
-         * to reconciliation.
+         * A page evicted with history store entries may not have an address, if no updates were
+         * visible to reconciliation.
          *
          * Publish: a barrier to ensure the structure fields are set before the state change makes
          * the page available to readers.
@@ -571,8 +571,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         return (0);
 
     /*
-     * If reconciliation is disabled for this thread (e.g., during an eviction that writes to
-     * lookaside), give up.
+     * If reconciliation is disabled for this thread (e.g., during an eviction that writes to the
+     * history store), give up.
      */
     if (F_ISSET(session, WT_SESSION_NO_RECONCILE))
         return (__wt_set_return(session, EBUSY));
@@ -584,7 +584,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * cannot read.
      *
      * Don't set any other flags for internal pages: there are no update lists to be saved and
-     * restored, changes can't be written into the lookaside table, nor can we re-create internal
+     * restored, changes can't be written into the history store table, nor can we re-create
+     * internal
      * pages in memory.
      *
      * For leaf pages:
@@ -608,14 +609,14 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     if (closing)
         LF_SET(WT_REC_VISIBILITY_ERR);
-    else if (WT_PAGE_IS_INTERNAL(page) || WT_IS_LAS(S2BT(session)))
+    else if (WT_PAGE_IS_INTERNAL(page) || WT_IS_HS(S2BT(session)))
         ;
     else if (WT_SESSION_BTREE_SYNC(session))
-        LF_SET(WT_REC_LOOKASIDE);
+        LF_SET(WT_REC_HS);
     else if (F_ISSET(conn, WT_CONN_IN_MEMORY))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB);
     else {
-        LF_SET(WT_REC_LOOKASIDE);
+        LF_SET(WT_REC_HS);
 
         /*
          * Scrub if we're supposed to or toss it in sometimes if we are in debugging mode.
@@ -636,8 +637,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /*
      * Give up on eviction during a checkpoint if the page splits.
      *
-     * We get here if checkpoint reads a page with lookaside entries: if more of those entries are
-     * visible now than when the original eviction happened, the page could split. In most
+     * We get here if checkpoint reads a page with history store entries: if more of those entries
+     * are visible now than when the original eviction happened, the page could split. In most
      * workloads, this is very unlikely. However, since checkpoint is partway through reconciling
      * the parent page, a split can corrupt the checkpoint.
      */
@@ -647,8 +648,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /*
      * Success: assert that the page is clean or reconciliation was configured to save updates.
      */
-    WT_ASSERT(
-      session, !__wt_page_is_modified(page) || LF_ISSET(WT_REC_LOOKASIDE | WT_REC_IN_MEMORY));
+    WT_ASSERT(session, !__wt_page_is_modified(page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY));
 
     return (0);
 }

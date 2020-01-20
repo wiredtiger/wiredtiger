@@ -696,25 +696,25 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
 }
 
 /*
- * __wt_debug_cursor_las --
- *     Dump the LAS tree given a user cursor.
+ * __wt_debug_cursor_hs --
+ *     Dump the history store tree given a user cursor.
  */
 int
-__wt_debug_cursor_las(void *cursor_arg, const char *ofile)
+__wt_debug_cursor_hs(void *cursor_arg, const char *ofile)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
-    WT_SESSION_IMPL *las_session;
+    WT_SESSION_IMPL *hs_session;
 
     cursor = cursor_arg;
     conn = S2C((WT_SESSION_IMPL *)cursor->session);
-    las_session = conn->cache->las_session[0];
-    if (las_session == NULL)
+    hs_session = conn->cache->hs_session[0];
+    if (hs_session == NULL)
         return (0);
-    cbt = (WT_CURSOR_BTREE *)las_session->las_cursor;
-    return (__wt_debug_tree_all(las_session, cbt->btree, NULL, ofile));
+    cbt = (WT_CURSOR_BTREE *)hs_session->hs_cursor;
+    return (__wt_debug_tree_all(hs_session, cbt->btree, NULL, ofile));
 }
 
 /*
@@ -792,15 +792,18 @@ __debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
 static int
 __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
 {
+    WT_ADDR *addr;
     WT_PAGE *page;
     WT_PAGE_INDEX *pindex;
     WT_PAGE_MODIFY *mod;
     WT_SESSION_IMPL *session;
     uint64_t split_gen;
     uint32_t entries;
+    char tp_string[2][WT_TP_STRING_SIZE];
 
-    session = ds->session;
+    addr = ref->addr;
     page = ref->page;
+    session = ds->session;
     mod = page->modify;
     split_gen = 0;
 
@@ -878,6 +881,10 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
         WT_RET(ds->f(ds, ", split-gen=%" PRIu64, split_gen));
     if (mod != NULL)
         WT_RET(ds->f(ds, ", page-state=%" PRIu32, mod->page_state));
+    if (addr != NULL)
+        WT_RET(ds->f(ds, ", start stop ts/txn %s,%s",
+          __wt_time_pair_to_string(addr->oldest_start_ts, addr->oldest_start_txn, tp_string[0]),
+          __wt_time_pair_to_string(addr->newest_stop_ts, addr->newest_stop_txn, tp_string[1])));
     WT_RET(ds->f(ds, ", memory-size %" WT_SIZET_FMT, page->memory_footprint));
     WT_RET(ds->f(ds, "\n"));
 
@@ -1254,7 +1261,8 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    char ts_string[3][WT_TS_INT_STRING_SIZE];
+    char tp_string[2][WT_TP_STRING_SIZE];
+    char ts_string[WT_TS_INT_STRING_SIZE];
 
     session = ds->session;
 
@@ -1296,10 +1304,10 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        WT_RET(ds->f(ds, ", ts/txn %s,%s/%" PRIu64 ",%s/%" PRIu64,
-          __wt_timestamp_to_string(unpack->newest_durable_ts, ts_string[0]),
-          __wt_timestamp_to_string(unpack->oldest_start_ts, ts_string[1]), unpack->oldest_start_txn,
-          __wt_timestamp_to_string(unpack->newest_stop_ts, ts_string[2]), unpack->newest_stop_txn));
+        WT_RET(ds->f(ds, ", ts/txn %s,%s,%s",
+          __wt_timestamp_to_string(unpack->newest_durable_ts, ts_string),
+          __wt_time_pair_to_string(unpack->oldest_start_ts, unpack->oldest_start_txn, tp_string[0]),
+          __wt_time_pair_to_string(unpack->newest_stop_ts, unpack->newest_stop_txn, tp_string[1])));
         break;
     case WT_CELL_DEL:
     case WT_CELL_VALUE:
@@ -1307,9 +1315,9 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
     case WT_CELL_VALUE_SHORT:
-        WT_RET(ds->f(ds, ", ts/txn %s/%" PRIu64 ",%s/%" PRIu64,
-          __wt_timestamp_to_string(unpack->start_ts, ts_string[0]), unpack->start_txn,
-          __wt_timestamp_to_string(unpack->stop_ts, ts_string[1]), unpack->stop_txn));
+        WT_RET(ds->f(ds, ", ts/txn %s,%s",
+          __wt_time_pair_to_string(unpack->start_ts, unpack->start_txn, tp_string[0]),
+          __wt_time_pair_to_string(unpack->stop_ts, unpack->stop_txn, tp_string[1])));
         break;
     }
 
