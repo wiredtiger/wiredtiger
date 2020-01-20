@@ -911,7 +911,7 @@ __wt_rec_row_leaf(
             kpack = &_kpack;
             __wt_cell_unpack(session, page, cell, kpack);
             if (btree->huffman_key == NULL && kpack->type == WT_CELL_KEY &&
-              tmpkey->size >= kpack->prefix) {
+              tmpkey->size >= kpack->prefix && tmpkey->size != 0) {
                 /*
                  * The previous clause checked for a prefix of zero, which means the temporary
                  * buffer must have a non-zero size, and it references a valid key.

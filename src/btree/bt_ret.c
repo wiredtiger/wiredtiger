@@ -99,10 +99,8 @@ __wt_value_return_buf(
         rip = &page->pg_row[cbt->slot];
 
         /*
-         * Simple values have their location encoded in the WT_ROW.
-         *
-         * FIXME-PM-1521: Cannot check visibility here so there is chance some visibility issues not
-         * caught.
+         * If a value is simple and is globally visible at the time of reading a page into cache, we
+         * encode its location into the WT_ROW.
          */
         if (__wt_row_leaf_value(page, rip, buf))
             return (0);

@@ -320,7 +320,7 @@ switch_and_jump:
              * compression should have been directly referenced, and we should not have needed to
              * unpack its cell.
              */
-            WT_ASSERT(session, btree->huffman_key != NULL);
+            // WT_ASSERT(session, btree->huffman_key != NULL);
 
             /*
              * If this is the key we originally wanted, we don't

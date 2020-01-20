@@ -746,6 +746,19 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     return (__wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE);
 }
 
+static int
+__upd_alloc_tombstone(
+  WT_SESSION_IMPL *session, WT_UPDATE **updp, uint64_t txnid, wt_timestamp_t start_ts)
+{
+    size_t size;
+
+    WT_RET(__wt_update_alloc(session, NULL, updp, &size, WT_UPDATE_TOMBSTONE));
+    (*updp)->txnid = txnid;
+    (*updp)->durable_ts = (*updp)->start_ts = start_ts;
+    F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
+    return (0);
+}
+
 /*
  * __wt_txn_read --
  *     Get the first visible update in a list (or NULL if none are visible).
@@ -781,8 +794,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     WT_ASSERT(session, upd == NULL);
 
     /* If there is no ondisk value, there can't be anything in lookaside either. */
-    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX)
+    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
+        WT_RET(__upd_alloc_tombstone(session, updp, WT_TXN_NONE, WT_TS_NONE));
         return (0);
+    }
 
     /* Check the ondisk value. */
     WT_RET(__wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop));
@@ -793,8 +808,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
      * "not found".
      */
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
-      __wt_txn_visible(session, stop.txnid, stop.timestamp))
+      __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
+        WT_RET(__upd_alloc_tombstone(session, updp, stop.txnid, stop.timestamp));
         return (0);
+    }
 
     /*
      * If the start time pair is visible then we need to return the ondisk value.
@@ -820,6 +837,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
 
     /* There is no BIRTHMARK in lookaside file. */
     WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_BIRTHMARK);
+
+    if (upd == NULL)
+        WT_RET(__upd_alloc_tombstone(session, updp, WT_TXN_NONE, WT_TS_NONE));
+
     *updp = upd;
     return (0);
 }

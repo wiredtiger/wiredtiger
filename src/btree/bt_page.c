@@ -554,8 +554,10 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool check_unstable)
     WT_BTREE *btree;
     WT_CELL_UNPACK unpack;
     WT_ROW *rip;
+    WT_TXN_GLOBAL *txn_global;
 
     btree = S2BT(session);
+    txn_global = &S2C(session)->txn_global;
 
     /* Walk the page, building indices. */
     rip = page->pg_row;
@@ -570,7 +572,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool check_unstable)
              * Simple keys without compression (not Huffman encoded or prefix compressed), can be
              * directly referenced on the page to avoid repeatedly unpacking their cells.
              */
-            if (!btree->huffman_key && unpack.prefix == 0)
+            if (!btree->huffman_key && unpack.prefix == 0 &&
+              (!txn_global->has_oldest_timestamp || unpack.start_ts < txn_global->oldest_timestamp))
                 __wt_row_leaf_key_set(page, rip, &unpack);
             else
                 __wt_row_leaf_key_set_cell(page, rip, unpack.cell);
@@ -587,7 +590,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool check_unstable)
              * Simple values without compression can be directly referenced on the page to avoid
              * repeatedly unpacking their cells.
              */
-            if (!btree->huffman_value)
+            if (!btree->huffman_value &&
+              (!txn_global->has_oldest_timestamp || unpack.start_ts < txn_global->oldest_timestamp))
                 __wt_row_leaf_value_set(page, rip - 1, &unpack);
             break;
         case WT_CELL_VALUE_OVFL:
