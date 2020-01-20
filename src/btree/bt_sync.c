@@ -206,6 +206,7 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
     multi_newest_stop_txn = WT_TXN_NONE;
     addr = ref->addr;
     mod = ref->page == NULL ? NULL : ref->page->modify;
+    obsolete = false;
 
     /* Check for the page obsolete, if the page is modified and reconciled. */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
