@@ -216,7 +216,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     uint64_t sleep_usecs, yield_cnt;
     uint32_t current_state;
     int force_attempts;
-    bool busy, cache_work, evict_skip, stalled, wont_need;
+    bool busy, cache_work, evict_skip, is_leaf_page, stalled, wont_need;
 
     btree = S2BT(session);
 
@@ -247,10 +247,22 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
-            /* Limit reads to cache-only, or internal pages only. */
-            if (LF_ISSET(WT_READ_CACHE) ||
-              (LF_ISSET(WT_READ_CACHE_LEAF) && __wt_ref_is_leaf(session, ref)))
+            /* Limit reads to cache-only */
+            if (LF_ISSET(WT_READ_CACHE))
                 return (WT_NOTFOUND);
+
+            /* Limit reads to internal pages only. */
+            if (LF_ISSET(WT_READ_CACHE_LEAF)) {
+                /* Lock the ref to avoid it getting changed, while we check the page type. */
+                if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
+                    return (WT_NOTFOUND);
+
+                is_leaf_page = __wt_ref_is_leaf(session, ref);
+                WT_REF_SET_STATE(ref, WT_REF_DISK);
+
+                if (is_leaf_page)
+                    return (WT_NOTFOUND);
+            }
 
 read:
             /*
