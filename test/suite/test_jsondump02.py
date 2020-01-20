@@ -98,7 +98,6 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         finally:
             cursor.close()
 
-    @unittest.skip("Temporarily disabled")
     def test_json_cursor(self):
         """
         Create JSON cursors and test them directly, also test
@@ -353,7 +352,6 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
             result += chr(b & mask)
         return result
 
-    @unittest.skip("Temporarily disabled")
     def test_json_all_bytes(self):
         """
         Test the generated JSON for all byte values in byte array and

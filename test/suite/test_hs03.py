@@ -57,7 +57,6 @@ class test_hs03(wttest.WiredTigerTestCase):
             session.commit_transaction('commit_timestamp=' + timestamp_str(i))
         cursor.close()
 
-    @unittest.skip("Temporarily disabled")
     def test_checkpoint_hs_reads(self):
         # Create a small table.
         uri = "table:test_hs03"

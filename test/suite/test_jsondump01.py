@@ -128,7 +128,6 @@ class test_jsondump01(wttest.WiredTigerTestCase, suite_subprocess):
         ds.check_cursor(fake)
 
     # Dump using util, re-load using python's JSON, and do a content comparison.
-    @unittest.skip("Temporarily disabled")
     def test_jsonload_util(self):
         # LSM and column-store isn't a valid combination.
         if self.skip():

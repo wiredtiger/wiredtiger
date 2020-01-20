@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # test_txn01.py
@@ -101,6 +101,7 @@ class test_txn01(wttest.WiredTigerTestCase):
 
     # Loop through a set of inserts, periodically committing; before each
     # commit, verify the number of visible records matches the expected value.
+    @unittest.skip("Temporarily diasbled")
     def test_visibility(self):
         self.session.create(self.uri,
             'key_format=' + self.key_format +
