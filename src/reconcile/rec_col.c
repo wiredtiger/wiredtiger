@@ -760,17 +760,7 @@ record_loop:
             if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
                 WT_ERR(__wt_rec_upd_select(session, r, ins, cip, vpack, &upd_select));
                 upd = upd_select.upd;
-                if (upd == NULL) {
-                    /*
-                     * TIMESTAMP-FIXME I'm pretty sure this is wrong: a NULL update means an item
-                     * was deleted, and I think that requires a tombstone on the page.
-                     */
-                    durable_ts = WT_TS_NONE;
-                    start_ts = WT_TS_NONE;
-                    start_txn = WT_TXN_NONE;
-                    stop_ts = WT_TS_MAX;
-                    stop_txn = WT_TXN_MAX;
-                } else {
+                if (upd != NULL) {
                     durable_ts = upd_select.durable_ts;
                     start_ts = upd_select.start_ts;
                     start_txn = upd_select.start_txn;
@@ -797,9 +787,6 @@ record_loop:
                 case WT_UPDATE_STANDARD:
                     data = upd->data;
                     size = upd->size;
-                    break;
-                case WT_UPDATE_TOMBSTONE:
-                    deleted = true;
                     break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));
@@ -963,11 +950,8 @@ compare:
             upd = upd_select.upd;
             n = WT_INSERT_RECNO(ins);
         }
+        /* Deletion of uncommitted keys are visible to all. */
         if (upd == NULL) {
-            /*
-             * TIMESTAMP-FIXME I'm pretty sure this is wrong: a NULL update means an item was
-             * deleted, and I think that requires a tombstone on the page.
-             */
             durable_ts = WT_TS_NONE;
             start_ts = WT_TS_NONE;
             start_txn = WT_TXN_NONE;
@@ -1002,19 +986,9 @@ compare:
                     rle += skip;
                     src_recno += skip;
                 }
-            } else if (upd == NULL) {
-                /*
-                 * TIMESTAMP-FIXME I'm pretty sure this is wrong: a NULL update means an item was
-                 * deleted, and I think that requires a tombstone on the page.
-                 */
-                durable_ts = WT_TS_NONE;
-                start_ts = WT_TS_NONE;
-                start_txn = WT_TXN_NONE;
-                stop_ts = WT_TS_MAX;
-                stop_txn = WT_TXN_MAX;
-
+            } else if (upd == NULL)
                 deleted = true;
-            } else {
+            else {
                 durable_ts = upd_select.durable_ts;
                 start_ts = upd_select.start_ts;
                 start_txn = upd_select.start_txn;
@@ -1035,9 +1009,6 @@ compare:
                 case WT_UPDATE_STANDARD:
                     data = upd->data;
                     size = upd->size;
-                    break;
-                case WT_UPDATE_TOMBSTONE:
-                    deleted = true;
                     break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));

@@ -41,8 +41,8 @@ class test_inmem01(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios([
         ('col', dict(keyfmt='r', valuefmt='S')),
-        ('fix', dict(keyfmt='r', valuefmt='8t')),
-        ('row', dict(keyfmt='S', valuefmt='S')),
+        #('fix', dict(keyfmt='r', valuefmt='8t')),
+        #('row', dict(keyfmt='S', valuefmt='S')),
     ])
 
     # Smoke-test in-memory configurations, add a small amount of data and
