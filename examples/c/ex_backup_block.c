@@ -50,7 +50,7 @@ static size_t filelist_count = 0;
 
 #define FLIST_INIT 16
 
-#define CONN_CONFIG "create,verbose=(backup),cache_size=100MB,log=(enabled=true,file_max=100K)"
+#define CONN_CONFIG "create,cache_size=100MB,log=(enabled=true,file_max=100K)"
 #define MAX_ITERATIONS 5
 #define MAX_KEYS 10000
 
