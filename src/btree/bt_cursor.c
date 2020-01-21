@@ -331,6 +331,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
         cell = WT_COL_PTR(page, cip);
         if (__wt_cell_type(cell) == WT_CELL_DEL)
             return (0);
+
         /* Check for an update. */
         WT_RET(__wt_txn_read(session, cbt, cbt->ins == NULL ? NULL : cbt->ins->upd, &upd));
         if (upd != NULL) {

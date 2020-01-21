@@ -255,6 +255,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEquals(value2, cursor[self.create_key(i)])
         self.session.rollback_transaction()
 
+    @unittest.skip("Temporarily disabled")
     def test_hs_multiple_updates(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -294,6 +295,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEquals(cursor[self.create_key(i)], value3)
         self.session.rollback_transaction()
 
+    @unittest.skip("Temporarily disabled")
     def test_hs_multiple_modifies(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -463,6 +465,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
+    @unittest.skip("Temporarily disabled")
     def test_hs_rec_modify(self):
         # Create a small table.
         uri = "table:test_hs06"
