@@ -106,6 +106,7 @@ config_setup(void)
             config_single("data_source=file", false);
             break;
         case 2: /* 20% */
+#if 0
                 /*
                  * LSM requires a row-store and backing disk.
                  *
@@ -121,6 +122,7 @@ config_setup(void)
             if (config_is_perm("truncate") && g.c_truncate)
                 break;
             config_single("data_source=lsm", false);
+#endif
             break;
         case 3:
         case 4:

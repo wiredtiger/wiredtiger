@@ -1940,6 +1940,16 @@ tasks:
           # run for 24 hours ( 24 * 60 = 1440 minutes), don't stop at failed tests, use default config
           format_test_script_args: -t 1440
   
+  - name: format-stress-sanitizer-lsm-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger address sanitizer"
+      - func: "format test script"
+        vars:
+          test_env_vars: ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
+          # Run for 1 hour (60 mins), and explicitly set data_source to LSM
+          format_test_script_args: -t 60 data_source=lsm
+
   - name: format-stress-sanitizer-smoke-test
     #set a 7 hours timeout
     exec_timeout_secs: 25200
@@ -2155,6 +2165,7 @@ buildvariants:
     - name: recovery-stress-test
     - name: format-stress-sanitizer-test
     - name: format-stress-sanitizer-smoke-test
+    - name: format-stress-sanitizer-lsm-test
     - name: split-stress-test
     - name: format-stress-test
     - name: format-stress-smoke-test
