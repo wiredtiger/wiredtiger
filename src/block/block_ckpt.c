@@ -43,7 +43,6 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
     WT_BLOCK_CKPT *ci, _ci;
     WT_DECL_RET;
     uint8_t *endp;
-    char *config;
 
     /*
      * Sometimes we don't find a root page (we weren't given a checkpoint, or the checkpoint was
@@ -52,7 +51,6 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
     *root_addr_sizep = 0;
 
     ci = NULL;
-    config = NULL;
 
     if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
         __wt_ckpt_verbose(session, block, "load", NULL, addr);
@@ -134,7 +132,6 @@ err:
     /* Checkpoints don't need the original information, discard it. */
     if (checkpoint)
         __wt_block_ckpt_destroy(session, ci);
-    __wt_free(session, config);
 
     return (ret);
 }

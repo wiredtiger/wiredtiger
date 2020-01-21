@@ -125,7 +125,7 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
      * use the slower path through configuration parsing functions.
      */
     config = newcfg = NULL;
-    str = v == NULL ? "checkpoint=(),checkpoint_mods=(),checkpoint_lsn=" : v;
+    str = v == NULL ? "checkpoint=(),checkpoint_lsn=,checkpoint_mods=()" : v;
     if (use_base && session->dhandle != NULL) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ASSERT(session, strcmp(session->dhandle->name, fname) == 0);

@@ -124,12 +124,12 @@ __curbackup_incr_next(WT_CURSOR *cursor)
          * If we returned all of the data, step to the next block, otherwise return the next chunk
          * of the current block.
          */
-        if (cb->incr_granularity == 0 ||
-          cb->incr_list[cb->incr_list_offset + 1] <= cb->incr_granularity)
+        if (S2C(session)->incr_granularity == 0 ||
+          cb->incr_list[cb->incr_list_offset + 1] <= S2C(session)->incr_granularity)
             cb->incr_list_offset += WT_BACKUP_INCR_COMPONENTS;
         else {
-            cb->incr_list[cb->incr_list_offset] += cb->incr_granularity;
-            cb->incr_list[cb->incr_list_offset + 1] -= cb->incr_granularity;
+            cb->incr_list[cb->incr_list_offset] += S2C(session)->incr_granularity;
+            cb->incr_list[cb->incr_list_offset + 1] -= S2C(session)->incr_granularity;
         }
         list_off = cb->incr_list_offset;
         __wt_cursor_set_key(
@@ -213,7 +213,6 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     cursor->next = __curbackup_incr_next;
     cursor->get_key = __wt_cursor_get_key;
     cursor->get_value = __wt_cursor_get_value_notsup;
-    cb->incr_granularity = other_cb->incr_granularity;
     cb->incr_start = other_cb->incr_start;
 
     /*

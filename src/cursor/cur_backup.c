@@ -45,12 +45,6 @@ __wt_backup_destroy(WT_SESSION_IMPL *session)
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &S2C(session)->incr_backups[i];
         WT_ERR(__wt_fprintf(session, fs, "%s\n", blk->id_str));
-        /*
-         * XXX Write out block data. There is none if there's no checkpoint information.
-         * if (blk->data != NULL)
-         *     WT_ERR(__wt_fprintf(session, fs, "%s\n", blk->data));
-         * __wt_free(session, blk->data);
-         */
         __wt_free(session, blk->id_str);
     }
     /* Flush the stream and rename the file into place. */
@@ -211,7 +205,7 @@ __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force
         __wt_free(session, blk->id_str);
         F_CLR(blk, WT_BLKINCR_VALID);
     }
-    conn->ckpt_incr_granularity = 0;
+    conn->incr_granularity = 0;
     F_CLR(conn, WT_CONN_INCR_BACKUP);
 
     WT_RET(__wt_remove_if_exists(session, WT_BLKINCR_BACKUP, true));
@@ -235,10 +229,6 @@ __backup_free(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     }
     if (cb->incr_file != NULL)
         __wt_free(session, cb->incr_file);
-    if (cb->incr_src != NULL)
-        __wt_free(session, cb->incr_src);
-    if (cb->incr_this != NULL)
-        __wt_free(session, cb->incr_this);
     __wt_curbackup_free_incr(session, cb);
 }
 
@@ -397,7 +387,7 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
         WT_ERR(ret);
     if (ret == WT_NOTFOUND) {
         /*
-         * If we don't find a checkpoint, not all backup files need to be full copy.
+         * If we don't find any checkpoint, backup files need to be full copy.
          */
         __wt_verbose(session, WT_VERB_BACKUP, "ID %s: Did not find any metadata checkpoint for %s.",
           blk->id_str, WT_METAFILE_URI);
@@ -515,12 +505,11 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     if (cval.val) {
         if (!F_ISSET(conn, WT_CONN_INCR_BACKUP)) {
             WT_RET(__wt_config_gets(session, cfg, "incremental.granularity", &cval));
-            /* XXX may not need cb->incr_granularity */
-            if (conn->ckpt_incr_granularity != 0)
+            if (conn->incr_granularity != 0)
                 WT_RET_MSG(session, EINVAL, "Cannot change the incremental backup granularity");
-            conn->ckpt_incr_granularity = cb->incr_granularity = (uint64_t)cval.val;
+            conn->incr_granularity = (uint64_t)cval.val;
         }
-        /* XXX Granularity can only be set once at the beginning */
+        /* Granularity can only be set once at the beginning */
         F_SET(conn, WT_CONN_INCR_BACKUP);
         incremental_config = true;
     }
@@ -550,8 +539,6 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         WT_RET(__backup_find_id(session, &cval, &cb->incr_start));
         __wt_verbose(session, WT_VERB_BACKUP, "CONFIG: incr_start %p id %s", (void *)cb->incr_start,
           cb->incr_start->id_str);
-        /* XXX might not need this incr_src field */
-        WT_RET(__wt_strndup(session, cval.str, cval.len, &cb->incr_src));
         F_SET(cb->incr_start, WT_BLKINCR_INUSE);
         incremental_config = true;
     }
@@ -572,8 +559,6 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             WT_ERR_MSG(session, EINVAL, "Incremental identifier already exists");
 
         WT_ERR(__backup_add_id(session, &cval));
-        /* XXX might not need this incr_this field */
-        WT_ERR(__wt_strndup(session, cval.str, cval.len, &cb->incr_this));
         incremental_config = true;
     }
 
