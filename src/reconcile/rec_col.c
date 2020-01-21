@@ -760,6 +760,10 @@ record_loop:
             if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
                 WT_ERR(__wt_rec_upd_select(session, r, ins, cip, vpack, &upd_select));
                 upd = upd_select.upd;
+                /*
+                 * If upd == NULL, we are writing the same key to disk. The time pairs should come
+                 * from the cell itself.
+                 */
                 if (upd != NULL) {
                     durable_ts = upd_select.durable_ts;
                     start_ts = upd_select.start_ts;
@@ -961,6 +965,12 @@ compare:
             if (src_recno < n) {
                 deleted = true;
                 if (last.deleted) {
+                    /*
+                     * The start time pair for deleted keys must be (WT_TS_NONE, WT_TXN_NONE) and
+                     * stop time pair must be (WT_TS_MAX, WT_TXN_MAX) since we no longer select
+                     * tombstone to write to disk and the deletion of the keys must be globally
+                     * visible.
+                     */
                     WT_ASSERT(session, last.start_ts == WT_TS_NONE &&
                         last.start_txn == WT_TXN_NONE && last.stop_ts == WT_TS_MAX &&
                         last.stop_txn == WT_TXN_MAX);
@@ -973,6 +983,7 @@ compare:
                     rle += skip;
                     src_recno += skip;
                 } else {
+                    /* Set time pairs for the first deleted keys in a deleted range. */
                     durable_ts = WT_TS_NONE;
                     start_ts = WT_TS_NONE;
                     start_txn = WT_TXN_NONE;
@@ -980,6 +991,7 @@ compare:
                     stop_txn = WT_TXN_MAX;
                 }
             } else if (upd == NULL) {
+                /* The updates on the key are all uncommitted so we write a deleted key to disk. */
                 durable_ts = WT_TS_NONE;
                 start_ts = WT_TS_NONE;
                 start_txn = WT_TXN_NONE;
@@ -988,6 +1000,7 @@ compare:
 
                 deleted = true;
             } else {
+                /* Set time pairs for a key. */
                 durable_ts = upd_select.durable_ts;
                 start_ts = upd_select.start_ts;
                 start_txn = upd_select.start_txn;
