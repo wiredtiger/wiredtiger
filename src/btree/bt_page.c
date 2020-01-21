@@ -10,9 +10,9 @@
 
 static void __inmem_col_fix(WT_SESSION_IMPL *, WT_PAGE *);
 static void __inmem_col_int(WT_SESSION_IMPL *, WT_PAGE *);
-static int __inmem_col_var(WT_SESSION_IMPL *, WT_PAGE *, uint64_t, size_t *, bool);
+static int __inmem_col_var(WT_SESSION_IMPL *, WT_PAGE *, uint64_t, size_t *);
 static int __inmem_row_int(WT_SESSION_IMPL *, WT_PAGE *, size_t *);
-static int __inmem_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, bool);
+static int __inmem_row_leaf(WT_SESSION_IMPL *, WT_PAGE *);
 static int __inmem_row_leaf_entries(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, uint32_t *);
 
 /*
@@ -125,8 +125,8 @@ err:
  *     Build in-memory page information.
  */
 int
-__wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags,
-  bool check_unstable, WT_PAGE **pagep)
+__wt_page_inmem(
+  WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags, WT_PAGE **pagep)
 {
     WT_DECL_RET;
     WT_PAGE *page;
@@ -206,13 +206,13 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32
         __inmem_col_int(session, page);
         break;
     case WT_PAGE_COL_VAR:
-        WT_ERR(__inmem_col_var(session, page, dsk->recno, &size, check_unstable));
+        WT_ERR(__inmem_col_var(session, page, dsk->recno, &size));
         break;
     case WT_PAGE_ROW_INT:
         WT_ERR(__inmem_row_int(session, page, &size));
         break;
     case WT_PAGE_ROW_LEAF:
-        WT_ERR(__inmem_row_leaf(session, page, check_unstable));
+        WT_ERR(__inmem_row_leaf(session, page));
         break;
     default:
         WT_ERR(__wt_illegal_value(session, page->type));
@@ -317,8 +317,7 @@ __inmem_col_var_repeats(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t *np)
  *     Build in-memory index for variable-length, data-only leaf pages in column-store trees.
  */
 static int
-__inmem_col_var(
-  WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t recno, size_t *sizep, bool check_unstable)
+__inmem_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t recno, size_t *sizep)
 {
     WT_BTREE *btree;
     WT_CELL_UNPACK unpack;
@@ -528,7 +527,7 @@ __inmem_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, ui
  *     Build in-memory index for row-store leaf pages.
  */
 static int
-__inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool check_unstable)
+__inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_BTREE *btree;
     WT_CELL_UNPACK unpack;
