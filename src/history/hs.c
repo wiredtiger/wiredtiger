@@ -57,11 +57,11 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     WT_CURSOR_BTREE *hs_cursor;
     WT_SESSION_IMPL *hs_session;
 
-    WT_RET(__wt_config_gets(session, cfg, "cache_overflow.file_max", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "history_store.file_max", &cval));
 
     if (cval.val != 0 && cval.val < WT_HS_FILE_MIN)
-        WT_RET_MSG(session, EINVAL, "max cache overflow size %" PRId64 " below minimum %d",
-          cval.val, WT_HS_FILE_MIN);
+        WT_RET_MSG(session, EINVAL, "max history store size %" PRId64 " below minimum %d", cval.val,
+          WT_HS_FILE_MIN);
 
     /* This is expected for in-memory configurations. */
     hs_session = S2C(session)->cache->hs_session[0];

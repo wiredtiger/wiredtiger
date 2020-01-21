@@ -625,7 +625,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 /*
  * __txn_resolve_prepared_op --
  *     Resolve a transaction's operations indirect references. In case of prepared transactions, the
- *     prepared updates could be evicted using cache overflow mechanism. Transaction operations
+ *     prepared updates could be evicted using the history store mechanism. Transaction operations
  *     referring to these prepared updates would be referring to them using indirect references (i.e
  *     keys/recnos), which need to be resolved as part of that transaction commit/rollback. If no
  *     updates are resolved throw an error. Increment resolved update count for each resolved update

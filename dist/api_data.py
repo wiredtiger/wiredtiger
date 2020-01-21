@@ -450,16 +450,16 @@ connection_runtime_config = [
         for space to be available in cache before giving up. Default will
         wait forever''',
         min=0),
-    Config('cache_overflow', '', r'''
-        cache overflow configuration options''',
+    Config('history_store', '', r'''
+        history store configuration options''',
         type='category', subconfig=[
         Config('file_max', '0', r'''
             The maximum number of bytes that WiredTiger is allowed to use for
-            its cache overflow mechanism. If the cache overflow file exceeds
+            its history store mechanism. If the history store file exceeds
             this size, a panic will be triggered. The default value means that
-            the cache overflow file is unbounded and may use as much space as
+            the history store file is unbounded and may use as much space as
             the filesystem will accommodate. The minimum non-zero setting is
-            100MB.''',    # !!! Must match WT_LAS_FILE_MIN
+            100MB.''',    # !!! Must match WT_HS_FILE_MIN
             min='0')
         ]),
     Config('cache_overhead', '8', r'''

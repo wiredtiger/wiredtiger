@@ -2159,15 +2159,6 @@ struct __wt_connection {
 	 * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will
 	 * wait for space to be available in cache before giving up.  Default will wait forever., an
 	 * integer greater than or equal to 0; default \c 0.}
-	 * @config{cache_overflow = (, cache overflow configuration options., a set of related
-	 * configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, The
-	 * maximum number of bytes that WiredTiger is allowed to use for its cache overflow
-	 * mechanism.  If the cache overflow file exceeds this size\, a panic will be triggered.
-	 * The default value means that the cache overflow file is unbounded and may use as much
-	 * space as the filesystem will accommodate.  The minimum non-zero setting is 100MB., an
-	 * integer greater than or equal to 0; default \c 0.}
-	 * @config{ ),,}
 	 * @config{cache_overhead, assume the heap allocator overhead is the specified percentage\,
 	 * and adjust the cache usage by that amount (for example\, if there is 10GB of data in
 	 * cache\, a percentage of 10 means WiredTiger treats this as 11GB). This value is
@@ -2270,6 +2261,15 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;close_scan_interval, interval in seconds at which to
 	 * check for files that are inactive and close them., an integer between 1 and 100000;
 	 * default \c 10.}
+	 * @config{ ),,}
+	 * @config{history_store = (, history store configuration options., a set of related
+	 * configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, The
+	 * maximum number of bytes that WiredTiger is allowed to use for its history store
+	 * mechanism.  If the history store file exceeds this size\, a panic will be triggered.  The
+	 * default value means that the history store file is unbounded and may use as much space as
+	 * the filesystem will accommodate.  The minimum non-zero setting is 100MB., an integer
+	 * greater than or equal to 0; default \c 0.}
 	 * @config{ ),,}
 	 * @config{io_capacity = (, control how many bytes per second are written and read.
 	 * Exceeding the capacity results in throttling., a set of related configuration options
@@ -2754,14 +2754,6 @@ struct __wt_connection {
  * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will wait for
  * space to be available in cache before giving up.  Default will wait forever., an integer greater
  * than or equal to 0; default \c 0.}
- * @config{cache_overflow = (, cache overflow configuration options., a set of related configuration
- * options defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, The maximum number of bytes
- * that WiredTiger is allowed to use for its cache overflow mechanism.  If the cache overflow file
- * exceeds this size\, a panic will be triggered.  The default value means that the cache overflow
- * file is unbounded and may use as much space as the filesystem will accommodate.  The minimum
- * non-zero setting is 100MB., an integer greater than or equal to 0; default \c 0.}
- * @config{ ),,}
  * @config{cache_overhead, assume the heap allocator overhead is the specified percentage\, and
  * adjust the cache usage by that amount (for example\, if there is 10GB of data in cache\, a
  * percentage of 10 means WiredTiger treats this as 11GB). This value is configurable because
@@ -2917,6 +2909,14 @@ struct __wt_connection {
  * handles are not closed., an integer between 0 and 100000; default \c 30.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;close_scan_interval, interval in seconds at which to check for
  * files that are inactive and close them., an integer between 1 and 100000; default \c 10.}
+ * @config{ ),,}
+ * @config{history_store = (, history store configuration options., a set of related configuration
+ * options defined below.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, The maximum number of bytes
+ * that WiredTiger is allowed to use for its history store mechanism.  If the history store file
+ * exceeds this size\, a panic will be triggered.  The default value means that the history store
+ * file is unbounded and may use as much space as the filesystem will accommodate.  The minimum
+ * non-zero setting is 100MB., an integer greater than or equal to 0; default \c 0.}
  * @config{ ),,}
  * @config{in_memory, keep data in-memory only.  See @ref in_memory for more information., a boolean
  * flag; default \c false.}
