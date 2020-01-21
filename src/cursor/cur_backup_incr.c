@@ -70,12 +70,12 @@ __curbackup_incr_blkmods(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BA
     WT_RET(__wt_metadata_search(session, btree->dhandle->name, &config));
     WT_RET(__wt_config_getones(session, config, "checkpoint_mods", &v));
     __wt_config_subinit(session, &blkconf, &v);
-    WT_ASSERT(session, cb->incr_start != NULL);
+    WT_ASSERT(session, cb->incr_src != NULL);
     while (__wt_config_next(&blkconf, &k, &v) == 0) {
         /*
          * First see if we have information for this source identifier.
          */
-        if (WT_STRING_MATCH(cb->incr_start->id_str, k.str, k.len) == 0)
+        if (WT_STRING_MATCH(cb->incr_src->id_str, k.str, k.len) == 0)
             continue;
 
         /*
@@ -200,10 +200,10 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     cursor->value_format = "";
     new_cfg = NULL;
 
-    WT_ASSERT(session, other_cb->incr_start != NULL);
-    if (F_ISSET(other_cb->incr_start, WT_BLKINCR_FULL)) {
+    WT_ASSERT(session, other_cb->incr_src != NULL);
+    if (F_ISSET(other_cb->incr_src, WT_BLKINCR_FULL)) {
         __wt_verbose(session, WT_VERB_BACKUP, "Forcing full file copies for id %s",
-          other_cb->incr_start->id_str);
+          other_cb->incr_src->id_str);
         F_SET(cb, WT_CURBACKUP_FORCE_FULL);
     }
 
@@ -213,7 +213,7 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     cursor->next = __curbackup_incr_next;
     cursor->get_key = __wt_cursor_get_key;
     cursor->get_value = __wt_cursor_get_value_notsup;
-    cb->incr_start = other_cb->incr_start;
+    cb->incr_src = other_cb->incr_src;
 
     /*
      * Set up the incremental backup information, if we are not forcing a full file copy. We need an

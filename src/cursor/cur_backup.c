@@ -536,10 +536,10 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         if (is_dup)
             WT_RET_MSG(session, EINVAL,
               "Incremental source identifier can only be specified on a primary backup cursor");
-        WT_RET(__backup_find_id(session, &cval, &cb->incr_start));
-        __wt_verbose(session, WT_VERB_BACKUP, "CONFIG: incr_start %p id %s", (void *)cb->incr_start,
-          cb->incr_start->id_str);
-        F_SET(cb->incr_start, WT_BLKINCR_INUSE);
+        WT_RET(__backup_find_id(session, &cval, &cb->incr_src));
+        __wt_verbose(session, WT_VERB_BACKUP, "CONFIG: incr_src %p id %s", (void *)cb->incr_src,
+          cb->incr_src->id_str);
+        F_SET(cb->incr_src, WT_BLKINCR_INUSE);
         incremental_config = true;
     }
     /*
@@ -632,8 +632,8 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         F_SET(cb, WT_CURBACKUP_INCR);
     }
 err:
-    if (ret != 0 && cb->incr_start != NULL)
-        F_CLR(cb->incr_start, WT_BLKINCR_INUSE);
+    if (ret != 0 && cb->incr_src != NULL)
+        F_CLR(cb->incr_src, WT_BLKINCR_INUSE);
     __wt_scr_free(session, &tmp);
     return (ret);
 }
@@ -818,8 +818,8 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     /* If it's not a dup backup cursor, make sure one isn't open. */
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_BACKUP_DUP));
     WT_WITH_HOTBACKUP_WRITE_LOCK(session, conn->hot_backup_list = NULL);
-    if (cb->incr_start != NULL)
-        F_CLR(cb->incr_start, WT_BLKINCR_INUSE);
+    if (cb->incr_src != NULL)
+        F_CLR(cb->incr_src, WT_BLKINCR_INUSE);
     __backup_free(session, cb);
 
     /* Remove any backup specific file. */
