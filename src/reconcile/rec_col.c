@@ -751,26 +751,10 @@ record_loop:
          * record number. The WT_INSERT lists are in sorted order, so only need check the next one.
          */
         for (n = 0; n < nrepeat; n += repeat_count, src_recno += repeat_count) {
-            durable_ts = newest_durable_ts;
-            start_ts = vpack->start_ts;
-            start_txn = vpack->start_txn;
-            stop_ts = vpack->stop_ts;
-            stop_txn = vpack->stop_txn;
             upd = NULL;
             if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
                 WT_ERR(__wt_rec_upd_select(session, r, ins, cip, vpack, &upd_select));
                 upd = upd_select.upd;
-                /*
-                 * If upd == NULL, we are writing the same key to disk. The time pairs should come
-                 * from the cell itself.
-                 */
-                if (upd != NULL) {
-                    durable_ts = upd_select.durable_ts;
-                    start_ts = upd_select.start_ts;
-                    start_txn = upd_select.start_txn;
-                    stop_ts = upd_select.stop_ts;
-                    stop_txn = upd_select.stop_txn;
-                }
                 ins = WT_SKIP_NEXT(ins);
             }
 
@@ -780,6 +764,12 @@ record_loop:
             deleted = false;
 
             if (upd != NULL) {
+                durable_ts = upd_select.durable_ts;
+                start_ts = upd_select.start_ts;
+                start_txn = upd_select.start_txn;
+                stop_ts = upd_select.stop_ts;
+                stop_txn = upd_select.stop_txn;
+
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
                     cbt->slot = WT_COL_SLOT(page, cip);
@@ -808,8 +798,23 @@ record_loop:
                     repeat_count = WT_INSERT_RECNO(ins) - src_recno;
 
                 deleted = orig_deleted;
-                if (deleted)
+                /* Set time pairs for the deleted key. */
+                if (deleted) {
+                    durable_ts = WT_TS_NONE;
+                    start_ts = WT_TS_NONE;
+                    start_txn = WT_TXN_NONE;
+                    stop_ts = WT_TS_MAX;
+                    stop_txn = WT_TXN_MAX;
+
                     goto compare;
+                }
+
+                /* Set time pairs for unchanged key on the old disk image. */
+                durable_ts = newest_durable_ts;
+                start_ts = vpack->start_ts;
+                start_txn = vpack->start_txn;
+                stop_ts = vpack->stop_ts;
+                stop_txn = vpack->stop_txn;
 
                 /*
                  * If we are handling overflow items, use the overflow item itself exactly once,
