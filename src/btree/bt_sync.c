@@ -136,25 +136,32 @@ __sync_ref_list_add(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, WT_REF *ref)
  * __sync_ref_list_pop --
  *     Add the stored ref to urgent eviction queue and free the list.
  */
-static void
+static int
 __sync_ref_list_pop(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, uint32_t flags)
 {
     WT_DECL_RET;
     size_t i;
 
     for (i = 0; i < rlp->entry; i++) {
+        /*
+         * Ignore the failure from urgent eviction. The failed refs are taken care in the next
+         * checkpoint.
+         */
         WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, rlp->list[i]));
-        WT_ERR(__wt_page_release(session, rlp->list[i], flags));
+
+        /* Accumulate errors but continue till all the refs are processed. */
+        WT_TRET(__wt_page_release(session, rlp->list[i], flags));
         WT_STAT_CONN_INCR(session, hs_gc_pages_evict);
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
           "%p: is an in-memory obsolete page, added to urgent eviction queue.",
           (void *)rlp->list[i]);
     }
 
-err:
     __wt_free(session, rlp->list);
     rlp->entry = 0;
     rlp->max_entry = 0;
+
+    return (ret);
 }
 
 /*
@@ -457,7 +464,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
             if (walk == NULL) {
                 if (is_hs)
-                    __sync_ref_list_pop(session, &ref_list, flags);
+                    WT_ERR(__sync_ref_list_pop(session, &ref_list, flags));
                 break;
             }
 
@@ -572,9 +579,9 @@ err:
     WT_TRET(__wt_page_release(session, walk, flags));
     WT_TRET(__wt_page_release(session, prev, flags));
 
-    /* On error, Process the ref that are saved and free the list. */
+    /* On error, Process the refs that are saved and free the list. */
     if (is_hs)
-        __sync_ref_list_pop(session, &ref_list, flags);
+        WT_TRET(__sync_ref_list_pop(session, &ref_list, flags));
 
     /*
      * If we got a snapshot in order to write pages, and there was no snapshot active when we
