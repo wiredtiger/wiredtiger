@@ -32,8 +32,6 @@
  */
 %include <pybuffer.i>
 
- /*TODO: if SWIG_VERSION < 0x040000  version must be >= 4.0 */
-
 %define DOCSTRING
 "Python wrappers around the WiredTiger C API
 
