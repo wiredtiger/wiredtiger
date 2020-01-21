@@ -250,14 +250,14 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_scr_alloc(session, 0, &ss->tmp2));
 
     /*
-     * !!! (Go away format)
+     * !!! (Don't format the comment.)
      * Step 1:
      * Inform the underlying block manager that we're salvaging the file.
      */
     WT_ERR(bm->salvage_start(bm, session));
 
     /*
-     * !!! (Go away format)
+     * !!! (Don't format the comment.)
      * Step 2:
      * Read the file and build in-memory structures that reference any leaf or overflow page. Any
      * pages other than leaf or overflow pages are added to the free list.
@@ -271,7 +271,7 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(ret);
 
     /*
-     * !!! (Go away format)
+     * !!! (Don't format the comment.)
      * Step 3:
      * Discard any page referencing a non-existent overflow page.  We do this before checking
      * overlapping key ranges on the grounds that a bad key range we can use is better than a
@@ -303,7 +303,7 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__slvg_ovfl_discard(session, ss));
 
     /*
-     * !!! (Go away format)
+     * !!! (Don't format the comment.)
      * Step 5:
      * Walk the list of pages looking for overlapping ranges to resolve.  If we find a range
      * that needs to be resolved, set a global flag and a per WT_TRACK flag on the pages requiring
@@ -327,7 +327,7 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__slvg_col_range(session, ss));
 
     /*
-     * !!! (Go away format)
+     * !!! (Don't format the comment.)
      * Step 6:
      * We may have lost key ranges in column-store databases, that is, some part of the record
      * number space is gone; look for missing ranges.
@@ -342,7 +342,7 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * !!! (Go away format)
+     * !!! (Don't format the comment.)
      * Step 7:
      * Build an internal page that references all of the leaf pages, and write it, as well as any
      * merged pages, to the file.
@@ -367,7 +367,7 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
         }
 
     /*
-     * !!! (Go away format)
+     * !!! (Don't format the comment.)
      * Step 8:
      * If we had to merge key ranges, we have to do a final pass through the leaf page array
      * and discard file pages used during key merges. We can't do it earlier: if we free'd the
@@ -380,7 +380,7 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__slvg_merge_block_free(session, ss));
 
     /*
-     * !!! (Go away format)
+     * !!! (Don't format the comment.)
      * Step 9:
      * Evict any newly created root page, creating a checkpoint.
      */
@@ -388,7 +388,7 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
 
 err:
     /*
-     * !!! (Go away format)
+     * !!! (Don't format the comment.)
      * Step 10:
      * Inform the underlying block manager that we're done.
      */
@@ -722,7 +722,7 @@ __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRA
 }
 
 /*
- * !!! (Go away format)
+ * !!! (Don't format the comment.)
  * When pages split, the key range is split across multiple pages.  If not all
  * of the old versions of the page are overwritten, or not all of the new pages
  * are written, or some of the pages are corrupted, salvage will read different
@@ -877,7 +877,7 @@ __slvg_col_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_s
       __wt_addr_string(session, b_trk->trk_addr, b_trk->trk_addr_size, ss->tmp2));
 
     /*
-     * !!! (Go away format)
+     * !!! (Don't format the comment.)
      * The key ranges of two WT_TRACK pages in the array overlap -- choose
      * the ranges we're going to take from each.
      *
@@ -1460,7 +1460,7 @@ __slvg_row_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_s
       __wt_addr_string(session, b_trk->trk_addr, b_trk->trk_addr_size, ss->tmp2));
 
 /*
- * !!! (Go away format)
+ * !!! (Don't format the comment.)
  * The key ranges of two WT_TRACK pages in the array overlap -- choose the ranges we're going to
  * take from each.
  *
