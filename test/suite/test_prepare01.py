@@ -104,7 +104,6 @@ class test_prepare01(wttest.WiredTigerTestCase):
 
     # Loop through a set of inserts, periodically committing; before each
     # commit, verify the number of visible records matches the expected value.
-    @unittest.skip("Temporarily disabled")
     def test_visibility(self):
         self.session.create(self.uri,
             'key_format=' + self.key_format +

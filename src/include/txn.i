@@ -750,7 +750,7 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  * __upd_alloc_tombstone --
  *     Allocate a tombstone update at a given transaction id and timestamp.
  */
-static int
+static inline int
 __upd_alloc_tombstone(
   WT_SESSION_IMPL *session, WT_UPDATE **updp, uint64_t txnid, wt_timestamp_t start_ts)
 {
@@ -841,8 +841,12 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     /* There is no BIRTHMARK in the history store file. */
     WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_BIRTHMARK);
 
+    /*
+     * If we checked the update list, ondisk and the history store, we should return a tombstone to
+     * indicate we didn't find anything.
+     */
     if (upd == NULL)
-        WT_RET(__upd_alloc_tombstone(session, updp, WT_TXN_NONE, WT_TS_NONE));
+        WT_RET(__upd_alloc_tombstone(session, &upd, WT_TXN_NONE, WT_TS_NONE));
 
     *updp = upd;
     return (0);
