@@ -864,11 +864,9 @@ compare:
              * record number, we've been doing that all along.
              */
             if (rle != 0) {
-                if ((last.start_ts == start_ts && last.start_txn == start_txn &&
-                      last.stop_ts == stop_ts && last.stop_txn == stop_txn) &&
-                  ((deleted && last.deleted) ||
-                      (!deleted && !last.deleted && last.value->size == size &&
-                        memcmp(last.value->data, data, size) == 0))) {
+                if ((deleted && last.deleted) ||
+                  (!deleted && !last.deleted && last.value->size == size &&
+                      memcmp(last.value->data, data, size) == 0)) {
                     rle += repeat_count;
                     continue;
                 }
@@ -950,20 +948,7 @@ compare:
             upd = upd_select.upd;
             n = WT_INSERT_RECNO(ins);
         }
-        /* Deletion of uncommitted keys are visible to all. */
-        if (upd == NULL) {
-            durable_ts = WT_TS_NONE;
-            start_ts = WT_TS_NONE;
-            start_txn = WT_TXN_NONE;
-            stop_ts = WT_TS_MAX;
-            stop_txn = WT_TXN_MAX;
-        } else {
-            durable_ts = upd_select.durable_ts;
-            start_ts = upd_select.start_ts;
-            start_txn = upd_select.start_txn;
-            stop_ts = upd_select.stop_ts;
-            stop_txn = upd_select.stop_txn;
-        }
+
         while (src_recno <= n) {
             update_no_copy =
               upd == NULL || !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK); /* No data copy */
@@ -975,8 +960,10 @@ compare:
              */
             if (src_recno < n) {
                 deleted = true;
-                if (last.deleted && (last.start_ts == start_ts && last.start_txn == start_txn &&
-                                      last.stop_ts == stop_ts && last.stop_txn == stop_txn)) {
+                if (last.deleted) {
+                    WT_ASSERT(session, last.start_ts == WT_TS_NONE &&
+                        last.start_txn == WT_TXN_NONE && last.stop_ts == WT_TS_MAX &&
+                        last.stop_txn == WT_TXN_MAX);
                     /*
                      * The record adjustment is decremented by one so we can naturally fall into the
                      * RLE accounting below, where we increment rle by one, then continue in the
@@ -985,10 +972,28 @@ compare:
                     skip = (n - src_recno) - 1;
                     rle += skip;
                     src_recno += skip;
+                } else {
+                    durable_ts = WT_TS_NONE;
+                    start_ts = WT_TS_NONE;
+                    start_txn = WT_TXN_NONE;
+                    stop_ts = WT_TS_MAX;
+                    stop_txn = WT_TXN_MAX;
                 }
-            } else if (upd == NULL)
+            } else if (upd == NULL) {
+                durable_ts = WT_TS_NONE;
+                start_ts = WT_TS_NONE;
+                start_txn = WT_TXN_NONE;
+                stop_ts = WT_TS_MAX;
+                stop_txn = WT_TXN_MAX;
+
                 deleted = true;
-            else {
+            } else {
+                durable_ts = upd_select.durable_ts;
+                start_ts = upd_select.start_ts;
+                start_txn = upd_select.start_txn;
+                stop_ts = upd_select.stop_ts;
+                stop_txn = upd_select.stop_txn;
+
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
                     /*
@@ -1017,11 +1022,9 @@ compare:
                 /*
                  * FIXME-PM-1521: Follow up issue with clang in WT-5341.
                  */
-                if ((last.start_ts == start_ts && last.start_txn == start_txn &&
-                      last.stop_ts == stop_ts && last.stop_txn == stop_txn) &&
-                  ((deleted && last.deleted) ||
-                      (!deleted && !last.deleted && last.value->size == size &&
-                        memcmp(last.value->data, data, size) == 0))) {
+                if ((deleted && last.deleted) ||
+                  (!deleted && !last.deleted && last.value->size == size &&
+                      memcmp(last.value->data, data, size) == 0)) {
                     ++rle;
                     goto next;
                 }
