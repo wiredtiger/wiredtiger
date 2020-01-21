@@ -247,13 +247,25 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
-            /* Limit reads to cache-only */
+            /* Limit reads to cache-only. */
             if (LF_ISSET(WT_READ_CACHE))
                 return (WT_NOTFOUND);
 
             /* Limit reads to internal pages only. */
             if (LF_ISSET(WT_READ_CACHE_LEAF)) {
-                /* Lock the ref to avoid it getting changed, while we check the page type. */
+                /*
+                 * Currently, the internal page read request is passed only in two scenarios.
+                 *  1. Garbage collection of history store
+                 *  2. Rollback to stable operation
+                 *
+                 * Lock the ref before we check the page type to avoid the ref getting changed
+                 * underneath. Failed to change the ref state to WT_REF_LOCKED can led skip the page
+                 * read.
+                 *
+                 * This shouldn't be a problem to garbage collection as it can retry in the next
+                 * checkpoint. With rollback to stable, there are no sessions that are operating on
+                 * a disk page that can led to a failure.
+                 */
                 if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
                     return (WT_NOTFOUND);
 
