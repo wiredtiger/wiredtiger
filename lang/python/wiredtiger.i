@@ -32,6 +32,8 @@
  */
 %include <pybuffer.i>
 
+ /*TODO: if SWIG_VERSION < 0x040000  version must be >= 4.0 */
+
 %define DOCSTRING
 "Python wrappers around the WiredTiger C API
 
@@ -50,7 +52,7 @@ This provides an API similar to the C API, with the following modifications:
 %feature("autodoc", "0");
 
 %pythoncode %{
-from .packing import pack, unpack
+from packing import pack, unpack
 ## @endcond
 %}
 
