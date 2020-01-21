@@ -171,12 +171,9 @@ class test_backup12(wttest.WiredTigerTestCase, suite_subprocess):
                 offset = incrlist[0]
                 size = incrlist[1]
                 curtype = incrlist[2]
-                self.assertEqual(offset, 0)
-                # For now assert WT_BACKUP_FILE (which is 1).
-                self.assertEqual(curtype, 1)
+                self.assertTrue(curtype == 1 or curtype == 2)
                 dup_cnt += 1
             dupc.close()
-            self.assertEqual(dup_cnt, 1)
             self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
             shutil.copy(newfile, self.dir)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
