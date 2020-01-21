@@ -352,7 +352,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd != NULL) {
             /* The beginning of the validity window is the selected update's time pair. */
             WT_ASSERT(
-              session, upd->start_ts < upd_select->stop_ts && upd->txnid < upd_select->stop_txn);
+              session, upd->start_ts <= upd_select->stop_ts && upd->txnid <= upd_select->stop_txn);
             upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
             upd_select->start_txn = upd->txnid;
         } else {
@@ -378,7 +378,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * recovery work.
              */
             WT_ASSERT(session,
-              vpack->start_ts < upd_select->stop_ts && vpack->start_txn < upd_select->stop_txn);
+              vpack->start_ts <= upd_select->stop_ts && vpack->start_txn <= upd_select->stop_txn);
             upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
             upd_select->start_txn = vpack->start_txn;
             /*

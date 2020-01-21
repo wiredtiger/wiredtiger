@@ -796,20 +796,32 @@ restart:
      *
      * Note that it is still necessary to unpack each value above even if we end up overwriting them
      * since values in a cell need to be unpacked sequentially.
+     *
+     * This is how the stop time pair should be interpreted for each type of delete:
+     * -
+     *                  Timestamped delete  Non-timestamped delete  No delete
+     * Current startup  txnid=x, ts=y       txnid=x, ts=0           txnid=MAX, ts=MAX
+     * Previous startup txnid=0, ts=y       txnid=0, ts=0           txnid=MAX, ts=MAX
      */
     if (dsk->write_gen <= S2C(session)->base_write_gen) {
         unpack->start_txn = WT_TXN_NONE;
-        unpack->stop_txn = WT_TXN_NONE;
+        if (unpack->stop_txn != WT_TXN_MAX) {
+            unpack->stop_txn = WT_TXN_NONE;
+            if (unpack->stop_ts == WT_TS_MAX)
+                unpack->stop_ts = WT_TS_NONE;
+        } else
+            WT_ASSERT(session, unpack->stop_ts == WT_TS_MAX);
         unpack->oldest_start_txn = WT_TXN_NONE;
-        unpack->newest_stop_txn = WT_TXN_NONE;
-        /*
-         * If either of these timestamps are set to "max", we know that there was no value on the
-         * cell. In that case, we should reset the timestamp to 0 as it should be visible to
-         * everyone.
-         */
-        if (unpack->stop_ts == WT_TS_MAX)
+        if (unpack->newest_stop_txn != WT_TXN_MAX) {
+            unpack->newest_stop_txn = WT_TXN_NONE;
+            if (unpack->newest_stop_ts == WT_TS_MAX)
+                unpack->newest_stop_ts = WT_TS_NONE;
+        } else
+            WT_ASSERT(session, unpack->newest_stop_ts == WT_TS_MAX);
+    } else {
+        if (unpack->stop_txn != WT_TXN_MAX && unpack->stop_ts == WT_TS_MAX)
             unpack->stop_ts = WT_TS_NONE;
-        if (unpack->newest_stop_ts == WT_TS_MAX)
+        if (unpack->newest_stop_txn != WT_TXN_MAX && unpack->newest_stop_ts == WT_TS_MAX)
             unpack->newest_stop_ts = WT_TS_NONE;
     }
 
