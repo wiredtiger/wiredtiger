@@ -775,22 +775,18 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
         WT_EXT_FOREACH (ext, ci->alloc.off) {
             *list++ = (uint64_t)ext->off;
             *list++ = (uint64_t)ext->size;
-            *list++ = WT_BACKUP_RANGE;
         }
         if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET) {
             *list++ = (uint64_t)ci->alloc.offset;
             *list++ = (uint64_t)ci->alloc.size;
-            *list++ = WT_BACKUP_RANGE;
         }
         if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET) {
             *list++ = (uint64_t)ci->discard.offset;
             *list++ = (uint64_t)ci->discard.size;
-            *list++ = WT_BACKUP_RANGE;
         }
         if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET) {
             *list++ = (uint64_t)ci->avail.offset;
             *list++ = (uint64_t)ci->avail.size;
-            *list++ = WT_BACKUP_RANGE;
         }
     }
     return (0);
@@ -870,14 +866,6 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT
                         goto format;
                     for (; *p != ',' && *p != ')'; ++p)
                         ;
-                    /*
-                     * The modified block lists are in pairs. After each pair, insert the
-                     * WT_BACKUP_RANGE token.
-                     */
-                    if (i % WT_BACKUP_INCR_COMPONENTS == 1) {
-                        *(++list) = WT_BACKUP_RANGE;
-                        ++i;
-                    }
                     if (*p == ',')
                         ++p;
                 }

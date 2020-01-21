@@ -54,7 +54,7 @@ struct __wt_cursor_backup {
 
     WT_CURSOR *incr_cursor; /* File cursor */
 
-#define WT_BACKUP_INCR_COMPONENTS 3
+#define WT_BACKUP_INCR_COMPONENTS 2
     bool incr_init;            /* Cursor traversal initialized */
     uint64_t *incr_list;       /* List of file offset/size/type triples */
     uint64_t incr_list_count;  /* Count of file offset/size/type triples */

@@ -71,14 +71,6 @@ __curbackup_incr_blkmods(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BA
                         goto format;
                     for (; *p != ',' && *p != ')'; ++p)
                         ;
-                    /*
-                     * The modified block lists are in pairs. After each pair, insert the
-                     * WT_BACKUP_RANGE token.
-                     */
-                    if (i % WT_BACKUP_INCR_COMPONENTS == 1) {
-                        *(++list) = WT_BACKUP_RANGE;
-                        ++i;
-                    }
                     if (*p == ',')
                         ++p;
                 }
@@ -128,11 +120,10 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         else {
             cb->incr_list[cb->incr_list_offset] += cb->incr_granularity;
             cb->incr_list[cb->incr_list_offset + 1] -= cb->incr_granularity;
-            cb->incr_list[cb->incr_list_offset + 2] = WT_BACKUP_RANGE;
         }
         list_off = cb->incr_list_offset;
-        __wt_cursor_set_key(cursor, cb->incr_list[list_off], cb->incr_list[list_off + 1],
-          cb->incr_list[list_off + 2]);
+        __wt_cursor_set_key(
+          cursor, cb->incr_list[list_off], cb->incr_list[list_off + 1], WT_BACKUP_RANGE);
     } else if (btree == NULL || F_ISSET(cb, WT_CURBACKUP_FORCE_FULL)) {
         /* We don't have this object's incremental information, and it's a full file copy. */
         WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
@@ -156,8 +147,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         if (cb->incr_list == NULL)
             WT_ERR(WT_NOTFOUND);
         list_off = cb->incr_list_offset;
-        __wt_cursor_set_key(cursor, cb->incr_list[list_off], cb->incr_list[list_off + 1],
-          cb->incr_list[list_off + 2]);
+        __wt_cursor_set_key(
+          cursor, cb->incr_list[list_off], cb->incr_list[list_off + 1], WT_BACKUP_RANGE);
         F_SET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
     }
 
