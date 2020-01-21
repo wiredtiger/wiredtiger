@@ -798,8 +798,8 @@ record_loop:
                     repeat_count = WT_INSERT_RECNO(ins) - src_recno;
 
                 deleted = orig_deleted;
-                /* Set time pairs for the deleted key. */
                 if (deleted) {
+                    /* Set time pairs for the deleted key. */
                     durable_ts = WT_TS_NONE;
                     start_ts = WT_TS_NONE;
                     start_txn = WT_TXN_NONE;
@@ -809,7 +809,7 @@ record_loop:
                     goto compare;
                 }
 
-                /* Set time pairs for unchanged key on the old disk image. */
+                /* The key on the old disk image is unchanged. Use time pairs from the cell. */
                 durable_ts = newest_durable_ts;
                 start_ts = vpack->start_ts;
                 start_txn = vpack->start_txn;
