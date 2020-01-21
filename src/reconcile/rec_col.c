@@ -868,19 +868,20 @@ compare:
              * record number, we've been doing that all along.
              */
             if (rle != 0) {
-                if ((deleted && last.deleted) ||
-                  (!deleted && !last.deleted && last.value->size == size &&
-                      memcmp(last.value->data, data, size) == 0)) {
+                if ((last.start_ts == start_ts && last.start_txn == start_txn &&
+                      last.stop_ts == stop_ts && last.stop_txn == stop_txn) &&
+                  ((deleted && last.deleted) ||
+                      (!deleted && !last.deleted && last.value->size == size &&
+                        memcmp(last.value->data, data, size) == 0))) {
                     /*
                      * The start time pair for deleted keys must be (WT_TS_NONE, WT_TXN_NONE) and
                      * stop time pair must be (WT_TS_MAX, WT_TXN_MAX) since we no longer select
                      * tombstone to write to disk and the deletion of the keys must be globally
                      * visible.
                      */
-                    WT_ASSERT(session,
-                      (!deleted && !last.deleted) ||
+                    WT_ASSERT(session, (!deleted && !last.deleted) ||
                         (last.start_ts == WT_TS_NONE && last.start_txn == WT_TXN_NONE &&
-                          last.stop_ts == WT_TS_MAX && last.stop_txn == WT_TXN_MAX));
+                                         last.stop_ts == WT_TS_MAX && last.stop_txn == WT_TXN_MAX));
                     rle += repeat_count;
                     continue;
                 }
@@ -1045,18 +1046,20 @@ compare:
                 /*
                  * FIXME-PM-1521: Follow up issue with clang in WT-5341.
                  */
-                if ((deleted && last.deleted) ||
-                  (!deleted && !last.deleted && last.value->size == size &&
-                      memcmp(last.value->data, data, size) == 0)) {
+                if ((last.start_ts == start_ts && last.start_txn == start_txn &&
+                      last.stop_ts == stop_ts && last.stop_txn == stop_txn) &&
+                  ((deleted && last.deleted) ||
+                      (!deleted && !last.deleted && last.value->size == size &&
+                        memcmp(last.value->data, data, size) == 0))) {
                     /*
                      * The start time pair for deleted keys must be (WT_TS_NONE, WT_TXN_NONE) and
                      * stop time pair must be (WT_TS_MAX, WT_TXN_MAX) since we no longer select
                      * tombstone to write to disk and the deletion of the keys must be globally
                      * visible.
                      */
-                    WT_ASSERT(session,
-                      (!deleted && !last.deleted) || (last.start_ts == WT_TS_NONE && last.start_txn == WT_TXN_NONE &&
-                        last.stop_ts == WT_TS_MAX && last.stop_txn == WT_TXN_MAX));
+                    WT_ASSERT(session, (!deleted && !last.deleted) ||
+                        (last.start_ts == WT_TS_NONE && last.start_txn == WT_TXN_NONE &&
+                                         last.stop_ts == WT_TS_MAX && last.stop_txn == WT_TXN_MAX));
                     ++rle;
                     goto next;
                 }
