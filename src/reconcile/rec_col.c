@@ -871,6 +871,16 @@ compare:
                 if ((deleted && last.deleted) ||
                   (!deleted && !last.deleted && last.value->size == size &&
                       memcmp(last.value->data, data, size) == 0)) {
+                    /*
+                     * The start time pair for deleted keys must be (WT_TS_NONE, WT_TXN_NONE) and
+                     * stop time pair must be (WT_TS_MAX, WT_TXN_MAX) since we no longer select
+                     * tombstone to write to disk and the deletion of the keys must be globally
+                     * visible.
+                     */
+                    WT_ASSERT(session,
+                      (!deleted && !last.deleted) ||
+                        (last.start_ts == WT_TS_NONE && last.start_txn == WT_TXN_NONE &&
+                          last.stop_ts == WT_TS_MAX && last.stop_txn == WT_TXN_MAX));
                     rle += repeat_count;
                     continue;
                 }
@@ -983,7 +993,7 @@ compare:
                     rle += skip;
                     src_recno += skip;
                 } else {
-                    /* Set time pairs for the first deleted keys in a deleted range. */
+                    /* Set time pairs for the first deleted key in a deleted range. */
                     durable_ts = WT_TS_NONE;
                     start_ts = WT_TS_NONE;
                     start_txn = WT_TXN_NONE;
@@ -1038,6 +1048,15 @@ compare:
                 if ((deleted && last.deleted) ||
                   (!deleted && !last.deleted && last.value->size == size &&
                       memcmp(last.value->data, data, size) == 0)) {
+                    /*
+                     * The start time pair for deleted keys must be (WT_TS_NONE, WT_TXN_NONE) and
+                     * stop time pair must be (WT_TS_MAX, WT_TXN_MAX) since we no longer select
+                     * tombstone to write to disk and the deletion of the keys must be globally
+                     * visible.
+                     */
+                    WT_ASSERT(session,
+                      (!deleted && !last.deleted) || (last.start_ts == WT_TS_NONE && last.start_txn == WT_TXN_NONE &&
+                        last.stop_ts == WT_TS_MAX && last.stop_txn == WT_TXN_MAX));
                     ++rle;
                     goto next;
                 }
