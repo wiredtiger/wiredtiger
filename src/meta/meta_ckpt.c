@@ -622,7 +622,7 @@ __ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *bl
         WT_RET(__wt_buf_catfmt(
           session, buf, "%s%s=(id=%" PRIu32 ",blocks=(", i == 0 ? "" : ",", blk->id_str, i));
         for (entries = 0, p = blk->alloc_list; entries < blk->alloc_list_entries;
-             ++entries, p += WT_BACKUP_INCR_COMPONENTS)
+             entries += WT_BACKUP_INCR_COMPONENTS, p += WT_BACKUP_INCR_COMPONENTS)
             WT_RET(__wt_buf_catfmt(session, buf, "%s%" PRId64 ",%" PRId64, entries == 0 ? "" : ",",
               (int64_t)p[0], (int64_t)p[1]));
         WT_RET(__wt_buf_catfmt(session, buf, "))"));

@@ -9,6 +9,50 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_backup_load_incr --
+ *     Free the duplicate backup cursor for a file-based incremental backup.
+ */
+int
+__wt_backup_load_incr(
+  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *blkcfg, uint64_t **listp, uint64_t *entriesp)
+{
+    uint64_t entries, i, *list;
+    const char *p;
+
+    p = blkcfg->str;
+    if (*p != '(')
+        goto format;
+    if (p[1] != ')') {
+        for (entries = 0; p < blkcfg->str + blkcfg->len; ++p)
+            if (*p == ',')
+                ++entries;
+        if (p[-1] != ')' || ++entries % WT_BACKUP_INCR_COMPONENTS != 0)
+            goto format;
+
+        /*
+         * Make space for the range field.
+         */
+        WT_RET(__wt_calloc_def(session, entries, &list));
+        *entriesp = entries;
+        *listp = list;
+        /*
+         * Copy the block list to the cursor.
+         */
+        for (i = 0, p = blkcfg->str + 1; *p != ')'; ++i, ++list) {
+            if (sscanf(p, "%" SCNu64 "[,)]", list) != 1)
+                goto format;
+            for (; *p != ',' && *p != ')'; ++p)
+                ;
+            if (*p == ',')
+                ++p;
+        }
+    }
+    return (0);
+format:
+    WT_RET_MSG(session, WT_ERROR, "corrupted modified block list");
+}
+
+/*
  * __curbackup_incr_blkmods --
  *     Get the block modifications for a tree from its metadata and fill in the backup cursor's
  *     information with it.
@@ -19,9 +63,7 @@ __curbackup_incr_blkmods(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BA
     WT_CONFIG blkconf;
     WT_CONFIG_ITEM b, k, v;
     WT_DECL_RET;
-    uint64_t entries, i, *list;
     char *config;
-    const char *p;
 
     WT_ASSERT(session, btree != NULL);
     WT_ASSERT(session, btree->dhandle != NULL);
@@ -43,45 +85,13 @@ __curbackup_incr_blkmods(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BA
 
         WT_RET_NOTFOUND_OK(ret);
         if (ret != WT_NOTFOUND) {
-            p = b.str;
-            if (*p != '(')
-                goto format;
-            if (p[1] != ')') {
-                for (entries = 0; p < b.str + b.len; ++p)
-                    if (*p == ',')
-                        ++entries;
-                if (p[-1] != ')' || ++entries % 2 != 0)
-                    goto format;
-
-                /* This is now the number of actual entries. */
-                entries /= 2;
-                /*
-                 * Make space for the range field.
-                 */
-                WT_RET(
-                  __wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &cb->incr_list));
-                cb->incr_list_count = entries * WT_BACKUP_INCR_COMPONENTS;
-                cb->incr_list_offset = 0;
-                list = cb->incr_list;
-                /*
-                 * Copy the block list to the cursor.
-                 */
-                for (i = 0, p = b.str + 1; *p != ')'; ++i, ++list) {
-                    if (sscanf(p, "%" SCNu64 "[,)]", list) != 1)
-                        goto format;
-                    for (; *p != ',' && *p != ')'; ++p)
-                        ;
-                    if (*p == ',')
-                        ++p;
-                }
-            }
+            WT_RET(__wt_backup_load_incr(session, &b, &cb->incr_list, &cb->incr_list_count));
+            cb->incr_list_offset = 0;
             cb->incr_init = true;
         } else
             __wt_verbose(session, WT_VERB_BACKUP, "LOAD: no blocks %.*s", (int)k.len, k.str);
     }
     return (0);
-format:
-    WT_RET_MSG(session, WT_ERROR, "corrupted modified block list");
 }
 
 /*

@@ -761,15 +761,14 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
             continue;
 
         start = blk_mod->alloc_list_entries;
-        end = start + entries;
+        end = start + entries * WT_BACKUP_INCR_COMPONENTS;
         if (blk_mod->alloc_size == 0) {
-            WT_RET(__wt_calloc_def(session, end * WT_BACKUP_INCR_COMPONENTS, &list));
+            WT_RET(__wt_calloc_def(session, end, &list));
             blk_mod->alloc_list = list;
-            blk_mod->alloc_size = end * WT_BACKUP_INCR_COMPONENTS * sizeof(uint64_t);
+            blk_mod->alloc_size = end * sizeof(uint64_t);
         } else {
-            WT_RET(__wt_realloc_def(session, &blk_mod->alloc_size, end * WT_BACKUP_INCR_COMPONENTS,
-              &blk_mod->alloc_list));
-            list = &blk_mod->alloc_list[start * WT_BACKUP_INCR_COMPONENTS];
+            WT_RET(__wt_realloc_def(session, &blk_mod->alloc_size, end, &blk_mod->alloc_list));
+            list = &blk_mod->alloc_list[start];
         }
         blk_mod->alloc_list_entries = end;
         WT_EXT_FOREACH (ext, ci->alloc.off) {
@@ -805,8 +804,7 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT
     WT_CONFIG_ITEM b, k, v;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint64_t entries, i, *list;
-    const char *p;
+    uint64_t i;
 
     conn = S2C(session);
     if (config == NULL)
@@ -843,39 +841,12 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT
         WT_RET_NOTFOUND_OK(ret);
         if (ret != WT_NOTFOUND) {
             __wt_verbose(session, WT_VERB_BACKUP, "LOAD: found blocks %.*s", (int)b.len, b.str);
-            p = b.str;
-            if (*p != '(')
-                goto format;
-            if (p[1] != ')') {
-                for (entries = 0; p < b.str + b.len; ++p)
-                    if (*p == ',')
-                        ++entries;
-                if (p[-1] != ')' || ++entries % 2 != 0)
-                    goto format;
-
-                /* This is now the number of actual entries. */
-                entries /= 2;
-                blk_mod->alloc_list_entries = entries;
-                /*
-                 * Make space for the range field.
-                 */
-                WT_RET(__wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &list));
-                blk_mod->alloc_list = list;
-                for (i = 0, p = b.str + 1; *p != ')'; ++i, ++list) {
-                    if (sscanf(p, "%" SCNu64 "[,)]", list) != 1)
-                        goto format;
-                    for (; *p != ',' && *p != ')'; ++p)
-                        ;
-                    if (*p == ',')
-                        ++p;
-                }
-            }
+            WT_RET(__wt_backup_load_incr(
+              session, &b, &blk_mod->alloc_list, &blk_mod->alloc_list_entries));
         } else
             __wt_verbose(session, WT_VERB_BACKUP, "LOAD: no blocks %.*s", (int)k.len, k.str);
     }
     return (0);
-format:
-    WT_RET_MSG(session, WT_ERROR, "corrupted modified block list");
 }
 
 /*
