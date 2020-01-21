@@ -877,7 +877,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp stable updates", "transaction: transaction begins",
   "transaction: transaction checkpoint currently running",
   "transaction: transaction checkpoint generation",
-  "transaction: transaction checkpoint history store file duration",
+  "transaction: transaction checkpoint history store file duration (usecs)",
   "transaction: transaction checkpoint max time (msecs)",
   "transaction: transaction checkpoint min time (msecs)",
   "transaction: transaction checkpoint most recent time (msecs)",

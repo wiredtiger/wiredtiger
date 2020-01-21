@@ -5731,7 +5731,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING		1383
 /*! transaction: transaction checkpoint generation */
 #define	WT_STAT_CONN_TXN_CHECKPOINT_GENERATION		1384
-/*! transaction: transaction checkpoint history store file duration */
+/*!
+ * transaction: transaction checkpoint history store file duration
+ * (usecs)
+ */
 #define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1385
 /*! transaction: transaction checkpoint max time (msecs) */
 #define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MAX		1386
