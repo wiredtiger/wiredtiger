@@ -380,8 +380,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_scr_alloc(session, 0, &vs->tmp3));
     WT_ERR(__wt_scr_alloc(session, 0, &vs->tmp4));
 
-    
-
     /* Check configuration strings. */
     WT_ERR(__verify_config(session, cfg, vs));
 
@@ -401,6 +399,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     }
     WT_ERR(ret);
 
+    WT_ERR(__verify_history_tree(session, NULL));
     /* Inform the underlying block manager we're verifying. */
     WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
     bm_start = true;
@@ -427,7 +426,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
         /* Skip trees with no root page. */
         if (root_addr_size != 0) {
-            WT_ERR(__verify_history_tree(session, NULL, vs));
             WT_ERR(__wt_btree_tree_open(session, root_addr, root_addr_size));
 
             if (WT_VRFY_DUMP(vs))
@@ -585,34 +583,40 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
     return (0);
 }
 
-static int
-__verify_history_tree(WT_SESSION_IMPL *session, WT_CELL_UNPACK *addr_unpack, WT_VSTUFF *vs)
+int
+__verify_history_tree(WT_SESSION_IMPL *session, WT_CELL_UNPACK *addr_unpack)
 {
     WT_CURSOR *cursor;
-    uint32_t session_flags, las_btree_id;
-    WT_ITEM las_key;
     WT_DECL_RET;
+    WT_ITEM las_key;
     WT_TIME_PAIR las_start, las_stop;
+    uint32_t session_flags, las_btree_id;
 
-    (void) addr_unpack;
-    (void) vs;
+    (void)addr_unpack;
+    session_flags = 0;
     // Set our Cursor to the start
-    __wt_las_cursor(session, &cursor, &session_flags);
+    __wt_hs_cursor(session, &cursor, &session_flags);
 
-    //cursor = session->las_cursor;
+    if (cursor == NULL) {
+        printf("not getting cursor\n");
+    }
+    // cursor = session->las_cursor;
+
+    WT_RET(cursor->reset(cursor));
     while ((ret = cursor->next(cursor)) == 0) {
-        WT_ERR(cursor->get_key(cursor, &las_btree_id, &las_key, 
-        &las_start.timestamp, &las_start.txnid, &las_stop.timestamp, &las_stop.txnid));
-        WT_RET(__wt_msg(session, "BtreeID == %u\n, Timestamp == %lu\n, Transaction ID == %lu", 
-            las_btree_id, las_start.timestamp, las_start.txnid));
-        // do stuff
+        ret = cursor->get_key(cursor, &las_btree_id, &las_key, &las_start.timestamp,
+          &las_start.txnid, &las_stop.timestamp, &las_stop.txnid);
+        WT_ASSERT(session, ret == 0);
+        WT_ERR(ret);
+        WT_RET(__wt_msg(session, "BtreeID == %u, Timestamp == %lu, Transaction ID == %lu\n",
+          las_btree_id, las_start.timestamp, las_start.txnid));
+
+        //__verify
         // int dataStoreValue = // help
 
-        // iterate to next record
-        // __F(next)(cursor)
     }
 err:
-    printf("andrew told me to put this here\n");
+    WT_TRET(__wt_hs_cursor_close(session, &cursor, session_flags));
     return (ret);
 }
 
