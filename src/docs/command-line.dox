@@ -205,7 +205,7 @@ be the format produced by the \c dump command; see @ref dump_formats for
 details.
 
 By default, if the table already exists, key/value pairs in the table
-will be overwritten by the data with matching keys (use the \c -n option
+will be overwritten by new data with matching keys (use the \c -n option
 to make an attempt to overwrite existing data return an error).
 
 @subsection util_load_synopsis Synopsis
