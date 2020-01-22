@@ -1103,8 +1103,9 @@ __wt_ref_info_lock(
     /*
      * The WT_REF address references either an on-page cell or in-memory structure, and eviction
      * frees both. If our caller is already blocking eviction (either because the WT_REF is locked
-     * or there's a hazard pointer on the page), we do no locking here and return a pointer to the
-     * address. If the WT_REF is not locked, we lock here, and copy out the address.
+     * or there's a hazard pointer on the page), no locking is required, and the caller should call
+     * the underlying function directly. Otherwise, our caller is not blocking eviction and we lock
+     * here, and copy out the address instead of returning a reference.
      */
     for (;; __wt_yield()) {
         previous_state = ref->state;
