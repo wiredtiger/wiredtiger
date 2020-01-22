@@ -259,9 +259,12 @@ __wt_compact_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, boo
     /*
      * Internal pages must be read to walk the tree; ask the block-manager if it's useful to rewrite
      * leaf pages, don't do the I/O if a rewrite won't help.
+     *
+     * There can be NULL WT_REF.addr values, where the underlying call won't return a valid address.
+     * The "it's a leaf page" return is enough to confirm we have a valid address for a leaf page.
      */
     __wt_ref_info_lock(session, ref, addr, &addr_size, &is_leaf);
-    if (addr != NULL && is_leaf) {
+    if (is_leaf) {
         bm = S2BT(session)->bm;
         return (bm->compact_page_skip(bm, session, addr, addr_size, skipp));
     }
