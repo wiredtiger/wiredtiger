@@ -68,7 +68,7 @@ __curbackup_incr_blkmods(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BA
     WT_ASSERT(session, btree != NULL);
     WT_ASSERT(session, btree->dhandle != NULL);
     WT_RET(__wt_metadata_search(session, btree->dhandle->name, &config));
-    WT_RET(__wt_config_getones(session, config, "checkpoint_mods", &v));
+    WT_ERR(__wt_config_getones(session, config, "checkpoint_mods", &v));
     __wt_config_subinit(session, &blkconf, &v);
     WT_ASSERT(session, cb->incr_src != NULL);
     while (__wt_config_next(&blkconf, &k, &v) == 0) {
@@ -83,15 +83,19 @@ __curbackup_incr_blkmods(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BA
          */
         ret = __wt_config_subgets(session, &v, "blocks", &b);
 
-        WT_RET_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret);
         if (ret != WT_NOTFOUND) {
-            WT_RET(__wt_backup_load_incr(session, &b, &cb->incr_list, &cb->incr_list_count));
+            WT_ERR(__wt_backup_load_incr(session, &b, &cb->incr_list, &cb->incr_list_count));
             cb->incr_list_offset = 0;
             cb->incr_init = true;
         } else
             __wt_verbose(session, WT_VERB_BACKUP, "LOAD: no blocks %.*s", (int)k.len, k.str);
+        ret = 0;
     }
-    return (0);
+
+err:
+    __wt_free(session, config);
+    return (ret);
 }
 
 /*
