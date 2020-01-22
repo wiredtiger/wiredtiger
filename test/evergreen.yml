@@ -1947,8 +1947,8 @@ tasks:
       - func: "format test script"
         vars:
           test_env_vars: ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
-          # Run for 1 hour (60 mins), and explicitly set data_source to LSM
-          format_test_script_args: -t 60 data_source=lsm
+          # Run for 30 mins, and explicitly set data_source to LSM with a large cache
+          format_test_script_args: -t 30 data_source=lsm cache_minimum=5000
 
   - name: format-stress-sanitizer-smoke-test
     #set a 7 hours timeout
