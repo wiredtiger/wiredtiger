@@ -477,7 +477,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t b
  *     Copy one set of saved updates into the database's history store table.
  */
 int
-__wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
+__wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_MULTI *multi)
 {
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
@@ -489,6 +489,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
 #define MAX_REVERSE_MODIFY_NUM 16
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
+    WT_PAGE *page;
     WT_SAVE_UPD *list;
     WT_SESSION_IMPL *session;
     WT_TXN_ISOLATION saved_isolation;
@@ -501,6 +502,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     int nentries;
     bool local_txn, squashed;
 
+    page = r->page;
     prev_upd = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
@@ -729,6 +731,15 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
             WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK) &&
                 (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY) &&
                 upd == list->onpage_upd);
+
+        if (F_ISSET(r, WT_REC_EVICT)) {
+            /*
+             * If we are evicting, we can now free older updates since they have already been
+             * written to the history store and can't be rolled back anyway
+             */
+            __wt_free_update_list(session, &upd->next);
+            upd->next = NULL;
+        }
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
