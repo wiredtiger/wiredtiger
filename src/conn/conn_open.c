@@ -114,6 +114,9 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
         WT_TRET(__wt_txn_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
     WT_TRET(__wt_logmgr_destroy(session));
 
+    for (i = 0; i < WT_BLKINCR_MAX; ++i)
+        __wt_free(session, conn->incr_backups[i].id_str);
+
     /* Free memory for collators, compressors, data sources. */
     WT_TRET(__wt_conn_remove_collator(session));
     WT_TRET(__wt_conn_remove_compressor(session));
