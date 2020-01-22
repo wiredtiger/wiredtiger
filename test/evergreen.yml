@@ -1648,7 +1648,7 @@ tasks:
         vars:
           times: 3
           config: ../../../test/format/CONFIG.stress
-          extra_args: -C "direct_io=[data]"
+          extra_args: direct_io=1
 
   - name: format-linux-no-ftruncate
     depends_on:
