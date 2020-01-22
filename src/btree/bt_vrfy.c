@@ -587,36 +587,74 @@ int
 __verify_history_tree(WT_SESSION_IMPL *session, WT_CELL_UNPACK *addr_unpack)
 {
     WT_CURSOR *cursor;
+    WT_CURSOR *meta_cursor;
+    WT_CURSOR *data_cursor;
     WT_DECL_RET;
-    WT_ITEM las_key;
-    WT_TIME_PAIR las_start, las_stop;
-    uint32_t session_flags, las_btree_id;
+    WT_ITEM hs_key;
+    WT_TIME_PAIR hs_start, hs_stop;
+    uint32_t session_flags, btree_id;
+    const char *meta_value, *meta_key, *data_key;
+    // WT_CONFIG meta_parser;
+    WT_CONFIG_ITEM k, v;
+    //WT_BTREE *btree;
 
     (void)addr_unpack;
+    (void) k;
+    (void) data_key;
     session_flags = 0;
+
     // Set our Cursor to the start
     __wt_hs_cursor(session, &cursor, &session_flags);
-
-    if (cursor == NULL) {
-        printf("not getting cursor\n");
-    }
-    // cursor = session->las_cursor;
+    WT_RET(__wt_metadata_cursor(session, &meta_cursor));
 
     WT_RET(cursor->reset(cursor));
+
     while ((ret = cursor->next(cursor)) == 0) {
-        ret = cursor->get_key(cursor, &las_btree_id, &las_key, &las_start.timestamp,
-          &las_start.txnid, &las_stop.timestamp, &las_stop.txnid);
-        WT_ASSERT(session, ret == 0);
-        WT_ERR(ret);
+        WT_RET(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start.timestamp,
+          &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
+        
         WT_RET(__wt_msg(session, "BtreeID == %u, Timestamp == %lu, Transaction ID == %lu\n",
-          las_btree_id, las_start.timestamp, las_start.txnid));
+          btree_id, hs_start.timestamp, hs_start.txnid));
 
-        //__verify
-        // int dataStoreValue = // help
+        WT_RET(meta_cursor->reset(meta_cursor));
+        while ((ret = meta_cursor->next(meta_cursor)) == 0) {
+            meta_cursor->get_value(meta_cursor, &meta_value);
+            meta_cursor->get_key(meta_cursor, &meta_key);
+            // WT_RET(__wt_msg(session, "config value == %s", meta_value));
+            //__wt_config_init(session, &meta_parser, meta_value);
+            ret = __wt_config_getones(session, meta_value, "id", &v);
+            if (ret == WT_NOTFOUND) {
+                continue;
+            }
+            
+            if (btree_id == strtoul(v.str, NULL, 10)) {
+                WT_RET(__wt_msg(session, "key = %s\n", meta_key));
+                WT_RET(__wt_msg(session, "id = %.*s\n", (int)v.len, v.str));
+                WT_RET(__wt_open_cursor(session, meta_key, NULL, NULL, &data_cursor));
+                //WT_RET(__wt_curfile_open(session, meta_key, NULL, NULL, &data_cursor));
+                // WT_RET(data_cursor->reset(data_cursor));
+                // while ((ret = data_cursor->next(data_cursor)) == 0) {
+                //     data_cursor->get_key(data_cursor, &data_key);
+                //     WT_RET(__wt_msg(session, "key = %s\n", data_key));
+                // }
 
+            }
+            
+
+            //WT_RET(__wt_session_get_dhandle(session, meta_key, NULL, NULL, 0));
+            //btree = S2BT(session);
+
+            // while ((ret = __wt_config_next(&meta_parser, &k, &v)) == 0) {
+            //     if (v.type == WT_CONFIG_ITEM_STRING) {
+            //         --v.str;
+            //         v.len += 2;
+            //     }
+            // }
+        }
     }
-err:
+//err:
     WT_TRET(__wt_hs_cursor_close(session, &cursor, session_flags));
+    WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
     return (ret);
 }
 
