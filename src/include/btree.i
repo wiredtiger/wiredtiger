@@ -1097,8 +1097,10 @@ static inline void
 __wt_ref_info_lock(
   WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, size_t *sizep, bool *is_leafp)
 {
+    size_t size;
     uint32_t previous_state;
     const uint8_t *addr;
+    bool is_leaf;
 
     /*
      * The WT_REF address references either an on-page cell or in-memory structure, and eviction
@@ -1114,10 +1116,15 @@ __wt_ref_info_lock(
             break;
     }
 
-    __wt_ref_info(session, ref, &addr, sizep, is_leafp);
+    __wt_ref_info(session, ref, &addr, &size, &is_leaf);
 
-    if (addr_buf != NULL)
-        memcpy(addr_buf, addr, *sizep);
+    if (addr_buf != NULL) {
+        if (addr != NULL)
+            memcpy(addr_buf, addr, size);
+        *sizep = size;
+    }
+    if (is_leafp != NULL)
+        *is_leafp = is_leaf;
 
     WT_REF_SET_STATE(ref, previous_state);
 }
