@@ -47,7 +47,7 @@ struct __wt_cursor_backup {
 
     /* File offset-based incremental backup. */
     WT_BLKINCR *incr_src; /* Incremental backup source */
-    char *incr_file;        /* File name */
+    char *incr_file;      /* File name */
 
     WT_CURSOR *incr_cursor; /* File cursor */
 

@@ -592,7 +592,7 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
 
 /*
  * __ckpt_blkmods_to_meta --
- *     Add in any modification block string needed.
+ *     Add in any modification block string needed, including an empty one.
  */
 static int
 __ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *blk_mods)
@@ -602,11 +602,21 @@ __ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *bl
     u_int i;
     bool valid;
 
+    /*
+     * If there are no block modifications (such as import or salvage) there is nothing to do.
+     */
+    if (blk_mods == NULL) {
+        WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_mods="));
+        return (0);
+    }
     valid = false;
     for (i = 0, blk = blk_mods; i < WT_BLKINCR_MAX; ++i, ++blk) {
         if (F_ISSET(blk, WT_BLOCK_MODS_VALID))
             valid = true;
     }
+    /*
+     * If the existing block modifications are not valid, there is nothing to do.
+     */
     if (!valid) {
         WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_mods="));
         return (0);
