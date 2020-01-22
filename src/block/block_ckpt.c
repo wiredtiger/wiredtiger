@@ -668,11 +668,6 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, u_int i)
     bool free, setup;
 
     blk = &S2C(session)->incr_backups[i];
-    /*
-     * Default is that we have no information so there is nothing to free but we need to do setup.
-     */
-    free = false;
-    setup = true;
 
     /*
      * Check the state of our block list array compared to the global one. There are
