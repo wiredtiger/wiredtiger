@@ -732,14 +732,12 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                 (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY) &&
                 upd == list->onpage_upd);
 
-        if (F_ISSET(r, WT_REC_EVICT)) {
+        if (F_ISSET(r, WT_REC_EVICT))
             /*
              * If we are evicting, we can now free older updates since they have already been
-             * written to the history store and can't be rolled back anyway
+             * written to the history store and can't be rolled back anyway.
              */
             __wt_free_update_list(session, &upd->next);
-            upd->next = NULL;
-        }
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
