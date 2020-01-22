@@ -175,6 +175,9 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
 void
 __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 {
+    WT_BLOCK_MODS *blk_mod;
+    u_int i;
+
     /* Discard the extent lists. */
     __wt_block_extlist_free(session, &ci->alloc);
     __wt_block_extlist_free(session, &ci->avail);
@@ -182,6 +185,10 @@ __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
     __wt_block_extlist_free(session, &ci->ckpt_alloc);
     __wt_block_extlist_free(session, &ci->ckpt_avail);
     __wt_block_extlist_free(session, &ci->ckpt_discard);
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blk_mod = &ci->ckpt_mods[i];
+        __wt_free(session, blk_mod->id_str);
+    }
 }
 
 /*
