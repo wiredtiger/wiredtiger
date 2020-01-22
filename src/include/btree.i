@@ -1107,7 +1107,7 @@ __wt_ref_info_lock(
      * address. If the WT_REF is not locked, we lock here, and copy out the address.
      */
     for (;; __wt_yield()) {
-        previous_state = WT_REF_LOCKED;
+        previous_state = ref->state;
         if (previous_state != WT_REF_LOCKED &&
           WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;
