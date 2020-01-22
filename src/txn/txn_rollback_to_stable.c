@@ -468,7 +468,7 @@ err:
 
 /*
  * __txn_rollback_to_stable --
- *     Rollback all related to timestamps more recent than the passed in timestamp.
+ *     Rollback all modifications with timestamps more recent than the passed in timestamp.
  */
 static int
 __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
@@ -519,7 +519,7 @@ err:
 
 /*
  * __wt_txn_rollback_to_stable --
- *     Rollback all related to timestamps more recent than the passed in timestamp.
+ *     Rollback all modifications with timestamps more recent than the passed in timestamp.
  */
 int
 __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
