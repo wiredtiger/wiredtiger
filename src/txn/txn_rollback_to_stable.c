@@ -430,6 +430,43 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __txn_rollback_to_stable_btree_apply --
+ *     Perform rollback to stable to all files listed in the metadata, apart from the metadata and
+ *     history store files.
+ */
+static int
+__txn_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *uri;
+
+    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &uri));
+
+        /* Ignore metadata and history store files. */
+        if (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_HS_URI) == 0)
+            continue;
+
+        if (!WT_PREFIX_MATCH(uri, "file:"))
+            continue;
+
+        WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
+        WT_SAVE_DHANDLE(session, ret = __txn_rollback_to_stable_btree(session));
+        WT_TRET(__wt_session_release_dhandle(session));
+        WT_ERR(ret);
+    }
+
+err:
+    WT_TRET_NOTFOUND_OK(ret);
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
  * __txn_rollback_to_stable --
  *     Rollback all related to timestamps more recent than the passed in timestamp.
  */
@@ -477,43 +514,6 @@ __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 err:
     F_CLR(conn, WT_CONN_EVICTION_NO_HS);
     __wt_free(session, conn->stable_rollback_bitstring);
-    return (ret);
-}
-
-/*
- * __txn_rollback_to_stable_btree_apply --
- *     Perform rollback to stable to all files listed in the metadata, apart from the metadata and
- *     history store files.
- */
-static inline int
-__txn_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    const char *uri;
-
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
-    WT_RET(__wt_metadata_cursor(session, &cursor));
-
-    while ((ret = cursor->next(cursor)) == 0) {
-        WT_ERR(cursor->get_key(cursor, &uri));
-
-        /* Ignore metadata and history store files. */
-        if (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_HS_URI) == 0)
-            continue;
-
-        if (!WT_PREFIX_MATCH(uri, "file:"))
-            continue;
-
-        WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
-        WT_SAVE_DHANDLE(session, ret = __txn_rollback_to_stable_btree(session));
-        WT_TRET(__wt_session_release_dhandle(session));
-        WT_ERR(ret);
-    }
-
-err:
-    WT_TRET_NOTFOUND_OK(ret);
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
 }
 
