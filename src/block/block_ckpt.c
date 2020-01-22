@@ -187,6 +187,7 @@ __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
     __wt_block_extlist_free(session, &ci->ckpt_discard);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ci->ckpt_mods[i];
+        __wt_free(session, blk_mod->alloc_list);
         __wt_free(session, blk_mod->id_str);
     }
 }
