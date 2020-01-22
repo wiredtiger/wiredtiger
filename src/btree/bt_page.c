@@ -573,8 +573,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool check_unstable)
              * directly referenced on the page to avoid repeatedly unpacking their cells.
              */
             if (!btree->huffman_key && unpack.prefix == 0 && unpack.stop_txn == WT_TXN_MAX &&
-              unpack.stop_ts == WT_TS_MAX &&
-              (txn_global->has_oldest_timestamp && unpack.start_ts < txn_global->oldest_timestamp))
+              unpack.stop_ts == WT_TS_MAX && txn_global->has_oldest_timestamp &&
+              unpack.start_ts < txn_global->oldest_timestamp)
                 __wt_row_leaf_key_set(page, rip, &unpack);
             else
                 __wt_row_leaf_key_set_cell(page, rip, unpack.cell);
@@ -592,8 +592,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool check_unstable)
              * repeatedly unpacking their cells.
              */
             if (!btree->huffman_value && unpack.stop_txn == WT_TXN_MAX &&
-              unpack.stop_ts == WT_TS_MAX &&
-              (txn_global->has_oldest_timestamp && unpack.start_ts < txn_global->oldest_timestamp))
+              unpack.stop_ts == WT_TS_MAX && txn_global->has_oldest_timestamp &&
+              unpack.start_ts < txn_global->oldest_timestamp)
                 __wt_row_leaf_value_set(page, rip - 1, &unpack);
             break;
         case WT_CELL_VALUE_OVFL:

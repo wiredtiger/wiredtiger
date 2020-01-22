@@ -845,8 +845,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
      * If we checked the update list, the ondisk value and the history store, we should return a
      * tombstone to indicate we didn't find anything.
      *
-     * FIXME-PM-1521: We call transaction read in a lot of places so this we can't do this yet. When
-     * we refactor this function to return a byte array, we should tackle this at the same time.
+     * FIXME-PM-1521: We call transaction read in a lot of places so we can't do this yet. When we
+     * refactor this function to return a byte array, we should tackle this at the same time.
      */
 
     *updp = upd;

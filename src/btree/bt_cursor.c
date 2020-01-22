@@ -332,16 +332,21 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
         if (__wt_cell_type(cell) == WT_CELL_DEL)
             return (0);
 
-        /* Check for an update. */
-        WT_RET(__wt_txn_read(session, cbt, cbt->ins == NULL ? NULL : cbt->ins->upd, &upd));
-        if (upd != NULL) {
-            if (upd->type == WT_UPDATE_TOMBSTONE) {
-                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                    __wt_free_update_list(session, &upd);
-                return (0);
+        /*
+         * Check for an update ondisk or in the history store. If an insert object exists, we've
+         * already tried that so just skip this.
+         */
+        if (cbt->ins == NULL) {
+            WT_RET(__wt_txn_read(session, cbt, NULL, &upd));
+            if (upd != NULL) {
+                if (upd->type == WT_UPDATE_TOMBSTONE) {
+                    if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+                        __wt_free_update_list(session, &upd);
+                    return (0);
+                }
+                if (updp != NULL)
+                    *updp = upd;
             }
-            if (updp != NULL)
-                *updp = upd;
         }
         break;
     case BTREE_ROW:
