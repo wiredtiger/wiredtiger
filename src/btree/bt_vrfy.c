@@ -586,20 +586,15 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
 int
 __verify_history_tree(WT_SESSION_IMPL *session, WT_CELL_UNPACK *addr_unpack)
 {
-    WT_CURSOR *cursor;
-    WT_CURSOR *meta_cursor;
-    WT_CURSOR *data_cursor;
+    WT_CURSOR *cursor, *meta_cursor, *data_cursor;
     WT_DECL_RET;
-    WT_ITEM hs_key;
+    WT_ITEM hs_key, data_key;
     WT_TIME_PAIR hs_start, hs_stop;
     uint32_t session_flags, btree_id;
-    const char *meta_value, *meta_key, *data_key;
-    // WT_CONFIG meta_parser;
-    WT_CONFIG_ITEM k, v;
-    //WT_BTREE *btree;
+    const char *meta_value, *meta_key;
+    WT_CONFIG_ITEM v;
 
     (void)addr_unpack;
-    (void) k;
     (void) data_key;
     session_flags = 0;
 
@@ -620,8 +615,6 @@ __verify_history_tree(WT_SESSION_IMPL *session, WT_CELL_UNPACK *addr_unpack)
         while ((ret = meta_cursor->next(meta_cursor)) == 0) {
             meta_cursor->get_value(meta_cursor, &meta_value);
             meta_cursor->get_key(meta_cursor, &meta_key);
-            // WT_RET(__wt_msg(session, "config value == %s", meta_value));
-            //__wt_config_init(session, &meta_parser, meta_value);
             ret = __wt_config_getones(session, meta_value, "id", &v);
             if (ret == WT_NOTFOUND) {
                 continue;
@@ -631,25 +624,22 @@ __verify_history_tree(WT_SESSION_IMPL *session, WT_CELL_UNPACK *addr_unpack)
                 WT_RET(__wt_msg(session, "key = %s\n", meta_key));
                 WT_RET(__wt_msg(session, "id = %.*s\n", (int)v.len, v.str));
                 WT_RET(__wt_open_cursor(session, meta_key, NULL, NULL, &data_cursor));
-                //WT_RET(__wt_curfile_open(session, meta_key, NULL, NULL, &data_cursor));
-                // WT_RET(data_cursor->reset(data_cursor));
-                // while ((ret = data_cursor->next(data_cursor)) == 0) {
-                //     data_cursor->get_key(data_cursor, &data_key);
-                //     WT_RET(__wt_msg(session, "key = %s\n", data_key));
-                // }
-
+                WT_RET(data_cursor->reset(data_cursor));
+                bool verified = false;
+                while ((ret = data_cursor->next(data_cursor)) == 0) {
+                    F_SET(data_cursor, WT_CURSOR_RAW_OK);
+                    WT_RET(data_cursor->get_key(data_cursor, &data_key));
+                    if (__wt_lex_compare(&hs_key, &data_key) == 0) {
+                        verified = true;
+                        WT_RET(__wt_msg(session, "Verified !\n"));
+                        break;
+                    }
+                }
+                if (verified == false) {
+                    WT_RET(__wt_msg(session, "Not verified\n"));
+                }
+                verified = false;
             }
-            
-
-            //WT_RET(__wt_session_get_dhandle(session, meta_key, NULL, NULL, 0));
-            //btree = S2BT(session);
-
-            // while ((ret = __wt_config_next(&meta_parser, &k, &v)) == 0) {
-            //     if (v.type == WT_CONFIG_ITEM_STRING) {
-            //         --v.str;
-            //         v.len += 2;
-            //     }
-            // }
         }
     }
 //err:

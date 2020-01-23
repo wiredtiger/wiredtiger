@@ -49,7 +49,7 @@ class test_hs06(wttest.WiredTigerTestCase):
     key_format_values = [
         ('column', dict(key_format='r')),
         ('integer', dict(key_format='i')),
-        ('string', dict(key_format='S'))
+        ('string', dict(key_format='Si'))
     ]
     scenarios = make_scenarios(key_format_values)
 
@@ -63,7 +63,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         return self.get_stat(stat.conn.cache_bytes_other)
 
     def create_key(self, i):
-        if self.key_format == 'S':
+        if self.key_format[0] == 'S':
             return str(i)
         return i
 
@@ -80,15 +80,24 @@ class test_hs06(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        for i in range(1, 2000):
-            cursor[self.create_key(i)] = value1
+        for i in range(1, 10000):
+            cursor[(self.create_key(i), i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Load another 1Mb of data with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 2000):
-            cursor[self.create_key(i)] = value2
+        for i in range(1, 10000):
+            cursor[(self.create_key(i), i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
+        # Make a bunch of updates to another table to flush everything out of cache.
+        uri2 = 'table:test_hs06_extra'
+        self.session.create(uri2, create_params)
+        cursor2 = self.session.open_cursor(uri2)
+        for i in range(1, 10000):
+            self.session.begin_transaction()
+            cursor2[self.create_key(i)] = value2
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(6))
 
         # Write a version of the data to disk.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
@@ -109,8 +118,8 @@ class test_hs06(wttest.WiredTigerTestCase):
         # be reading it straight from the history store without initialising a full
         # update chain of every version of the data.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
-        for i in range(1, 2000):
-            self.assertEqual(cursor[self.create_key(i)], value1)
+        for i in range(1, 10000):
+            self.assertEqual(cursor[(self.create_key(i), i)], value1)
         self.session.rollback_transaction()
 
         end_usage = self.get_non_page_image_memory_usage()
