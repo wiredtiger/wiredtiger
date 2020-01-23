@@ -221,6 +221,7 @@ __txn_page_needs_rollback(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE)
         return (mod->mod_replace.newest_durable_ts > rollback_timestamp);
     else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
+        multi_newest_durable_ts = WT_TS_NONE;
         /* Calculate the max durable timestamp by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
             multi_newest_durable_ts =
