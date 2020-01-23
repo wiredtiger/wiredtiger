@@ -478,6 +478,11 @@ main(int argc, char *argv[])
 
     printf("Final comparison: dumping and comparing data\n");
     error_check(compare_backups(0));
+    for (i = 0; i < (int)filelist_count; ++i) {
+        if (last_flist[i].name == NULL)
+            break;
+        free((void *)last_flist[i].name);
+    }
     free(last_flist);
 
     /*
