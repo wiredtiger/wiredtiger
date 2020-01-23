@@ -1813,21 +1813,23 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
          * the reconciliation of the root page. For now, make sure the eviction threads don't see us
          * as a threat.
          */
-        if (page->memory_footprint > 10 * WT_MEGABYTE) {
+        if (page->memory_footprint > WT_MEGABYTE) {
             ++decr_cnt;
-            __wt_cache_page_inmem_decr(session, page, 10 * WT_MEGABYTE);
+            __wt_cache_page_inmem_decr(session, page, WT_MEGABYTE);
         }
     }
 
-    if (decr_cnt != 0)
-        __wt_cache_page_inmem_incr(session, page, decr_cnt * 10 * WT_MEGABYTE);
+    if (decr_cnt != 0) {
+        __wt_cache_page_inmem_incr(session, page, decr_cnt * WT_MEGABYTE);
+        decr_cnt = 0;
+    }
     __wt_root_ref_init(session, &ss->root_ref, page, false);
 
     if (0) {
 err:
         __wt_free(session, addr);
         if (decr_cnt != 0)
-            __wt_cache_page_inmem_incr(session, page, decr_cnt * 10 * WT_MEGABYTE);
+            __wt_cache_page_inmem_incr(session, page, decr_cnt * WT_MEGABYTE);
         __wt_page_out(session, &page);
     }
     return (ret);
