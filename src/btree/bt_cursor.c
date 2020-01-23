@@ -331,6 +331,23 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
         cell = WT_COL_PTR(page, cip);
         if (__wt_cell_type(cell) == WT_CELL_DEL)
             return (0);
+
+        /*
+         * Check for an update ondisk or in the history store. If an insert object exists, we've
+         * already tried that so just skip this.
+         */
+        if (cbt->ins == NULL) {
+            WT_RET(__wt_txn_read(session, cbt, NULL, &upd));
+            if (upd != NULL) {
+                if (upd->type == WT_UPDATE_TOMBSTONE) {
+                    if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+                        __wt_free_update_list(session, &upd);
+                    return (0);
+                }
+                if (updp != NULL)
+                    *updp = upd;
+            }
+        }
         break;
     case BTREE_ROW:
         /* The search function doesn't check for empty pages. */
@@ -350,17 +367,19 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
             return (0);
 
         /* Check for an update. */
-        if (page->modify != NULL && page->modify->mod_row_update != NULL) {
-            WT_RET(__wt_txn_read(session, cbt, page->modify->mod_row_update[cbt->slot], &upd));
-            if (upd != NULL) {
-                if (upd->type == WT_UPDATE_TOMBSTONE) {
-                    if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                        __wt_free_update_list(session, &upd);
-                    return (0);
-                }
-                if (updp != NULL)
-                    *updp = upd;
+        WT_RET(__wt_txn_read(session, cbt,
+          (page->modify != NULL && page->modify->mod_row_update != NULL) ?
+            page->modify->mod_row_update[cbt->slot] :
+            NULL,
+          &upd));
+        if (upd != NULL) {
+            if (upd->type == WT_UPDATE_TOMBSTONE) {
+                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+                    __wt_free_update_list(session, &upd);
+                return (0);
             }
+            if (updp != NULL)
+                *updp = upd;
         }
         break;
     }
