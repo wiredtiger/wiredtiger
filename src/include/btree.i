@@ -1078,14 +1078,14 @@ __wt_ref_info(
         *addrp = addr->addr;
         *sizep = addr->size;
         if (is_leafp != NULL)
-            *is_leafp = addr->type != WT_CELL_ADDR_INT;
+            *is_leafp = addr->type != WT_ADDR_INT;
     } else {
         __wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
         *addrp = unpack->data;
         *sizep = unpack->size;
 
         if (is_leafp != NULL)
-            *is_leafp = unpack->type != WT_CELL_ADDR_INT;
+            *is_leafp = unpack->type != WT_ADDR_INT;
     }
 }
 
