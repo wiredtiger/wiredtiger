@@ -732,7 +732,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_ISOLATION saved_isolation;
     wt_timestamp_t ckpt_tmp_ts;
-    uint64_t fsync_duration_usecs, generation, time_start, time_stop;
+    uint64_t fsync_duration_usecs, generation, time_start_fsync, time_stop_fsync;
+    uint64_t time_start_hs, time_stop_hs, hs_ckpt_duration_usecs;
     u_int i;
     bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
     void *saved_meta_next;
@@ -862,8 +863,12 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * As such we could get a NULL dhandle.
      */
     if (hs_dhandle != NULL) {
+        time_start_hs = __wt_clock(session);
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
         WT_ERR(ret);
+        time_stop_hs = __wt_clock(session);
+        hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
+        WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
     }
 
     /*
@@ -889,7 +894,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Checkpoints have to hit disk (it would be reasonable to configure for lazy checkpoints, but
      * we don't support them yet).
      */
-    time_start = __wt_clock(session);
+    time_start_fsync = __wt_clock(session);
 
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
 
@@ -897,8 +902,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     if (hs_dhandle != NULL)
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_sync(session, NULL));
 
-    time_stop = __wt_clock(session);
-    fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
+    time_stop_fsync = __wt_clock(session);
+    fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop_fsync, time_start_fsync);
     WT_STAT_CONN_INCR(session, txn_checkpoint_fsync_post);
     WT_STAT_CONN_SET(session, txn_checkpoint_fsync_post_duration, fsync_duration_usecs);
 
