@@ -850,6 +850,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Checkpoint the history store file at snapshot isolation but first refresh our snapshot. */
     __wt_txn_get_snapshot(session);
+
     /*
      * Get a history store dhandle. If the history store file is opened for a special operation this
      * will return EBUSY which we treat as an error.
@@ -869,6 +870,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
         WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
     }
+
     /*
      * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't
      * bother restoring the handle since it doesn't make sense to carry a handle across a
