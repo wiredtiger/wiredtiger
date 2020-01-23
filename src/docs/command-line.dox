@@ -284,7 +284,6 @@ exists, key/value pairs in the table will be overwritten by new data
 with matching keys.  For either column-store or row-store tables, existing
 keys will not be removed.
 
-
 @subsection util_loadtext_synopsis Synopsis
 <code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] loadtext [-f input] uri</code>
 
