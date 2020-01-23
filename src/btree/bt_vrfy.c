@@ -804,12 +804,6 @@ __verify_page_cell(
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
-            if (unpack.newest_stop_txn == WT_TXN_NONE &&
-              dsk->write_gen > S2C(session)->base_write_gen)
-                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                              " on page at %s has a "
-                                              "newest stop transaction of 0",
-                  cell_num - 1, __wt_page_addr_string(session, ref, vs->tmp1));
             if (unpack.oldest_start_ts > unpack.newest_stop_ts)
                 WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
                                               " on page at %s has an "
@@ -855,11 +849,6 @@ __verify_page_cell(
                   cell_num - 1, __wt_page_addr_string(session, ref, vs->tmp1),
                   __wt_timestamp_to_string(unpack.start_ts, ts_string[0]),
                   __wt_timestamp_to_string(unpack.stop_ts, ts_string[1]));
-            if (unpack.stop_txn == WT_TXN_NONE && dsk->write_gen > S2C(session)->base_write_gen)
-                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                              " on page at %s has a stop "
-                                              "transaction of 0",
-                  cell_num - 1, __wt_page_addr_string(session, ref, vs->tmp1));
             if (unpack.start_txn > unpack.stop_txn)
                 WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
                                               " on page at %s has a "
