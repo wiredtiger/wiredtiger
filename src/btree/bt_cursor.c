@@ -473,17 +473,21 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
  *     Search and return exact matching records only, including uncommitted ones.
  */
 int
-__wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
+__wt_btcur_search_uncommitted(WT_CURSOR *cursor, WT_UPDATE **updp)
 {
     WT_BTREE *btree;
-    WT_CURSOR *cursor;
+    WT_CURSOR_BTREE *cbt;
     WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
 
+    *updp = NULL;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
     btree = cbt->btree;
-    cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cursor->session;
-    *updp = upd = NULL; /* -Wuninitialized */
+    upd = NULL; /* -Wuninitialized */
+
+    WT_RET(__cursor_func_init(cbt, true));
 
     WT_RET(btree->type == BTREE_ROW ? __cursor_row_search(cbt, false, NULL, NULL) :
                                       __cursor_col_search(cbt, NULL, NULL));
