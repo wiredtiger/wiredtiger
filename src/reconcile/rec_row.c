@@ -877,13 +877,7 @@ __wt_rec_row_leaf(
             kpack = &_kpack;
             __wt_cell_unpack(session, page, cell, kpack);
             if (btree->huffman_key == NULL && kpack->type == WT_CELL_KEY &&
-              tmpkey->size >= kpack->prefix) {
-                /*
-                 * The previous clause checked for a prefix of zero, which means the temporary
-                 * buffer must have a non-zero size, and it references a valid key.
-                 */
-                WT_ASSERT(session, tmpkey->size != 0);
-
+              tmpkey->size >= kpack->prefix && tmpkey->size != 0) {
                 /*
                  * Grow the buffer as necessary, ensuring data data has been copied into local
                  * buffer space, then append the suffix to the prefix already in the buffer.

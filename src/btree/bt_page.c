@@ -532,8 +532,10 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_BTREE *btree;
     WT_CELL_UNPACK unpack;
     WT_ROW *rip;
+    WT_TXN_GLOBAL *txn_global;
 
     btree = S2BT(session);
+    txn_global = &S2C(session)->txn_global;
 
     /* Walk the page, building indices. */
     rip = page->pg_row;
@@ -558,8 +560,13 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
             /*
              * Simple values without compression can be directly referenced on the page to avoid
              * repeatedly unpacking their cells.
+             *
+             * The visibility information is not referenced on the page so we need to ensure that
+             * the value is globally visible at the point in time where we read the page into cache.
              */
-            if (!btree->huffman_value)
+            if (!btree->huffman_value && unpack.stop_txn == WT_TXN_MAX &&
+              unpack.stop_ts == WT_TS_MAX && txn_global->has_oldest_timestamp &&
+              unpack.start_ts <= txn_global->oldest_timestamp)
                 __wt_row_leaf_value_set(page, rip - 1, &unpack);
             break;
         case WT_CELL_VALUE_OVFL:

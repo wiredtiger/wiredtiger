@@ -56,7 +56,7 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const 
 
     if (error == WT_PANIC && strstr(message, "exceeds maximum size") != NULL) {
         fprintf(
-          stderr, "Got cache overflow error (expect_panic=%s)\n", expect_panic ? "true" : "false");
+          stderr, "Got history store error (expect_panic=%s)\n", expect_panic ? "true" : "false");
 
         /*
          * If we're expecting a panic, exit with zero to indicate to the parent that this test was
@@ -83,7 +83,7 @@ hs_workload(TEST_OPTS *opts, const char *hs_file_max)
     char buf[WT_MEGABYTE], open_config[128];
 
     testutil_check(__wt_snprintf(open_config, sizeof(open_config),
-      "create,cache_size=50MB,cache_overflow=(file_max=%s)", hs_file_max));
+      "create,cache_size=50MB,history_store=(file_max=%s)", hs_file_max));
 
     testutil_check(wiredtiger_open(opts->home, &event_handler, open_config, &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
