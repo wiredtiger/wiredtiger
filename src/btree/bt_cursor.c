@@ -348,7 +348,6 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
             }
         }
         break;
-
     case BTREE_ROW:
         /* The search function doesn't check for empty pages. */
         if (page->entries == 0)
