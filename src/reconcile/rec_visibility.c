@@ -350,11 +350,18 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             upd_select->upd = upd = upd->next;
         }
         if (upd != NULL) {
-            /* The beginning of the validity window is the selected update's time pair. */
-            WT_ASSERT(
-              session, upd->start_ts <= upd_select->stop_ts && upd->txnid <= upd_select->stop_txn);
-            upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
-            upd_select->start_txn = upd->txnid;
+            /*
+             * The beginning of the validity window is the selected update's time pair.
+             *
+             * FIXME-PM-1521: We shouldn't need to check for this. We're actually allowed to commit
+             * updates to the same key out of timestamp order. So we can have stop time pairs
+             * earlier than their respective start time pair. We need to figure out what to do in
+             * WT-5469.
+             */
+            if (upd->start_ts <= upd_select->stop_ts && upd->txnid <= upd_select->stop_txn) {
+                upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
+                upd_select->start_txn = upd->txnid;
+            }
         } else {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL);
