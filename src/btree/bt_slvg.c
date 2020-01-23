@@ -1818,11 +1818,9 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
             __wt_cache_page_inmem_decr(session, page, WT_MEGABYTE);
         }
     }
-
-    if (decr_cnt != 0) {
+    if (decr_cnt != 0)
         __wt_cache_page_inmem_incr(session, page, decr_cnt * WT_MEGABYTE);
-        decr_cnt = 0;
-    }
+
     __wt_root_ref_init(session, &ss->root_ref, page, false);
 
     if (0) {
