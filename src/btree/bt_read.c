@@ -329,8 +329,8 @@ read:
                 goto skip_evict;
 
             /*
-             * If reconciliation is disabled (e.g., when inserting into the lookaside table), skip
-             * forced eviction if the page can't split.
+             * If reconciliation is disabled (e.g., when inserting into the history store table),
+             * skip forced eviction if the page can't split.
              */
             if (F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
               !__wt_leaf_page_can_split(session, ref->page))
@@ -387,9 +387,9 @@ skip_evict:
              *
              * The logic here is a little weird: some code paths do a blanket ban on checking the
              * cache size in sessions, but still require a transaction (e.g., when updating metadata
-             * or lookaside). If WT_READ_IGNORE_CACHE_SIZE was passed in explicitly, we're done. If
-             * we set WT_READ_IGNORE_CACHE_SIZE because it was set in the session then make sure we
-             * start a transaction.
+             * or the history store). If WT_READ_IGNORE_CACHE_SIZE was passed in explicitly, we're
+             * done. If we set WT_READ_IGNORE_CACHE_SIZE because it was set in the session then make
+             * sure we start a transaction.
              */
             return (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE) &&
                   !F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ?
