@@ -243,14 +243,11 @@ __txn_page_needs_rollback(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
 static int
 __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
-    WT_DECL_RET;
     WT_PAGE *page;
-    uint32_t read_flags;
-    bool local_read;
 
     /* Review deleted page saved to the ref. */
     if (ref->page_del != NULL && rollback_timestamp < ref->page_del->durable_timestamp)
-        WT_ERR(__wt_delete_page_rollback(session, ref));
+        WT_RET(__wt_delete_page_rollback(session, ref));
 
     /*
      * If we have a ref with no page, or the page is clean, find out any updates in the page needs
@@ -259,11 +256,11 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
      */
     if ((page = ref->page) == NULL || !__wt_page_is_modified(page)) {
         if (!__txn_page_needs_rollback(session, ref, rollback_timestamp))
-            goto err;
+            return (0);
 
         /* Page needs rollback, read it into cache. */
         if (page == NULL)
-            WT_ERR(__wt_page_in(session, ref, read_flags));
+            WT_RET(__wt_page_in(session, ref, 0));
     }
 
     switch (page->type) {
@@ -285,13 +282,10 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
         __txn_abort_newer_row_leaf(session, page, rollback_timestamp);
         break;
     default:
-        WT_ERR(__wt_illegal_value(session, page->type));
+        WT_RET(__wt_illegal_value(session, page->type));
     }
 
-err:
-    if (local_read)
-        WT_TRET(__wt_page_release(session, ref, read_flags));
-    return (ret);
+    return (0);
 }
 
 /*
