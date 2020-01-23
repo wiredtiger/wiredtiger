@@ -758,6 +758,7 @@ __upd_alloc_tombstone(
 
     WT_RET(__wt_update_alloc(session, NULL, updp, &size, WT_UPDATE_TOMBSTONE));
     (*updp)->txnid = txnid;
+    /* FIXME: Reevaluate this as part of PM-1524. */
     (*updp)->durable_ts = (*updp)->start_ts = start_ts;
     F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
     return (0);
