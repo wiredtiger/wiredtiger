@@ -17,10 +17,6 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, u
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (stop_ts == WT_TS_NONE) {
-        __wt_errx(session, "stop timestamp of 0");
-        WT_ASSERT(session, stop_ts != WT_TS_NONE);
-    }
     if (start_ts > stop_ts) {
         __wt_errx(session, "a start timestamp %s newer than its stop timestamp %s",
           __wt_timestamp_to_string(start_ts, ts_string[0]),
@@ -28,10 +24,6 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, u
         WT_ASSERT(session, start_ts <= stop_ts);
     }
 
-    if (stop_txn == WT_TXN_NONE) {
-        __wt_errx(session, "stop transaction ID of 0");
-        WT_ASSERT(session, stop_txn != WT_TXN_NONE);
-    }
     if (start_txn > stop_txn) {
         __wt_errx(session, "a start transaction ID %" PRIu64
                            " newer than its stop "
