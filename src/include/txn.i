@@ -754,6 +754,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **updp)
     bool skipped_birthmark;
 
     *updp = NULL;
+
+    type = 0; /* [-Wconditional-uninitialized] */
     for (skipped_birthmark = false; upd != NULL; upd = upd->next) {
         WT_ORDERED_READ(type, upd->type);
 
