@@ -15,32 +15,6 @@ static int __btree_preload(WT_SESSION_IMPL *);
 static int __btree_tree_open_empty(WT_SESSION_IMPL *, bool);
 
 /*
- * __wt_btree_page_version_config --
- *     Select a Btree page format.
- */
-void
-__wt_btree_page_version_config(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-
-/*
- * Write timestamp format pages if at the right version or if configured at build-time.
- *
- * WiredTiger version where timestamp page format is written. This is a future release, and the
- * values may require update when the release is named.
- */
-#define WT_VERSION_TS_MAJOR 3
-#define WT_VERSION_TS_MINOR 3
-    __wt_process.page_version_ts =
-      conn->compat_major >= WT_VERSION_TS_MAJOR && conn->compat_minor >= WT_VERSION_TS_MINOR;
-#if defined(HAVE_PAGE_VERSION_TS)
-    __wt_process.page_version_ts = true;
-#endif
-}
-
-/*
  * __btree_clear --
  *     Clear a Btree, either on handle discard or re-open.
  */
@@ -245,11 +219,11 @@ __wt_btree_close(WT_SESSION_IMPL *session)
     F_SET(btree, WT_BTREE_CLOSED);
 
     /*
-     * Verify the lookaside state. If the lookaside is open and this btree has lookaside entries, it
-     * can't be a metadata file, nor can it be the lookaside file.
+     * Verify the history store state. If the history store is open and this btree has history store
+     * entries, it can't be a metadata file, nor can it be the history store file.
      */
-    WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_LOOKASIDE_OPEN) ||
-        !btree->lookaside_entries || (!WT_IS_METADATA(btree->dhandle) && !WT_IS_LAS(btree)));
+    WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_HS_OPEN) || !btree->hs_entries ||
+        (!WT_IS_METADATA(btree->dhandle) && !WT_IS_HS(btree)));
 
     /*
      * If we turned eviction off and never turned it back on, do that now, otherwise the counter

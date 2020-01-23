@@ -14,19 +14,10 @@ src/conn/conn_capacity.c:291:5: warning: Value stored to 'capacity' is never rea
     capacity = steal_capacity = 0;
     ^          ~~~~~~~~~~~~~~~~~~
 1 warning generated.
-src/reconcile/rec_col.c:656:5: warning: Value stored to 'start_ts' is never read
-    start_ts = WT_TS_MAX;
-    ^          ~~~~~~~~~
-src/reconcile/rec_col.c:657:5: warning: Value stored to 'start_txn' is never read
-    start_txn = WT_TXN_MAX;
-    ^           ~~~~~~~~~~
-src/reconcile/rec_col.c:658:5: warning: Value stored to 'stop_ts' is never read
-    stop_ts = WT_TS_NONE;
-    ^         ~~~~~~~~~~
-src/reconcile/rec_col.c:659:5: warning: Value stored to 'stop_txn' is never read
-    stop_txn = WT_TS_NONE;
-    ^          ~~~~~~~~~~
-4 warnings generated.
+src/reconcile/rec_col.c:1050:23: warning: Null pointer passed as an argument to a 'nonnull' parameter
+                      memcmp(last.value->data, data, size) == 0)) {
+                      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1 warnings generated.
 In file included from src/reconcile/rec_write.c:9:
 In file included from ./src/include/wt_internal.h:421:
 ./src/include/mutex.i:184:16: warning: Null pointer passed as an argument to a 'nonnull' parameter

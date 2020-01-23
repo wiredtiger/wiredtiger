@@ -450,16 +450,16 @@ connection_runtime_config = [
         for space to be available in cache before giving up. Default will
         wait forever''',
         min=0),
-    Config('cache_overflow', '', r'''
-        cache overflow configuration options''',
+    Config('history_store', '', r'''
+        history store configuration options''',
         type='category', subconfig=[
         Config('file_max', '0', r'''
             The maximum number of bytes that WiredTiger is allowed to use for
-            its cache overflow mechanism. If the cache overflow file exceeds
+            its history store mechanism. If the history store file exceeds
             this size, a panic will be triggered. The default value means that
-            the cache overflow file is unbounded and may use as much space as
+            the history store file is unbounded and may use as much space as
             the filesystem will accommodate. The minimum non-zero setting is
-            100MB.''',    # !!! Must match WT_LAS_FILE_MIN
+            100MB.''',    # !!! Must match WT_HS_FILE_MIN
             min='0')
         ]),
     Config('cache_overhead', '8', r'''
@@ -495,9 +495,16 @@ connection_runtime_config = [
             adjust log archiving to retain the log records of this number
             of checkpoints. Zero or one means perform normal archiving.''',
             min='0', max='1024'),
+        Config('cursor_copy', 'false', r'''
+            if true, use the system allocator to make a copy of any data
+            returned by a cursor operation and return the copy instead.
+            The copy is freed on the next cursor operation. This allows
+            memory sanitizers to detect inappropriate references to memory
+            owned by cursors.''',
+            type='boolean'),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force
-            lookaside eviction to happen more aggressively. This includes but
+            history store eviction to happen more aggressively. This includes but
             is not limited to not skewing newest, not favoring leaf pages,
             and modifying the eviction score mechanism.''',
             type='boolean'),
@@ -678,7 +685,7 @@ connection_runtime_config = [
         intended for use with internal stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_sweep', 'checkpoint_slow', 'lookaside_sweep_race',
+        'aggressive_sweep', 'checkpoint_slow', 'history_store_sweep_race',
         'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6',
         'split_7', 'split_8']),
     Config('verbose', '', r'''
@@ -700,8 +707,8 @@ connection_runtime_config = [
             'fileops',
             'handleops',
             'log',
-            'lookaside',
-            'lookaside_activity',
+            'history_store',
+            'history_store_activity',
             'lsm',
             'lsm_manager',
             'metadata',
@@ -1338,8 +1345,9 @@ methods = {
 'WT_SESSION.upgrade' : Method([]),
 'WT_SESSION.verify' : Method([
     Config('dump_address', 'false', r'''
-        Display addresses and page types as pages are verified,
-        using the application's message handler, intended for debugging''',
+        Display page addresses, start and stop time pairs and page types as
+        pages are verified, using the application's message handler,
+        intended for debugging''',
         type='boolean'),
     Config('dump_blocks', 'false', r'''
         Display the contents of on-disk blocks as they are verified,
@@ -1357,11 +1365,6 @@ methods = {
     Config('dump_pages', 'false', r'''
         Display the contents of in-memory pages as they are verified,
         using the application's message handler, intended for debugging''',
-        type='boolean'),
-    Config('dump_time_pairs', 'false', r'''
-        Display aggregated time pair ranges as pages are verified,
-        using the application's message handler, intended for debugging.
-        Output is of the format "ts/txn, ts/txn"''',
         type='boolean'),
     Config('strict', 'false', r'''
         Treat any verification problem as an error; by default, verify will

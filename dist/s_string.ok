@@ -174,6 +174,7 @@ HHHHLL
 HHHLL
 HILQr
 HOTBACKUP
+HSdump
 Hendrik
 HyperLevelDB
 ID's
@@ -209,8 +210,6 @@ KVS
 Kanowski's
 Kounavis
 LANGID
-LAS
-LASdump
 LF
 LLLLLL
 LLLLLLL
@@ -442,6 +441,7 @@ WiredTiger
 WiredTiger's
 WiredTigerCheckpoint
 WiredTigerException
+WiredTigerHS
 WiredTigerInit
 WiredTigerLAS
 WiredTigerLog

@@ -39,6 +39,7 @@ def timestamp_str(t):
 
 # Shared base class used by gc tests.
 class test_gc_base(wttest.WiredTigerTestCase):
+
     def large_updates(self, uri, value, ds, nrows, commit_ts):
         # Update a large number of records.
         session = self.session
@@ -179,5 +180,6 @@ class test_gc01(test_gc_base):
         # When this limitation is fixed we'll need to uncomment the calls to self.check
         # and fix self.check_gc_stats.
         self.KNOWN_LIMITATION('values stored by this test are not yet validated')
+
 if __name__ == '__main__':
     wttest.run()

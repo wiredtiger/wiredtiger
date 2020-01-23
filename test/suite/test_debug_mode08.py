@@ -26,29 +26,36 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, unittest
-from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import wttest, wiredtiger, test_base03
 
-# test_util04.py
-#    Utilities: wt drop
-class test_util04(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_util04.a'
-    nentries = 1000
+# test_debug_mode08.py
+#   Test the debug mode setting for cursor_copy.
+# There's no great way to detect that cursor_copy is really working, as
+# the extra malloc/free that WT does cannot easily be detected.  However,
+# it's useful to run some tests with the mode enabled. We make a subclass
+# of test_base03, so we'll inherit those tests to be run with the debug mode
+# configuration enabled.
+class test_debug_mode08(test_base03.test_base03):
+    conn_config = 'debug_mode=(cursor_copy=true)'
+    uri = 'file:test_debug_mode08'
 
-    def test_drop_process(self):
-        """
-        Test drop in a 'wt' process
-        """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+    def test_reconfig(self):
+        ''' Test reconfigure with some minimal cursor activity. '''
+        self.session.create(self.uri, 'key_format=s,value_format=s')
+        cursor = self.session.open_cursor(self.uri, None)
+        cursor['key'] = 'value'
+        cursor.close()
 
-        self.assertTrue(os.path.exists(self.tablename + ".wt"))
-        self.runWt(["drop", "table:" + self.tablename])
+        conn_reconfig = 'debug_mode=(cursor_copy=false)'
+        self.conn.reconfigure(conn_reconfig)
+        cursor = self.session.open_cursor(self.uri, None)
+        cursor['key'] = 'value'
+        cursor.close()
 
-        self.assertFalse(os.path.exists(self.tablename + ".wt"))
-        self.assertRaises(wiredtiger.WiredTigerError, lambda:
-            self.session.open_cursor('table:' + self.tablename, None, None))
+        self.conn.reconfigure(self.conn_config)
+        cursor = self.session.open_cursor(self.uri, None)
+        cursor['key'] = 'value'
+        cursor.close()
 
 if __name__ == '__main__':
     wttest.run()

@@ -63,7 +63,7 @@ restart_read:
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
         } else {
-            if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+            if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK) && upd->type != WT_UPDATE_TOMBSTONE)
                 return (__wt_value_return(cbt, upd));
             cbt->iface.value.data = upd->data;
         }
@@ -120,7 +120,7 @@ restart_read:
         cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
         cbt->iface.value.data = &cbt->v;
     } else {
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK) && upd->type != WT_UPDATE_TOMBSTONE)
             return (__wt_value_return(cbt, upd));
         cbt->iface.value.data = upd->data;
     }

@@ -121,15 +121,15 @@ __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
     WT_ASSERT(session, txn->mod_count > 0 && recno != WT_RECNO_OOB);
     op = txn->mod + txn->mod_count - 1;
 
-    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_LAS(op->btree) ||
+    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree) ||
       WT_IS_METADATA(op->btree->dhandle))
         return;
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL);
 
     /*
-     * Copy the recno into the transaction operation structure, so when update is evicted to
-     * lookaside, we have a chance of finding it again. Even though only prepared updates can be
+     * Copy the recno into the transaction operation structure, so when update is evicted to the
+     * history store, we have a chance of finding it again. Even though only prepared updates can be
      * evicted, at this stage we don't know whether this transaction will be prepared or not, hence
      * we are copying the key for all operations, so that we can use this key to fetch the update in
      * case this transaction is prepared.
@@ -153,15 +153,15 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 
     op = txn->mod + txn->mod_count - 1;
 
-    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_LAS(op->btree) ||
+    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree) ||
       WT_IS_METADATA(op->btree->dhandle))
         return (0);
 
     WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW);
 
     /*
-     * Copy the key into the transaction operation structure, so when update is evicted to
-     * lookaside, we have a chance of finding it again. Even though only prepared updates can be
+     * Copy the key into the transaction operation structure, so when update is evicted to the
+     * history store, we have a chance of finding it again. Even though only prepared updates can be
      * evicted, at this stage we don't know whether this transaction will be prepared or not, hence
      * we are copying the key for all operations, so that we can use this key to fetch the update in
      * case this transaction is prepared.
@@ -420,8 +420,8 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     }
     op->u.op_upd = upd;
 
-    /* Use the original transaction time pair for the lookaside inserts */
-    if (WT_IS_LAS(S2BT(session))) {
+    /* Use the original transaction time pair for the history store inserts */
+    if (WT_IS_HS(S2BT(session))) {
         upd->txnid = session->orig_txnid_to_las;
         upd->start_ts = session->orig_timestamp_to_las;
     } else {
@@ -486,7 +486,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      */
     oldest_id = txn_global->oldest_id;
     include_checkpoint_txn = btree == NULL ||
-      (!WT_IS_LAS(btree) && btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
+      (!WT_IS_HS(btree) && btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
     if (!include_checkpoint_txn)
         return (oldest_id);
 
@@ -538,7 +538,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      * it's safe to ignore the checkpoint ID in the visibility check.
      */
     include_checkpoint_txn = btree == NULL ||
-      (!WT_IS_LAS(btree) && btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
+      (!WT_IS_HS(btree) && btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
     if (!include_checkpoint_txn)
         return;
 
@@ -747,6 +747,24 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 }
 
 /*
+ * __upd_alloc_tombstone --
+ *     Allocate a tombstone update at a given transaction id and timestamp.
+ */
+static inline int
+__upd_alloc_tombstone(
+  WT_SESSION_IMPL *session, WT_UPDATE **updp, uint64_t txnid, wt_timestamp_t start_ts)
+{
+    size_t size;
+
+    WT_RET(__wt_update_alloc(session, NULL, updp, &size, WT_UPDATE_TOMBSTONE));
+    (*updp)->txnid = txnid;
+    /* FIXME: Reevaluate this as part of PM-1524. */
+    (*updp)->durable_ts = (*updp)->start_ts = start_ts;
+    F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
+    return (0);
+}
+
+/*
  * __wt_txn_read --
  *     Get the first visible update in a list (or NULL if none are visible).
  */
@@ -780,9 +798,11 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     }
     WT_ASSERT(session, upd == NULL);
 
-    /* If there is no ondisk value, there can't be anything in lookaside either. */
-    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX)
+    /* If there is no ondisk value, there can't be anything in the history store either. */
+    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
+        WT_RET(__upd_alloc_tombstone(session, updp, WT_TXN_NONE, WT_TS_NONE));
         return (0);
+    }
 
     /* Check the ondisk value. */
     WT_RET(__wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop));
@@ -793,8 +813,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
      * "not found".
      */
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
-      __wt_txn_visible(session, stop.txnid, stop.timestamp))
+      __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
+        WT_RET(__upd_alloc_tombstone(session, updp, stop.txnid, stop.timestamp));
         return (0);
+    }
 
     /*
      * If the start time pair is visible then we need to return the ondisk value.
@@ -812,14 +834,22 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         return (0);
     }
 
-    /* If there's no visible update in the update chain or ondisk, check the lookaside file. */
+    /* If there's no visible update in the update chain or ondisk, check the history store file. */
     WT_ASSERT(session, upd == NULL);
-    if (F_ISSET(S2C(session), WT_CONN_LOOKASIDE_OPEN) &&
-      !F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE))
-        WT_RET_NOTFOUND_OK(__wt_find_lookaside_upd(session, cbt, &upd, false));
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
+        WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, cbt, &upd, false));
 
-    /* There is no BIRTHMARK in lookaside file. */
+    /* There is no BIRTHMARK in the history store file. */
     WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_BIRTHMARK);
+
+    /*
+     * If we checked the update list, the ondisk value and the history store, we should return a
+     * tombstone to indicate we didn't find anything.
+     *
+     * FIXME-PM-1521: We call transaction read in a lot of places so we can't do this yet. When we
+     * refactor this function to return a byte array, we should tackle this at the same time.
+     */
+
     *updp = upd;
     return (0);
 }

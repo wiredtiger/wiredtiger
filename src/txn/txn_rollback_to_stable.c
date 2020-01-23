@@ -9,20 +9,20 @@
 #include "wt_internal.h"
 
 /*
- * __txn_rollback_to_stable_lookaside_fixup --
- *     Remove any updates that need to be rolled back from the lookaside file.
+ * __txn_rollback_to_stable_hs_fixup --
+ *     Remove any updates that need to be rolled back from the history store file.
  */
 static int
-__txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
+__txn_rollback_to_stable_hs_fixup(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_ITEM las_key, las_value;
+    WT_ITEM hs_key, hs_value;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t durable_timestamp, las_timestamp, rollback_timestamp;
-    uint64_t las_txnid;
-    uint32_t las_btree_id, session_flags;
+    wt_timestamp_t durable_timestamp, hs_timestamp, rollback_timestamp;
+    uint64_t hs_txnid;
+    uint32_t hs_btree_id, session_flags;
     uint8_t prepare_state, upd_type;
 
     conn = S2C(session);
@@ -37,25 +37,24 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
     txn_global = &conn->txn_global;
     WT_ORDERED_READ(rollback_timestamp, txn_global->stable_timestamp);
 
-    __wt_las_cursor(session, &cursor, &session_flags);
+    __wt_hs_cursor(session, &cursor, &session_flags);
 
     /* Discard pages we read as soon as we're done with them. */
     F_SET(session, WT_SESSION_READ_WONT_NEED);
 
     /* Walk the file. */
     while ((ret = cursor->next(cursor)) == 0) {
-        WT_ERR(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
+        WT_ERR(cursor->get_key(cursor, &hs_btree_id, &hs_key, &hs_timestamp, &hs_txnid));
 
         /* Check the file ID so we can skip durable tables */
-        if (las_btree_id >= conn->stable_rollback_maxfile)
+        if (hs_btree_id >= conn->stable_rollback_maxfile)
             WT_PANIC_RET(session, EINVAL,
-              "file ID %" PRIu32 " in lookaside table larger than max %" PRIu32, las_btree_id,
-              conn->stable_rollback_maxfile);
-        if (__bit_test(conn->stable_rollback_bitstring, las_btree_id))
+              "file ID %" PRIu32 " in the history store table larger than max %" PRIu32,
+              hs_btree_id, conn->stable_rollback_maxfile);
+        if (__bit_test(conn->stable_rollback_bitstring, hs_btree_id))
             continue;
 
-        WT_ERR(
-          cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
+        WT_ERR(cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, &hs_value));
 
         /*
          * Entries with no timestamp will have a timestamp of zero, which will fail the following
@@ -68,7 +67,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
     }
     WT_ERR_NOTFOUND_OK(ret);
 err:
-    WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, &cursor, session_flags));
 
     F_CLR(session, WT_SESSION_READ_WONT_NEED);
 
@@ -217,17 +216,17 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
     /*
      * If we created a page image with updates that need to be rolled back, read the history into
      * cache now and make sure the page is marked dirty. Otherwise, the history we need could be
-     * swept from the lookaside table before the page is read because the lookaside sweep code has
-     * no way to tell that the page image is invalid.
+     * swept from the history store table before the page is read because the history store sweep
+     * code has no way to tell that the page image is invalid.
      *
-     * So, if there is lookaside history for a page, first check if the history needs to be rolled
-     * back then ensure the history is loaded into cache.
+     * So, if there is history for a page, first check if the history needs to be rolled back then
+     * ensure the history is loaded into cache.
      *
-     * Also, we have separately discarded any lookaside history more recent than the rollback
-     * timestamp. For page_las structures in cache, reset any future timestamps back to the rollback
-     * timestamp. This allows those structures to be discarded once the rollback timestamp is stable
-     * (crucially for tests, they can be discarded if the connection is closed right after a
-     * rollback_to_stable call).
+     * Also, we have separately discarded any history more recent than the rollback timestamp. For
+     * page_las structures in cache, reset any future timestamps back to the rollback timestamp.
+     * This allows those structures to be discarded once the rollback timestamp is stable (crucially
+     * for tests, they can be discarded if the connection is closed right after a rollback_to_stable
+     * call).
      */
     local_read = false;
     read_flags = WT_READ_WONT_NEED;
@@ -304,7 +303,7 @@ __txn_rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rol
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while ((ret = __wt_tree_walk(
-              session, &ref, WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
+              session, &ref, WT_READ_CACHE_LEAF | WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL) {
         if (WT_PAGE_IS_INTERNAL(ref->page)) {
             WT_INTL_FOREACH_BEGIN (session, ref->page, child_ref) {
@@ -333,18 +332,16 @@ __txn_rollback_eviction_drain(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __txn_rollback_to_stable_btree --
- *     Called for each open handle - choose to either skip or wipe the commits
+ *     Called for each object handle - choose to either skip or wipe the commits
  */
 static int
-__txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
+__txn_rollback_to_stable_btree(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t rollback_timestamp;
-
-    WT_UNUSED(cfg);
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -359,7 +356,7 @@ __txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (__wt_btree_immediately_durable(session)) {
         /*
-         * Add the btree ID to the bitstring, so we can exclude any lookaside entries for this
+         * Add the btree ID to the bitstring, so we can exclude any history store entries for this
          * btree.
          */
         if (btree->id >= conn->stable_rollback_maxfile)
@@ -418,7 +415,7 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
     /*
      * Help the user comply with the requirement that there are no concurrent operations. Protect
      * against spurious conflicts with the sweep server: we exclude it from running concurrent with
-     * rolling back the lookaside contents.
+     * rolling back the history store contents.
      */
     ret = __wt_txn_activity_check(session, &txn_active);
 #ifdef HAVE_DIAGNOSTIC
@@ -433,8 +430,45 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __txn_rollback_to_stable_btree_apply --
+ *     Perform rollback to stable to all files listed in the metadata, apart from the metadata and
+ *     history store files.
+ */
+static int
+__txn_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *uri;
+
+    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &uri));
+
+        /* Ignore metadata and history store files. */
+        if (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_HS_URI) == 0)
+            continue;
+
+        if (!WT_PREFIX_MATCH(uri, "file:"))
+            continue;
+
+        WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
+        WT_SAVE_DHANDLE(session, ret = __txn_rollback_to_stable_btree(session));
+        WT_TRET(__wt_session_release_dhandle(session));
+        WT_ERR(ret);
+    }
+    WT_ERR_NOTFOUND_OK(ret);
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
  * __txn_rollback_to_stable --
- *     Rollback all in-memory state related to timestamps more recent than the passed in timestamp.
+ *     Rollback all modifications with timestamps more recent than the passed in timestamp.
  */
 static int
 __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
@@ -444,23 +478,22 @@ __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
 
-    WT_STAT_CONN_INCR(session, txn_rollback_to_stable);
     /*
      * Mark that a rollback operation is in progress and wait for eviction to drain. This is
-     * necessary because lookaside eviction uses transactions and causes the check for a quiescent
-     * system to fail.
+     * necessary because history store eviction uses transactions and causes the check for a
+     * quiescent system to fail.
      *
-     * Configuring lookaside eviction off isn't atomic, safe because the flag is only otherwise set
-     * when closing down the database. Assert to avoid confusion in the future.
+     * Configuring history store eviction off isn't atomic, safe because the flag is only otherwise
+     * set when closing down the database. Assert to avoid confusion in the future.
      */
-    WT_ASSERT(session, !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE));
-    F_SET(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+    WT_ASSERT(session, !F_ISSET(conn, WT_CONN_EVICTION_NO_HS));
+    F_SET(conn, WT_CONN_EVICTION_NO_HS);
 
     WT_ERR(__wt_conn_btree_apply(session, NULL, __txn_rollback_eviction_drain, NULL, cfg));
 
     WT_ERR(__txn_rollback_to_stable_check(session));
 
-    F_CLR(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+    F_CLR(conn, WT_CONN_EVICTION_NO_HS);
 
     /*
      * Allocate a non-durable btree bitstring. We increment the global value before using it, so the
@@ -468,25 +501,25 @@ __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      */
     conn->stable_rollback_maxfile = conn->next_file_id + 1;
     WT_ERR(__bit_alloc(session, conn->stable_rollback_maxfile, &conn->stable_rollback_bitstring));
-    WT_ERR(__wt_conn_btree_apply(session, NULL, __txn_rollback_to_stable_btree, NULL, cfg));
+    WT_WITH_SCHEMA_LOCK(session, ret = __txn_rollback_to_stable_btree_apply(session));
 
     /*
-     * Clear any offending content from the lookaside file. This must be done after the in-memory
-     * application, since the process of walking trees in cache populates a list that is used to
-     * check which lookaside records should be removed.
+     * Clear any offending content from the history store file. This must be done after the
+     * in-memory application, since the process of walking trees in cache populates a list that is
+     * used to check which history store records should be removed.
      */
     if (!F_ISSET(conn, WT_CONN_IN_MEMORY))
-        WT_ERR(__txn_rollback_to_stable_lookaside_fixup(session));
+        WT_ERR(__txn_rollback_to_stable_hs_fixup(session));
 
 err:
-    F_CLR(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+    F_CLR(conn, WT_CONN_EVICTION_NO_HS);
     __wt_free(session, conn->stable_rollback_bitstring);
     return (ret);
 }
 
 /*
  * __wt_txn_rollback_to_stable --
- *     Rollback all in-memory state related to timestamps more recent than the passed in timestamp.
+ *     Rollback all modifications with timestamps more recent than the passed in timestamp.
  */
 int
 __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])

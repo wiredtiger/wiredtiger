@@ -34,15 +34,15 @@ from wtdataset import SimpleDataSet
 def timestamp_str(t):
     return '%x' % t
 
-# test_las07.py
-# Test that LAS sweep cleans the obsolete lookaside entries and gives expected results.
-class test_las07(wttest.WiredTigerTestCase):
+# test_hs07.py
+# Test that the history store sweep cleans the obsolete history store entries and gives expected results.
+class test_hs07(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,log=(enabled)'
     session_config = 'isolation=snapshot'
 
     def large_updates(self, uri, value, ds, nrows, commit_ts):
-        # Update a large number of records, we'll hang if the lookaside table isn't working.
+        # Update a large number of records, we'll hang if the history store table isn't working.
         session = self.session
         cursor = session.open_cursor(uri)
         for i in range(1, nrows + 1):
@@ -62,10 +62,11 @@ class test_las07(wttest.WiredTigerTestCase):
         session.rollback_transaction()
         self.assertEqual(count, nrows)
 
-    def test_las(self):
+    def test_hs(self):
         nrows = 10000
 
-        # Create a table without logging to ensure we get "skew_newest" lookaside eviction behavior.
+        # Create a table without logging to ensure we get "skew_newest" history store eviction
+        # behavior.
         uri = "table:las07_main"
         ds = SimpleDataSet(
             self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')

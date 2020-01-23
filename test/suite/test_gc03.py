@@ -31,14 +31,15 @@ from helper import copy_wiredtiger_home
 import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from test_gc01 import test_gc_base
+from wiredtiger import stat
 
 def timestamp_str(t):
     return '%x' % t
 
 # test_gc03.py
-# Test that checkpoint cleans the obsolete lookaside pages that are in-memory.
+# Test that checkpoint cleans the obsolete history store pages that are in-memory.
 class test_gc03(test_gc_base):
-    conn_config = 'cache_size=2GB,log=(enabled),statistics=(all)'
+    conn_config = 'cache_size=4GB,log=(enabled),statistics=(all),statistics_log=(wait=0,on_close=true)'
     session_config = 'isolation=snapshot'
 
     def test_gc(self):

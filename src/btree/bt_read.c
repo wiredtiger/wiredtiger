@@ -216,7 +216,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     uint64_t sleep_usecs, yield_cnt;
     uint32_t current_state;
     int force_attempts;
-    bool busy, cache_work, evict_skip, stalled, wont_need;
+    bool busy, cache_work, evict_skip, is_leaf_page, stalled, wont_need;
 
     btree = S2BT(session);
 
@@ -247,10 +247,28 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
-            /* Limit reads to cache-only, or internal pages only. */
-            if (LF_ISSET(WT_READ_CACHE) ||
-              (LF_ISSET(WT_READ_CACHE_LEAF) && __wt_ref_is_leaf(session, ref)))
+            /* Limit reads to cache-only. */
+            if (LF_ISSET(WT_READ_CACHE))
                 return (WT_NOTFOUND);
+
+            /* Limit reads to internal pages only. */
+            if (LF_ISSET(WT_READ_CACHE_LEAF)) {
+                /*
+                 * Currently, the internal page read request is passed only in two scenarios.
+                 *  1. Garbage collection of history store
+                 *  2. Rollback to stable operation
+                 *
+                 * Lock the ref before we check the page type to avoid the ref getting changed
+                 * underneath. Retry the ref once again if failed to change the ref state
+                 * to WT_REF_LOCKED.
+                 */
+                if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
+                    continue;
+                is_leaf_page = __wt_ref_is_leaf(session, ref);
+                WT_REF_SET_STATE(ref, WT_REF_DISK);
+                if (is_leaf_page)
+                    return (WT_NOTFOUND);
+            }
 
 read:
             /*
@@ -329,8 +347,8 @@ read:
                 goto skip_evict;
 
             /*
-             * If reconciliation is disabled (e.g., when inserting into the lookaside table), skip
-             * forced eviction if the page can't split.
+             * If reconciliation is disabled (e.g., when inserting into the history store table),
+             * skip forced eviction if the page can't split.
              */
             if (F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
               !__wt_leaf_page_can_split(session, ref->page))
@@ -387,9 +405,9 @@ skip_evict:
              *
              * The logic here is a little weird: some code paths do a blanket ban on checking the
              * cache size in sessions, but still require a transaction (e.g., when updating metadata
-             * or lookaside). If WT_READ_IGNORE_CACHE_SIZE was passed in explicitly, we're done. If
-             * we set WT_READ_IGNORE_CACHE_SIZE because it was set in the session then make sure we
-             * start a transaction.
+             * or the history store). If WT_READ_IGNORE_CACHE_SIZE was passed in explicitly, we're
+             * done. If we set WT_READ_IGNORE_CACHE_SIZE because it was set in the session then make
+             * sure we start a transaction.
              */
             return (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE) &&
                   !F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ?

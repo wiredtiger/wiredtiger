@@ -26,21 +26,21 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import unittest, wiredtiger, wttest
+import wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
 
-# test_las08.py
+# test_hs09.py
 # Verify that we write the newest committed version to data store and the
 # second newest committed version to history store.
-class test_las08(wttest.WiredTigerTestCase):
+class test_hs09(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
-    uri = "table:test_las09"
+    uri = "table:test_hs09"
     key_format_values = [
         ('column', dict(key_format='r')),
         ('integer', dict(key_format='i')),
@@ -53,7 +53,7 @@ class test_las08(wttest.WiredTigerTestCase):
             return str(i)
         return i
 
-    def check_ckpt_las(self, expected_data_value, expected_las_value, expected_las_start_ts, expected_las_stop_ts):
+    def chech_ckpt_hs(self, expected_data_value, expected_hs_value, expected_hs_start_ts, expected_hs_stop_ts):
         session = self.conn.open_session(self.session_config)
         session.checkpoint()
         # Check the data file value
@@ -61,22 +61,22 @@ class test_las08(wttest.WiredTigerTestCase):
         for _, value in cursor:
             self.assertEqual(value, expected_data_value)
         cursor.close()
-        # Check the lookaside file value
-        cursor = session.open_cursor("file:WiredTigerLAS.wt", None, 'checkpoint=WiredTigerCheckpoint')
-        for _, _, las_start_ts, _, las_stop_ts, _, _, _, type, value in cursor:
-            # No WT_UPDATE_TOMBSTONE in lookaside
+        # Check the history store file value
+        cursor = session.open_cursor("file:WiredTigerHS.wt", None, 'checkpoint=WiredTigerCheckpoint')
+        for _, _, hs_start_ts, _, hs_stop_ts, _, _, _, type, value in cursor:
+            # No WT_UPDATE_TOMBSTONE in the history store
             self.assertNotEqual(type, 5)
-            # No WT_UPDATE_BIRTHMARK in lookaside
+            # No WT_UPDATE_BIRTHMARK in the history store
             self.assertNotEqual(type, 1)
             # WT_UPDATE_STANDARD
             if (type == 4):
-                self.assertEqual(value.decode(), expected_las_value + '\x00')
-                self.assertEqual(las_start_ts, expected_las_start_ts)
-                self.assertEqual(las_stop_ts, expected_las_stop_ts)
+                self.assertEqual(value.decode(), expected_hs_value + '\x00')
+                self.assertEqual(hs_start_ts, expected_hs_start_ts)
+                self.assertEqual(hs_stop_ts, expected_hs_stop_ts)
         cursor.close()
         session.close()
 
-    def test_uncommitted_updates_not_written_to_lookaside(self):
+    def test_uncommitted_updates_not_written_to_hs(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)
@@ -104,9 +104,9 @@ class test_las08(wttest.WiredTigerTestCase):
         for i in range(1, 11):
             cursor[self.create_key(i)] = value3
 
-        self.check_ckpt_las(value2, value1, 2, 3)
+        self.chech_ckpt_hs(value2, value1, 2, 3)
 
-    def test_prepared_updates_not_written_to_lookaside(self):
+    def test_prepared_updates_not_written_to_hs(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)
@@ -135,7 +135,7 @@ class test_las08(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value3
         self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(4))
 
-        self.check_ckpt_las(value2, value1, 2, 3)
+        self.chech_ckpt_hs(value2, value1, 2, 3)
 
     def test_write_newest_version_to_data_store(self):
         # Create a small table.
@@ -159,7 +159,7 @@ class test_las08(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
-        self.check_ckpt_las(value2, value1, 2, 3)
+        self.chech_ckpt_hs(value2, value1, 2, 3)
 
     def test_write_deleted_version_to_data_store(self):
         # Create a small table.
@@ -191,7 +191,7 @@ class test_las08(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.remove(), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
-        self.check_ckpt_las(value2, value1, 2, 3)
+        self.chech_ckpt_hs(value2, value1, 2, 3)
 
 if __name__ == '__main__':
     wttest.run()

@@ -1043,7 +1043,7 @@ tasks:
             ${test_env_vars|} $(pwd)/test/csuite/test_wt4699_json 2>&1
 
   # Temporarily disabled
-  # - name: csuite-wt4803-cache-overflow-abort-test
+  # - name: csuite-wt4803-history-store-abort-test
   #   tags: ["pull_request"]
   #   depends_on:
   #     - name: compile
@@ -1056,7 +1056,7 @@ tasks:
   #           set -o errexit
   #           set -o verbose
 
-  #           ${test_env_vars|} $(pwd)/test/csuite/test_wt4803_cache_overflow_abort 2>&1
+  #           ${test_env_vars|} $(pwd)/test/csuite/test_wt4803_history_store_abort 2>&1
 
   - name: csuite-wt4891-meta-ckptlist-get-alloc-test
     tags: ["pull_request"]
@@ -2371,9 +2371,6 @@ buildvariants:
   tasks:
   - name: compile
   - name: unit-test
-  - name: format-stress-ppc-zseries-test
-  - name: format-stress-smoke-test
-  - name: format-wtperf-test
 
 - name: ubuntu1804-zseries
   display_name: Ubuntu 18.04 zSeries

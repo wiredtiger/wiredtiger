@@ -531,10 +531,6 @@ static bool
 __rec_row_zero_len(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, uint64_t start_txn,
   wt_timestamp_t stop_ts, uint64_t stop_txn)
 {
-    /* Before timestamps were stored on pages, it was always possible. */
-    if (!__wt_process.page_version_ts)
-        return (true);
-
     /*
      * The item must be globally visible because we're not writing anything on the page.
      */
@@ -616,8 +612,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
               F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK), start_ts, start_txn, stop_ts, stop_txn,
               0));
             break;
-        case WT_UPDATE_TOMBSTONE:
-            continue;
         default:
             ret = __wt_illegal_value(session, upd->type);
             WT_ERR(ret);
@@ -843,34 +837,6 @@ __wt_rec_row_leaf(
                   stop_txn, 0));
                 dictionary = true;
                 break;
-            case WT_UPDATE_TOMBSTONE:
-                /*
-                 * If this key/value pair was deleted, we're done.
-                 *
-                 * Overflow keys referencing discarded values are no longer useful, discard the
-                 * backing blocks. Don't worry about reuse, reusing keys from a row-store page
-                 * reconciliation seems unlikely enough to ignore.
-                 */
-                if (kpack != NULL && kpack->ovfl && kpack->raw != WT_CELL_KEY_OVFL_RM) {
-                    /*
-                     * Keys are part of the name-space, we can't remove them from the in-memory
-                     * tree; if an overflow key was deleted without being instantiated (for example,
-                     * cursor-based truncation), do it now.
-                     */
-                    if (ikey == NULL)
-                        WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
-
-                    WT_ERR(__wt_ovfl_discard_add(session, page, kpack->cell));
-                }
-
-                /*
-                 * We aren't actually creating the key so we can't use bytes from this key to
-                 * provide prefix information for a subsequent key.
-                 */
-                tmpkey->size = 0;
-
-                /* Proceed with appended key/value pairs. */
-                goto leaf_insert;
             default:
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
@@ -911,13 +877,7 @@ __wt_rec_row_leaf(
             kpack = &_kpack;
             __wt_cell_unpack(session, page, cell, kpack);
             if (btree->huffman_key == NULL && kpack->type == WT_CELL_KEY &&
-              tmpkey->size >= kpack->prefix) {
-                /*
-                 * The previous clause checked for a prefix of zero, which means the temporary
-                 * buffer must have a non-zero size, and it references a valid key.
-                 */
-                WT_ASSERT(session, tmpkey->size != 0);
-
+              tmpkey->size >= kpack->prefix && tmpkey->size != 0) {
                 /*
                  * Grow the buffer as necessary, ensuring data data has been copied into local
                  * buffer space, then append the suffix to the prefix already in the buffer.
@@ -975,7 +935,6 @@ build:
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
 
-leaf_insert:
         /* Write any K/V pairs inserted into the page after this key. */
         if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip))) != NULL)
             WT_ERR(__rec_row_leaf_insert(session, r, ins));
