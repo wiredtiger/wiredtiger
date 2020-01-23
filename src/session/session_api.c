@@ -1649,14 +1649,18 @@ err:
      * transaction running, and we check the former as part of the api macros before we check the
      * latter. Deal with it here: if there's an error and a transaction is running, roll it back.
      */
-    if (ret == 0)
+    if (ret == 0) {
+        F_SET(session, WT_SESSION_RESOLVING_TXN);
         ret = __wt_txn_commit(session, cfg);
-    else if (F_ISSET(txn, WT_TXN_RUNNING)) {
+        F_CLR(session, WT_SESSION_RESOLVING_TXN);
+    } else if (F_ISSET(txn, WT_TXN_RUNNING)) {
         if (F_ISSET(txn, WT_TXN_PREPARE))
             WT_PANIC_RET(session, ret, "failed to commit prepared transaction, failing the system");
 
         WT_TRET(__wt_session_reset_cursors(session, false));
+        F_SET(session, WT_SESSION_RESOLVING_TXN);
         WT_TRET(__wt_txn_rollback(session, cfg));
+        F_CLR(session, WT_SESSION_RESOLVING_TXN);
     }
 
     API_END_RET(session, ret);
@@ -1679,7 +1683,9 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__wt_txn_context_check(session, true));
 
+    F_SET(session, WT_SESSION_RESOLVING_TXN);
     WT_ERR(__wt_txn_prepare(session, cfg));
+    F_CLR(session, WT_SESSION_RESOLVING_TXN);
 
 err:
     API_END_RET(session, ret);
@@ -1730,7 +1736,9 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 
     WT_TRET(__wt_session_reset_cursors(session, false));
 
+    F_SET(session, WT_SESSION_RESOLVING_TXN);
     WT_TRET(__wt_txn_rollback(session, cfg));
+    F_CLR(session, WT_SESSION_RESOLVING_TXN);
 
 err:
     API_END_RET(session, ret);
