@@ -846,12 +846,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_txn_checkpoint_log(session, full, WT_TXN_LOG_CKPT_START, NULL));
 
     __checkpoint_timing_stress(session);
-    time_start_hs = __wt_clock(session);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
 
     /* Checkpoint the history store file at snapshot isolation but first refresh our snapshot. */
     __wt_txn_get_snapshot(session);
-
     /*
      * Get an LAS dhandle. If the LAS file is opened for a special operation this will return EBUSY
      * which we treat as an error.
@@ -864,12 +862,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * could get a NULL dhandle.
      */
     if (las_dhandle != NULL) {
+        time_start_hs = __wt_clock(session);
         WT_WITH_DHANDLE(session, las_dhandle, ret = __wt_checkpoint(session, cfg));
         WT_ERR(ret);
+        time_stop_hs = __wt_clock(session);
+        hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
+        WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
     }
-    time_stop_hs = __wt_clock(session);
-    hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
-    WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
     /*
      * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't
      * bother restoring the handle since it doesn't make sense to carry a handle across a

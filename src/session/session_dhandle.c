@@ -114,6 +114,9 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
     lock_busy = false;
     want_exclusive = LF_ISSET(WT_DHANDLE_EXCLUSIVE);
 
+    if (strcmp(dhandle->name, "file:test_hs06.wt") == 0) {
+        printf("name: %s\n", dhandle->name);
+    }
     /*
      * If this session already has exclusive access to the handle, there is no point trying to lock
      * it again.
