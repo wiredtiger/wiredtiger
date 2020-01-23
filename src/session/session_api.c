@@ -1651,12 +1651,14 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
         ret = EINVAL;
     }
 
+    F_SET(session, WT_SESSION_RESOLVING_TXN);
     if (ret == 0)
         ret = __wt_txn_commit(session, cfg);
     else {
         WT_TRET(__wt_session_reset_cursors(session, false));
         WT_TRET(__wt_txn_rollback(session, cfg));
     }
+    F_CLR(session, WT_SESSION_RESOLVING_TXN);
 
 err:
     API_END_RET(session, ret);
@@ -1679,7 +1681,9 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__wt_txn_context_check(session, true));
 
+    F_SET(session, WT_SESSION_RESOLVING_TXN);
     WT_ERR(__wt_txn_prepare(session, cfg));
+    F_CLR(session, WT_SESSION_RESOLVING_TXN);
 
 err:
     API_END_RET(session, ret);
@@ -1730,7 +1734,9 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 
     WT_TRET(__wt_session_reset_cursors(session, false));
 
+    F_SET(session, WT_SESSION_RESOLVING_TXN);
     WT_TRET(__wt_txn_rollback(session, cfg));
+    F_CLR(session, WT_SESSION_RESOLVING_TXN);
 
 err:
     API_END_RET(session, ret);
