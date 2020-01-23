@@ -303,7 +303,7 @@ __txn_rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rol
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while ((ret = __wt_tree_walk(
-              session, &ref, WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
+              session, &ref, WT_READ_CACHE_LEAF | WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL) {
         if (WT_PAGE_IS_INTERNAL(ref->page)) {
             WT_INTL_FOREACH_BEGIN (session, ref->page, child_ref) {
@@ -332,18 +332,16 @@ __txn_rollback_eviction_drain(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __txn_rollback_to_stable_btree --
- *     Called for each open handle - choose to either skip or wipe the commits
+ *     Called for each object handle - choose to either skip or wipe the commits
  */
 static int
-__txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
+__txn_rollback_to_stable_btree(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t rollback_timestamp;
-
-    WT_UNUSED(cfg);
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -432,8 +430,45 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __txn_rollback_to_stable_btree_apply --
+ *     Perform rollback to stable to all files listed in the metadata, apart from the metadata and
+ *     history store files.
+ */
+static int
+__txn_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *uri;
+
+    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &uri));
+
+        /* Ignore metadata and history store files. */
+        if (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_HS_URI) == 0)
+            continue;
+
+        if (!WT_PREFIX_MATCH(uri, "file:"))
+            continue;
+
+        WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
+        WT_SAVE_DHANDLE(session, ret = __txn_rollback_to_stable_btree(session));
+        WT_TRET(__wt_session_release_dhandle(session));
+        WT_ERR(ret);
+    }
+    WT_ERR_NOTFOUND_OK(ret);
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
  * __txn_rollback_to_stable --
- *     Rollback all in-memory state related to timestamps more recent than the passed in timestamp.
+ *     Rollback all modifications with timestamps more recent than the passed in timestamp.
  */
 static int
 __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
@@ -443,7 +478,6 @@ __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
 
-    WT_STAT_CONN_INCR(session, txn_rollback_to_stable);
     /*
      * Mark that a rollback operation is in progress and wait for eviction to drain. This is
      * necessary because history store eviction uses transactions and causes the check for a
@@ -467,7 +501,7 @@ __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      */
     conn->stable_rollback_maxfile = conn->next_file_id + 1;
     WT_ERR(__bit_alloc(session, conn->stable_rollback_maxfile, &conn->stable_rollback_bitstring));
-    WT_ERR(__wt_conn_btree_apply(session, NULL, __txn_rollback_to_stable_btree, NULL, cfg));
+    WT_WITH_SCHEMA_LOCK(session, ret = __txn_rollback_to_stable_btree_apply(session));
 
     /*
      * Clear any offending content from the history store file. This must be done after the
@@ -485,7 +519,7 @@ err:
 
 /*
  * __wt_txn_rollback_to_stable --
- *     Rollback all in-memory state related to timestamps more recent than the passed in timestamp.
+ *     Rollback all modifications with timestamps more recent than the passed in timestamp.
  */
 int
 __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
