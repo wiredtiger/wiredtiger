@@ -751,32 +751,10 @@ record_loop:
          * record number. The WT_INSERT lists are in sorted order, so only need check the next one.
          */
         for (n = 0; n < nrepeat; n += repeat_count, src_recno += repeat_count) {
-            durable_ts = newest_durable_ts;
-            start_ts = vpack->start_ts;
-            start_txn = vpack->start_txn;
-            stop_ts = vpack->stop_ts;
-            stop_txn = vpack->stop_txn;
             upd = NULL;
             if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
                 WT_ERR(__wt_rec_upd_select(session, r, ins, cip, vpack, &upd_select));
                 upd = upd_select.upd;
-                if (upd == NULL) {
-                    /*
-                     * TIMESTAMP-FIXME I'm pretty sure this is wrong: a NULL update means an item
-                     * was deleted, and I think that requires a tombstone on the page.
-                     */
-                    durable_ts = WT_TS_NONE;
-                    start_ts = WT_TS_NONE;
-                    start_txn = WT_TXN_NONE;
-                    stop_ts = WT_TS_MAX;
-                    stop_txn = WT_TXN_MAX;
-                } else {
-                    durable_ts = upd_select.durable_ts;
-                    start_ts = upd_select.start_ts;
-                    start_txn = upd_select.start_txn;
-                    stop_ts = upd_select.stop_ts;
-                    stop_txn = upd_select.stop_txn;
-                }
                 ins = WT_SKIP_NEXT(ins);
             }
 
@@ -786,6 +764,12 @@ record_loop:
             deleted = false;
 
             if (upd != NULL) {
+                durable_ts = upd_select.durable_ts;
+                start_ts = upd_select.start_ts;
+                start_txn = upd_select.start_txn;
+                stop_ts = upd_select.stop_ts;
+                stop_txn = upd_select.stop_txn;
+
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
                     cbt->slot = WT_COL_SLOT(page, cip);
@@ -797,9 +781,6 @@ record_loop:
                 case WT_UPDATE_STANDARD:
                     data = upd->data;
                     size = upd->size;
-                    break;
-                case WT_UPDATE_TOMBSTONE:
-                    deleted = true;
                     break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));
@@ -817,8 +798,28 @@ record_loop:
                     repeat_count = WT_INSERT_RECNO(ins) - src_recno;
 
                 deleted = orig_deleted;
-                if (deleted)
+                if (deleted) {
+                    /* Set time pairs for the deleted key. */
+                    durable_ts = WT_TS_NONE;
+                    start_ts = WT_TS_NONE;
+                    start_txn = WT_TXN_NONE;
+                    stop_ts = WT_TS_MAX;
+                    stop_txn = WT_TXN_MAX;
+
                     goto compare;
+                }
+
+                /*
+                 * The key on the old disk image is unchanged. Use time pairs from the cell.
+                 *
+                 * FIXME-PM-1524: Currently, we don't store durable_ts in cell, which is a problem
+                 * we need to solve for prepared transactions. Revisit this in PM-1524.
+                 */
+                durable_ts = newest_durable_ts;
+                start_ts = vpack->start_ts;
+                start_txn = vpack->start_txn;
+                stop_ts = vpack->stop_ts;
+                stop_txn = vpack->stop_txn;
 
                 /*
                  * If we are handling overflow items, use the overflow item itself exactly once,
@@ -882,6 +883,15 @@ compare:
                   ((deleted && last.deleted) ||
                       (!deleted && !last.deleted && last.value->size == size &&
                         memcmp(last.value->data, data, size) == 0))) {
+                    /*
+                     * The start time pair for deleted keys must be (WT_TS_NONE, WT_TXN_NONE) and
+                     * stop time pair must be (WT_TS_MAX, WT_TXN_MAX) since we no longer select
+                     * tombstone to write to disk and the deletion of the keys must be globally
+                     * visible.
+                     */
+                    WT_ASSERT(session, (!deleted && !last.deleted) ||
+                        (last.start_ts == WT_TS_NONE && last.start_txn == WT_TXN_NONE &&
+                                         last.stop_ts == WT_TS_MAX && last.stop_txn == WT_TXN_MAX));
                     rle += repeat_count;
                     continue;
                 }
@@ -963,23 +973,7 @@ compare:
             upd = upd_select.upd;
             n = WT_INSERT_RECNO(ins);
         }
-        if (upd == NULL) {
-            /*
-             * TIMESTAMP-FIXME I'm pretty sure this is wrong: a NULL update means an item was
-             * deleted, and I think that requires a tombstone on the page.
-             */
-            durable_ts = WT_TS_NONE;
-            start_ts = WT_TS_NONE;
-            start_txn = WT_TXN_NONE;
-            stop_ts = WT_TS_MAX;
-            stop_txn = WT_TXN_MAX;
-        } else {
-            durable_ts = upd_select.durable_ts;
-            start_ts = upd_select.start_ts;
-            start_txn = upd_select.start_txn;
-            stop_ts = upd_select.stop_ts;
-            stop_txn = upd_select.stop_txn;
-        }
+
         while (src_recno <= n) {
             update_no_copy =
               upd == NULL || !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK); /* No data copy */
@@ -991,8 +985,16 @@ compare:
              */
             if (src_recno < n) {
                 deleted = true;
-                if (last.deleted && (last.start_ts == start_ts && last.start_txn == start_txn &&
-                                      last.stop_ts == stop_ts && last.stop_txn == stop_txn)) {
+                if (last.deleted) {
+                    /*
+                     * The start time pair for deleted keys must be (WT_TS_NONE, WT_TXN_NONE) and
+                     * stop time pair must be (WT_TS_MAX, WT_TXN_MAX) since we no longer select
+                     * tombstone to write to disk and the deletion of the keys must be globally
+                     * visible.
+                     */
+                    WT_ASSERT(session, last.start_ts == WT_TS_NONE &&
+                        last.start_txn == WT_TXN_NONE && last.stop_ts == WT_TS_MAX &&
+                        last.stop_txn == WT_TXN_MAX);
                     /*
                      * The record adjustment is decremented by one so we can naturally fall into the
                      * RLE accounting below, where we increment rle by one, then continue in the
@@ -1001,12 +1003,16 @@ compare:
                     skip = (n - src_recno) - 1;
                     rle += skip;
                     src_recno += skip;
+                } else {
+                    /* Set time pairs for the first deleted key in a deleted range. */
+                    durable_ts = WT_TS_NONE;
+                    start_ts = WT_TS_NONE;
+                    start_txn = WT_TXN_NONE;
+                    stop_ts = WT_TS_MAX;
+                    stop_txn = WT_TXN_MAX;
                 }
             } else if (upd == NULL) {
-                /*
-                 * TIMESTAMP-FIXME I'm pretty sure this is wrong: a NULL update means an item was
-                 * deleted, and I think that requires a tombstone on the page.
-                 */
+                /* The updates on the key are all uncommitted so we write a deleted key to disk. */
                 durable_ts = WT_TS_NONE;
                 start_ts = WT_TS_NONE;
                 start_txn = WT_TXN_NONE;
@@ -1015,6 +1021,7 @@ compare:
 
                 deleted = true;
             } else {
+                /* Set time pairs for a key. */
                 durable_ts = upd_select.durable_ts;
                 start_ts = upd_select.start_ts;
                 start_txn = upd_select.start_txn;
@@ -1036,9 +1043,6 @@ compare:
                     data = upd->data;
                     size = upd->size;
                     break;
-                case WT_UPDATE_TOMBSTONE:
-                    deleted = true;
-                    break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));
                 }
@@ -1057,6 +1061,15 @@ compare:
                   ((deleted && last.deleted) ||
                       (!deleted && !last.deleted && last.value->size == size &&
                         memcmp(last.value->data, data, size) == 0))) {
+                    /*
+                     * The start time pair for deleted keys must be (WT_TS_NONE, WT_TXN_NONE) and
+                     * stop time pair must be (WT_TS_MAX, WT_TXN_MAX) since we no longer select
+                     * tombstone to write to disk and the deletion of the keys must be globally
+                     * visible.
+                     */
+                    WT_ASSERT(session, (!deleted && !last.deleted) ||
+                        (last.start_ts == WT_TS_NONE && last.start_txn == WT_TXN_NONE &&
+                                         last.stop_ts == WT_TS_MAX && last.stop_txn == WT_TXN_MAX));
                     ++rle;
                     goto next;
                 }
