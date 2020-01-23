@@ -459,9 +459,9 @@ __txn_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         WT_TRET(__wt_session_release_dhandle(session));
         WT_ERR(ret);
     }
+    WT_ERR_NOTFOUND_OK(ret);
 
 err:
-    WT_TRET_NOTFOUND_OK(ret);
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
 }

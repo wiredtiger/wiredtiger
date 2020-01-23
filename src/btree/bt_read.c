@@ -259,19 +259,13 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
                  *  2. Rollback to stable operation
                  *
                  * Lock the ref before we check the page type to avoid the ref getting changed
-                 * underneath. Failure to change the ref state to WT_REF_LOCKED can lead to
-                 * skipping the page read irrespective of the page type.
-                 *
-                 * This shouldn't be a problem to garbage collection as it can retry in the next
-                 * checkpoint. With rollback to stable, there are no sessions that are operating on
-                 * a disk page that can led to a failure.
+                 * underneath. Retry the ref once again if failed to change the ref state
+                 * to WT_REF_LOCKED.
                  */
                 if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
-                    return (WT_NOTFOUND);
-
+                    continue;
                 is_leaf_page = __wt_ref_is_leaf(session, ref);
                 WT_REF_SET_STATE(ref, WT_REF_DISK);
-
                 if (is_leaf_page)
                     return (WT_NOTFOUND);
             }
