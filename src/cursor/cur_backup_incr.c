@@ -10,7 +10,7 @@
 
 /*
  * __wt_backup_load_incr --
- *     Free the duplicate backup cursor for a file-based incremental backup.
+ *     Load the block modification information from a config string.
  */
 int
 __wt_backup_load_incr(
