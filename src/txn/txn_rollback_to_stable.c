@@ -203,7 +203,7 @@ __txn_abort_newer_row_leaf(
 
 /*
  * __txn_page_needs_rollback --
- *     Check whether the page needs rollback of modification with the given timestamp.
+ *     Check whether the page needs has modification newer than the given timestamp.
  */
 static int
 __txn_page_needs_rollback(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
@@ -250,9 +250,10 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
         WT_RET(__wt_delete_page_rollback(session, ref));
 
     /*
-     * If we have a ref with no page, or the page is clean, find out any updates in the page needs
-     * to be roll back or not. As eviction writing newest version to disk, the clean page also may
-     * contain modifications that needs rollback.
+     * If we have a ref with no page, or the page is clean, find out whether the page has any
+     * modifications that are newer than the given timestamp. As eviction writing the newest version
+     * to page, even a clean page may also contain modifications that needs rollback. Such pages are
+     * read back into memory and processed like other modified pages.
      */
     if ((page = ref->page) == NULL || !__wt_page_is_modified(page)) {
         if (!__txn_page_needs_rollback(session, ref, rollback_timestamp))
