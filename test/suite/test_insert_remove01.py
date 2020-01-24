@@ -47,11 +47,11 @@ class test_insert_remove01(wttest.WiredTigerTestCase):
 
         ds_extra = SimpleDataSet(self, "table:extra", 100000, key_format="i",value_format="S", config='log=(enabled=false)')
         ds_extra.populate()
-        
+
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
             ',stable_timestamp=' + timestamp_str(1))
-        
+
         # Checkpoint to ensure that the history store is gets populated
         self.session.checkpoint()
 
@@ -73,11 +73,11 @@ class test_insert_remove01(wttest.WiredTigerTestCase):
             cursor_extra.set_value("update")
             cursor_extra.update()
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(12))
-        
+
         # Pin oldest and stable to timestamp 15.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(15) +
             ',stable_timestamp=' + timestamp_str(15))
-        
+
         self.session.begin_transaction()
         for i in range(11, 20):
             cursor.set_key(ds.key(i))
@@ -87,10 +87,9 @@ class test_insert_remove01(wttest.WiredTigerTestCase):
         # Pin oldest and stable to timestamp 25.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(25) +
             ',stable_timestamp=' + timestamp_str(25))
-        
+
         # Checkpoint to ensure that the history store is gets populated
         self.session.checkpoint()
-
 
 if __name__ == '__main__':
     wttest.run()
