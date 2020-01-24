@@ -853,6 +853,7 @@ __wt_find_hs_upd(
     uint8_t prepare_state, prepare_state_tmp, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
     const uint8_t *recnop;
     int cmp;
+    const char *hs_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
     bool modify;
 
     *updp = NULL;
@@ -887,7 +888,7 @@ __wt_find_hs_upd(
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     /* Open a history store table cursor. */
-    __wt_hs_cursor(session, &hs_cursor, &session_flags);
+    WT_ERR(__wt_open_cursor(session, WT_HS_URI, NULL, hs_cursor_cfg, &hs_cursor));
 
     /*
      * After positioning our cursor, we're stepping backwards to find the correct update. Since the
@@ -1042,7 +1043,8 @@ err:
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
 
-    WT_TRET(__wt_hs_cursor_close(session, &hs_cursor, session_flags));
+    if (hs_cursor != NULL)
+        hs_cursor->close(hs_cursor);
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &upd);
