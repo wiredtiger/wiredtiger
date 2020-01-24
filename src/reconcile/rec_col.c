@@ -782,6 +782,9 @@ record_loop:
                     data = upd->data;
                     size = upd->size;
                     break;
+                case WT_UPDATE_TOMBSTONE:
+                    deleted = true;
+                    break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));
                 }
@@ -1042,6 +1045,9 @@ compare:
                 case WT_UPDATE_STANDARD:
                     data = upd->data;
                     size = upd->size;
+                    break;
+                case WT_UPDATE_TOMBSTONE:
+                    deleted = true;
                     break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));
