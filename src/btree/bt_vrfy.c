@@ -46,9 +46,9 @@ static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *)
 static int __verify_row_leaf_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static const char *__verify_timestamp_to_pretty_string(wt_timestamp_t);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
-static int __verify_ts_stable_cmp(
-  WT_SESSION_IMPL *, WT_ITEM *, WT_REF *, uint32_t, wt_timestamp_t, wt_timestamp_t, WT_VSTUFF *);
-static int __verify_history_tree(WT_SESSION_IMPL *, WT_CELL_UNPACK *, WT_VSTUFF *);
+static int __verify_history_key_with_table(WT_SESSION_IMPL *, const char *, WT_ITEM *);
+static int __verify_btree_id_with_meta(WT_SESSION_IMPL *, uint32_t, const char **);
+static int __verify_history_store_tree(WT_SESSION_IMPL *);
 /*
  * __verify_config --
  *     Debugging: verification supports dumping pages in various formats.
@@ -399,7 +399,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     }
     WT_ERR(ret);
 
-    WT_ERR(__verify_history_tree(session, NULL));
+    __verify_history_store_tree(session);
+    goto done;
+
     /* Inform the underlying block manager we're verifying. */
     WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
     bm_start = true;
@@ -583,71 +585,110 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
     return (0);
 }
 
-int
-__verify_history_tree(WT_SESSION_IMPL *session, WT_CELL_UNPACK *addr_unpack)
+/*
+ * __verify_history_key_with_table --
+ *     With a given history store key, and a table name, iterate through the table and check if the
+ *     key exists in the table.
+ */
+static int
+__verify_history_key_with_table(WT_SESSION_IMPL *session, const char *uri, WT_ITEM *hs_key)
 {
-    WT_CURSOR *cursor, *meta_cursor, *data_cursor;
+    WT_CURSOR *data_cursor;
     WT_DECL_RET;
-    WT_ITEM hs_key, data_key;
-    WT_TIME_PAIR hs_start, hs_stop;
-    uint32_t session_flags, btree_id;
-    const char *meta_value, *meta_key;
-    WT_CONFIG_ITEM v;
+    WT_ITEM data_key;
 
-    (void)addr_unpack;
-    (void) data_key;
-    session_flags = 0;
+    WT_ERR(__wt_open_cursor(session, uri, NULL, NULL, &data_cursor));
 
-    // Set our Cursor to the start
-    __wt_hs_cursor(session, &cursor, &session_flags);
-    WT_RET(__wt_metadata_cursor(session, &meta_cursor));
-
-    WT_RET(cursor->reset(cursor));
-
-    while ((ret = cursor->next(cursor)) == 0) {
-        WT_RET(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start.timestamp,
-          &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
-        
-        WT_RET(__wt_msg(session, "BtreeID == %u, Timestamp == %lu, Transaction ID == %lu\n",
-          btree_id, hs_start.timestamp, hs_start.txnid));
-
-        WT_RET(meta_cursor->reset(meta_cursor));
-        while ((ret = meta_cursor->next(meta_cursor)) == 0) {
-            meta_cursor->get_value(meta_cursor, &meta_value);
-            meta_cursor->get_key(meta_cursor, &meta_key);
-            ret = __wt_config_getones(session, meta_value, "id", &v);
-            if (ret == WT_NOTFOUND) {
-                continue;
-            }
-            
-            if (btree_id == strtoul(v.str, NULL, 10)) {
-                WT_RET(__wt_msg(session, "key = %s\n", meta_key));
-                WT_RET(__wt_msg(session, "id = %.*s\n", (int)v.len, v.str));
-                WT_RET(__wt_open_cursor(session, meta_key, NULL, NULL, &data_cursor));
-                WT_RET(data_cursor->reset(data_cursor));
-                bool verified = false;
-                while ((ret = data_cursor->next(data_cursor)) == 0) {
-                    F_SET(data_cursor, WT_CURSOR_RAW_OK);
-                    WT_RET(data_cursor->get_key(data_cursor, &data_key));
-                    if (__wt_lex_compare(&hs_key, &data_key) == 0) {
-                        verified = true;
-                        WT_RET(__wt_msg(session, "Verified !\n"));
-                        break;
-                    }
-                }
-                if (verified == false) {
-                    WT_RET(__wt_msg(session, "Not verified\n"));
-                }
-                verified = false;
-            }
+    while ((ret = data_cursor->next(data_cursor)) == 0) {
+        /* The cursor raw flag, makes sure that we can place it into a WT_ITEM */
+        F_SET(data_cursor, WT_CURSOR_RAW_OK);
+        WT_ERR(data_cursor->get_key(data_cursor, &data_key));
+        if (__wt_lex_compare(hs_key, &data_key) == 0) {
+            goto done;
         }
     }
-//err:
-    WT_TRET(__wt_hs_cursor_close(session, &cursor, session_flags));
+
+done:
+err:
+    return (ret);
+}
+
+/*
+ * __verify_btree_id_with_meta --
+ *     With a given btree id, iterate through the metafile table and check if the btree id exists in
+ *     any table. If exists, we place the table URI into a variable Otherwise should return
+ *     WT_NOTFOUND.
+ */
+static int
+__verify_btree_id_with_meta(WT_SESSION_IMPL *session, uint32_t btree_id, const char **uri)
+{
+    WT_CONFIG_ITEM id;
+    WT_CURSOR *meta_cursor;
+    WT_DECL_RET;
+    const char *meta_value;
+
+    WT_ERR(__wt_metadata_cursor(session, &meta_cursor));
+
+    WT_ERR(meta_cursor->reset(meta_cursor));
+    while ((ret = meta_cursor->next(meta_cursor)) == 0) {
+        meta_cursor->get_value(meta_cursor, &meta_value);
+        ret = __wt_config_getones(session, meta_value, "id", &id);
+        if (ret == WT_NOTFOUND) {
+            continue;
+        }
+        if (btree_id == strtoul(id.str, NULL, 10)) {
+            meta_cursor->get_key(meta_cursor, uri);
+            WT_ERR(__wt_msg(session, "key = %s\n", *uri));
+            WT_ERR(__wt_msg(session, "id = %.*s\n", (int)id.len, id.str));
+            goto done;
+        }
+    }
+
+done:
+err:
     WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
     return (ret);
 }
 
+/*
+ * __verify_history_store_tree --
+ *     Verify the history store tree, by iterating and checking all the keys in the history and that
+ *     it exists in both the meta file and the respective data store table.
+ */
+int
+__verify_history_store_tree(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_ITEM hs_key;
+    WT_TIME_PAIR hs_start, hs_stop;
+    uint32_t session_flags, btree_id;
+    const char *uri;
+
+    session_flags = 0;
+    uri = NULL;
+    __wt_hs_cursor(session, &cursor, &session_flags);
+
+    WT_ERR(cursor->reset(cursor));
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start.timestamp, &hs_start.txnid,
+          &hs_stop.timestamp, &hs_stop.txnid));
+
+        WT_ERR(__wt_msg(session, "Btree_id == %u, Timestamp == %lu, Transaction ID == %lu\n",
+          btree_id, hs_start.timestamp, hs_start.txnid));
+
+        WT_ERR(__verify_btree_id_with_meta(session, btree_id, &uri));
+        WT_ERR(__verify_history_key_with_table(session, uri, &hs_key));
+    }
+err:
+    WT_TRET(__wt_hs_cursor_close(session, &cursor, session_flags));
+
+    if (ret != WT_NOTFOUND) {
+        return (ret);
+    }
+    return (0);
+}
 /*
  * __verify_tree --
  *     Verify a tree, recursively descending through it in depth-first fashion. The page argument

@@ -390,16 +390,17 @@ retry:
     WT_ERR(ret);
     WT_ERR(__wt_row_modify(cbt, &cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
 
-err:
-    /* We did a row search, release the cursor so that the page doesn't continue being held. */
-    cursor->reset(cursor);
+    /* Append a delete record to represent stop time pair for the above insert record */
+    // cursor->set_key(
+    //  cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts_pair.timestamp,
+    //  stop_ts_pair.txnid);
 
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     if (ret == WT_RESTART)
         goto retry;
 
-    if (ret != 0)
-        __wt_free_update_list(session, &hs_upd);
+    /* Remove the inserted record with stop timestamp. */
+    // WT_RET(cursor->remove(cursor));
 
     return (ret);
 }

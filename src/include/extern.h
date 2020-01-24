@@ -1537,7 +1537,6 @@ extern int __wt_verbose_dump_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __verify_history_tree(WT_SESSION_IMPL *session, WT_CELL_UNPACK *addr_unpack);
 extern int __wt_verify_ckpt_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT *ci)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verify_ckpt_unload(WT_SESSION_IMPL *session, WT_BLOCK *block)
