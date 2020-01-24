@@ -1951,11 +1951,11 @@ tasks:
 
             # Known errors to be skipped are
             # *  heap-use-after-free && __wt_btcur_next_random
-            
+
             if [ $? -ne 0 ]
             then
               echo "There are some failed jobs."
-              ret=`grep -q --exclude-dir=RUNDIR.* "heap-use-after-free" RUNDIR.*.log && grep --exclude-dir=RUNDIR.* "__wt_btcur_next_random" RUNDIR.* | wc -l`
+              ret=`grep -q "heap-use-after-free" RUNDIR.*.log && grep "__wt_btcur_next_random" RUNDIR.*.log | wc -l`
               if [ "$ret" != 0 ]
               then
                 echo "Found heap-use-after-free & __wt_btcur_next_random error"
