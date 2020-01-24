@@ -827,6 +827,26 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
 }
 
 /*
+ * __hs_save_read_timestamp --
+ *     Save the currently running transaction's read timestamp into a variable.
+ */
+static void
+__hs_save_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *saved_timestamp)
+{
+    *saved_timestamp = session->txn.read_timestamp;
+}
+
+/*
+ * __hs_restore_read_timestamp --
+ *     Reset the currently running transaction's read timestamp with a previously saved one.
+ */
+static void
+__hs_restore_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t saved_timestamp)
+{
+    session->txn.read_timestamp = saved_timestamp;
+}
+
+/*
  * __wt_find_hs_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
  *     for the record and return to the caller. The caller may choose to optionally allow prepared
@@ -846,7 +866,7 @@ __wt_find_hs_upd(
     WT_TIME_PAIR hs_start, hs_start_tmp, hs_stop, hs_stop_tmp;
     WT_TXN *txn;
     WT_UPDATE *mod_upd, *upd;
-    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, read_timestamp;
+    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, read_timestamp, saved_timestamp;
     size_t notused, size;
     uint64_t recno;
     uint32_t hs_btree_id, session_flags;
@@ -863,6 +883,7 @@ __wt_find_hs_upd(
     mod_upd = upd = NULL;
     __wt_modify_vector_init(session, &modifies);
     txn = &session->txn;
+    __hs_save_read_timestamp(session, &saved_timestamp);
     notused = size = 0;
     hs_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
@@ -985,6 +1006,8 @@ __wt_find_hs_upd(
                 __wt_free_update_list(session, &mod_upd);
                 mod_upd = NULL;
             }
+            /* After we're done looping over modifies, reset the read timestamp. */
+            __hs_restore_read_timestamp(session, saved_timestamp);
             WT_STAT_CONN_INCR(session, cache_hs_read_squash);
         }
 
@@ -1043,6 +1066,11 @@ err:
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
 
+    /*
+     * Restore the read timestamp if we encountered an error while processing a modify. There's no
+     * harm in doing this multiple times.
+     */
+    __hs_restore_read_timestamp(session, saved_timestamp);
     if (hs_cursor != NULL)
         hs_cursor->close(hs_cursor);
     __wt_free_update_list(session, &mod_upd);
