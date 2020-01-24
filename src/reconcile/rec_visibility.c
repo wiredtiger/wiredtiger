@@ -342,7 +342,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             if (upd->txnid != WT_TXN_NONE)
                 upd_select->stop_txn = upd->txnid;
             /* Ignore all the aborted transactions. */
-            if (!__wt_txn_visible_all(session, upd_select->start_txn, upd_select->start_ts)) {
+            if (!__wt_txn_visible_all(session, upd->txnid, upd->start_ts)) {
                 while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED)
                     upd = upd->next;
                 WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);

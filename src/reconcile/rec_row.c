@@ -785,6 +785,13 @@ __wt_rec_row_leaf(
         /* Build value cell. */
         dictionary = false;
         if (upd == NULL) {
+            /* Check the visibility of the on disk key before writing. */            
+            if ((vpack->stop_txn != WT_TXN_MAX || vpack->stop_ts != WT_TS_MAX) &&
+              WT_ROW_UPDATE(page, rip) == NULL && WT_ROW_INSERT(page, rip) == NULL &&
+              __wt_txn_visible_all(session, vpack->stop_txn, vpack->stop_ts))
+                /* Proceed with appended key/value pairs. */
+                goto leaf_insert;
+
             /*
              * When the page was read into memory, there may not have been a value item.
              *
