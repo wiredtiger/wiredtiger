@@ -434,6 +434,7 @@ __txn_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     wt_timestamp_t newest_durable_ts;
     wt_timestamp_t rollback_timestamp;
     const char *config, *uri;
+    bool durable_ts_found;
 
     txn_global = &S2C(session)->txn_global;
 
@@ -460,20 +461,27 @@ __txn_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         WT_ERR(cursor->get_value(cursor, &config));
 
         /* Find out the max durable timestamp of the object from checkpoint. */
-        newest_durable_ts = WT_TS_MAX;
+        newest_durable_ts = WT_TS_NONE;
+        durable_ts_found = false;
         WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
         __wt_config_subinit(session, &ckptconf, &cval);
         for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
             ret = __wt_config_subgets(session, &cval, "newest_durable_ts", &durableval);
             WT_ERR_NOTFOUND_OK(ret);
-            if (ret == 0)
+            if (ret == 0) {
                 newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)durableval.val);
-            ret = 0;
+                durable_ts_found = true;
+            }
         }
 
         WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
-        /* Skip the clean trees that don't have modifications newer than stable timestamp. */
-        if (newest_durable_ts > rollback_timestamp || S2BT(session)->modified)
+        /*
+         * The rollback to stable operation should perform on the file based on the following:
+         * 1. Rolling back the older version data files, no checkpoint durable timestamp.
+         * 2. The checkpoint durable timestamp is more than given stable timestamp.
+         * 3. Modified tree.
+         */
+        if (!durable_ts_found || newest_durable_ts > rollback_timestamp || S2BT(session)->modified)
             WT_SAVE_DHANDLE(
               session, ret = __txn_rollback_to_stable_btree(session, rollback_timestamp));
         WT_TRET(__wt_session_release_dhandle(session));
