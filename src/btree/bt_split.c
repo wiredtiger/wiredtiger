@@ -778,7 +778,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      */
     for (i = 0, deleted_refs = scr->mem; i < deleted_entries; ++i) {
         next_ref = pindex->index[deleted_refs[i]];
-        WT_ASSERT(session, next_ref->state == WT_REF_SPLIT);
 
         /*
          * We set the WT_REF to split, discard it, freeing any resources it holds.
