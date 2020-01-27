@@ -189,7 +189,7 @@ __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
         blk_mod = &ci->ckpt_mods[i];
         __wt_free(session, blk_mod->bitstring);
         __wt_free(session, blk_mod->id_str);
-	F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
+        F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
     }
 }
 
