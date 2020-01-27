@@ -126,6 +126,8 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
      */
     config = newcfg = NULL;
     str = v == NULL ? "checkpoint=(),checkpoint_lsn=,checkpoint_mods=()" : v;
+    __wt_verbose(session, WT_VERB_TEMPORARY, "CKPT_SET: str: %s incr_gran %" PRIu64, str,
+      S2C(session)->incr_granularity);
     if (use_base && session->dhandle != NULL) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ASSERT(session, strcmp(session->dhandle->name, fname) == 0);
@@ -598,7 +600,8 @@ static int
 __ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *blk_mods)
 {
     WT_BLOCK_MODS *blk;
-    uint64_t entries, *p;
+    uint64_t end, entries;
+    uint8_t *p;
     u_int i;
     bool valid;
 
@@ -629,12 +632,13 @@ __ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *bl
     for (i = 0, blk = blk_mods; i < WT_BLKINCR_MAX; ++i, ++blk) {
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
-        WT_RET(__wt_buf_catfmt(
-          session, buf, "%s%s=(id=%" PRIu32 ",blocks=(", i == 0 ? "" : ",", blk->id_str, i));
-        for (entries = 0, p = blk->alloc_list; entries < blk->alloc_list_entries;
-             entries += WT_BACKUP_INCR_COMPONENTS, p += WT_BACKUP_INCR_COMPONENTS)
-            WT_RET(__wt_buf_catfmt(session, buf, "%s%" PRId64 ",%" PRId64, entries == 0 ? "" : ",",
-              (int64_t)p[0], (int64_t)p[1]));
+        WT_RET(__wt_buf_catfmt(session, buf,
+          "%s%s=(id=%" PRIu32 ",granularity=%" PRIu64 ",nbits=%" PRIu64 ",blocks=(",
+          i == 0 ? "" : ",", blk->id_str, i, blk->granularity, blk->nbits));
+        /* Get the number of bytes. */
+        end = blk->nbits >> 3;
+        for (entries = 0, p = blk->bitstring; entries < end; ++entries, ++p)
+            WT_RET(__wt_buf_catfmt(session, buf, "%s%" PRIu8, entries == 0 ? "" : ",", *p));
         WT_RET(__wt_buf_catfmt(session, buf, "))"));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
