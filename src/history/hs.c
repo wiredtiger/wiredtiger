@@ -971,10 +971,24 @@ __wt_find_hs_upd(
          */
         if (upd_type == WT_UPDATE_MODIFY) {
             WT_NOT_READ(modify, true);
+            /* Store this so that we don't have to make a special case for the first modify. */
+            hs_stop_tmp.timestamp = hs_stop.timestamp;
             while (upd_type == WT_UPDATE_MODIFY) {
                 WT_ERR(__wt_update_alloc(session, hs_value, &mod_upd, &notused, upd_type));
                 WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
                 mod_upd = NULL;
+
+                /*
+                 * Each entry in the lookaside is written with the actual start and stop time pair
+                 * embedded in the key. In order to traverse a sequence of modifies, we're going to
+                 * have to manipulate our read timestamp to see records we wouldn't otherwise be
+                 * able to see.
+                 *
+                 * In this case, we want to read the next update in the chain meaning that its start
+                 * timestamp should be equivalent to the stop timestamp of the record that we're
+                 * currently on.
+                 */
+                session->txn.read_timestamp = hs_stop_tmp.timestamp;
 
                 /*
                  * Find the base update to apply the reverse deltas
