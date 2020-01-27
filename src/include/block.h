@@ -140,11 +140,15 @@ struct __wt_size {
 /*
  * Block modifications from an incremental identifier going forward.
  */
+/*
+ * At the default granularity, this is enough for blocks in a 2G file.
+ */
+#define WT_BLOCK_MODS_LIST_MIN 16 /* Initial bytes for bitmap. */
 struct __wt_block_mods {
     const char *id_str;
-    uint64_t *alloc_list;
-    uint64_t alloc_list_entries;
-    size_t alloc_size;
+    uint64_t granularity;
+    uint8_t *bitstring;
+    uint64_t nbits;
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_BLOCK_MODS_VALID 0x1u /* Entry is valid */
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
@@ -160,8 +164,6 @@ struct __wt_block_ckpt {
     WT_EXTLIST alloc;   /* Extents allocated */
     WT_EXTLIST avail;   /* Extents available */
     WT_EXTLIST discard; /* Extents discarded */
-
-    uint64_t *alloc_list;
 
     wt_off_t file_size; /* Checkpoint file size */
     uint64_t ckpt_size; /* Checkpoint byte count */

@@ -187,7 +187,7 @@ __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
     __wt_block_extlist_free(session, &ci->ckpt_discard);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ci->ckpt_mods[i];
-        __wt_free(session, blk_mod->alloc_list);
+        __wt_free(session, blk_mod->bitstring);
         __wt_free(session, blk_mod->id_str);
     }
 }
@@ -711,10 +711,10 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, u_int i)
      * Free any old information if we need to do so.
      */
     if (free && F_ISSET(blk_mod, WT_BLOCK_MODS_VALID)) {
-        __wt_free(session, blk_mod->alloc_list);
+        __wt_free(session, blk_mod->bitstring);
         __wt_free(session, blk_mod->id_str);
-        blk_mod->alloc_list_entries = 0;
-        blk_mod->alloc_size = 0;
+        blk_mod->nbits = 0;
+        blk_mod->granularity = 0;
         F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
     }
 
@@ -723,11 +723,41 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, u_int i)
      */
     if (setup) {
         WT_RET(__wt_strdup(session, blk->id_str, &blk_mod->id_str));
-        blk_mod->alloc_list_entries = 0;
-        blk_mod->alloc_list = NULL;
-        blk_mod->alloc_size = 0;
+        blk_mod->nbits = 0;
+        blk_mod->bitstring = NULL;
+        blk_mod->granularity = S2C(session)->incr_granularity;
         F_SET(blk_mod, WT_BLOCK_MODS_VALID);
     }
+    return (0);
+}
+
+/*
+ * __ckpt_add_blkmod_entry --
+ *     Add an offset/length entry to the bitstring based on granularity.
+ */
+static int
+__ckpt_add_blkmod_entry(
+  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, uint64_t offset, uint64_t len)
+{
+    uint64_t end, start;
+    uint32_t end_rdup;
+
+    WT_ASSERT(session, blk_mod->granularity != 0);
+    start = offset / blk_mod->granularity;
+    end = (offset + len) / blk_mod->granularity;
+    end_rdup = __wt_rduppo2((uint32_t)end, 8);
+    if (blk_mod->nbits == 0) {
+        blk_mod->nbits = WT_MAX(__wt_rduppo2(end_rdup, 8), WT_BLOCK_MODS_LIST_MIN);
+        WT_RET(__bit_alloc(session, blk_mod->nbits, &blk_mod->bitstring));
+    } else if (end_rdup > blk_mod->nbits)
+        /* If we don't have enough, double the number of bits we can track. */
+        WT_RET(__wt_realloc_def(
+          session, (size_t *)&blk_mod->nbits, blk_mod->nbits * 2, &blk_mod->bitstring));
+
+    /*
+     * Set all the bits needed to record this offset/length pair.
+     */
+    __bit_nset(blk_mod->bitstring, start, end);
     return (0);
 }
 
@@ -740,16 +770,7 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 {
     WT_BLOCK_MODS *blk_mod;
     WT_EXT *ext;
-    uint64_t end, entries, *list, start;
     u_int i;
-
-    entries = ci->alloc.entries;
-    if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
-        ++entries;
-    if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
-        ++entries;
-    if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
-        ++entries;
 
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ci->ckpt_mods[i];
@@ -760,33 +781,19 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
         if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
             continue;
 
-        start = blk_mod->alloc_list_entries;
-        end = start + entries * WT_BACKUP_INCR_COMPONENTS;
-        if (blk_mod->alloc_size == 0) {
-            WT_RET(__wt_calloc_def(session, end, &list));
-            blk_mod->alloc_list = list;
-            blk_mod->alloc_size = end * sizeof(uint64_t);
-        } else {
-            WT_RET(__wt_realloc_def(session, &blk_mod->alloc_size, end, &blk_mod->alloc_list));
-            list = &blk_mod->alloc_list[start];
-        }
-        blk_mod->alloc_list_entries = end;
-        WT_EXT_FOREACH (ext, ci->alloc.off) {
-            *list++ = (uint64_t)ext->off;
-            *list++ = (uint64_t)ext->size;
-        }
-        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET) {
-            *list++ = (uint64_t)ci->alloc.offset;
-            *list++ = (uint64_t)ci->alloc.size;
-        }
-        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET) {
-            *list++ = (uint64_t)ci->discard.offset;
-            *list++ = (uint64_t)ci->discard.size;
-        }
-        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET) {
-            *list++ = (uint64_t)ci->avail.offset;
-            *list++ = (uint64_t)ci->avail.size;
-        }
+        WT_EXT_FOREACH (ext, ci->alloc.off)
+            WT_RET(
+              __ckpt_add_blkmod_entry(session, blk_mod, (uint64_t)ext->off, (uint64_t)ext->size));
+
+        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
+            WT_RET(__ckpt_add_blkmod_entry(
+              session, blk_mod, (uint64_t)ci->alloc.offset, (uint64_t)ci->alloc.size));
+        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
+            WT_RET(__ckpt_add_blkmod_entry(
+              session, blk_mod, (uint64_t)ci->discard.offset, (uint64_t)ci->discard.size));
+        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
+            WT_RET(__ckpt_add_blkmod_entry(
+              session, blk_mod, (uint64_t)ci->avail.offset, (uint64_t)ci->avail.size));
     }
     return (0);
 }
@@ -816,14 +823,13 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT
      *
      * Remove those not known (TODO).
      */
+    blkincr = NULL;
     while (__wt_config_next(&blkconf, &k, &v) == 0) {
         /*
          * See if this is a valid backup string.
          */
         for (i = 0; i < WT_BLKINCR_MAX; ++i) {
             blkincr = &conn->incr_backups[i];
-            __wt_verbose(session, WT_VERB_BACKUP, "LOAD: incr_backup %d id %s, config id %.*s",
-              (int)i, blkincr->id_str, (int)k.len, k.str);
             if (blkincr->id_str != NULL && WT_STRING_MATCH(blkincr->id_str, k.str, k.len))
                 break;
         }
@@ -837,14 +843,21 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT
          * We have a valid entry. Load the block information.
          */
         blk_mod = &ci->ckpt_mods[i];
+        WT_RET(__wt_strdup(session, blkincr->id_str, &blk_mod->id_str));
+        WT_RET(__wt_config_subgets(session, &v, "granularity", &b));
+        blk_mod->granularity = (uint64_t)b.val;
+        WT_RET(__wt_config_subgets(session, &v, "nbits", &b));
+        blk_mod->nbits = (uint64_t)b.val;
         ret = __wt_config_subgets(session, &v, "blocks", &b);
         WT_RET_NOTFOUND_OK(ret);
         if (ret != WT_NOTFOUND) {
-            __wt_verbose(session, WT_VERB_BACKUP, "LOAD: found blocks %.*s", (int)b.len, b.str);
-            WT_RET(__wt_backup_load_incr(
-              session, &b, &blk_mod->alloc_list, &blk_mod->alloc_list_entries));
-        } else
-            __wt_verbose(session, WT_VERB_BACKUP, "LOAD: no blocks %.*s", (int)k.len, k.str);
+            WT_RET(__wt_backup_load_incr(session, &b, &blk_mod->bitstring, blk_mod->nbits));
+            WT_RET(__wt_strdup(session, blkincr->id_str, &blk_mod->id_str));
+            F_SET(blk_mod, WT_BLOCK_MODS_VALID);
+            __wt_verbose(session, WT_VERB_BACKUP,
+              "LOAD: ckpt_mods[%" PRIu64 "] %p id %s granularity %" PRIu64 " nbits %" PRIu64, i,
+              (void *)blk_mod, blk_mod->id_str, blk_mod->granularity, blk_mod->nbits);
+        }
     }
     return (0);
 }

@@ -51,12 +51,11 @@ struct __wt_cursor_backup {
 
     WT_CURSOR *incr_cursor; /* File cursor */
 
-#define WT_BACKUP_INCR_COMPONENTS 2
-    bool incr_init;            /* Cursor traversal initialized */
-    uint64_t *incr_list;       /* List of file offset/size/type triples */
-    uint64_t incr_list_count;  /* Count of file offset/size/type triples */
-    uint64_t incr_list_offset; /* Current offset */
-    uint64_t incr_size;        /* Maximum transfer size */
+    bool incr_init;       /* Cursor traversal initialized */
+    uint8_t *bitstring;   /* List of modified blocks */
+    uint64_t nbits;       /* Number of bits in bitstring */
+    uint64_t bit_offset;  /* Current offset */
+    uint64_t granularity; /* Length, transfer size */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CURBACKUP_DUP 0x01u        /* Duplicated backup cursor */

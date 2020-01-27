@@ -10,36 +10,31 @@
 
 /*
  * __wt_backup_load_incr --
- *     Load the block modification information from a config string.
+ *     Load the incremental.
  */
 int
 __wt_backup_load_incr(
-  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *blkcfg, uint64_t **listp, uint64_t *entriesp)
+  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *blkcfg, uint8_t **listp, uint64_t nbits)
 {
-    uint64_t entries, i, *list;
+    uint64_t i;
+    uint8_t *list;
     const char *p;
 
     p = blkcfg->str;
     if (*p != '(')
         goto format;
     if (p[1] != ')') {
-        for (entries = 0; p < blkcfg->str + blkcfg->len; ++p)
-            if (*p == ',')
-                ++entries;
-        if (p[-1] != ')' || ++entries % WT_BACKUP_INCR_COMPONENTS != 0)
-            goto format;
-
         /*
-         * Make space for the range field.
+         * Make space for the bit field.
          */
-        WT_RET(__wt_calloc_def(session, entries, &list));
-        *entriesp = entries;
+        WT_RET(__bit_alloc(session, nbits, &list));
         *listp = list;
         /*
-         * Copy the block list to the cursor.
+         * Copy the block list to the list.
          */
-        for (i = 0, p = blkcfg->str + 1; *p != ')'; ++i, ++list) {
-            if (sscanf(p, "%" SCNu64 "[,)]", list) != 1)
+        for (i = 0, p = blkcfg->str + 1; *p != ')'; i += 8, ++list) {
+            WT_ASSERT(session, i < nbits);
+            if (sscanf(p, "%" SCNu8 "[,)]", list) != 1)
                 goto format;
             for (; *p != ',' && *p != ')'; ++p)
                 ;
@@ -79,14 +74,22 @@ __curbackup_incr_blkmods(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BA
             continue;
 
         /*
+         * We found a match. If we have a name, then there should be granularity and nbits. The
+         * granularity should be set to something. But nbits may be 0 if there are no blocks.
+         */
+        WT_ERR(__wt_config_subgets(session, &v, "granularity", &b));
+        cb->granularity = (uint64_t)b.val;
+        WT_ERR(__wt_config_subgets(session, &v, "nbits", &b));
+        cb->nbits = (uint64_t)b.val;
+
+        /*
          * We found a match. Load the block information into the cursor.
          */
         ret = __wt_config_subgets(session, &v, "blocks", &b);
-
         WT_ERR_NOTFOUND_OK(ret);
         if (ret != WT_NOTFOUND) {
-            WT_ERR(__wt_backup_load_incr(session, &b, &cb->incr_list, &cb->incr_list_count));
-            cb->incr_list_offset = 0;
+            WT_ERR(__wt_backup_load_incr(session, &b, &cb->bitstring, cb->nbits));
+            cb->bit_offset = 0;
             cb->incr_init = true;
         } else
             __wt_verbose(session, WT_VERB_BACKUP, "LOAD: no blocks %.*s", (int)k.len, k.str);
@@ -110,7 +113,6 @@ __curbackup_incr_next(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     wt_off_t size;
-    uint64_t list_off;
     uint32_t raw;
 
     cb = (WT_CURSOR_BACKUP *)cursor;
@@ -121,30 +123,29 @@ __curbackup_incr_next(WT_CURSOR *cursor)
 
     if (cb->incr_init) {
         /* We have this object's incremental information, Check if we're done. */
-        if (cb->incr_list_offset >= cb->incr_list_count - WT_BACKUP_INCR_COMPONENTS)
+        if (cb->bit_offset >= cb->nbits)
             return (WT_NOTFOUND);
 
         /*
-         * If we returned all of the data, step to the next block, otherwise return the next chunk
-         * of the current block.
+         * Look for the next chunk that had modifications.
          */
-        if (S2C(session)->incr_granularity == 0 ||
-          cb->incr_list[cb->incr_list_offset + 1] <= S2C(session)->incr_granularity)
-            cb->incr_list_offset += WT_BACKUP_INCR_COMPONENTS;
-        else {
-            cb->incr_list[cb->incr_list_offset] += S2C(session)->incr_granularity;
-            cb->incr_list[cb->incr_list_offset + 1] -= S2C(session)->incr_granularity;
-        }
-        list_off = cb->incr_list_offset;
+        while (cb->bit_offset < cb->nbits)
+            if (__bit_test(cb->bitstring, cb->bit_offset))
+                break;
+            else
+                ++cb->bit_offset;
+
+        if (cb->bit_offset == cb->nbits)
+            return (WT_NOTFOUND);
         __wt_cursor_set_key(
-          cursor, cb->incr_list[list_off], cb->incr_list[list_off + 1], WT_BACKUP_RANGE);
+          cursor, cb->granularity * cb->bit_offset++, cb->granularity, WT_BACKUP_RANGE);
     } else if (btree == NULL || F_ISSET(cb, WT_CURBACKUP_FORCE_FULL)) {
         /* We don't have this object's incremental information, and it's a full file copy. */
         WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
 
-        cb->incr_list_count = WT_BACKUP_INCR_COMPONENTS;
+        cb->nbits = 0;
         cb->incr_init = true;
-        cb->incr_list_offset = 0;
+        cb->bit_offset = 0;
         __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
     } else {
         /*
@@ -158,11 +159,10 @@ __curbackup_incr_next(WT_CURSOR *cursor)
          * If there is no block modification information for this file, there is no information to
          * return to the user.
          */
-        if (cb->incr_list == NULL)
+        if (cb->bitstring == NULL)
             WT_ERR(WT_NOTFOUND);
-        list_off = cb->incr_list_offset;
         __wt_cursor_set_key(
-          cursor, cb->incr_list[list_off], cb->incr_list[list_off + 1], WT_BACKUP_RANGE);
+          cursor, cb->granularity * cb->bit_offset++, cb->granularity, WT_BACKUP_RANGE);
         F_SET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
     }
 
@@ -181,7 +181,7 @@ __wt_curbackup_free_incr(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     __wt_free(session, cb->incr_file);
     if (cb->incr_cursor != NULL)
         __wt_cursor_close(cb->incr_cursor);
-    __wt_free(session, cb->incr_list);
+    __wt_free(session, cb->bitstring);
 }
 
 /*
