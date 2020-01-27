@@ -92,28 +92,6 @@ __wt_txn_err_set(WT_SESSION_IMPL *session, int ret)
 }
 
 /*
- * __wt_txn_err_chk --
- *     Check the transaction hasn't already failed.
- */
-static inline int
-__wt_txn_err_chk(WT_SESSION_IMPL *session)
-{
-    /*
-     * Allow only a few select operations after an error: WT_CURSOR.{close,reset} are called
-     * internally and WT_SESSION.rollback_transaction is the expected application resolution.
-     */
-    if (!F_ISSET(&(session->txn), WT_TXN_ERROR) || strcmp(session->name, "WT_CURSOR.close") == 0 ||
-      strcmp(session->name, "WT_CURSOR.reset") == 0 ||
-      strcmp(session->name, "WT_SESSION.rollback_transaction") == 0)
-        return (0);
-
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, !F_ISSET(&(session->txn), WT_TXN_ERROR));
-#endif
-    WT_RET_MSG(session, EINVAL, "additional transaction operations attempted after error");
-}
-
-/*
  * __wt_txn_timestamp_flags --
  *     Set transaction related timestamp flags.
  */
