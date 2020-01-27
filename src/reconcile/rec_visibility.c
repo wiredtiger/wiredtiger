@@ -158,10 +158,6 @@ static bool
 __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t max_txn,
   wt_timestamp_t max_ts, bool list_uncommitted, uint64_t flags)
 {
-    /* Always save updates for in-memory database. */
-    if (LF_ISSET(WT_REC_IN_MEMORY))
-        return true;
-
     if (!LF_ISSET(WT_REC_HS))
         return false;
 
@@ -432,23 +428,22 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /* Should not see uncommitted changes in the history store */
     WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !list_uncommitted);
 
-    if (!__wt_txn_visible_all(session, max_txn, max_ts) || list_uncommitted) {
-        r->leave_dirty = true;
-        /*
-         * The update doesn't have any further updates that need to be written to the history store,
-         * skip saving the update as saving the update will cause reconciliation to think there is
-         * work that needs to be done when there might not be.
-         *
-         * Additionally history store reconciliation is not set skip saving an update.
-         */
-        if (__rec_need_save_upd(
-              session, upd_select->upd, max_txn, max_ts, list_uncommitted, r->flags)) {
-            WT_ASSERT(session, r->max_txn != WT_TS_NONE);
+    r->leave_dirty = r->leave_dirty || list_uncommitted;
+    /*
+     * The update doesn't have any further updates that need to be written to the history store,
+     * skip saving the update as saving the update will cause reconciliation to think there is work
+     * that needs to be done when there might not be.
+     *
+     * Additionally history store reconciliation is not set skip saving an update.
+     */
+    if (__rec_need_save_upd(
+          session, upd_select->upd, max_txn, max_ts, list_uncommitted, r->flags)) {
+        WT_ASSERT(session, r->max_txn != WT_TS_NONE);
 
-            WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
-            upd_select->upd_saved = true;
-        }
+        WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
+        upd_select->upd_saved = true;
     }
+
     /*
      * Paranoia: check that we didn't choose an update that has since been rolled back.
      */
