@@ -143,9 +143,7 @@ err:
 int
 __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool checkpoint)
 {
-    WT_BLOCK_MODS *blk_mod;
     WT_DECL_RET;
-    uint64_t i;
 
     /* Verify cleanup. */
     if (block->verify)
@@ -160,11 +158,6 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
         WT_TRET(__wt_block_truncate(session, block, block->size));
 
         __wt_spin_lock(session, &block->live_lock);
-        for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-            blk_mod = &block->live.ckpt_mods[i];
-            __wt_free(session, blk_mod->bitstring);
-            __wt_free(session, blk_mod->id_str);
-        }
         __wt_block_ckpt_destroy(session, &block->live);
 #ifdef HAVE_DIAGNOSTIC
         block->live_open = false;
@@ -196,6 +189,7 @@ __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
         blk_mod = &ci->ckpt_mods[i];
         __wt_free(session, blk_mod->bitstring);
         __wt_free(session, blk_mod->id_str);
+	F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
     }
 }
 
@@ -859,7 +853,6 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT
         WT_RET_NOTFOUND_OK(ret);
         if (ret != WT_NOTFOUND) {
             WT_RET(__wt_backup_load_incr(session, &b, &blk_mod->bitstring, blk_mod->nbits));
-            WT_RET(__wt_strdup(session, blkincr->id_str, &blk_mod->id_str));
             F_SET(blk_mod, WT_BLOCK_MODS_VALID);
             __wt_verbose(session, WT_VERB_BACKUP,
               "LOAD: ckpt_mods[%" PRIu64 "] %p id %s granularity %" PRIu64 " nbits %" PRIu64, i,
