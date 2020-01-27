@@ -349,6 +349,53 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t ses
 }
 
 /*
+ * __hs_read_cursor_open --
+ *     Open a reading cursor to the history store. This function opens a new cursor through the user
+ *     session in order to inherit the visibility of the running transaction.
+ */
+static int
+__hs_read_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_flags)
+{
+    WT_DECL_RET;
+    const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
+
+    *session_flags = F_MASK(session, WT_HS_SESSION_FLAGS);
+
+    WT_WITHOUT_DHANDLE(
+      session, ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, cursorp));
+    WT_RET(ret);
+
+    /* Configure session to access the history store table. */
+    F_SET(session, WT_HS_SESSION_FLAGS);
+
+    return (ret);
+}
+
+/*
+ * __hs_read_cursor_close --
+ *     Close a reading cursor to the history store.
+ */
+static int
+__hs_read_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t session_flags)
+{
+    WT_CURSOR *cursor;
+
+    if ((cursor = *cursorp) == NULL)
+        return (0);
+    *cursorp = NULL;
+
+    /*
+     * We turned off caching and eviction while the history store cursor was in use, restore the
+     * session's flags.
+     */
+    F_CLR(session, WT_HS_SESSION_FLAGS);
+    F_SET(session, session_flags);
+    WT_RET(cursor->close(cursor));
+
+    return (0);
+}
+
+/*
  * __hs_get_value --
  *     Get the value associated with an update from the history store. Providing a read timestamp to
  *     avoid finding a tombstone.
@@ -873,7 +920,6 @@ __wt_find_hs_upd(
     uint8_t prepare_state, prepare_state_tmp, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
     const uint8_t *recnop;
     int cmp;
-    const char *hs_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
     bool modify;
 
     *updp = NULL;
@@ -909,7 +955,7 @@ __wt_find_hs_upd(
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     /* Open a history store table cursor. */
-    WT_ERR(__wt_open_cursor(session, WT_HS_URI, NULL, hs_cursor_cfg, &hs_cursor));
+    WT_ERR(__hs_read_cursor_open(session, &hs_cursor, &session_flags));
 
     /*
      * After positioning our cursor, we're stepping backwards to find the correct update. Since the
@@ -1085,8 +1131,7 @@ err:
      * harm in doing this multiple times.
      */
     __hs_restore_read_timestamp(session, saved_timestamp);
-    if (hs_cursor != NULL)
-        hs_cursor->close(hs_cursor);
+    ret = __hs_read_cursor_close(session, &hs_cursor, session_flags);
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &upd);
