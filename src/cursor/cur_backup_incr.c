@@ -124,7 +124,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
     if (cb->incr_init) {
         /* We have this object's incremental information, Check if we're done. */
         if (cb->bit_offset >= cb->nbits)
-            return (WT_NOTFOUND);
+            WT_ERR(WT_NOTFOUND);
 
         /*
          * Look for the next chunk that had modifications.
@@ -136,7 +136,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
                 ++cb->bit_offset;
 
         if (cb->bit_offset == cb->nbits)
-            return (WT_NOTFOUND);
+            WT_ERR(WT_NOTFOUND);
         __wt_cursor_set_key(
           cursor, cb->granularity * cb->bit_offset++, cb->granularity, WT_BACKUP_RANGE);
     } else if (btree == NULL || F_ISSET(cb, WT_CURBACKUP_FORCE_FULL)) {
