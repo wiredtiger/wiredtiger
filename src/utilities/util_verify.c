@@ -59,7 +59,6 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     argc -= __wt_optind;
     argv += __wt_optind;
 
-
     /* The remaining argument is the table name. */
     if ((argc != 1 && !hs_verify) || (hs_verify && argc != 0))
         return (usage());
@@ -68,25 +67,25 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     else if ((uri = util_uri(session, WT_HS_URI, "table")) == NULL) {
         return (1);
     }
-    
-    if (hs_verify && (dump_address || dump_blocks || 
-        dump_layout || dump_offsets != NULL || dump_pages)) {
+
+    if (hs_verify &&
+      (dump_address || dump_blocks || dump_layout || dump_offsets != NULL || dump_pages)) {
         (void)util_err(session, 69, "-d flags given on non -d call");
     }
     /* Build the configuration string as necessary. */
     if (hs_verify) {
-        size = strlen("hs_verify")+1;
-        // Copy pasted code, helper fnc? 
+        size = strlen("hs_verify") + 1;
+        // Copy pasted code
         if ((config = malloc(size)) == NULL) {
             ret = util_err(session, errno, NULL);
             goto err;
         }
-        if ((ret = __wt_snprintf(config, size, "%s", "hs_verify" ))) {
+        if ((ret = __wt_snprintf(config, size, "%s", "hs_verify"))) {
             (void)util_err(session, ret, NULL);
             goto err;
         }
     }
-    
+
     else if (dump_address || dump_blocks || dump_layout || dump_offsets != NULL || dump_pages) {
         size = strlen("dump_address,") + strlen("dump_blocks,") + strlen("dump_layout,") +
           strlen("dump_pages,") + strlen("dump_offsets[],") +

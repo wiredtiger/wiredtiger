@@ -1382,6 +1382,10 @@ methods = {
         warn, but not fail, in the case of errors that won't affect future
         behavior (for example, a leaked block)''',
         type='boolean'),
+    Config('hs_verify', 'false', r'''
+        Verify the history store''',
+        type='boolean')
+
 ]),
 
 'WT_SESSION.begin_transaction' : Method([

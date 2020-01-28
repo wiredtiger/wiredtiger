@@ -48,8 +48,6 @@ static const char *__verify_timestamp_to_pretty_string(wt_timestamp_t);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 static int __verify_history_key_with_table(WT_SESSION_IMPL *, const char *, WT_ITEM *);
 static int __verify_btree_id_with_meta(WT_SESSION_IMPL *, uint32_t, const char **);
-static int __verify_history_store_tree(WT_SESSION_IMPL *);
-int __wt_verify_file(WT_SESSION_IMPL *, const char **);
 /*
  * __verify_config --
  *     Debugging: verification supports dumping pages in various formats.
@@ -350,27 +348,10 @@ err:
 
 /*
  * __wt_verify --
- *     fork for different verify functions.
- */
-int
-__wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
-{
-    WT_CONFIG_ITEM cval;
-    int ret = 0;
-    if (__wt_config_gets(session, cfg, "hs_verify", &cval) == 0) {
-        WT_RET(__verify_history_store_tree(session));
-    } else {
-        WT_RET(__wt_verify_file(session, cfg));
-    }
-    return ret;
-}
-
-/*
- * __wt_verify_file--
  *     Verify a file.
  */
 int
-__wt_verify_file(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -653,8 +634,6 @@ __verify_btree_id_with_meta(WT_SESSION_IMPL *session, uint32_t btree_id, const c
         }
         if (btree_id == strtoul(id.str, NULL, 10)) {
             meta_cursor->get_key(meta_cursor, uri);
-            //WT_ERR(__wt_msg(session, "key = %s\n", *uri));
-            //WT_ERR(__wt_msg(session, "id = %.*s\n", (int)id.len, id.str));
             goto done;
         }
     }
@@ -666,12 +645,12 @@ err:
 }
 
 /*
- * __verify_history_store_tree --
+ * __wt_verify_history_store_tree --
  *     Verify the history store tree, by iterating and checking all the keys in the history and that
  *     it exists in both the meta file and the respective data store table.
  */
 int
-__verify_history_store_tree(WT_SESSION_IMPL *session)
+__wt_verify_history_store_tree(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;

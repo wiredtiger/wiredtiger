@@ -935,7 +935,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.verify",
     "dump_address=false,dump_blocks=false,dump_layout=false,"
     "dump_offsets=,dump_pages=false,hs_verify=false,strict=false",
-    confchk_WT_SESSION_verify, 6},
+    confchk_WT_SESSION_verify, 7},
   {"colgroup.meta", "app_metadata=,collator=,columns=,source=,type=file", confchk_colgroup_meta, 5},
   {"file.config",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"

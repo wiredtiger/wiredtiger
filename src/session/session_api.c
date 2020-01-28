@@ -1566,9 +1566,9 @@ err:
 static int
 __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    WT_CONFIG_ITEM cval;
     session = (WT_SESSION_IMPL *)wt_session;
 
     SESSION_API_CALL(session, verify, config, cfg);
@@ -1578,11 +1578,11 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     /* Block out checkpoints to avoid spurious EBUSY errors. */
     if (__wt_config_gets(session, cfg, "hs_verify", &cval) == 0) {
         WT_WITH_CHECKPOINT_LOCK(
-            session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_verify(session, cfg)));
+          session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_verify_history_store_tree(session)));
     } else {
-        WT_WITH_CHECKPOINT_LOCK(
-            session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_worker(session, uri, __wt_verify,
-                                              NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
+        WT_WITH_CHECKPOINT_LOCK(session,
+          WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_worker(session, uri, __wt_verify, NULL,
+                                         cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
     }
 err:
     if (ret != 0)
