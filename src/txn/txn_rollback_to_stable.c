@@ -203,9 +203,10 @@ __txn_abort_newer_row_leaf(
 
 /*
  * __txn_page_needs_rollback --
- *     Check whether the page needs has modification newer than the given timestamp.
+ *     Check whether the page needs rollback. Return true if the page has modifications newer than
+ *     the given timestamp Otherwise return false.
  */
-static int
+static bool
 __txn_page_needs_rollback(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     WT_ADDR *addr;
@@ -218,6 +219,14 @@ __txn_page_needs_rollback(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
     addr = ref->addr;
     mod = ref->page == NULL ? NULL : ref->page->modify;
 
+    /*
+     * The rollback operation should be performed on this page when any one of the following is
+     * greater than the given timestamp:
+     * 1. The reconciled replace page max durable timestamp.
+     * 2. The reconciled multi page max durable timestamp.
+     * 3. The on page address max durable timestamp.
+     * 4. The off page address max durable timestamp.
+     */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE)
         return (mod->mod_replace.newest_durable_ts > rollback_timestamp);
     else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
@@ -252,8 +261,8 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
 
     /*
      * If we have a ref with no page, or the page is clean, find out whether the page has any
-     * modifications that are newer than the given timestamp. As eviction writing the newest version
-     * to page, even a clean page may also contain modifications that needs rollback. Such pages are
+     * modifications that are newer than the given timestamp. As eviction writes the newest version
+     * to page, even a clean page may also contain modifications that need rollback. Such pages are
      * read back into memory and processed like other modified pages.
      */
     if ((page = ref->page) == NULL || !__wt_page_is_modified(page)) {
@@ -431,8 +440,7 @@ __txn_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t newest_durable_ts;
-    wt_timestamp_t rollback_timestamp;
+    wt_timestamp_t newest_durable_ts, rollback_timestamp;
     const char *config, *uri;
     bool durable_ts_found;
 
@@ -476,10 +484,10 @@ __txn_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
 
         WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
         /*
-         * The rollback to stable operation should perform on the file based on the following:
-         * 1. Rolling back the older version data files, no checkpoint durable timestamp.
-         * 2. The checkpoint durable timestamp is more than given stable timestamp.
-         * 3. Modified tree.
+         * The rollback operation should be performed on this file based on the following:
+         * 1. There is no durable timestamp in any checkpoint.
+         * 2. The checkpoint durable timestamp is greater than the rollback timestamp.
+         * 3. The tree is modified.
          */
         if (!durable_ts_found || newest_durable_ts > rollback_timestamp || S2BT(session)->modified)
             WT_SAVE_DHANDLE(
