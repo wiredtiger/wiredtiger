@@ -459,16 +459,15 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t b
      */
     WT_RET(cursor->update(cursor));
 
-    // /* Append a delete record to represent stop time pair for the above insert record */
-    // cursor->set_key(
-    //   cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts_pair.timestamp,
-    //   stop_ts_pair.txnid);
+    /* Append a delete record to represent stop time pair for the above insert record */
+    cursor->set_key(
+      cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts_pair.timestamp, stop_ts_pair.txnid);
 
-    // /* Set the stop time pair as the commit time pair of the history store delete record. */
-    // __hs_store_time_pair(session, stop_ts_pair.timestamp, stop_ts_pair.txnid);
+    /* Set the stop time pair as the commit time pair of the history store delete record. */
+    __hs_store_time_pair(session, stop_ts_pair.timestamp, stop_ts_pair.txnid);
 
-    // /* Remove the inserted record with stop timestamp. */
-    // WT_RET(cursor->remove(cursor));
+    /* Remove the inserted record with stop timestamp. */
+    WT_RET(cursor->remove(cursor));
 
     return (0);
 }
