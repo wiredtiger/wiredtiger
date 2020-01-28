@@ -32,8 +32,8 @@ import wiredtiger, wttest
 #    Session statistics for bytes read into the cache.
 class test_stat08(wttest.WiredTigerTestCase):
 
-    nentries = 400000
-    conn_config = 'cache_size=50MB,statistics=(all)'
+    nentries = 350000
+    conn_config = 'cache_size=10MB,statistics=(all)'
     entry_value = "abcde" * 40
     BYTES_READ = 4000
     READ_TIME = 4003

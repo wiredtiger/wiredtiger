@@ -680,6 +680,7 @@ struct __wt_connection_stats {
     int64_t txn_begin;
     int64_t txn_checkpoint_running;
     int64_t txn_checkpoint_generation;
+    int64_t txn_hs_ckpt_duration;
     int64_t txn_checkpoint_time_max;
     int64_t txn_checkpoint_time_min;
     int64_t txn_checkpoint_time_recent;

@@ -395,6 +395,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             upd->start_ts = upd->durable_ts = vpack->start_ts;
             upd->txnid = vpack->start_txn;
             WT_PUBLISH(last_upd->next, upd);
+            /* This is going in our update list so it should be accounted for in cache usage. */
+            __wt_cache_page_inmem_incr(session, page, size);
             upd_select->upd = upd;
         }
         WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE);
