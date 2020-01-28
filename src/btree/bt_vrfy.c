@@ -29,8 +29,8 @@ typedef struct {
     bool dump_history;
     bool dump_layout;
     bool dump_pages;
-
-    /* Page layout information. */
+    bool hs_verify;
+    /* Page layout information */
     uint64_t depth, depth_internal[100], depth_leaf[100];
 
     WT_ITEM *tmp1, *tmp2, *tmp3, *tmp4; /* Temporary buffers */
@@ -49,6 +49,7 @@ static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUF
 static int __verify_history_key_with_table(WT_SESSION_IMPL *, const char *, WT_ITEM *);
 static int __verify_btree_id_with_meta(WT_SESSION_IMPL *, uint32_t, const char **);
 static int __verify_history_store_tree(WT_SESSION_IMPL *);
+int __wt_verify_file(WT_SESSION_IMPL *, const char **);
 /*
  * __verify_config --
  *     Debugging: verification supports dumping pages in various formats.
@@ -349,10 +350,27 @@ err:
 
 /*
  * __wt_verify --
- *     Verify a file.
+ *     fork for different verify functions.
  */
 int
 __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    int ret = 0;
+    if (__wt_config_gets(session, cfg, "hs_verify", &cval) == 0) {
+        WT_RET(__verify_history_store_tree(session));
+    } else {
+        WT_RET(__wt_verify_file(session, cfg));
+    }
+    return ret;
+}
+
+/*
+ * __wt_verify_file--
+ *     Verify a file.
+ */
+int
+__wt_verify_file(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -398,9 +416,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         goto done;
     }
     WT_ERR(ret);
-
-    __verify_history_store_tree(session);
-    goto done;
 
     /* Inform the underlying block manager we're verifying. */
     WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
@@ -638,8 +653,8 @@ __verify_btree_id_with_meta(WT_SESSION_IMPL *session, uint32_t btree_id, const c
         }
         if (btree_id == strtoul(id.str, NULL, 10)) {
             meta_cursor->get_key(meta_cursor, uri);
-            WT_ERR(__wt_msg(session, "key = %s\n", *uri));
-            WT_ERR(__wt_msg(session, "id = %.*s\n", (int)id.len, id.str));
+            //WT_ERR(__wt_msg(session, "key = %s\n", *uri));
+            //WT_ERR(__wt_msg(session, "id = %.*s\n", (int)id.len, id.str));
             goto done;
         }
     }
@@ -668,15 +683,11 @@ __verify_history_store_tree(WT_SESSION_IMPL *session)
     session_flags = 0;
     uri = NULL;
     __wt_hs_cursor(session, &cursor, &session_flags);
-
     WT_ERR(cursor->reset(cursor));
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start.timestamp, &hs_start.txnid,
           &hs_stop.timestamp, &hs_stop.txnid));
-
-        WT_ERR(__wt_msg(session, "Btree_id == %u, Timestamp == %lu, Transaction ID == %lu\n",
-          btree_id, hs_start.timestamp, hs_start.txnid));
 
         WT_ERR(__verify_btree_id_with_meta(session, btree_id, &uri));
         WT_ERR(__verify_history_key_with_table(session, uri, &hs_key));

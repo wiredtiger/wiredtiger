@@ -362,10 +362,16 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_transaction_sync[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_verify[] = {
   {"dump_address", "boolean", NULL, NULL, NULL, 0}, {"dump_blocks", "boolean", NULL, NULL, NULL, 0},
+<<<<<<< HEAD
   {"dump_history", "boolean", NULL, NULL, NULL, 0}, {"dump_layout", "boolean", NULL, NULL, NULL, 0},
   {"dump_offsets", "list", NULL, NULL, NULL, 0}, {"dump_pages", "boolean", NULL, NULL, NULL, 0},
   {"stable_timestamp", "boolean", NULL, NULL, NULL, 0}, {"strict", "boolean", NULL, NULL, NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
+=======
+  {"dump_layout", "boolean", NULL, NULL, NULL, 0}, {"dump_offsets", "list", NULL, NULL, NULL, 0},
+  {"dump_pages", "boolean", NULL, NULL, NULL, 0}, {"hs_verify", "boolean", NULL, NULL, NULL, 0},
+  {"strict", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+>>>>>>> 0422c8de5... added end to end api functionality with -h
 
 static const WT_CONFIG_CHECK confchk_colgroup_meta[] = {
   {"app_metadata", "string", NULL, NULL, NULL, 0}, {"collator", "string", NULL, NULL, NULL, 0},
@@ -927,10 +933,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.transaction_sync", "timeout_ms=1200000", confchk_WT_SESSION_transaction_sync, 1},
   {"WT_SESSION.truncate", "", NULL, 0}, {"WT_SESSION.upgrade", "", NULL, 0},
   {"WT_SESSION.verify",
-    "dump_address=false,dump_blocks=false,dump_history=false,"
-    "dump_layout=false,dump_offsets=,dump_pages=false,"
-    "stable_timestamp=false,strict=false",
-    confchk_WT_SESSION_verify, 8},
+    "dump_address=false,dump_blocks=false,dump_layout=false,"
+    "dump_offsets=,dump_pages=false,hs_verify=false,strict=false",
+    confchk_WT_SESSION_verify, 6},
   {"colgroup.meta", "app_metadata=,collator=,columns=,source=,type=file", confchk_colgroup_meta, 5},
   {"file.config",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
