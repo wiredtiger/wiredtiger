@@ -158,9 +158,12 @@ static bool
 __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t max_txn,
   wt_timestamp_t max_ts, bool list_uncommitted, uint64_t flags)
 {
-    /* Always save updates for in-memory database. */
-    if (LF_ISSET(WT_REC_IN_MEMORY) && !__wt_txn_visible_all(session, max_txn, max_ts))
-        return true;
+    /*
+     * Save updates for in-memory database, except when the maximum timestamp and txnid are globally
+     * visible.
+     */
+    if (LF_ISSET(WT_REC_IN_MEMORY))
+        return !__wt_txn_visible_all(session, max_txn, max_ts);
 
     if (!LF_ISSET(WT_REC_HS))
         return false;
