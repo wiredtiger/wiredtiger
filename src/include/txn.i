@@ -613,11 +613,7 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     if (upd->prepare_state == WT_PREPARE_LOCKED || upd->prepare_state == WT_PREPARE_INPROGRESS)
         return (false);
 
-    /*
-     * This function is used to determine when an update is obsolete: that should take into account
-     * the durable timestamp which is greater than or equal to the start timestamp.
-     */
-    return (__wt_txn_visible_all(session, upd->txnid, upd->durable_ts));
+    return (__wt_txn_visible_all(session, upd->txnid, upd->start_ts));
 }
 
 /*
@@ -828,7 +824,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     if (__wt_txn_visible(session, start.txnid, start.timestamp)) {
         WT_RET(__wt_update_alloc(session, &buf, &upd, &size, WT_UPDATE_STANDARD));
         upd->txnid = start.txnid;
-        upd->start_ts = upd->durable_ts = start.timestamp;
+        upd->start_ts = upd->    = start.timestamp;
         F_SET(upd, WT_UPDATE_RESTORED_FROM_DISK);
         *updp = upd;
         return (0);
