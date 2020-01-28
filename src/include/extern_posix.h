@@ -16,7 +16,7 @@ extern int __wt_getenv(WT_SESSION_IMPL *session, const char *variable, const cha
 extern int __wt_localtime(WT_SESSION_IMPL *session, const time_t *timep, struct tm *result)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+extern int __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_once(void (*init_routine)(void)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_os_posix(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -38,7 +38,7 @@ extern int __wt_posix_map_preload(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, co
   size_t length, void *mapped_cookie) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_posix_unmap(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *mapped_region,
   size_t len, void *mapped_cookie) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+extern int __wt_remap_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, size_t new_size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
   WT_THREAD_CALLBACK (*func)(void *), void *arg) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
@@ -58,11 +58,13 @@ extern void __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, ui
 extern void __wt_drain_mmap_users(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
 extern void __wt_epoch_raw(WT_SESSION_IMPL *session, struct timespec *tsp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_prepare_remap_file(
+  WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, size_t new_size);
 extern void __wt_sleep(uint64_t seconds, uint64_t micro_seconds)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_stream_set_line_buffer(FILE *fp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_stream_set_no_buffer(FILE *fp) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_thread_id(uintmax_t *id) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
-extern void __wt_unmap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
+extern void __wt_unmap_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
 extern void __wt_yield(void) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));

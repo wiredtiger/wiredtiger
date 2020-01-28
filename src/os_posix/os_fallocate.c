@@ -28,24 +28,12 @@ __posix_std_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    if (S2C(session)->mmap)
-        if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset)
-            __wt_drain_mmap_users(file_handle, wt_session);
+    __wt_prepare_remap_file(file_handle, wt_session, offset);
 
     WT_SYSCALL_RETRY(fallocate(pfh->fd, 0, (wt_off_t)0, offset), ret);
+    WT_RET(ret);
 
-    if (S2C(session)->mmap)
-        if (ret == 0)
-            if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset) {
-                /* Remap the region with the new size */
-                ret = __wt_remap_region(file_handle, wt_session);
-                if (ret) {
-                    S2C(session)->mmap = false;
-                    __wt_err(session, ret, "Could not remap file. Mmap option disabled.");
-                }
-                WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
-            }
-    return (ret);
+    return (__wt_remap_file(file_handle, wt_session, offset));
 #else
     WT_UNUSED(file_handle);
     WT_UNUSED(offset);
@@ -69,9 +57,7 @@ __posix_sys_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    if (S2C(session)->mmap)
-        if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset)
-            __wt_drain_mmap_users(file_handle, wt_session);
+    __wt_prepare_remap_file(file_handle, wt_session, offset);
 
     /*
      * Try the system call for fallocate even if the C library wrapper was not found. The system
@@ -79,19 +65,10 @@ __posix_sys_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
      * of the C library. This allows it to work everywhere the kernel supports it.
      */
     WT_SYSCALL_RETRY(syscall(SYS_fallocate, pfh->fd, 0, (wt_off_t)0, offset), ret);
+    WT_RET(ret);
 
-    if (S2C(session)->mmap)
-        if (ret == 0)
-            if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset) {
-                /* Remap the region with the new size */
-                ret = __wt_remap_region(file_handle, wt_session);
-                if (ret) {
-                    S2C(session)->mmap = false;
-                    __wt_err(session, ret, "Could not remap file. Mmap option disabled.");
-                }
-                WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
-            }
-    return (ret);
+    return (__wt_remap_file(file_handle, wt_session, offset));
+
 #else
     WT_UNUSED(file_handle);
     WT_UNUSED(offset);
@@ -115,25 +92,12 @@ __posix_posix_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
     session = (WT_SESSION_IMPL *)wt_session;
 
-    if (S2C(session)->mmap)
-        if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset)
-            __wt_drain_mmap_users(file_handle, wt_session);
+    __wt_prepare_remap_file(file_handle, wt_session, offset);
 
     WT_SYSCALL_RETRY(posix_fallocate(pfh->fd, (wt_off_t)0, offset), ret);
+    WT_RET(ret);
 
-    if (S2C(session)->mmap)
-        if (ret == 0)
-            if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset) {
-                /* Remap the region with the new size */
-                ret = __wt_remap_region(file_handle, wt_session);
-                if (ret) {
-                    S2C(session)->mmap = false;
-                    __wt_err(session, ret, "Could not remap file. Mmap option disabled.");
-                }
-                WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
-            }
-
-    return (ret);
+    return (__wt_remap_file(file_handle, wt_session, offset));
 #else
     WT_UNUSED(file_handle);
     WT_UNUSED(offset);

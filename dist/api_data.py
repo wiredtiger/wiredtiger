@@ -971,11 +971,11 @@ wiredtiger_open_common =\
         maximum number of simultaneous hazard pointers per session
         handle''',
         min=15, undoc=True),
-    Config('mmap', 'false', r'''
-        Use memory mapping to access files when possible''',
-        type='boolean'),
-    Config('mmap_checkpoint', 'true', r'''
+    Config('mmap', 'true', r'''
         Use memory mapping to access read-only checkpoint files''',
+        type='boolean'),
+    Config('mmap_all', 'false', r'''
+        Use memory mapping to read and write all data files''',
         type='boolean'),
     Config('multiprocess', 'false', r'''
         permit sharing between processes (will automatically start an

@@ -24,7 +24,7 @@ __wt_block_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_regionp, 
     *(void **)mapped_cookiep = NULL;
 
     /* Map support is configurable. */
-    if (!S2C(session)->mmap_ckpt)
+    if (!S2C(session)->mmap)
         return (0);
 
     /*
