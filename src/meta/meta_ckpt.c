@@ -593,11 +593,11 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
 }
 
 /*
- * __ckpt_blkmods_to_meta --
+ * __ckpt_blkmod_to_meta --
  *     Add in any modification block string needed, including an empty one.
  */
 static int
-__ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *blk_mods)
+__ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *blk_mods)
 {
     WT_BLOCK_MODS *blk;
     uint64_t end, entries;
@@ -661,7 +661,7 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session, const char *fname, WT_CKPT *ckp
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
 
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
-    WT_ERR(__ckpt_blkmods_to_meta(session, buf, blk_mods));
+    WT_ERR(__ckpt_blkmod_to_meta(session, buf, blk_mods));
 
     has_lsn = ckptlsn != NULL;
     if (ckptlsn != NULL)

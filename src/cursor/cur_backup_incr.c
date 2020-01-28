@@ -48,12 +48,12 @@ format:
 }
 
 /*
- * __curbackup_incr_blkmods --
+ * __curbackup_incr_blkmod --
  *     Get the block modifications for a tree from its metadata and fill in the backup cursor's
  *     information with it.
  */
 static int
-__curbackup_incr_blkmods(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BACKUP *cb)
+__curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BACKUP *cb)
 {
     WT_CONFIG blkconf;
     WT_CONFIG_ITEM b, k, v;
@@ -154,7 +154,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
          * incremental identifier starting point. Walk the list looking for one with a source of our
          * id.
          */
-        WT_ERR(__curbackup_incr_blkmods(session, btree, cb));
+        WT_ERR(__curbackup_incr_blkmod(session, btree, cb));
         /*
          * If there is no block modification information for this file, there is no information to
          * return to the user.

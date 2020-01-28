@@ -281,7 +281,6 @@ NUL
 NUM
 NetBSD
 NoAddr
-NoCheckpoint
 Noll
 Nul
 OOB
@@ -512,7 +511,6 @@ bitstring
 bitwise
 blk
 blkmod
-blkmods
 bm
 bnd
 bool
