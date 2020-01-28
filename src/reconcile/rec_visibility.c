@@ -18,7 +18,7 @@ __rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
     return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
         __wt_txn_upd_visible_all(session, upd) :
         __wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE &&
-          __wt_txn_visible(session, upd->txnid, upd->durable_ts));
+          __wt_txn_visible(session, upd->txnid, upd->start_ts));
 }
 
 /*
@@ -312,8 +312,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         return (0);
     }
 
-    if (upd != NULL && upd->durable_ts > r->max_ondisk_ts)
-        r->max_ondisk_ts = upd->durable_ts;
+    if (upd != NULL && upd->start_ts > r->max_ondisk_ts)
+        r->max_ondisk_ts = upd->start_ts;
 
     /*
      * The start timestamp is determined by the commit timestamp when the key is first inserted (or
