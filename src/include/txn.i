@@ -824,7 +824,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     if (__wt_txn_visible(session, start.txnid, start.timestamp)) {
         WT_RET(__wt_update_alloc(session, &buf, &upd, &size, WT_UPDATE_STANDARD));
         upd->txnid = start.txnid;
-        upd->start_ts = upd->    = start.timestamp;
+        upd->start_ts = upd->durable_ts = start.timestamp;
         F_SET(upd, WT_UPDATE_RESTORED_FROM_DISK);
         *updp = upd;
         return (0);
