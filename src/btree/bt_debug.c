@@ -163,6 +163,21 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
 }
 
 /*
+ * __debug_time_pairs --
+ *     Dump a set of start and stop time pairs, with an optional tag.
+ */
+static inline int
+__debug_time_pairs(WT_DBG *ds, const char *tag, wt_timestamp_t start_ts, uint64_t start_txn,
+  wt_timestamp_t stop_ts, uint64_t stop_txn)
+{
+    char tp_string[2][WT_TP_STRING_SIZE];
+
+    return (ds->f(ds, "\t%s%s%s,%s\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
+      __wt_time_pair_to_string(start_ts, start_txn, tp_string[0]),
+      __wt_time_pair_to_string(stop_ts, stop_txn, tp_string[1])));
+}
+
+/*
  * __dmsg_event --
  *     Send a debug message to the event handler.
  */
@@ -733,10 +748,6 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, bool dump_k
     wt_timestamp_t hs_durable_ts;
     uint32_t hs_btree_id;
     uint8_t hs_prep_state, hs_upd_type;
-    char tp_string[2][WT_TP_STRING_SIZE];
-
-    if (hs_cursor == NULL)
-        return (0);
 
     ds = &_ds;
 
@@ -751,9 +762,8 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, bool dump_k
         WT_ERR(__debug_item_key(ds, "K", hs_key->data, hs_key->size));
 
     if (dump_time_pairs)
-        WT_ERR(ds->f(ds, "\t%c %s,%s\n", 'T',
-          __wt_time_pair_to_string(start.timestamp, start.txnid, tp_string[0]),
-          __wt_time_pair_to_string(stop.timestamp, stop.txnid, tp_string[1])));
+        WT_ERR(
+          __debug_time_pairs(ds, "T", start.timestamp, start.txnid, stop.timestamp, stop.txnid));
 
     if (dump_value) {
         WT_ERR(
@@ -763,8 +773,33 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, bool dump_k
 
 err:
     __wt_scr_free(session, &hs_key);
-    WT_TRET(__debug_wrapup(ds));
+    WT_RET(__debug_wrapup(ds));
 
+    return (ret);
+}
+
+/*
+ * __wt_debug_key_value --
+ *     Dump information about a key and/or value.
+ */
+int
+__wt_debug_key_value(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack)
+{
+    WT_DBG *ds, _ds;
+    WT_DECL_RET;
+
+    ds = &_ds;
+
+    WT_ERR(__debug_config(session, ds, NULL));
+
+    if (key != NULL)
+        WT_ERR(__debug_item_key(ds, "K", key->data, key->size));
+    WT_ERR(__debug_time_pairs(
+      ds, "T", unpack->start_ts, unpack->start_txn, unpack->stop_ts, unpack->stop_txn));
+    WT_ERR(__debug_cell_data(ds, NULL, unpack != NULL ? unpack->type : 0, "V", unpack));
+
+err:
+    WT_RET(__debug_wrapup(ds));
     return (ret);
 }
 

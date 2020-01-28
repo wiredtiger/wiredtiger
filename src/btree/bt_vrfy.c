@@ -24,6 +24,7 @@ typedef struct {
     ((vs)->dump_address || (vs)->dump_blocks || (vs)->dump_layout || (vs)->dump_pages)
     bool dump_address; /* Configure: dump special */
     bool dump_blocks;
+    bool dump_history;
     bool dump_layout;
     bool dump_pages;
     /* Page layout information */
@@ -33,11 +34,13 @@ typedef struct {
 } WT_VSTUFF;
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
+static int __verify_col_var_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
+static int __verify_key_hs(WT_SESSION_IMPL *, WT_ITEM *, WT_VSTUFF *);
 static int __verify_page_cell(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
-static int __verify_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
+static int __verify_row_leaf_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 
 /*
@@ -54,6 +57,9 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
     WT_RET(__wt_config_gets(session, cfg, "dump_blocks", &cval));
     vs->dump_blocks = cval.val != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "dump_history", &cval));
+    vs->dump_history = cval.val != 0;
 
     WT_RET(__wt_config_gets(session, cfg, "dump_layout", &cval));
     vs->dump_layout = cval.val != 0;
@@ -134,27 +140,80 @@ __dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
 }
 
 /*
- * __verify_page_hs --
+ * __verify_col_var_page_hs --
  *     Verify a page against the history store.
  */
 static int
-__verify_page_hs(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
+__verify_col_var_page_hs(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
 {
+    WT_CELL *cell;
+    WT_CELL_UNPACK *unpack, _unpack;
+    WT_COL *cip;
+    WT_DECL_ITEM(key);
+    WT_DECL_RET;
+    WT_PAGE *page;
+    uint64_t recno, rle;
+    uint32_t i;
+    uint8_t *p;
+
+    page = ref->page;
+    recno = ref->ref_recno;
+    unpack = &_unpack;
+
+    /* Ensure enough room for a column-store key without checking. */
+    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+
+    WT_COL_FOREACH (page, cip, i) {
+        cell = WT_COL_PTR(page, cip);
+        __wt_cell_unpack(session, page, cell, unpack);
+        rle = __wt_cell_rle(unpack);
+
+        p = key->mem;
+        WT_ERR(__wt_vpack_uint(&p, 0, rle));
+        key->size = WT_PTRDIFF(p, key->data);
+
+        if (vs->dump_history) {
+            WT_ERR(__wt_msg(session, "\tK {%" PRIu64 " %" PRIu64 "}", recno, rle));
+            WT_ERR(__wt_debug_key_value(session, NULL, unpack));
+        }
+
+        WT_ERR(__verify_key_hs(session, key, vs));
+        recno += rle;
+    }
+
+err:
+    __wt_scr_free(session, &key);
+
+    return (ret);
+}
+
+/*
+ * __verify_row_leaf_page_hs --
+ *     Verify a page against the history store.
+ */
+static int
+__verify_row_leaf_page_hs(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
+{
+    WT_CELL_UNPACK *unpack, _unpack;
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_PAGE *page;
     WT_ROW *rip;
-    // WT_UPDATE *upd;
     uint32_t i;
 
-    WT_UNUSED(vs);
     page = ref->page;
+    unpack = &_unpack;
+
     WT_RET(__wt_scr_alloc(session, 256, &key));
 
-    /* Dump the page's K/V pairs. */
     WT_ROW_FOREACH (page, rip, i) {
         WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
-        WT_ERR(__wt_verify_key_hs(session, key));
+        __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
+
+        if (vs->dump_history)
+            WT_ERR(__wt_debug_key_value(session, key, unpack));
+
+        WT_ERR(__verify_key_hs(session, key, vs));
     }
 
 err:
@@ -163,12 +222,11 @@ err:
 }
 
 /*
- * __wt_verify_key_hs --
- *     Verify a key against the history store.
+ * __verify_key_hs --
+ *     Verify a key against the history store given a cell unpack holding key values.
  */
-int
-__wt_verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key)
-  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+static int
+__verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
 {
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
@@ -177,11 +235,9 @@ __wt_verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key)
     WT_TIME_PAIR start, stop;
     uint32_t hs_btree_id, session_flags;
     int cmp, exact;
-    bool first;
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
-    first = true;
     stop.timestamp = 0;
     stop.txnid = 0;
 
@@ -210,8 +266,8 @@ __wt_verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key)
         if (cmp != 0)
             break;
 
-        WT_ERR(__wt_debug_cursor_hs(session, hs_cursor, first, true, true));
-        first = false;
+        if (vs->dump_history)
+            WT_ERR(__wt_debug_cursor_hs(session, hs_cursor, false, true, true));
     }
 
 err:
@@ -541,7 +597,19 @@ recno_chk:
     switch (page->type) {
     case WT_PAGE_ROW_LEAF:
         WT_RET(__verify_row_leaf_key_order(session, ref, vs));
-        WT_RET(__verify_page_hs(session, ref, vs));
+        break;
+    }
+
+    /*
+     * History store checks. Ensure continuity between the data store and history store based on
+     * keys in leaf/var pages.
+     */
+    switch (page->type) {
+    case WT_PAGE_ROW_LEAF:
+        WT_RET(__verify_row_leaf_page_hs(session, ref, vs));
+        break;
+    case WT_PAGE_COL_VAR:
+        WT_RET(__verify_col_var_page_hs(session, ref, vs));
         break;
     }
 
