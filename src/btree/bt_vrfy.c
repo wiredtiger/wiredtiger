@@ -238,6 +238,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
+    session_flags = 0;
     stop.timestamp = 0;
     stop.txnid = 0;
 
