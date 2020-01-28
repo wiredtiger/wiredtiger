@@ -159,7 +159,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t 
   wt_timestamp_t max_ts, bool list_uncommitted, uint64_t flags)
 {
     /* Always save updates for in-memory database. */
-    if (LF_ISSET(WT_REC_IN_MEMORY))
+    if (LF_ISSET(WT_REC_IN_MEMORY) && !__wt_txn_visible_all(session, max_txn, max_ts))
         return true;
 
     if (!LF_ISSET(WT_REC_HS))
