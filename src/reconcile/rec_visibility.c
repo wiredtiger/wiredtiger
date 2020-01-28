@@ -158,9 +158,12 @@ static bool
 __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t max_txn,
   wt_timestamp_t max_ts, bool list_uncommitted, uint64_t flags)
 {
-    /* Always save updates for in-memory database. */
+    /*
+     * Save updates for in-memory database, except when the maximum timestamp and txnid are globally
+     * visible.
+     */
     if (LF_ISSET(WT_REC_IN_MEMORY))
-        return true;
+        return !__wt_txn_visible_all(session, max_txn, max_ts);
 
     if (!LF_ISSET(WT_REC_HS))
         return false;
@@ -432,8 +435,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /* Should not see uncommitted changes in the history store */
     WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !list_uncommitted);
 
-    r->leave_dirty |= list_uncommitted;
-
+    r->leave_dirty = r->leave_dirty || list_uncommitted;
     /*
      * The update doesn't have any further updates that need to be written to the history store,
      * skip saving the update as saving the update will cause reconciliation to think there is work
