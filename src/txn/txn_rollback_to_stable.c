@@ -475,23 +475,22 @@ __txn_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         __wt_config_subinit(session, &ckptconf, &cval);
         for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
             ret = __wt_config_subgets(session, &cval, "newest_durable_ts", &durableval);
-            WT_ERR_NOTFOUND_OK(ret);
             if (ret == 0) {
                 newest_durable_ts = WT_MAX(newest_durable_ts, (wt_timestamp_t)durableval.val);
                 durable_ts_found = true;
             }
+            WT_ERR_NOTFOUND_OK(ret);
         }
 
         WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
         /*
          * The rollback operation should be performed on this file based on the following:
-         * 1. There is no durable timestamp in any checkpoint.
+         * 1. The tree is modified.
          * 2. The checkpoint durable timestamp is greater than the rollback timestamp.
-         * 3. The tree is modified.
+         * 3. There is no durable timestamp in any checkpoint.
          */
-        if (!durable_ts_found || newest_durable_ts > rollback_timestamp || S2BT(session)->modified)
-            WT_SAVE_DHANDLE(
-              session, ret = __txn_rollback_to_stable_btree(session, rollback_timestamp));
+        if (S2BT(session)->modified || newest_durable_ts > rollback_timestamp || !durable_ts_found)
+            WT_TRET(__txn_rollback_to_stable_btree(session, rollback_timestamp));
         WT_TRET(__wt_session_release_dhandle(session));
         WT_ERR(ret);
     }
