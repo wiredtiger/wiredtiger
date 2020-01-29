@@ -647,20 +647,25 @@ err:
 /*
  * __wt_verify_history_store_tree --
  *     Verify the history store tree, by iterating and checking all the keys in the history and that
- *     it exists in both the meta file and the respective data store table.
+ *     it exists in both the meta file and the respective data store table. Skips duplicate keys
+ *     by storing the previous key.
  */
 int
 __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_ITEM prev_hs_key;
     WT_ITEM hs_key;
     WT_TIME_PAIR hs_start, hs_stop;
-    uint32_t session_flags, btree_id;
+    uint32_t session_flags, btree_id, prev_btree_id;
     const char *uri;
+    int cmp;
 
     session_flags = 0;
     uri = NULL;
+    bool first = true;
+
     __wt_hs_cursor(session, &cursor, &session_flags);
     WT_ERR(cursor->reset(cursor));
 
@@ -668,6 +673,26 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
         WT_ERR(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start.timestamp, &hs_start.txnid,
           &hs_stop.timestamp, &hs_stop.txnid));
 
+        /*  
+         *  Keep track of the previous comparison. The History Store is stored in order, so we can
+         *  avoid redundant comparisons. the first flag is used to avoid comparing against 
+         *  unintialised variables. 
+         */
+        if (!first && prev_btree_id == btree_id) {
+            WT_ERR(__wt_compare(session, NULL, &hs_key, &prev_hs_key, &cmp));
+            if (cmp) {
+                continue;
+            }
+        }
+
+        first = false;
+        memcpy(&prev_hs_key, &hs_key, sizeof(WT_ITEM));
+        prev_btree_id = btree_id;
+
+        /*
+         * Find the URI from the metadata and validate the btree ID.
+         * Using this URI, verify the history store key with the data store. 
+         */
         WT_ERR(__verify_btree_id_with_meta(session, btree_id, &uri));
         WT_ERR(__verify_history_key_with_table(session, uri, &hs_key));
     }
@@ -679,6 +704,7 @@ err:
     }
     return (0);
 }
+
 /*
  * __verify_tree --
  *     Verify a tree, recursively descending through it in depth-first fashion. The page argument
