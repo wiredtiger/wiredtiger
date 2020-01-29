@@ -273,6 +273,11 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
+        if (unpack->newest_stop_ts == WT_TS_NONE)
+            WT_RET_VRFY(session, "cell %" PRIu32
+                                 " on page at %s has a newest stop "
+                                 "timestamp of 0",
+              cell_num - 1, tag);
         if (unpack->oldest_start_ts > unpack->newest_stop_ts)
             WT_RET_VRFY(session, "cell %" PRIu32
                                  " on page at %s has an oldest "
@@ -308,6 +313,11 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
     case WT_CELL_VALUE_SHORT:
+        if (unpack->stop_ts == WT_TS_NONE)
+            WT_RET_VRFY(session, "cell %" PRIu32
+                                 " on page at %s has a stop "
+                                 "timestamp of 0",
+              cell_num - 1, tag);
         if (unpack->start_ts > unpack->stop_ts)
             WT_RET_VRFY(session, "cell %" PRIu32
                                  " on page at %s has a start "

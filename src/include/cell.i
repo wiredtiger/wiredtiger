@@ -17,6 +17,10 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, u
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
+    if (stop_ts == WT_TS_NONE) {
+        __wt_errx(session, "stop timestamp of 0");
+        WT_ASSERT(session, stop_ts != WT_TS_NONE);
+    }
     if (start_ts > stop_ts) {
         __wt_errx(session, "a start timestamp %s newer than its stop timestamp %s",
           __wt_timestamp_to_string(start_ts, ts_string[0]),
@@ -96,6 +100,10 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_t
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
+    if (newest_stop_ts == WT_TS_NONE) {
+        __wt_errx(session, "newest stop timestamp of 0");
+        WT_ASSERT(session, newest_stop_ts != WT_TS_NONE);
+    }
     if (oldest_start_ts > newest_stop_ts) {
         __wt_errx(session,
           "an oldest start timestamp %s newer than its newest "
@@ -921,29 +929,29 @@ __wt_cell_unpack_dsk(
      * This is how the stop time pair should be interpreted for each type of delete:
      * -
      *                  Timestamped delete  Non-timestamped delete  No delete
-     * Current startup  txnid=x, ts=y       txnid=x, ts=0           txnid=MAX, ts=MAX
-     * Previous startup txnid=0, ts=y       txnid=0, ts=0           txnid=MAX, ts=MAX
+     * Current startup  txnid=x, ts=y       txnid=x, ts=1           txnid=MAX, ts=MAX
+     * Previous startup txnid=0, ts=y       txnid=0, ts=1           txnid=MAX, ts=MAX
      */
     if (dsk->write_gen <= S2C(session)->base_write_gen) {
         unpack->start_txn = WT_TXN_NONE;
         if (unpack->stop_txn != WT_TXN_MAX) {
             unpack->stop_txn = WT_TXN_NONE;
             if (unpack->stop_ts == WT_TS_MAX)
-                unpack->stop_ts = WT_TS_NONE;
+                unpack->stop_ts = 1;
         } else
             WT_ASSERT(session, unpack->stop_ts == WT_TS_MAX);
         unpack->oldest_start_txn = WT_TXN_NONE;
         if (unpack->newest_stop_txn != WT_TXN_MAX) {
             unpack->newest_stop_txn = WT_TXN_NONE;
             if (unpack->newest_stop_ts == WT_TS_MAX)
-                unpack->newest_stop_ts = WT_TS_NONE;
+                unpack->newest_stop_ts = 1;
         } else
             WT_ASSERT(session, unpack->newest_stop_ts == WT_TS_MAX);
     } else {
         if (unpack->stop_txn != WT_TXN_MAX && unpack->stop_ts == WT_TS_MAX)
-            unpack->stop_ts = WT_TS_NONE;
+            unpack->stop_ts = 1;
         if (unpack->newest_stop_txn != WT_TXN_MAX && unpack->newest_stop_ts == WT_TS_MAX)
-            unpack->newest_stop_ts = WT_TS_NONE;
+            unpack->newest_stop_ts = 1;
     }
 }
 
