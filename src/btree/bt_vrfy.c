@@ -68,7 +68,7 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     vs->dump_pages = cval.val != 0;
 
 #if !defined(HAVE_DIAGNOSTIC)
-    if (vs->dump_blocks || vs->dump_pages)
+    if (vs->dump_blocks || vs->dump_pages || vs->dump_history)
         WT_RET_MSG(session, ENOTSUP, "the WiredTiger library was not built in diagnostic mode");
 #endif
     return (0);
@@ -164,18 +164,21 @@ __verify_col_var_page_hs(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
     WT_COL_FOREACH (page, cip, i) {
+        p = key->mem;
+        WT_ERR(__wt_vpack_uint(&p, 0, recno));
+        key->size = WT_PTRDIFF(p, key->data);
+
         cell = WT_COL_PTR(page, cip);
         __wt_cell_unpack(session, page, cell, unpack);
         rle = __wt_cell_rle(unpack);
 
-        p = key->mem;
-        WT_ERR(__wt_vpack_uint(&p, 0, rle));
-        key->size = WT_PTRDIFF(p, key->data);
-
+#ifdef HAVE_DIAGNOSTIC
+        /* Optionally dump historical time pairs and values in debug mode. */
         if (vs->dump_history) {
             WT_ERR(__wt_msg(session, "\tK {%" PRIu64 " %" PRIu64 "}", recno, rle));
             WT_ERR(__wt_debug_key_value(session, NULL, unpack));
         }
+#endif
 
         WT_ERR(__verify_key_hs(session, key, vs));
         recno += rle;
@@ -210,8 +213,11 @@ __verify_row_leaf_page_hs(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
         WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
         __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
 
+#ifdef HAVE_DIAGNOSTIC
+        /* Optionally dump historical time pairs and values in debug mode. */
         if (vs->dump_history)
             WT_ERR(__wt_debug_key_value(session, key, unpack));
+#endif
 
         WT_ERR(__verify_key_hs(session, key, vs));
     }
@@ -267,8 +273,11 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
         if (cmp != 0)
             break;
 
+#ifdef HAVE_DIAGNOSTIC
+        /* Optionally dump historical time pairs and values in debug mode. */
         if (vs->dump_history)
             WT_ERR(__wt_debug_cursor_hs(session, hs_cursor, false, true, true));
+#endif
     }
 
 err:
