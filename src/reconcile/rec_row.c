@@ -785,12 +785,41 @@ __wt_rec_row_leaf(
         /* Build value cell. */
         dictionary = false;
         if (upd == NULL) {
-            /* Check the visibility of the on disk key before writing. */
+            /*
+             * If we reconcile an on disk key with a globally visible stop time pair and there are
+             * no new updates for that key, skip writing that key.
+             */
             if ((vpack->stop_txn != WT_TXN_MAX || vpack->stop_ts != WT_TS_MAX) &&
               WT_ROW_UPDATE(page, rip) == NULL && WT_ROW_INSERT(page, rip) == NULL &&
-              __wt_txn_visible_all(session, vpack->stop_txn, vpack->stop_ts))
+              __wt_txn_visible_all(session, vpack->stop_txn, vpack->stop_ts)) {
+                /*
+                 * If this key/value pair was deleted and it is globally visible, we're done.
+                 *
+                 * Overflow keys referencing discarded values are no longer useful, discard the
+                 * backing blocks. Don't worry about reuse, reusing keys from a row-store page
+                 * reconciliation seems unlikely enough to ignore.
+                 */
+                if (kpack != NULL && kpack->ovfl && kpack->raw != WT_CELL_KEY_OVFL_RM) {
+                    /*
+                     * Keys are part of the name-space, we can't remove them from the in-memory
+                     * tree; if an overflow key was deleted without being instantiated (for example,
+                     * cursor-based truncation), do it now.
+                     */
+                    if (ikey == NULL)
+                        WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
+
+                    WT_ERR(__wt_ovfl_discard_add(session, page, kpack->cell));
+                }
+
+                /*
+                 * We aren't actually creating the key so we can't use bytes from this key to
+                 * provide prefix information for a subsequent key.
+                 */
+                tmpkey->size = 0;
+
                 /* Proceed with appended key/value pairs. */
                 goto leaf_insert;
+            }
 
             /*
              * When the page was read into memory, there may not have been a value item.
