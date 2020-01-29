@@ -258,7 +258,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
     hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
     WT_ERR(hs_cursor->search_near(hs_cursor, &exact));
 
-    /* If we jumped to the next key, go back to the previous key */
+    /* If we jumped to the next key, go back to the previous key. */
     if (exact > 0)
         WT_ERR(hs_cursor->prev(hs_cursor));
 
@@ -276,7 +276,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
 #ifdef HAVE_DIAGNOSTIC
         /* Optionally dump historical time pairs and values in debug mode. */
         if (vs->dump_history)
-            WT_ERR(__wt_debug_cursor_hs(session, hs_cursor, false, true, true));
+            WT_ERR(__wt_debug_cursor_hs(session, hs_cursor));
 #else
         WT_UNUSED(vs);
 #endif

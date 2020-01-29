@@ -1354,9 +1354,9 @@ methods = {
         using the application's message handler, intended for debugging''',
         type='boolean'),
     Config('dump_history', 'false', r'''
-        Display values and start and stop time pairs as keys are verified
-        against the history store, using the application's message handler,
-        intended for debugging''',
+        Display a key's values along with its start and stop time pairs as
+        they are verified against the history store, using the application's
+        message handler, intended for debugging''',
         type='boolean'),
     Config('dump_layout', 'false', r'''
         Display the layout of the files as they are verified, using the
