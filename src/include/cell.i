@@ -28,10 +28,6 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, u
         WT_ASSERT(session, start_ts <= stop_ts);
     }
 
-    if (stop_txn == WT_TXN_NONE) {
-        __wt_errx(session, "stop transaction ID of 0");
-        WT_ASSERT(session, stop_txn != WT_TXN_NONE);
-    }
     if (start_txn > stop_txn) {
         __wt_errx(session, "a start transaction ID %" PRIu64
                            " newer than its stop "
@@ -115,10 +111,6 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_t
           __wt_timestamp_to_string(oldest_start_ts, ts_string[0]),
           __wt_timestamp_to_string(newest_stop_ts, ts_string[1]));
         WT_ASSERT(session, oldest_start_ts <= newest_stop_ts);
-    }
-    if (newest_stop_txn == WT_TXN_NONE) {
-        __wt_errx(session, "newest stop transaction of 0");
-        WT_ASSERT(session, newest_stop_txn != WT_TXN_NONE);
     }
     if (oldest_start_txn > newest_stop_txn) {
         __wt_errx(session, "an oldest start transaction %" PRIu64
@@ -924,6 +916,46 @@ __wt_cell_unpack_dsk(
     }
 
     WT_IGNORE_RET(__wt_cell_unpack_safe(session, dsk, cell, unpack, NULL));
+
+    /*
+     * If the page came from a previous run, reset the transaction ids to "none" and timestamps to 1
+     * as appropriate. Transaction ids shouldn't persist between runs so these are always set to
+     * "none". Timestamps should persist between runs however, the absence of a timestamp (in the
+     * case of a non-timestamped write) should default to 1 rather than "max" as usual. For
+     * timestamps, we use 1 instead of "none" because we have some cell validity checks that ensure
+     * that all cell data is initialized and we only need to choose a timestamp that is visible to
+     * everyone (1 is fine for that purpose).
+     *
+     * Note that it is still necessary to unpack each value above even if we end up overwriting them
+     * since values in a cell need to be unpacked sequentially.
+     *
+     * This is how the stop time pair should be interpreted for each type of delete:
+     * -
+     *                  Timestamped delete  Non-timestamped delete  No delete
+     * Current startup  txnid=x, ts=y       txnid=x, ts=1           txnid=MAX, ts=MAX
+     * Previous startup txnid=0, ts=y       txnid=0, ts=1           txnid=MAX, ts=MAX
+     */
+    if (dsk->write_gen <= S2C(session)->base_write_gen) {
+        unpack->start_txn = WT_TXN_NONE;
+        if (unpack->stop_txn != WT_TXN_MAX) {
+            unpack->stop_txn = WT_TXN_NONE;
+            if (unpack->stop_ts == WT_TS_MAX)
+                unpack->stop_ts = 1;
+        } else
+            WT_ASSERT(session, unpack->stop_ts == WT_TS_MAX);
+        unpack->oldest_start_txn = WT_TXN_NONE;
+        if (unpack->newest_stop_txn != WT_TXN_MAX) {
+            unpack->newest_stop_txn = WT_TXN_NONE;
+            if (unpack->newest_stop_ts == WT_TS_MAX)
+                unpack->newest_stop_ts = 1;
+        } else
+            WT_ASSERT(session, unpack->newest_stop_ts == WT_TS_MAX);
+    } else {
+        if (unpack->stop_txn != WT_TXN_MAX && unpack->stop_ts == WT_TS_MAX)
+            unpack->stop_ts = 1;
+        if (unpack->newest_stop_txn != WT_TXN_MAX && unpack->newest_stop_ts == WT_TS_MAX)
+            unpack->newest_stop_ts = 1;
+    }
 }
 
 /*

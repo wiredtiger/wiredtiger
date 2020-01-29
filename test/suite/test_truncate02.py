@@ -110,7 +110,6 @@ class test_truncate_fast_delete(wttest.WiredTigerTestCase):
         s.close()
 
     # Trigger fast delete and test cursor counts.
-    @unittest.skip("Temporarily disabled")
     def test_truncate_fast_delete(self):
         uri = self.type + self.name
 

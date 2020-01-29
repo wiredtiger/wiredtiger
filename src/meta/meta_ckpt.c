@@ -539,6 +539,9 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         /* Skip deleted checkpoints. */
         if (F_ISSET(ckpt, WT_CKPT_DELETE))
             continue;
+        /* Review the current checkpoint's write generation. */
+        if (F_ISSET(ckpt, WT_CKPT_ADD))
+            __ckptlist_review_write_gen(session, ckpt);
 
         if (F_ISSET(ckpt, WT_CKPT_ADD | WT_CKPT_UPDATE)) {
             /*
@@ -585,7 +588,6 @@ int
 __wt_meta_ckptlist_set(
   WT_SESSION_IMPL *session, const char *fname, WT_CKPT *ckptbase, WT_LSN *ckptlsn)
 {
-    WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     bool has_lsn;
@@ -600,10 +602,6 @@ __wt_meta_ckptlist_set(
           ckptlsn->l.file, (uintmax_t)ckptlsn->l.offset));
 
     WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
-
-    /* Review the checkpoint's write generation. */
-    WT_CKPT_FOREACH (ckptbase, ckpt)
-        __ckptlist_review_write_gen(session, ckpt);
 
 err:
     __wt_scr_free(session, &buf);
