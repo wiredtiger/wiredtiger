@@ -61,21 +61,34 @@ __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
 }
 
 /*
- * __wt_txn_err_chk --
- *     Check the transaction hasn't already failed.
+ * __wt_txn_err_set --
+ *     Set an error in the current transaction.
  */
-static inline int
-__wt_txn_err_chk(WT_SESSION_IMPL *session)
+static inline void
+__wt_txn_err_set(WT_SESSION_IMPL *session, int ret)
 {
-    /* Allow transaction rollback, but nothing else. */
-    if (!F_ISSET(&(session->txn), WT_TXN_ERROR) ||
-      strcmp(session->name, "rollback_transaction") != 0)
-        return (0);
+    WT_TXN *txn;
 
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, !F_ISSET(&(session->txn), WT_TXN_ERROR));
-#endif
-    WT_RET_MSG(session, EINVAL, "additional transaction operations attempted after error");
+    txn = &session->txn;
+
+    /*  Ignore standard errors that don't fail the transaction. */
+    if (ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT)
+        return;
+
+    /* Less commonly, it's not a running transaction. */
+    if (!F_ISSET(txn, WT_TXN_RUNNING))
+        return;
+
+    /* The transaction has to be rolled back. */
+    F_SET(txn, WT_TXN_ERROR);
+
+    /*
+     * Check for a prepared transaction, and quit: we can't ignore the error and we can't roll back
+     * a prepared transaction.
+     */
+    if (F_ISSET(txn, WT_TXN_PREPARE))
+        WT_PANIC_MSG(session, ret,
+          "transactional error logged after transaction was prepared, failing the system");
 }
 
 /*
