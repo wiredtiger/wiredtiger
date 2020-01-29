@@ -41,6 +41,7 @@ static int __debug_col_skip(WT_DBG *, WT_INSERT_HEAD *, const char *, bool);
 static int __debug_config(WT_SESSION_IMPL *, WT_DBG *, const char *);
 static int __debug_dsk_cell(WT_DBG *, const WT_PAGE_HEADER *);
 static int __debug_dsk_col_fix(WT_DBG *, const WT_PAGE_HEADER *);
+static int __debug_modify(WT_DBG *, WT_UPDATE *, const char *);
 static int __debug_page(WT_DBG *, WT_REF *, uint32_t);
 static int __debug_page_col_fix(WT_DBG *, WT_REF *);
 static int __debug_page_col_int(WT_DBG *, WT_PAGE *, uint32_t);
@@ -742,16 +743,20 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, bool dump_k
 {
     WT_DBG *ds, _ds;
     WT_DECL_ITEM(hs_key);
+    WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
-    WT_ITEM hs_value;
     WT_TIME_PAIR start, stop;
+    WT_UPDATE *upd;
     wt_timestamp_t hs_durable_ts;
+    size_t notused;
     uint32_t hs_btree_id;
     uint8_t hs_prep_state, hs_upd_type;
 
     ds = &_ds;
+    notused = 0;
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
     WT_ERR(__debug_config(session, ds, NULL));
 
     if (dump_key || dump_time_pairs)
@@ -767,12 +772,18 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, bool dump_k
 
     if (dump_value) {
         WT_ERR(
-          hs_cursor->get_value(hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type, &hs_value));
-        WT_ERR(__debug_item_value(ds, "V", hs_value.data, hs_value.size));
+          hs_cursor->get_value(hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type, hs_value));
+        if (hs_upd_type == WT_UPDATE_MODIFY) {
+            WT_ERR(__wt_update_alloc(session, hs_value, &upd, &notused, hs_upd_type));
+            WT_ERR(__debug_modify(ds, upd, "\tM "));
+        } else {
+            WT_ERR(__debug_item_value(ds, "V", hs_value->data, hs_value->size));
+        }
     }
 
 err:
     __wt_scr_free(session, &hs_key);
+    __wt_scr_free(session, &hs_value);
     WT_RET(__debug_wrapup(ds));
 
     return (ret);
@@ -1216,7 +1227,7 @@ __debug_row_skip(WT_DBG *ds, WT_INSERT_HEAD *head)
  *     Dump a modify update.
  */
 static int
-__debug_modify(WT_DBG *ds, WT_UPDATE *upd)
+__debug_modify(WT_DBG *ds, WT_UPDATE *upd, const char *tag)
 {
     size_t nentries, data_size, offset, size;
     const size_t *p;
@@ -1226,7 +1237,7 @@ __debug_modify(WT_DBG *ds, WT_UPDATE *upd)
     memcpy(&nentries, p++, sizeof(size_t));
     data = upd->data + sizeof(size_t) + (nentries * 3 * sizeof(size_t));
 
-    WT_RET(ds->f(ds, "%" WT_SIZET_FMT ": ", nentries));
+    WT_RET(ds->f(ds, "%s%" WT_SIZET_FMT ": ", tag != NULL ? tag : "", nentries));
     for (; nentries-- > 0; data += data_size) {
         memcpy(&data_size, p++, sizeof(size_t));
         memcpy(&offset, p++, sizeof(size_t));
@@ -1260,7 +1271,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
             break;
         case WT_UPDATE_MODIFY:
             WT_RET(ds->f(ds, "\tvalue {modify: "));
-            WT_RET(__debug_modify(ds, upd));
+            WT_RET(__debug_modify(ds, upd, NULL));
             WT_RET(ds->f(ds, "}\n"));
             break;
         case WT_UPDATE_RESERVE:
