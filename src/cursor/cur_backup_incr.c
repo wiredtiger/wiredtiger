@@ -139,8 +139,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
 
         if (cb->bit_offset == cb->nbits)
             WT_ERR(WT_NOTFOUND);
-        __wt_cursor_set_key(
-          cursor, cb->granularity * cb->bit_offset++, cb->granularity, WT_BACKUP_RANGE);
+        __wt_cursor_set_key(cursor, cb->offset + cb->granularity * cb->bit_offset++,
+          cb->granularity, WT_BACKUP_RANGE);
     } else if (btree == NULL || F_ISSET(cb, WT_CURBACKUP_FORCE_FULL)) {
         /* We don't have this object's incremental information, and it's a full file copy. */
         WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
@@ -164,8 +164,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
          */
         if (cb->bitstring == NULL)
             WT_ERR(WT_NOTFOUND);
-        __wt_cursor_set_key(
-          cursor, cb->granularity * cb->bit_offset++, cb->granularity, WT_BACKUP_RANGE);
+        __wt_cursor_set_key(cursor, cb->offset + cb->granularity * cb->bit_offset++,
+          cb->granularity, WT_BACKUP_RANGE);
         F_SET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
     }
 
