@@ -600,11 +600,10 @@ __verify_history_key_with_table(WT_SESSION_IMPL *session, const char *uri, WT_IT
         F_SET(data_cursor, WT_CURSOR_RAW_OK);
         WT_ERR(data_cursor->get_key(data_cursor, &data_key));
         if (__wt_lex_compare(hs_key, &data_key) == 0) {
-            goto done;
+            break;
         }
     }
 
-done:
 err:
     return (ret);
 }
@@ -629,6 +628,7 @@ __verify_btree_id_with_meta(WT_SESSION_IMPL *session, uint32_t btree_id, const c
     while ((ret = meta_cursor->next(meta_cursor)) == 0) {
         meta_cursor->get_value(meta_cursor, &meta_value);
         ret = __wt_config_getones(session, meta_value, "id", &id);
+        WT_ERR_NOTFOUND_OK(ret);
         if (ret == WT_NOTFOUND) {
             continue;
         }
