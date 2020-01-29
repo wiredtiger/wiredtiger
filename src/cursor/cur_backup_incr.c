@@ -81,6 +81,8 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
         cb->granularity = (uint64_t)b.val;
         WT_ERR(__wt_config_subgets(session, &v, "nbits", &b));
         cb->nbits = (uint64_t)b.val;
+        WT_ERR(__wt_config_subgets(session, &v, "offset", &b));
+        cb->offset = (uint64_t)b.val;
 
         /*
          * We found a match. Load the block information into the cursor.
@@ -144,6 +146,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
 
         cb->nbits = 0;
+        cb->offset = 0;
         cb->incr_init = true;
         cb->bit_offset = 0;
         __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);

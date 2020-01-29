@@ -110,3 +110,22 @@ struct __wt_ckpt {
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };
+
+/*
+ * Block modifications from an incremental identifier going forward.
+ */
+/*
+ * At the default granularity, this is enough for blocks in a 2G file.
+ */
+#define WT_BLOCK_MODS_LIST_MIN 16 /* Initial bytes for bitmap. */
+struct __wt_block_mods {
+    const char *id_str;
+    uint64_t granularity;
+    uint8_t *bitstring;
+    uint64_t nbits;  /* Number of bits in bitstring */
+    uint64_t offset; /* Zero bit offset for bitstring */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_BLOCK_MODS_VALID 0x1u /* Entry is valid */
+                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t flags;
+};

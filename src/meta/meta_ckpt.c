@@ -632,9 +632,9 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *blk
     for (i = 0, blk = blk_mods; i < WT_BLKINCR_MAX; ++i, ++blk) {
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
-        WT_RET(__wt_buf_catfmt(session, buf,
-          "%s%s=(id=%" PRIu32 ",granularity=%" PRIu64 ",nbits=%" PRIu64 ",blocks=(",
-          i == 0 ? "" : ",", blk->id_str, i, blk->granularity, blk->nbits));
+        WT_RET(__wt_buf_catfmt(session, buf, "%s%s=(id=%" PRIu32 ",granularity=%" PRIu64
+                                             ",nbits=%" PRIu64 ",offset=%" PRIu64 ",blocks=(",
+          i == 0 ? "" : ",", blk->id_str, i, blk->granularity, blk->nbits, blk->offset));
         /* Get the number of bytes. */
         end = blk->nbits >> 3;
         for (entries = 0, p = blk->bitstring; entries < end; ++entries, ++p)

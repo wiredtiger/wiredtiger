@@ -136,25 +136,6 @@ struct __wt_size {
  * 14 packed 8B values.
  */
 #define WT_BLOCK_CHECKPOINT_BUFFER (1 + 14 * WT_INTPACK64_MAXSIZE)
-
-/*
- * Block modifications from an incremental identifier going forward.
- */
-/*
- * At the default granularity, this is enough for blocks in a 2G file.
- */
-#define WT_BLOCK_MODS_LIST_MIN 16 /* Initial bytes for bitmap. */
-struct __wt_block_mods {
-    const char *id_str;
-    uint64_t granularity;
-    uint8_t *bitstring;
-    uint64_t nbits;
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_BLOCK_MODS_VALID 0x1u /* Entry is valid */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint32_t flags;
-};
-
 struct __wt_block_ckpt {
     uint8_t version; /* Version */
 

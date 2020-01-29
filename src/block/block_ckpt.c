@@ -714,8 +714,9 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, u_int i)
     if (free && F_ISSET(blk_mod, WT_BLOCK_MODS_VALID)) {
         __wt_free(session, blk_mod->bitstring);
         __wt_free(session, blk_mod->id_str);
-        blk_mod->nbits = 0;
         blk_mod->granularity = 0;
+        blk_mod->nbits = 0;
+        blk_mod->offset = 0;
         F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
     }
 
@@ -725,6 +726,7 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, u_int i)
     if (setup) {
         WT_RET(__wt_strdup(session, blk->id_str, &blk_mod->id_str));
         blk_mod->nbits = 0;
+        blk_mod->offset = 0;
         blk_mod->bitstring = NULL;
         blk_mod->granularity = S2C(session)->incr_granularity;
         F_SET(blk_mod, WT_BLOCK_MODS_VALID);
@@ -849,6 +851,8 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT
         blk_mod->granularity = (uint64_t)b.val;
         WT_RET(__wt_config_subgets(session, &v, "nbits", &b));
         blk_mod->nbits = (uint64_t)b.val;
+        WT_RET(__wt_config_subgets(session, &v, "offset", &b));
+        blk_mod->offset = (uint64_t)b.val;
         ret = __wt_config_subgets(session, &v, "blocks", &b);
         WT_RET_NOTFOUND_OK(ret);
         if (ret != WT_NOTFOUND) {

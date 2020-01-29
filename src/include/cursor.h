@@ -54,6 +54,7 @@ struct __wt_cursor_backup {
     bool incr_init;       /* Cursor traversal initialized */
     uint8_t *bitstring;   /* List of modified blocks */
     uint64_t nbits;       /* Number of bits in bitstring */
+    uint64_t offset;      /* Zero bit offset in bitstring */
     uint64_t bit_offset;  /* Current offset */
     uint64_t granularity; /* Length, transfer size */
 
