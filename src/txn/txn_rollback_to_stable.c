@@ -154,7 +154,6 @@ __txn_abort_fix_row_on_disk_kv(
         upd->txnid = WT_TXN_NONE;
         upd->durable_ts = WT_TS_NONE;
         upd->start_ts = WT_TS_NONE;
-
     } else if (vpack->stop_ts != WT_TS_MAX && vpack->stop_ts > rollback_timestamp) {
         /*
          * Clear the remove operation from the key by inserting a TOMBSTONE with infinite
@@ -179,6 +178,7 @@ __txn_abort_fix_row_on_disk_kv(
     upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
     upd->next = NULL;
     WT_ERR(__wt_update_serial(session, page, upd_entry, &upd, size, false));
+    WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
     return (0);
 
 err:
