@@ -69,7 +69,7 @@ class test_insert_remove01(wttest.WiredTigerTestCase):
         cursor_extra = self.session.open_cursor("table:extra", None)
         self.session.begin_transaction()
         for i in range(1, 10000):
-            cursor_extra.set_key(ds.key(i))
+            cursor_extra.set_key(ds_extra.key(i))
             cursor_extra.set_value("update")
             cursor_extra.update()
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(12))
