@@ -613,11 +613,7 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     if (upd->prepare_state == WT_PREPARE_LOCKED || upd->prepare_state == WT_PREPARE_INPROGRESS)
         return (false);
 
-    /*
-     * This function is used to determine when an update is obsolete: that should take into account
-     * the durable timestamp which is greater than or equal to the start timestamp.
-     */
-    return (__wt_txn_visible_all(session, upd->txnid, upd->durable_ts));
+    return (__wt_txn_visible_all(session, upd->txnid, upd->start_ts));
 }
 
 /*
@@ -765,22 +761,13 @@ __upd_alloc_tombstone(
 }
 
 /*
- * __wt_txn_read --
+ * __wt_txn_read_upd_list --
  *     Get the first visible update in a list (or NULL if none are visible).
  */
 static inline int
-__wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
+__wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **updp)
 {
-    WT_ITEM buf;
-    WT_TIME_PAIR start, stop;
     WT_VISIBLE_TYPE upd_visible;
-    size_t size;
-
-    WT_CLEAR(buf);
-    start.txnid = WT_TXN_NONE;
-    start.timestamp = WT_TS_NONE;
-    stop.txnid = WT_TXN_MAX;
-    stop.timestamp = WT_TS_MAX;
 
     *updp = NULL;
     for (; upd != NULL; upd = upd->next) {
@@ -796,7 +783,29 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         if (upd_visible == WT_VISIBLE_PREPARE)
             return (WT_PREPARE_CONFLICT);
     }
-    WT_ASSERT(session, upd == NULL);
+    return (0);
+}
+
+/*
+ * __wt_txn_read --
+ *     Get the first visible update in a chain. This function will first check the update list
+ *     supplied as a function argument. If there is no visible update, it will check the onpage
+ *     value for the given key. Finally, if the onpage value is not visible to the reader, the
+ *     function will search the history store for a visible update.
+ */
+static inline int
+__wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
+{
+    WT_ITEM buf;
+    WT_TIME_PAIR start, stop;
+    size_t size;
+
+    WT_CLEAR(buf);
+
+    *updp = NULL;
+    WT_RET(__wt_txn_read_upd_list(session, upd, updp));
+    if (*updp != NULL)
+        return (0);
 
     /* If there is no ondisk value, there can't be anything in the history store either. */
     if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
