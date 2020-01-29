@@ -92,6 +92,14 @@ __wt_value_return_buf(
     page = ref->page;
     cursor = &cbt->iface;
 
+    /* Initialise to globally visible. */
+    if (start != NULL && stop != NULL) {
+        start->txnid = WT_TXN_NONE;
+        start->timestamp = WT_TS_NONE;
+        stop->txnid = WT_TXN_MAX;
+        stop->timestamp = WT_TS_MAX;
+    }
+
     /* Must provide either both start and stop as output parameters or neither. */
     WT_ASSERT(session, (start != NULL && stop != NULL) || (start == NULL && stop == NULL));
 

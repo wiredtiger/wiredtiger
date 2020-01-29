@@ -148,7 +148,6 @@ class test_cursor_random(wttest.WiredTigerTestCase):
 
     # Check that next_random succeeds in the presence of a set of values, some of
     # which are deleted.
-    @unittest.skip("Temporarily disabled")
     def test_cursor_random_deleted_partial(self):
         uri = self.type
         ds = self.dataset(self, uri, 10000,
@@ -172,7 +171,6 @@ class test_cursor_random(wttest.WiredTigerTestCase):
 
     # Check that next_random fails in the presence of a set of values, all of
     # which are deleted.
-    @unittest.skip("Temporarily disabled")
     def test_cursor_random_deleted_all(self):
         uri = self.type
         ds = self.dataset(self, uri, 10000,
