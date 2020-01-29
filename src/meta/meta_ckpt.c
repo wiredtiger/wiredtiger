@@ -125,7 +125,7 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
      * use the slower path through configuration parsing functions.
      */
     config = newcfg = NULL;
-    str = v == NULL ? "checkpoint=(),checkpoint_lsn=,checkpoint_mods=()" : v;
+    str = v == NULL ? "checkpoint=(),checkpoint_backup_info=(),checkpoint_lsn=" : v;
     __wt_verbose(session, WT_VERB_TEMPORARY, "CKPT_SET: str: %s incr_gran %" PRIu64, str,
       S2C(session)->incr_granularity);
     if (use_base && session->dhandle != NULL) {
@@ -609,7 +609,7 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *blk
      * If there are no block modifications (such as import or salvage) there is nothing to do.
      */
     if (blk_mods == NULL) {
-        WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_mods="));
+        WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_backup_info="));
         return (0);
     }
     valid = false;
@@ -621,14 +621,14 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *blk
      * If the existing block modifications are not valid, there is nothing to do.
      */
     if (!valid) {
-        WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_mods="));
+        WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_backup_info="));
         return (0);
     }
 
     /*
      * We have at least one valid modified block list.
      */
-    WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_mods=("));
+    WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_backup_info=("));
     for (i = 0, blk = blk_mods; i < WT_BLKINCR_MAX; ++i, ++blk) {
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;

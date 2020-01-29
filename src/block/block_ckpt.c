@@ -817,7 +817,7 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT
     conn = S2C(session);
     if (config == NULL)
         return (0);
-    WT_RET(__wt_config_getones(session, config, "checkpoint_mods", &v));
+    WT_RET(__wt_config_getones(session, config, "checkpoint_backup_info", &v));
     __wt_config_subinit(session, &blkconf, &v);
     /*
      * Load block lists. Ignore any that have an id string that is not known.

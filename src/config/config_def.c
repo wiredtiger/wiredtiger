@@ -415,8 +415,8 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
   {"block_allocation", "string", NULL, "choices=[\"first\",\"best\"]", NULL, 0},
   {"block_compressor", "string", NULL, NULL, NULL, 0},
   {"cache_resident", "boolean", NULL, NULL, NULL, 0}, {"checkpoint", "string", NULL, NULL, NULL, 0},
+  {"checkpoint_backup_info", "string", NULL, NULL, NULL, 0},
   {"checkpoint_lsn", "string", NULL, NULL, NULL, 0},
-  {"checkpoint_mods", "string", NULL, NULL, NULL, 0},
   {"checksum", "string", NULL, "choices=[\"on\",\"off\",\"uncompressed\"]", NULL, 0},
   {"collator", "string", NULL, NULL, NULL, 0}, {"columns", "list", NULL, NULL, NULL, 0},
   {"dictionary", "int", NULL, "min=0", NULL, 0},
@@ -942,8 +942,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
     "assert=(commit_timestamp=none,durable_timestamp=none,"
     "read_timestamp=none),block_allocation=best,block_compressor=,"
-    "cache_resident=false,checkpoint=,checkpoint_lsn=,"
-    "checkpoint_mods=,checksum=uncompressed,collator=,columns=,"
+    "cache_resident=false,checkpoint=,checkpoint_backup_info=,"
+    "checkpoint_lsn=,checksum=uncompressed,collator=,columns=,"
     "dictionary=0,encryption=(keyid=,name=),format=btree,huffman_key="
     ",huffman_value=,id=,ignore_in_memory_cache_size=false,"
     "internal_item_max=0,internal_key_max=0,"

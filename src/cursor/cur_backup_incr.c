@@ -63,7 +63,7 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
     WT_ASSERT(session, btree != NULL);
     WT_ASSERT(session, btree->dhandle != NULL);
     WT_RET(__wt_metadata_search(session, btree->dhandle->name, &config));
-    WT_ERR(__wt_config_getones(session, config, "checkpoint_mods", &v));
+    WT_ERR(__wt_config_getones(session, config, "checkpoint_backup_info", &v));
     __wt_config_subinit(session, &blkconf, &v);
     WT_ASSERT(session, cb->incr_src != NULL);
     while (__wt_config_next(&blkconf, &k, &v) == 0) {
