@@ -284,28 +284,33 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs, WT_CELL_U
 #else
         WT_UNUSED(vs);
 #endif
+
+        ts1_bp = __verify_timestamp_to_pretty_string(stop.timestamp);
+        ts2_bp = __verify_timestamp_to_pretty_string(orig_start.timestamp);
+        printf("txnid %lu %lu timestamp %lu %s %lu %s\n", stop.txnid, orig_start.txnid, stop.timestamp, ts1_bp, orig_start.timestamp, ts2_bp);
         /* Perform Verification of data continuity */
         if (orig_start.timestamp < stop.timestamp) {
-            ts1_bp = __verify_timestamp_to_pretty_string(stop.timestamp);
-            ts2_bp = __verify_timestamp_to_pretty_string(orig_start.timestamp);
             WT_ERR_MSG(session, WT_ERROR,
               "Key %s has a history store stop timestamp %s newer than its start timestamp %s",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1), ts1_bp,
               ts2_bp);
         }
         if (orig_start.txnid < stop.txnid) {
-            WT_ERR_MSG(session, WT_ERROR, "Key %s has a history store stop transaction (%" PRIu64
-                                          ") newer than its start transaction (%" PRIu64 ")",
-              __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1), stop.txnid,
-              orig_start.txnid);
+            WT_ERR_MSG(session, WT_ERROR, 
+              "Key %s has a history store stop transaction (%" PRIu64
+              ") newer than its start transaction (%" PRIu64 ")",
+              __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1), 
+              stop.txnid, orig_start.txnid);
         }
         memcpy(&orig_start, &start, sizeof(WT_TIME_PAIR));
     }
-
 err:
     __wt_scr_free(session, &hs_key);
     WT_RET(__wt_hs_cursor_close(session, &hs_cursor, session_flags));
 
+    if (ret != WT_NOTFOUND) {
+        return (ret);
+    }
     return (0);
 }
 
