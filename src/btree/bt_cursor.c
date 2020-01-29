@@ -271,11 +271,10 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
      * update that's been deleted is not a valid key/value pair).
      */
     if (cbt->ins != NULL) {
-        WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
+        WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd));
         if (upd != NULL) {
             if (upd->type == WT_UPDATE_TOMBSTONE) {
-                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                    __wt_free_update_list(session, &upd);
+                WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK));
                 return (0);
             }
             if (updp != NULL)
