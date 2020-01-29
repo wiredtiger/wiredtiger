@@ -1566,14 +1566,12 @@ err:
 static int
 __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 {
-    
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_CONFIG_ITEM cval;
     
     session = (WT_SESSION_IMPL *)wt_session;
     
-
     SESSION_API_CALL(session, verify, config, cfg);
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
