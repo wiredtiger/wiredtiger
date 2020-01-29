@@ -918,10 +918,13 @@ __wt_cell_unpack_dsk(
     WT_IGNORE_RET(__wt_cell_unpack_safe(session, dsk, cell, unpack, NULL));
 
     /*
-     * If the page came from a previous run, reset the transaction ids and timestamps to "none" as
-     * appropriate. Transaction ids shouldn't persist between runs so these are always set to
+     * If the page came from a previous run, reset the transaction ids to "none" and timestamps to 1
+     * as appropriate. Transaction ids shouldn't persist between runs so these are always set to
      * "none". Timestamps should persist between runs however, the absence of a timestamp (in the
-     * case of a non-timestamped write) should default to "none" rather than "max" as usual.
+     * case of a non-timestamped write) should default to 1 rather than "max" as usual. For
+     * timestamps, we use 1 instead of "none" because we have some cell validity checks that ensure
+     * that all cell data is initialized and we only need to choose a timestamp that is visible to
+     * everyone (1 is fine for that purpose).
      *
      * Note that it is still necessary to unpack each value above even if we end up overwriting them
      * since values in a cell need to be unpacked sequentially.
