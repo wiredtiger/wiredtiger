@@ -277,6 +277,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
         /* Optionally dump historical time pairs and values in debug mode. */
         if (vs->dump_history)
             WT_ERR(__wt_debug_cursor_hs(session, hs_cursor, false, true, true));
+#else
+        WT_UNUSED(vs);
 #endif
     }
 

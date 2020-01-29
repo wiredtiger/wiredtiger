@@ -773,11 +773,20 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, bool dump_k
     if (dump_value) {
         WT_ERR(
           hs_cursor->get_value(hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type, hs_value));
-        if (hs_upd_type == WT_UPDATE_MODIFY) {
+        switch (hs_upd_type) {
+        case WT_UPDATE_MODIFY:
             WT_ERR(__wt_update_alloc(session, hs_value, &upd, &notused, hs_upd_type));
             WT_ERR(__debug_modify(ds, upd, "\tM "));
-        } else {
+            break;
+        case WT_UPDATE_STANDARD:
             WT_ERR(__debug_item_value(ds, "V", hs_value->data, hs_value->size));
+            break;
+        default:
+            /*
+             * Currently, we expect only modifies or full values to be exposed by hs_cursors. This
+             * means we can ignore other types for now.
+             */
+            break;
         }
     }
 
