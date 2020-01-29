@@ -235,8 +235,8 @@ __verify_dsk_txn_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num, const cha
     if (!gt && txn1 <= txn2)
         return (0);
     /*
-     * If we unpack a value that was written as part of a previous startup generation, we set start
-     * id to "none" and the stop id to "max" so we need an exception here.
+     * If we unpack a value that was written as part of a previous startup generation, it may have a
+     * later stop time pair than its parent.
      */
     if (dsk->write_gen <= S2C(session)->base_write_gen)
         return (0);
