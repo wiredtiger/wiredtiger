@@ -1962,8 +1962,6 @@ static inline int __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_context_prepare_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_txn_err_chk(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_id_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
@@ -2156,6 +2154,7 @@ static inline void __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *siz
 static inline void __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag);
 static inline void __wt_tree_modify_set(WT_SESSION_IMPL *session);
 static inline void __wt_txn_cursor_op(WT_SESSION_IMPL *session);
+static inline void __wt_txn_err_set(WT_SESSION_IMPL *session, int ret);
 static inline void __wt_txn_op_apply_prepare_state(
   WT_SESSION_IMPL *session, WT_REF *ref, bool commit);
 static inline void __wt_txn_op_delete_commit_apply_timestamps(
