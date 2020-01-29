@@ -169,7 +169,7 @@ __txn_abort_fix_row_on_disk_kv(
         return (0);
 
     /* If we don't yet have a modify structure, we'll need one. */
-    WT_RET(__wt_page_modify_init(session, page));
+    WT_ERR(__wt_page_modify_init(session, page));
     mod = page->modify;
 
     /* Allocate an update array as necessary. */
