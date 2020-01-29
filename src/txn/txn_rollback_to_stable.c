@@ -131,11 +131,11 @@ __txn_abort_newer_insert(
 }
 
 /*
- * __txn_abort_fix_row_on_disk_kv --
+ * __txn_abort_row_ondisk_kv --
  *     Fix the on-disk row K/V version according to the given timestamp.
  */
 static int
-__txn_abort_fix_row_on_disk_kv(
+__txn_abort_row_ondisk_kv(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, wt_timestamp_t rollback_timestamp)
 {
     WT_CELL_UNPACK *vpack, _vpack;
@@ -258,7 +258,7 @@ __txn_abort_newer_row_leaf(
 
         /* Check for updates in the update list that satisfy the given timestamp. */
         if (WT_ROW_UPDATE(page, rip) == NULL && WT_ROW_INSERT(page, rip) == NULL)
-            WT_RET(__txn_abort_fix_row_on_disk_kv(session, page, rip, rollback_timestamp));
+            WT_RET(__txn_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
 
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
             __txn_abort_newer_insert(session, insert, rollback_timestamp);
