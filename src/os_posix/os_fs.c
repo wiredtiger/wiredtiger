@@ -559,7 +559,7 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: size=%" PRIu64 ","
+    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: size=%" PRId64 ","
 		 "mapped size=%" WT_SIZET_FMT "\n", file_handle->name, len, pfh->mmap_size);
 
     if ((size_t)len != pfh->mmap_size)

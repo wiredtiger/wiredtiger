@@ -29,7 +29,7 @@ __posix_std_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
     if ((size_t)offset != pfh->mmap_size)
-    __wt_prepare_remap_resize_file(file_handle, wt_session, offset);
+    __wt_prepare_remap_resize_file(file_handle, wt_session);
 
     WT_SYSCALL_RETRY(fallocate(pfh->fd, 0, (wt_off_t)0, offset), ret);
     if (ret != 0) {
@@ -40,7 +40,7 @@ __posix_std_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     }
 
     if ((size_t)offset != pfh->mmap_size)
-	__wt_remap_resize_file(file_handle, wt_session, offset);
+	__wt_remap_resize_file(file_handle, wt_session);
 
     return (ret);
 #else
@@ -67,7 +67,7 @@ __posix_sys_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
     if ((size_t)offset != pfh->mmap_size)
-	__wt_prepare_remap_resize_file(file_handle, wt_session, offset);
+	__wt_prepare_remap_resize_file(file_handle, wt_session);
 
     /*
      * Try the system call for fallocate even if the C library wrapper was not found. The system
@@ -83,7 +83,7 @@ __posix_sys_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     }
 
     if ((size_t)offset != pfh->mmap_size)
-	__wt_remap_resize_file(file_handle, wt_session, offset);
+	__wt_remap_resize_file(file_handle, wt_session);
 
     return (ret);
 #else
@@ -110,7 +110,7 @@ __posix_posix_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_
     session = (WT_SESSION_IMPL *)wt_session;
 
     if ((size_t)offset != pfh->mmap_size)
-	__wt_prepare_remap_resize_file(file_handle, wt_session, offset);
+	__wt_prepare_remap_resize_file(file_handle, wt_session);
 
     WT_SYSCALL_RETRY(posix_fallocate(pfh->fd, (wt_off_t)0, offset), ret);
     if (ret != 0) {
@@ -121,7 +121,7 @@ __posix_posix_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_
     }
 
     if ((size_t)offset != pfh->mmap_size)
-	__wt_remap_resize_file(file_handle, wt_session, offset);
+	__wt_remap_resize_file(file_handle, wt_session);
 
     return (ret);
 #else
