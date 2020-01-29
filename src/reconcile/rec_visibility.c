@@ -90,7 +90,9 @@ __rec_append_orig_value(
         WT_RET(__wt_update_alloc(session, NULL, &append, &size, WT_UPDATE_TOMBSTONE));
     else {
         /* Timestamp should always be in descending order */
-        WT_ASSERT(session, upd->start_ts >= unpack->start_ts);
+        /* FIXME: Rollback to stable: In rollback to stable, the updates may have less timestamp
+         * than ondisk. */
+        // WT_ASSERT(session, upd->start_ts >= unpack->start_ts);
 
         WT_RET(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
