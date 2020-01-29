@@ -38,8 +38,6 @@ extern int __wt_posix_map_preload(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, co
   size_t length, void *mapped_cookie) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_posix_unmap(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *mapped_region,
   size_t len, void *mapped_cookie) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_remap_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, size_t new_size)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
   WT_THREAD_CALLBACK (*func)(void *), void *arg) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -55,11 +53,11 @@ extern void __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp);
 extern void __wt_cond_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond);
 extern void __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs,
   bool (*run_func)(WT_SESSION_IMPL *), bool *signalled);
-extern void __wt_drain_mmap_users(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
 extern void __wt_epoch_raw(WT_SESSION_IMPL *session, struct timespec *tsp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
-extern void __wt_prepare_remap_file(
-  WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, size_t new_size);
+extern void __wt_prepare_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
+extern void __wt_release_without_remap(WT_FILE_HANDLE *file_handle);
+extern void __wt_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
 extern void __wt_sleep(uint64_t seconds, uint64_t micro_seconds)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_stream_set_line_buffer(FILE *fp)

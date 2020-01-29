@@ -191,9 +191,6 @@ connection_stats = [
     BlockStat('block_byte_read', 'bytes read', 'size'),
     BlockStat('block_byte_read_mmap', 'bytes read via memory map API', 'size'),
     BlockStat('block_byte_read_syscall', 'bytes read via system call API', 'size'),
-    BlockStat('block_remap_region_extend', 'number of times the region was remapped via extend'),
-    BlockStat('block_remap_region_trunc', 'number of times the region was remapped via truncate'),
-    BlockStat('block_remap_region_write', 'number of times the region was remapped via write'),
     BlockStat('block_byte_write', 'bytes written', 'size'),
     BlockStat('block_byte_write_checkpoint', 'bytes written for checkpoint', 'size'),
     BlockStat('block_byte_write_mmap', 'bytes written via memory map API', 'size'),
@@ -201,6 +198,8 @@ connection_stats = [
     BlockStat('block_map_read', 'mapped blocks read'),
     BlockStat('block_preload', 'blocks pre-loaded'),
     BlockStat('block_read', 'blocks read'),
+    BlockStat('block_remap_file_resize', 'number of times the file was remapped because it changed size via fallocate or truncate'),
+    BlockStat('block_remap_file_write', 'number of times the region was remapped via write'),
     BlockStat('block_write', 'blocks written'),
 
     ##########################################

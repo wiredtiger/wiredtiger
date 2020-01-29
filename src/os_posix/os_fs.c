@@ -347,9 +347,8 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     __wt_verbose(
 	session, WT_VERB_FILEOPS, "%s, file-close: fd=%d\n", file_handle->name, pfh->fd);
 
-    if (S2C(session)->mmap_all)
-        if (pfh->mmap_buf != NULL)
-            __wt_unmap_file(file_handle, wt_session);
+    if (pfh->mmap_file_mappable && pfh->mmap_buf != NULL)
+	__wt_unmap_file(file_handle, wt_session);
 
     /* Close the file handle. */
     if (pfh->fd != -1) {
@@ -413,8 +412,8 @@ __posix_file_read(
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    __wt_verbose(session, WT_VERB_READ, "read: %s, fd=%d, offset=%" PRId64 ", len=%" PRIu64 "\n",
-      file_handle->name, pfh->fd, offset, (uint64_t)len);
+    __wt_verbose(session, WT_VERB_READ, "read: %s, fd=%d, offset=%" PRId64 ","
+		 "len=%" WT_SIZET_FMT "\n", file_handle->name, pfh->fd, offset, len);
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
     WT_ASSERT(
@@ -455,9 +454,9 @@ __posix_file_read_mmap(
     __wt_verbose(session, WT_VERB_READ,
 		 "read-mmap: %s, fd=%d, offset=%" PRId64
 		 ","
-		 "len=%" PRIu64 ", mapped buffer: %p, mapped size = %" PRIu64 "\n",
-		 file_handle->name, pfh->fd, offset, (uint64_t)len, (void *)pfh->mmap_buf,
-		 (uint64_t)pfh->mmap_size);
+		 "len=%" WT_SIZET_FMT ", mapped buffer: %p, mapped size = %" WT_SIZET_FMT "\n",
+		 file_handle->name, pfh->fd, offset, len, (void *)pfh->mmap_buf,
+		 pfh->mmap_size);
 
     /* Indicate that we might be using the mapped area */
     (void)__wt_atomic_addv32(&pfh->mmap_usecount, 1);
@@ -560,21 +559,23 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: size=%" PRId64","
-		 "mapped size=%" PRIu64 "\n", file_handle->name, len, (uint64_t)pfh->mmap_size);
+    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: size=%" PRIu64 ","
+		 "mapped size=%" WT_SIZET_FMT "\n", file_handle->name, len, pfh->mmap_size);
 
     if ((size_t)len != pfh->mmap_size)
-	__wt_prepare_remap_file(file_handle, wt_session, (size_t)len);
+	__wt_prepare_remap_resize_file(file_handle, wt_session);
 
     WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
     if (ret != 0) {
-	__wt_err(session, "%s: handle-truncate: ftruncate", file_handle->name);
-	__wt_release_without_remap(file_handle);
+	__wt_err(session, ret, "%s: handle-truncate: ftruncate", file_handle->name);
+	if ((size_t)len != pfh->mmap_size)
+	    __wt_release_without_remap(file_handle);
 	return (ret);
     }
 
     if ((size_t)len != pfh->mmap_size)
-	ret = __wt_remap_file(file_handle, wt_session, len);
+	__wt_remap_resize_file(file_handle, wt_session);
+
     return (ret);
 }
 #endif
@@ -596,8 +597,8 @@ __posix_file_write(
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    __wt_verbose(session, WT_VERB_WRITE, "write: %s, fd=%d, offset=%" PRId64 ", len=%" PRIu64 "\n",
-      file_handle->name, pfh->fd, offset, (uint64_t)len);
+    __wt_verbose(session, WT_VERB_WRITE, "write: %s, fd=%d, offset=%" PRId64 ","
+		 "len=%" WT_SIZET_FMT "\n", file_handle->name, pfh->fd, offset, len);
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
     WT_ASSERT(
@@ -638,10 +639,8 @@ __posix_file_write_mmap(
     __wt_verbose(session, WT_VERB_WRITE,
       "write-mmap: %s, fd=%d, offset=%" PRId64
       ","
-      "len=%" PRIu64 ", mapped buffer: %p, mapped size = %" PRIu64 ".\n",
-      file_handle->name, pfh->fd, offset, (uint64_t)len, (void *)pfh->mmap_buf,
-      (uint64_t)pfh->mmap_size);
-
+      "len=%" WT_SIZET_FMT ", mapped buffer: %p, mapped size = %" WT_SIZET_FMT ".\n",
+      file_handle->name, pfh->fd, offset, len, (void *)pfh->mmap_buf, pfh->mmap_size);
 
     if (!pfh->mmap_file_mappable)
         return (__posix_file_write(file_handle, wt_session, offset, len, buf));
@@ -659,7 +658,7 @@ __posix_file_write_mmap(
         WT_STAT_CONN_INCRV(session, block_byte_write_mmap, len);
     }
 
-    /* Signal that we won't be using the mapped buffer after all. */
+    /* Signal that we are done using the mapped buffer. */
     (void)__wt_atomic_subv32(&pfh->mmap_usecount, 1);
 
     if (mmap_success)
@@ -672,17 +671,15 @@ __posix_file_write_mmap(
 /*
  * If we wrote the file via a system call, we might have extended its size. If the file is mapped,
  * remap it with the new size.
+ * If we are actively extending the file, don't remap it on every write to avoid overhead.
  */
 #define WT_REMAP_SKIP 10
-    if (pfh->mmap_size < (size_t)offset + len)
+    if (pfh->mmap_file_mappable && pfh->mmap_size < (size_t)offset + len)
 	/* If we are actively extending the file, don't remap it on every write. */
 	if ((remap_opportunities++) % WT_REMAP_SKIP == 0) {
-            __wt_verbose(session, WT_VERB_FILEOPS, "%s, write-mmap-remap: mapped len=%" PRIu64 "\n",
-			 file_handle->name, (uint64_t)pfh->mmap_size);
-	    __wt_prepare_remap_file(file_handle, wt_session, (size_t)offset + len);
-	    ret =  __wt_remap_file(file_handle, wt_session, (size_t)offset + len);
-	    if (ret == 0)
-		WT_STAT_CONN_INCRV(session, block_remap_region_write, 1);
+	    __wt_prepare_remap_resize_file(file_handle, wt_session);
+	    __wt_remap_resize_file(file_handle, wt_session);
+	    WT_STAT_CONN_INCRV(session, block_remap_file_write, 1);
 	}
     return (ret);
 }
@@ -854,9 +851,12 @@ directory_open:
             pfh->mmap_file_mappable = true;
             pfh->mmap_prot = LF_ISSET(WT_FS_OPEN_READONLY) ? PROT_READ : PROT_READ | PROT_WRITE;
             ret = __wt_map_file(file_handle, wt_session);
-            if (ret != 0)
-                WT_ERR_MSG(session, ret,
-                  "%s: handle-open: open: failed with memory mapped I/O configured, ", name);
+            if (ret != 0) {
+		__wt_err(session, ret,
+			 "%s: could not mmap the file. Will use system calls, ", name);
+		pfh->mmap_file_mappable = false;
+	    } else
+		pfh->mmap_file_mappable = true;
         }
     }
 
@@ -958,7 +958,6 @@ __wt_os_posix(WT_SESSION_IMPL *session)
     return (0);
 }
 
-
 /*
  * This LWN article (https://lwn.net/Articles/731706/) describes a potential problem when mmap is
  * used over a direct-access (DAX) file system. If a new block is created and then the file is
@@ -995,7 +994,6 @@ __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
     WT_ASSERT(session, pfh->mmap_file_mappable);
-    WT_ASSERT(session, pfh->mmap_prot != 0);
 
     if (__posix_file_size((WT_FILE_HANDLE *)pfh, wt_session, &file_size))
         WT_RET_MSG(session, __wt_errno(), "%s: __posix_file_size", file_handle->name);
@@ -1013,13 +1011,13 @@ __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
         pfh->mmap_size = 0;
         pfh->mmap_buf = NULL;
         WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap", file_handle->name);
-    } else
-        pfh->mmap_size = (size_t)file_size;
+    }
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-mmap: fd=%d, size=%" PRIu64
-                                           ", "
-                                           "mapped buffer=%p\n",
-      file_handle->name, pfh->fd, (uint64_t)pfh->mmap_size, (void *)pfh->mmap_buf);
+    pfh->mmap_size = (size_t)file_size;
+
+    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-mmap: fd=%d, size=%" WT_SIZET_FMT ", "
+		 "mapped buffer=%p\n", file_handle->name, pfh->fd, pfh->mmap_size,
+		 (void *)pfh->mmap_buf);
     return (0);
 }
 
@@ -1036,12 +1034,12 @@ __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
  */
 
 /*
- * __wt_prepare_remap_file --
+ * __wt_prepare_remap_resize_file --
  *     Wait until all sessions using the mapped region for I/O are done,
- *     so it is safe to remap the file.
+ *     so it is safe to remap the file when it changes size.
  */
 void
-__wt_prepare_remap_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+__wt_prepare_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
@@ -1094,11 +1092,11 @@ __wt_release_without_remap(WT_FILE_HANDLE *file_handle)
 }
 
 /*
- * __wt_remap_file --
+ * __wt_remap_resize_file --
  *     After the file size has changed, unmap the file. Then remap it with the new size.
  */
-int
-__wt_remap_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, size_t new_size)
+void
+__wt_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
@@ -1108,25 +1106,24 @@ __wt_remap_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, size_t new_
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
     if(!pfh->mmap_file_mappable)
-	return (0);
+	return;
 
     __wt_verbose(session, WT_VERB_FILEOPS, "%s, remap-file: buffer=%p\n", file_handle->name,
 		 (void *)pfh->mmap_buf);
 
     if (pfh->mmap_buf != NULL)
-	__wt_unmap_region(file_handle, wt_session);
+	__wt_unmap_file(file_handle, wt_session);
 
-    ret = __wt_map_region(file_handle, wt_session);
+    ret = __wt_map_file(file_handle, wt_session);
+    if (ret != 0) {
+	__wt_err(session, ret, "Could not remap file %s.", file_handle->name);
+	pfh->mmap_file_mappable = false;
+    }
+    else
+	WT_STAT_CONN_INCRV(session, block_remap_file_resize, 1);
 
     /* Signal that we are done resizing the buffer */
     (void)__wt_atomic_subv32(&pfh->mmap_resizing, 1);
-
-    if (ret != 0)
-	__wt_err(session, ret, "Could not remap file %s.", file_handle->name);
-    else
-	WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
-
-    return (ret);
 }
 
 /*
@@ -1143,15 +1140,16 @@ __wt_unmap_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-unmap: buffer=%p, size=%" PRIu64 "\n",
-      file_handle->name, (void *)pfh->mmap_buf, (uint64_t)pfh->mmap_size);
+    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-unmap: buffer=%p, size=%" WT_SIZET_FMT "\n",
+      file_handle->name, (void *)pfh->mmap_buf, pfh->mmap_size);
 
     WT_ASSERT(session, pfh->mmap_file_mappable);
 
     ret = munmap(pfh->mmap_buf, pfh->mmap_size);
-    if (ret)
-        __wt_err(session, ret, "Could not unmap region.");
-
-    pfh->mmap_buf = 0;
-    pfh->mmap_size = 0;
+    if (ret != 0)
+        __wt_err(session, ret, "Could not unmap file %s.", file_handle->name);
+    else {
+	pfh->mmap_buf = NULL;
+	pfh->mmap_size = 0;
+    }
 }

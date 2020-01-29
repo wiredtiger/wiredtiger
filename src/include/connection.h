@@ -439,9 +439,9 @@ struct __wt_connection_impl {
     uint64_t direct_io;              /* O_DIRECT, FILE_FLAG_NO_BUFFERING */
     uint64_t write_through;          /* FILE_FLAG_WRITE_THROUGH */
 
-    bool mmap;      /* use mmap when reading checkpoints */
-    bool mmap_all;  /* use mmap for all I/O on data files */
-    int page_size;  /* OS page size for mmap alignment */
+    bool mmap;     /* use mmap when reading checkpoints */
+    bool mmap_all; /* use mmap for all I/O on data files */
+    int page_size; /* OS page size for mmap alignment */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_VERB_API 0x000000001u
