@@ -64,9 +64,6 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         return (usage());
     if (hs_verify == false && ((uri = util_uri(session, *argv, "table")) == NULL))
         return (1);
-    else if ((uri = util_uri(session, WT_HS_URI, "table")) == NULL) {
-        return (1);
-    }
 
     if (hs_verify &&
       (dump_address || dump_blocks || dump_layout || dump_offsets != NULL || dump_pages)) {
