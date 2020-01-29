@@ -737,13 +737,15 @@ extern int __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_create(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_hs_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp,
-  uint32_t session_flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_cursor_open(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   WT_ITEM *key, wt_timestamp_t timestamp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_hs_destroy(WT_SESSION_IMPL *session)
+extern int __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_tree)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r,
   WT_MULTI *multi) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1644,7 +1646,7 @@ extern void __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generat
 extern void __wt_gen_init(WT_SESSION_IMPL *session);
 extern void __wt_gen_next_drain(WT_SESSION_IMPL *session, int which);
 extern void __wt_hazard_close(WT_SESSION_IMPL *session);
-extern void __wt_hs_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_flags);
+extern void __wt_hs_destroy(WT_SESSION_IMPL *session);
 extern void __wt_hs_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_huffman_close(WT_SESSION_IMPL *session, void *huffman_arg);
 extern void __wt_json_close(WT_SESSION_IMPL *session, WT_CURSOR *cursor);
