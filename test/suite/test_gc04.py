@@ -26,11 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time
-from helper import copy_wiredtiger_home
-import unittest, wiredtiger, wttest
-from wtdataset import SimpleDataSet
 from test_gc01 import test_gc_base
+from wiredtiger import stat
+from wtdataset import SimpleDataSet
 
 def timestamp_str(t):
     return '%x' % t
@@ -50,9 +48,6 @@ class test_gc04(test_gc_base):
             self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
         ds.populate()
 
-        # open the stats cursor
-        stat_cursor = self.session.open_cursor('statistics:', None, 'statistics=(fast)')
-
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
             ',stable_timestamp=' + timestamp_str(1))
@@ -62,33 +57,44 @@ class test_gc04(test_gc_base):
         self.large_updates(uri, bigvalue, ds, nrows, 10)
         self.large_updates(uri, bigvalue2, ds, nrows, 20)
 
-        # Checkpoint to ensure that the history store is gets populated
+        # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint()
-        self.assertEqual(c[stat.conn.hs_gc_pages_evict][2], 0)
-        self.assertEqual(c[stat.conn.hs_gc_pages_removed][2], 0)
-        self.assertGreater(c[stat.conn.hs_gc_pages_visited][2], 0)
+        self.assertEqual(self.get_stat(stat.conn.hs_gc_pages_evict), 0)
+        self.assertEqual(self.get_stat(stat.conn.hs_gc_pages_removed), 0)
+        self.assertGreater(self.get_stat(stat.conn.hs_gc_pages_visited), 0)
 
         self.large_updates(uri, bigvalue, ds, nrows, 30)
 
-        # Checkpoint to ensure that the history store is gets populated
+        # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint()
-        self.assertEqual(c[stat.conn.hs_gc_pages_evict][2], 0)
-        self.assertEqual(c[stat.conn.hs_gc_pages_removed][2], 0)
-        self.assertGreater(c[stat.conn.hs_gc_pages_visited][2], 0)
+        self.assertEqual(self.get_stat(stat.conn.hs_gc_pages_evict), 0)
+        self.assertEqual(self.get_stat(stat.conn.hs_gc_pages_removed), 0)
+        self.assertGreater(self.get_stat(stat.conn.hs_gc_pages_visited), 0)
 
         self.large_updates(uri, bigvalue2, ds, nrows, 40)
 
-        # Checkpoint to ensure that the history store is gets populated
+        # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint()
-        self.assertEqual(c[stat.conn.hs_gc_pages_evict][2], 0)
-        self.assertEqual(c[stat.conn.hs_gc_pages_removed][2], 0)
-        self.assertGreater(c[stat.conn.hs_gc_pages_visited][2], 0)
+        self.assertEqual(self.get_stat(stat.conn.hs_gc_pages_evict), 0)
+        self.assertEqual(self.get_stat(stat.conn.hs_gc_pages_removed), 0)
+        self.assertGreater(self.get_stat(stat.conn.hs_gc_pages_visited), 0)
 
         self.large_updates(uri, bigvalue, ds, nrows, 50)
+        self.large_updates(uri, bigvalue2, ds, nrows, 60)
 
-        # Checkpoint to ensure that the history store is gets populated
+        # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint()
-        self.check_gc_stats()
+        self.assertEqual(self.get_stat(stat.conn.hs_gc_pages_evict), 0)
+        self.assertEqual(self.get_stat(stat.conn.hs_gc_pages_removed), 0)
+        self.assertGreater(self.get_stat(stat.conn.hs_gc_pages_visited), 0)
+
+        self.large_updates(uri, bigvalue, ds, nrows, 70)
+
+        # Checkpoint to ensure that the history store is populated.
+        self.session.checkpoint()
+        self.assertEqual(self.get_stat(stat.conn.hs_gc_pages_evict), 0)
+        self.assertEqual(self.get_stat(stat.conn.hs_gc_pages_removed), 0)
+        self.assertGreater(self.get_stat(stat.conn.hs_gc_pages_visited), 0)
 
 if __name__ == '__main__':
     wttest.run()

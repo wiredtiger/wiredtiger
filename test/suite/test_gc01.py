@@ -55,7 +55,7 @@ class test_gc_base(wttest.WiredTigerTestCase):
         session = self.session
         cursor = session.open_cursor(uri)
         session.begin_transaction()
-        for i in range(1, nrows):
+        for i in range(1, nrows + 1):
             cursor.set_key(i)
             mods = [wiredtiger.Modify(value, location, nbytes)]
             self.assertEqual(cursor.modify(mods), 0)
@@ -77,10 +77,15 @@ class test_gc_base(wttest.WiredTigerTestCase):
         c = self.session.open_cursor(
             'statistics:', None, 'statistics=(fast)')
 
-        # Uncomment when KNOWN_LIMITATION is lifted.
-        #self.assertGreater(c[stat.conn.hs_gc_pages_visited][2], 0)
-        #self.assertGreater(c[stat.conn.hs_gc_pages_removed][2], 0)
+        self.assertGreaterEqual(c[stat.conn.hs_gc_pages_visited][2], 0)
+        self.assertGreaterEqual(c[stat.conn.hs_gc_pages_removed][2], 0)
         c.close()
+
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:', None, 'statistics=(all)')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
 
 # Test that checkpoint cleans the obsolete lookaside pages.
 class test_gc01(test_gc_base):
@@ -105,81 +110,77 @@ class test_gc01(test_gc_base):
         bigvalue2 = "ddddd" * 100
         self.large_updates(uri, bigvalue, ds, nrows, 10)
 
-        # Check that all updates are seen
-        #self.check(bigvalue, uri, nrows, 10)
+        # Check that all updates are seen.
+        self.check(bigvalue, uri, nrows, 10)
 
         self.large_updates(uri, bigvalue2, ds, nrows, 100)
 
-        # Check that the new updates are only seen after the update timestamp
-        #self.check(bigvalue2, uri, nrows, 100)
+        # Check that the new updates are only seen after the update timestamp.
+        self.check(bigvalue2, uri, nrows, 100)
 
-        # Check that old updates are seen
-        #self.check(bigvalue, uri, nrows, 10)
+        # Check that old updates are seen.
+        self.check(bigvalue, uri, nrows, 10)
 
         # Pin oldest and stable to timestamp 100.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(100) +
             ',stable_timestamp=' + timestamp_str(100))
 
-        # Checkpoint to ensure that the history store is cleaned
+        # Checkpoint to ensure that the history store is cleaned.
         self.session.checkpoint()
         self.check_gc_stats()
 
-        # Check that the new updates are only seen after the update timestamp
-        #self.check(bigvalue2, uri, nrows, 100)
+        # Check that the new updates are only seen after the update timestamp.
+        self.check(bigvalue2, uri, nrows, 100)
 
         # Load a slight modification with a later timestamp.
         self.large_modifies(uri, 'A', ds, 10, 1, nrows, 110)
         self.large_modifies(uri, 'B', ds, 20, 1, nrows, 120)
         self.large_modifies(uri, 'C', ds, 30, 1, nrows, 130)
 
-        # Second set of update operations with increased timestamp
+        # Second set of update operations with increased timestamp.
         self.large_updates(uri, bigvalue, ds, nrows, 200)
 
-        # Check that the new updates are only seen after the update timestamp
-        #self.check(bigvalue, uri, nrows, 200)
+        # Check that the new updates are only seen after the update timestamp.
+        self.check(bigvalue, uri, nrows, 200)
 
-        # Check that old updates are seen
-        #self.check(bigvalue2, uri, nrows, 100)
+        # Check that old updates are seen.
+        self.check(bigvalue2, uri, nrows, 100)
 
         # Pin oldest and stable to timestamp 200.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(200) +
             ',stable_timestamp=' + timestamp_str(200))
 
-        # Checkpoint to ensure that the history store is cleaned
+        # Checkpoint to ensure that the history store is cleaned.
         self.session.checkpoint()
         self.check_gc_stats()
 
-        # Check that the new updates are only seen after the update timestamp
-        #self.check(bigvalue, uri, nrows, 200)
+        # Check that the new updates are only seen after the update timestamp.
+        self.check(bigvalue, uri, nrows, 200)
 
         # Load a slight modification with a later timestamp.
         self.large_modifies(uri, 'A', ds, 10, 1, nrows, 210)
         self.large_modifies(uri, 'B', ds, 20, 1, nrows, 220)
         self.large_modifies(uri, 'C', ds, 30, 1, nrows, 230)
 
-        # Third set of update operations with increased timestamp
-        self.large_updates(uri, bigvalue, ds, nrows, 300)
+        # Third set of update operations with increased timestamp.
+        self.large_updates(uri, bigvalue2, ds, nrows, 300)
 
-        # Check that the new updates are only seen after the update timestamp
-        #self.check(bigvalue2, uri, nrows, 300)
+        # Check that the new updates are only seen after the update timestamp.
+        self.check(bigvalue2, uri, nrows, 300)
 
-        # Check that old updates are seen
-        #self.check(bigvalue, uri, nrows, 200)
+        # Check that old updates are seen.
+        self.check(bigvalue, uri, nrows, 200)
 
         # Pin oldest and stable to timestamp 300.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(300) +
             ',stable_timestamp=' + timestamp_str(300))
 
-        # Checkpoint to ensure that the history store is cleaned
+        # Checkpoint to ensure that the history store is cleaned.
         self.session.checkpoint()
         self.check_gc_stats()
 
-        # Check that the new updates are only seen after the update timestamp
-        #self.check(bigvalue2, uri, nrows, 300)
-
-        # When this limitation is fixed we'll need to uncomment the calls to self.check
-        # and fix self.check_gc_stats.
-        self.KNOWN_LIMITATION('values stored by this test are not yet validated')
+        # Check that the new updates are only seen after the update timestamp.
+        self.check(bigvalue2, uri, nrows, 300)
 
 if __name__ == '__main__':
     wttest.run()
