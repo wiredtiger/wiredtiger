@@ -55,10 +55,10 @@ __wt_backup_open(WT_SESSION_IMPL *session)
         F_SET(conn, WT_CONN_INCR_BACKUP);
         WT_ERR(__wt_strndup(session, k.str, k.len, &blkincr->id_str));
         WT_ERR(__wt_config_subgets(session, &v, "granularity", &b));
-	/*
-	 * NOTE: For now the granularity is in the connection because it cannot change.
-	 * We may be able to relax that.
-	 */
+        /*
+         * NOTE: For now the granularity is in the connection because it cannot change. We may be
+         * able to relax that.
+         */
         conn->incr_granularity = blkincr->granularity = (uint64_t)b.val;
         F_SET(blkincr, WT_BLKINCR_VALID);
     }
@@ -152,7 +152,7 @@ err:
  * __backup_incr_release --
  *     Free all resources relating to incremental backup.
  */
-static int
+static void
 __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force)
 {
     WT_BLKINCR *blk;
@@ -174,7 +174,6 @@ __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force
     }
     conn->incr_granularity = 0;
     F_CLR(conn, WT_CONN_INCR_BACKUP);
-    return (0);
 }
 
 /*
