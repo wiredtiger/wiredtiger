@@ -96,9 +96,11 @@ __txn_abort_row_replace_with_hs_value(
     int cmp;
     bool valid_update_found;
 
-    hs_btree_id = S2BT(session)->id;
-    valid_update_found = false;
     upd = NULL;
+    hs_btree_id = S2BT(session)->id;
+    session_flags = 0;
+    valid_update_found = false;
+
 
     /* Allocate buffers for the data store and history store key. */
     WT_RET(__wt_scr_alloc(session, 0, &key));
