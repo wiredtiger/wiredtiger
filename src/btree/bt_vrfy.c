@@ -284,6 +284,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
     }
 
 err:
+    WT_ERR_NOTFOUND_OK(ret);
     __wt_scr_free(session, &hs_key);
     WT_TRET(__wt_hs_cursor_close(session, session_flags));
 
