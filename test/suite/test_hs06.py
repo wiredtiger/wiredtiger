@@ -125,7 +125,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         # self.assertLessEqual(end_usage, (start_usage * 2))
 
     # WT-5336 causing the read at timestamp 4 returning the value committed at timestamp 5 or 3
-    @unittest.skip("Temporarily Disabled")
+    @unittest.skip("Temporarily disabled")
     def test_hs_modify_reads(self):
         # Create a small table.
         uri = "table:test_hs06"

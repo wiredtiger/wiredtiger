@@ -782,6 +782,14 @@ record_loop:
                     data = upd->data;
                     size = upd->size;
                     break;
+                case WT_UPDATE_TOMBSTONE:
+                    durable_ts = WT_TS_NONE;
+                    start_ts = WT_TS_NONE;
+                    start_txn = WT_TXN_NONE;
+                    stop_ts = WT_TS_MAX;
+                    stop_txn = WT_TXN_MAX;
+                    deleted = true;
+                    break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));
                 }
@@ -1042,6 +1050,14 @@ compare:
                 case WT_UPDATE_STANDARD:
                     data = upd->data;
                     size = upd->size;
+                    break;
+                case WT_UPDATE_TOMBSTONE:
+                    durable_ts = WT_TS_NONE;
+                    start_ts = WT_TS_NONE;
+                    start_txn = WT_TXN_NONE;
+                    stop_ts = WT_TS_MAX;
+                    stop_txn = WT_TXN_MAX;
+                    deleted = true;
                     break;
                 default:
                     WT_ERR(__wt_illegal_value(session, upd->type));
