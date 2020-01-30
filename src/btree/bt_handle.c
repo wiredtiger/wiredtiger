@@ -266,7 +266,6 @@ __wt_btree_close(WT_SESSION_IMPL *session)
         btree->evict_disabled_open = false;
         __wt_evict_file_exclusive_off(session);
     }
-    __wt_free(session, btree->config);
 
     /* Discard any underlying block manager resources. */
     if ((bm = btree->bm) != NULL) {

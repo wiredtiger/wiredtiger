@@ -115,8 +115,6 @@ __wt_meta_checkpoint(
      * default checkpoint, it's creation, return "no data" and let our caller handle it.
      */
     if (checkpoint == NULL) {
-        if (btree != NULL)
-            WT_ERR(__wt_strdup(session, config, &btree->config));
         if ((ret = __ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
             ret = 0;
             ckpt->addr.data = ckpt->raw.data = NULL;

@@ -863,8 +863,8 @@ __ckpt_update(
     }
 
     /*
-     * If this is the live system, the hot backup code needs a list of the blocks we've written for
-     * this checkpoint (including the blocks we allocated to write the extent lists).
+     * If this is the live system, we need to record the list of blocks written for this checkpoint
+     * (including the blocks we allocated to write the extent lists).
      */
     if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS)) {
         WT_ASSERT(session, is_live == true);

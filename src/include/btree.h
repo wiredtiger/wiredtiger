@@ -66,8 +66,7 @@
 struct __wt_btree {
     WT_DATA_HANDLE *dhandle;
 
-    WT_CKPT *ckpt;      /* Checkpoint information */
-    const char *config; /* Metadata read in when loading checkpoint */
+    WT_CKPT *ckpt; /* Checkpoint information */
 
     enum {
         BTREE_COL_FIX = 1, /* Fixed-length column store */
