@@ -851,13 +851,12 @@ directory_open:
 
     if (conn->mmap_all) {
         /*
-         * We are going to use mmap for I/O. So let's mmap the file on opening. If mmap
-	 * fails, we will just mark the file as not mappable (inside the mapping function)
-	 * and will use system calls for I/O on this file.
-	 * We will not crash the database if mmap fails.
+         * We are going to use mmap for I/O. So let's mmap the file on opening. If mmap fails, we
+         * will just mark the file as not mappable (inside the mapping function) and will use system
+         * calls for I/O on this file. We will not crash the database if mmap fails.
          */
         if (file_type == WT_FS_OPEN_FILE_TYPE_DATA || file_type == WT_FS_OPEN_FILE_TYPE_LOG) {
-	    pfh->mmap_file_mappable = true;
+            pfh->mmap_file_mappable = true;
             pfh->mmap_prot = LF_ISSET(WT_FS_OPEN_READONLY) ? PROT_READ : PROT_READ | PROT_WRITE;
             __wt_map_file(file_handle, wt_session);
         }
@@ -983,7 +982,10 @@ __wt_os_posix(WT_SESSION_IMPL *session)
 
 /*
  * __wt_map_file --
- *     Map the virtual address region backed by a file into our address space.
+ *     Map the virtual address region backed by a file into our address space. This is a "best
+ *     effort" attempt. If mmap fails for any reason, we silently mark the file as not mappable and
+ *     use system calls for it from then on. We do not report the error to the caller: the failure
+ *     to mmap is not a show stopper, it is simply a lost performance-enhancement opportunity.
  */
 void
 __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
@@ -1000,8 +1002,8 @@ __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     if (__posix_file_size((WT_FILE_HANDLE *)pfh, wt_session, &file_size) != 0) {
         __wt_err(session, __wt_errno(), "%s: __posix_file_size", file_handle->name);
-	pfh->mmap_file_mappable = false;
-	return;
+        pfh->mmap_file_mappable = false;
+        return;
     }
 
     if (file_size <= 0) {
@@ -1016,26 +1018,18 @@ __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
            MAP_SHARED | MAP_FILE, pfh->fd, 0)) == MAP_FAILED) {
         pfh->mmap_size = 0;
         pfh->mmap_buf = NULL;
-	pfh->mmap_file_mappable = false;
-	__wt_err(session, errno, "Could not mmap file %s. Will use system calls.",
-		 file_handle->name);
-	return;
+        pfh->mmap_file_mappable = false;
+        __wt_err(
+          session, errno, "Could not mmap file %s. Will use system calls.", file_handle->name);
+        return;
     }
 
     pfh->mmap_size = (size_t)file_size;
 
-<<<<<<< HEAD
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-mmap: fd=%d, size=%" WT_SIZET_FMT ", "
-		 "mapped buffer=%p\n", file_handle->name, pfh->fd, pfh->mmap_size,
-		 (void *)pfh->mmap_buf);
-    return;
-=======
     __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-mmap: fd=%d, size=%" WT_SIZET_FMT
                                            ", "
                                            "mapped buffer=%p\n",
       file_handle->name, pfh->fd, pfh->mmap_size, (void *)pfh->mmap_buf);
-    return (0);
->>>>>>> 4e5e5d46ff862cc6f2133bb96776d588ed134612
 }
 
 /*
@@ -1130,17 +1124,8 @@ __wt_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     if (pfh->mmap_buf != NULL)
         __wt_unmap_file(file_handle, wt_session);
 
-<<<<<<< HEAD
     __wt_map_file(file_handle, wt_session);
     WT_STAT_CONN_INCRV(session, block_remap_file_resize, 1);
-=======
-    ret = __wt_map_file(file_handle, wt_session);
-    if (ret != 0) {
-        __wt_err(session, ret, "Could not remap file %s.", file_handle->name);
-        pfh->mmap_file_mappable = false;
-    } else
-        WT_STAT_CONN_INCRV(session, block_remap_file_resize, 1);
->>>>>>> 4e5e5d46ff862cc6f2133bb96776d588ed134612
 
     /* Signal that we are done resizing the buffer */
     (void)__wt_atomic_subv32(&pfh->mmap_resizing, 1);
