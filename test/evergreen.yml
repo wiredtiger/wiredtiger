@@ -162,7 +162,7 @@ functions:
         set -o errexit
         set -o verbose
         for i in $(seq ${times|1}); do
-          ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|} 2>&1
+          ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
         done
   "format test script":
     command: shell.exec
@@ -172,7 +172,8 @@ functions:
         set -o errexit
         set -o verbose
         for i in $(seq ${times|1}); do
-          ${test_env_vars|} ${format_test_setting|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
+          ${format_test_setting|}
+          ${test_env_vars|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
         done
   "many dbs test":
     command: shell.exec
@@ -2343,6 +2344,9 @@ buildvariants:
   tasks:
   - name: compile
   - name: unit-test
+  - name: format-stress-ppc-zseries-test
+  - name: format-stress-smoke-test
+  - name: format-wtperf-test
 
 - name: ubuntu1804-zseries
   display_name: Ubuntu 18.04 zSeries
