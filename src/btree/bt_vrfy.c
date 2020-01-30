@@ -24,6 +24,7 @@ typedef struct {
     ((vs)->dump_address || (vs)->dump_blocks || (vs)->dump_layout || (vs)->dump_pages)
     bool dump_address; /* Configure: dump special */
     bool dump_blocks;
+    bool dump_history;
     bool dump_layout;
     bool dump_pages;
     /* Page layout information */
@@ -33,10 +34,13 @@ typedef struct {
 } WT_VSTUFF;
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
+static int __verify_col_var_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
+static int __verify_key_hs(WT_SESSION_IMPL *, WT_ITEM *, WT_VSTUFF *);
 static int __verify_page_cell(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
+static int __verify_row_leaf_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 
 /*
@@ -54,6 +58,9 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     WT_RET(__wt_config_gets(session, cfg, "dump_blocks", &cval));
     vs->dump_blocks = cval.val != 0;
 
+    WT_RET(__wt_config_gets(session, cfg, "dump_history", &cval));
+    vs->dump_history = cval.val != 0;
+
     WT_RET(__wt_config_gets(session, cfg, "dump_layout", &cval));
     vs->dump_layout = cval.val != 0;
 
@@ -61,7 +68,7 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     vs->dump_pages = cval.val != 0;
 
 #if !defined(HAVE_DIAGNOSTIC)
-    if (vs->dump_blocks || vs->dump_pages)
+    if (vs->dump_blocks || vs->dump_pages || vs->dump_history)
         WT_RET_MSG(session, ENOTSUP, "the WiredTiger library was not built in diagnostic mode");
 #endif
     return (0);
@@ -103,11 +110,11 @@ __verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp
 }
 
 /*
- * __verify_layout --
+ * __dump_layout --
  *     Dump the tree shape.
  */
 static int
-__verify_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
+__dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
 {
     size_t i;
     uint64_t total;
@@ -129,6 +136,156 @@ __verify_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
             WT_RET(__wt_msg(session, "\t%03" WT_SIZET_FMT ": %" PRIu64, i, vs->depth_leaf[i]));
             vs->depth_leaf[i] = 0;
         }
+    return (0);
+}
+
+/*
+ * __verify_col_var_page_hs --
+ *     Verify a page against the history store.
+ */
+static int
+__verify_col_var_page_hs(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
+{
+    WT_CELL *cell;
+    WT_CELL_UNPACK *unpack, _unpack;
+    WT_COL *cip;
+    WT_DECL_ITEM(key);
+    WT_DECL_RET;
+    WT_PAGE *page;
+    uint64_t recno, rle;
+    uint32_t i;
+    uint8_t *p;
+
+    page = ref->page;
+    recno = ref->ref_recno;
+    unpack = &_unpack;
+
+    /* Ensure enough room for a column-store key without checking. */
+    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+
+    WT_COL_FOREACH (page, cip, i) {
+        p = key->mem;
+        WT_ERR(__wt_vpack_uint(&p, 0, recno));
+        key->size = WT_PTRDIFF(p, key->data);
+
+        cell = WT_COL_PTR(page, cip);
+        __wt_cell_unpack(session, page, cell, unpack);
+        rle = __wt_cell_rle(unpack);
+
+#ifdef HAVE_DIAGNOSTIC
+        /* Optionally dump historical time pairs and values in debug mode. */
+        if (vs->dump_history) {
+            WT_ERR(__wt_msg(session, "\tK {%" PRIu64 " %" PRIu64 "}", recno, rle));
+            WT_ERR(__wt_debug_key_value(session, NULL, unpack));
+        }
+#endif
+
+        WT_ERR(__verify_key_hs(session, key, vs));
+        recno += rle;
+    }
+
+err:
+    __wt_scr_free(session, &key);
+
+    return (ret);
+}
+
+/*
+ * __verify_row_leaf_page_hs --
+ *     Verify a page against the history store.
+ */
+static int
+__verify_row_leaf_page_hs(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
+{
+    WT_CELL_UNPACK *unpack, _unpack;
+    WT_DECL_ITEM(key);
+    WT_DECL_RET;
+    WT_PAGE *page;
+    WT_ROW *rip;
+    uint32_t i;
+
+    page = ref->page;
+    unpack = &_unpack;
+
+    WT_RET(__wt_scr_alloc(session, 256, &key));
+
+    WT_ROW_FOREACH (page, rip, i) {
+        WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
+        __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
+
+#ifdef HAVE_DIAGNOSTIC
+        /* Optionally dump historical time pairs and values in debug mode. */
+        if (vs->dump_history)
+            WT_ERR(__wt_debug_key_value(session, key, unpack));
+#endif
+
+        WT_ERR(__verify_key_hs(session, key, vs));
+    }
+
+err:
+    __wt_scr_free(session, &key);
+    return (ret);
+}
+
+/*
+ * __verify_key_hs --
+ *     Verify a key against the history store given a cell unpack holding key values.
+ */
+static int
+__verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
+{
+    WT_BTREE *btree;
+    WT_CURSOR *hs_cursor;
+    WT_DECL_ITEM(hs_key);
+    WT_DECL_RET;
+    WT_TIME_PAIR start, stop;
+    uint32_t hs_btree_id, session_flags;
+    int cmp, exact;
+
+    btree = S2BT(session);
+    hs_btree_id = btree->id;
+    session_flags = 0;
+    stop.timestamp = 0;
+    stop.txnid = 0;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+
+    /*
+     * Open a history store cursor positioned at the end of the data store key (the newest record)
+     * and iterate backwards until we reach a different key or btree.
+     */
+    __wt_hs_cursor(session, &hs_cursor, &session_flags);
+    hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
+    WT_ERR(hs_cursor->search_near(hs_cursor, &exact));
+
+    /* If we jumped to the next key, go back to the previous key. */
+    if (exact > 0)
+        WT_ERR(hs_cursor->prev(hs_cursor));
+
+    for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &start.timestamp, &start.txnid,
+          &stop.timestamp, &stop.txnid));
+
+        if (hs_btree_id != btree->id)
+            break;
+
+        WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+        if (cmp != 0)
+            break;
+
+#ifdef HAVE_DIAGNOSTIC
+        /* Optionally dump historical time pairs and values in debug mode. */
+        if (vs->dump_history)
+            WT_ERR(__wt_debug_cursor_hs(session, hs_cursor));
+#else
+        WT_UNUSED(vs);
+#endif
+    }
+
+err:
+    __wt_scr_free(session, &hs_key);
+    WT_RET(__wt_hs_cursor_close(session, &hs_cursor, session_flags));
+
     return (0);
 }
 
@@ -259,7 +416,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
         /* Display the tree shape. */
         if (vs->dump_layout)
-            WT_ERR(__verify_layout(session, vs));
+            WT_ERR(__dump_layout(session, vs));
     }
 
 done:
@@ -468,6 +625,19 @@ recno_chk:
     switch (page->type) {
     case WT_PAGE_ROW_LEAF:
         WT_RET(__verify_row_leaf_key_order(session, ref, vs));
+        break;
+    }
+
+    /*
+     * History store checks. Ensure continuity between the data store and history store based on
+     * keys in leaf/var pages.
+     */
+    switch (page->type) {
+    case WT_PAGE_ROW_LEAF:
+        WT_RET(__verify_row_leaf_page_hs(session, ref, vs));
+        break;
+    case WT_PAGE_COL_VAR:
+        WT_RET(__verify_col_var_page_hs(session, ref, vs));
         break;
     }
 
