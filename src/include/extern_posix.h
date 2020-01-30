@@ -16,8 +16,6 @@ extern int __wt_getenv(WT_SESSION_IMPL *session, const char *variable, const cha
 extern int __wt_localtime(WT_SESSION_IMPL *session, const time_t *timep, struct tm *result)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_once(void (*init_routine)(void)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_os_posix(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_posix_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
@@ -55,6 +53,7 @@ extern void __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, ui
   bool (*run_func)(WT_SESSION_IMPL *), bool *signalled);
 extern void __wt_epoch_raw(WT_SESSION_IMPL *session, struct timespec *tsp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
 extern void __wt_prepare_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
 extern void __wt_release_without_remap(WT_FILE_HANDLE *file_handle);
 extern void __wt_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
