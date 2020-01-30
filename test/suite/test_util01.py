@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import string, os, sys
+import string, os, sys, random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
@@ -145,14 +145,18 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
         # The output from dump is a 'u' format.
         return b.strip(b'\x00').decode() + '\n'
 
-    def write_entries(self, cursor, expectout, hexoutput, commit_timestamp, read_timestamp):
+    def write_entries(self, cursor, expectout, hexoutput, commit_timestamp, write_expected):
         if commit_timestamp:
             self.session.begin_transaction()
         for i in range(0, self.nentries):
             key = self.get_key(i)
-            value = self.get_value(i)
+            value = 0
+            if not write_expected:
+                value = self.get_value(i + random.randint(1, self.nentries));
+            else:
+                value = self.get_value(i)
             cursor[key] = value
-            if (commit_timestamp == None or commit_timestamp < read_timestamp):
+            if write_expected:
                 expectout.write(self.dumpstr(key, hexoutput))
                 expectout.write(self.dumpstr(value, hexoutput))
         if commit_timestamp:
@@ -178,8 +182,12 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
                 expectout.write('table:' + self.tablename + '\n')
                 expectout.write('colgroups=,columns=,' + params + '\n')
                 expectout.write('Data\n')
-            self.write_entries(cursor, expectout, hexoutput, commit_timestamp, read_timestamp)
-        cursor.close()
+            if commit_timestamp:
+                self.write_entries(cursor, expectout, hexoutput, 1, True)
+                self.write_entries(cursor, expectout, hexoutput, commit_timestamp, False)
+            else:
+                self.write_entries(cursor, expectout, hexoutput, commit_timestamp, True)
+            cursor.close()
 
         self.pr('calling dump')
         with open("dump.out", "w") as dumpout:
@@ -199,7 +207,7 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
                 if hexoutput:
                     dumpargs.append("-x")
                 if read_timestamp:
-                    dumpargs.append("-t " + timestamp_str(read_timestamp))
+                    dumpargs.append("-t " + str(read_timestamp))
                 dumpargs.append(self.tablename)
                 self.runWt(dumpargs, outfilename="dump.out")
 
