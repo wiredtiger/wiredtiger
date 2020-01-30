@@ -185,8 +185,6 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
      */
     config = newcfg = NULL;
     str = v == NULL ? "checkpoint=(),checkpoint_backup_info=(),checkpoint_lsn=" : v;
-    __wt_verbose(session, WT_VERB_TEMPORARY, "CKPT_SET: str: %s incr_gran %" PRIu64, str,
-      S2C(session)->incr_granularity);
     if (use_base && session->dhandle != NULL) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ASSERT(session, strcmp(session->dhandle->name, fname) == 0);
