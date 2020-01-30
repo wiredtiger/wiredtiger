@@ -112,7 +112,7 @@ __txn_abort_newer_update(
     }
 
     /* Reset the history store flag for the stable update. */
-    if (first_upd)
+    if (first_upd != NULL)
         F_CLR(first_upd, WT_UPDATE_HS);
 }
 
