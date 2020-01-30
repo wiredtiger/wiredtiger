@@ -658,7 +658,8 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
     WT_ITEM hs_key;
     WT_ITEM prev_hs_key;
     WT_TIME_PAIR hs_start, hs_stop;
-    uint32_t session_flags, btree_id, prev_btree_id;
+    uint32_t session_flags, btree_id;
+    uint32_t prev_btree_id = 0; /* Dodging uninitialized build error. Don't trust this initial value. */
     int cmp;
     const char *uri;
 
