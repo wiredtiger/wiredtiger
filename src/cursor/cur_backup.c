@@ -19,92 +19,59 @@ static int __backup_stop(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *);
     WT_ERR(F_ISSET(((WT_CURSOR_BACKUP *)(cursor)), WT_CURBACKUP_FORCE_STOP) ? EINVAL : 0);
 
 /*
- * __wt_backup_destroy --
- *     Shut down any incremental backup information.
- */
-int
-__wt_backup_destroy(WT_SESSION_IMPL *session)
-{
-    WT_BLKINCR *blk;
-    WT_DECL_RET;
-    WT_FSTREAM *fs;
-    u_int i;
-
-    /*
-     * If incremental backup is not turned on, there is nothing to do.
-     */
-    if (!F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
-        return (0);
-
-    /*
-     * Persist this information so that it survives a restart. Write to a temp file so we don't
-     * overwrite any valid information until we know we've been successful writing it.
-     */
-    WT_RET(__wt_remove_if_exists(session, WT_BLKINCR_BACKUP_TMP, false));
-    WT_ERR(__wt_fopen(session, WT_BLKINCR_BACKUP_TMP, WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &fs));
-    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-        blk = &S2C(session)->incr_backups[i];
-        WT_ERR(__wt_fprintf(session, fs, "%s\n", blk->id_str));
-        __wt_free(session, blk->id_str);
-    }
-    /* Flush the stream and rename the file into place. */
-    ret = __wt_sync_and_rename(session, &fs, WT_BLKINCR_BACKUP_TMP, WT_BLKINCR_BACKUP);
-err:
-    WT_TRET(__wt_fclose(session, &fs));
-    WT_TRET(__wt_remove_if_exists(session, WT_BLKINCR_BACKUP_TMP, false));
-
-    return (ret);
-}
-
-/*
  * __wt_backup_open --
- *     Restore any incremental backup information.
+ *     Restore any incremental backup information. We use the metadata's block information as the
+ *     authority on whether incremental backup was in use on last shutdown.
  */
 int
 __wt_backup_open(WT_SESSION_IMPL *session)
 {
-    WT_BLKINCR *blk;
-    WT_DECL_ITEM(buf);
+    WT_BLKINCR *blkincr;
+    WT_CONFIG blkconf;
+    WT_CONFIG_ITEM b, k, v;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_FSTREAM *fs;
-    u_int i;
-    bool exist;
+    uint64_t i;
+    char *config;
 
-    WT_RET(__wt_remove_if_exists(session, WT_BLKINCR_BACKUP_TMP, false));
-    WT_RET(__wt_fs_exist(session, WT_BLKINCR_BACKUP, &exist));
-    /*
-     * If there is no backup file there is nothing to do.
-     */
-    if (!exist)
-        return (0);
-
-    /*
-     * Read any id information.
-     */
-    WT_ERR(__wt_fopen(session, WT_BLKINCR_BACKUP, 0, WT_STREAM_READ, &fs));
-    WT_ERR(__wt_scr_alloc(session, 512, &buf));
+    config = NULL;
     i = 0;
+    conn = S2C(session);
+    WT_RET(__wt_metadata_search(session, WT_METAFILE_URI, &config));
+    WT_ERR(__wt_config_getones(session, config, "checkpoint_backup_info", &v));
+    __wt_config_subinit(session, &blkconf, &v);
     /*
-     * Read in each id string.
+     * Walk each item in the metadata and set up our last known global incremental information.
      */
-    while (i < WT_BLKINCR_MAX) {
-        /* First is the id string. */
-        WT_ERR(__wt_getline(session, fs, buf));
-        /* If we have no more to read, we're done. */
-        if (buf->size == 0)
+    F_CLR(conn, WT_CONN_INCR_BACKUP);
+    while (__wt_config_next(&blkconf, &k, &v) == 0) {
+        if (i >= WT_BLKINCR_MAX)
             break;
-        blk = &S2C(session)->incr_backups[i];
-        WT_ERR(__wt_strdup(session, buf->data, &blk->id_str));
-
-        F_SET(blk, WT_BLKINCR_VALID);
-        __wt_verbose(session, WT_VERB_BACKUP, "OPEN: Using backup slot %u %p for id %s", i,
-          (void *)blk, blk->id_str);
-        ++i;
+        /*
+         * If we get here, we have at least one valid incremental backup. We want to set up its
+         * general configuration in the global table.
+         */
+        blkincr = &conn->incr_backups[i++];
+        F_SET(conn, WT_CONN_INCR_BACKUP);
+        WT_ERR(__wt_strndup(session, k.str, k.len, &blkincr->id_str));
+        WT_ERR(__wt_config_subgets(session, &v, "granularity", &b));
+	/*
+	 * NOTE: For now the granularity is in the connection because it cannot change.
+	 * We may be able to relax that.
+	 */
+        conn->incr_granularity = blkincr->granularity = (uint64_t)b.val;
+        F_SET(blkincr, WT_BLKINCR_VALID);
     }
-err:
-    WT_TRET(__wt_fclose(session, &fs));
-    __wt_scr_free(session, &buf);
 
+err:
+    if (ret != 0) {
+        while (i > 0) {
+            blkincr = &conn->incr_backups[i--];
+            __wt_free(session, blkincr->id_str);
+            F_CLR(blkincr, WT_BLKINCR_VALID);
+        }
+    }
+    __wt_free(session, config);
     return (ret);
 }
 
@@ -207,9 +174,6 @@ __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force
     }
     conn->incr_granularity = 0;
     F_CLR(conn, WT_CONN_INCR_BACKUP);
-
-    WT_RET(__wt_remove_if_exists(session, WT_BLKINCR_BACKUP, true));
-
     return (0);
 }
 

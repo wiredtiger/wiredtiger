@@ -306,7 +306,8 @@
  */
 #define WT_BLKINCR_MAX 2
 struct __wt_blkincr {
-    const char *id_str; /* User's name for this backup. */
+    const char *id_str;   /* User's name for this backup. */
+    uint64_t granularity; /* Granularity of this backup. */
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_BLKINCR_FULL 0x1u  /* There is no checkpoint, always do full file */
 #define WT_BLKINCR_INUSE 0x2u /* This entry is active */

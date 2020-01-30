@@ -2613,9 +2613,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_debug_mode_config(session, cfg));
 
-    /* Load any incremental backup information. */
-    WT_ERR(__wt_backup_open(session));
-
     /*
      * Load the extensions after initialization completes; extensions expect everything else to be
      * in place, and the extensions call back into the library.
@@ -2673,6 +2670,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_metadata_set_base_write_gen(session));
 
     WT_ERR(__wt_metadata_cursor(session, NULL));
+
+    /*
+     * Load any incremental backup information. This reads the metadata so must be done after the
+     * turtle file is initialized.
+     */
+    WT_ERR(__wt_backup_open(session));
 
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));

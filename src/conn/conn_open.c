@@ -141,8 +141,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     /* Close operation tracking */
     WT_TRET(__wt_conn_optrack_teardown(session, false));
 
-    /* Close down any incremental backup information */
-    WT_TRET(__wt_backup_destroy(session));
+    /* Free any incremental backup information */
     for (i = 0; i < WT_BLKINCR_MAX; ++i)
         __wt_free(session, conn->incr_backups[i].id_str);
 
