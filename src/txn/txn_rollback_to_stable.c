@@ -138,26 +138,37 @@ __txn_abort_row_replace_with_hs_value(
         WT_STAT_CONN_INCR(session, txn_rollback_hs_removed);
     }
 
+    /*
+     * Found any history value that satisfy the given the timestamp, add it to the update list
+     * otherwise remove the key.
+     */
     if (valid_update_found) {
         WT_ERR(hs_cursor->get_value(hs_cursor, &durable_ts, &prepare_state, &type, hs_value));
         WT_ERR(__wt_update_alloc(session, hs_value, &upd, &size, WT_UPDATE_STANDARD));
         upd->txnid = hs_start.txnid;
         upd->durable_ts = durable_ts;
         upd->start_ts = hs_start.timestamp;
+    } else {
+        WT_ERR(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
+        upd->txnid = WT_TXN_NONE;
+        upd->durable_ts = WT_TS_NONE;
+        upd->start_ts = WT_TS_NONE;
+    }
 
-        /* If we don't yet have a modify structure, we'll need one. */
-        WT_ERR(__wt_page_modify_init(session, page));
-        mod = page->modify;
+    /* If we don't yet have a modify structure, we'll need one. */
+    WT_ERR(__wt_page_modify_init(session, page));
+    mod = page->modify;
 
-        /* Allocate an update array as necessary. */
-        WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_row_update, upd_entry, page->entries);
+    /* Allocate an update array as necessary. */
+    WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_row_update, upd_entry, page->entries);
 
-        /* Set the WT_UPDATE array reference. */
-        upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
-        upd->next = NULL;
-        WT_ERR(__wt_update_serial(session, page, upd_entry, &upd, size, false));
+    /* Set the WT_UPDATE array reference. */
+    upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
+    upd->next = NULL;
+    WT_ERR(__wt_update_serial(session, page, upd_entry, &upd, size, false));
 
-        /* Finally remove that update from history store. */
+    /* Finally remove that update from history store. */
+    if (valid_update_found) {
         __wt_hs_store_time_pair(session, WT_TS_NONE, WT_TXN_NONE);
         WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_INCR(session, txn_rollback_hs_removed);
