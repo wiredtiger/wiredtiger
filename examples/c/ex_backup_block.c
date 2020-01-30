@@ -140,7 +140,7 @@ add_work(WT_SESSION *session, int iter, int iterj)
 {
     WT_CURSOR *cursor, *cursor2;
     int i;
-    char k[32], v[32];
+    char k[64], v[64];
 
     error_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
     /*
