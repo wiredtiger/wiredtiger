@@ -807,6 +807,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     if (*updp != NULL)
         return (0);
 
+    upd = NULL;
+
     /* If there is no ondisk value, there can't be anything in the history store either. */
     if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
         WT_RET(__upd_alloc_tombstone(session, updp, WT_TXN_NONE, WT_TS_NONE));
