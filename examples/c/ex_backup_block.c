@@ -136,7 +136,7 @@ setup_directories(void)
 }
 
 static void
-add_work(WT_SESSION *session, int iter)
+add_work(WT_SESSION *session, int iter, int iterj)
 {
     WT_CURSOR *cursor, *cursor2;
     int i;
@@ -154,8 +154,8 @@ add_work(WT_SESSION *session, int iter)
      * Perform some operations with individual auto-commit transactions.
      */
     for (i = 0; i < MAX_KEYS; i++) {
-        (void)snprintf(k, sizeof(k), "key.%d.%d", iter, i);
-        (void)snprintf(v, sizeof(v), "value.%d.%d", iter, i);
+        (void)snprintf(k, sizeof(k), "key.%d.%d.%d", iter, iterj, i);
+        (void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter, iterj, i);
         cursor->set_key(cursor, k);
         cursor->set_value(cursor, v);
         error_check(cursor->insert(cursor));
@@ -260,7 +260,8 @@ take_full_backup(WT_SESSION *session, int i)
     } else
         hdir = home_incr;
     if (i == 0) {
-        (void)snprintf(buf, sizeof(buf), "incremental=(enabled=true,this_id=ID%d)", i);
+        (void)snprintf(
+          buf, sizeof(buf), "incremental=(granularity=1M,enabled=true,this_id=ID%d)", i);
         error_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
     } else
         error_check(session->open_cursor(session, "backup:", NULL, NULL, &cursor));
@@ -416,7 +417,7 @@ main(int argc, char *argv[])
     WT_CONNECTION *wt_conn;
     WT_CURSOR *backup_cur;
     WT_SESSION *session;
-    int i, ret;
+    int i, j, ret;
     char cmd_buf[256];
 
     (void)argc; /* Unused variable */
@@ -431,7 +432,7 @@ main(int argc, char *argv[])
     error_check(session->create(session, uri, "key_format=S,value_format=S"));
     error_check(session->create(session, uri2, "key_format=S,value_format=S"));
     printf("Adding initial data\n");
-    add_work(session, 0);
+    add_work(session, 0, 0);
 
     printf("Taking initial backup\n");
     take_full_backup(session, 0);
@@ -440,8 +441,12 @@ main(int argc, char *argv[])
 
     for (i = 1; i < MAX_ITERATIONS; i++) {
         printf("Iteration %d: adding data\n", i);
-        add_work(session, i);
-        error_check(session->checkpoint(session, NULL));
+        /* For each iteration we may add work and checkpoint multiple times. */
+        for (j = 0; j < i; j++) {
+            add_work(session, i, j);
+            error_check(session->checkpoint(session, NULL));
+        }
+
         /*
          * The full backup here is only needed for testing and comparison purposes. A normal
          * incremental backup procedure would not include this.
