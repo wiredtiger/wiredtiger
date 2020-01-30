@@ -81,7 +81,8 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     /*
      * Retrieve the btree from the history store cursor. This function might need to open a cursor
      * from the default session and hence need to flip the no-dhandle flag temporarily in case it is
-     * set.
+     * set. TODO: WT-5501 We should find a way to do this without opening a history store cursor
+     * from the default session.
      */
     if (F_ISSET(session, WT_SESSION_NO_DATA_HANDLES)) {
         reset_no_dh_flag = true;
@@ -123,7 +124,7 @@ err:
  * __wt_hs_stats_update --
  *     Update the history store table statistics for return to the application.
  */
-void
+int
 __wt_hs_stats_update(WT_SESSION_IMPL *session)
 {
     WT_BTREE *hs_btree;
@@ -139,7 +140,7 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
      * statistics. If there's no history store table, values remain 0.
      */
     if (!F_ISSET(conn, WT_CONN_HS_OPEN))
-        return;
+        return (0);
 
     /* Set the connection-wide statistics. */
     cstats = conn->stats;
@@ -148,11 +149,10 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
      * Get a history store cursor, we need the underlying data handle; we can get to it by way of
      * the underlying btree handle, but it's a little ugly.
      */
-    if (F_ISSET(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_btree) == 0 &&
-      hs_btree != NULL)
-        dstats = hs_btree->dhandle->stats;
-    else
-        return; /* Silently ignored the error in getting the history store btree. */
+    WT_RET(__wt_hs_get_btree(session, &hs_btree));
+    WT_ASSERT(session, hs_btree != NULL);
+
+    dstats = hs_btree->dhandle->stats;
 
     v = WT_STAT_READ(dstats, cursor_update);
     WT_STAT_SET(session, cstats, cache_hs_insert, v);
@@ -166,6 +166,8 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
         WT_STAT_SET(session, dstats, cursor_update, 0);
         WT_STAT_SET(session, dstats, cursor_remove, 0);
     }
+
+    return (0);
 }
 
 /*
