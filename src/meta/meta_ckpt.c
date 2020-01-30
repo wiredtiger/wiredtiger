@@ -89,15 +89,10 @@ int
 __wt_meta_checkpoint(
   WT_SESSION_IMPL *session, const char *fname, const char *checkpoint, WT_CKPT *ckpt)
 {
-    WT_BTREE *btree;
     WT_DECL_RET;
     char *config;
 
     config = NULL;
-    if (session->dhandle != NULL)
-        btree = S2BT(session);
-    else
-        btree = NULL;
 
     /* Clear the returned information. */
     memset(ckpt, 0, sizeof(*ckpt));
