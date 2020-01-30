@@ -41,6 +41,7 @@ static int __debug_col_skip(WT_DBG *, WT_INSERT_HEAD *, const char *, bool);
 static int __debug_config(WT_SESSION_IMPL *, WT_DBG *, const char *);
 static int __debug_dsk_cell(WT_DBG *, const WT_PAGE_HEADER *);
 static int __debug_dsk_col_fix(WT_DBG *, const WT_PAGE_HEADER *);
+static int __debug_modify(WT_DBG *, WT_UPDATE *, const char *);
 static int __debug_page(WT_DBG *, WT_REF *, uint32_t);
 static int __debug_page_col_fix(WT_DBG *, WT_REF *);
 static int __debug_page_col_int(WT_DBG *, WT_PAGE *, uint32_t);
@@ -160,6 +161,21 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
     }
     return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
       __wt_buf_set_printable_format(session, data_arg, size, ds->value_format, ds->t1)));
+}
+
+/*
+ * __debug_time_pairs --
+ *     Dump a set of start and stop time pairs, with an optional tag.
+ */
+static inline int
+__debug_time_pairs(WT_DBG *ds, const char *tag, wt_timestamp_t start_ts, uint64_t start_txn,
+  wt_timestamp_t stop_ts, uint64_t stop_txn)
+{
+    char tp_string[2][WT_TP_STRING_SIZE];
+
+    return (ds->f(ds, "\t%s%s%s,%s\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
+      __wt_time_pair_to_string(start_ts, start_txn, tp_string[0]),
+      __wt_time_pair_to_string(stop_ts, stop_txn, tp_string[1])));
 }
 
 /*
@@ -696,11 +712,11 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
 }
 
 /*
- * __wt_debug_cursor_hs --
+ * __wt_debug_cursor_tree_hs --
  *     Dump the history store tree given a user cursor.
  */
 int
-__wt_debug_cursor_hs(void *cursor_arg, const char *ofile)
+__wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_CONNECTION_IMPL *conn;
@@ -715,6 +731,89 @@ __wt_debug_cursor_hs(void *cursor_arg, const char *ofile)
         return (0);
     cbt = (WT_CURSOR_BTREE *)hs_session->hs_cursor;
     return (__wt_debug_tree_all(hs_session, cbt->btree, NULL, ofile));
+}
+
+/*
+ * __wt_debug_cursor_hs --
+ *     Dump information pointed to by a single history store cursor.
+ */
+int
+__wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
+{
+    WT_DBG *ds, _ds;
+    WT_DECL_ITEM(hs_key);
+    WT_DECL_ITEM(hs_value);
+    WT_DECL_RET;
+    WT_TIME_PAIR start, stop;
+    WT_UPDATE *upd;
+    wt_timestamp_t hs_durable_ts;
+    size_t notused;
+    uint32_t hs_btree_id;
+    uint8_t hs_prep_state, hs_upd_type;
+
+    ds = &_ds;
+    notused = 0;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
+    WT_ERR(__debug_config(session, ds, NULL));
+
+    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &start.timestamp, &start.txnid,
+      &stop.timestamp, &stop.txnid));
+
+    WT_ERR(__debug_time_pairs(ds, "T", start.timestamp, start.txnid, stop.timestamp, stop.txnid));
+
+    WT_ERR(hs_cursor->get_value(hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type, hs_value));
+    switch (hs_upd_type) {
+    case WT_UPDATE_MODIFY:
+        WT_ERR(__wt_update_alloc(session, hs_value, &upd, &notused, hs_upd_type));
+        WT_ERR(__debug_modify(ds, upd, "\tM "));
+        break;
+    case WT_UPDATE_STANDARD:
+        WT_ERR(__debug_item_value(ds, "V", hs_value->data, hs_value->size));
+        break;
+    default:
+        /*
+         * Currently, we expect only modifies or full values to be exposed by hs_cursors. This means
+         * we can ignore other types for now.
+         */
+        WT_ASSERT(session, hs_upd_type == WT_UPDATE_MODIFY || hs_upd_type == WT_UPDATE_STANDARD);
+        break;
+    }
+
+err:
+    __wt_scr_free(session, &hs_key);
+    __wt_scr_free(session, &hs_value);
+    WT_RET(__debug_wrapup(ds));
+
+    return (ret);
+}
+
+/*
+ * __wt_debug_key_value --
+ *     Dump information about a key and/or value.
+ */
+int
+__wt_debug_key_value(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *value)
+{
+    WT_DBG *ds, _ds;
+    WT_DECL_RET;
+
+    ds = &_ds;
+
+    WT_ERR(__debug_config(session, ds, NULL));
+
+    if (key != NULL)
+        WT_ERR(__debug_item_key(ds, "K", key->data, key->size));
+    if (value != NULL) {
+        WT_ERR(__debug_time_pairs(
+          ds, "T", value->start_ts, value->start_txn, value->stop_ts, value->stop_txn));
+        WT_ERR(__debug_cell_data(ds, NULL, value != NULL ? value->type : 0, "V", value));
+    }
+
+err:
+    WT_RET(__debug_wrapup(ds));
+    return (ret);
 }
 
 /*
@@ -1130,7 +1229,7 @@ __debug_row_skip(WT_DBG *ds, WT_INSERT_HEAD *head)
  *     Dump a modify update.
  */
 static int
-__debug_modify(WT_DBG *ds, WT_UPDATE *upd)
+__debug_modify(WT_DBG *ds, WT_UPDATE *upd, const char *tag)
 {
     size_t nentries, data_size, offset, size;
     const size_t *p;
@@ -1140,7 +1239,7 @@ __debug_modify(WT_DBG *ds, WT_UPDATE *upd)
     memcpy(&nentries, p++, sizeof(size_t));
     data = upd->data + sizeof(size_t) + (nentries * 3 * sizeof(size_t));
 
-    WT_RET(ds->f(ds, "%" WT_SIZET_FMT ": ", nentries));
+    WT_RET(ds->f(ds, "%s%" WT_SIZET_FMT ": ", tag != NULL ? tag : "", nentries));
     for (; nentries-- > 0; data += data_size) {
         memcpy(&data_size, p++, sizeof(size_t));
         memcpy(&offset, p++, sizeof(size_t));
@@ -1174,7 +1273,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
             break;
         case WT_UPDATE_MODIFY:
             WT_RET(ds->f(ds, "\tvalue {modify: "));
-            WT_RET(__debug_modify(ds, upd));
+            WT_RET(__debug_modify(ds, upd, NULL));
             WT_RET(ds->f(ds, "}\n"));
             break;
         case WT_UPDATE_RESERVE:
