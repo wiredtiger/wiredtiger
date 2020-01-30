@@ -101,7 +101,6 @@ __txn_abort_row_replace_with_hs_value(
     session_flags = 0;
     valid_update_found = false;
 
-
     /* Allocate buffers for the data store and history store key. */
     WT_RET(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
