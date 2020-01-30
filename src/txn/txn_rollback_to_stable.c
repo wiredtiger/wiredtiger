@@ -127,7 +127,8 @@ __txn_abort_newer_insert(
     WT_INSERT *ins;
 
     WT_SKIP_FOREACH (ins, head)
-        __txn_abort_newer_update(session, ins->upd, rollback_timestamp);
+        if (ins->upd != NULL)
+            __txn_abort_newer_update(session, ins->upd, rollback_timestamp);
 }
 
 /*
