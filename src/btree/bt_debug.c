@@ -735,11 +735,10 @@ __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
 
 /*
  * __wt_debug_cursor_hs --
- *     Dump information about a single history store cursor.
+ *     Dump information pointed to by a single history store cursor.
  */
 int
-__wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, bool dump_key,
-  bool dump_time_pairs, bool dump_value)
+__wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
 {
     WT_DBG *ds, _ds;
     WT_DECL_ITEM(hs_key);
@@ -759,35 +758,27 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, bool dump_k
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
     WT_ERR(__debug_config(session, ds, NULL));
 
-    if (dump_key || dump_time_pairs)
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &start.timestamp, &start.txnid,
-          &stop.timestamp, &stop.txnid));
+    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &start.timestamp, &start.txnid,
+      &stop.timestamp, &stop.txnid));
 
-    if (dump_key)
-        WT_ERR(__debug_item_key(ds, "K", hs_key->data, hs_key->size));
+    WT_ERR(__debug_time_pairs(ds, "T", start.timestamp, start.txnid, stop.timestamp, stop.txnid));
 
-    if (dump_time_pairs)
-        WT_ERR(
-          __debug_time_pairs(ds, "T", start.timestamp, start.txnid, stop.timestamp, stop.txnid));
-
-    if (dump_value) {
-        WT_ERR(
-          hs_cursor->get_value(hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type, hs_value));
-        switch (hs_upd_type) {
-        case WT_UPDATE_MODIFY:
-            WT_ERR(__wt_update_alloc(session, hs_value, &upd, &notused, hs_upd_type));
-            WT_ERR(__debug_modify(ds, upd, "\tM "));
-            break;
-        case WT_UPDATE_STANDARD:
-            WT_ERR(__debug_item_value(ds, "V", hs_value->data, hs_value->size));
-            break;
-        default:
-            /*
-             * Currently, we expect only modifies or full values to be exposed by hs_cursors. This
-             * means we can ignore other types for now.
-             */
-            break;
-        }
+    WT_ERR(hs_cursor->get_value(hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type, hs_value));
+    switch (hs_upd_type) {
+    case WT_UPDATE_MODIFY:
+        WT_ERR(__wt_update_alloc(session, hs_value, &upd, &notused, hs_upd_type));
+        WT_ERR(__debug_modify(ds, upd, "\tM "));
+        break;
+    case WT_UPDATE_STANDARD:
+        WT_ERR(__debug_item_value(ds, "V", hs_value->data, hs_value->size));
+        break;
+    default:
+        /*
+         * Currently, we expect only modifies or full values to be exposed by hs_cursors. This means
+         * we can ignore other types for now.
+         */
+        WT_ASSERT(session, hs_upd_type == WT_UPDATE_MODIFY || hs_upd_type == WT_UPDATE_STANDARD);
+        break;
     }
 
 err:
@@ -803,7 +794,7 @@ err:
  *     Dump information about a key and/or value.
  */
 int
-__wt_debug_key_value(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack)
+__wt_debug_key_value(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *value)
 {
     WT_DBG *ds, _ds;
     WT_DECL_RET;
@@ -814,9 +805,11 @@ __wt_debug_key_value(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unp
 
     if (key != NULL)
         WT_ERR(__debug_item_key(ds, "K", key->data, key->size));
-    WT_ERR(__debug_time_pairs(
-      ds, "T", unpack->start_ts, unpack->start_txn, unpack->stop_ts, unpack->stop_txn));
-    WT_ERR(__debug_cell_data(ds, NULL, unpack != NULL ? unpack->type : 0, "V", unpack));
+    if (value != NULL) {
+        WT_ERR(__debug_time_pairs(
+          ds, "T", value->start_ts, value->start_txn, value->stop_ts, value->stop_txn));
+        WT_ERR(__debug_cell_data(ds, NULL, value != NULL ? value->type : 0, "V", value));
+    }
 
 err:
     WT_RET(__debug_wrapup(ds));

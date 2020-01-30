@@ -262,7 +262,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs, WT_CELL_U
     hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
     WT_ERR(hs_cursor->search_near(hs_cursor, &exact));
 
-    /* If we jumped to the next key, go back to the previous key */
+    /* If we jumped to the next key, go back to the previous key. */
     if (exact > 0)
         WT_ERR(hs_cursor->prev(hs_cursor));
 
@@ -280,16 +280,15 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs, WT_CELL_U
 #ifdef HAVE_DIAGNOSTIC
         /* Optionally dump historical time pairs and values in debug mode. */
         if (vs->dump_history)
-            WT_ERR(__wt_debug_cursor_hs(session, hs_cursor, false, true, true));
+            WT_ERR(__wt_debug_cursor_hs(session, hs_cursor));
 #else
         WT_UNUSED(vs);
 #endif
 
-        ts1_bp = __verify_timestamp_to_pretty_string(stop.timestamp);
-        ts2_bp = __verify_timestamp_to_pretty_string(orig_start.timestamp);
-        printf("txnid %lu %lu timestamp %lu %s %lu %s\n", stop.txnid, orig_start.txnid, stop.timestamp, ts1_bp, orig_start.timestamp, ts2_bp);
         /* Perform Verification of data continuity */
         if (orig_start.timestamp < stop.timestamp) {
+            ts1_bp = __verify_timestamp_to_pretty_string(stop.timestamp);
+            ts2_bp = __verify_timestamp_to_pretty_string(orig_start.timestamp);    
             WT_ERR_MSG(session, WT_ERROR,
               "Key %s has a history store stop timestamp %s newer than its start timestamp %s",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1), ts1_bp,
@@ -313,7 +312,6 @@ err:
     }
     return (0);
 }
-
 /*
  * __wt_verify --
  *     Verify a file.
