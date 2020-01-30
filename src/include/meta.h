@@ -57,6 +57,25 @@
     } while (0)
 
 /*
+ * Block modifications from an incremental identifier going forward.
+ */
+/*
+ * At the default granularity, this is enough for blocks in a 2G file.
+ */
+#define WT_BLOCK_MODS_LIST_MIN 16 /* Initial bytes for bitmap. */
+struct __wt_block_mods {
+    const char *id_str;
+    uint64_t granularity;
+    uint8_t *bitstring;
+    uint64_t nbits;  /* Number of bits in bitstring */
+    uint64_t offset; /* Zero bit offset for bitstring */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_BLOCK_MODS_VALID 0x1u /* Entry is valid */
+                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t flags;
+};
+
+/*
  * WT_CKPT --
  *	Encapsulation of checkpoint information, shared by the metadata, the
  * btree engine, and the block manager.
@@ -87,6 +106,8 @@ struct __wt_ckpt {
     char *block_metadata;   /* Block-stored metadata */
     char *block_checkpoint; /* Block-stored checkpoint */
 
+    WT_BLOCK_MODS backup_blocks[WT_BLKINCR_MAX];
+
     /* Validity window */
     wt_timestamp_t newest_durable_ts;
     wt_timestamp_t oldest_start_ts;
@@ -105,25 +126,6 @@ struct __wt_ckpt {
 #define WT_CKPT_DELETE 0x04u     /* Checkpoint to be deleted */
 #define WT_CKPT_FAKE 0x08u       /* Checkpoint is a fake */
 #define WT_CKPT_UPDATE 0x10u     /* Checkpoint requires update */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint32_t flags;
-};
-
-/*
- * Block modifications from an incremental identifier going forward.
- */
-/*
- * At the default granularity, this is enough for blocks in a 2G file.
- */
-#define WT_BLOCK_MODS_LIST_MIN 16 /* Initial bytes for bitmap. */
-struct __wt_block_mods {
-    const char *id_str;
-    uint64_t granularity;
-    uint8_t *bitstring;
-    uint64_t nbits;  /* Number of bits in bitstring */
-    uint64_t offset; /* Zero bit offset for bitstring */
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_BLOCK_MODS_VALID 0x1u /* Entry is valid */
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };

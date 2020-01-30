@@ -151,8 +151,6 @@ struct __wt_block_ckpt {
 
     WT_EXTLIST ckpt_avail; /* Checkpoint free'd extents */
 
-    WT_BLOCK_MODS ckpt_mods[WT_BLKINCR_MAX];
-
     /*
      * Checkpoint archive: the block manager may potentially free a lot of memory from the
      * allocation and discard extent lists when checkpoint completes. Put it off until the

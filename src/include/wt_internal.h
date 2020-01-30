@@ -370,7 +370,6 @@ typedef uint64_t wt_timestamp_t;
 #include "posix.h"
 #endif
 
-#include "meta.h" /* required by block.h */
 #include "misc.h"
 #include "mutex.h"
 
@@ -393,6 +392,7 @@ typedef uint64_t wt_timestamp_t;
 #include "error.h"
 #include "log.h"
 #include "lsm.h"
+#include "meta.h" /* required by block.h */
 #include "optrack.h"
 #include "os.h"
 #include "reconcile.h"

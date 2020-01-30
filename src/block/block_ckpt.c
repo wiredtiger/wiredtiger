@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __ckpt_load_blk_mods(WT_SESSION_IMPL *, const char *, WT_BLOCK_CKPT *);
 static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __ckpt_update(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT_BLOCK_CKPT *);
 
@@ -76,7 +75,6 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
 #endif
         ci = &block->live;
         WT_ERR(__wt_block_ckpt_init(session, ci, "live"));
-        WT_ERR(__ckpt_load_blk_mods(session, S2BT(session)->config, ci));
     }
 
     /*
@@ -175,9 +173,6 @@ __wt_block_checkpoint_unload(WT_SESSION_IMPL *session, WT_BLOCK *block, bool che
 void
 __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 {
-    WT_BLOCK_MODS *blk_mod;
-    u_int i;
-
     /* Discard the extent lists. */
     __wt_block_extlist_free(session, &ci->alloc);
     __wt_block_extlist_free(session, &ci->avail);
@@ -185,12 +180,6 @@ __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
     __wt_block_extlist_free(session, &ci->ckpt_alloc);
     __wt_block_extlist_free(session, &ci->ckpt_avail);
     __wt_block_extlist_free(session, &ci->ckpt_discard);
-    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-        blk_mod = &ci->ckpt_mods[i];
-        __wt_free(session, blk_mod->bitstring);
-        __wt_free(session, blk_mod->id_str);
-        F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
-    }
 }
 
 /*
@@ -769,14 +758,14 @@ __ckpt_add_blkmod_entry(
  *     Add the blocks to all valid incremental backup source identifiers.
  */
 static int
-__ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
+__ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
 {
     WT_BLOCK_MODS *blk_mod;
     WT_EXT *ext;
     u_int i;
 
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-        blk_mod = &ci->ckpt_mods[i];
+        blk_mod = &ckpt->backup_blocks[i];
         WT_RET(__ckpt_valid_blk_mods(session, blk_mod, i));
         /*
          * If there is no information at this entry, we're done.
@@ -797,71 +786,6 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
         if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
             WT_RET(__ckpt_add_blkmod_entry(
               session, blk_mod, (uint64_t)ci->avail.offset, (uint64_t)ci->avail.size));
-    }
-    return (0);
-}
-
-/*
- * __ckpt_load_blk_mods --
- *     Load the block information from the metadata.
- */
-static int
-__ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_BLOCK_CKPT *ci)
-{
-    WT_BLKINCR *blkincr;
-    WT_BLOCK_MODS *blk_mod;
-    WT_CONFIG blkconf;
-    WT_CONFIG_ITEM b, k, v;
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    uint64_t i;
-
-    conn = S2C(session);
-    if (config == NULL)
-        return (0);
-    WT_RET(__wt_config_getones(session, config, "checkpoint_backup_info", &v));
-    __wt_config_subinit(session, &blkconf, &v);
-    /*
-     * Load block lists. Ignore any that have an id string that is not known.
-     *
-     * Remove those not known (TODO).
-     */
-    blkincr = NULL;
-    while (__wt_config_next(&blkconf, &k, &v) == 0) {
-        /*
-         * See if this is a valid backup string.
-         */
-        for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-            blkincr = &conn->incr_backups[i];
-            if (blkincr->id_str != NULL && WT_STRING_MATCH(blkincr->id_str, k.str, k.len))
-                break;
-        }
-        if (i == WT_BLKINCR_MAX)
-            /*
-             * This is the place to note that we want to remove an unknown id.
-             */
-            continue;
-
-        /*
-         * We have a valid entry. Load the block information.
-         */
-        blk_mod = &ci->ckpt_mods[i];
-        WT_RET(__wt_strdup(session, blkincr->id_str, &blk_mod->id_str));
-        WT_RET(__wt_config_subgets(session, &v, "granularity", &b));
-        blk_mod->granularity = (uint64_t)b.val;
-        WT_RET(__wt_config_subgets(session, &v, "nbits", &b));
-        blk_mod->nbits = (uint64_t)b.val;
-        WT_RET(__wt_config_subgets(session, &v, "offset", &b));
-        blk_mod->offset = (uint64_t)b.val;
-        ret = __wt_config_subgets(session, &v, "blocks", &b);
-        WT_RET_NOTFOUND_OK(ret);
-        if (ret != WT_NOTFOUND) {
-            WT_RET(__wt_backup_load_incr(session, &b, &blk_mod->bitstring, blk_mod->nbits));
-            F_SET(blk_mod, WT_BLOCK_MODS_VALID);
-            __wt_verbose(session, WT_VERB_BACKUP,
-              "LOAD: ckpt_mods[%" PRIu64 "] %p id %s granularity %" PRIu64 " nbits %" PRIu64, i,
-              (void *)blk_mod, blk_mod->id_str, blk_mod->granularity, blk_mod->nbits);
-        }
     }
     return (0);
 }
@@ -944,7 +868,7 @@ __ckpt_update(
      */
     if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS)) {
         WT_ASSERT(session, is_live == true);
-        WT_RET(__ckpt_add_blk_mods(session, ci));
+        WT_RET(__ckpt_add_blk_mods(session, ckpt, ci));
     }
 
     /*

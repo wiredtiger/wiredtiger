@@ -135,7 +135,7 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
         WT_ERR_MSG(session, EINVAL, "no checkpoint information available to import");
     F_SET(ckpt, WT_CKPT_UPDATE);
     WT_ERR(__wt_buf_set(session, &ckpt->raw, checkpoint->data, checkpoint->size));
-    WT_ERR(__wt_meta_ckptlist_set(session, uri, ckptbase, NULL, NULL));
+    WT_ERR(__wt_meta_ckptlist_set(session, uri, ckptbase, NULL));
 
 err:
     __wt_meta_ckptlist_free(session, &ckptbase);
