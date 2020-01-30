@@ -613,11 +613,7 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     if (upd->prepare_state == WT_PREPARE_LOCKED || upd->prepare_state == WT_PREPARE_INPROGRESS)
         return (false);
 
-    /*
-     * This function is used to determine when an update is obsolete: that should take into account
-     * the durable timestamp which is greater than or equal to the start timestamp.
-     */
-    return (__wt_txn_visible_all(session, upd->txnid, upd->durable_ts));
+    return (__wt_txn_visible_all(session, upd->txnid, upd->start_ts));
 }
 
 /*
@@ -747,22 +743,31 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 }
 
 /*
- * __wt_txn_read --
+ * __upd_alloc_tombstone --
+ *     Allocate a tombstone update at a given transaction id and timestamp.
+ */
+static inline int
+__upd_alloc_tombstone(
+  WT_SESSION_IMPL *session, WT_UPDATE **updp, uint64_t txnid, wt_timestamp_t start_ts)
+{
+    size_t size;
+
+    WT_RET(__wt_update_alloc(session, NULL, updp, &size, WT_UPDATE_TOMBSTONE));
+    (*updp)->txnid = txnid;
+    /* FIXME: Reevaluate this as part of PM-1524. */
+    (*updp)->durable_ts = (*updp)->start_ts = start_ts;
+    F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
+    return (0);
+}
+
+/*
+ * __wt_txn_read_upd_list --
  *     Get the first visible update in a list (or NULL if none are visible).
  */
 static inline int
-__wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
+__wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **updp)
 {
-    WT_ITEM buf;
-    WT_TIME_PAIR start, stop;
     WT_VISIBLE_TYPE upd_visible;
-    size_t size;
-
-    WT_CLEAR(buf);
-    start.txnid = WT_TXN_NONE;
-    start.timestamp = WT_TS_NONE;
-    stop.txnid = WT_TXN_MAX;
-    stop.timestamp = WT_TS_MAX;
 
     *updp = NULL;
     for (; upd != NULL; upd = upd->next) {
@@ -778,11 +783,35 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         if (upd_visible == WT_VISIBLE_PREPARE)
             return (WT_PREPARE_CONFLICT);
     }
-    WT_ASSERT(session, upd == NULL);
+    return (0);
+}
+
+/*
+ * __wt_txn_read --
+ *     Get the first visible update in a chain. This function will first check the update list
+ *     supplied as a function argument. If there is no visible update, it will check the onpage
+ *     value for the given key. Finally, if the onpage value is not visible to the reader, the
+ *     function will search the history store for a visible update.
+ */
+static inline int
+__wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
+{
+    WT_ITEM buf;
+    WT_TIME_PAIR start, stop;
+    size_t size;
+
+    WT_CLEAR(buf);
+
+    *updp = NULL;
+    WT_RET(__wt_txn_read_upd_list(session, upd, updp));
+    if (*updp != NULL)
+        return (0);
 
     /* If there is no ondisk value, there can't be anything in the history store either. */
-    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX)
+    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
+        WT_RET(__upd_alloc_tombstone(session, updp, WT_TXN_NONE, WT_TS_NONE));
         return (0);
+    }
 
     /* Check the ondisk value. */
     WT_RET(__wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop));
@@ -793,8 +822,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
      * "not found".
      */
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
-      __wt_txn_visible(session, stop.txnid, stop.timestamp))
+      __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
+        WT_RET(__upd_alloc_tombstone(session, updp, stop.txnid, stop.timestamp));
         return (0);
+    }
 
     /*
      * If the start time pair is visible then we need to return the ondisk value.
@@ -819,6 +850,15 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
 
     /* There is no BIRTHMARK in the history store file. */
     WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_BIRTHMARK);
+
+    /*
+     * If we checked the update list, the ondisk value and the history store, we should return a
+     * tombstone to indicate we didn't find anything.
+     *
+     * FIXME-PM-1521: We call transaction read in a lot of places so we can't do this yet. When we
+     * refactor this function to return a byte array, we should tackle this at the same time.
+     */
+
     *updp = upd;
     return (0);
 }

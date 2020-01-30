@@ -191,6 +191,9 @@ static CONFIG c[] = {{"abort", "if timed run should drop core", /* 0% */
   {"lsm_worker_threads", "the number of LSM worker threads", 0x0, 3, 4, 20, &g.c_lsm_worker_threads,
     NULL},
 
+  {"major_timeout", "timeout for long-running operations (minutes)", C_IGNORE, 0, 0, 1000,
+    &g.c_major_timeout, NULL},
+
   {"memory_page_max", "maximum size of in-memory pages", 0x0, 1, 10, 128, &g.c_memory_page_max,
     NULL},
 

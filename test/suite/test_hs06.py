@@ -125,7 +125,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         # self.assertLessEqual(end_usage, (start_usage * 2))
 
     # WT-5336 causing the read at timestamp 4 returning the value committed at timestamp 5 or 3
-    @unittest.skip("Temporarily disabled until WT-5336 is fixed")
+    @unittest.skip("Temporarily disabled")
     def test_hs_modify_reads(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -255,7 +255,6 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEquals(value2, cursor[self.create_key(i)])
         self.session.rollback_transaction()
 
-    @unittest.skip("Temporarily disabled")
     def test_hs_multiple_updates(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -295,7 +294,6 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEquals(cursor[self.create_key(i)], value3)
         self.session.rollback_transaction()
 
-    @unittest.skip("Temporarily disabled")
     def test_hs_multiple_modifies(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -465,7 +463,6 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
-    @unittest.skip("Temporarily disabled")
     def test_hs_rec_modify(self):
         # Create a small table.
         uri = "table:test_hs06"

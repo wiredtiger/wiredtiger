@@ -76,7 +76,7 @@ class test_hs09(wttest.WiredTigerTestCase):
         cursor.close()
         session.close()
 
-    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
+    @unittest.skip("Temporarily Disabled")
     def test_uncommitted_updates_not_written_to_hs(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -107,7 +107,7 @@ class test_hs09(wttest.WiredTigerTestCase):
 
         self.chech_ckpt_hs(value2, value1, 2, 3)
 
-    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
+    @unittest.skip("Temporarily Disabled")
     def test_prepared_updates_not_written_to_hs(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -139,7 +139,7 @@ class test_hs09(wttest.WiredTigerTestCase):
 
         self.chech_ckpt_hs(value2, value1, 2, 3)
 
-    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
+    @unittest.skip("Temporarily Disabled")
     def test_write_newest_version_to_data_store(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -164,7 +164,7 @@ class test_hs09(wttest.WiredTigerTestCase):
 
         self.chech_ckpt_hs(value2, value1, 2, 3)
 
-    @unittest.skip("Temporarily disabled until WT-5448 is fixed")
+    @unittest.skip("Temporarily Disabled")
     def test_write_deleted_version_to_data_store(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)

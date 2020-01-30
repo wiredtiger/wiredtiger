@@ -786,6 +786,15 @@ __wt_rec_row_leaf(
         dictionary = false;
         if (upd == NULL) {
             /*
+             * If we reconcile an on disk key with a globally visible stop time pair and there are
+             * no new updates for that key, skip writing that key.
+             */
+            if ((vpack->stop_txn != WT_TXN_MAX || vpack->stop_ts != WT_TS_MAX) &&
+              WT_ROW_UPDATE(page, rip) == NULL && WT_ROW_INSERT(page, rip) == NULL &&
+              __wt_txn_visible_all(session, vpack->stop_txn, vpack->stop_ts))
+                goto remove_key;
+
+            /*
              * When the page was read into memory, there may not have been a value item.
              *
              * If there was a value item, check if it's a dictionary cell (a copy of another item on
@@ -840,6 +849,7 @@ __wt_rec_row_leaf(
                 dictionary = true;
                 break;
             case WT_UPDATE_TOMBSTONE:
+remove_key:
                 /*
                  * If this key/value pair was deleted, we're done.
                  *
@@ -907,13 +917,7 @@ __wt_rec_row_leaf(
             kpack = &_kpack;
             __wt_cell_unpack(session, page, cell, kpack);
             if (btree->huffman_key == NULL && kpack->type == WT_CELL_KEY &&
-              tmpkey->size >= kpack->prefix) {
-                /*
-                 * The previous clause checked for a prefix of zero, which means the temporary
-                 * buffer must have a non-zero size, and it references a valid key.
-                 */
-                WT_ASSERT(session, tmpkey->size != 0);
-
+              tmpkey->size >= kpack->prefix && tmpkey->size != 0) {
                 /*
                  * Grow the buffer as necessary, ensuring data data has been copied into local
                  * buffer space, then append the suffix to the prefix already in the buffer.

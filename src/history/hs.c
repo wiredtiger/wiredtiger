@@ -349,6 +349,53 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t ses
 }
 
 /*
+ * __hs_read_cursor_open --
+ *     Open a reading cursor to the history store. This function opens a new cursor through the user
+ *     session in order to inherit the visibility of the running transaction.
+ */
+static int
+__hs_read_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_flags)
+{
+    WT_DECL_RET;
+    const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
+
+    *session_flags = F_MASK(session, WT_HS_SESSION_FLAGS);
+
+    WT_WITHOUT_DHANDLE(
+      session, ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, cursorp));
+    WT_RET(ret);
+
+    /* Configure session to access the history store table. */
+    F_SET(session, WT_HS_SESSION_FLAGS);
+
+    return (ret);
+}
+
+/*
+ * __hs_read_cursor_close --
+ *     Close a reading cursor to the history store.
+ */
+static int
+__hs_read_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t session_flags)
+{
+    WT_CURSOR *cursor;
+
+    if ((cursor = *cursorp) == NULL)
+        return (0);
+    *cursorp = NULL;
+
+    /*
+     * We turned off caching and eviction while the history store cursor was in use, restore the
+     * session's flags.
+     */
+    F_CLR(session, WT_HS_SESSION_FLAGS);
+    F_SET(session, session_flags);
+    WT_RET(cursor->close(cursor));
+
+    return (0);
+}
+
+/*
  * __hs_get_value --
  *     Get the value associated with an update from the history store. Providing a read timestamp to
  *     avoid finding a tombstone.
@@ -827,6 +874,26 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
 }
 
 /*
+ * __hs_save_read_timestamp --
+ *     Save the currently running transaction's read timestamp into a variable.
+ */
+static void
+__hs_save_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *saved_timestamp)
+{
+    *saved_timestamp = session->txn.read_timestamp;
+}
+
+/*
+ * __hs_restore_read_timestamp --
+ *     Reset the currently running transaction's read timestamp with a previously saved one.
+ */
+static void
+__hs_restore_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t saved_timestamp)
+{
+    session->txn.read_timestamp = saved_timestamp;
+}
+
+/*
  * __wt_find_hs_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
  *     for the record and return to the caller. The caller may choose to optionally allow prepared
@@ -846,7 +913,7 @@ __wt_find_hs_upd(
     WT_TIME_PAIR hs_start, hs_start_tmp, hs_stop, hs_stop_tmp;
     WT_TXN *txn;
     WT_UPDATE *mod_upd, *upd;
-    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, read_timestamp;
+    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, read_timestamp, saved_timestamp;
     size_t notused, size;
     uint64_t recno;
     uint32_t hs_btree_id, session_flags;
@@ -862,6 +929,7 @@ __wt_find_hs_upd(
     mod_upd = upd = NULL;
     __wt_modify_vector_init(session, &modifies);
     txn = &session->txn;
+    __hs_save_read_timestamp(session, &saved_timestamp);
     notused = size = 0;
     hs_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
@@ -887,7 +955,7 @@ __wt_find_hs_upd(
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     /* Open a history store table cursor. */
-    __wt_hs_cursor(session, &hs_cursor, &session_flags);
+    WT_ERR(__hs_read_cursor_open(session, &hs_cursor, &session_flags));
 
     /*
      * After positioning our cursor, we're stepping backwards to find the correct update. Since the
@@ -949,10 +1017,24 @@ __wt_find_hs_upd(
          */
         if (upd_type == WT_UPDATE_MODIFY) {
             WT_NOT_READ(modify, true);
+            /* Store this so that we don't have to make a special case for the first modify. */
+            hs_stop_tmp.timestamp = hs_stop.timestamp;
             while (upd_type == WT_UPDATE_MODIFY) {
                 WT_ERR(__wt_update_alloc(session, hs_value, &mod_upd, &notused, upd_type));
                 WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
                 mod_upd = NULL;
+
+                /*
+                 * Each entry in the lookaside is written with the actual start and stop time pair
+                 * embedded in the key. In order to traverse a sequence of modifies, we're going to
+                 * have to manipulate our read timestamp to see records we wouldn't otherwise be
+                 * able to see.
+                 *
+                 * In this case, we want to read the next update in the chain meaning that its start
+                 * timestamp should be equivalent to the stop timestamp of the record that we're
+                 * currently on.
+                 */
+                session->txn.read_timestamp = hs_stop_tmp.timestamp;
 
                 /*
                  * Find the base update to apply the reverse deltas
@@ -984,6 +1066,8 @@ __wt_find_hs_upd(
                 __wt_free_update_list(session, &mod_upd);
                 mod_upd = NULL;
             }
+            /* After we're done looping over modifies, reset the read timestamp. */
+            __hs_restore_read_timestamp(session, saved_timestamp);
             WT_STAT_CONN_INCR(session, cache_hs_read_squash);
         }
 
@@ -1042,7 +1126,12 @@ err:
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
 
-    WT_TRET(__wt_hs_cursor_close(session, &hs_cursor, session_flags));
+    /*
+     * Restore the read timestamp if we encountered an error while processing a modify. There's no
+     * harm in doing this multiple times.
+     */
+    __hs_restore_read_timestamp(session, saved_timestamp);
+    ret = __hs_read_cursor_close(session, &hs_cursor, session_flags);
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &upd);

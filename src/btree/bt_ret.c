@@ -92,6 +92,14 @@ __wt_value_return_buf(
     page = ref->page;
     cursor = &cbt->iface;
 
+    /* Initialise to globally visible. */
+    if (start != NULL && stop != NULL) {
+        start->txnid = WT_TXN_NONE;
+        start->timestamp = WT_TS_NONE;
+        stop->txnid = WT_TXN_MAX;
+        stop->timestamp = WT_TS_MAX;
+    }
+
     /* Must provide either both start and stop as output parameters or neither. */
     WT_ASSERT(session, (start != NULL && stop != NULL) || (start == NULL && stop == NULL));
 
@@ -99,10 +107,8 @@ __wt_value_return_buf(
         rip = &page->pg_row[cbt->slot];
 
         /*
-         * Simple values have their location encoded in the WT_ROW.
-         *
-         * FIXME-PM-1521: Cannot check visibility here so there is chance some visibility issues not
-         * caught.
+         * If a value is simple and is globally visible at the time of reading a page into cache, we
+         * encode its location into the WT_ROW.
          */
         if (__wt_row_leaf_value(page, rip, buf))
             return (0);

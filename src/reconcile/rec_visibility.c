@@ -18,7 +18,7 @@ __rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
     return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
         __wt_txn_upd_visible_all(session, upd) :
         __wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE &&
-          __wt_txn_visible(session, upd->txnid, upd->durable_ts));
+          __wt_txn_visible(session, upd->txnid, upd->start_ts));
 }
 
 /*
@@ -158,9 +158,12 @@ static bool
 __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t max_txn,
   wt_timestamp_t max_ts, bool list_uncommitted, uint64_t flags)
 {
-    /* Always save updates for in-memory database. */
+    /*
+     * Save updates for in-memory database, except when the maximum timestamp and txnid are globally
+     * visible.
+     */
     if (LF_ISSET(WT_REC_IN_MEMORY))
-        return true;
+        return !__wt_txn_visible_all(session, max_txn, max_ts);
 
     if (!LF_ISSET(WT_REC_HS))
         return false;
@@ -309,8 +312,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         return (0);
     }
 
-    if (upd != NULL && upd->durable_ts > r->max_ondisk_ts)
-        r->max_ondisk_ts = upd->durable_ts;
+    if (upd != NULL && upd->start_ts > r->max_ondisk_ts)
+        r->max_ondisk_ts = upd->start_ts;
 
     /*
      * The start timestamp is determined by the commit timestamp when the key is first inserted (or
@@ -342,19 +345,28 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             if (upd->txnid != WT_TXN_NONE)
                 upd_select->stop_txn = upd->txnid;
             /* Ignore all the aborted transactions. */
-            while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED)
-                upd = upd->next;
-            WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
-            if (upd->next == NULL)
-                last_upd = upd;
-            upd_select->upd = upd = upd->next;
+            if (!__wt_txn_visible_all(session, upd->txnid, upd->start_ts)) {
+                while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED)
+                    upd = upd->next;
+                WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
+                if (upd->next == NULL)
+                    last_upd = upd;
+                upd_select->upd = upd = upd->next;
+            }
         }
         if (upd != NULL) {
-            /* The beginning of the validity window is the selected update's time pair. */
-            if (upd->start_ts < upd_select->stop_ts)
+            /*
+             * The beginning of the validity window is the selected update's time pair.
+             *
+             * FIXME-PM-1521: We shouldn't need to check for this. We're actually allowed to commit
+             * updates to the same key out of timestamp order. So we can have stop time pairs
+             * earlier than their respective start time pair. We need to figure out what to do in
+             * WT-5469.
+             */
+            if (upd->start_ts <= upd_select->stop_ts && upd->txnid <= upd_select->stop_txn) {
                 upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
-            if (upd->txnid < upd_select->stop_txn)
                 upd_select->start_txn = upd->txnid;
+            }
         } else {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL);
@@ -367,20 +379,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * In this case, we should leave the selected update unset to indicate that we want to
              * keep the same on-disk value but set the stop time pair to indicate that the validity
              * window ends when this tombstone started.
-             *
-             * FIXME-PM-1521: Any workload/test that involves reopening a connection or opening a
-             * connection on an existing database will run into issues with the logic below. When
-             * opening a connection, the transaction id allocations are reset and therefore, on-disk
-             * values that were previously written can have later timestamps/transaction ids than
-             * new updates being applied which can lead to a malformed cell (stop time pair earlier
-             * than start time pair). I've added some checks below to guard against malformed cells
-             * but this logic still isn't correct and should be handled properly when we begin the
-             * recovery work.
              */
-            if (vpack->start_ts < upd_select->stop_ts)
-                upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
-            if (vpack->start_txn < upd_select->stop_txn)
-                upd_select->start_txn = vpack->start_txn;
+            WT_ASSERT(session,
+              vpack->start_ts <= upd_select->stop_ts && vpack->start_txn <= upd_select->stop_txn);
+            upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
+            upd_select->start_txn = vpack->start_txn;
             /*
              * Leaving the update unset means that we can skip reconciling. If we've set the stop
              * time pair because of a tombstone after the on-disk value, we still have work to do so
@@ -397,9 +400,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             upd->start_ts = upd->durable_ts = vpack->start_ts;
             upd->txnid = vpack->start_txn;
             WT_PUBLISH(last_upd->next, upd);
+            /* This is going in our update list so it should be accounted for in cache usage. */
+            __wt_cache_page_inmem_incr(session, page, size);
             upd_select->upd = upd;
         }
-        WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE);
     }
 
     /*
@@ -430,8 +434,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /* Should not see uncommitted changes in the history store */
     WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !list_uncommitted);
 
-    r->leave_dirty |= list_uncommitted;
-
+    r->leave_dirty = r->leave_dirty || list_uncommitted;
     /*
      * The update doesn't have any further updates that need to be written to the history store,
      * skip saving the update as saving the update will cause reconciliation to think there is work

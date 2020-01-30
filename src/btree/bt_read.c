@@ -167,7 +167,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     page_flags = WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
     if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
-    WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, true, &notused));
+    WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused));
     tmp.mem = NULL;
 
 skip_read:
@@ -216,7 +216,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     uint64_t sleep_usecs, yield_cnt;
     uint32_t current_state;
     int force_attempts;
-    bool busy, cache_work, evict_skip, stalled, wont_need;
+    bool busy, cache_work, evict_skip, is_leaf_page, stalled, wont_need;
 
     btree = S2BT(session);
 
@@ -247,10 +247,28 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
-            /* Limit reads to cache-only, or internal pages only. */
-            if (LF_ISSET(WT_READ_CACHE) ||
-              (LF_ISSET(WT_READ_CACHE_LEAF) && __wt_ref_is_leaf(session, ref)))
+            /* Limit reads to cache-only. */
+            if (LF_ISSET(WT_READ_CACHE))
                 return (WT_NOTFOUND);
+
+            /* Limit reads to internal pages only. */
+            if (LF_ISSET(WT_READ_CACHE_LEAF)) {
+                /*
+                 * Currently, the internal page read request is passed only in two scenarios.
+                 *  1. Garbage collection of history store
+                 *  2. Rollback to stable operation
+                 *
+                 * Lock the ref before we check the page type to avoid the ref getting changed
+                 * underneath. Retry the ref once again if failed to change the ref state
+                 * to WT_REF_LOCKED.
+                 */
+                if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
+                    continue;
+                is_leaf_page = __wt_ref_is_leaf(session, ref);
+                WT_REF_SET_STATE(ref, WT_REF_DISK);
+                if (is_leaf_page)
+                    return (WT_NOTFOUND);
+            }
 
 read:
             /*
@@ -262,9 +280,7 @@ read:
                   session, true, !F_ISSET(&session->txn, WT_TXN_HAS_ID), NULL));
             WT_RET(__page_read(session, ref, flags));
 
-            /*
-             * We just read a page, don't evict it before we have a chance to use it.
-             */
+            /* We just read a page, don't evict it before we have a chance to use it. */
             evict_skip = true;
 
             /*
@@ -322,10 +338,13 @@ read:
             }
 
             /*
-             * Check if the page requires forced eviction.
+             * If a page has grown too large, we'll try and forcibly evict it before making it
+             * available to the caller. There are a variety of cases where that's not possible.
+             * Don't involve a thread resolving a transaction in forced eviction, they're usually
+             * making the problem better.
              */
-            if (evict_skip || LF_ISSET(WT_READ_NO_SPLIT) || btree->evict_disabled > 0 ||
-              btree->lsm_primary)
+            if (evict_skip || F_ISSET(session, WT_SESSION_RESOLVING_TXN) ||
+              LF_ISSET(WT_READ_NO_SPLIT) || btree->evict_disabled > 0 || btree->lsm_primary)
                 goto skip_evict;
 
             /*
