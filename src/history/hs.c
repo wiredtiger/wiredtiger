@@ -46,6 +46,7 @@ __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_tree)
     }
 
     *hs_tree = ((WT_CURSOR_BTREE *)session->hs_cursor)->btree;
+    WT_ASSERT(session, *hs_tree != NULL);
 
     if (close_hs_cursor)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
@@ -89,7 +90,6 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
         F_CLR(session, WT_SESSION_NO_DATA_HANDLES);
     }
     WT_ERR(__wt_hs_get_btree(session, &btree));
-    WT_ASSERT(session, btree != NULL);
 
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
@@ -150,7 +150,6 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
      * the underlying btree handle, but it's a little ugly.
      */
     WT_RET(__wt_hs_get_btree(session, &hs_btree));
-    WT_ASSERT(session, hs_btree != NULL);
 
     dstats = hs_btree->dhandle->stats;
 

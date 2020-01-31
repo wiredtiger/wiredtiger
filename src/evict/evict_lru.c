@@ -563,8 +563,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
     if (!__evict_queue_empty(cache->evict_urgent_queue, false))
         LF_SET(WT_CACHE_EVICT_URGENT);
 
-    if (F_ISSET(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0 &&
-      hs_tree != NULL)
+    if (F_ISSET(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0)
         cache->bytes_hs = hs_tree->bytes_inmem;
 
     /*
