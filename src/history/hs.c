@@ -724,7 +724,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
         }
 
         if (modifies.size > 0)
-            WT_STAT_CONN_INCRV(session, cache_hs_write_squash, modifies.size);
+            WT_STAT_CONN_INCR(session, cache_hs_write_squash);
 
         if (F_ISSET(r, WT_REC_EVICT))
             /*

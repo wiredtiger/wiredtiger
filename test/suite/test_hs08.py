@@ -145,7 +145,7 @@ class test_hs08(wttest.WiredTigerTestCase):
         hs_writes = self.get_stat(stat.conn.cache_write_hs)
         squashed_write = self.get_stat(stat.conn.cache_hs_write_squash)
         self.assertGreaterEqual(hs_writes, 3)
-        self.assertEqual(squashed_write, 2)
+        self.assertEqual(squashed_write, 1)
 
         # Insert multiple modifies in two different transactions so we should squash two.
         self.session.begin_transaction()
