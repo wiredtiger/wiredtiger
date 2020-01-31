@@ -67,7 +67,7 @@ __txn_abort_newer_insert(
     WT_SKIP_FOREACH (ins, head)
         if (ins->upd != NULL &&
           __txn_abort_newer_update(session, ins->upd, rollback_timestamp) != NULL)
-            return ins->upd;
+            return (ins->upd);
 
     return (NULL);
 }
@@ -96,6 +96,7 @@ __txn_abort_row_replace_with_hs_value(
     int cmp;
     bool valid_update_found;
 
+    hs_cursor = NULL;
     upd = NULL;
     hs_btree_id = S2BT(session)->id;
     session_flags = 0;
@@ -166,6 +167,7 @@ __txn_abort_row_replace_with_hs_value(
     upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
     upd->next = NULL;
     WT_ERR(__wt_update_serial(session, page, upd_entry, &upd, size, false));
+    upd = NULL;
 
     /* Finally remove that update from history store. */
     if (valid_update_found) {
@@ -178,9 +180,10 @@ err:
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
-    if (ret != 0)
+    if (upd != NULL)
         __wt_free(session, upd);
-    WT_TRET(__wt_hs_cursor_close(session, &hs_cursor, session_flags));
+    if (hs_cursor != NULL)
+        WT_TRET(__wt_hs_cursor_close(session, &hs_cursor, session_flags));
 
     return (ret);
 }
@@ -200,9 +203,10 @@ __txn_abort_row_ondisk_kv(
     size_t size;
 
     vpack = &_vpack;
+    upd = NULL;
     __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
     if (vpack->start_ts > rollback_timestamp)
-        return __txn_abort_row_replace_with_hs_value(session, page, rip, rollback_timestamp);
+        return (__txn_abort_row_replace_with_hs_value(session, page, rip, rollback_timestamp));
     else if (vpack->stop_ts != WT_TS_MAX && vpack->stop_ts > rollback_timestamp) {
         /*
          * Clear the remove operation from the key by inserting a TOMBSTONE with infinite
@@ -231,7 +235,9 @@ __txn_abort_row_ondisk_kv(
     return (0);
 
 err:
-    __wt_free(session, upd);
+    if (upd != NULL)
+        __wt_free(session, upd);
+
     return (ret);
 }
 
@@ -297,7 +303,6 @@ __txn_abort_newer_row_leaf(
     if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
         WT_IGNORE_RET_PTR(__txn_abort_newer_insert(session, insert, rollback_timestamp));
 
-    insert_upd = NULL;
     /*
      * Review updates that belong to keys that are on the disk image, as well as for keys inserted
      * since the page was read from disk.
@@ -306,6 +311,7 @@ __txn_abort_newer_row_leaf(
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)
             upd = __txn_abort_newer_update(session, upd, rollback_timestamp);
 
+        insert_upd = NULL;
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
             insert_upd = __txn_abort_newer_insert(session, insert, rollback_timestamp);
 
