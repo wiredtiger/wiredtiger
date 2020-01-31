@@ -514,7 +514,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
     uint32_t btree_id, i;
     uint8_t *p;
     int nentries;
-    bool local_txn, squashed;
+    bool squashed;
 
     page = r->page;
     prev_upd = NULL;
@@ -522,7 +522,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = 0;
     btree_id = btree->id;
-    local_txn = false;
     __wt_modify_vector_init(session, &modifies);
 
     if (!btree->hs_entries)
@@ -531,8 +530,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
     /* Wrap all the updates in a transaction. */
     WT_ERR(__wt_txn_begin(session, NULL));
     __hs_set_isolation(session, &saved_isolation);
-
-    local_txn = true;
 
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
@@ -654,7 +651,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
 
         squashed = false;
 
-        /* Flush the updates on stack. */
+        /* Flush the updates on stack. Stopping once we run out or we reach the onpage upd txnid. */
         for (; modifies.size > 0 && upd->txnid != list->onpage_upd->txnid;
              tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
              upd = prev_upd) {
@@ -726,11 +723,11 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
         if (modifies.size > 0)
             WT_STAT_CONN_INCR(session, cache_hs_write_squash);
 
+        /*
+         * If we are evicting, we can now free older updates since they have already been written to
+         * the history store and can't be rolled back anyway.
+         */
         if (F_ISSET(r, WT_REC_EVICT))
-            /*
-             * If we are evicting, we can now free older updates since they have already been
-             * written to the history store and can't be rolled back anyway.
-             */
             __wt_free_update_list(session, &upd->next);
     }
 
@@ -745,16 +742,12 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
 
 err:
     /* Resolve the transaction. */
-    if (local_txn) {
-        if (ret == 0)
-            ret = __wt_txn_commit(session, NULL);
-        else
-            WT_TRET(__wt_txn_rollback(session, NULL));
-        __hs_restore_isolation(session, saved_isolation);
-        F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
-    }
-
+    if (ret == 0)
+        ret = __wt_txn_commit(session, NULL);
+    else
+        WT_TRET(__wt_txn_rollback(session, NULL));
     __hs_restore_isolation(session, saved_isolation);
+    F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
 
     if (ret == 0 && insert_cnt > 0)
         __hs_insert_updates_verbose(session, btree);
