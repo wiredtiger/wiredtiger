@@ -67,7 +67,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 
     if (hs_verify &&
       (dump_address || dump_blocks || dump_layout || dump_offsets != NULL || dump_pages)) {
-        (void)util_err(session, 69, "-d flags given on non -d call");
+        (void)util_err(session, 0, "-d flags given on non -d call");
     }
     /* Build the configuration string as necessary. */
     if (hs_verify) {
