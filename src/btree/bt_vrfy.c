@@ -288,16 +288,23 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
         /* Perform Verification of data continuity. */
         if (prev_start.timestamp < stop.timestamp) {
             WT_ERR_MSG(session, WT_ERROR,
-              "Key %s has a history store stop timestamp %s newer than its start timestamp %s",
-              __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
+              "In the Btree %" PRIu32
+              ", Key %s has a overlap of "
+              "timestamp ranges between history store stop timestamp %s being "
+              "newer than a more recent timestamp range having start timestamp %s",
+              hs_btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
               __verify_timestamp_to_pretty_string(stop.timestamp),
               __verify_timestamp_to_pretty_string(prev_start.timestamp));
         }
         if (prev_start.txnid < stop.txnid) {
-            WT_ERR_MSG(session, WT_ERROR, "Key %s has a history store stop transaction (%" PRIu64
-                                          ") newer than its start transaction (%" PRIu64 ")",
-              __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1), stop.txnid,
-              prev_start.txnid);
+            WT_ERR_MSG(session, WT_ERROR,
+              "In the Btree %" PRIu32
+              ", Key %s has a overlap of "
+              "timestamp ranges between history store stop transaction (%" PRIu64
+              ") being "
+              "newer than a more recent timestamp range having start transaction (%" PRIu64 ")",
+              hs_btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
+              stop.txnid, prev_start.txnid);
         }
         prev_start.timestamp = start.timestamp;
         prev_start.txnid = start.txnid;
