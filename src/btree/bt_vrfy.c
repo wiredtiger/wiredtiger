@@ -35,14 +35,14 @@ typedef struct {
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
 static int __verify_col_var_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
-static int __verify_key_hs(WT_SESSION_IMPL *, WT_ITEM *, WT_VSTUFF *, WT_CELL_UNPACK *);
+static int __verify_key_hs(WT_SESSION_IMPL *, WT_ITEM *, WT_CELL_UNPACK *, WT_VSTUFF *);
 static int __verify_page_cell(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_row_leaf_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
-static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 static const char *__verify_timestamp_to_pretty_string(wt_timestamp_t);
+static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 
 /*
  * __verify_config --
@@ -181,7 +181,7 @@ __verify_col_var_page_hs(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
         }
 #endif
 
-        WT_ERR(__verify_key_hs(session, key, vs, unpack));
+        WT_ERR(__verify_key_hs(session, key, unpack, vs));
         recno += rle;
     }
 
@@ -220,7 +220,7 @@ __verify_row_leaf_page_hs(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
             WT_ERR(__wt_debug_key_value(session, key, unpack));
 #endif
 
-        WT_ERR(__verify_key_hs(session, key, vs, unpack));
+        WT_ERR(__verify_key_hs(session, key, unpack, vs));
     }
 
 err:
@@ -230,27 +230,27 @@ err:
 
 /*
  * __verify_key_hs --
- *     Verify a key against the history store given a cell unpack holding key values.
+ *     Verify a key against the history store. Unpack will be used to verify the data continuity
+ *     between each timestamp range, making sure they don't overlap.
  */
 static int
-__verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs, WT_CELL_UNPACK *unpack)
+__verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, WT_VSTUFF *vs)
 {
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
-    WT_TIME_PAIR start, stop, orig_start;
+    WT_TIME_PAIR prev_start, start, stop;
     uint32_t hs_btree_id, session_flags;
     int cmp, exact;
-    const char *ts1_bp, *ts2_bp;
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
+    prev_start.timestamp = unpack->start_ts;
+    prev_start.txnid = unpack->start_txn;
     session_flags = 0;
     stop.timestamp = 0;
     stop.txnid = 0;
-    orig_start.timestamp = unpack->start_ts;
-    orig_start.txnid = unpack->start_txn;
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
 
@@ -285,30 +285,28 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs, WT_CELL_U
         WT_UNUSED(vs);
 #endif
 
-        /* Perform Verification of data continuity */
-        if (orig_start.timestamp < stop.timestamp) {
-            ts1_bp = __verify_timestamp_to_pretty_string(stop.timestamp);
-            ts2_bp = __verify_timestamp_to_pretty_string(orig_start.timestamp);
+        /* Perform Verification of data continuity. */
+        if (prev_start.timestamp < stop.timestamp) {
             WT_ERR_MSG(session, WT_ERROR,
               "Key %s has a history store stop timestamp %s newer than its start timestamp %s",
-              __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1), ts1_bp,
-              ts2_bp);
+              __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
+              __verify_timestamp_to_pretty_string(stop.timestamp),
+              __verify_timestamp_to_pretty_string(prev_start.timestamp));
         }
-        if (orig_start.txnid < stop.txnid) {
+        if (prev_start.txnid < stop.txnid) {
             WT_ERR_MSG(session, WT_ERROR, "Key %s has a history store stop transaction (%" PRIu64
                                           ") newer than its start transaction (%" PRIu64 ")",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1), stop.txnid,
-              orig_start.txnid);
+              prev_start.txnid);
         }
-        memcpy(&orig_start, &start, sizeof(WT_TIME_PAIR));
+        prev_start.timestamp = start.timestamp;
+        prev_start.txnid = start.txnid;
     }
 err:
     __wt_scr_free(session, &hs_key);
     WT_RET(__wt_hs_cursor_close(session, &hs_cursor, session_flags));
 
-    if (ret != WT_NOTFOUND) {
-        return (ret);
-    }
+    WT_RET_NOTFOUND_OK(ret);
     return (0);
 }
 
@@ -904,20 +902,17 @@ static int
 __verify_ts_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num, const char *ts1_name,
   wt_timestamp_t ts1, const char *ts2_name, wt_timestamp_t ts2, bool gt, WT_VSTUFF *vs)
 {
-    const char *ts1_bp, *ts2_bp;
-
     if (gt && ts1 >= ts2)
         return (0);
     if (!gt && ts1 <= ts2)
         return (0);
 
-    ts1_bp = __verify_timestamp_to_pretty_string(ts1);
-    ts2_bp = __verify_timestamp_to_pretty_string(ts2);
     WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
                                   " on page at %s failed verification with %s "
                                   "timestamp of %s, %s the parent's %s timestamp of %s",
-      cell_num, __verify_addr_string(session, ref, vs->tmp1), ts1_name, ts1_bp,
-      gt ? "less than" : "greater than", ts2_name, ts2_bp);
+      cell_num, __verify_addr_string(session, ref, vs->tmp1), ts1_name,
+      __verify_timestamp_to_pretty_string(ts1), gt ? "less than" : "greater than", ts2_name,
+      __verify_timestamp_to_pretty_string(ts2));
 }
 
 /*
@@ -951,7 +946,7 @@ __verify_txn_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
 
 /*
  * __verify_timestamp_to_pretty_string --
- *     Convert a timestamp to a pretty string, utilises existing timestamp to string function
+ *     Convert a timestamp to a pretty string, utilises existing timestamp to string function.
  */
 static const char *
 __verify_timestamp_to_pretty_string(wt_timestamp_t ts)
