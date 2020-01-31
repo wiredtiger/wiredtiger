@@ -1108,9 +1108,9 @@ __wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, 
         if (start_txn != NULL)
             *start_txn = unpack->oldest_start_txn;
         if (stop_ts != NULL)
-            *stop_ts = unpack->oldest_start_ts;
+            *stop_ts = unpack->newest_stop_ts;
         if (stop_txn != NULL)
-            *stop_txn = unpack->oldest_start_txn;
+            *stop_txn = unpack->newest_stop_txn;
     }
 }
 
