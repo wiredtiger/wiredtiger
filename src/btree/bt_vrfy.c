@@ -20,6 +20,8 @@ typedef struct {
 
     uint64_t fcnt; /* Progress counter */
 
+    /* Configuration options passed in. */
+    wt_timestamp_t stable_timestamp; /* Stable timestamp to verify against if desired */
 #define WT_VRFY_DUMP(vs) \
     ((vs)->dump_address || (vs)->dump_blocks || (vs)->dump_layout || (vs)->dump_pages)
     bool dump_address; /* Configure: dump special */
@@ -27,7 +29,8 @@ typedef struct {
     bool dump_history;
     bool dump_layout;
     bool dump_pages;
-    /* Page layout information */
+
+    /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100];
 
     WT_ITEM *tmp1, *tmp2, *tmp3, *tmp4; /* Temporary buffers */
@@ -42,6 +45,8 @@ static int __verify_row_int_key_order(
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_row_leaf_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
+static int __verify_ts_stable_cmp(
+  WT_SESSION_IMPL *, WT_ITEM *, WT_REF *, uint32_t, wt_timestamp_t, wt_timestamp_t, WT_VSTUFF *);
 
 /*
  * __verify_config --
@@ -51,6 +56,9 @@ static int
 __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 {
     WT_CONFIG_ITEM cval;
+    WT_TXN_GLOBAL *txn_global;
+
+    txn_global = &S2C(session)->txn_global;
 
     WT_RET(__wt_config_gets(session, cfg, "dump_address", &cval));
     vs->dump_address = cval.val != 0;
@@ -67,10 +75,20 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
     vs->dump_pages = cval.val != 0;
 
+    WT_RET(__wt_config_gets(session, cfg, "stable_timestamp", &cval));
+    vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
+    if (cval.val != 0) {
+        if (!txn_global->has_stable_timestamp)
+            WT_RET_MSG(
+              session, ENOTSUP, "the database does not have a stable timestamp to verify against");
+        vs->stable_timestamp = txn_global->stable_timestamp;
+    }
+
 #if !defined(HAVE_DIAGNOSTIC)
     if (vs->dump_blocks || vs->dump_pages || vs->dump_history)
         WT_RET_MSG(session, ENOTSUP, "the WiredTiger library was not built in diagnostic mode");
 #endif
+
     return (0);
 }
 
@@ -281,6 +299,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
 #else
         WT_UNUSED(vs);
 #endif
+
+        WT_ERR(__verify_ts_stable_cmp(session, key, NULL, 0, start.timestamp, stop.timestamp, vs));
     }
     WT_ERR_NOTFOUND_OK(ret);
 
@@ -937,6 +957,54 @@ __verify_ts_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num, c
 }
 
 /*
+ * __verify_ts_stable_cmp --
+ *     Verify that a pair of start and stop timestamps are valid against the global stable
+ *     timestamp. Takes in either a key for history store timestamps or a ref and cell number.
+ */
+static int
+__verify_ts_stable_cmp(WT_SESSION_IMPL *session, WT_ITEM *key, WT_REF *ref, uint32_t cell_num,
+  wt_timestamp_t start_ts, wt_timestamp_t stop_ts, WT_VSTUFF *vs)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    char tp_string[2][WT_TP_STRING_SIZE];
+    bool start;
+
+    btree = S2BT(session);
+    start = true;
+
+    /* Only verify if -S option is specified. */
+    if (vs->stable_timestamp == WT_TS_NONE)
+        return (0);
+
+    if (start_ts != WT_TS_NONE && start_ts > vs->stable_timestamp)
+        goto msg;
+
+    if (stop_ts != WT_TS_MAX && stop_ts > vs->stable_timestamp) {
+        start = false;
+        goto msg;
+    }
+
+    return (ret);
+
+msg:
+    WT_ASSERT(session, ref != NULL || key != NULL);
+    if (ref != NULL)
+        WT_RET(__wt_buf_fmt(session, vs->tmp1, "cell %" PRIu32 " on page at %s", cell_num,
+          __verify_addr_string(session, ref, vs->tmp2)));
+    else if (key != NULL)
+        WT_RET(__wt_buf_fmt(session, vs->tmp1, "Value in history store for key {%s}",
+          __wt_key_string(session, key->data, key->size, btree->key_format, vs->tmp2)));
+
+    WT_RET_MSG(session, WT_ERROR,
+      "%s has failed verification with a %s"
+      " timestamp of %s greater than the stable_timestamp of %s",
+      (char *)vs->tmp1->data, start ? "start" : "stop",
+      __wt_timestamp_to_string(start ? start_ts : stop_ts, tp_string[0]),
+      __wt_timestamp_to_string(vs->stable_timestamp, tp_string[1]));
+}
+
+/*
  * __verify_txn_addr_cmp --
  *     Do a cell transaction check against the parent.
  */
@@ -1054,6 +1122,8 @@ __verify_page_cell(
               unpack.newest_stop_ts, "newest stop", addr_unpack->newest_stop_ts, false, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "newest stop",
               unpack.newest_stop_txn, "newest stop", addr_unpack->newest_stop_txn, false, dsk, vs));
+            WT_RET(__verify_ts_stable_cmp(
+              session, NULL, ref, cell_num - 1, addr_unpack->start_ts, addr_unpack->stop_ts, vs));
             break;
         case WT_CELL_DEL:
         case WT_CELL_VALUE:
@@ -1090,6 +1160,8 @@ __verify_page_cell(
               "newest stop", addr_unpack->newest_stop_ts, false, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_txn,
               "newest stop", addr_unpack->newest_stop_txn, false, dsk, vs));
+            WT_RET(__verify_ts_stable_cmp(
+              session, NULL, ref, cell_num - 1, unpack.start_ts, unpack.stop_ts, vs));
             break;
         }
     }
