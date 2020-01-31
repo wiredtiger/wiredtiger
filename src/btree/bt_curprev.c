@@ -197,7 +197,6 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->v = 0;
         cbt->iface.value.data = &cbt->v;
     } else {
-        upd = NULL;
 restart_read:
         WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd));
         if (upd == NULL) {
@@ -254,6 +253,10 @@ new_page:
     if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
         cbt->ins = NULL;
     upd = NULL;
+    /*
+     * FIXME-PM-1521: Now we only do txn read if we have an update chain and it doesn't work in
+     * durable history. Review this when we have a plan for fixed-length column store.
+     */
     if (cbt->ins != NULL)
 restart_read:
     WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
@@ -420,9 +423,26 @@ restart_read:
                 ++cbt->recno;
                 continue;
             }
-            WT_RET(__wt_page_cell_data_ref(session, page, &unpack, cbt->tmp));
 
+            /*
+             * FIXME-PM-1521: We unpack the cell twice here. Need to refactor the code to remove the
+             * unnecessary unpack.
+             */
+            cbt->slot = WT_COL_SLOT(page, cip);
+            WT_RET(__wt_txn_read(session, cbt, NULL, &upd));
+            if (upd == NULL)
+                continue;
+            if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
+                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+                    __wt_free_update_list(session, &upd);
+                continue;
+            }
+
+            WT_RET(__wt_value_return(cbt, upd));
+            cbt->tmp->data = cbt->iface.value.data;
+            cbt->tmp->size = cbt->iface.value.size;
             cbt->cip_saved = cip;
+            return (0);
         }
         cbt->iface.value.data = cbt->tmp->data;
         cbt->iface.value.size = cbt->tmp->size;
@@ -544,6 +564,8 @@ restart_read_page:
         rip = &page->pg_row[cbt->slot];
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
         WT_RET(__wt_txn_read(session, cbt, WT_ROW_UPDATE(page, rip), &upd));
+        if (upd == NULL)
+            continue;
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
             if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                 ++cbt->page_deleted_count;
@@ -551,7 +573,7 @@ restart_read_page:
                 __wt_free_update_list(session, &upd);
             continue;
         }
-        return (__cursor_row_slot_val_return(cbt, rip, kpack_used ? &kpack : NULL, upd));
+        return __wt_value_return(cbt, upd);
     }
     /* NOTREACHED */
 }

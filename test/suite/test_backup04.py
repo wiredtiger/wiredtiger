@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import threading, time, wiredtiger, wttest
+import unittest, threading, time, wiredtiger, wttest
 import glob, os, shutil
 from helper import compare_files
 from suite_subprocess import suite_subprocess
@@ -122,6 +122,7 @@ class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
         cursor.close()
 
     # Take an incremental backup and then truncate/archive the logs.
+    @unittest.skip("Temporarily Disabled")
     def take_incr_backup(self, dir):
             config = 'target=("log:")'
             cursor = self.session.open_cursor('backup:', None, config)

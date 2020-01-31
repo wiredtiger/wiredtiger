@@ -2125,8 +2125,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     /*
      * If using the history store table eviction path and we found updates that weren't globally
      * visible when reconciling this page, copy them into the database's history store.
-     *
-     * If no updates were saved, no need to write to the history store.
      */
     if (F_ISSET(r, WT_REC_HS))
         WT_RET(__rec_hs_wrapup(session, r));

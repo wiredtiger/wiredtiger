@@ -300,6 +300,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
         if (cbt->recno >= cbt->ref->ref_recno + page->entries)
             return (0);
 
+        *valid = true;
         /*
          * An update would have appeared as an "insert" object; no further checks to do.
          */
@@ -344,6 +345,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
             }
             if (updp != NULL)
                 *updp = upd;
+            *valid = true;
         }
         break;
     case BTREE_ROW:
@@ -377,10 +379,10 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
             }
             if (updp != NULL)
                 *updp = upd;
+            *valid = true;
         }
         break;
     }
-    *valid = true;
     return (0);
 }
 
