@@ -776,8 +776,9 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
             continue;
         upd_visible = __wt_txn_upd_visible_type(session, upd);
         if (upd_visible == WT_VISIBLE_TRUE) {
-            if (upd->type != WT_UPDATE_BIRTHMARK)
-                *updp = upd;
+            if (upd->type == WT_UPDATE_TOMBSTONE && WT_IS_HS(S2BT(session)))
+                continue;
+            *updp = upd;
             return (0);
         }
         if (upd_visible == WT_VISIBLE_PREPARE)

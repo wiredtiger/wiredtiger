@@ -400,6 +400,7 @@ struct __wt_connection_impl {
     uint64_t sweep_handles_min;     /* Handle sweep minimum open */
 
     /* Set of btree IDs not being rolled back */
+    bool rollback_to_stable;
     uint8_t *stable_rollback_bitstring;
     uint32_t stable_rollback_maxfile;
 
