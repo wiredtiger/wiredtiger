@@ -127,5 +127,27 @@ class test_hs08(wttest.WiredTigerTestCase):
         self.assertEqual(cursor[1], value1 + 'DEC')
         self.session.commit_transaction()
 
+
+        self.session.begin_transaction()
+        cursor.set_key(1)
+        self.assertEqual(cursor.modify([wiredtiger.Modify('F', 1002, 1)]), 0)
+        self.assertEqual(cursor.modify([wiredtiger.Modify('G', 1003, 1)]), 0)
+        self.assertEqual(cursor.modify([wiredtiger.Modify('H', 1004, 1)]), 0)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(9))
+
+        # Call checkpoint again.
+        self.session.checkpoint('use_timestamp=true')
+
+        self.session.begin_transaction()
+        cursor.set_key(1)
+        self.assertEqual(cursor.modify([wiredtiger.Modify('I', 1002, 1)]), 0)
+        self.assertEqual(cursor.modify([wiredtiger.Modify('J', 1003, 1)]), 0)
+        self.assertEqual(cursor.modify([wiredtiger.Modify('K', 1004, 1)]), 0)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+
+        # Call checkpoint again.
+        self.session.checkpoint('use_timestamp=true')
+
+
 if __name__ == '__main__':
     wttest.run()

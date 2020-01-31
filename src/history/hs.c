@@ -401,8 +401,8 @@ __hs_read_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t s
  *     avoid finding a tombstone.
  */
 static int
-__hs_get_value(WT_CURSOR *cursor, WT_BTREE *btree, WT_UPDATE *upd, wt_timestamp_t start_ts,
-  uint64_t start_txnid, WT_ITEM *key, WT_ITEM *full_value)
+__hs_get_value(WT_CURSOR *cursor, WT_BTREE *btree, WT_UPDATE *upd, wt_timestamp_t stop_ts,
+  uint64_t stop_txnid, WT_ITEM *key, WT_ITEM *full_value)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -419,7 +419,7 @@ __hs_get_value(WT_CURSOR *cursor, WT_BTREE *btree, WT_UPDATE *upd, wt_timestamp_
     txn->read_timestamp = upd->start_ts;
     F_SET(txn, WT_TXN_HAS_TS_READ);
 
-    cursor->set_key(cursor, btree->id, key, upd->start_ts, upd->txnid, start_ts, start_txnid);
+    cursor->set_key(cursor, btree->id, key, upd->start_ts, upd->txnid, stop_ts, stop_txnid);
     WT_ERR(cursor->search(cursor));
     WT_ERR(cursor->get_value(cursor, &durable_ts, &prepare_state, &upd_type, full_value));
 err:
@@ -655,9 +655,12 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
         for (; upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
-
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
-            if (F_ISSET(upd, WT_UPDATE_HS))
+            /*
+             * If we've reached a full update and its in the history store we don't need to
+             * continue as anything beyond this point wont help with calculating deltas.
+             */
+            if (upd->type == WT_UPDATE_STANDARD && F_ISSET(upd, WT_UPDATE_HS))
                 break;
         }
 
@@ -669,31 +672,16 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
          */
         WT_ASSERT(session, modifies.size > 0);
         __wt_modify_vector_pop(&modifies, &upd);
-
-        /* If we popped a modify then it should be flagged as in the history store. */
-        if (upd->type == WT_UPDATE_MODIFY) {
-            WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_HS));
-            __wt_modify_vector_peek(&modifies, &prev_upd);
-            /*
-             * Retrieve the full value of the modify from the history store. This avoid us having to
-             * iterate the full update list associated with the modify and recalculating the reverse
-             * deltas.
-             */
-            WT_ERR(__hs_get_value(
-              cursor, btree, upd, prev_upd->start_ts, prev_upd->txnid, key, full_value));
-        } else {
-            /* The key didn't exist back then, which is globally visible. */
-            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
-        }
-
         /* Skip TOMBSTONE at the end of the update chain. */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
                 __wt_modify_vector_pop(&modifies, &upd);
-                WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
             } else
                 continue;
         }
+
+        /* The key didn't exist back then, which is globally visible. */
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         full_value->data = upd->data;
         full_value->size = upd->size;
 
@@ -743,7 +731,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                  */
                 nentries = MAX_REVERSE_MODIFY_NUM;
                 if (!F_ISSET(upd, WT_UPDATE_HS)) {
-                    if (upd->type == WT_UPDATE_MODIFY && modifies.size > 0 &&
+                    if (upd->type == WT_UPDATE_MODIFY &&
                       __wt_calc_modify(session, prev_full_value, full_value,
                         prev_full_value->size / 10, entries, &nentries) == 0) {
                         WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
@@ -765,6 +753,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
             } else
                 squashed = true;
         }
+
 
         /*
          * The last element on the stack must be the onpage_upd.
