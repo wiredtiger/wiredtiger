@@ -127,7 +127,6 @@ class test_hs08(wttest.WiredTigerTestCase):
         self.assertEqual(cursor[1], value1 + 'DEC')
         self.session.commit_transaction()
 
-
         self.session.begin_transaction()
         cursor.set_key(1)
         self.assertEqual(cursor.modify([wiredtiger.Modify('F', 1002, 1)]), 0)
@@ -147,7 +146,6 @@ class test_hs08(wttest.WiredTigerTestCase):
 
         # Call checkpoint again.
         self.session.checkpoint('use_timestamp=true')
-
 
 if __name__ == '__main__':
     wttest.run()

@@ -396,39 +396,6 @@ __hs_read_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t s
 }
 
 /*
- * __hs_get_value --
- *     Get the value associated with an update from the history store. Providing a read timestamp to
- *     avoid finding a tombstone.
- */
-static int
-__hs_get_value(WT_CURSOR *cursor, WT_BTREE *btree, WT_UPDATE *upd, wt_timestamp_t stop_ts,
-  uint64_t stop_txnid, WT_ITEM *key, WT_ITEM *full_value)
-{
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    WT_TXN *txn;
-    wt_timestamp_t durable_ts;
-    uint8_t upd_type, prepare_state;
-
-    session = (WT_SESSION_IMPL *)cursor->session;
-    txn = &session->txn;
-
-    /* This function should not overwrite a pre-existing read timestamp. */
-    WT_ASSERT(session, txn->read_timestamp == WT_TS_NONE && !F_ISSET(txn, WT_TXN_HAS_TS_READ));
-
-    txn->read_timestamp = upd->start_ts;
-    F_SET(txn, WT_TXN_HAS_TS_READ);
-
-    cursor->set_key(cursor, btree->id, key, upd->start_ts, upd->txnid, stop_ts, stop_txnid);
-    WT_ERR(cursor->search(cursor));
-    WT_ERR(cursor->get_value(cursor, &durable_ts, &prepare_state, &upd_type, full_value));
-err:
-    F_CLR(txn, WT_TXN_HAS_TS_READ);
-    txn->read_timestamp = WT_TS_NONE;
-    return (ret);
-}
-
-/*
  * __hs_insert_updates_verbose --
  *     Display a verbose message once per checkpoint with details about the cache state when
  *     performing a history store table write.
@@ -657,8 +624,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                 continue;
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
             /*
-             * If we've reached a full update and its in the history store we don't need to
-             * continue as anything beyond this point wont help with calculating deltas.
+             * If we've reached a full update and its in the history store we don't need to continue
+             * as anything beyond this point wont help with calculating deltas.
              */
             if (upd->type == WT_UPDATE_STANDARD && F_ISSET(upd, WT_UPDATE_HS))
                 break;
@@ -753,7 +720,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
             } else
                 squashed = true;
         }
-
 
         /*
          * The last element on the stack must be the onpage_upd.
