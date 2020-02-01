@@ -719,18 +719,22 @@ int
 __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
-    WT_SESSION_IMPL *hs_session;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    uint32_t session_flags;
 
     cursor = cursor_arg;
-    conn = S2C((WT_SESSION_IMPL *)cursor->session);
-    hs_session = conn->cache->hs_session[0];
-    if (hs_session == NULL)
-        return (0);
-    cbt = (WT_CURSOR_BTREE *)hs_session->hs_cursor;
-    return (__wt_debug_tree_all(hs_session, cbt->btree, NULL, ofile));
+    session = (WT_SESSION_IMPL *)cursor->session;
+    session_flags = 0; /* [-Werror=maybe-uninitialized] */
+
+    WT_RET(__wt_hs_cursor(session, &session_flags));
+    cbt = (WT_CURSOR_BTREE *)session->hs_cursor;
+    ret = __wt_debug_tree_all(session, cbt->btree, NULL, ofile);
+    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+
+    return (ret);
 }
 
 /*
