@@ -119,7 +119,7 @@ new_page:
      */
     if (cbt->ins != NULL)
 restart_read:
-    WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
+    WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, NULL, &upd));
     if (upd == NULL) {
         cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
         cbt->iface.value.data = &cbt->v;
@@ -285,12 +285,8 @@ restart_read:
                 continue;
             }
 
-            /*
-             * FIXME-PM-1521: We unpack the cell twice here. Need to refactor the code to remove the
-             * unnecessary unpack.
-             */
             cbt->slot = WT_COL_SLOT(page, cip);
-            WT_RET(__wt_txn_read(session, cbt, NULL, &upd));
+            WT_RET(__wt_txn_read(session, cbt, NULL, &unpack, &upd));
             if (upd == NULL)
                 continue;
             if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
@@ -412,7 +408,7 @@ restart_read_insert:
 restart_read_page:
         rip = &page->pg_row[cbt->slot];
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
-        WT_RET(__wt_txn_read(session, cbt, WT_ROW_UPDATE(page, rip), &upd));
+        WT_RET(__wt_txn_read(session, cbt, WT_ROW_UPDATE(page, rip), NULL, &upd));
         if (upd == NULL)
             continue;
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
