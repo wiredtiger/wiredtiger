@@ -163,7 +163,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t 
      * visible.
      */
     if (LF_ISSET(WT_REC_IN_MEMORY))
-        return !__wt_txn_visible_all(session, max_txn, max_ts);
+        return (!__wt_txn_visible_all(session, max_txn, max_ts));
 
     /*
      * FIXME-PM-1521: The current implementation doesn't work with fixed-length column store.
@@ -181,7 +181,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t 
         return false;
 
     /* No need to save updates if everything is globally visible. */
-    return !__wt_txn_visible_all(session, max_txn, max_ts);
+    return (!__wt_txn_visible_all(session, max_txn, max_ts));
 }
 
 /*

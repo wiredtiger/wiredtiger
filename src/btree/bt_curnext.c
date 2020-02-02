@@ -418,7 +418,7 @@ restart_read_page:
                 __wt_free_update_list(session, &upd);
             continue;
         }
-        return __wt_value_return(cbt, upd);
+        return (__wt_value_return(cbt, upd));
     }
     /* NOTREACHED */
 }
