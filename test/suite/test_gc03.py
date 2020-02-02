@@ -39,6 +39,12 @@ class test_gc03(test_gc_base):
     conn_config = 'cache_size=4GB,log=(enabled),statistics=(all),statistics_log=(wait=0,on_close=true)'
     session_config = 'isolation=snapshot'
 
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
+
     def test_gc(self):
         nrows = 10000
 
@@ -94,6 +100,14 @@ class test_gc03(test_gc_base):
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue, uri, nrows, 200)
+
+        # Check that the modifies are seen.
+        bigvalue_modA = bigvalue2[0:10] + 'A' + bigvalue2[11:]
+        bigvalue_modB = bigvalue_modA[0:20] + 'B' + bigvalue_modA[21:]
+        bigvalue_modC = bigvalue_modB[0:30] + 'C' + bigvalue_modB[31:]
+        self.check(bigvalue_modA, uri, nrows, 110)
+        self.check(bigvalue_modB, uri, nrows, 120)
+        self.check(bigvalue_modC, uri, nrows, 130)
 
         # Check that old updates are seen.
         self.check(bigvalue2, uri, nrows, 100)

@@ -87,7 +87,7 @@ class test_gc05(test_gc_base):
         self.check_gc_stats()
 
         # Verify checkpoint_one still exists and contains the expected values.
-        for i in range(1, nrows + 1):
+        for i in range(0, nrows):
             ckpt_cursor.set_key(i)
             ckpt_cursor.search()
             self.assertEqual(value_z, ckpt_cursor.get_value())

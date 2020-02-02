@@ -44,7 +44,7 @@ class test_gc_base(wttest.WiredTigerTestCase):
         # Update a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
-        for i in range(1, nrows + 1):
+        for i in range(0, nrows):
             session.begin_transaction()
             cursor[ds.key(i)] = value
             session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
@@ -55,7 +55,7 @@ class test_gc_base(wttest.WiredTigerTestCase):
         session = self.session
         cursor = session.open_cursor(uri)
         session.begin_transaction()
-        for i in range(1, nrows + 1):
+        for i in range(0, nrows):
             cursor.set_key(i)
             mods = [wiredtiger.Modify(value, location, nbytes)]
             self.assertEqual(cursor.modify(mods), 0)
@@ -74,18 +74,10 @@ class test_gc_base(wttest.WiredTigerTestCase):
         self.assertEqual(count, nrows)
 
     def check_gc_stats(self):
-        c = self.session.open_cursor(
-            'statistics:', None, 'statistics=(fast)')
-
+        c = self.session.open_cursor( 'statistics:')
         self.assertGreaterEqual(c[stat.conn.hs_gc_pages_visited][2], 0)
         self.assertGreaterEqual(c[stat.conn.hs_gc_pages_removed][2], 0)
         c.close()
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:', None, 'statistics=(all)')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
 # Test that checkpoint cleans the obsolete lookaside pages.
 class test_gc01(test_gc_base):
@@ -143,6 +135,14 @@ class test_gc01(test_gc_base):
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue, uri, nrows, 200)
 
+        # Check that the modifies are seen.
+        bigvalue_modA = bigvalue2[0:10] + 'A' + bigvalue2[11:]
+        bigvalue_modB = bigvalue_modA[0:20] + 'B' + bigvalue_modA[21:]
+        bigvalue_modC = bigvalue_modB[0:30] + 'C' + bigvalue_modB[31:]
+        self.check(bigvalue_modA, uri, nrows, 110)
+        self.check(bigvalue_modB, uri, nrows, 120)
+        self.check(bigvalue_modC, uri, nrows, 130)
+
         # Check that old updates are seen.
         self.check(bigvalue2, uri, nrows, 100)
 
@@ -167,6 +167,14 @@ class test_gc01(test_gc_base):
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue2, uri, nrows, 300)
+
+        # Check that the modifies are seen.
+        bigvalue_modA = bigvalue[0:10] + 'A' + bigvalue[11:]
+        bigvalue_modB = bigvalue_modA[0:20] + 'B' + bigvalue_modA[21:]
+        bigvalue_modC = bigvalue_modB[0:30] + 'C' + bigvalue_modB[31:]
+        self.check(bigvalue_modA, uri, nrows, 210)
+        self.check(bigvalue_modB, uri, nrows, 220)
+        self.check(bigvalue_modC, uri, nrows, 230)
 
         # Check that old updates are seen.
         self.check(bigvalue, uri, nrows, 200)

@@ -69,9 +69,11 @@ class test_gc02(test_gc_base):
 
         # Checkpoint to ensure that the history store is checkpointed and not cleaned.
         self.session.checkpoint()
-        self.assertEqual(self.get_stat(stat.conn.hs_gc_pages_evict), 0)
-        self.assertEqual(self.get_stat(stat.conn.hs_gc_pages_removed), 0)
-        self.assertGreater(self.get_stat(stat.conn.hs_gc_pages_visited), 0)
+        c = self.session.open_cursor('statistics:')
+        self.assertEqual(c[stat.conn.hs_gc_pages_evict][2], 0)
+        self.assertEqual(c[stat.conn.hs_gc_pages_removed][2], 0)
+        self.assertGreater(c[stat.conn.hs_gc_pages_visited][2], 0)
+        c.close()
 
         # Pin oldest and stable to timestamp 100.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(100) +
@@ -93,6 +95,14 @@ class test_gc02(test_gc_base):
 
         # Set of update operations with increased timestamp.
         self.large_updates(uri, bigvalue, ds, nrows, 200)
+
+        # Check that the modifies are seen.
+        bigvalue_modA = bigvalue2[0:10] + 'A' + bigvalue2[11:]
+        bigvalue_modB = bigvalue_modA[0:20] + 'B' + bigvalue_modA[21:]
+        bigvalue_modC = bigvalue_modB[0:30] + 'C' + bigvalue_modB[31:]
+        self.check(bigvalue_modA, uri, nrows, 110)
+        self.check(bigvalue_modB, uri, nrows, 120)
+        self.check(bigvalue_modC, uri, nrows, 130)
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue, uri, nrows, 150)
