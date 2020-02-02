@@ -285,7 +285,6 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
 #else
         WT_UNUSED(vs);
 #endif
-        WT_ERR_NOTFOUND_OK(ret);
 
         /* Perform Verification of data continuity. */
         if (prev_start.timestamp < stop.timestamp) {
@@ -311,6 +310,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
         prev_start.timestamp = start.timestamp;
         prev_start.txnid = start.txnid;
     }
+    WT_ERR_NOTFOUND_OK(ret);
+
 err:
     /* It is okay to have not found the key */
     if (ret == WT_NOTFOUND)
