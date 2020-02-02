@@ -543,7 +543,9 @@ skip_read:
       (ref->page_las->min_skipped_ts != WT_TS_MAX || ref->page_las->has_prepares))
         WT_ERR(__wt_las_remove_block(session, ref->page_las->las_pageid));
 
-    WT_REF_SET_STATE(ref, final_state);
+    for (;; __wt_yield())
+        if (ref->state == new_state && WT_REF_CAS_STATE(session, ref, new_state, final_state))
+            break;
 
     WT_ASSERT(session, ret == 0);
     return (0);
@@ -555,9 +557,11 @@ err:
      */
     if (ref->page != NULL && previous_state != WT_REF_LIMBO)
         __wt_ref_out(session, ref);
-    WT_REF_SET_STATE(ref, previous_state);
-
     __wt_buf_free(session, &tmp);
+
+    for (;; __wt_yield())
+        if (ref->state == new_state && WT_REF_CAS_STATE(session, ref, new_state, previous_state))
+            break;
 
     return (ret);
 }
