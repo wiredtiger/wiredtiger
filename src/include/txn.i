@@ -11,8 +11,8 @@
  *     Try to do a compare and swap, if successful update the ref history in diagnostic mode.
  */
 static inline bool
-__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t old_state,
-  uint32_t new_state, const char *func, int line)
+__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, u_int old_state, u_int new_state,
+  const char *func, int line)
 {
     bool cas_result;
 
@@ -21,7 +21,7 @@ __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t old_state
     WT_UNUSED(func);
     WT_UNUSED(line);
 
-    cas_result = __wt_atomic_casv32(&ref->state, old_state, new_state);
+    cas_result = __wt_atomic_casv8(&ref->state, old_state, new_state);
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -267,8 +267,8 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
     WT_TXN *txn;
     WT_UPDATE **updp;
     wt_timestamp_t ts;
-    uint32_t previous_state;
     uint8_t prepare_state;
+    u_int previous_state;
 
     txn = &session->txn;
 
@@ -278,7 +278,6 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
      */
     for (;; __wt_yield()) {
         previous_state = ref->state;
-        WT_ASSERT(session, previous_state != WT_REF_READING);
         if (previous_state != WT_REF_LOCKED &&
           WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;
@@ -319,7 +318,7 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 {
     WT_TXN *txn;
     WT_UPDATE **updp;
-    uint32_t previous_state;
+    u_int previous_state;
 
     txn = &session->txn;
 
@@ -329,7 +328,6 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      */
     for (;; __wt_yield()) {
         previous_state = ref->state;
-        WT_ASSERT(session, previous_state != WT_REF_READING);
         if (previous_state != WT_REF_LOCKED &&
           WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;

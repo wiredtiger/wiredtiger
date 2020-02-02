@@ -163,6 +163,10 @@ __wt_rec_child_modify(
             if (F_ISSET(r, WT_REC_EVICT))
                 return (__wt_set_return(session, EBUSY));
 
+            /* If being read, the page is not modified by definition. */
+            if (ref->disk_read)
+                goto done;
+
             /*
              * If called during checkpoint, the child is being considered by the eviction server or
              * the child is a truncated page being read. The eviction may have started before the
@@ -228,18 +232,6 @@ __wt_rec_child_modify(
             WT_RET(ret);
             *hazardp = true;
             goto in_memory;
-
-        case WT_REF_READING:
-            /*
-             * Being read, not modified by definition.
-             *
-             * We should never be here during eviction, active child pages in an evicted page's
-             * subtree fails the eviction attempt.
-             */
-            WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
-            if (F_ISSET(r, WT_REC_EVICT))
-                return (__wt_set_return(session, EBUSY));
-            goto done;
 
         case WT_REF_SPLIT:
             /*

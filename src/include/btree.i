@@ -1098,8 +1098,8 @@ __wt_ref_info_lock(
   WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, size_t *sizep, bool *is_leafp)
 {
     size_t size;
-    uint32_t previous_state;
     const uint8_t *addr;
+    u_int previous_state;
     bool is_leaf;
 
     /*

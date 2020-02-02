@@ -126,14 +126,9 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
         /*
-         * An eviction thread might be attempting to evict the page
-         * (the WT_REF may be WT_REF_LOCKED), or it may be a disk based
-         * page (the WT_REF may be WT_REF_READING), or it may be in
-         * some other state.  Acquire a hazard pointer for any
-         * in-memory pages so we know the state of the page.
-         *
-         * Ignore pages not in-memory (deleted, on-disk, being read),
-         * there's no in-memory structure to check.
+         * Acquire a hazard pointer for any in-memory pages so we know the state of the page. Ignore
+         * the pages not in-memory (deleted, on-disk, being read), there's no in-memory structure to
+         * check.
          */
         if ((ret = __wt_page_in(session, ref, read_flags)) == WT_NOTFOUND)
             continue;
@@ -780,7 +775,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         next_ref = pindex->index[deleted_refs[i]];
 #ifdef HAVE_DIAGNOSTIC
         {
-            uint32_t ref_state;
+            u_int ref_state;
             WT_ORDERED_READ(ref_state, next_ref->state);
             WT_ASSERT(session, ref_state == WT_REF_LOCKED || ref_state == WT_REF_SPLIT);
         }

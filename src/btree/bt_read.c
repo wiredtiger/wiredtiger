@@ -378,7 +378,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
  */
 static inline int
 __page_read_lookaside(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state, uint32_t *final_statep)
+  WT_SESSION_IMPL *session, WT_REF *ref, u_int previous_state, u_int *final_statep)
 {
     /*
      * Reading a lookaside ref for the first time, and not requiring the history triggers a
@@ -417,11 +417,13 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_PAGE *notused;
     size_t addr_size;
     uint64_t time_diff, time_start, time_stop;
-    uint32_t page_flags, final_state, new_state, previous_state;
+    uint32_t page_flags;
     const uint8_t *addr;
+    u_int final_state, previous_state;
     bool timer;
 
     time_start = time_stop = 0;
+    final_state = WT_REF_MEM;
 
     /*
      * Don't pass an allocated buffer to the underlying block read function, force allocation of new
@@ -429,30 +431,30 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      */
     WT_CLEAR(tmp);
 
-    /*
-     * Attempt to set the state to WT_REF_READING for normal reads, or WT_REF_LOCKED, for deleted
-     * pages or pages with lookaside entries. The difference is that checkpoints can skip over clean
-     * pages that are being read into cache, but need to wait for deletes or lookaside updates to be
-     * resolved (in order for checkpoint to write the correct version of the page).
-     *
-     * If successful, we've won the race, read the page.
-     */
+    /* Lock the WT_REF: if successful, we've won the race, read the page. */
     switch (previous_state = ref->state) {
-    case WT_REF_DISK:
-        new_state = WT_REF_READING;
-        break;
     case WT_REF_DELETED:
+    case WT_REF_DISK:
     case WT_REF_LIMBO:
     case WT_REF_LOOKASIDE:
-        new_state = WT_REF_LOCKED;
         break;
     default:
         return (0);
     }
-    if (!WT_REF_CAS_STATE(session, ref, previous_state, new_state))
+    if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
         return (0);
 
-    final_state = WT_REF_MEM;
+    /*
+     * If reading a page from disk, set WT_REF.disk_read so checkpoints and other threads scanning
+     * just in-memory pages can skip this page. (Checkpoints must wait for deletes or lookaside
+     * updates to be resolved in order for checkpoint to write the correct version of the page, but
+     * can ignore pages being read into the cache as they're clean by definition.) Don't cache this
+     * write, we want checkpoint to see it.
+     */
+    if (previous_state == WT_REF_DISK) {
+        ref->disk_read = 1;
+        WT_FULL_BARRIER();
+    }
 
     /* If we already have the page image, just instantiate the history. */
     if (previous_state == WT_REF_LIMBO)
@@ -543,9 +545,8 @@ skip_read:
       (ref->page_las->min_skipped_ts != WT_TS_MAX || ref->page_las->has_prepares))
         WT_ERR(__wt_las_remove_block(session, ref->page_las->las_pageid));
 
-    for (;; __wt_yield())
-        if (ref->state == new_state && WT_REF_CAS_STATE(session, ref, new_state, final_state))
-            break;
+    ref->disk_read = 0;
+    WT_REF_SET_STATE(ref, final_state);
 
     WT_ASSERT(session, ret == 0);
     return (0);
@@ -559,9 +560,8 @@ err:
         __wt_ref_out(session, ref);
     __wt_buf_free(session, &tmp);
 
-    for (;; __wt_yield())
-        if (ref->state == new_state && WT_REF_CAS_STATE(session, ref, new_state, previous_state))
-            break;
+    ref->disk_read = 0;
+    WT_REF_SET_STATE(ref, previous_state);
 
     return (ret);
 }
@@ -583,7 +583,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_DECL_RET;
     WT_PAGE *page;
     uint64_t sleep_usecs, yield_cnt;
-    uint32_t current_state;
+    u_int current_state;
     int force_attempts;
     bool busy, cache_work, evict_skip, stalled, wont_need;
 
@@ -656,22 +656,20 @@ read:
               F_ISSET(session, WT_SESSION_READ_WONT_NEED) ||
               F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_NOKEEP);
             continue;
-        case WT_REF_READING:
-            if (LF_ISSET(WT_READ_CACHE))
-                return (WT_NOTFOUND);
-            if (LF_ISSET(WT_READ_NO_WAIT))
-                return (WT_NOTFOUND);
-
-            /* Waiting on another thread's read, stall. */
-            WT_STAT_CONN_INCR(session, page_read_blocked);
-            stalled = true;
-            break;
         case WT_REF_LOCKED:
             if (LF_ISSET(WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
 
-            /* Waiting on eviction, stall. */
-            WT_STAT_CONN_INCR(session, page_locked_blocked);
+            if (ref->disk_read) {
+                if (LF_ISSET(WT_READ_CACHE))
+                    return (WT_NOTFOUND);
+
+                /* Waiting on another thread's read, stall. */
+                WT_STAT_CONN_INCR(session, page_read_blocked);
+            } else {
+                /* Waiting on eviction, stall. */
+                WT_STAT_CONN_INCR(session, page_locked_blocked);
+            }
             stalled = true;
             break;
         case WT_REF_SPLIT:

@@ -58,7 +58,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     WT_ADDR *ref_addr;
     WT_DECL_RET;
-    uint32_t previous_state;
+    u_int previous_state;
 
     *skipp = false;
 
@@ -158,7 +158,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_UPDATE **updp;
     uint64_t sleep_usecs, yield_count;
-    uint32_t current_state;
+    u_int current_state;
     bool locked;
 
     /* Lock the reference. We cannot access ref->page_del except when locked. */
@@ -175,7 +175,6 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
         case WT_REF_DISK:
         case WT_REF_LIMBO:
         case WT_REF_LOOKASIDE:
-        case WT_REF_READING:
         default:
             return (__wt_illegal_value(session, current_state));
         }

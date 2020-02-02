@@ -801,11 +801,6 @@ struct __wt_page {
  *	Set by a reading thread once the page has been read from disk; the page
  *	is in the cache and the page reference is OK.
  *
- * WT_REF_READING:
- *	Set by a reading thread before reading an ordinary page from disk;
- *	other readers of the page wait until the read completes.  Sync can
- *	safely skip over such pages: they are clean by definition.
- *
  * WT_REF_SPLIT:
  *	Set when the page is split; the WT_REF is dead and can no longer be
  *	used.
@@ -845,7 +840,7 @@ struct __wt_page_deleted {
      */
     volatile uint8_t prepare_state; /* Prepare state. */
 
-    uint32_t previous_state; /* Previous state */
+    uint8_t previous_state; /* Previous state */
 
     WT_UPDATE **update_list; /* List of updates for abort */
 };
@@ -865,15 +860,19 @@ struct __wt_ref {
     WT_PAGE *volatile home;        /* Reference page */
     volatile uint32_t pindex_hint; /* Reference page index hint */
 
-#define WT_REF_DISK 0        /* Page is on disk */
-#define WT_REF_DELETED 1     /* Page is on disk, but deleted */
-#define WT_REF_LIMBO 2       /* Page is in cache without history */
-#define WT_REF_LOCKED 3      /* Page locked for exclusive access */
-#define WT_REF_LOOKASIDE 4   /* Page is on disk with lookaside */
-#define WT_REF_MEM 5         /* Page is in cache and valid */
-#define WT_REF_READING 6     /* Page being read */
-#define WT_REF_SPLIT 7       /* Parent page split (WT_REF dead) */
-    volatile uint32_t state; /* Page state */
+#define WT_REF_DISK 0       /* Page is on disk */
+#define WT_REF_DELETED 1    /* Page is on disk, but deleted */
+#define WT_REF_LIMBO 2      /* Page is in cache without history */
+#define WT_REF_LOCKED 3     /* Page locked for exclusive access */
+#define WT_REF_LOOKASIDE 4  /* Page is on disk with lookaside */
+#define WT_REF_MEM 5        /* Page is in cache and valid */
+#define WT_REF_SPLIT 6      /* Parent page split (WT_REF dead) */
+    volatile uint8_t state; /* Page state */
+
+    /* Pages being read from disk are ignored by threads scanning the cache and by checkpoints. */
+    uint8_t disk_read;
+
+    uint8_t __unused[2]; /* Padding */
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,

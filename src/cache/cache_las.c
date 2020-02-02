@@ -458,7 +458,7 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 bool
 __wt_las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    uint32_t previous_state;
+    u_int previous_state;
     bool skip;
 
     if ((previous_state = ref->state) != WT_REF_LIMBO && previous_state != WT_REF_LOOKASIDE)

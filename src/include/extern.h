@@ -621,8 +621,8 @@ extern int __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,
 extern int __wt_errno(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_esc_hex_to_raw(WT_SESSION_IMPL *session, const char *from, WT_ITEM *to)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state,
-  uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, u_int previous_state, uint32_t flags)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict_create(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict_destroy(WT_SESSION_IMPL *session)
@@ -1791,8 +1791,8 @@ static inline bool __wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_rec_need_split(WT_RECONCILE *r, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline bool __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t old_state,
-  uint32_t new_state, const char *func, int line) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, u_int old_state,
+  u_int new_state, const char *func, int line) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_ref_is_root(WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp,
   WT_CELL **cellp, void *datap, size_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

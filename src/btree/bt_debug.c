@@ -1241,7 +1241,7 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 
     switch (ref->state) {
     case WT_REF_DISK:
-        state = "disk";
+        state = ref->disk_read ? "reading" : "disk";
         break;
     case WT_REF_DELETED:
         state = "deleted";
@@ -1254,9 +1254,6 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
         break;
     case WT_REF_MEM:
         state = "memory";
-        break;
-    case WT_REF_READING:
-        state = "reading";
         break;
     case WT_REF_SPLIT:
         state = "split";
