@@ -684,11 +684,9 @@ static const char *const __stats_connection_desc[] = {
   "cache: forced eviction - pages selected unable to be evicted time",
   "cache: hazard pointer blocked page eviction", "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked", "cache: hazard pointer maximum array length",
-  "cache: history store cursor application thread wait time (usecs)",
-  "cache: history store cursor internal thread wait time (usecs)", "cache: history store score",
-  "cache: history store table insert calls", "cache: history store table max on-disk size",
-  "cache: history store table on-disk size", "cache: history store table reads",
-  "cache: history store table reads missed",
+  "cache: history store score", "cache: history store table insert calls",
+  "cache: history store table max on-disk size", "cache: history store table on-disk size",
+  "cache: history store table reads", "cache: history store table reads missed",
   "cache: history store table reads requiring squashed modifies",
   "cache: history store table writes requiring squashed modifies",
   "cache: in-memory page passed criteria to be split", "cache: in-memory page splits",
@@ -1030,8 +1028,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hazard_checks = 0;
     stats->cache_hazard_walks = 0;
     stats->cache_hazard_max = 0;
-    stats->cache_hs_cursor_wait_application = 0;
-    stats->cache_hs_cursor_wait_internal = 0;
     /* not clearing cache_hs_score */
     stats->cache_hs_insert = 0;
     /* not clearing cache_hs_ondisk_max */
@@ -1462,8 +1458,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hazard_walks += WT_STAT_READ(from, cache_hazard_walks);
     if ((v = WT_STAT_READ(from, cache_hazard_max)) > to->cache_hazard_max)
         to->cache_hazard_max = v;
-    to->cache_hs_cursor_wait_application += WT_STAT_READ(from, cache_hs_cursor_wait_application);
-    to->cache_hs_cursor_wait_internal += WT_STAT_READ(from, cache_hs_cursor_wait_internal);
     to->cache_hs_score += WT_STAT_READ(from, cache_hs_score);
     to->cache_hs_insert += WT_STAT_READ(from, cache_hs_insert);
     to->cache_hs_ondisk_max += WT_STAT_READ(from, cache_hs_ondisk_max);

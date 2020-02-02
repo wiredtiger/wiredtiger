@@ -254,7 +254,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
      * Open a history store cursor positioned at the end of the data store key (the newest record)
      * and iterate backwards until we reach a different key or btree.
      */
-    __wt_hs_cursor(session, &hs_cursor, &session_flags);
+    WT_ERR(__wt_hs_cursor(session, &session_flags));
+    hs_cursor = session->hs_cursor;
     hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
     WT_ERR(hs_cursor->search_near(hs_cursor, &exact));
 
@@ -281,12 +282,17 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
         WT_UNUSED(vs);
 #endif
     }
+    WT_ERR_NOTFOUND_OK(ret);
 
 err:
-    __wt_scr_free(session, &hs_key);
-    WT_RET(__wt_hs_cursor_close(session, &hs_cursor, session_flags));
+    /* It is okay to have not found the key */
+    if (ret == WT_NOTFOUND)
+        ret = 0;
 
-    return (0);
+    __wt_scr_free(session, &hs_key);
+    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+
+    return (ret);
 }
 
 /*
@@ -467,17 +473,29 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
 static const char *
 __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
 {
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    wt_timestamp_t start_ts, stop_ts;
     size_t addr_size;
+    uint64_t start_txn, stop_txn;
     const uint8_t *addr;
+    char tp_string[2][WT_TP_STRING_SIZE];
 
     if (__wt_ref_is_root(ref)) {
         buf->data = "[Root]";
         buf->size = strlen("[Root]");
         return (buf->data);
     }
+    __wt_ref_info_all(
+      session, ref, &addr, &addr_size, NULL, &start_ts, &stop_ts, &start_txn, &stop_txn);
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+    WT_ERR(__wt_buf_fmt(session, buf, "%s %s,%s", __wt_addr_string(session, addr, addr_size, tmp),
+      addr != NULL ? __wt_time_pair_to_string(start_ts, start_txn, tp_string[0]) : "-/-",
+      addr != NULL ? __wt_time_pair_to_string(stop_ts, stop_txn, tp_string[1]) : "-/-"));
 
-    __wt_ref_info(session, ref, &addr, &addr_size, NULL);
-    return (__wt_addr_string(session, addr, addr_size, buf));
+err:
+    __wt_scr_free(session, &tmp);
+    return (buf->data);
 }
 
 /*
