@@ -119,7 +119,7 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_REF *ref;
     uint32_t read_flags;
 
-    read_flags = WT_READ_CACHE | WT_READ_NO_EVICT;
+    read_flags = WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_WAIT;
 
     /* The split is complete and live, verify all of the pages involved. */
     __split_verify_intl_key_order(session, page);
