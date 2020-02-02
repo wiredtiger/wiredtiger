@@ -21,12 +21,12 @@ __wt_addr_string(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size
     btree = S2BT_SAFE(session);
 
     if (addr == NULL) {
-        buf->data = "[NoAddr]";
-        buf->size = strlen("[NoAddr]");
+        buf->data = WT_NO_ADDR_STRING;
+        buf->size = strlen(WT_NO_ADDR_STRING);
     } else if (btree == NULL || (bm = btree->bm) == NULL ||
       bm->addr_string(bm, session, buf, addr, addr_size) != 0) {
-        buf->data = "[Error]";
-        buf->size = strlen("[Error]");
+        buf->data = WT_ERR_STRING;
+        buf->size = strlen(WT_ERR_STRING);
     }
     return (buf->data);
 }
@@ -94,8 +94,8 @@ __wt_key_string(
             data_arg = tmp.data;
             size = tmp.size + 1;
         } else {
-            data_arg = "[Error]";
-            size = sizeof("[Error]");
+            data_arg = WT_ERR_STRING;
+            size = sizeof(WT_ERR_STRING);
         }
     }
     return __wt_buf_set_printable_format(session, data_arg, size, key_format, buf);

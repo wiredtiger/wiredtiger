@@ -79,8 +79,8 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
     if (cval.val != 0) {
         if (!txn_global->has_stable_timestamp)
-            WT_RET_MSG(
-              session, ENOTSUP, "the database does not have a stable timestamp to verify against");
+            WT_RET_MSG(session, ENOTSUP,
+              "cannot verify against the stable timestamp if it has not been set");
         vs->stable_timestamp = txn_global->stable_timestamp;
     }
 
@@ -305,7 +305,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
     WT_ERR_NOTFOUND_OK(ret);
 
 err:
-    /* It is okay to have not found the key */
+    /* It is okay to have not found the key. */
     if (ret == WT_NOTFOUND)
         ret = 0;
 
