@@ -756,8 +756,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                         /*
                          * If we are evicting, we can now free older updates which have already been
                          * written to the history store. However, we can only free the updates after
-                         * an original full update on the chain bing inserted into the history store
-                         * also as a full update.
+                         * an original full update on the chain being inserted into the history
+                         * store also as a full update.
                          */
                         if (F_ISSET(r, WT_REC_EVICT) && upd->type == WT_UPDATE_STANDARD)
                             __wt_free_update_list(session, &upd->next);
