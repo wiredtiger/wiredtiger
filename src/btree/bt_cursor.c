@@ -332,20 +332,18 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
             return (0);
 
         /*
-         * Check for an update ondisk or in the history store. If an insert object exists, we've
-         * already tried that so just skip this.
+         * Check for an update ondisk or in the history store. For column store, an insert object
+         * can have the same key as an on-page or history store object.
          */
-        if (cbt->ins == NULL) {
-            WT_RET(__wt_txn_read(session, cbt, NULL, &upd));
-            if (upd != NULL) {
-                if (upd->type == WT_UPDATE_TOMBSTONE) {
-                    if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                        __wt_free_update_list(session, &upd);
-                    return (0);
-                }
-                if (updp != NULL)
-                    *updp = upd;
+        WT_RET(__wt_txn_read(session, cbt, NULL, &upd));
+        if (upd != NULL) {
+            if (upd->type == WT_UPDATE_TOMBSTONE) {
+                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+                    __wt_free_update_list(session, &upd);
+                return (0);
             }
+            if (updp != NULL)
+                *updp = upd;
         }
         break;
     case BTREE_ROW:

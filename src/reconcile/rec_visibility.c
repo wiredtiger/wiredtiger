@@ -367,6 +367,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
                 upd_select->start_txn = upd->txnid;
             }
+
+            /* Use stop timestamp as durable timestamp if exist. */
+            if (upd_select->stop_ts != WT_TS_MAX)
+                upd_select->durable_ts = upd_select->stop_ts;
         } else {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL);

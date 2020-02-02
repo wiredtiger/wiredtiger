@@ -55,7 +55,6 @@ typedef enum __wt_cache_op {
 } WT_CACHE_OP;
 
 #define WT_HS_FILE_MIN (100 * WT_MEGABYTE)
-#define WT_HS_NUM_SESSIONS 5
 
 /*
  * WiredTiger cache structure.
@@ -183,15 +182,6 @@ struct __wt_cache {
      * can be discarded, to 100 if no updates are globally visible.
      */
     int32_t evict_hs_score;
-
-    /*
-     * Shared history store lock, session and cursor, used by threads accessing the history store
-     * table (other than eviction server and worker threads, all of which have their own history
-     * store cursors).
-     */
-    WT_SPINLOCK hs_lock;
-    WT_SESSION_IMPL *hs_session[WT_HS_NUM_SESSIONS];
-    bool hs_session_inuse[WT_HS_NUM_SESSIONS];
 
     uint32_t hs_fileid; /* History store table file ID */
 
