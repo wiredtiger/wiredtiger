@@ -801,8 +801,6 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     WT_TIME_PAIR start, stop;
     size_t size;
 
-    WT_CLEAR(buf);
-
     *updp = NULL;
     WT_RET(__wt_txn_read_upd_list(session, upd, updp));
     if (*updp != NULL)
@@ -815,6 +813,12 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         WT_RET(__upd_alloc_tombstone(session, updp, WT_TXN_NONE, WT_TS_NONE));
         return (0);
     }
+
+    buf.data = NULL;
+    buf.size = 0;
+    buf.mem = NULL;
+    buf.memsize = 0;
+    buf.flags = 0;
 
     /* Check the ondisk value. */
     if (vpack == NULL)
