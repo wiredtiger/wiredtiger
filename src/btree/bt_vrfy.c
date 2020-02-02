@@ -319,7 +319,7 @@ err:
     __wt_scr_free(session, &hs_key);
     WT_TRET(__wt_hs_cursor_close(session, session_flags));
 
-    return (0);
+    return (ret);
 }
 
 /*
