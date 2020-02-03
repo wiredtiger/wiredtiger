@@ -15,7 +15,7 @@
 #define WT_HS_SESSION_FLAGS (WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_NO_RECONCILE)
 
 /*
- * __hs_store_time_pair --
+ * __wt_hs_store_time_pair --
  *     Store the time pair to use for the history store inserts.
  */
 void

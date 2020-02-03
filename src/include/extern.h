@@ -1654,9 +1654,9 @@ extern void __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generat
 extern void __wt_gen_init(WT_SESSION_IMPL *session);
 extern void __wt_gen_next_drain(WT_SESSION_IMPL *session, int which);
 extern void __wt_hazard_close(WT_SESSION_IMPL *session);
+extern void __wt_hs_destroy(WT_SESSION_IMPL *session);
 extern void __wt_hs_store_time_pair(
   WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_t txnid);
-extern void __wt_hs_destroy(WT_SESSION_IMPL *session);
 extern void __wt_huffman_close(WT_SESSION_IMPL *session, void *huffman_arg);
 extern void __wt_json_close(WT_SESSION_IMPL *session, WT_CURSOR *cursor);
 extern void __wt_log_background(WT_SESSION_IMPL *session, WT_LSN *lsn);

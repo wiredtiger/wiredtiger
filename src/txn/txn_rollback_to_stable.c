@@ -112,30 +112,43 @@ __txn_abort_row_replace_with_hs_value(
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(key);
     WT_DECL_RET;
+    WT_SESSION_IMPL *orig_session;
     WT_TIME_PAIR hs_start, hs_stop;
     WT_UPDATE *upd;
     wt_timestamp_t durable_ts;
     size_t size;
-    uint32_t hs_btree_id, session_flags;
+    uint32_t hs_btree_id, orig_btree_id, session_flags;
     uint8_t prepare_state, type;
     int cmp;
     bool valid_update_found;
 
     hs_cursor = NULL;
+    orig_session = session;
     upd = NULL;
-    hs_btree_id = S2BT(session)->id;
+    hs_btree_id = orig_btree_id = S2BT(session)->id;
     session_flags = 0;
     valid_update_found = false;
 
+    /*
+     * FIXME: This code should be removed once the history store transactions are removed. Open an
+     * internal session to operate on the history store to find out the value that needs to replace
+     * the data store version. The reason behind opening an internal session is not to inherit the
+     * original session that is used for the data store walk. Use this new session only for the
+     * history store operations.
+     */
+    WT_RET(
+      __wt_open_internal_session(S2C(orig_session), "history store search", true, 0, &session));
+
     /* Allocate buffers for the data store and history store key. */
-    WT_RET(__wt_scr_alloc(session, 0, &key));
+    WT_ERR(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
 
     /* Open a history store table cursor. */
-    __wt_hs_cursor(session, &hs_cursor, &session_flags);
+    WT_ERR(__wt_hs_cursor(session, &session_flags));
+    hs_cursor = session->hs_cursor;
 
     /*
      * Scan the history store for the given btree and key with maximum start and stop time pair to
@@ -150,7 +163,7 @@ __txn_abort_row_replace_with_hs_value(
           &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
 
         /* Stop before crossing over to the next btree */
-        if (hs_btree_id != S2BT(session)->id)
+        if (hs_btree_id != orig_btree_id)
             break;
 
         /*
@@ -167,7 +180,7 @@ __txn_abort_row_replace_with_hs_value(
             break;
         }
 
-        __wt_hs_store_time_pair((WT_SESSION_IMPL *)hs_cursor->session, WT_TS_NONE, WT_TXN_NONE);
+        __wt_hs_store_time_pair(session, WT_TS_NONE, WT_TXN_NONE);
         WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_INCR(session, txn_rollback_hs_removed);
     }
@@ -178,23 +191,23 @@ __txn_abort_row_replace_with_hs_value(
      */
     if (valid_update_found) {
         WT_ERR(hs_cursor->get_value(hs_cursor, &durable_ts, &prepare_state, &type, hs_value));
-        WT_ERR(__wt_update_alloc(session, hs_value, &upd, &size, WT_UPDATE_STANDARD));
+        WT_ERR(__wt_update_alloc(orig_session, hs_value, &upd, &size, WT_UPDATE_STANDARD));
         upd->txnid = hs_start.txnid;
         upd->durable_ts = durable_ts;
         upd->start_ts = hs_start.timestamp;
     } else {
-        WT_ERR(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
+        WT_ERR(__wt_update_alloc(orig_session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
         upd->txnid = WT_TXN_NONE;
         upd->durable_ts = WT_TS_NONE;
         upd->start_ts = WT_TS_NONE;
     }
 
-    WT_ERR(__txn_abort_row_replace_upd_list(session, page, rip, upd, size));
+    WT_ERR(__txn_abort_row_replace_upd_list(orig_session, page, rip, upd, size));
     upd = NULL;
 
     /* Finally remove that update from history store. */
     if (valid_update_found) {
-        __wt_hs_store_time_pair((WT_SESSION_IMPL *)hs_cursor->session, WT_TS_NONE, WT_TXN_NONE);
+        __wt_hs_store_time_pair(session, WT_TS_NONE, WT_TXN_NONE);
         WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_INCR(session, txn_rollback_hs_removed);
     }
@@ -206,7 +219,9 @@ err:
     if (upd != NULL)
         __wt_free(session, upd);
     if (hs_cursor != NULL)
-        WT_TRET(__wt_hs_cursor_close(session, &hs_cursor, session_flags));
+        WT_TRET(__wt_hs_cursor_close(session, session_flags));
+
+    WT_TRET(session->iface.close(&session->iface, NULL));
 
     return (ret);
 }
@@ -329,10 +344,8 @@ __txn_abort_newer_row_leaf(
             __txn_abort_newer_insert(session, insert, rollback_timestamp);
 
         /* Check for any visible updates in the update list that satisfy the given timestamp. */
-        if (!stable_update_found) {
-            WT_ASSERT(session, (WT_ROW_INSERT(page, rip) == NULL));
+        if (!stable_update_found && WT_ROW_INSERT(page, rip) == NULL)
             WT_RET(__txn_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
-        }
     }
 
     __wt_page_only_modify_set(session, page);
