@@ -776,8 +776,10 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
             continue;
         upd_visible = __wt_txn_upd_visible_type(session, upd);
         if (upd_visible == WT_VISIBLE_TRUE) {
-            if (upd->type != WT_UPDATE_BIRTHMARK)
-                *updp = upd;
+            /* Don't consider TOMBSTONE updates for the history store. */
+            if (upd->type == WT_UPDATE_TOMBSTONE && WT_IS_HS(S2BT(session)))
+                continue;
+            *updp = upd;
             return (0);
         }
         if (upd_visible == WT_VISIBLE_PREPARE)
@@ -821,9 +823,9 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     /*
      * If the stop pair is set, that means that there is a tombstone at that time. If the stop time
      * pair is visible to our txn then that means we've just spotted a tombstone and should return
-     * "not found".
+     * "not found", except for history store scan.
      */
-    if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
+    if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX && !WT_IS_HS(S2BT(session)) &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
         WT_RET(__upd_alloc_tombstone(session, updp, stop.txnid, stop.timestamp));
         return (0);
