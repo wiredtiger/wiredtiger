@@ -159,8 +159,8 @@ __txn_abort_row_ondisk_kv(
         upd->start_ts = WT_TS_NONE;
     } else if (vpack->stop_ts != WT_TS_MAX && vpack->stop_ts > rollback_timestamp) {
         /*
-         * Clear the remove operation from the key by inserting the original on-disk value
-         * as a standard update.
+         * Clear the remove operation from the key by inserting the original on-disk value as a
+         * standard update.
          */
         WT_CLEAR(buf);
 
@@ -269,12 +269,12 @@ __txn_abort_newer_row_leaf(
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)
             __txn_abort_newer_update(session, upd, rollback_timestamp);
 
+        if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
+            __txn_abort_newer_insert(session, insert, rollback_timestamp);
+
         /* Check for updates in the update list that satisfy the given timestamp. */
         if (WT_ROW_UPDATE(page, rip) == NULL && WT_ROW_INSERT(page, rip) == NULL)
             WT_RET(__txn_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
-
-        if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
-            __txn_abort_newer_insert(session, insert, rollback_timestamp);
     }
 
     return (0);
@@ -332,7 +332,11 @@ __txn_page_needs_rollback(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
 static int
 __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
+    WT_DECL_RET;
     WT_PAGE *page;
+    bool local_read;
+
+    local_read = false;
 
     /* Review deleted page saved to the ref. */
     if (ref->page_del != NULL && rollback_timestamp < ref->page_del->durable_timestamp)
@@ -349,8 +353,11 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
             return (0);
 
         /* Page needs rollback, read it into cache. */
-        if (page == NULL)
+        if (page == NULL) {
             WT_RET(__wt_page_in(session, ref, 0));
+            local_read = true;
+        }
+        page = ref->page;
     }
 
     switch (page->type) {
@@ -369,13 +376,16 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
          */
         break;
     case WT_PAGE_ROW_LEAF:
-        WT_RET(__txn_abort_newer_row_leaf(session, page, rollback_timestamp));
+        WT_ERR(__txn_abort_newer_row_leaf(session, page, rollback_timestamp));
         break;
     default:
-        WT_RET(__wt_illegal_value(session, page->type));
+        WT_ERR(__wt_illegal_value(session, page->type));
     }
 
-    return (0);
+err:
+    if (local_read)
+        WT_TRET(__wt_page_release(session, ref, 0));
+    return (ret);
 }
 
 /*

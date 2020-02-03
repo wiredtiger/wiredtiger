@@ -388,6 +388,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
               vpack->start_ts <= upd_select->stop_ts && vpack->start_txn <= upd_select->stop_txn);
             upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
             upd_select->start_txn = vpack->start_txn;
+
+            /* Use stop timestamp as durable timestamp if exist. */
+            if (upd_select->stop_ts != WT_TS_MAX)
+                upd_select->durable_ts = upd_select->stop_ts;
+
             /*
              * Leaving the update unset means that we can skip reconciling. If we've set the stop
              * time pair because of a tombstone after the on-disk value, we still have work to do so
