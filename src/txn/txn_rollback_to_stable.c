@@ -142,6 +142,7 @@ __txn_abort_row_ondisk_kv(
 {
     WT_CELL_UNPACK *vpack, _vpack;
     WT_DECL_RET;
+    WT_ITEM buf;
     WT_PAGE_MODIFY *mod;
     WT_UPDATE *upd, **upd_entry;
     size_t size;
@@ -158,13 +159,23 @@ __txn_abort_row_ondisk_kv(
         upd->start_ts = WT_TS_NONE;
     } else if (vpack->stop_ts != WT_TS_MAX && vpack->stop_ts > rollback_timestamp) {
         /*
-         * Clear the remove operation from the key by inserting a TOMBSTONE with infinite
-         * visibility.
+         * Clear the remove operation from the key by inserting the original on-disk value
+         * as a standard update.
          */
-        WT_RET(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
-        upd->txnid = WT_TXN_MAX;
-        upd->durable_ts = WT_TS_MAX;
-        upd->start_ts = WT_TS_MAX;
+        WT_CLEAR(buf);
+
+        /*
+         * If a value is simple and is globally visible at the time of reading a page into cache, we
+         * encode its location into the WT_ROW.
+         */
+        if (!__wt_row_leaf_value(page, rip, &buf))
+            /* Take the value from the original page cell. */
+            WT_RET(__wt_page_cell_data_ref(session, page, vpack, &buf));
+
+        WT_RET(__wt_update_alloc(session, &buf, &upd, &size, WT_UPDATE_STANDARD));
+        upd->txnid = vpack->start_txn;
+        upd->durable_ts = vpack->start_ts;
+        upd->start_ts = vpack->start_ts;
     } else
         /* Stable version according to the timestamp. */
         return (0);
