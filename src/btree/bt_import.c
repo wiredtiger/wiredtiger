@@ -91,7 +91,8 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
      * Build and flatten the metadata and the checkpoint list, then insert it into the metadata for
      * this file.
      *
-     * Strip out the checkpoint-LSN, an imported file isn't associated with any log files. Assign a
+     * Strip out any incremental backup information, an imported file has not been part of a backup.
+     * Strip out the checkpoint LSN, an imported file isn't associated with any log files. Assign a
      * unique file ID.
      */
     filecfg[1] = a->data;

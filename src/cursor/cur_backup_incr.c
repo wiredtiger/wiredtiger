@@ -62,10 +62,11 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
 
     WT_ASSERT(session, btree != NULL);
     WT_ASSERT(session, btree->dhandle != NULL);
+    WT_ASSERT(session, cb->incr_src != NULL);
+
     WT_RET(__wt_metadata_search(session, btree->dhandle->name, &config));
     WT_ERR(__wt_config_getones(session, config, "checkpoint_backup_info", &v));
     __wt_config_subinit(session, &blkconf, &v);
-    WT_ASSERT(session, cb->incr_src != NULL);
     while (__wt_config_next(&blkconf, &k, &v) == 0) {
         /*
          * First see if we have information for this source identifier.
@@ -93,8 +94,7 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
             WT_ERR(__wt_backup_load_incr(session, &b, &cb->bitstring, cb->nbits));
             cb->bit_offset = 0;
             cb->incr_init = true;
-        } else
-            __wt_verbose(session, WT_VERB_BACKUP, "LOAD: no blocks %.*s", (int)k.len, k.str);
+        }
         ret = 0;
     }
 
@@ -124,20 +124,15 @@ __curbackup_incr_next(WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_RAW);
 
     if (cb->incr_init) {
-        /* We have this object's incremental information, Check if we're done. */
-        if (cb->bit_offset >= cb->nbits)
-            WT_ERR(WT_NOTFOUND);
-
-        /*
-         * Look for the next chunk that had modifications.
-         */
+        /* Look for the next chunk that had modifications.  */
         while (cb->bit_offset < cb->nbits)
             if (__bit_test(cb->bitstring, cb->bit_offset))
                 break;
             else
                 ++cb->bit_offset;
 
-        if (cb->bit_offset == cb->nbits)
+        /* We either have this object's incremental information or we're done. */
+        if (cb->bit_offset >= cb->nbits)
             WT_ERR(WT_NOTFOUND);
         __wt_cursor_set_key(cursor, cb->offset + cb->granularity * cb->bit_offset++,
           cb->granularity, WT_BACKUP_RANGE);
@@ -147,8 +142,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
 
         cb->nbits = 0;
         cb->offset = 0;
-        cb->incr_init = true;
         cb->bit_offset = 0;
+        cb->incr_init = true;
         __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
     } else {
         /*
@@ -166,7 +161,6 @@ __curbackup_incr_next(WT_CURSOR *cursor)
             WT_ERR(WT_NOTFOUND);
         __wt_cursor_set_key(cursor, cb->offset + cb->granularity * cb->bit_offset++,
           cb->granularity, WT_BACKUP_RANGE);
-        F_SET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
     }
 
 err:
@@ -196,23 +190,15 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
   WT_CURSOR *cursor, const char *cfg[], WT_CURSOR **cursorp)
 {
     WT_CURSOR_BACKUP *cb, *other_cb;
-    WT_DECL_ITEM(open_checkpoint);
     WT_DECL_ITEM(open_uri);
     WT_DECL_RET;
-    const char **new_cfg;
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     other_cb = (WT_CURSOR_BACKUP *)other;
     cursor->key_format = WT_UNCHECKED_STRING(qqq);
     cursor->value_format = "";
-    new_cfg = NULL;
 
     WT_ASSERT(session, other_cb->incr_src != NULL);
-    if (F_ISSET(other_cb->incr_src, WT_BLKINCR_FULL)) {
-        __wt_verbose(session, WT_VERB_BACKUP, "Forcing full file copies for id %s",
-          other_cb->incr_src->id_str);
-        F_SET(cb, WT_CURBACKUP_FORCE_FULL);
-    }
 
     /*
      * Inherit from the backup cursor but reset specific functions for incremental.
@@ -222,11 +208,18 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     cursor->get_value = __wt_cursor_get_value_notsup;
     cb->incr_src = other_cb->incr_src;
 
+    /* All WiredTiger owned files are full file copies. */
+    if (F_ISSET(other_cb->incr_src, WT_BLKINCR_FULL) ||
+      WT_PREFIX_MATCH(cb->incr_file, "WiredTiger")) {
+        __wt_verbose(session, WT_VERB_BACKUP, "Forcing full file copies for id %s",
+          other_cb->incr_src->id_str);
+        F_SET(cb, WT_CURBACKUP_FORCE_FULL);
+    }
     /*
      * Set up the incremental backup information, if we are not forcing a full file copy. We need an
      * open cursor on the file. Open the backup checkpoint, confirming it exists.
      */
-    if (!F_ISSET(cb, WT_CURBACKUP_FORCE_FULL) && !WT_PREFIX_MATCH(cb->incr_file, "WiredTiger")) {
+    if (!F_ISSET(cb, WT_CURBACKUP_FORCE_FULL)) {
         WT_ERR(__wt_scr_alloc(session, 0, &open_uri));
         WT_ERR(__wt_buf_fmt(session, open_uri, "file:%s", cb->incr_file));
         __wt_free(session, cb->incr_file);
@@ -239,8 +232,6 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
         WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
 
 err:
-    __wt_scr_free(session, &open_checkpoint);
     __wt_scr_free(session, &open_uri);
-    __wt_free(session, new_cfg);
     return (ret);
 }

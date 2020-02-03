@@ -1228,11 +1228,6 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
         }
 
     /*
-     * If incremental backups are in play we need to read in the modification blocks for any
-     * incremental sources we have. Remove them if they're not valid.
-     */
-
-    /*
      * Mark old checkpoints that are being deleted and figure out which trees we can skip in this
      * checkpoint.
      */

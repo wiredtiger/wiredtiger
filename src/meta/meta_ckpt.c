@@ -42,7 +42,7 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
      * Remove those not known (TODO).
      */
     blkincr = NULL;
-    while (__wt_config_next(&blkconf, &k, &v) == 0) {
+    while ((ret = __wt_config_next(&blkconf, &k, &v)) == 0) {
         /*
          * See if this is a valid backup string.
          */
@@ -73,12 +73,9 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
         if (ret != WT_NOTFOUND) {
             WT_RET(__wt_backup_load_incr(session, &b, &blk_mod->bitstring, blk_mod->nbits));
             F_SET(blk_mod, WT_BLOCK_MODS_VALID);
-            __wt_verbose(session, WT_VERB_BACKUP,
-              "LOAD: backup_blocks[%" PRIu64 "] %p id %s granularity %" PRIu64 " nbits %" PRIu64, i,
-              (void *)blk_mod, blk_mod->id_str, blk_mod->granularity, blk_mod->nbits);
         }
     }
-    return (0);
+    return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
 /*
@@ -442,18 +439,18 @@ __wt_meta_ckptlist_get(
         WT_CKPT_FOREACH (ckptbase, ckpt)
             if (ckpt->order > maxorder)
                 maxorder = ckpt->order;
+        ckpt->order = maxorder + 1;
+        __wt_seconds(session, &ckpt->sec);
         /*
          * Load most recent checkpoint backup blocks to this checkpoint.
          */
         WT_ERR(__ckpt_load_blk_mods(session, config, ckpt));
-        ckpt->order = maxorder + 1;
-        __wt_seconds(session, &ckpt->sec);
 
         WT_ERR(__wt_meta_block_metadata(session, config, ckpt));
 
         /*
-         * Set the add-a-checkpoint flag, and if we're doing hot backups, request a list of the
-         * checkpoint's modified blocks from the block manager.
+         * Set the add-a-checkpoint flag, and if we're doing incremental backups, request a list of
+         * the checkpoint's modified blocks from the block manager.
          */
         F_SET(ckpt, WT_CKPT_ADD);
         if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
@@ -667,10 +664,10 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
     bool valid;
 
     valid = false;
-    for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
+    for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk)
         if (F_ISSET(blk, WT_BLOCK_MODS_VALID))
             valid = true;
-    }
+
     /*
      * If the existing block modifications are not valid, there is nothing to do.
      */

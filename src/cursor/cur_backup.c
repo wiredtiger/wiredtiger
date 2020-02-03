@@ -19,6 +19,28 @@ static int __backup_stop(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *);
     WT_ERR(F_ISSET(((WT_CURSOR_BACKUP *)(cursor)), WT_CURBACKUP_FORCE_STOP) ? EINVAL : 0);
 
 /*
+ * __wt_backup_destroy --
+ *     Destroy any backup information.
+ */
+void
+__wt_backup_destroy(WT_SESSION_IMPL *session)
+{
+    WT_BLKINCR *blkincr;
+    WT_CONNECTION_IMPL *conn;
+    uint64_t i;
+
+    conn = S2C(session);
+    /* Free any incremental backup information */
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blkincr = &conn->incr_backups[i];
+        __wt_free(session, blkincr->id_str);
+        F_CLR(blkincr, WT_BLKINCR_VALID);
+    }
+    conn->incr_granularity = 0;
+    F_CLR(conn, WT_CONN_INCR_BACKUP);
+}
+
+/*
  * __wt_backup_open --
  *     Restore any incremental backup information. We use the metadata's block information as the
  *     authority on whether incremental backup was in use on last shutdown.
@@ -34,9 +56,9 @@ __wt_backup_open(WT_SESSION_IMPL *session)
     uint64_t i;
     char *config;
 
-    config = NULL;
-    i = 0;
     conn = S2C(session);
+    config = NULL;
+
     WT_RET(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     WT_ERR(__wt_config_getones(session, config, "checkpoint_backup_info", &v));
     __wt_config_subinit(session, &blkconf, &v);
@@ -44,9 +66,9 @@ __wt_backup_open(WT_SESSION_IMPL *session)
      * Walk each item in the metadata and set up our last known global incremental information.
      */
     F_CLR(conn, WT_CONN_INCR_BACKUP);
+    i = 0;
     while (__wt_config_next(&blkconf, &k, &v) == 0) {
-        if (i >= WT_BLKINCR_MAX)
-            break;
+        WT_ASSERT(session, i < WT_BLKINCR_MAX);
         /*
          * If we get here, we have at least one valid incremental backup. We want to set up its
          * general configuration in the global table.
@@ -64,13 +86,8 @@ __wt_backup_open(WT_SESSION_IMPL *session)
     }
 
 err:
-    if (ret != 0) {
-        while (i > 0) {
-            blkincr = &conn->incr_backups[i--];
-            __wt_free(session, blkincr->id_str);
-            F_CLR(blkincr, WT_BLKINCR_VALID);
-        }
-    }
+    if (ret != 0)
+        __wt_backup_destroy(session);
     __wt_free(session, config);
     return (ret);
 }
@@ -149,34 +166,6 @@ err:
 }
 
 /*
- * __backup_incr_release --
- *     Free all resources relating to incremental backup.
- */
-static void
-__backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force)
-{
-    WT_BLKINCR *blk;
-    WT_CONNECTION_IMPL *conn;
-    u_int i;
-
-    WT_UNUSED(cb);
-    WT_UNUSED(force);
-    conn = S2C(session);
-    /*
-     * Clear flags. Remove file. Release any memory information.
-     */
-    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-        blk = &conn->incr_backups[i];
-        __wt_verbose(
-          session, WT_VERB_BACKUP, "RELEASE: free blk %p id %s", (void *)blk, blk->id_str);
-        __wt_free(session, blk->id_str);
-        F_CLR(blk, WT_BLKINCR_VALID);
-    }
-    conn->incr_granularity = 0;
-    F_CLR(conn, WT_CONN_INCR_BACKUP);
-}
-
-/*
  * __backup_free --
  *     Free list resources for a backup cursor.
  */
@@ -213,7 +202,7 @@ err:
     if (F_ISSET(cb, WT_CURBACKUP_FORCE_STOP)) {
         __wt_verbose(
           session, WT_VERB_BACKUP, "%s", "Releasing resources from forced stop incremental");
-        __backup_incr_release(session, cb, true);
+        __wt_backup_destroy(session);
     }
 
     /*
@@ -319,7 +308,6 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
 
     conn = S2C(session);
     blk = NULL;
-    __wt_verbose(session, WT_VERB_BACKUP, "Trying to add ID %.*s", (int)cval->len, cval->str);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
         __wt_verbose(session, WT_VERB_BACKUP, "blk[%u] flags 0x%" PRIx64, i, blk->flags);
@@ -500,8 +488,6 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             WT_RET_MSG(session, EINVAL,
               "Incremental source identifier can only be specified on a primary backup cursor");
         WT_RET(__backup_find_id(session, &cval, &cb->incr_src));
-        __wt_verbose(session, WT_VERB_BACKUP, "CONFIG: incr_src %p id %s", (void *)cb->incr_src,
-          cb->incr_src->id_str);
         F_SET(cb->incr_src, WT_BLKINCR_INUSE);
         incremental_config = true;
     }

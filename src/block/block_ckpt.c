@@ -678,46 +678,38 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, u_int i)
      *   and then set up our entry.
      */
 
-    /*
-     * Check if the global entry is valid at our index.
-     */
+    /* Check if the global entry is valid at our index.  */
     if (!F_ISSET(blk, WT_BLKINCR_VALID)) {
         free = true;
         setup = false;
+    } else if (F_ISSET(blk_mod, WT_BLOCK_MODS_VALID) &&
+      WT_STRING_MATCH(blk_mod->id_str, blk->id_str, strlen(blk->id_str))) {
+        /* We match, keep our entry and don't set up. */
+        setup = false;
+        free = false;
     } else {
-        if (F_ISSET(blk_mod, WT_BLOCK_MODS_VALID) &&
-          WT_STRING_MATCH(blk_mod->id_str, blk->id_str, strlen(blk->id_str))) {
-            /* We match, keep our entry and don't set up. */
-            setup = false;
-            free = false;
-        } else {
-            /* We don't match, free any old information. */
-            free = true;
-            setup = true;
-        }
+        /* We don't match, free any old information. */
+        free = true;
+        setup = true;
     }
 
-    /*
-     * Free any old information if we need to do so.
-     */
+    /* Free any old information if we need to do so.  */
     if (free && F_ISSET(blk_mod, WT_BLOCK_MODS_VALID)) {
-        __wt_free(session, blk_mod->bitstring);
         __wt_free(session, blk_mod->id_str);
-        blk_mod->granularity = 0;
+        __wt_free(session, blk_mod->bitstring);
         blk_mod->nbits = 0;
+        blk_mod->granularity = 0;
         blk_mod->offset = 0;
         F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
     }
 
-    /*
-     * Set up the block list to point to the current information.
-     */
+    /* Set up the block list to point to the current information.  */
     if (setup) {
         WT_RET(__wt_strdup(session, blk->id_str, &blk_mod->id_str));
-        blk_mod->nbits = 0;
-        blk_mod->offset = 0;
         blk_mod->bitstring = NULL;
         blk_mod->granularity = S2C(session)->incr_granularity;
+        blk_mod->nbits = 0;
+        blk_mod->offset = 0;
         F_SET(blk_mod, WT_BLOCK_MODS_VALID);
     }
     return (0);
@@ -739,7 +731,7 @@ __ckpt_add_blkmod_entry(
     end = (offset + len) / blk_mod->granularity;
     end_rdup = __wt_rduppo2((uint32_t)end, 8);
     if (blk_mod->nbits == 0) {
-        blk_mod->nbits = WT_MAX(__wt_rduppo2(end_rdup, 8), WT_BLOCK_MODS_LIST_MIN);
+        blk_mod->nbits = WT_MAX(end_rdup, WT_BLOCK_MODS_LIST_MIN);
         WT_RET(__bit_alloc(session, blk_mod->nbits, &blk_mod->bitstring));
     } else if (end_rdup > blk_mod->nbits)
         /* If we don't have enough, double the number of bits we can track. */
