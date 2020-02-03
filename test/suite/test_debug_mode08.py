@@ -25,28 +25,37 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
 
-# pip_init.py
-#      This is installed as __init__.py, and imports the file created by SWIG.
-# This is needed because SWIG's import helper code created by certain SWIG
-# versions may be broken, see: https://github.com/swig/swig/issues/769 .
-# Importing indirectly seems to avoid these issues.
-import os, sys
-fname = os.path.basename(__file__)
-if fname != '__init__.py' and fname != '__init__.pyc':
-    print(__file__ + ': this file is not yet installed')
-    sys.exit(1)
+import wttest, wiredtiger, test_base03
 
-# After importing the SWIG-generated file, copy all symbols from from it
-# to this module so they will appear in the wiredtiger namespace.
-me = sys.modules[__name__]
-sys.path.append(os.path.dirname(__file__))
-try:
-    import wiredtiger.wiredtiger as swig_wiredtiger
-except ImportError:
-    # for Python2
-    import wiredtiger as swig_wiredtiger
-for name in dir(swig_wiredtiger):
-    value = getattr(swig_wiredtiger, name)
-    setattr(me, name, value)
+# test_debug_mode08.py
+#   Test the debug mode setting for cursor_copy.
+# There's no great way to detect that cursor_copy is really working, as
+# the extra malloc/free that WT does cannot easily be detected.  However,
+# it's useful to run some tests with the mode enabled. We make a subclass
+# of test_base03, so we'll inherit those tests to be run with the debug mode
+# configuration enabled.
+class test_debug_mode08(test_base03.test_base03):
+    conn_config = 'debug_mode=(cursor_copy=true)'
+    uri = 'file:test_debug_mode08'
+
+    def test_reconfig(self):
+        ''' Test reconfigure with some minimal cursor activity. '''
+        self.session.create(self.uri, 'key_format=s,value_format=s')
+        cursor = self.session.open_cursor(self.uri, None)
+        cursor['key'] = 'value'
+        cursor.close()
+
+        conn_reconfig = 'debug_mode=(cursor_copy=false)'
+        self.conn.reconfigure(conn_reconfig)
+        cursor = self.session.open_cursor(self.uri, None)
+        cursor['key'] = 'value'
+        cursor.close()
+
+        self.conn.reconfigure(self.conn_config)
+        cursor = self.session.open_cursor(self.uri, None)
+        cursor['key'] = 'value'
+        cursor.close()
+
+if __name__ == '__main__':
+    wttest.run()
