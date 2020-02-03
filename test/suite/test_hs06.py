@@ -67,7 +67,6 @@ class test_hs06(wttest.WiredTigerTestCase):
             return str(i)
         return i
 
-    @unittest.skip("Temporarily disabled")
     def test_hs_reads(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -95,10 +94,13 @@ class test_hs06(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
         self.session.checkpoint()
 
-        # Check the checkpoint wrote the expected values.
-        cursor2 = self.session.open_cursor(uri, None, 'checkpoint=WiredTigerCheckpoint')
+        # Check the checkpoint wrote the expected values. Todo: Fix checkpoint cursors WT-5492.
+        # cursor2 = self.session.open_cursor(uri, None, 'checkpoint=WiredTigerCheckpoint')
+        cursor2 = self.session.open_cursor(uri)
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
         for key, value in cursor2:
             self.assertEqual(value, value1)
+        self.session.commit_transaction()
         cursor2.close()
 
         start_usage = self.get_non_page_image_memory_usage()
@@ -125,7 +127,6 @@ class test_hs06(wttest.WiredTigerTestCase):
         # self.assertLessEqual(end_usage, (start_usage * 2))
 
     # WT-5336 causing the read at timestamp 4 returning the value committed at timestamp 5 or 3
-    @unittest.skip("Temporarily disabled")
     def test_hs_modify_reads(self):
         # Create a small table.
         uri = "table:test_hs06"
