@@ -15,11 +15,11 @@
 #define WT_HS_SESSION_FLAGS (WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_NO_RECONCILE)
 
 /*
- * __wt_hs_store_time_pair --
+ * __hs_store_time_pair --
  *     Store the time pair to use for the history store inserts.
  */
-void
-__wt_hs_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_t txnid)
+static void
+__hs_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_t txnid)
 {
     session->orig_timestamp_to_las = timestamp;
     session->orig_txnid_to_las = txnid;
@@ -386,7 +386,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t b
     /*
      * Set the current update start time pair as the commit time pair to the history store record.
      */
-    __wt_hs_store_time_pair(session, upd->start_ts, upd->txnid);
+    __hs_store_time_pair(session, upd->start_ts, upd->txnid);
 
     cursor->set_value(cursor, upd->durable_ts, upd->prepare_state, type, hs_value);
 
@@ -400,7 +400,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t b
       cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts_pair.timestamp, stop_ts_pair.txnid);
 
     /* Set the stop time pair as the commit time pair of the history store delete record. */
-    __wt_hs_store_time_pair(session, stop_ts_pair.timestamp, stop_ts_pair.txnid);
+    __hs_store_time_pair(session, stop_ts_pair.timestamp, stop_ts_pair.txnid);
 
     /* Remove the inserted record with stop timestamp. */
     WT_RET(cursor->remove(cursor));

@@ -31,6 +31,7 @@ from helper import copy_wiredtiger_home
 import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
+from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 def timestamp_str(t):
     return '%x' % t

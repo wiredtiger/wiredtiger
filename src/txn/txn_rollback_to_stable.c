@@ -13,7 +13,7 @@
  *     Abort updates in an update change with timestamps newer than the rollback timestamp and
  *     return true if a stable update is found in the update list. Otherwise returns false.
  */
-static bool
+static void
 __txn_abort_newer_update(
   WT_SESSION_IMPL *session, WT_UPDATE *first_upd, wt_timestamp_t rollback_timestamp)
 {
@@ -54,8 +54,6 @@ __txn_abort_newer_update(
      */
     if (first_upd != NULL)
         F_CLR(first_upd, WT_UPDATE_HS);
-
-    return (first_upd != NULL);
 }
 
 /*
@@ -70,7 +68,7 @@ __txn_abort_newer_insert(
 
     WT_SKIP_FOREACH (ins, head)
         if (ins->upd != NULL)
-            WT_IGNORE_RET_BOOL(__txn_abort_newer_update(session, ins->upd, rollback_timestamp));
+            __txn_abort_newer_update(session, ins->upd, rollback_timestamp);
 }
 
 /*
@@ -80,11 +78,12 @@ __txn_abort_newer_insert(
  */
 static inline int
 __txn_abort_row_replace_upd_list(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_UPDATE *upd, size_t size)
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_UPDATE *upd)
 {
     WT_DECL_RET;
     WT_PAGE_MODIFY *mod;
-    WT_UPDATE **upd_entry;
+    WT_UPDATE *old_upd, **upd_entry;
+    size_t upd_size;
 
     /* If we don't yet have a modify structure, we'll need one. */
     WT_RET(__wt_page_modify_init(session, page));
@@ -95,9 +94,27 @@ __txn_abort_row_replace_upd_list(
 
     /* Set the WT_UPDATE array reference. */
     upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
-    __wt_free_update_list(session, upd_entry);
-    upd->next = NULL;
-    ret = __wt_update_serial(session, page, upd_entry, &upd, size, false);
+    upd_size = __wt_update_list_memsize(upd);
+
+    /*
+     * If it's a full update list, we're trying to instantiate the row. Otherwise, it's just a
+     * single update that we'd like to append to the update list.
+     *
+     * Set the "old" entry to the second update in the list so that the serialization function
+     * succeeds in swapping the first update into place.
+     */
+    if (upd->next != NULL)
+        *upd_entry = upd->next;
+    old_upd = *upd_entry;
+
+    /*
+     * Point the new WT_UPDATE item to the next element in the list. If we get it right, the
+     * serialization function lock acts as our memory barrier to flush this write.
+     */
+    upd->next = old_upd;
+
+    /* Serialize the update. */
+    WT_ERR(__wt_update_serial(session, page, upd_entry, &upd, upd_size, true));
 
 err:
     return (ret);
@@ -113,39 +130,28 @@ __txn_abort_row_replace_with_hs_value(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, wt_timestamp_t rollback_timestamp)
 {
     WT_CURSOR *hs_cursor;
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(key);
     WT_DECL_RET;
-    WT_SESSION_IMPL *orig_session;
     WT_TIME_PAIR hs_start, hs_stop;
-    WT_UPDATE *upd;
+    WT_UPDATE *hs_upd, *upd;
     wt_timestamp_t durable_ts;
     size_t size;
-    uint32_t hs_btree_id, orig_btree_id, session_flags;
+    uint32_t hs_btree_id, session_flags;
     uint8_t prepare_state, type;
     int cmp;
     bool valid_update_found;
 
     hs_cursor = NULL;
-    orig_session = session;
-    upd = NULL;
-    hs_btree_id = orig_btree_id = S2BT(session)->id;
+    hs_upd = upd = NULL;
+    hs_btree_id = S2BT(session)->id;
     session_flags = 0;
     valid_update_found = false;
 
-    /*
-     * FIXME: This code should be removed once the history store transactions are removed. Open an
-     * internal session to operate on the history store to find out the value that needs to replace
-     * the data store version. The reason behind opening an internal session is not to inherit the
-     * original session that is used for the data store walk. Use this new session only for the
-     * history store operations.
-     */
-    WT_RET(
-      __wt_open_internal_session(S2C(orig_session), "history store search", true, 0, &session));
-
     /* Allocate buffers for the data store and history store key. */
-    WT_ERR(__wt_scr_alloc(session, 0, &key));
+    WT_RET(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
@@ -154,6 +160,7 @@ __txn_abort_row_replace_with_hs_value(
     /* Open a history store table cursor. */
     WT_ERR(__wt_hs_cursor(session, &session_flags));
     hs_cursor = session->hs_cursor;
+    cbt = (WT_CURSOR_BTREE *)hs_cursor;
 
     /*
      * Scan the history store for the given btree and key with maximum start and stop time pair to
@@ -168,7 +175,7 @@ __txn_abort_row_replace_with_hs_value(
           &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
 
         /* Stop before crossing over to the next btree */
-        if (hs_btree_id != orig_btree_id)
+        if (hs_btree_id != S2BT(session)->id)
             break;
 
         /*
@@ -179,15 +186,25 @@ __txn_abort_row_replace_with_hs_value(
         if (cmp != 0)
             break;
 
+        /* Set this comparison as exact match of the search for later use. */
+        cbt->compare = 0;
+
         /* Stop processing when we find the update that is less than the given update. */
         if (hs_start.timestamp <= rollback_timestamp) {
             valid_update_found = true;
             break;
         }
 
-        __wt_hs_store_time_pair(session, WT_TS_NONE, WT_TXN_NONE);
-        WT_ERR(hs_cursor->remove(hs_cursor));
+        WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &size, WT_UPDATE_TOMBSTONE));
+        hs_upd->txnid = WT_TXN_NONE;
+        hs_upd->durable_ts = WT_TS_NONE;
+        hs_upd->start_ts = WT_TS_NONE;
+
+        WT_WITH_BTREE(session, cbt->btree,
+          ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
+        WT_ERR(ret);
         WT_STAT_CONN_INCR(session, txn_rollback_hs_removed);
+        hs_upd = NULL;
     }
 
     /*
@@ -196,37 +213,44 @@ __txn_abort_row_replace_with_hs_value(
      */
     if (valid_update_found) {
         WT_ERR(hs_cursor->get_value(hs_cursor, &durable_ts, &prepare_state, &type, hs_value));
-        WT_ERR(__wt_update_alloc(orig_session, hs_value, &upd, &size, WT_UPDATE_STANDARD));
+        WT_ERR(__wt_update_alloc(session, hs_value, &upd, &size, WT_UPDATE_STANDARD));
         upd->txnid = hs_start.txnid;
         upd->durable_ts = durable_ts;
         upd->start_ts = hs_start.timestamp;
     } else {
-        WT_ERR(__wt_update_alloc(orig_session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
+        WT_ERR(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
         upd->txnid = WT_TXN_NONE;
         upd->durable_ts = WT_TS_NONE;
         upd->start_ts = WT_TS_NONE;
     }
 
-    WT_ERR(__txn_abort_row_replace_upd_list(orig_session, page, rip, upd, size));
+    WT_ERR(__txn_abort_row_replace_upd_list(session, page, rip, upd));
     upd = NULL;
 
     /* Finally remove that update from history store. */
     if (valid_update_found) {
-        __wt_hs_store_time_pair(session, WT_TS_NONE, WT_TXN_NONE);
-        WT_ERR(hs_cursor->remove(hs_cursor));
+        WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &size, WT_UPDATE_TOMBSTONE));
+        hs_upd->txnid = WT_TXN_NONE;
+        hs_upd->durable_ts = WT_TS_NONE;
+        hs_upd->start_ts = WT_TS_NONE;
+
+        WT_WITH_BTREE(session, cbt->btree,
+          ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
+        WT_ERR(ret);
         WT_STAT_CONN_INCR(session, txn_rollback_hs_removed);
+        hs_upd = NULL;
     }
 
 err:
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
+    if (hs_upd != NULL)
+        __wt_free(session, hs_upd);
     if (upd != NULL)
         __wt_free(session, upd);
     if (hs_cursor != NULL)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
-
-    WT_TRET(session->iface.close(&session->iface, NULL));
 
     return (ret);
 }
@@ -241,8 +265,8 @@ __txn_abort_row_ondisk_kv(
 {
     WT_CELL_UNPACK *vpack, _vpack;
     WT_DECL_RET;
-    WT_UPDATE *upd;
     WT_ITEM buf;
+    WT_UPDATE *upd;
     size_t size;
 
     vpack = &_vpack;
@@ -273,7 +297,7 @@ __txn_abort_row_ondisk_kv(
         /* Stable version according to the timestamp. */
         return (0);
 
-    WT_ERR(__txn_abort_row_replace_upd_list(session, page, rip, upd, size));
+    WT_ERR(__txn_abort_row_replace_upd_list(session, page, rip, upd));
     WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
     return (0);
 
@@ -339,7 +363,6 @@ __txn_abort_newer_row_leaf(
     WT_ROW *rip;
     WT_UPDATE *upd;
     uint32_t i;
-    bool stable_update_found;
 
     /*
      * Review the insert list for keys before the first entry on the disk page.
@@ -362,7 +385,6 @@ __txn_abort_newer_row_leaf(
         WT_RET(__txn_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
     }
 
-    __wt_page_only_modify_set(session, page);
     return (0);
 }
 
