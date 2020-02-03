@@ -141,7 +141,8 @@ class test_hs08(wttest.WiredTigerTestCase):
         # Call checkpoint again.
         self.session.checkpoint('use_timestamp=true')
 
-        # Validate that we squashed two modifies.
+        # Validate that we squashed two modifies. Note that we cant count the exact number
+        # we squashed, just that we did squash.
         hs_writes = self.get_stat(stat.conn.cache_write_hs)
         squashed_write = self.get_stat(stat.conn.cache_hs_write_squash)
         self.assertGreaterEqual(hs_writes, 3)
@@ -163,12 +164,39 @@ class test_hs08(wttest.WiredTigerTestCase):
         # Call checkpoint again.
         self.session.checkpoint('use_timestamp=true')
 
-        # Validate that we squashed two modifies.
+        # Validate that we squashed two modifies. We also squashed a modify that was previously
+        # squashed hence the number actually goes up by three.
         hs_writes = self.get_stat(stat.conn.cache_write_hs)
         squashed_write = self.get_stat(stat.conn.cache_hs_write_squash)
         self.assertGreaterEqual(hs_writes, 4)
         self.assertEqual(squashed_write, 4)
+
+        # Insert multiple modifies in different transactions with different timestamps on each
+        # modify to guarantee we squash zero modifies.
         self.session.begin_transaction()
+        cursor.set_key(1)
+        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(12))
+        self.assertEqual(cursor.modify([wiredtiger.Modify('F', 1002, 1)]), 0)
+        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(13))
+        self.assertEqual(cursor.modify([wiredtiger.Modify('G', 1003, 1)]), 0)
+        self.session.commit_transaction()
+
+        self.session.begin_transaction()
+        cursor.set_key(1)
+        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(14))
+        self.assertEqual(cursor.modify([wiredtiger.Modify('F', 1002, 1)]), 0)
+        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(15))
+        self.assertEqual(cursor.modify([wiredtiger.Modify('G', 1003, 1)]), 0)
+        self.session.commit_transaction()
+
+        # Call checkpoint again.
+        self.session.checkpoint('use_timestamp=true')
+
+        # Validate that we squashed zero modifies.
+        hs_writes = self.get_stat(stat.conn.cache_write_hs)
+        squashed_write = self.get_stat(stat.conn.cache_hs_write_squash)
+        self.assertGreaterEqual(hs_writes, 5)
+        self.assertEqual(squashed_write, 5)
 
 if __name__ == '__main__':
     wttest.run()

@@ -517,7 +517,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
             /*
              * If we've reached a full update and its in the history store we don't need to continue
-             * as anything beyond this point wont help with calculating deltas.
+             * as anything beyond this point won't help with calculating deltas.
              */
             if (upd->type == WT_UPDATE_STANDARD && F_ISSET(upd, WT_UPDATE_HS))
                 break;
@@ -548,10 +548,11 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
 
         /*
          * Flush the updates on stack. Stopping once we run out or we reach the onpage upd start
-         * time pair. As we can squash those modifies away.
+         * time pair, we can squash modifies with the same start time pair as the onpage upd away.
          */
-        for (; modifies.size > 0 && upd->txnid != list->onpage_upd->txnid &&
-             upd->start_ts != list->onpage_upd->start_ts;
+        for (; modifies.size > 0 &&
+             !(upd->txnid == list->onpage_upd->txnid &&
+                 upd->start_ts == list->onpage_upd->start_ts);
              tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
              upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
@@ -616,10 +617,10 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                     /* Flag the update as now in the history store. */
                     F_SET(upd, WT_UPDATE_HS);
                     ++insert_cnt;
-                }
-                if (squashed) {
-                    WT_STAT_CONN_INCR(session, cache_hs_write_squash);
-                    squashed = false;
+                    if (squashed) {
+                        WT_STAT_CONN_INCR(session, cache_hs_write_squash);
+                        squashed = false;
+                    }
                 }
             } else
                 squashed = true;
