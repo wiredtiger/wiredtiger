@@ -287,8 +287,6 @@ connection_stats = [
     CacheStat('cache_hazard_checks', 'hazard pointer check calls'),
     CacheStat('cache_hazard_max', 'hazard pointer maximum array length', 'max_aggregate,no_scale'),
     CacheStat('cache_hazard_walks', 'hazard pointer check entries walked'),
-    CacheStat('cache_hs_cursor_wait_application', 'history store cursor application thread wait time (usecs)'),
-    CacheStat('cache_hs_cursor_wait_internal', 'history store cursor internal thread wait time (usecs)'),
     CacheStat('cache_hs_insert', 'history store table insert calls'),
     CacheStat('cache_hs_ondisk', 'history store table on-disk size', 'no_clear,no_scale,size'),
     CacheStat('cache_hs_ondisk_max', 'history store table max on-disk size', 'no_clear,no_scale,size'),
