@@ -584,8 +584,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
              *
              * Modifies that have the same start time pair as the onpage_upd can be squashed away.
              */
-            if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid ||
-              upd->start_ts != prev_upd->start_ts) {
+            if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid) {
                 /*
                  * Calculate reverse delta. Insert full update for the newest historical record even
                  * it's a MODIFY.
