@@ -76,17 +76,17 @@ class test_hs06(wttest.WiredTigerTestCase):
         value1 = 'a' * 500
         value2 = 'b' * 500
 
-        # Load 5Mb of data.
+        # Load 1Mb of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
-        # Load another 5Mb of data with a later timestamp.
+        # Load another 1Mb of data with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
@@ -109,7 +109,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         # be reading it straight from the history store without initialising a full
         # update chain of every version of the data.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             self.assertEqual(cursor[self.create_key(i)], value1)
         self.session.rollback_transaction()
 
@@ -137,17 +137,17 @@ class test_hs06(wttest.WiredTigerTestCase):
         value1 = 'a' * 500
         value2 = 'd' * 500
 
-        # Load 5Mb of data.
+        # Load 1Mb of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Load a slight modification with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             cursor.set_key(self.create_key(i))
             mods = [wiredtiger.Modify('B', 100, 1)]
             self.assertEqual(cursor.modify(mods), 0)
@@ -155,7 +155,7 @@ class test_hs06(wttest.WiredTigerTestCase):
 
         # And another.
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             cursor.set_key(self.create_key(i))
             mods = [wiredtiger.Modify('C', 200, 1)]
             self.assertEqual(cursor.modify(mods), 0)
@@ -163,7 +163,7 @@ class test_hs06(wttest.WiredTigerTestCase):
 
         # Now write something completely different.
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
@@ -183,7 +183,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         # t3: (reverse delta in las) <= We're querying for t4 so we begin here.
         # t2: value2 (full update in las)
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
@@ -199,7 +199,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         # t3: (reverse delta in las)
         # t2: value2 (full update in las)
         self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
@@ -214,7 +214,7 @@ class test_hs06(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(uri)
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             self.session.begin_transaction()
             cursor[self.create_key(i)] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
@@ -229,7 +229,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             'prepare_timestamp=' + timestamp_str(3))
 
         # Write some more to cause eviction of the prepared data.
-        for i in range(11, 10000):
+        for i in range(11, 2000):
             self.session.begin_transaction()
             cursor[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
@@ -267,10 +267,10 @@ class test_hs06(wttest.WiredTigerTestCase):
         value3 = 'c' * 500
         value4 = 'd' * 500
 
-        # Load 5Mb of data.
+        # Load 1Mb of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(uri)
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             self.session.begin_transaction()
             cursor[self.create_key(i)] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
@@ -284,7 +284,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Write a newer value on top.
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             self.session.begin_transaction()
             cursor[self.create_key(i)] = value4
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
@@ -304,10 +304,10 @@ class test_hs06(wttest.WiredTigerTestCase):
         value1 = 'a' * 500
         value2 = 'b' * 500
 
-        # Load 5Mb of data.
+        # Load 1Mb of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(uri)
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             self.session.begin_transaction()
             cursor[self.create_key(i)] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
@@ -329,7 +329,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         expected = str().join(expected)
 
         # Write a newer value on top.
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             self.session.begin_transaction()
             cursor[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
