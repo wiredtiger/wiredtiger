@@ -378,6 +378,74 @@ __ckpt_compare_order(const void *a, const void *b)
 }
 
 /*
+ * __ckpt_valid_blk_mods --
+ *     Make sure that this set of block mods reflects the current valid backup identifiers. If so,
+ *     there is nothing to do. If not, free up old information and set it up for the current
+ *     information.
+ */
+static int
+__ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
+{
+    WT_BLKINCR *blk;
+    WT_BLOCK_MODS *blk_mod;
+    uint64_t i;
+    bool free, setup;
+
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blk = &S2C(session)->incr_backups[i];
+        blk_mod = &ckpt->backup_blocks[i];
+
+        /*
+         * Check the state of our block list array compared to the global one. There are
+         * several possibilities:
+         * - There is no global information for this index, nothing to do but free our resources.
+         * - We don't have any backup information locally. Set up our entry.
+         * - Our entry's id string matches the current global information. We just want to add our
+         *   information to the existing list.
+         * - Our entry's id string does not match the current one. It is outdated. Free old
+         * resources
+         *   and then set up our entry.
+         */
+
+        /* Check if the global entry is valid at our index.  */
+        if (!F_ISSET(blk, WT_BLKINCR_VALID)) {
+            free = true;
+            setup = false;
+        } else if (F_ISSET(blk_mod, WT_BLOCK_MODS_VALID) &&
+          WT_STRING_MATCH(blk_mod->id_str, blk->id_str, strlen(blk->id_str))) {
+            /* We match, keep our entry and don't set up. */
+            setup = false;
+            free = false;
+        } else {
+            /* We don't match, free any old information. */
+            free = true;
+            setup = true;
+        }
+
+        /* Free any old information if we need to do so.  */
+        if (free && F_ISSET(blk_mod, WT_BLOCK_MODS_VALID)) {
+            __wt_free(session, blk_mod->id_str);
+            __wt_free(session, blk_mod->bitstring);
+            blk_mod->nbits = 0;
+            blk_mod->granularity = 0;
+            blk_mod->offset = 0;
+            F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
+        }
+
+        /* Set up the block list to point to the current information.  */
+        if (setup) {
+            WT_RET(__wt_strdup(session, blk->id_str, &blk_mod->id_str));
+            blk_mod->bitstring = NULL;
+            blk_mod->granularity = S2C(session)->incr_granularity;
+            blk_mod->nbits = 0;
+            blk_mod->offset = 0;
+            F_SET(blk_mod, WT_BLOCK_MODS_VALID);
+        }
+    }
+    return (0);
+}
+
+/*
  * __wt_meta_ckptlist_get --
  *     Load all available checkpoint information for a file.
  */
@@ -453,8 +521,10 @@ __wt_meta_ckptlist_get(
          * the checkpoint's modified blocks from the block manager.
          */
         F_SET(ckpt, WT_CKPT_ADD);
-        if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
+        if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
             F_SET(ckpt, WT_CKPT_BLOCK_MODS);
+            WT_ERR(__ckpt_valid_blk_mods(session, ckpt));
+        }
     }
 
     /* Return the array to our caller. */
