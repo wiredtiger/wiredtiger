@@ -457,18 +457,6 @@ __wt_modify_vector_init(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies)
 }
 
 /*
- * __wt_modify_vector_peek --
- *     Return the end value of the modify vector.
- */
-void
-__wt_modify_vector_peek(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
-{
-    WT_ASSERT(modifies->session, modifies->size > 0);
-
-    *updp = modifies->listp[modifies->size - 1];
-}
-
-/*
  * __wt_modify_vector_push --
  *     Push a modify update pointer to a modify vector. If we exceed the allowed stack space in the
  *     vector, we'll be doing malloc here.

@@ -358,7 +358,7 @@ err:
  * __curstat_conn_init --
  *     Initialize the statistics for a connection.
  */
-static int
+static void
 __curstat_conn_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 {
     WT_CONNECTION_IMPL *conn;
@@ -369,7 +369,7 @@ __curstat_conn_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
      * Fill in the connection statistics, and copy them to the cursor. Optionally clear the
      * connection statistics.
      */
-    WT_RET(__wt_conn_stat_init(session));
+    __wt_conn_stat_init(session);
     __wt_stat_connection_init_single(&cst->u.conn_stats);
     __wt_stat_connection_aggregate(conn->stats, &cst->u.conn_stats);
     if (F_ISSET(cst, WT_STAT_CLEAR))
@@ -379,8 +379,6 @@ __curstat_conn_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
     cst->stats_base = WT_CONNECTION_STATS_BASE;
     cst->stats_count = sizeof(WT_CONNECTION_STATS) / sizeof(int64_t);
     cst->stats_desc = __wt_stat_connection_desc;
-
-    return (0);
 }
 
 /*
@@ -557,7 +555,7 @@ __wt_curstat_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *curjoin,
     const char *dsrc_uri;
 
     if (strcmp(uri, "statistics:") == 0) {
-        WT_RET(__curstat_conn_init(session, cst));
+        __curstat_conn_init(session, cst);
         return (0);
     }
 

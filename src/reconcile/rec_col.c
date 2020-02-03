@@ -731,7 +731,7 @@ __wt_rec_col_var(
          * record, and in that case we'll do the comparisons, but we don't read overflow items just
          * to see if they match records on either side.
          */
-        if (vpack->ovfl) {
+        if (F_ISSET(vpack, WT_UNPACK_OVERFLOW)) {
             ovfl_state = OVFL_UNUSED;
             goto record_loop;
         }

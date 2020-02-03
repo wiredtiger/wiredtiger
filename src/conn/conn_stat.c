@@ -64,7 +64,7 @@ __stat_config_discard(WT_SESSION_IMPL *session)
  * __wt_conn_stat_init --
  *     Initialize the per-connection statistics.
  */
-int
+void
 __wt_conn_stat_init(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
@@ -75,7 +75,7 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
 
     __wt_async_stats_update(session);
     __wt_cache_stats_update(session);
-    WT_RET(__wt_hs_stats_update(session));
+    __wt_hs_stats_update(session);
     __wt_txn_stats_update(session);
 
     WT_STAT_SET(session, stats, file_open, conn->open_file_count);
@@ -83,8 +83,6 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
     WT_STAT_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
     WT_STAT_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
-
-    return (0);
 }
 
 /*

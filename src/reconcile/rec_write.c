@@ -2276,6 +2276,7 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 static int
 __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
+    WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_MULTI *multi;
     uint32_t i, session_flags;
@@ -2287,11 +2288,11 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     if (i == r->multi_next)
         return (0);
 
-    WT_RET(__wt_hs_cursor(session, &session_flags));
+    __wt_hs_cursor(session, &cursor, &session_flags);
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
-            WT_ERR(__wt_hs_insert_updates(session->hs_cursor, S2BT(session), r, multi));
+            WT_ERR(__wt_hs_insert_updates(cursor, S2BT(session), r, multi));
             if (!r->leave_dirty) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
@@ -2299,7 +2300,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         }
 
 err:
-    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, &cursor, session_flags));
     return (ret);
 }
 
