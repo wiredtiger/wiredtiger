@@ -15,17 +15,6 @@
 #define WT_HS_SESSION_FLAGS (WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_NO_RECONCILE)
 
 /*
- * __hs_store_time_pair --
- *     Store the time pair to use for the history store inserts.
- */
-static void
-__hs_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_t txnid)
-{
-    session->orig_timestamp_to_las = timestamp;
-    session->orig_txnid_to_las = txnid;
-}
-
-/*
  * __wt_hs_get_btree --
  *     Get the history store btree. Open a history store cursor if needed to get the btree.
  */
@@ -333,45 +322,88 @@ __hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
- * __hs_insert_record --
+ * __hs_insert_record_with_btree --
  *     A helper function to insert the record into the history store including stop time pair.
+ *     Should be called with session's btree switched to the history store.
  */
 static int
-__hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t btree_id,
+__hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t btree_id,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
   WT_TIME_PAIR stop_ts_pair)
 {
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_UPDATE *hs_upd;
+    size_t notused;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    hs_upd = NULL;
+
     /*
      * Only deltas or full updates should be written to the history store. More specifically, we
      * should NOT be writing tombstone records in the history store table.
      */
     WT_ASSERT(session, type == WT_UPDATE_STANDARD || type == WT_UPDATE_MODIFY);
 
+    /*
+     * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to
+     * create an update chain for a direct insertion onto the history store page.
+     */
     cursor->set_key(
       cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts_pair.timestamp, stop_ts_pair.txnid);
-
-    /* Set the current update start time pair as the commit time pair to the history store record.
-     */
-    __hs_store_time_pair(session, upd->start_ts, upd->txnid);
-
     cursor->set_value(cursor, upd->durable_ts, upd->prepare_state, type, hs_value);
 
     /*
-     * Using update instead of insert so the page stays pinned and can be searched before the tree.
+     * Insert a delete record to represent stop time pair for the actual record to be inserted. Set
+     * the stop time pair as the commit time pair of the history store delete record.
      */
-    WT_RET(cursor->update(cursor));
+    WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &notused, WT_UPDATE_TOMBSTONE));
+    hs_upd->start_ts = stop_ts_pair.timestamp;
+    hs_upd->txnid = stop_ts_pair.txnid;
 
-    /* Append a delete record to represent stop time pair for the above insert record */
-    cursor->set_key(
-      cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts_pair.timestamp, stop_ts_pair.txnid);
+    /*
+     * Append to the delete record, the actual record to be inserted into the history store. Set the
+     * current update start time pair as the commit time pair to the history store record.
+     */
+    WT_ERR(__wt_update_alloc(session, &cursor->value, &hs_upd->next, &notused, WT_UPDATE_STANDARD));
+    hs_upd->next->start_ts = upd->start_ts;
+    hs_upd->next->txnid = upd->txnid;
 
-    /* Set the stop time pair as the commit time pair of the history store delete record. */
-    __hs_store_time_pair(session, stop_ts_pair.timestamp, stop_ts_pair.txnid);
+retry:
+    /* Search the page and insert the mod list. */
+    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &cursor->key, true, NULL, false, NULL));
+    WT_ERR(ret);
+    WT_ERR(__wt_row_modify(cbt, &cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
 
-    /* Remove the inserted record with stop timestamp. */
-    WT_RET(cursor->remove(cursor));
+err:
+    /* We did a row search, release the cursor so that the page doesn't continue being held. */
+    cursor->reset(cursor);
 
-    return (0);
+    /* The tree structure can change while we try to insert the mod list, retry if that happens. */
+    if (ret == WT_RESTART)
+        goto retry;
+
+    if (ret != 0)
+        __wt_free_update_list(session, &hs_upd);
+    return (ret);
+}
+
+/*
+ * __hs_insert_record --
+ *     Temporarily switches to history store btree and calls the helper routine to insert records.
+ */
+static int
+__hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t btree_id,
+  const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
+  WT_TIME_PAIR stop_ts_pair)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    WT_WITH_BTREE(session, cbt->btree, ret = __hs_insert_record_with_btree(session, cursor,
+                                         btree_id, key, upd, type, hs_value, stop_ts_pair));
+    return (ret);
 }
 
 /*
@@ -401,30 +433,17 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
     uint32_t btree_id, i;
     uint8_t *p;
     int nentries;
-    bool local_txn, squashed;
+    bool squashed;
 
     page = r->page;
     prev_upd = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
     insert_cnt = 0;
-    local_txn = false;
     btree_id = btree->id;
     __wt_modify_vector_init(session, &modifies);
 
     if (!btree->hs_entries)
         btree->hs_entries = true;
-
-    /*
-     * Wrap all the updates in a transaction:
-     * 1. We should already have a running application transaction, or
-     * 2. We create one.
-     * TODO: WT-5478 Ideally we should not need transaction semantics (or a txn mod structure) for a
-     * write to history store.
-     */
-    if (!F_ISSET(&session->txn, WT_TXN_RUNNING)) {
-        WT_ERR(__wt_txn_begin(session, NULL));
-        local_txn = true;
-    }
 
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
@@ -432,9 +451,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
     WT_ERR(__wt_scr_alloc(session, 0, &full_value));
 
     WT_ERR(__wt_scr_alloc(session, 0, &prev_full_value));
-
-    /* Inserts should be on the same page absent a split, search any pinned leaf page. */
-    F_SET(cursor, WT_CURSTD_UPDATE_LOCAL);
 
     /* Enter each update in the boundary's list into the history store. */
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
@@ -646,13 +662,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
           (uint64_t)hs_size, max_hs_size);
 
 err:
-    /* Resolve the transaction. */
-    if (local_txn) {
-        /* We commit the HS updates irrespective of a failure, because HS updates can't rollback. */
-        ret = __wt_txn_commit(session, NULL);
-        F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
-    }
-
     if (ret == 0 && insert_cnt > 0)
         __hs_insert_updates_verbose(session, btree);
 
