@@ -407,6 +407,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
     prev_upd = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
     insert_cnt = 0;
+    local_txn = false;
     btree_id = btree->id;
     __wt_modify_vector_init(session, &modifies);
 
@@ -545,8 +546,12 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
 
         squashed = false;
 
-        /* Flush the updates on stack. Stopping once we run out or we reach the onpage upd txnid. */
-        for (; modifies.size > 0 && upd->txnid != list->onpage_upd->txnid;
+        /*
+         * Flush the updates on stack. Stopping once we run out or we reach the onpage upd start
+         * time pair. As we can squash those modifies away.
+         */
+        for (; modifies.size > 0 && upd->txnid != list->onpage_upd->txnid &&
+             upd->start_ts != list->onpage_upd->start_ts;
              tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
              upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
@@ -578,7 +583,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
              *
              * Modifies that have the same start time pair as the onpage_upd can be squashed away.
              */
-            if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid) {
+            if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid ||
+              upd->start_ts != prev_upd->start_ts) {
                 /*
                  * Calculate reverse delta. Insert full update for the newest historical record even
                  * it's a MODIFY.
@@ -588,9 +594,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                  */
                 nentries = MAX_REVERSE_MODIFY_NUM;
                 if (!F_ISSET(upd, WT_UPDATE_HS)) {
-                    /* Make sure we don't insert anything belonging to the onpage update's txn. */
-                    WT_ASSERT(session, upd->txnid != list->onpage_upd->txnid);
-
                     if (upd->type == WT_UPDATE_MODIFY &&
                       __wt_calc_modify(session, prev_full_value, full_value,
                         prev_full_value->size / 10, entries, &nentries) == 0) {
