@@ -75,7 +75,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
          * checkpoint for information that changes in a very well known way.
          *
          * First collapse and overwrite checkpoint information because we do not know the name of or
-         * how many checkpoints may be in this metadata. Similarly, for backup informaiton, we want
+         * how many checkpoints may be in this metadata. Similarly, for backup information, we want
          * an empty category to strip out since we don't know any backup ids. Set them empty and
          * call collapse to overwrite anything existing.
          */
