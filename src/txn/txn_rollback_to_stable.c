@@ -112,7 +112,12 @@ __txn_abort_newer_update(
         }
     }
 
-    /* Reset the history store flag for the stable update. */
+    /*
+     * Reset the history store flag for the stable update to indicate that this update is not
+     * written into history store, later all the aborted updates are removed from history store.
+     * Next time when this update is moved into history store, it will have different stop time
+     * pair.
+     */
     if (first_upd != NULL)
         F_CLR(first_upd, WT_UPDATE_HS);
 }
@@ -150,8 +155,6 @@ __txn_abort_row_ondisk_kv(
     vpack = &_vpack;
     __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
     if (vpack->start_ts > rollback_timestamp) {
-        /* FIXME: Get a visible update from the history store if any. */
-
         /* No visible updates in the history store, may be a newly inserted key. Remove it. */
         WT_RET(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
         upd->txnid = WT_TXN_NONE;
@@ -272,9 +275,8 @@ __txn_abort_newer_row_leaf(
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
             __txn_abort_newer_insert(session, insert, rollback_timestamp);
 
-        /* Check for updates in the update list that satisfy the given timestamp. */
-        if (WT_ROW_UPDATE(page, rip) == NULL && WT_ROW_INSERT(page, rip) == NULL)
-            WT_RET(__txn_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
+        /* Abort any on-disk value */
+        WT_RET(__txn_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
     }
 
     return (0);
