@@ -688,7 +688,7 @@ __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRA
     /* Count page overflow items. */
     ovfl_cnt = 0;
     WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack) {
-        if (unpack.ovfl)
+        if (FLD_ISSET(unpack.flags, WT_UNPACK_OVERFLOW))
             ++ovfl_cnt;
     }
     WT_CELL_FOREACH_END;
@@ -703,7 +703,7 @@ __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRA
 
     ovfl_cnt = 0;
     WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack) {
-        if (unpack.ovfl) {
+        if (FLD_ISSET(unpack.flags, WT_UNPACK_OVERFLOW)) {
             WT_RET(
               __wt_memdup(session, unpack.data, unpack.size, &trk->trk_ovfl_addr[ovfl_cnt].addr));
             trk->trk_ovfl_addr[ovfl_cnt].size = (uint8_t)unpack.size;

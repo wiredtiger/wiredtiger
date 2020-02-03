@@ -177,5 +177,9 @@ struct __wt_cell_unpack {
     uint8_t raw;  /* Raw cell type (include "shorts") */
     uint8_t type; /* Cell type */
 
-    uint8_t ovfl; /* boolean: cell is an overflow */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_UNPACK_OVERFLOW 0x1u      /* cell is an overflow */
+#define WT_UNPACK_TXNID_CLEARED 0x2u /* txnids are cleared because of restart */
+                                     /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint8_t flags;
 };

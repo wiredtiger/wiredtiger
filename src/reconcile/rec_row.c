@@ -357,7 +357,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         if (ikey != NULL && ikey->cell_offset != 0) {
             cell = WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
             __wt_cell_unpack(session, page, cell, kpack);
-            key_onpage_ovfl = kpack->ovfl && kpack->raw != WT_CELL_KEY_OVFL_RM;
+            key_onpage_ovfl = F_ISSET(kpack, WT_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM;
         }
 
         WT_ERR(__wt_rec_child_modify(session, r, ref, &hazard, &state));
@@ -801,7 +801,10 @@ __wt_rec_row_leaf(
              * the page). If it's a copy, we have to create a new value item as the old item might
              * have been discarded from the page.
              */
-            if (vpack->raw == WT_CELL_VALUE_COPY) {
+            if (vpack->raw == WT_CELL_VALUE_COPY)
+                dictionary = true;
+
+            if (F_ISSET(vpack, WT_UNPACK_TXNID_CLEARED) || vpack->raw == WT_CELL_VALUE_COPY) {
                 /* If the item is Huffman encoded, decode it. */
                 if (btree->huffman_value == NULL) {
                     p = vpack->data;
@@ -814,7 +817,6 @@ __wt_rec_row_leaf(
                 }
                 WT_ERR(__wt_rec_cell_build_val(
                   session, r, p, size, false, start_ts, start_txn, stop_ts, stop_txn, 0));
-                dictionary = true;
             } else {
                 val->buf.data = vpack->cell;
                 val->buf.size = __wt_cell_total_len(vpack);
@@ -822,7 +824,7 @@ __wt_rec_row_leaf(
                 val->len = val->buf.size;
 
                 /* Track if page has overflow items. */
-                if (vpack->ovfl)
+                if (F_ISSET(vpack, WT_UNPACK_OVERFLOW))
                     r->ovfl_items = true;
             }
         } else {
@@ -830,7 +832,7 @@ __wt_rec_row_leaf(
              * The first time we find an overflow record we're not going to use, discard the
              * underlying blocks.
              */
-            if (vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)
+            if (F_ISSET(vpack, WT_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)
                 WT_ERR(__wt_ovfl_remove(session, page, vpack, F_ISSET(r, WT_REC_EVICT)));
 
             switch (upd->type) {
@@ -857,7 +859,7 @@ remove_key:
                  * backing blocks. Don't worry about reuse, reusing keys from a row-store page
                  * reconciliation seems unlikely enough to ignore.
                  */
-                if (kpack != NULL && kpack->ovfl && kpack->raw != WT_CELL_KEY_OVFL_RM) {
+                if (kpack != NULL && F_ISSET(kpack, WT_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM) {
                     /*
                      * Keys are part of the name-space, we can't remove them from the in-memory
                      * tree; if an overflow key was deleted without being instantiated (for example,
@@ -890,7 +892,7 @@ remove_key:
          *
          * If the key is an overflow key that hasn't been removed, use the original backing blocks.
          */
-        key_onpage_ovfl = kpack != NULL && kpack->ovfl && kpack->raw != WT_CELL_KEY_OVFL_RM;
+        key_onpage_ovfl = kpack != NULL && F_ISSET(kpack, WT_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM;
         if (key_onpage_ovfl) {
             key->buf.data = cell;
             key->buf.size = __wt_cell_total_len(kpack);

@@ -270,6 +270,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
             found = self.logfile_to_record(self.corruptpos)
         return min(found, self.nrecords)
 
+    @unittest.skip('')
     def test_corrupt_log(self):
         ''' Corrupt the log and restart with different kinds of recovery '''
 
