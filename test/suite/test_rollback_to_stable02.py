@@ -35,31 +35,8 @@ from wiredtiger import stat
 def timestamp_str(t):
     return '%x' % t
 
-# test_rollback_to_stable01.py
-# Shared base class used by gc tests.
-class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
-    def large_updates(self, uri, value, ds, nrows, commit_ts):
-        # Update a large number of records.
-        session = self.session
-        cursor = session.open_cursor(uri)
-        for i in range(1, nrows + 1):
-            session.begin_transaction()
-            cursor[ds.key(i)] = value
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-        cursor.close()
-
-    def check(self, check_value, uri, nrows, read_ts):
-        session = self.session
-        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
-        cursor = session.open_cursor(uri)
-        count = 0
-        for k, v in cursor:
-            self.assertEqual(v, check_value)
-            count += 1
-        session.rollback_transaction()
-        self.assertEqual(count, nrows)
-
-# Test that checkpoint cleans the obsolete history store pages.
+# test_rollback_to_stable02.py
+# Test that rollback to stable brings back the history value to replace on-disk value.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
     # Force a small cache.
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
@@ -102,10 +79,10 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         # Check that the new updates are only seen after the update timestamp
         self.check(valued, uri, nrows, 40)
 
-        # Pin oldest and stable to timestamp 100.
+        # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
 
-        # Checkpoint to ensure that the history store is cleaned
+        # Checkpoint to ensure that all the data is flushed.
         self.session.checkpoint()
 
         self.conn.rollback_to_stable()
