@@ -37,8 +37,7 @@ __txn_rollback_to_stable_hs_fixup(WT_SESSION_IMPL *session)
     txn_global = &conn->txn_global;
     WT_ORDERED_READ(rollback_timestamp, txn_global->stable_timestamp);
 
-    WT_RET(__wt_hs_cursor(session, &session_flags));
-    cursor = session->hs_cursor;
+    __wt_hs_cursor(session, &cursor, &session_flags);
 
     /* Discard pages we read as soon as we're done with them. */
     F_SET(session, WT_SESSION_READ_WONT_NEED);
@@ -68,7 +67,7 @@ __txn_rollback_to_stable_hs_fixup(WT_SESSION_IMPL *session)
     }
     WT_ERR_NOTFOUND_OK(ret);
 err:
-    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, &cursor, session_flags));
 
     F_CLR(session, WT_SESSION_READ_WONT_NEED);
 

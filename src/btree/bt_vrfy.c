@@ -254,8 +254,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
      * Open a history store cursor positioned at the end of the data store key (the newest record)
      * and iterate backwards until we reach a different key or btree.
      */
-    WT_ERR(__wt_hs_cursor(session, &session_flags));
-    hs_cursor = session->hs_cursor;
+    __wt_hs_cursor(session, &hs_cursor, &session_flags);
     hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
     WT_ERR(hs_cursor->search_near(hs_cursor, &exact));
 
@@ -282,17 +281,12 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
         WT_UNUSED(vs);
 #endif
     }
-    WT_ERR_NOTFOUND_OK(ret);
 
 err:
-    /* It is okay to have not found the key */
-    if (ret == WT_NOTFOUND)
-        ret = 0;
-
     __wt_scr_free(session, &hs_key);
-    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    WT_RET(__wt_hs_cursor_close(session, &hs_cursor, session_flags));
 
-    return (ret);
+    return (0);
 }
 
 /*
