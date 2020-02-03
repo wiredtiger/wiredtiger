@@ -1950,8 +1950,8 @@ tasks:
             ${test_env_vars|} ${format_test_setting|} ./format.sh ${smp_command|} -t 300 2>&1
             format_ret=$?
 
-            # If any of the format job fails i.e, format.sh script returns 1 then we need to check if
-            # it failed with any of the known errors.
+            # If any of the format job fails i.e, format.sh script returns 1 then check if it failed with
+            # any of the known errors.
             if [ $format_ret -ne 0 ]
             then
               # Call the generic format skip error script to skip known errors
