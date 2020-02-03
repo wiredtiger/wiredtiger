@@ -136,6 +136,7 @@ struct __wt_size {
  * 14 packed 8B values.
  */
 #define WT_BLOCK_CHECKPOINT_BUFFER (1 + 14 * WT_INTPACK64_MAXSIZE)
+
 struct __wt_block_ckpt {
     uint8_t version; /* Version */
 
