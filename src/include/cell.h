@@ -179,7 +179,7 @@ struct __wt_cell_unpack {
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_UNPACK_OVERFLOW 0x1u      /* cell is an overflow */
-#define WT_UNPACK_TXNID_CLEARED 0x2u /* txnids are cleared because of restart */
+#define WT_UNPACK_TXNID_CLEARED 0x2u /* txnid is cleared because of restart */
                                      /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 };
