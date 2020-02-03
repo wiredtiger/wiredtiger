@@ -46,7 +46,12 @@ __txn_abort_newer_update(
         }
     }
 
-    /* Reset the history store flag for the stable update. */
+    /*
+     * Reset the history store flag for the stable update to indicate that this update is not
+     * written into history store, later all the aborted updates are removed from history store.
+     * Next time when this update is moved into history store, it will have different stop time
+     * pair.
+     */
     if (first_upd != NULL)
         F_CLR(first_upd, WT_UPDATE_HS);
 
@@ -237,6 +242,7 @@ __txn_abort_row_ondisk_kv(
     WT_CELL_UNPACK *vpack, _vpack;
     WT_DECL_RET;
     WT_UPDATE *upd;
+    WT_ITEM buf;
     size_t size;
 
     vpack = &_vpack;
@@ -246,13 +252,23 @@ __txn_abort_row_ondisk_kv(
         return (__txn_abort_row_replace_with_hs_value(session, page, rip, rollback_timestamp));
     else if (vpack->stop_ts != WT_TS_MAX && vpack->stop_ts > rollback_timestamp) {
         /*
-         * Clear the remove operation from the key by inserting a TOMBSTONE with infinite
-         * visibility.
+         * Clear the remove operation from the key by inserting the original on-disk value as a
+         * standard update.
          */
-        WT_RET(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
-        upd->txnid = WT_TXN_MAX;
-        upd->durable_ts = WT_TS_MAX;
-        upd->start_ts = WT_TS_MAX;
+        WT_CLEAR(buf);
+
+        /*
+         * If a value is simple and is globally visible at the time of reading a page into cache, we
+         * encode its location into the WT_ROW.
+         */
+        if (!__wt_row_leaf_value(page, rip, &buf))
+            /* Take the value from the original page cell. */
+            WT_RET(__wt_page_cell_data_ref(session, page, vpack, &buf));
+
+        WT_RET(__wt_update_alloc(session, &buf, &upd, &size, WT_UPDATE_STANDARD));
+        upd->txnid = vpack->start_txn;
+        upd->durable_ts = vpack->start_ts;
+        upd->start_ts = vpack->start_ts;
     } else
         /* Stable version according to the timestamp. */
         return (0);
@@ -336,16 +352,14 @@ __txn_abort_newer_row_leaf(
      * since the page was read from disk.
      */
     WT_ROW_FOREACH (page, rip, i) {
-        stable_update_found = false;
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)
-            stable_update_found = __txn_abort_newer_update(session, upd, rollback_timestamp);
+            __txn_abort_newer_update(session, upd, rollback_timestamp);
 
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
             __txn_abort_newer_insert(session, insert, rollback_timestamp);
 
-        /* Check for any visible updates in the update list that satisfy the given timestamp. */
-        if (!stable_update_found && WT_ROW_INSERT(page, rip) == NULL)
-            WT_RET(__txn_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
+        /* Abort any on-disk value */
+        WT_RET(__txn_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
     }
 
     __wt_page_only_modify_set(session, page);
@@ -456,7 +470,7 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
 
 err:
     if (local_read)
-        WT_RET(__wt_page_release(session, ref, 0));
+        WT_TRET(__wt_page_release(session, ref, 0));
     return (ret);
 }
 
