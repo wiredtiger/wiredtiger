@@ -785,8 +785,6 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
 
     *updp = NULL;
 
-    type = WT_UPDATE_INVALID; /* [-Wconditional-uninitialized] */
-
     for (; upd != NULL; upd = upd->next) {
         WT_ORDERED_READ(type, upd->type);
         /* Skip reserved place-holders, they're never visible. */
