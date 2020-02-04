@@ -290,36 +290,3 @@ __wt_rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r, wt_timestamp_t 
     }
     return (0);
 }
-
-/*
- * __wt_rec_cell_repack --
- *     Repack a cell.
- */
-static inline int
-__wt_rec_cell_repack(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
-  WT_CELL_UNPACK *vpack, uint64_t start_txn, wt_timestamp_t start_ts, uint64_t stop_txn,
-  wt_timestamp_t stop_ts)
-{
-    WT_DECL_ITEM(tmpval);
-    WT_DECL_RET;
-    size_t size;
-    const void *p;
-
-    WT_ERR(__wt_scr_alloc(session, 0, &tmpval));
-
-    /* If the item is Huffman encoded, decode it. */
-    if (btree->huffman_value == NULL) {
-        p = vpack->data;
-        size = vpack->size;
-    } else {
-        WT_ERR(
-          __wt_huffman_decode(session, btree->huffman_value, vpack->data, vpack->size, tmpval));
-        p = tmpval->data;
-        size = tmpval->size;
-    }
-    WT_ERR(__wt_rec_cell_build_val(session, r, p, size, start_ts, start_txn, stop_ts, stop_txn, 0));
-
-err:
-    __wt_scr_free(session, &tmpval);
-    return (ret);
-}

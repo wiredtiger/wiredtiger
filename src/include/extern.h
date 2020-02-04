@@ -1933,9 +1933,6 @@ static inline int __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE
   const void *data, size_t size, wt_timestamp_t start_ts, uint64_t start_txn,
   wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_rec_cell_repack(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r,
-  WT_CELL_UNPACK *vpack, uint64_t start_txn, wt_timestamp_t start_ts, uint64_t stop_txn,
-  wt_timestamp_t stop_ts) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r,
   wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn,
   uint64_t rle, WT_REC_KV *val) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
