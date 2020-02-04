@@ -19,10 +19,8 @@ __wt_backup_load_incr(
     if (blkcfg->len != 0)
         WT_RET(__wt_nhex_to_raw(session, blkcfg->str, blkcfg->len, bitstring));
     if (bitstring->size != (nbits >> 3))
-        goto format;
+        WT_RET_MSG(session, WT_ERROR, "corrupted modified block list");
     return (0);
-format:
-    WT_RET_MSG(session, WT_ERROR, "corrupted modified block list");
 }
 
 /*
@@ -54,7 +52,8 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
 
         /*
          * We found a match. If we have a name, then there should be granularity and nbits. The
-         * granularity should be set to something. But nbits may be 0 if there are no blocks.
+         * granularity should be set to something. But nbits may be 0 if there are no blocks
+         * currently modified.
          */
         WT_ERR(__wt_config_subgets(session, &v, "granularity", &b));
         cb->granularity = (uint64_t)b.val;
