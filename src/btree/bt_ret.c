@@ -209,11 +209,6 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 
     WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_BIRTHMARK);
 
-    /*
-     * If there's no visible update, the base item is the on-page item. If there's a visible update
-     * and it's a tombstone, the base item is an empty item. If there's a visible update and it's
-     * not a tombstone, the base item is the on-page item.
-     */
     if (upd == NULL) {
         /*
          * Callers of this function set the cursor slot to an impossible value to check we don't try
@@ -225,6 +220,7 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 
         WT_ERR(__value_return(cbt));
     } else if (upd->type == WT_UPDATE_TOMBSTONE)
+        /* If upd is a tombstone, the base item is an empty item. */
         WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
     else
         WT_ERR(__wt_buf_set(session, &cursor->value, upd->data, upd->size));
