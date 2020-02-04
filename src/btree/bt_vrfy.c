@@ -230,8 +230,8 @@ err:
 
 /*
  * __verify_key_hs --
- *     Verify a key against the history store. Unpack will be used to verify the data continuity
- *     between each timestamp range, making sure they don't overlap.
+ *     Verify a key against the history store. The unpack denotes the data store's timestamp range
+ *     information and is used for verifying timestamp range overlaps.
  */
 static int
 __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, WT_VSTUFF *vs)
@@ -246,6 +246,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
+    /* Set the data store timestamp and transactions to initiate timestamp range verification */
     prev_start.timestamp = unpack->start_ts;
     prev_start.txnid = unpack->start_txn;
     session_flags = 0;
@@ -286,7 +287,10 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
         WT_UNUSED(vs);
 #endif
 
-        /* Perform Verification of data continuity. */
+        /*
+         * verify that the current record's stop time pair doesn't overlap with the start time pair
+         * of its successor
+         */
         if (prev_start.timestamp < stop.timestamp) {
             WT_ERR_MSG(session, WT_ERROR,
               "In the Btree %" PRIu32
