@@ -782,7 +782,7 @@ restart:
     }
 
     /* Shut down the history store table after all eviction is complete. */
-    WT_TRET(__wt_hs_destroy(session));
+    __wt_hs_destroy(session);
 
     /*
      * Closing the files may have resulted in entries on our default session's list of open data

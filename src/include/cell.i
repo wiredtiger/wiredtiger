@@ -936,7 +936,7 @@ __wt_cell_unpack_dsk(
      * Previous startup txnid=0, ts=y       txnid=0, ts=1           txnid=MAX, ts=MAX
      */
     if (dsk->write_gen <= S2C(session)->base_write_gen) {
-        /* Let reconciliation know we clear the txid and the cell needs to be rebuilt. */
+        /* Let reconciliation know we clear the transaction ids and the cell needs to be rebuilt. */
         if (unpack->start_txn != WT_TXN_NONE) {
             unpack->start_txn = WT_TXN_NONE;
             F_SET(unpack, WT_UNPACK_TXNID_CLEARED);
