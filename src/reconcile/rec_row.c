@@ -357,7 +357,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         if (ikey != NULL && ikey->cell_offset != 0) {
             cell = WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
             __wt_cell_unpack(session, page, cell, kpack);
-            key_onpage_ovfl = F_ISSET(kpack, WT_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM;
+            key_onpage_ovfl =
+              F_ISSET(kpack, WT_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM;
         }
 
         WT_ERR(__wt_rec_child_modify(session, r, ref, &hazard, &state));
@@ -602,7 +603,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              * Impossible slot, there's no backing on-page item.
              */
             cbt->slot = UINT32_MAX;
-            WT_ERR(__wt_value_return_upd(cbt, upd, F_ISSET(r, WT_REC_VISIBLE_ALL)));
+            WT_ERR(__wt_value_return_upd(cbt, upd));
             WT_ERR(__wt_rec_cell_build_val(session, r, cbt->iface.value.data, cbt->iface.value.size,
               false, start_ts, start_txn, stop_ts, stop_txn, 0));
             break;
@@ -838,7 +839,7 @@ __wt_rec_row_leaf(
             switch (upd->type) {
             case WT_UPDATE_MODIFY:
                 cbt->slot = WT_ROW_SLOT(page, rip);
-                WT_ERR(__wt_value_return_upd(cbt, upd, F_ISSET(r, WT_REC_VISIBLE_ALL)));
+                WT_ERR(__wt_value_return_upd(cbt, upd));
                 WT_ERR(__wt_rec_cell_build_val(session, r, cbt->iface.value.data,
                   cbt->iface.value.size, false, start_ts, start_txn, stop_ts, stop_txn, 0));
                 dictionary = true;
@@ -859,7 +860,8 @@ remove_key:
                  * backing blocks. Don't worry about reuse, reusing keys from a row-store page
                  * reconciliation seems unlikely enough to ignore.
                  */
-                if (kpack != NULL && F_ISSET(kpack, WT_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM) {
+                if (kpack != NULL && F_ISSET(kpack, WT_UNPACK_OVERFLOW) &&
+                  kpack->raw != WT_CELL_KEY_OVFL_RM) {
                     /*
                      * Keys are part of the name-space, we can't remove them from the in-memory
                      * tree; if an overflow key was deleted without being instantiated (for example,
@@ -892,7 +894,8 @@ remove_key:
          *
          * If the key is an overflow key that hasn't been removed, use the original backing blocks.
          */
-        key_onpage_ovfl = kpack != NULL && F_ISSET(kpack, WT_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM;
+        key_onpage_ovfl =
+          kpack != NULL && F_ISSET(kpack, WT_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM;
         if (key_onpage_ovfl) {
             key->buf.data = cell;
             key->buf.size = __wt_cell_total_len(kpack);
