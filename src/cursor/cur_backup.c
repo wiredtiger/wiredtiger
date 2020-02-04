@@ -30,7 +30,7 @@ __wt_backup_destroy(WT_SESSION_IMPL *session)
     uint64_t i;
 
     conn = S2C(session);
-    /* Free any incremental backup information */
+    /* Free any incremental backup information. */
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blkincr = &conn->incr_backups[i];
         __wt_free(session, blkincr->id_str);

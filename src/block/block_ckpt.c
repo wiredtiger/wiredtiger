@@ -675,9 +675,7 @@ __ckpt_add_blkmod_entry(
         blk_mod->nbits = end_rdup;
     }
 
-    /*
-     * Set all the bits needed to record this offset/length pair.
-     */
+    /* Set all the bits needed to record this offset/length pair. */
     __bit_nset(blk_mod->bitstring.mem, start, end);
     return (0);
 }
@@ -695,9 +693,7 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
 
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ckpt->backup_blocks[i];
-        /*
-         * If there is no information at this entry, we're done.
-         */
+        /* If there is no information at this entry, we're done. */
         if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
             continue;
 

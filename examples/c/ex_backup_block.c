@@ -350,7 +350,7 @@ take_incr_backup(WT_SESSION *session, int i)
             if (type == WT_BACKUP_RANGE) {
                 /*
                  * We should never get a range key after a whole file so the read file descriptor
-                 * should be valid. If the read descriptor is valid, so it the write one.
+                 * should be valid. If the read descriptor is valid, so is the write one.
                  */
                 if (tmp_sz < size) {
                     tmp = realloc(tmp, size);
