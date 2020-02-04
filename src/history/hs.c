@@ -26,6 +26,39 @@ __hs_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_
 }
 
 /*
+ * __hs_start_internal_setup_session
+ *      Create a temporary internal session to setup history store
+ */
+static int
+__hs_start_internal_setup_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
+{
+    uint32_t new_session_flags;
+
+    new_session_flags = 0;
+    WT_ASSERT(session, !F_ISSET(session,WT_CONN_HS_OPEN));
+    WT_RET(__wt_open_internal_session(
+            S2C(session), "hs_setup", false, new_session_flags, int_sessionp));
+    return (0);
+}
+
+/*
+ * __hs_start_internal_setup_session_release
+ *      Release the temporary internal session started to setup history store.
+ */
+static int
+__hs_internal_setup_session_release(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
+{
+    WT_SESSION *wt_session;
+
+    if (session != int_session) {
+        wt_session = &int_session->iface;
+        WT_RET(wt_session->close(wt_session, NULL));
+    }
+
+    return (0);
+}
+
+/*
  * __wt_hs_get_btree --
  *     Get the history store btree. Open a history store cursor if needed to get the btree.
  */
@@ -65,10 +98,11 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    bool reset_no_dh_flag;
+    WT_SESSION_IMPL *temp_setup_session;
+    bool release_temp_session;
 
     conn = S2C(session);
-    reset_no_dh_flag = false;
+    release_temp_session = false;
 
     WT_ERR(__wt_config_gets(session, cfg, "history_store.file_max", &cval));
     if (cval.val != 0 && cval.val < WT_HS_FILE_MIN)
@@ -79,17 +113,13 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
+    WT_ERR(__hs_start_internal_setup_session(session,&temp_setup_session));
+    release_temp_session = true;
+
     /*
-     * Retrieve the btree from the history store cursor. This function might need to open a cursor
-     * from the default session and hence need to flip the no-dhandle flag temporarily in case it is
-     * set. TODO: WT-5501 We should find a way to do this without opening a history store cursor
-     * from the default session.
+     * Retrieve the btree from the history store cursor.
      */
-    if (F_ISSET(session, WT_SESSION_NO_DATA_HANDLES)) {
-        reset_no_dh_flag = true;
-        F_CLR(session, WT_SESSION_NO_DATA_HANDLES);
-    }
-    WT_ERR(__wt_hs_get_btree(session, &btree));
+    WT_ERR(__wt_hs_get_btree(temp_setup_session, &btree));
 
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
@@ -114,9 +144,8 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     WT_STAT_CONN_SET(session, cache_hs_ondisk_max, btree->file_max);
 
 err:
-    if (reset_no_dh_flag)
-        F_SET(session, WT_SESSION_NO_DATA_HANDLES);
-
+    if (release_temp_session)
+        WT_TRET(__hs_internal_setup_session_release(session,temp_setup_session));
     return (ret);
 }
 
