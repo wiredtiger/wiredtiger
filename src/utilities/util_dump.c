@@ -667,7 +667,7 @@ usage(void)
 {
     (void)fprintf(stderr,
       "usage: %s %s "
-      "dump [-jrx] [-c checkpoint] [-f output-file] uri\n",
+      "dump [-jrx] [-c checkpoint] [-f output-file] [-t timestamp] uri\n",
       progname, usage_prefix);
     return (1);
 }
