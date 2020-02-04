@@ -751,6 +751,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
+    WT_DECL_ITEM(orig_hs_value_buf);
     WT_DECL_RET;
     WT_ITEM *key, _key;
     WT_MODIFY_VECTOR modifies;
@@ -765,11 +766,12 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     const uint8_t *recnop;
     int cmp;
     bool modify;
-    *updp = NULL;
 
+    *updp = NULL;
     hs_cursor = NULL;
     key = NULL;
     mod_upd = upd = NULL;
+    orig_hs_value_buf = NULL;
     __wt_modify_vector_init(session, &modifies);
     txn = &session->txn;
     __hs_save_read_timestamp(session, &saved_timestamp);
@@ -902,6 +904,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                           &hs_start_tmp.txnid, &hs_stop_tmp.timestamp, &hs_stop_tmp.txnid)) != 0) {
                     if (hs_stop_tmp.timestamp == on_disk_start->timestamp) {
                         /* Set the history value to be the full value from the data store. */
+                        orig_hs_value_buf = hs_value;
                         hs_value = on_disk_buf;
                         ret = 0;
                         upd_type = WT_UPDATE_STANDARD;
@@ -980,8 +983,11 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     WT_ERR_NOTFOUND_OK(ret);
 
 err:
+    if (orig_hs_value_buf != NULL)
+        __wt_scr_free(session, &orig_hs_value_buf);
+    else
+        __wt_scr_free(session, &hs_value);
     __wt_scr_free(session, &hs_key);
-    __wt_scr_free(session, &hs_value);
 
     /*
      * Restore the read timestamp if we encountered an error while processing a modify. There's no

@@ -88,7 +88,6 @@ class test_hs10(wttest.WiredTigerTestCase):
             cursor2[i] = value2
         session2.commit_transaction()
 
-
         # Validate that we see the correct value at each of the timestamps.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
         cursor.set_key(1)
@@ -109,4 +108,3 @@ class test_hs10(wttest.WiredTigerTestCase):
 
 if __name__ == '__main__':
     wttest.run()
-
