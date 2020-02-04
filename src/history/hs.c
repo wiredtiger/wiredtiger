@@ -344,6 +344,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
+    WT_ITEM key_tmp;
     WT_UPDATE *hs_upd;
     size_t notused;
 
@@ -367,6 +368,9 @@ retry:
 
     /* Only create the update chain the first time we try inserting into the history store. */
     if (hs_upd == NULL) {
+        /* Make a local copy of the key. */
+        WT_CLEAR(key_tmp);
+        WT_ERR(__wt_buf_set(session, &key_tmp, cursor->key.data, cursor->key.size));
         /*
          * Insert a delete record to represent stop time pair for the actual record to be inserted.
          * Set the stop time pair as the commit time pair of the history store delete record.
@@ -386,9 +390,9 @@ retry:
     }
 
     /* Search the page and insert the mod list. */
-    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &cursor->key, true, NULL, false, NULL));
+    WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &key_tmp, true, NULL, false, NULL));
     WT_ERR(ret);
-    WT_ERR(__wt_row_modify(cbt, &cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
+    WT_ERR(__wt_row_modify(cbt, &key_tmp, NULL, hs_upd, WT_UPDATE_INVALID, true));
 
 err:
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
@@ -400,6 +404,8 @@ err:
 
     if (ret != 0)
         __wt_free_update_list(session, &hs_upd);
+    __wt_buf_free(session, &key_tmp);
+
     return (ret);
 }
 
