@@ -900,9 +900,8 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                 if ((ret =
                         hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_tmp.timestamp,
                           &hs_start_tmp.txnid, &hs_stop_tmp.timestamp, &hs_stop_tmp.txnid)) != 0) {
-                    if (hs_stop_tmp.timestamp == on_disk_start->timestamp &&
-                      hs_stop_tmp.txnid == on_disk_start->txnid) {
-                        /* Set the history value to be the full value from the data store.*/
+                    if (hs_stop_tmp.timestamp == on_disk_start->timestamp) {
+                        /* Set the history value to be the full value from the data store. */
                         hs_value = on_disk_buf;
                         ret = 0;
                         upd_type = WT_UPDATE_STANDARD;
