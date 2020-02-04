@@ -883,25 +883,12 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                 session->txn.read_timestamp = hs_stop_tmp.timestamp;
 
                 /*
-                 * Find the base update to apply the reverse deltas
+                 * Find the base update to apply the reverse deltas. If our cursor next fails to
+                 * find an update here we fall back to the datastore version. If its timestamp
+                 * doesn't match our timestamp then we return not found.
                  */
-                WT_ERR_NOTFOUND_OK(hs_cursor->next(hs_cursor));
-                hs_start_tmp.timestamp = WT_TS_NONE;
-                hs_start_tmp.txnid = WT_TXN_NONE;
-
-                /*
-                 * Make sure we use the temporary variants of these variables. We need to retain the
-                 * timestamps of the original modify we saw.
-                 *
-                 * We keep looking back into history store until we find a base update to apply the
-                 * reverse deltas on top of.
-                 *
-                 * If our get key fails here we fall back to the datastore version. If its timestamp
-                 * doesn't match our timestamp then we've failed.
-                 */
-                if ((ret =
-                        hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_tmp.timestamp,
-                          &hs_start_tmp.txnid, &hs_stop_tmp.timestamp, &hs_stop_tmp.txnid)) != 0) {
+                if ((ret = hs_cursor->next(hs_cursor)) == WT_NOTFOUND)
+                {
                     if (hs_stop_tmp.timestamp == on_disk_start->timestamp) {
                         /* Set the history value to be the full value from the data store. */
                         orig_hs_value_buf = hs_value;
@@ -912,6 +899,17 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                     } else
                         WT_ERR(ret);
                 }
+                hs_start_tmp.timestamp = WT_TS_NONE;
+                hs_start_tmp.txnid = WT_TXN_NONE;
+                /*
+                 * Make sure we use the temporary variants of these variables. We need to retain the
+                 * timestamps of the original modify we saw.
+                 *
+                 * We keep looking back into history store until we find a base update to apply the
+                 * reverse deltas on top of.
+                 */
+                WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_tmp.timestamp,
+                          &hs_start_tmp.txnid, &hs_stop_tmp.timestamp, &hs_stop_tmp.txnid));
 
                 WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
 
