@@ -826,6 +826,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
         WT_RET(__upd_alloc_tombstone(session, updp, stop.txnid, stop.timestamp));
+        F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
         return (0);
     }
 
