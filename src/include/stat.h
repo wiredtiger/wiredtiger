@@ -386,8 +386,6 @@ struct __wt_connection_stats {
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
     int64_t cache_hazard_max;
-    int64_t cache_hs_cursor_wait_application;
-    int64_t cache_hs_cursor_wait_internal;
     int64_t cache_hs_score;
     int64_t cache_hs_insert;
     int64_t cache_hs_ondisk_max;
