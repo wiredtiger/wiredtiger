@@ -38,11 +38,12 @@ def timestamp_str(t):
 
 # test_rollback_to_stable02.py
 # Test that rollback to stable brings back the history value to replace on-disk value.
-class test_rollback_to_stable01(test_rollback_to_stable_base):
+class test_rollback_to_stable02(test_rollback_to_stable_base):
     # Force a small cache.
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
+    @unittest.skip("Temporarily disabled")
     def test_rollback_to_stable(self):
         nrows = 10000
 
