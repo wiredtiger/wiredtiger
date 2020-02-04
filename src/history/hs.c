@@ -887,8 +887,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                  * find an update here we fall back to the datastore version. If its timestamp
                  * doesn't match our timestamp then we return not found.
                  */
-                if ((ret = hs_cursor->next(hs_cursor)) == WT_NOTFOUND)
-                {
+                if ((ret = hs_cursor->next(hs_cursor)) == WT_NOTFOUND) {
                     if (hs_stop_tmp.timestamp == on_disk_start->timestamp) {
                         /* Set the history value to be the full value from the data store. */
                         orig_hs_value_buf = hs_value;
@@ -909,7 +908,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                  * reverse deltas on top of.
                  */
                 WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_tmp.timestamp,
-                          &hs_start_tmp.txnid, &hs_stop_tmp.timestamp, &hs_stop_tmp.txnid));
+                  &hs_start_tmp.txnid, &hs_stop_tmp.timestamp, &hs_stop_tmp.txnid));
 
                 WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
 
