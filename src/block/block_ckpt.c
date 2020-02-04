@@ -659,22 +659,19 @@ err:
  */
 static int
 __ckpt_add_blkmod_entry(
-  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, uint64_t offset, uint64_t len)
+  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len)
 {
     uint64_t end, start;
     uint32_t end_rdup;
 
     WT_ASSERT(session, blk_mod->granularity != 0);
-    start = offset / blk_mod->granularity;
-    end = (offset + len) / blk_mod->granularity;
-    end_rdup = __wt_rduppo2((uint32_t)end, 8);
-    if (blk_mod->nbits == 0) {
-        blk_mod->nbits = WT_MAX(end_rdup, WT_BLOCK_MODS_LIST_MIN);
-        WT_RET(__bit_alloc(session, blk_mod->nbits, &blk_mod->bitstring));
-    } else if (end_rdup > blk_mod->nbits)
+    start = (uint64_t)offset / blk_mod->granularity;
+    end = (uint64_t)(offset + len) / blk_mod->granularity;
+    WT_ASSERT(session, end < UINT32_MAX);
+    end_rdup = WT_MAX(__wt_rduppo2((uint32_t)end, 8), WT_BLOCK_MODS_LIST_MIN);
+    if (end_rdup > blk_mod->nbits)
         /* If we don't have enough, double the number of bits we can track. */
-        WT_RET(__wt_realloc_def(
-          session, (size_t *)&blk_mod->nbits, blk_mod->nbits * 2, &blk_mod->bitstring));
+        WT_RET(__wt_realloc_def(session, (size_t *)&blk_mod->nbits, end_rdup, &blk_mod->bitstring));
 
     /*
      * Set all the bits needed to record this offset/length pair.
@@ -703,18 +700,14 @@ __ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
             continue;
 
         WT_EXT_FOREACH (ext, ci->alloc.off)
-            WT_RET(
-              __ckpt_add_blkmod_entry(session, blk_mod, (uint64_t)ext->off, (uint64_t)ext->size));
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ext->off, ext->size));
 
         if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(
-              session, blk_mod, (uint64_t)ci->alloc.offset, (uint64_t)ci->alloc.size));
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->alloc.offset, ci->alloc.size));
         if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(
-              session, blk_mod, (uint64_t)ci->discard.offset, (uint64_t)ci->discard.size));
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->discard.offset, ci->discard.size));
         if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(
-              session, blk_mod, (uint64_t)ci->avail.offset, (uint64_t)ci->avail.size));
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->avail.offset, ci->avail.size));
     }
     return (0);
 }

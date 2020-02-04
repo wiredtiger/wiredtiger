@@ -16,32 +16,13 @@ int
 __wt_backup_load_incr(
   WT_SESSION_IMPL *session, WT_CONFIG_ITEM *blkcfg, uint8_t **listp, uint64_t nbits)
 {
-    uint64_t i;
-    uint8_t *list;
-    const char *p;
+    WT_ITEM bitstring;
 
-    p = blkcfg->str;
-    if (*p != '(')
+    if (blkcfg->len != 0)
+        WT_RET(__wt_nhex_to_raw(session, blkcfg->str, blkcfg->len, &bitstring));
+    if (bitstring.size != (nbits >> 3))
         goto format;
-    if (p[1] != ')') {
-        /*
-         * Make space for the bit field.
-         */
-        WT_RET(__bit_alloc(session, nbits, &list));
-        *listp = list;
-        /*
-         * Copy the block list to the list.
-         */
-        for (i = 0, p = blkcfg->str + 1; *p != ')'; i += 8, ++list) {
-            WT_ASSERT(session, i < nbits);
-            if (sscanf(p, "%" SCNu8 "[,)]", list) != 1)
-                goto format;
-            for (; *p != ',' && *p != ')'; ++p)
-                ;
-            if (*p == ',')
-                ++p;
-        }
-    }
+    *listp = bitstring.mem;
     return (0);
 format:
     WT_RET_MSG(session, WT_ERROR, "corrupted modified block list");

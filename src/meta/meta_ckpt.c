@@ -584,18 +584,18 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ret = __wt_config_subgets(session, v, "newest_durable_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     ckpt->newest_durable_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
-    ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
-    WT_RET_NOTFOUND_OK(ret);
-    ckpt->newest_stop_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_MAX : (uint64_t)a.val;
-    ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
-    WT_RET_NOTFOUND_OK(ret);
-    ckpt->newest_stop_txn = ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_MAX : (uint64_t)a.val;
     ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     ckpt->oldest_start_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
     ret = __wt_config_subgets(session, v, "oldest_start_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
     ckpt->oldest_start_txn = ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_NONE : (uint64_t)a.val;
+    ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
+    WT_RET_NOTFOUND_OK(ret);
+    ckpt->newest_stop_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_MAX : (uint64_t)a.val;
+    ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
+    WT_RET_NOTFOUND_OK(ret);
+    ckpt->newest_stop_txn = ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_MAX : (uint64_t)a.val;
     __wt_check_addr_validity(session, ckpt->oldest_start_ts, ckpt->oldest_start_txn,
       ckpt->newest_stop_ts, ckpt->newest_stop_txn);
 
@@ -728,8 +728,7 @@ static int
 __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
 {
     WT_BLOCK_MODS *blk;
-    uint64_t end, entries;
-    uint8_t *p;
+    WT_ITEM bitstring;
     u_int i;
     bool valid;
 
@@ -754,13 +753,12 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
         WT_RET(__wt_buf_catfmt(session, buf, "%s%s=(id=%" PRIu32 ",granularity=%" PRIu64
-                                             ",nbits=%" PRIu64 ",offset=%" PRIu64 ",blocks=(",
+                                             ",nbits=%" PRIu64 ",offset=%" PRIu64 ",blocks=",
           i == 0 ? "" : ",", blk->id_str, i, blk->granularity, blk->nbits, blk->offset));
         /* Get the number of bytes. */
-        end = blk->nbits >> 3;
-        for (entries = 0, p = blk->bitstring; entries < end; ++entries, ++p)
-            WT_RET(__wt_buf_catfmt(session, buf, "%s%" PRIu8, entries == 0 ? "" : ",", *p));
-        WT_RET(__wt_buf_catfmt(session, buf, "))"));
+        WT_RET(__wt_raw_to_hex(session, blk->bitstring, blk->nbits >> 3, &bitstring));
+        WT_RET(__wt_buf_catfmt(session, buf, "%.*s", (int)bitstring.size, bitstring.mem));
+        WT_RET(__wt_buf_catfmt(session, buf, ")"));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
     return (0);
