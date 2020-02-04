@@ -746,7 +746,7 @@ __hs_restore_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t saved_times
  */
 int
 __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp,
-  bool allow_prepare, WT_ITEM *buf, WT_TIME_PAIR *start, WT_TIME_PAIR *stop)
+  bool allow_prepare, WT_ITEM *on_disk_buf, WT_TIME_PAIR *on_disk_start)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
@@ -765,8 +765,6 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     const uint8_t *recnop;
     int cmp;
     bool modify;
-    WT_UNUSED(stop);
-    WT_UNUSED(buf);
     *updp = NULL;
 
     hs_cursor = NULL;
@@ -896,16 +894,16 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                  * We keep looking back into history store until we find a base update to apply the
                  * reverse deltas on top of.
                  *
-                 * If our get key fails here we need to search the datastore for the associate full
-                 * value of the update.
+                 * If our get key fails here we fall back to the datastore version. If its timestamp
+                 * doesn't match our timestamp then we've failed.
                  */
                 if ((ret =
                         hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_tmp.timestamp,
                           &hs_start_tmp.txnid, &hs_stop_tmp.timestamp, &hs_stop_tmp.txnid)) != 0) {
-                    if (hs_stop_tmp.timestamp == start->timestamp &&
-                      hs_stop_tmp.txnid == start->txnid) {
+                    if (hs_stop_tmp.timestamp == on_disk_start->timestamp &&
+                      hs_stop_tmp.txnid == on_disk_start->txnid) {
                         /* Set the history value to be the full value from the data store.*/
-                        hs_value = buf;
+                        hs_value = on_disk_buf;
                         ret = 0;
                         upd_type = WT_UPDATE_STANDARD;
                         break;
