@@ -45,7 +45,7 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
     WT_RET(__wt_metadata_search(session, btree->dhandle->name, &config));
     WT_ERR(__wt_config_getones(session, config, "checkpoint_backup_info", &v));
     __wt_config_subinit(session, &blkconf, &v);
-    while (__wt_config_next(&blkconf, &k, &v) == 0) {
+    while ((ret = __wt_config_next(&blkconf, &k, &v)) == 0) {
         /*
          * First see if we have information for this source identifier.
          */
@@ -67,14 +67,13 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
          * We found a match. Load the block information into the cursor.
          */
         ret = __wt_config_subgets(session, &v, "blocks", &b);
-        WT_ERR_NOTFOUND_OK(ret);
         if (ret != WT_NOTFOUND) {
             WT_ERR(__wt_backup_load_incr(session, &b, &cb->bitstring, cb->nbits));
             cb->bit_offset = 0;
             cb->incr_init = true;
         }
-        ret = 0;
     }
+    WT_ERR_NOTFOUND_OK(ret);
 
 err:
     __wt_free(session, config);
