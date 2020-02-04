@@ -91,24 +91,20 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
 
         valuea = "aaaaa" * 100
         self.large_updates(uri, valuea, ds, nrows, 10)
-
         # Check that all updates are seen
         self.check(valuea, uri, nrows, 10)
 
         # Remove all keys with newer timestamp
         self.large_removes(uri, ds, nrows, 20)
-
         # Check that the no keys should be visible
         self.check(valuea, uri, 0, 20)
 
         # Pin oldest and stable to timestamp 100.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
-
         # Checkpoint to ensure that all the updates are flushed to disk.
         self.session.checkpoint()
 
         self.conn.rollback_to_stable()
-
         # Check that the new updates are only seen after the update timestamp
         self.check(valuea, uri, nrows, 20)
 
