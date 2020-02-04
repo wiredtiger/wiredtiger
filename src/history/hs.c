@@ -745,9 +745,8 @@ __hs_restore_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t saved_times
  *     prepare conflict will be returned upon reading a prepared update.
  */
 int
-__wt_find_hs_upd(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool allow_prepare, WT_ITEM* buf,
-    WT_TIME_PAIR* start, WT_TIME_PAIR *stop)
+__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp,
+  bool allow_prepare, WT_ITEM *buf, WT_TIME_PAIR *start, WT_TIME_PAIR *stop)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
@@ -900,11 +899,11 @@ __wt_find_hs_upd(
                  * If our get key fails here we need to search the datastore for the associate full
                  * value of the update.
                  */
-                if ((ret = hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_tmp.timestamp,
-                  &hs_start_tmp.txnid, &hs_stop_tmp.timestamp, &hs_stop_tmp.txnid)) != 0)
-                {
-                    if (hs_stop_tmp.timestamp == start->timestamp && hs_stop_tmp.txnid == start->txnid)
-                    {
+                if ((ret =
+                        hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_tmp.timestamp,
+                          &hs_start_tmp.txnid, &hs_stop_tmp.timestamp, &hs_stop_tmp.txnid)) != 0) {
+                    if (hs_stop_tmp.timestamp == start->timestamp &&
+                      hs_stop_tmp.txnid == start->txnid) {
                         /* Set the history value to be the full value from the data store.*/
                         hs_value = buf;
                         ret = 0;
