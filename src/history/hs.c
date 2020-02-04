@@ -892,7 +892,6 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                         /* Set the history value to be the full value from the data store. */
                         orig_hs_value_buf = hs_value;
                         hs_value = on_disk_buf;
-                        ret = 0;
                         upd_type = WT_UPDATE_STANDARD;
                         break;
                     } else
