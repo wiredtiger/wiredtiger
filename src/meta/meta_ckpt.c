@@ -760,6 +760,7 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
         WT_RET(__wt_raw_to_hex(session, blk->bitstring.mem, blk->nbits >> 3, &bitstring));
         WT_RET(__wt_buf_catfmt(session, buf, "%.*s", (int)bitstring.size, (char *)bitstring.mem));
         WT_RET(__wt_buf_catfmt(session, buf, ")"));
+        __wt_buf_free(session, &bitstring);
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
     return (0);
