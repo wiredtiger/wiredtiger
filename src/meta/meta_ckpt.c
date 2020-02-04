@@ -425,7 +425,7 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         /* Free any old information if we need to do so.  */
         if (free && F_ISSET(blk_mod, WT_BLOCK_MODS_VALID)) {
             __wt_free(session, blk_mod->id_str);
-            __wt_free(session, blk_mod->bitstring);
+            __wt_buf_free(session, &blk_mod->bitstring);
             blk_mod->nbits = 0;
             blk_mod->granularity = 0;
             blk_mod->offset = 0;
@@ -435,7 +435,7 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         /* Set up the block list to point to the current information.  */
         if (setup) {
             WT_RET(__wt_strdup(session, blk->id_str, &blk_mod->id_str));
-            blk_mod->bitstring = NULL;
+            WT_CLEAR(blk_mod->bitstring);
             blk_mod->granularity = S2C(session)->incr_granularity;
             blk_mod->nbits = 0;
             blk_mod->offset = 0;
@@ -757,7 +757,7 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
                                              ",nbits=%" PRIu64 ",offset=%" PRIu64 ",blocks=",
           i == 0 ? "" : ",", blk->id_str, i, blk->granularity, blk->nbits, blk->offset));
         /* Get the number of bytes. */
-        WT_RET(__wt_raw_to_hex(session, blk->bitstring, blk->nbits >> 3, &bitstring));
+        WT_RET(__wt_raw_to_hex(session, blk->bitstring.mem, blk->nbits >> 3, &bitstring));
         WT_RET(__wt_buf_catfmt(session, buf, "%.*s", (int)bitstring.size, (char *)bitstring.mem));
         WT_RET(__wt_buf_catfmt(session, buf, ")"));
     }
@@ -840,7 +840,7 @@ __wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     __wt_free(session, ckpt->bpriv);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ckpt->backup_blocks[i];
-        __wt_free(session, blk_mod->bitstring);
+        __wt_buf_free(session, &blk_mod->bitstring);
         __wt_free(session, blk_mod->id_str);
         F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
     }

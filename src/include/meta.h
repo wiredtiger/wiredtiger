@@ -66,11 +66,11 @@
 struct __wt_block_mods {
     const char *id_str;
 
-    uint8_t *bitstring;
+    WT_ITEM bitstring;
     uint64_t nbits; /* Number of bits in bitstring */
 
-    uint64_t granularity;
     uint64_t offset; /* Zero bit offset for bitstring */
+    uint64_t granularity;
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_BLOCK_MODS_VALID 0x1u /* Entry is valid */
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */

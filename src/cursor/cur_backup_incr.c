@@ -14,15 +14,12 @@
  */
 int
 __wt_backup_load_incr(
-  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *blkcfg, uint8_t **listp, uint64_t nbits)
+  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *blkcfg, WT_ITEM *bitstring, uint64_t nbits)
 {
-    WT_ITEM bitstring;
-
     if (blkcfg->len != 0)
-        WT_RET(__wt_nhex_to_raw(session, blkcfg->str, blkcfg->len, &bitstring));
-    if (bitstring.size != (nbits >> 3))
+        WT_RET(__wt_nhex_to_raw(session, blkcfg->str, blkcfg->len, bitstring));
+    if (bitstring->size != (nbits >> 3))
         goto format;
-    *listp = bitstring.mem;
     return (0);
 format:
     WT_RET_MSG(session, WT_ERROR, "corrupted modified block list");
@@ -107,7 +104,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
     if (cb->incr_init) {
         /* Look for the next chunk that had modifications.  */
         while (cb->bit_offset < cb->nbits)
-            if (__bit_test(cb->bitstring, cb->bit_offset))
+            if (__bit_test(cb->bitstring.mem, cb->bit_offset))
                 break;
             else
                 ++cb->bit_offset;
@@ -138,7 +135,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
          * If there is no block modification information for this file, there is no information to
          * return to the user.
          */
-        if (cb->bitstring == NULL)
+        if (cb->bitstring.mem == NULL)
             WT_ERR(WT_NOTFOUND);
         __wt_cursor_set_key(cursor, cb->offset + cb->granularity * cb->bit_offset++,
           cb->granularity, WT_BACKUP_RANGE);
@@ -159,7 +156,7 @@ __wt_curbackup_free_incr(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     __wt_free(session, cb->incr_file);
     if (cb->incr_cursor != NULL)
         __wt_cursor_close(cb->incr_cursor);
-    __wt_free(session, cb->bitstring);
+    __wt_buf_free(session, &cb->bitstring);
 }
 
 /*
