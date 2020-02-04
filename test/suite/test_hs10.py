@@ -80,15 +80,13 @@ class test_hs10(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.modify([wiredtiger.Modify('C', 1002, 1)]), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
         self.session.checkpoint()
+
         # Insert a whole bunch of data into the other table to force wiredtiger to evict data
         # from the previous table.
-
         session2.begin_transaction()
         for i in range(1, 10000):
             cursor2[i] = value2
-        time.sleep(1)
         session2.commit_transaction()
-        # Wait for eviction
 
 
         # Validate that we see the correct value at each of the timestamps.
