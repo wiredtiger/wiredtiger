@@ -80,6 +80,17 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     }
     WT_ERR(__wt_hs_get_btree(session, &btree));
 
+    /*
+     * Disable bulk loads into history store. We should set original to 0 the first time we
+     * configure history store. We do not need compare-and-swap because no one can race us the first
+     * time we are configuring.
+     */
+    if (btree->original) {
+        btree->original = 0;
+        btree->evict_disabled_open = false;
+        WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
+    }
+
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
         conn->cache->hs_fileid = btree->id;
@@ -345,6 +356,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const
      */
     WT_ASSERT(session, type == WT_UPDATE_STANDARD || type == WT_UPDATE_MODIFY);
 
+retry:
     /*
      * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to
      * create an update chain for a direct insertion onto the history store page.
@@ -353,23 +365,26 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const
       cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts_pair.timestamp, stop_ts_pair.txnid);
     cursor->set_value(cursor, upd->durable_ts, upd->prepare_state, type, hs_value);
 
-    /*
-     * Insert a delete record to represent stop time pair for the actual record to be inserted. Set
-     * the stop time pair as the commit time pair of the history store delete record.
-     */
-    WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &notused, WT_UPDATE_TOMBSTONE));
-    hs_upd->start_ts = stop_ts_pair.timestamp;
-    hs_upd->txnid = stop_ts_pair.txnid;
+    /* Only create the update chain the first time we try inserting into the history store. */
+    if (hs_upd == NULL) {
+        /*
+         * Insert a delete record to represent stop time pair for the actual record to be inserted.
+         * Set the stop time pair as the commit time pair of the history store delete record.
+         */
+        WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &notused, WT_UPDATE_TOMBSTONE));
+        hs_upd->start_ts = stop_ts_pair.timestamp;
+        hs_upd->txnid = stop_ts_pair.txnid;
 
-    /*
-     * Append to the delete record, the actual record to be inserted into the history store. Set the
-     * current update start time pair as the commit time pair to the history store record.
-     */
-    WT_ERR(__wt_update_alloc(session, &cursor->value, &hs_upd->next, &notused, WT_UPDATE_STANDARD));
-    hs_upd->next->start_ts = upd->start_ts;
-    hs_upd->next->txnid = upd->txnid;
+        /*
+         * Append to the delete record, the actual record to be inserted into the history store. Set
+         * the current update start time pair as the commit time pair to the history store record.
+         */
+        WT_ERR(
+          __wt_update_alloc(session, &cursor->value, &hs_upd->next, &notused, WT_UPDATE_STANDARD));
+        hs_upd->next->start_ts = upd->start_ts;
+        hs_upd->next->txnid = upd->txnid;
+    }
 
-retry:
     /* Search the page and insert the mod list. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &cursor->key, true, NULL, false, NULL));
     WT_ERR(ret);
