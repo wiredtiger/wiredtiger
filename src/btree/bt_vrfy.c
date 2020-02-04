@@ -38,12 +38,13 @@ typedef struct {
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
 static int __verify_col_var_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
-static int __verify_key_hs(WT_SESSION_IMPL *, WT_ITEM *, WT_VSTUFF *);
+static int __verify_key_hs(WT_SESSION_IMPL *, WT_ITEM *, WT_CELL_UNPACK *, WT_VSTUFF *);
 static int __verify_page_cell(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static int __verify_row_leaf_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
+static const char *__verify_timestamp_to_pretty_string(wt_timestamp_t);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 static int __verify_ts_stable_cmp(
   WT_SESSION_IMPL *, WT_ITEM *, WT_REF *, uint32_t, wt_timestamp_t, wt_timestamp_t, WT_VSTUFF *);
@@ -198,7 +199,7 @@ __verify_col_var_page_hs(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
         }
 #endif
 
-        WT_ERR(__verify_key_hs(session, key, vs));
+        WT_ERR(__verify_key_hs(session, key, unpack, vs));
         recno += rle;
     }
 
@@ -237,7 +238,7 @@ __verify_row_leaf_page_hs(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
             WT_ERR(__wt_debug_key_value(session, key, unpack));
 #endif
 
-        WT_ERR(__verify_key_hs(session, key, vs));
+        WT_ERR(__verify_key_hs(session, key, unpack, vs));
     }
 
 err:
@@ -247,21 +248,25 @@ err:
 
 /*
  * __verify_key_hs --
- *     Verify a key against the history store given a cell unpack holding key values.
+ *     Verify a key against the history store. The unpack denotes the data store's timestamp range
+ *     information and is used for verifying timestamp range overlaps.
  */
 static int
-__verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
+__verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, WT_VSTUFF *vs)
 {
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
-    WT_TIME_PAIR start, stop;
+    WT_TIME_PAIR prev_start, start, stop;
     uint32_t hs_btree_id, session_flags;
     int cmp, exact;
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
+    /* Set the data store timestamp and transactions to initiate timestamp range verification */
+    prev_start.timestamp = unpack->start_ts;
+    prev_start.txnid = unpack->start_txn;
     session_flags = 0;
     stop.timestamp = 0;
     stop.txnid = 0;
@@ -299,6 +304,33 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_VSTUFF *vs)
 #else
         WT_UNUSED(vs);
 #endif
+
+        /*
+         * verify that the current record's stop time pair doesn't overlap with the start time pair
+         * of its successor
+         */
+        if (prev_start.timestamp < stop.timestamp) {
+            WT_ERR_MSG(session, WT_ERROR,
+              "In the Btree %" PRIu32
+              ", Key %s has a overlap of "
+              "timestamp ranges between history store stop timestamp %s being "
+              "newer than a more recent timestamp range having start timestamp %s",
+              hs_btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
+              __verify_timestamp_to_pretty_string(stop.timestamp),
+              __verify_timestamp_to_pretty_string(prev_start.timestamp));
+        }
+        if (prev_start.txnid < stop.txnid) {
+            WT_ERR_MSG(session, WT_ERROR,
+              "In the Btree %" PRIu32
+              ", Key %s has a overlap of "
+              "timestamp ranges between history store stop transaction (%" PRIu64
+              ") being "
+              "newer than a more recent timestamp range having start transaction (%" PRIu64 ")",
+              hs_btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
+              stop.txnid, prev_start.txnid);
+        }
+        prev_start.timestamp = start.timestamp;
+        prev_start.txnid = start.txnid;
 
         WT_ERR(__verify_ts_stable_cmp(session, key, NULL, 0, start.timestamp, stop.timestamp, vs));
     }
@@ -919,41 +951,17 @@ static int
 __verify_ts_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num, const char *ts1_name,
   wt_timestamp_t ts1, const char *ts2_name, wt_timestamp_t ts2, bool gt, WT_VSTUFF *vs)
 {
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
-    const char *ts1_bp, *ts2_bp;
-
     if (gt && ts1 >= ts2)
         return (0);
     if (!gt && ts1 <= ts2)
         return (0);
 
-    switch (ts1) {
-    case WT_TS_MAX:
-        ts1_bp = "WT_TS_MAX";
-        break;
-    case WT_TS_NONE:
-        ts1_bp = "WT_TS_NONE";
-        break;
-    default:
-        ts1_bp = __wt_timestamp_to_string(ts1, ts_string[0]);
-        break;
-    }
-    switch (ts2) {
-    case WT_TS_MAX:
-        ts2_bp = "WT_TS_MAX";
-        break;
-    case WT_TS_NONE:
-        ts2_bp = "WT_TS_NONE";
-        break;
-    default:
-        ts2_bp = __wt_timestamp_to_string(ts2, ts_string[1]);
-        break;
-    }
     WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
                                   " on page at %s failed verification with %s "
                                   "timestamp of %s, %s the parent's %s timestamp of %s",
-      cell_num, __verify_addr_string(session, ref, vs->tmp1), ts1_name, ts1_bp,
-      gt ? "less than" : "greater than", ts2_name, ts2_bp);
+      cell_num, __verify_addr_string(session, ref, vs->tmp1), ts1_name,
+      __verify_timestamp_to_pretty_string(ts1), gt ? "less than" : "greater than", ts2_name,
+      __verify_timestamp_to_pretty_string(ts2));
 }
 
 /*
@@ -1031,6 +1039,30 @@ __verify_txn_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
                                   "%" PRIu64,
       cell_num, __verify_addr_string(session, ref, vs->tmp1), txn1_name, txn1,
       gt ? "less than" : "greater than", txn2_name, txn2);
+}
+
+/*
+ * __verify_timestamp_to_pretty_string --
+ *     Convert a timestamp to a pretty string, utilises existing timestamp to string function.
+ */
+static const char *
+__verify_timestamp_to_pretty_string(wt_timestamp_t ts)
+{
+    char ts_string[WT_TS_INT_STRING_SIZE];
+    const char *ts_bp;
+
+    switch (ts) {
+    case WT_TS_MAX:
+        ts_bp = "WT_TS_MAX";
+        break;
+    case WT_TS_NONE:
+        ts_bp = "WT_TS_NONE";
+        break;
+    default:
+        ts_bp = __wt_timestamp_to_string(ts, ts_string);
+        break;
+    }
+    return ts_bp;
 }
 
 /*

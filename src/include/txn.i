@@ -826,6 +826,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
         WT_RET(__upd_alloc_tombstone(session, updp, stop.txnid, stop.timestamp));
+        F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
         return (0);
     }
 
@@ -848,7 +849,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     WT_ASSERT(session, upd == NULL);
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
-        WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, cbt, &upd, false));
+        WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, cbt, &upd, false, &buf, &start));
 
     /* There is no BIRTHMARK in the history store file. */
     WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_BIRTHMARK);
