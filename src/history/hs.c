@@ -601,17 +601,9 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                         WT_ERR(__hs_insert_record(session, cursor, btree_id, key, upd,
                           WT_UPDATE_MODIFY, modify_value, stop_ts_pair));
                         __wt_scr_free(session, &modify_value);
-                    } else {
+                    } else
                         WT_ERR(__hs_insert_record(session, cursor, btree_id, key, upd,
                           WT_UPDATE_STANDARD, full_value, stop_ts_pair));
-                        /*
-                         * If we are evicting, we can now free older updates which have already been
-                         * written to the history store. However we can only free updates after an
-                         * original full update is inserted as a full update.
-                         */
-                        if (F_ISSET(r, WT_REC_EVICT) && upd->type == WT_UPDATE_STANDARD)
-                            __wt_free_update_list(session, &upd->next);
-                    }
 
                     /* Flag the update as now in the history store. */
                     F_SET(upd, WT_UPDATE_HS);
@@ -627,13 +619,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
 
         if (modifies.size > 0)
             WT_STAT_CONN_INCR(session, cache_hs_write_squash);
-
-        /*
-         * If we are evicting, we can now free older updates since they have already been written to
-         * the history store and can't be rolled back anyway.
-         */
-        if (F_ISSET(r, WT_REC_EVICT))
-            __wt_free_update_list(session, &upd->next);
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
