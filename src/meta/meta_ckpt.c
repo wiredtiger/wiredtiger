@@ -732,6 +732,7 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
     u_int i;
     bool valid;
 
+    WT_CLEAR(bitstring);
     valid = false;
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk)
         if (F_ISSET(blk, WT_BLOCK_MODS_VALID))
@@ -757,7 +758,7 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
           i == 0 ? "" : ",", blk->id_str, i, blk->granularity, blk->nbits, blk->offset));
         /* Get the number of bytes. */
         WT_RET(__wt_raw_to_hex(session, blk->bitstring, blk->nbits >> 3, &bitstring));
-        WT_RET(__wt_buf_catfmt(session, buf, "%.*s", (int)bitstring.size, bitstring.mem));
+        WT_RET(__wt_buf_catfmt(session, buf, "%.*s", (int)bitstring.size, (char *)bitstring.mem));
         WT_RET(__wt_buf_catfmt(session, buf, ")"));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
