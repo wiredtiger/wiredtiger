@@ -106,7 +106,6 @@ class test_hs09(wttest.WiredTigerTestCase):
 
         self.check_ckpt_hs(value2, value1, 2, 3)
 
-    @unittest.skip("Temporarily disabled.")
     def test_prepared_updates_not_written_to_hs(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -116,17 +115,17 @@ class test_hs09(wttest.WiredTigerTestCase):
         value2 = 'b' * 500
         value3 = 'c' * 500
 
-        # Load 5MB of data.
+        # Load 1MB of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
-        # Load another 5MB of data with a later timestamp.
+        # Load another 1MB of data with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
@@ -137,6 +136,8 @@ class test_hs09(wttest.WiredTigerTestCase):
         self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(4))
 
         self.check_ckpt_hs(value2, value1, 2, 3)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(5) +
+            ',durable_timestamp=' + timestamp_str(5))
 
     def test_write_newest_version_to_data_store(self):
         # Create a small table.
