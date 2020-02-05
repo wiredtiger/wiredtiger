@@ -34,7 +34,12 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
     conn = S2C(session);
     if (config == NULL)
         return (0);
-    WT_RET(__wt_config_getones(session, config, "checkpoint_backup_info", &v));
+    /*
+     * We could be reading in a configuration from an earlier release. If the string doesn't exist
+     * then we're done.
+     */
+    if ((ret = __wt_config_getones(session, config, "checkpoint_backup_info", &v)) != 0)
+        return (ret == WT_NOTFOUND ? 0 : ret);
     __wt_config_subinit(session, &blkconf, &v);
     /*
      * Load block lists. Ignore any that have an id string that is not known.

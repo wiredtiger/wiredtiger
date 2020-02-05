@@ -86,10 +86,10 @@ __wt_backup_open(WT_SESSION_IMPL *session)
     }
 
 err:
-    if (ret != 0)
+    if (ret != 0 && ret != WT_NOTFOUND)
         __wt_backup_destroy(session);
     __wt_free(session, config);
-    return (ret);
+    return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
 /*

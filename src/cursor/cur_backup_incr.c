@@ -76,7 +76,7 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
 
 err:
     __wt_free(session, config);
-    return (ret);
+    return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
 /*
