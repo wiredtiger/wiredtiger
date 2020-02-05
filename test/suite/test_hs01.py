@@ -92,7 +92,6 @@ class test_hs01(wttest.WiredTigerTestCase):
         session.close()
         conn.close()
 
-    @unittest.skip("Temporarily disabled")
     def test_hs(self):
         # Create a small table.
         uri = "table:test_hs01"

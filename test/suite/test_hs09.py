@@ -53,7 +53,7 @@ class test_hs09(wttest.WiredTigerTestCase):
             return str(i)
         return i
 
-    def chech_ckpt_hs(self, expected_data_value, expected_hs_value, expected_hs_start_ts, expected_hs_stop_ts):
+    def check_ckpt_hs(self, expected_data_value, expected_hs_value, expected_hs_start_ts, expected_hs_stop_ts):
         session = self.conn.open_session(self.session_config)
         session.checkpoint()
         # Check the data file value
@@ -104,8 +104,9 @@ class test_hs09(wttest.WiredTigerTestCase):
         for i in range(1, 11):
             cursor[self.create_key(i)] = value3
 
-        self.chech_ckpt_hs(value2, value1, 2, 3)
+        self.check_ckpt_hs(value2, value1, 2, 3)
 
+    @unittest.skip("Temporarily disabled.")
     def test_prepared_updates_not_written_to_hs(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -115,17 +116,17 @@ class test_hs09(wttest.WiredTigerTestCase):
         value2 = 'b' * 500
         value3 = 'c' * 500
 
-        # Load 500KB of data.
+        # Load 5MB of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, 1000):
+        for i in range(1, 10000):
             cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
-        # Load another 500KB of data with a later timestamp.
+        # Load another 5MB of data with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 1000):
+        for i in range(1, 10000):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
@@ -135,7 +136,7 @@ class test_hs09(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value3
         self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(4))
 
-        self.chech_ckpt_hs(value2, value1, 2, 3)
+        self.check_ckpt_hs(value2, value1, 2, 3)
 
     def test_write_newest_version_to_data_store(self):
         # Create a small table.
@@ -159,7 +160,7 @@ class test_hs09(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
-        self.chech_ckpt_hs(value2, value1, 2, 3)
+        self.check_ckpt_hs(value2, value1, 2, 3)
 
     def test_write_deleted_version_to_data_store(self):
         # Create a small table.
@@ -191,7 +192,7 @@ class test_hs09(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.remove(), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
-        self.chech_ckpt_hs(value2, value1, 2, 3)
+        self.check_ckpt_hs(value2, value1, 2, 3)
 
 if __name__ == '__main__':
     wttest.run()
