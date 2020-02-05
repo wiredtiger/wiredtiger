@@ -10,8 +10,8 @@
 
 /*
  * __txn_abort_newer_update --
- *     Abort updates in an update change with timestamps newer than the rollback timestamp and
- *     return true if a stable update is found in the update list. Otherwise returns false.
+ *     Abort updates in an update change with timestamps newer than the rollback timestamp.
+ *     Also, clear the history store flag for the first stable update in the update also.
  */
 static void
 __txn_abort_newer_update(
@@ -189,8 +189,10 @@ __txn_abort_row_replace_with_hs_value(
         /* Set this comparison as exact match of the search for later use. */
         cbt->compare = 0;
 
+        WT_ERR(hs_cursor->get_value(hs_cursor, &durable_ts, &prepare_state, &type, hs_value));
+
         /* Stop processing when we find the update that is less than the given update. */
-        if (hs_start.timestamp <= rollback_timestamp) {
+        if (durable_ts <= rollback_timestamp) {
             valid_update_found = true;
             break;
         }
@@ -212,7 +214,6 @@ __txn_abort_row_replace_with_hs_value(
      * Otherwise remove the key by adding a tombstone.
      */
     if (valid_update_found) {
-        WT_ERR(hs_cursor->get_value(hs_cursor, &durable_ts, &prepare_state, &type, hs_value));
         WT_ERR(__wt_update_alloc(session, hs_value, &upd, &size, WT_UPDATE_STANDARD));
         upd->txnid = hs_start.txnid;
         upd->durable_ts = durable_ts;
