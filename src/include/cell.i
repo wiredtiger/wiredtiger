@@ -824,7 +824,7 @@ restart:
         /*
          * Set overflow flag.
          */
-        F_SET(unpack, WT_UNPACK_OVERFLOW);
+        F_SET(unpack, WT_CELL_UNPACK_OVERFLOW);
     /* FALLTHROUGH */
 
     case WT_CELL_ADDR_DEL:
