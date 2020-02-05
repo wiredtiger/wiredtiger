@@ -28,6 +28,7 @@
 
 from helper import copy_wiredtiger_home
 import wiredtiger, wttest, unittest
+from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -37,7 +38,7 @@ def timestamp_str(t):
 # test_durable_rollback_to_stable.py
 #    Checking visibility and durability of updates with durable_timestamp and
 #    with rollback to stable.
-class test_durable_rollback_to_stable(wttest.WiredTigerTestCase):
+class test_durable_rollback_to_stable(wttest.WiredTigerTestCase, suite_subprocess):
     session_config = 'isolation=snapshot'
 
     keyfmt = [
@@ -165,6 +166,12 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase):
         for i in range(1, 50):
             self.assertEquals(cursor.get_value(), ds.value(111))
             self.assertEquals(cursor.next(), 0)
+
+        # Use util to verify that second updates values have been flushed.
+        errfilename = "verifyrollbackerr.out"
+        self.runWt(["verify", "-S", uri],
+            errfilename=errfilename, failure=True)
+        self.check_empty_file(errfilename)
 
 if __name__ == '__main__':
     wttest.run()
