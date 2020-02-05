@@ -17,12 +17,13 @@ onintr()
 trap 'onintr' 2
 
 usage() {
-	echo "usage: $0 [-aFSv] [-b format-binary] [-c config] "
+	echo "usage: $0 [-aEFSv] [-b format-binary] [-c config] "
 	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [format-configuration]"
 	echo
 	echo "    -a           abort/recovery testing (defaults to off)"
 	echo "    -b binary    format binary (defaults to "./t")"
 	echo "    -c config    format configuration file (defaults to CONFIG.stress)"
+	echo "    -E           skip known errors (defaults to off)"
 	echo "    -F           quit on first failure (defaults to off)"
 	echo "    -h home      run directory (defaults to .)"
 	echo "    -j parallel  jobs to execute in parallel (defaults to 8)"
@@ -70,6 +71,7 @@ format_args=""
 home="."
 minutes=0
 parallel_jobs=8
+skip_errors=0
 smoke_test=0
 timing_stress_split_test=0
 total_jobs=0
@@ -87,6 +89,10 @@ while :; do
 	-c)
 		config="$2"
 		shift ; shift ;;
+	-E)
+		echo "****** Skip Errors ******"
+		skip_errors=1
+		shift ;;
 	-F)
 		first_failure=1
 		shift ;;
@@ -199,6 +205,42 @@ success=0
 running=0
 status="format.sh-status"
 
+skip_known_errors()
+{
+	echo "Check If Errors can be skipped"
+	# Return if "skip_errors" is not set or -E option is not passed
+	[[ $skip_errors -ne 1 ]] && return 1
+
+	log=$1
+
+	# Define each array with multi-signature matching for a single known error
+	# and append it to the skip_error_list
+	err_1=("heap-buffer-overflow" "__split_parent")
+	err_2=("heap-use-after-free" "__wt_btcur_next_random")
+	err_3=("__cursor_page_pinned" "current_state == WT_REF_LIMBO || current_state == WT_REF_MEM")
+	err_4=("cache clean check: no" "cache dirty check: no" "format run more than 15 minutes past the maximum time")
+
+	skip_error_list=( err_1[@] err_2[@] err_3[@] err_4[@] )
+
+	# Loop through the skip list and search in the log file.
+	count=${#skip_error_list[@]}
+	for ((i=0; i<$count; i++))
+	do
+		str_1=${!skip_error_list[i]:0:1}
+		str_2=${!skip_error_list[i]:1:1}
+		str_3=${!skip_error_list[i]:2:1}
+
+		grep -q "$str_1" $log && grep -q "$str_2" $log && grep -q "$str_3" $log
+		
+		[[ $? -eq 0 ]] && {
+			echo "Skipping error :  { $str_1 && $str_2 && $str_3 }"
+			return 0
+		}
+	done
+
+	return 1
+}
+
 # Report a failure.
 # $1 directory name
 report_failure()
@@ -206,8 +248,12 @@ report_failure()
 	dir=$1
 	log="$dir.log"
 
+	skip_known_errors $log
+	skip_ret=$?
 	echo "$name: failure status reported" > $dir/$status
-	failure=$(($failure + 1))
+	[[ $skip_ret -ne 0 ]] && {
+		failure=$(($failure + 1))
+	}
 
 	# Forcibly quit if first-failure configured.
 	[[ $first_failure -ne 0 ]] && force_quit=1
@@ -240,6 +286,7 @@ resolve()
 
 		# Leave any process waiting for a gdb attach running, but report it as a failure.
 		grep -E 'waiting for debugger' $log > /dev/null && {
+			echo "waiting for debugger : report_failure"
 			report_failure $dir
 			continue
 		}
@@ -293,6 +340,7 @@ resolve()
 				verbose "$name: job in $dir successfully completed"
 			else
 				echo "$name: job in $dir failed abort/recovery testing"
+				echo "abort/recovery testing : report_failure"
 				report_failure $dir
 			fi
 			continue
@@ -302,6 +350,7 @@ resolve()
 		grep -E \
 		    'aborting WiredTiger library|format alarm timed out|run FAILED' \
 		    $log > /dev/null && {
+			echo "aborting WiredTiger library : report_failure"
 			report_failure $dir
 			continue
 		}
@@ -342,7 +391,7 @@ resolve()
 
 			echo "$name: job in $dir killed with signal $signame"
 			echo "$name: there may be a core dump associated with this failure"
-
+			echo "there may be a core dump associated : report_failure"
 			report_failure $dir
 			continue
 		}
@@ -352,6 +401,7 @@ resolve()
 		echo "$name: job in $dir exited with status $eret for an unknown reason"
 		echo "$name: reporting job in $dir as a failure"
 		echo "$name: $name needs to be updated"
+		echo "needs to be updated : report_failure"
 		report_failure $dir
 	done
 	return 0
@@ -437,6 +487,7 @@ while :; do
 	# Clean up and update status.
 	success_save=$success
 	failure_save=$failure
+	echo "resolve called"
 	resolve
 	[[ $success -ne $success_save ]] || [[ $failure -ne $failure_save ]] &&
 	    echo "$name: $success successful jobs, $failure failed jobs"
