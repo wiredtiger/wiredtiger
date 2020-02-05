@@ -76,7 +76,6 @@ class test_hs09(wttest.WiredTigerTestCase):
         cursor.close()
         session.close()
 
-    @unittest.skip("Temporarily Disabled")
     def test_uncommitted_updates_not_written_to_hs(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -86,17 +85,17 @@ class test_hs09(wttest.WiredTigerTestCase):
         value2 = 'b' * 500
         value3 = 'c' * 500
 
-        # Load 5Mb of data.
+        # Load 500KB of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 1000):
             cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
-        # Load another 5Mb of data with a later timestamp.
+        # Load another 500KB of data with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 1000):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
@@ -107,7 +106,6 @@ class test_hs09(wttest.WiredTigerTestCase):
 
         self.chech_ckpt_hs(value2, value1, 2, 3)
 
-    @unittest.skip("Temporarily Disabled")
     def test_prepared_updates_not_written_to_hs(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -117,17 +115,17 @@ class test_hs09(wttest.WiredTigerTestCase):
         value2 = 'b' * 500
         value3 = 'c' * 500
 
-        # Load 5Mb of data.
+        # Load 500KB of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 1000):
             cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
-        # Load another 5Mb of data with a later timestamp.
+        # Load another 500KB of data with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 1000):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
@@ -139,7 +137,6 @@ class test_hs09(wttest.WiredTigerTestCase):
 
         self.chech_ckpt_hs(value2, value1, 2, 3)
 
-    @unittest.skip("Temporarily Disabled")
     def test_write_newest_version_to_data_store(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -148,23 +145,22 @@ class test_hs09(wttest.WiredTigerTestCase):
         value1 = 'a' * 500
         value2 = 'b' * 500
 
-        # Load 5Mb of data.
+        # Load 500KB of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 1000):
             cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
-        # Load another 5Mb of data with a later timestamp.
+        # Load another 500KB of data with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 1000):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         self.chech_ckpt_hs(value2, value1, 2, 3)
 
-    @unittest.skip("Temporarily Disabled")
     def test_write_deleted_version_to_data_store(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -173,23 +169,23 @@ class test_hs09(wttest.WiredTigerTestCase):
         value1 = 'a' * 500
         value2 = 'b' * 500
 
-        # Load 5Mb of data.
+        # Load 500KB of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 1000):
             cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
-        # Load another 5Mb of data with a later timestamp.
+        # Load another 500KB of data with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 1000):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Delete records.
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 1000):
             cursor = self.session.open_cursor(self.uri)
             cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.remove(), 0)
