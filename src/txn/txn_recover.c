@@ -699,13 +699,13 @@ done:
 
         /*
          * Currently, rollback to stable don't do any changes to the tables with no timestamp. In
-         * future to enable rollback to stable on these tables, based on the page write gen number,
-         * the rollback to stable should decide the pages that needs rollback.
+         * future to enable rollback to stable on these tables, based on the page write generation
+         * number, the rollback to stable should decide the pages that needs rollback.
          *
-         * For example, A page with write gen 10 and txnid 20 is updated in one checkpoint and in
-         * the next restart, a new page with write gen 30 and txnid 20 is modified. The rollback to
-         * stable operation should only rollback the latest page changes only based on the writegen
-         * numbers.
+         * For example, A page with write generation 10 and txnid 20 is updated in one checkpoint
+         * and in the next restart, a new page with write generation 30 and txnid 20 is modified.
+         * The rollback to stable operation should only rollback the latest page changes only based
+         * on the write generation numbers.
          */
 
         /* Set the stable timestamp and process the trees for rollback to stable. */
@@ -714,7 +714,7 @@ done:
         WT_ERR(__wt_txn_rollback_to_stable(session, NULL));
 
         /* Reset the stable timestamp. */
-        conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
+        conn->txn_global.stable_timestamp = WT_TS_NONE;
         conn->txn_global.has_stable_timestamp = false;
     } else if (do_checkpoint)
         /*
