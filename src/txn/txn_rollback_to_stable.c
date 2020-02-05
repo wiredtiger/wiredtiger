@@ -111,6 +111,15 @@ __txn_abort_newer_update(
             upd->durable_ts = upd->start_ts = WT_TS_NONE;
         }
     }
+
+    /*
+     * Clear the history store flag for the stable update to indicate that this update should not be
+     * written into the history store later, when all the aborted updates are removed from the
+     * history store. The next time when this update is moved into the history store, it will have a
+     * different stop time pair.
+     */
+    if (first_upd != NULL)
+        F_CLR(first_upd, WT_UPDATE_HS);
 }
 
 /*
@@ -124,7 +133,73 @@ __txn_abort_newer_insert(
     WT_INSERT *ins;
 
     WT_SKIP_FOREACH (ins, head)
-        __txn_abort_newer_update(session, ins->upd, rollback_timestamp);
+        if (ins->upd != NULL)
+            __txn_abort_newer_update(session, ins->upd, rollback_timestamp);
+}
+
+/*
+ * __txn_abort_row_ondisk_kv --
+ *     Fix the on-disk row K/V version according to the given timestamp.
+ */
+static int
+__txn_abort_row_ondisk_kv(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, wt_timestamp_t rollback_timestamp)
+{
+    WT_CELL_UNPACK *vpack, _vpack;
+    WT_DECL_RET;
+    WT_ITEM buf;
+    WT_PAGE_MODIFY *mod;
+    WT_UPDATE *upd, **upd_entry;
+    size_t size;
+
+    vpack = &_vpack;
+    __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
+    if (vpack->start_ts > rollback_timestamp) {
+        /* There are no visible updates in the history store for this key. Remove it. */
+        WT_RET(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
+        upd->txnid = WT_TXN_NONE;
+        upd->durable_ts = WT_TS_NONE;
+        upd->start_ts = WT_TS_NONE;
+    } else if (vpack->stop_ts != WT_TS_MAX && vpack->stop_ts > rollback_timestamp) {
+        /*
+         * Clear the remove operation from the key by inserting the original on-disk value as a
+         * standard update.
+         */
+        WT_CLEAR(buf);
+
+        /*
+         * If a value is simple(no compression), and is globally visible at the time of reading a
+         * page into cache, we encode its location into the WT_ROW.
+         */
+        if (!__wt_row_leaf_value(page, rip, &buf))
+            /* Take the value from the original page cell. */
+            WT_RET(__wt_page_cell_data_ref(session, page, vpack, &buf));
+
+        WT_RET(__wt_update_alloc(session, &buf, &upd, &size, WT_UPDATE_STANDARD));
+        upd->txnid = vpack->start_txn;
+        upd->durable_ts = vpack->start_ts;
+        upd->start_ts = vpack->start_ts;
+    } else
+        /* Stable version according to the timestamp. */
+        return (0);
+
+    /* If we don't yet have a modify structure, we'll need one. */
+    WT_ERR(__wt_page_modify_init(session, page));
+    mod = page->modify;
+
+    /* Allocate an update array as necessary. */
+    WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_row_update, upd_entry, page->entries);
+
+    /* Set the WT_UPDATE array reference. */
+    upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
+    upd->next = NULL;
+    WT_ERR(__wt_update_serial(session, page, upd_entry, &upd, size, false));
+    WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
+    return (0);
+
+err:
+    __wt_free(session, upd);
+    return (ret);
 }
 
 /*
@@ -174,7 +249,7 @@ __txn_abort_newer_col_fix(
  * __txn_abort_newer_row_leaf --
  *     Abort updates on a row leaf page with timestamps newer than the rollback timestamp.
  */
-static void
+static int
 __txn_abort_newer_row_leaf(
   WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
 {
@@ -199,7 +274,12 @@ __txn_abort_newer_row_leaf(
 
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
             __txn_abort_newer_insert(session, insert, rollback_timestamp);
+
+        /* Abort any on-disk value. */
+        WT_RET(__txn_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
     }
+
+    return (0);
 }
 
 /*
@@ -254,7 +334,11 @@ __txn_page_needs_rollback(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
 static int
 __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
+    WT_DECL_RET;
     WT_PAGE *page;
+    bool local_read;
+
+    local_read = false;
 
     /* Review deleted page saved to the ref. */
     if (ref->page_del != NULL && rollback_timestamp < ref->page_del->durable_timestamp)
@@ -271,8 +355,11 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
             return (0);
 
         /* Page needs rollback, read it into cache. */
-        if (page == NULL)
+        if (page == NULL) {
             WT_RET(__wt_page_in(session, ref, 0));
+            local_read = true;
+        }
+        page = ref->page;
     }
 
     switch (page->type) {
@@ -291,13 +378,16 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
          */
         break;
     case WT_PAGE_ROW_LEAF:
-        __txn_abort_newer_row_leaf(session, page, rollback_timestamp);
+        WT_ERR(__txn_abort_newer_row_leaf(session, page, rollback_timestamp));
         break;
     default:
-        WT_RET(__wt_illegal_value(session, page->type));
+        WT_ERR(__wt_illegal_value(session, page->type));
     }
 
-    return (0);
+err:
+    if (local_read)
+        WT_TRET(__wt_page_release(session, ref, 0));
+    return (ret);
 }
 
 /*

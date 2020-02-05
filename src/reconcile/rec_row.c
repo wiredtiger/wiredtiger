@@ -358,7 +358,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             cell = WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
             __wt_cell_unpack(session, page, cell, kpack);
             key_onpage_ovfl =
-              F_ISSET(kpack, WT_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM;
+              F_ISSET(kpack, WT_CELL_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM;
         }
 
         WT_ERR(__wt_rec_child_modify(session, r, ref, &hazard, &state));
@@ -667,6 +667,38 @@ err:
 }
 
 /*
+ * __rec_cell_repack --
+ *     Repack a cell.
+ */
+static inline int
+__rec_cell_repack(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r, WT_CELL_UNPACK *vpack,
+  uint64_t start_txn, wt_timestamp_t start_ts, uint64_t stop_txn, wt_timestamp_t stop_ts)
+{
+    WT_DECL_ITEM(tmpval);
+    WT_DECL_RET;
+    size_t size;
+    const void *p;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &tmpval));
+
+    /* If the item is Huffman encoded, decode it. */
+    if (btree->huffman_value == NULL) {
+        p = vpack->data;
+        size = vpack->size;
+    } else {
+        WT_ERR(
+          __wt_huffman_decode(session, btree->huffman_value, vpack->data, vpack->size, tmpval));
+        p = tmpval->data;
+        size = tmpval->size;
+    }
+    WT_ERR(__wt_rec_cell_build_val(session, r, p, size, start_ts, start_txn, stop_ts, stop_txn, 0));
+
+err:
+    __wt_scr_free(session, &tmpval);
+    return (ret);
+}
+
+/*
  * __wt_rec_row_leaf --
  *     Reconcile a row-store leaf page.
  */
@@ -801,16 +833,16 @@ __wt_rec_row_leaf(
              * Repack the cell if we clear the transaction ids in the cell.
              */
             if (vpack->raw == WT_CELL_VALUE_COPY) {
-                WT_ERR(__wt_rec_cell_repack(
+                WT_ERR(__rec_cell_repack(
                   session, btree, r, vpack, start_txn, start_ts, stop_txn, stop_ts));
 
                 dictionary = true;
-            } else if (F_ISSET(vpack, WT_UNPACK_TXNID_CLEARED)) {
+            } else if (F_ISSET(vpack, WT_CELL_UNPACK_TXNIDS_CLEARED)) {
                 /*
                  * The transaction ids are cleared after restart. Repack the cell to flush the
                  * cleared transaction ids.
                  */
-                if (F_ISSET(vpack, WT_UNPACK_OVERFLOW)) {
+                if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)) {
                     r->ovfl_items = true;
 
                     val->buf.data = vpack->data;
@@ -821,7 +853,7 @@ __wt_rec_row_leaf(
                       start_txn, stop_ts, stop_txn, 0, val->buf.size);
                     val->len = val->cell_len + val->buf.size;
                 } else
-                    WT_ERR(__wt_rec_cell_repack(
+                    WT_ERR(__rec_cell_repack(
                       session, btree, r, vpack, start_txn, start_ts, stop_txn, stop_ts));
 
                 dictionary = true;
@@ -832,7 +864,7 @@ __wt_rec_row_leaf(
                 val->len = val->buf.size;
 
                 /* Track if page has overflow items. */
-                if (F_ISSET(vpack, WT_UNPACK_OVERFLOW))
+                if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW))
                     r->ovfl_items = true;
             }
         } else {
@@ -840,11 +872,8 @@ __wt_rec_row_leaf(
              * The first time we find an overflow record we're not going to use, discard the
              * underlying blocks.
              */
-            if (F_ISSET(vpack, WT_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)
-                WT_ERR(__wt_ovfl_remove(session, page, vpack, F_ISSET(r, WT_REC_EVICT)));
-
+            if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)
             switch (upd->type) {
-            case WT_UPDATE_MODIFY:
                 cbt->slot = WT_ROW_SLOT(page, rip);
                 WT_ERR(__wt_value_return_upd(cbt, upd));
                 WT_ERR(__wt_rec_cell_build_val(session, r, cbt->iface.value.data,
@@ -866,7 +895,7 @@ remove_key:
                  * backing blocks. Don't worry about reuse, reusing keys from a row-store page
                  * reconciliation seems unlikely enough to ignore.
                  */
-                if (kpack != NULL && F_ISSET(kpack, WT_UNPACK_OVERFLOW) &&
+                if (kpack != NULL && F_ISSET(kpack, WT_CELL_UNPACK_OVERFLOW) &&
                   kpack->raw != WT_CELL_KEY_OVFL_RM) {
                     /*
                      * Keys are part of the name-space, we can't remove them from the in-memory
@@ -900,8 +929,8 @@ remove_key:
          *
          * If the key is an overflow key that hasn't been removed, use the original backing blocks.
          */
-        key_onpage_ovfl =
-          kpack != NULL && F_ISSET(kpack, WT_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM;
+        key_onpage_ovfl = kpack != NULL && F_ISSET(kpack, WT_CELL_UNPACK_OVERFLOW) &&
+          kpack->raw != WT_CELL_KEY_OVFL_RM;
         if (key_onpage_ovfl) {
             key->buf.data = cell;
             key->buf.size = __wt_cell_total_len(kpack);

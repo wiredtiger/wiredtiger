@@ -82,6 +82,10 @@ extern int __wt_async_reconfig(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_backup_file_remove(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_backup_load_incr(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *blkcfg,
+  WT_ITEM *bitstring, uint64_t nbits) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_backup_open(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri)
   WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_addr_invalid(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr,
@@ -720,7 +724,8 @@ extern int __wt_filename_construct(WT_SESSION_IMPL *session, const char *path,
   const char *file_prefix, uintmax_t id_1, uint32_t id_2, WT_ITEM *buf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp,
-  bool allow_prepare) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  bool allow_prepare, WT_ITEM *on_disk_buf, WT_TIME_PAIR *on_disk_start)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_fopen(WT_SESSION_IMPL *session, const char *name, uint32_t open_flags,
   uint32_t flags, WT_FSTREAM **fstrp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_fsync_background(WT_SESSION_IMPL *session)
@@ -1578,6 +1583,7 @@ extern void *__wt_ext_scr_alloc(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session
 extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_async_stats_update(WT_SESSION_IMPL *session);
+extern void __wt_backup_destroy(WT_SESSION_IMPL *session);
 extern void __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci);
 extern void __wt_block_configure_first_fit(WT_BLOCK *block, bool on);
 extern void __wt_block_ext_free(WT_SESSION_IMPL *session, WT_EXT *ext);
@@ -1978,8 +1984,6 @@ static inline int __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_context_prepare_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_txn_err_chk(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_id_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
@@ -2177,6 +2181,7 @@ static inline void __wt_struct_size_adjust(WT_SESSION_IMPL *session, size_t *siz
 static inline void __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag);
 static inline void __wt_tree_modify_set(WT_SESSION_IMPL *session);
 static inline void __wt_txn_cursor_op(WT_SESSION_IMPL *session);
+static inline void __wt_txn_err_set(WT_SESSION_IMPL *session, int ret);
 static inline void __wt_txn_op_apply_prepare_state(
   WT_SESSION_IMPL *session, WT_REF *ref, bool commit);
 static inline void __wt_txn_op_delete_commit_apply_timestamps(

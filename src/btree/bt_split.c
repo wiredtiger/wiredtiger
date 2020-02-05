@@ -184,7 +184,7 @@ __split_ovfl_key_cleanup(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref)
 
     cell = WT_PAGE_REF_OFFSET(page, cell_offset);
     __wt_cell_unpack(session, page, cell, &kpack);
-    if (FLD_ISSET(kpack.flags, WT_UNPACK_OVERFLOW) && kpack.raw != WT_CELL_KEY_OVFL_RM)
+    if (FLD_ISSET(kpack.flags, WT_CELL_UNPACK_OVERFLOW) && kpack.raw != WT_CELL_KEY_OVFL_RM)
         WT_RET(__wt_ovfl_discard(session, page, cell));
 
     return (0);
@@ -778,7 +778,13 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
      */
     for (i = 0, deleted_refs = scr->mem; i < deleted_entries; ++i) {
         next_ref = pindex->index[deleted_refs[i]];
-        WT_ASSERT(session, next_ref->state == WT_REF_SPLIT);
+#ifdef HAVE_DIAGNOSTIC
+        {
+            uint32_t ref_state;
+            WT_ORDERED_READ(ref_state, next_ref->state);
+            WT_ASSERT(session, ref_state == WT_REF_LOCKED || ref_state == WT_REF_SPLIT);
+        }
+#endif
 
         /*
          * We set the WT_REF to split, discard it, freeing any resources it holds.
