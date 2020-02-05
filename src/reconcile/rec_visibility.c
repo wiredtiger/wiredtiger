@@ -166,7 +166,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t 
         return (!__wt_txn_visible_all(session, max_txn, max_ts));
 
     /*
-     * FIXME-PM-1521: The current implementation doesn't work with fixed-length column store.
+     * FIXME-PM-1523: The current implementation doesn't work with fixed-length column store.
      * Currently, we don't write history versions to history store for fixed-length column store. I
      * don't know how that is going to work in durable history.
      */
@@ -405,11 +405,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * Leaving the update unset means that we can skip reconciling. If we've set the stop
              * time pair because of a tombstone after the on-disk value, we still have work to do so
              * that is NOT ok. Let's append the on-disk value to the chain.
-             *
-             * FIXME-PM-1521: How are we going to remove deleted keys from disk image? We may need
-             * to return a different return code to tell reconciliation it is safe to remove the
-             * key. In that case, we can use __rec_append_orig_value instead of duplicating code
-             * here.
              */
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));

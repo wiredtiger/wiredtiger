@@ -142,7 +142,7 @@ __wt_value_return_buf(
     /*
      * WT_PAGE_COL_FIX: Take the value from the original page.
      *
-     * FIXME-PM-1521: Should also check visibility here
+     * FIXME-PM-1523: Should also check visibility here
      */
     v = __bit_getv_recno(ref, cursor->recno, btree->bitcnt);
     return (__wt_buf_set(session, buf, &v, 1));
@@ -220,7 +220,7 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 
         WT_ERR(__value_return(cbt));
     } else if (upd->type == WT_UPDATE_TOMBSTONE)
-        /* If upd is a tombstone, the base item is an empty item. */
+        /* If upd is a tombstone, the base value is the empty value. */
         WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
     else
         WT_ERR(__wt_buf_set(session, &cursor->value, upd->data, upd->size));
