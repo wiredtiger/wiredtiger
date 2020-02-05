@@ -375,6 +375,26 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t b
 }
 
 /*
+ * __hs_calculate_full_value --
+ *     Calculate the full value of an update.
+ */
+static inline int
+__hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDATE *upd,
+  const void *base_full_value, size_t size)
+{
+    if (upd->type == WT_UPDATE_MODIFY) {
+        WT_RET(__wt_buf_set(session, full_value, base_full_value, size));
+        WT_RET(__wt_modify_apply_item(session, full_value, upd->data, false));
+    } else {
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
+        full_value->data = upd->data;
+        full_value->size = upd->size;
+    }
+
+    return (0);
+}
+
+/*
  * __wt_hs_insert_updates --
  *     Copy one set of saved updates into the database's history store table.
  */
@@ -489,7 +509,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
          *
          * This is guaranteed by __wt_rec_upd_select appends the original onpage value at the end of
          * the chain. It also assumes the onpage_upd selected cannot be a TOMBSTONE and the update
-         * newer to a TOMBSTONE must be a full update.
+         * newer than a TOMBSTONE must be a full update.
          *
          * The algorithm walks from the oldest update, or the most recently inserted into history
          * store update. To the newest update and build full updates along the way. It sets the stop
@@ -500,16 +520,18 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
          * It deals with the following scenarios:
          * 1) We only have full updates on the chain and we only insert full updates to
          * the history store.
-         * 2) We have modifies on the chain, i.e., U (selected onpage value) -> M -> M ->U. We
+         * 2) We have modifies on the chain, e.g., U (selected onpage value) -> M -> M ->U. We
          * reverse the modifies and insert the reversed modifies to the history store if it is not
          * the newest update written to the history store and the reverse operation is successful.
          * With regard to the example, we insert U -> RM -> U to the history store.
-         * 3) We have tombstones in the middle of the chain, i.e.
+         * 3) We have tombstones in the middle of the chain, e.g.,
          * U (selected onpage value) -> U -> T -> M -> U.
          * We write the stop time pair of M with the start time pair of the tombstone and skip the
          * tombstone.
-         * 4) We have a tombstone at the end of the chain with transaction id WT_TXN_NONE
-         * and start timestamp WT_TS_NONE, it is simply ignored.
+         * 4) We have modifies newer than a tombstone, e.g., U (selected onpage value) -> M -> T ->
+         * M -> U. In this case, the base update for the modify newer than the tombstone is the
+         * empty value.
+         * 4) We have a single tombstone on the chain, it is simply ignored.
          */
         for (; upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
@@ -525,12 +547,11 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
 
         upd = NULL;
 
-        /*
-         * Get the oldest full update on chain. It is either the oldest update or the second oldest
-         * update if the oldest update is a TOMBSTONE.
-         */
+        /* Construct the oldest full update. */
         WT_ASSERT(session, modifies.size > 0);
         __wt_modify_vector_pop(&modifies, &upd);
+
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
         /* Skip TOMBSTONE at the end of the update chain. */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
@@ -539,10 +560,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                 continue;
         }
 
-        /* The key didn't exist back then, which is globally visible. */
-        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
-        full_value->data = upd->data;
-        full_value->size = upd->size;
+        WT_ERR(__hs_calculate_full_value(session, full_value, upd, "", 0));
 
         squashed = false;
 
@@ -564,20 +582,11 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
                 __wt_modify_vector_pop(&modifies, &prev_upd);
-
-                /* The update newer to a TOMBSTONE must be a full update. */
-                WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
-            }
-
-            if (prev_upd->type == WT_UPDATE_MODIFY) {
-                WT_ERR(__wt_buf_set(session, prev_full_value, full_value->data, full_value->size));
-                WT_ERR(__wt_modify_apply_item(session, prev_full_value, prev_upd->data, false));
-            } else {
-                WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
-
-                prev_full_value->data = prev_upd->data;
-                prev_full_value->size = prev_upd->size;
-            }
+                /* The base value of a modify newer than a tombstone is the empty value. */
+                WT_ERR(__hs_calculate_full_value(session, prev_full_value, prev_upd, "", 0));
+            } else
+                WT_ERR(__hs_calculate_full_value(
+                  session, prev_full_value, prev_upd, full_value->data, full_value->size));
 
             /*
              * Skip the updates have the same start timestamp and transaction id
