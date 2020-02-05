@@ -375,6 +375,26 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t b
 }
 
 /*
+ * __hs_calculate_full_value --
+ *     Calculate the full value of an update.
+ */
+static inline int
+__hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDATE *upd,
+  const void *base_full_value, size_t size)
+{
+    if (upd->type == WT_UPDATE_MODIFY) {
+        WT_RET(__wt_buf_set(session, full_value, base_full_value, size));
+        WT_RET(__wt_modify_apply_item(session, full_value, upd->data, false));
+    } else {
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
+        full_value->data = upd->data;
+        full_value->size = upd->size;
+    }
+
+    return (0);
+}
+
+/*
  * __wt_hs_insert_updates --
  *     Copy one set of saved updates into the database's history store table.
  */
@@ -540,14 +560,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                 continue;
         }
 
-        if (upd->type == WT_UPDATE_MODIFY) {
-            WT_ERR(__wt_buf_set(session, full_value, "", 0));
-            WT_ERR(__wt_modify_apply_item(session, full_value, upd->data, false));
-        } else {
-            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
-            full_value->data = upd->data;
-            full_value->size = upd->size;
-        }
+        WT_ERR(__hs_calculate_full_value(session, full_value, upd, "", 0));
 
         squashed = false;
 
@@ -569,25 +582,11 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
                 __wt_modify_vector_pop(&modifies, &prev_upd);
-                /* The base value of a modfiy newer than a tombstone is the empty value. */
-                if (prev_upd->type == WT_UPDATE_MODIFY) {
-                    WT_ERR(__wt_buf_set(session, prev_full_value, "", 0));
-                    WT_ERR(__wt_modify_apply_item(session, prev_full_value, prev_upd->data, false));
-                } else {
-                    WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
-
-                    prev_full_value->data = prev_upd->data;
-                    prev_full_value->size = prev_upd->size;
-                }
-            } else if (prev_upd->type == WT_UPDATE_MODIFY) {
-                WT_ERR(__wt_buf_set(session, prev_full_value, full_value->data, full_value->size));
-                WT_ERR(__wt_modify_apply_item(session, prev_full_value, prev_upd->data, false));
-            } else {
-                WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
-
-                prev_full_value->data = prev_upd->data;
-                prev_full_value->size = prev_upd->size;
-            }
+                /* The base value of a modify newer than a tombstone is the empty value. */
+                WT_ERR(__hs_calculate_full_value(session, prev_full_value, prev_upd, "", 0));
+            } else
+                WT_ERR(__hs_calculate_full_value(
+                  session, prev_full_value, prev_upd, full_value->data, full_value->size));
 
             /*
              * Skip the updates have the same start timestamp and transaction id
