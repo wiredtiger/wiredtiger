@@ -873,7 +873,10 @@ __wt_rec_row_leaf(
              * underlying blocks.
              */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)
+                WT_ERR(__wt_ovfl_remove(session, page, vpack, F_ISSET(r, WT_REC_EVICT)));
+
             switch (upd->type) {
+            case WT_UPDATE_MODIFY:
                 cbt->slot = WT_ROW_SLOT(page, rip);
                 WT_ERR(__wt_value_return_upd(cbt, upd));
                 WT_ERR(__wt_rec_cell_build_val(session, r, cbt->iface.value.data,

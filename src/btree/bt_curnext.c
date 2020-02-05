@@ -114,8 +114,8 @@ new_page:
     if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
         cbt->ins = NULL;
     /*
-     * FIXME-PM-1521: Now we only do txn read if we have an update chain and it doesn't work in
-     * durable history. Review this when we have a plan for fixed-length column store.
+     * FIXME-PM-1523: Now we only do transaction read if we have an update chain and it doesn't work
+     * in durable history. Review this when we have a plan for fixed-length column store.
      */
     if (cbt->ins != NULL)
 restart_read:
@@ -285,20 +285,9 @@ restart_read:
                 continue;
             }
 
-            cbt->slot = WT_COL_SLOT(page, cip);
-            WT_RET(__wt_txn_read(session, cbt, NULL, &unpack, &upd));
+            WT_RET(__wt_bt_col_var_cursor_walk_txn_read(session, cbt, page, &unpack, cip, &upd));
             if (upd == NULL)
                 continue;
-            if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
-                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                    __wt_free_update_list(session, &upd);
-                continue;
-            }
-
-            WT_RET(__wt_value_return(cbt, upd));
-            cbt->tmp->data = cbt->iface.value.data;
-            cbt->tmp->size = cbt->iface.value.size;
-            cbt->cip_saved = cip;
             return (0);
         }
         cbt->iface.value.data = cbt->tmp->data;
