@@ -284,39 +284,6 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags)
 }
 
 /*
- * __hs_get_value --
- *     Get the value associated with an update from the history store. Providing a read timestamp to
- *     avoid finding a tombstone.
- */
-static int
-__hs_get_value(WT_CURSOR *cursor, WT_BTREE *btree, WT_UPDATE *upd, wt_timestamp_t start_ts,
-  uint64_t start_txnid, WT_ITEM *key, WT_ITEM *full_value)
-{
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    WT_TXN *txn;
-    wt_timestamp_t durable_ts;
-    uint8_t upd_type, prepare_state;
-
-    session = (WT_SESSION_IMPL *)cursor->session;
-    txn = &session->txn;
-
-    /* This function should not overwrite a pre-existing read timestamp. */
-    WT_ASSERT(session, txn->read_timestamp == WT_TS_NONE && !F_ISSET(txn, WT_TXN_HAS_TS_READ));
-
-    txn->read_timestamp = upd->start_ts;
-    F_SET(txn, WT_TXN_HAS_TS_READ);
-
-    cursor->set_key(cursor, btree->id, key, upd->start_ts, upd->txnid, start_ts, start_txnid);
-    WT_ERR(cursor->search(cursor));
-    WT_ERR(cursor->get_value(cursor, &durable_ts, &prepare_state, &upd_type, full_value));
-err:
-    F_CLR(txn, WT_TXN_HAS_TS_READ);
-    txn->read_timestamp = WT_TS_NONE;
-    return (ret);
-}
-
-/*
  * __hs_insert_updates_verbose --
  *     Display a verbose message once per checkpoint with details about the cache state when
  *     performing a history store table write.
@@ -441,8 +408,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
     prev_upd = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
     insert_cnt = 0;
-    btree_id = btree->id;
     local_txn = false;
+    btree_id = btree->id;
     __wt_modify_vector_init(session, &modifies);
 
     if (!btree->hs_entries)
@@ -548,9 +515,12 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
         for (; upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
-
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
-            if (F_ISSET(upd, WT_UPDATE_HS))
+            /*
+             * If we've reached a full update and its in the history store we don't need to continue
+             * as anything beyond this point won't help with calculating deltas.
+             */
+            if (upd->type == WT_UPDATE_STANDARD && F_ISSET(upd, WT_UPDATE_HS))
                 break;
         }
 
@@ -562,39 +532,30 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
          */
         WT_ASSERT(session, modifies.size > 0);
         __wt_modify_vector_pop(&modifies, &upd);
-
-        /* If we popped a modify then it should be flagged as in the history store. */
-        if (upd->type == WT_UPDATE_MODIFY) {
-            WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_HS));
-            __wt_modify_vector_peek(&modifies, &prev_upd);
-            /*
-             * Retrieve the full value of the modify from the history store. This avoid us having to
-             * iterate the full update list associated with the modify and recalculating the reverse
-             * deltas.
-             */
-            WT_ERR(__hs_get_value(
-              cursor, btree, upd, prev_upd->start_ts, prev_upd->txnid, key, full_value));
-        } else {
-            /* The key didn't exist back then, which is globally visible. */
-            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
-        }
-
         /* Skip TOMBSTONE at the end of the update chain. */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
                 __wt_modify_vector_pop(&modifies, &upd);
-                WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
             } else
                 continue;
         }
+
+        /* The key didn't exist back then, which is globally visible. */
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         full_value->data = upd->data;
         full_value->size = upd->size;
 
         squashed = false;
 
-        /* Flush the updates on stack. */
-        for (; modifies.size > 0; tmp = full_value, full_value = prev_full_value,
-                                  prev_full_value = tmp, upd = prev_upd) {
+        /*
+         * Flush the updates on stack. Stopping once we run out or we reach the onpage upd start
+         * time pair, we can squash modifies with the same start time pair as the onpage upd away.
+         */
+        for (; modifies.size > 0 &&
+             !(upd->txnid == list->onpage_upd->txnid &&
+                 upd->start_ts == list->onpage_upd->start_ts);
+             tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
+             upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
             __wt_modify_vector_pop(&modifies, &prev_upd);
@@ -622,11 +583,9 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
             /*
              * Skip the updates have the same start timestamp and transaction id
              *
-             * The update older than onpage_upd can be squashed away. Insert a full update anyway to
-             * simplify the code. It will take some extra space but such case should be rare.
+             * Modifies that have the same start time pair as the onpage_upd can be squashed away.
              */
-            if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid ||
-              modifies.size == 0) {
+            if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid) {
                 /*
                  * Calculate reverse delta. Insert full update for the newest historical record even
                  * it's a MODIFY.
@@ -636,7 +595,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                  */
                 nentries = MAX_REVERSE_MODIFY_NUM;
                 if (!F_ISSET(upd, WT_UPDATE_HS)) {
-                    if (upd->type == WT_UPDATE_MODIFY && modifies.size > 0 &&
+                    if (upd->type == WT_UPDATE_MODIFY &&
                       __wt_calc_modify(session, prev_full_value, full_value,
                         prev_full_value->size / 10, entries, &nentries) == 0) {
                         WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
@@ -650,34 +609,17 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                     /* Flag the update as now in the history store. */
                     F_SET(upd, WT_UPDATE_HS);
                     ++insert_cnt;
-                }
-                if (squashed) {
-                    WT_STAT_CONN_INCR(session, cache_hs_write_squash);
-                    squashed = false;
+                    if (squashed) {
+                        WT_STAT_CONN_INCR(session, cache_hs_write_squash);
+                        squashed = false;
+                    }
                 }
             } else
                 squashed = true;
         }
 
-        /*
-         * The last element on the stack must be the onpage_upd.
-         *
-         * If saving a non-zero length value on the page, save a birthmark instead of duplicating it
-         * in the history store table. (We check the length because row-store doesn't write
-         * zero-length data items.)
-         */
-        if (upd->size > 0)
-            /* Make sure that we are generating a birthmark for an in-memory update. */
-            WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK) &&
-                (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY) &&
-                upd == list->onpage_upd);
-
-        if (F_ISSET(r, WT_REC_EVICT))
-            /*
-             * If we are evicting, we can now free older updates since they have already been
-             * written to the history store and can't be rolled back anyway.
-             */
-            __wt_free_update_list(session, &upd->next);
+        if (modifies.size > 0)
+            WT_STAT_CONN_INCR(session, cache_hs_write_squash);
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
@@ -789,12 +731,13 @@ __hs_restore_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t saved_times
  *     prepare conflict will be returned upon reading a prepared update.
  */
 int
-__wt_find_hs_upd(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool allow_prepare)
+__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp,
+  bool allow_prepare, WT_ITEM *on_disk_buf, WT_TIME_PAIR *on_disk_start)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
+    WT_DECL_ITEM(orig_hs_value_buf);
     WT_DECL_RET;
     WT_ITEM *key, _key;
     WT_MODIFY_VECTOR modifies;
@@ -811,10 +754,10 @@ __wt_find_hs_upd(
     bool modify;
 
     *updp = NULL;
-
     hs_cursor = NULL;
     key = NULL;
     mod_upd = upd = NULL;
+    orig_hs_value_buf = NULL;
     __wt_modify_vector_init(session, &modifies);
     txn = &session->txn;
     __hs_save_read_timestamp(session, &saved_timestamp);
@@ -926,12 +869,22 @@ __wt_find_hs_upd(
                 session->txn.read_timestamp = hs_stop_tmp.timestamp;
 
                 /*
-                 * Find the base update to apply the reverse deltas
+                 * Find the base update to apply the reverse deltas. If our cursor next fails to
+                 * find an update here we fall back to the datastore version. If its timestamp
+                 * doesn't match our timestamp then we return not found.
                  */
-                WT_ERR_NOTFOUND_OK(hs_cursor->next(hs_cursor));
+                if ((ret = hs_cursor->next(hs_cursor)) == WT_NOTFOUND) {
+                    if (hs_stop_tmp.timestamp == on_disk_start->timestamp) {
+                        /* Set the history value to be the full value from the data store. */
+                        orig_hs_value_buf = hs_value;
+                        hs_value = on_disk_buf;
+                        upd_type = WT_UPDATE_STANDARD;
+                        break;
+                    } else
+                        WT_ERR(ret);
+                }
                 hs_start_tmp.timestamp = WT_TS_NONE;
                 hs_start_tmp.txnid = WT_TXN_NONE;
-
                 /*
                  * Make sure we use the temporary variants of these variables. We need to retain the
                  * timestamps of the original modify we saw.
@@ -1012,8 +965,11 @@ __wt_find_hs_upd(
     WT_ERR_NOTFOUND_OK(ret);
 
 err:
+    if (orig_hs_value_buf != NULL)
+        __wt_scr_free(session, &orig_hs_value_buf);
+    else
+        __wt_scr_free(session, &hs_value);
     __wt_scr_free(session, &hs_key);
-    __wt_scr_free(session, &hs_value);
 
     /*
      * Restore the read timestamp if we encountered an error while processing a modify. There's no

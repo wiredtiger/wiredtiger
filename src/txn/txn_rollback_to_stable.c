@@ -47,10 +47,10 @@ __txn_abort_newer_update(
     }
 
     /*
-     * Reset the history store flag for the stable update to indicate that this update is not
-     * written into history store, later all the aborted updates are removed from history store.
-     * Next time when this update is moved into history store, it will have different stop time
-     * pair.
+     * Clear the history store flag for the stable update to indicate that this update should not be
+     * written into the history store later, when all the aborted updates are removed from the
+     * history store. The next time when this update is moved into the history store, it will have a
+     * different stop time pair.
      */
     if (first_upd != NULL)
         F_CLR(first_upd, WT_UPDATE_HS);
@@ -282,8 +282,8 @@ __txn_abort_row_ondisk_kv(
         WT_CLEAR(buf);
 
         /*
-         * If a value is simple and is globally visible at the time of reading a page into cache, we
-         * encode its location into the WT_ROW.
+         * If a value is simple(no compression), and is globally visible at the time of reading a
+         * page into cache, we encode its location into the WT_ROW.
          */
         if (!__wt_row_leaf_value(page, rip, &buf))
             /* Take the value from the original page cell. */
@@ -381,7 +381,7 @@ __txn_abort_newer_row_leaf(
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
             __txn_abort_newer_insert(session, insert, rollback_timestamp);
 
-        /* Abort any on-disk value */
+        /* Abort any on-disk value. */
         WT_RET(__txn_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
     }
 

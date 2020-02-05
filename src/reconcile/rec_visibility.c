@@ -368,7 +368,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 upd_select->start_txn = upd->txnid;
             }
 
-            /* Use tombstone durable timestamp as overall durable timestamp if exist. */
+            /* Use the tombstone durable timestamp as the overall durable timestamp if it exists. */
             if (tombstone_durable_ts != WT_TS_MAX)
                 upd_select->durable_ts = tombstone_durable_ts;
         } else {
@@ -389,7 +389,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
             upd_select->start_txn = vpack->start_txn;
 
-            /* Use tombstone durable timestamp as overall durable timestamp if exist. */
+            /* Use the tombstone durable timestamp as the overall durable timestamp if it exists. */
             if (tombstone_durable_ts != WT_TS_MAX)
                 upd_select->durable_ts = tombstone_durable_ts;
 
