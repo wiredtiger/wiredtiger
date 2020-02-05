@@ -107,6 +107,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
 
     conn = S2C(session);
     release_temp_session = false;
+    temp_setup_session = NULL;
 
     WT_ERR(__wt_config_gets(session, cfg, "history_store.file_max", &cval));
     if (cval.val != 0 && cval.val < WT_HS_FILE_MIN)
