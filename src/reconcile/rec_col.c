@@ -126,8 +126,8 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
          * Store the bulk cursor's last buffer, not the current value, we're tracking duplicates,
          * which means we want the previous value seen, not the current value.
          */
-        WT_RET(__wt_rec_cell_build_val(session, r, cbulk->last.data, cbulk->last.size, false,
-          WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX, cbulk->rle));
+        WT_RET(__wt_rec_cell_build_val(session, r, cbulk->last.data, cbulk->last.size, WT_TS_NONE,
+          WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX, cbulk->rle));
 
     /* Boundary: split or write the page. */
     if (WT_CROSSING_SPLIT_BND(r, val->len))
@@ -563,8 +563,8 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         val->buf.size = value->size;
         val->len = val->cell_len + value->size;
     } else
-        WT_RET(__wt_rec_cell_build_val(session, r, value->data, value->size, false, start_ts,
-          start_txn, stop_ts, stop_txn, rle));
+        WT_RET(__wt_rec_cell_build_val(
+          session, r, value->data, value->size, start_ts, start_txn, stop_ts, stop_txn, rle));
 
     /* Boundary: split or write the page. */
     if (__wt_rec_need_split(r, val->len))
@@ -731,7 +731,7 @@ __wt_rec_col_var(
          * record, and in that case we'll do the comparisons, but we don't read overflow items just
          * to see if they match records on either side.
          */
-        if (vpack->ovfl) {
+        if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)) {
             ovfl_state = OVFL_UNUSED;
             goto record_loop;
         }
