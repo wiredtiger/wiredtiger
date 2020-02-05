@@ -188,16 +188,20 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
         return (0);
     }
 
-    /* Ignore deleted pages. */
-    if (ref->state == WT_REF_DELETED) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping deleted page", (void *)ref);
-        return (0);
+    /* Lock the ref to avoid any change during the obsolete checks.*/
+    for (;; __wt_yield()) {
+        previous_state = ref->state;
+        if (previous_state != WT_REF_LOCKED && previous_state != WT_REF_READING &&
+          WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+            break;
     }
 
-    /* Lock the ref to avoid any change before it is checked for obsolete. */
-    previous_state = ref->state;
-    if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+    /* Ignore deleted pages. */
+    if (previous_state == WT_REF_DELETED) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping deleted page", (void *)ref);
+        WT_REF_SET_STATE(ref, WT_REF_DELETED);
         return (0);
+    }
 
     /* Ignore internal pages, these are taken care of during reconciliation. */
     if ((ref->addr != NULL && !__wt_ref_is_leaf(session, ref)) ||

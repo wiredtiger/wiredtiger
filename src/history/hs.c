@@ -601,17 +601,9 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                         WT_ERR(__hs_insert_record(session, cursor, btree_id, key, upd,
                           WT_UPDATE_MODIFY, modify_value, stop_ts_pair));
                         __wt_scr_free(session, &modify_value);
-                    } else {
+                    } else
                         WT_ERR(__hs_insert_record(session, cursor, btree_id, key, upd,
                           WT_UPDATE_STANDARD, full_value, stop_ts_pair));
-                        /*
-                         * If we are evicting, we can now free older updates which have already been
-                         * written to the history store. However we can only free updates after an
-                         * original full update is inserted as a full update.
-                         */
-                        if (F_ISSET(r, WT_REC_EVICT) && upd->type == WT_UPDATE_STANDARD)
-                            __wt_free_update_list(session, &upd->next);
-                    }
 
                     /* Flag the update as now in the history store. */
                     F_SET(upd, WT_UPDATE_HS);
@@ -627,13 +619,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
 
         if (modifies.size > 0)
             WT_STAT_CONN_INCR(session, cache_hs_write_squash);
-
-        /*
-         * If we are evicting, we can now free older updates since they have already been written to
-         * the history store and can't be rolled back anyway.
-         */
-        if (F_ISSET(r, WT_REC_EVICT))
-            __wt_free_update_list(session, &upd->next);
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
@@ -745,12 +730,13 @@ __hs_restore_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t saved_times
  *     prepare conflict will be returned upon reading a prepared update.
  */
 int
-__wt_find_hs_upd(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool allow_prepare)
+__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp,
+  bool allow_prepare, WT_ITEM *on_disk_buf, WT_TIME_PAIR *on_disk_start)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
+    WT_DECL_ITEM(orig_hs_value_buf);
     WT_DECL_RET;
     WT_ITEM *key, _key;
     WT_MODIFY_VECTOR modifies;
@@ -767,10 +753,10 @@ __wt_find_hs_upd(
     bool modify;
 
     *updp = NULL;
-
     hs_cursor = NULL;
     key = NULL;
     mod_upd = upd = NULL;
+    orig_hs_value_buf = NULL;
     __wt_modify_vector_init(session, &modifies);
     txn = &session->txn;
     __hs_save_read_timestamp(session, &saved_timestamp);
@@ -882,12 +868,22 @@ __wt_find_hs_upd(
                 session->txn.read_timestamp = hs_stop_tmp.timestamp;
 
                 /*
-                 * Find the base update to apply the reverse deltas
+                 * Find the base update to apply the reverse deltas. If our cursor next fails to
+                 * find an update here we fall back to the datastore version. If its timestamp
+                 * doesn't match our timestamp then we return not found.
                  */
-                WT_ERR_NOTFOUND_OK(hs_cursor->next(hs_cursor));
+                if ((ret = hs_cursor->next(hs_cursor)) == WT_NOTFOUND) {
+                    if (hs_stop_tmp.timestamp == on_disk_start->timestamp) {
+                        /* Set the history value to be the full value from the data store. */
+                        orig_hs_value_buf = hs_value;
+                        hs_value = on_disk_buf;
+                        upd_type = WT_UPDATE_STANDARD;
+                        break;
+                    } else
+                        WT_ERR(ret);
+                }
                 hs_start_tmp.timestamp = WT_TS_NONE;
                 hs_start_tmp.txnid = WT_TXN_NONE;
-
                 /*
                  * Make sure we use the temporary variants of these variables. We need to retain the
                  * timestamps of the original modify we saw.
@@ -968,8 +964,11 @@ __wt_find_hs_upd(
     WT_ERR_NOTFOUND_OK(ret);
 
 err:
+    if (orig_hs_value_buf != NULL)
+        __wt_scr_free(session, &orig_hs_value_buf);
+    else
+        __wt_scr_free(session, &hs_value);
     __wt_scr_free(session, &hs_key);
-    __wt_scr_free(session, &hs_value);
 
     /*
      * Restore the read timestamp if we encountered an error while processing a modify. There's no
