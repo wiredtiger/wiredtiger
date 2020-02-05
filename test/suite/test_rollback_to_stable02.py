@@ -62,33 +62,27 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         valuec = "ccccc" * 100
         valued = "ddddd" * 100
         self.large_updates(uri, valuea, ds, nrows, 10)
-
         # Check that all updates are seen
         self.check(valuea, uri, nrows, 10)
 
         self.large_updates(uri, valueb, ds, nrows, 20)
-
         # Check that the new updates are only seen after the update timestamp
         self.check(valueb, uri, nrows, 20)
 
         self.large_updates(uri, valuec, ds, nrows, 30)
-
         # Check that the new updates are only seen after the update timestamp
         self.check(valuec, uri, nrows, 30)
 
         self.large_updates(uri, valued, ds, nrows, 40)
-
         # Check that the new updates are only seen after the update timestamp
         self.check(valued, uri, nrows, 40)
 
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
-
         # Checkpoint to ensure that all the data is flushed.
         self.session.checkpoint()
 
         self.conn.rollback_to_stable()
-
         # Check that the new updates are only seen after the update timestamp
         self.check(valuea, uri, nrows, 40)
 
