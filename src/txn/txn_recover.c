@@ -685,7 +685,38 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
 done:
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
-    if (do_checkpoint)
+
+    /*
+     * Perform rollback to stable when the connection is not read only and recovery timestamp is
+     * available.
+     */
+    if (!F_ISSET(conn, WT_CONN_READONLY) && conn->txn_global.recovery_timestamp != WT_TS_NONE) {
+        /* Start the eviction threads for rollback to stable if not already started. */
+        if (!eviction_started) {
+            WT_ERR(__wt_evict_create(session));
+            eviction_started = true;
+        }
+
+        /*
+         * Currently, rollback to stable don't do any changes to the tables with no timestamp. In
+         * future to enable rollback to stable on these tables, based on the page write gen number,
+         * the rollback to stable should decide the pages that needs rollback.
+         *
+         * For example, A page with write gen 10 and txnid 20 is updated in one checkpoint and in
+         * the next restart, a new page with write gen 30 and txnid 20 is modified. The rollback to
+         * stable operation should only rollback the latest page changes only based on the writegen
+         * numbers.
+         */
+
+        /* Set the stable timestamp and process the trees for rollback to stable. */
+        conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
+        conn->txn_global.has_stable_timestamp = true;
+        WT_ERR(__wt_txn_rollback_to_stable(session, NULL));
+
+        /* Reset the stable timestamp. */
+        conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
+        conn->txn_global.has_stable_timestamp = false;
+    } else if (do_checkpoint)
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
          * the checkpoint LSN and archiving.
