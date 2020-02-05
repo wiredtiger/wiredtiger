@@ -633,6 +633,7 @@ __txn_search_prepared_op(
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_TXN *txn;
+    uint32_t txn_flags;
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
     *updp = NULL;
@@ -648,6 +649,12 @@ __txn_search_prepared_op(
         *cursorp = cursor;
     }
 
+    /*
+     * Transaction error and prepare are cleared temporarily as cursor functions are not allowed
+     * after an error or a prepared transaction.
+     */
+    txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR | WT_TXN_PREPARE);
+
     switch (op->type) {
     case WT_TXN_OP_BASIC_COL:
     case WT_TXN_OP_INMEM_COL:
@@ -655,13 +662,9 @@ __txn_search_prepared_op(
         break;
     case WT_TXN_OP_BASIC_ROW:
     case WT_TXN_OP_INMEM_ROW:
-        /*
-         * Transaction prepare is cleared temporarily as cursor functions are not allowed for
-         * prepared transactions.
-         */
-        F_CLR(txn, WT_TXN_PREPARE);
+        F_CLR(txn, txn_flags);
         __wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
-        F_SET(txn, WT_TXN_PREPARE);
+        F_SET(txn, txn_flags);
         break;
     case WT_TXN_OP_NONE:
     case WT_TXN_OP_REF_DELETE:
@@ -671,7 +674,9 @@ __txn_search_prepared_op(
         break;
     }
 
+    F_CLR(txn, txn_flags);
     WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_uncommitted(cursor, updp));
+    F_SET(txn, txn_flags);
     WT_RET(ret);
     WT_RET_ASSERT(session, *updp != NULL, WT_NOTFOUND,
       "unable to locate update associated with a prepared operation");
@@ -1155,6 +1160,14 @@ err:
      */
     if (locked)
         __wt_readunlock(session, &txn_global->visibility_rwlock);
+
+    /*
+     * Check for a prepared transaction, and quit: we can't ignore the error and we can't roll back
+     * a prepared transaction.
+     */
+    if (prepare)
+        WT_PANIC_RET(session, ret, "failed to commit prepared transaction, failing the system");
+
     WT_TRET(__wt_txn_rollback(session, cfg));
     return (ret);
 }

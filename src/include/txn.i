@@ -61,21 +61,34 @@ __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
 }
 
 /*
- * __wt_txn_err_chk --
- *     Check the transaction hasn't already failed.
+ * __wt_txn_err_set --
+ *     Set an error in the current transaction.
  */
-static inline int
-__wt_txn_err_chk(WT_SESSION_IMPL *session)
+static inline void
+__wt_txn_err_set(WT_SESSION_IMPL *session, int ret)
 {
-    /* Allow transaction rollback, but nothing else. */
-    if (!F_ISSET(&(session->txn), WT_TXN_ERROR) ||
-      strcmp(session->name, "rollback_transaction") != 0)
-        return (0);
+    WT_TXN *txn;
 
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, !F_ISSET(&(session->txn), WT_TXN_ERROR));
-#endif
-    WT_RET_MSG(session, EINVAL, "additional transaction operations attempted after error");
+    txn = &session->txn;
+
+    /*  Ignore standard errors that don't fail the transaction. */
+    if (ret == WT_NOTFOUND || ret == WT_DUPLICATE_KEY || ret == WT_PREPARE_CONFLICT)
+        return;
+
+    /* Less commonly, it's not a running transaction. */
+    if (!F_ISSET(txn, WT_TXN_RUNNING))
+        return;
+
+    /* The transaction has to be rolled back. */
+    F_SET(txn, WT_TXN_ERROR);
+
+    /*
+     * Check for a prepared transaction, and quit: we can't ignore the error and we can't roll back
+     * a prepared transaction.
+     */
+    if (F_ISSET(txn, WT_TXN_PREPARE))
+        WT_PANIC_MSG(session, ret,
+          "transactional error logged after transaction was prepared, failing the system");
 }
 
 /*
@@ -768,15 +781,18 @@ static inline int
 __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **updp)
 {
     WT_VISIBLE_TYPE upd_visible;
+    uint8_t type;
 
     *updp = NULL;
+
     for (; upd != NULL; upd = upd->next) {
+        WT_ORDERED_READ(type, upd->type);
         /* Skip reserved place-holders, they're never visible. */
-        if (upd->type == WT_UPDATE_RESERVE)
+        if (type == WT_UPDATE_RESERVE)
             continue;
         upd_visible = __wt_txn_upd_visible_type(session, upd);
         if (upd_visible == WT_VISIBLE_TRUE) {
-            if (upd->type != WT_UPDATE_BIRTHMARK)
+            if (type != WT_UPDATE_BIRTHMARK)
                 *updp = upd;
             return (0);
         }
@@ -826,6 +842,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
         WT_RET(__upd_alloc_tombstone(session, updp, stop.txnid, stop.timestamp));
+        F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
         return (0);
     }
 
@@ -848,7 +865,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     WT_ASSERT(session, upd == NULL);
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
-        WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, cbt, &upd, false));
+        WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, cbt, &upd, false, &buf, &start));
 
     /* There is no BIRTHMARK in the history store file. */
     WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_BIRTHMARK);
