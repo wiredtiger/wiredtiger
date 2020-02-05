@@ -516,8 +516,7 @@ __txn_rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rol
                 WT_RET(__txn_abort_newer_updates(session, child_ref, rollback_timestamp));
             }
             WT_INTL_FOREACH_END;
-        } else
-            WT_RET(__txn_abort_newer_updates(session, ref, rollback_timestamp));
+        }
     }
     return (ret);
 }

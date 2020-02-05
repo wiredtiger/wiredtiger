@@ -792,8 +792,9 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
             continue;
         upd_visible = __wt_txn_upd_visible_type(session, upd);
         if (upd_visible == WT_VISIBLE_TRUE) {
-            if (type != WT_UPDATE_BIRTHMARK)
-                *updp = upd;
+            if (type == WT_UPDATE_TOMBSTONE && WT_IS_HS(S2BT(session)))
+                continue;
+            *updp = upd;
             return (0);
         }
         if (upd_visible == WT_VISIBLE_PREPARE)
@@ -839,7 +840,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
      * pair is visible to our txn then that means we've just spotted a tombstone and should return
      * "not found".
      */
-    if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
+    if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX && !WT_IS_HS(S2BT(session)) &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
         WT_RET(__upd_alloc_tombstone(session, updp, stop.txnid, stop.timestamp));
         F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
