@@ -27,7 +27,7 @@ __hs_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_
 
 /*
  * __hs_start_internal_setup_session
- *      Create a temporary internal session to setup history store
+ *      Create a temporary internal session to setup history store.
  */
 static int
 __hs_start_internal_setup_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
@@ -35,10 +35,9 @@ __hs_start_internal_setup_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **in
     uint32_t new_session_flags;
 
     new_session_flags = 0;
-    WT_ASSERT(session, !F_ISSET(session,WT_CONN_HS_OPEN));
-    WT_RET(__wt_open_internal_session(
-            S2C(session), "hs_setup", false, new_session_flags, int_sessionp));
-    return (0);
+    WT_ASSERT(session, !F_ISSET(session, WT_CONN_HS_OPEN));
+    return (
+      __wt_open_internal_session(S2C(session), "hs_setup", true, new_session_flags, int_sessionp));
 }
 
 /*
@@ -72,6 +71,11 @@ __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_tree)
     *hs_tree = NULL;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     close_hs_cursor = false;
+
+    /* If we have a cached version of history store btree in connection, return it. */
+    if ((*hs_tree = S2C(session)->hs_btree) != NULL) {
+        return (0);
+    }
 
     if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
         WT_RET(__wt_hs_cursor(session, &session_flags));
@@ -113,7 +117,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
-    WT_ERR(__hs_start_internal_setup_session(session,&temp_setup_session));
+    WT_ERR(__hs_start_internal_setup_session(session, &temp_setup_session));
     release_temp_session = true;
 
     /*
@@ -124,6 +128,9 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
         conn->cache->hs_fileid = btree->id;
+
+    /* Cache the history store btree reference. */
+    conn->hs_btree = btree;
 
     /*
      * Set special flags for the history store table: the history store flag (used, for example, to
@@ -145,7 +152,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
 
 err:
     if (release_temp_session)
-        WT_TRET(__hs_internal_setup_session_release(session,temp_setup_session));
+        WT_TRET(__hs_internal_setup_session_release(session, temp_setup_session));
     return (ret);
 }
 
@@ -263,6 +270,9 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
 int
 __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags)
 {
+    /* We should never reach here if working in context of the default session */
+    WT_ASSERT(session, S2C(session)->default_session != session);
+
     /*
      * We don't want to get tapped for eviction after we start using the history store cursor; save
      * a copy of the current eviction state, we'll turn eviction off before we return.
