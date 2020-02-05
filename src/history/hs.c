@@ -26,8 +26,8 @@ __hs_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_
 }
 
 /*
- * __hs_start_internal_setup_session
- *      Create a temporary internal session to setup history store.
+ * __hs_start_internal_setup_session --
+ *     Create a temporary internal session to setup history store.
  */
 static int
 __hs_start_internal_setup_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
@@ -41,11 +41,11 @@ __hs_start_internal_setup_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **in
 }
 
 /*
- * __hs_start_internal_setup_session_release
- *      Release the temporary internal session started to setup history store.
+ * __hs_release_internal_setup_session --
+ *     Release the temporary internal session started to setup history store.
  */
 static int
-__hs_internal_setup_session_release(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
+__hs_release_internal_setup_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
 {
     WT_SESSION *wt_session;
 
@@ -152,7 +152,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
 
 err:
     if (release_temp_session)
-        WT_TRET(__hs_internal_setup_session_release(session, temp_setup_session));
+        WT_TRET(__hs_release_internal_setup_session(session, temp_setup_session));
     return (ret);
 }
 
