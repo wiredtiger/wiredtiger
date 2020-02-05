@@ -687,8 +687,12 @@ done:
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
 
     /*
-     * Perform rollback to stable when the connection is not read only and recovery timestamp is
-     * available.
+     * Perform rollback to stable only when the following conditions met.
+     * 1. The connection is not read-only. A read-only connection expects that there shouldn't be
+     *    any changes that need to be done on the database other than reading.
+     * 2. A valid recovery timestamp. The recovery timestamp is the stable timestamp retrieved
+     *    from the metadata checkpoint information to indicate the stable timestamp when the
+     *    checkpoint happened. Anything updates newer than this timestamp must rollback.
      */
     if (!F_ISSET(conn, WT_CONN_READONLY) && conn->txn_global.recovery_timestamp != WT_TS_NONE) {
         /* Start the eviction threads for rollback to stable if not already started. */
@@ -698,17 +702,26 @@ done:
         }
 
         /*
-         * Currently, rollback to stable don't do any changes to the tables with no timestamp. In
-         * future to enable rollback to stable on these tables, based on the page write generation
-         * number, the rollback to stable should decide the pages that needs rollback.
-         *
-         * For example, A page with write generation 10 and txnid 20 is updated in one checkpoint
-         * and in the next restart, a new page with write generation 30 and txnid 20 is modified.
-         * The rollback to stable operation should only rollback the latest page changes only based
-         * on the write generation numbers.
+         * Currently, rollback to stable only needs to make changes to tables that use timestamps.
+         * That is because eviction does not run in parallel with a checkpoint, so content that is
+         * written never uses transaction IDs newer than the checkpoint's transaction ID and thus
+         * never needs to be rolled back. Once eviction is allowed while a checkpoint is active, it
+         * will be necessary to take the page write generation number into account during rollback
+         * to stable. For example, a page with write generation 10 and txnid 20 is written in one
+         * checkpoint, and in the next restart a new page with write generation 30 and txnid 20 is
+         * written. The rollback to stable operation should only rollback the latest page changes
+         * solely based on the write generation numbers.
          */
 
-        /* Set the stable timestamp and process the trees for rollback to stable. */
+        WT_ASSERT(session, conn->txn_global.has_stable_timestamp == false &&
+            conn->txn_global.stable_timestamp == WT_TS_NONE);
+        WT_ASSERT(session, conn->txn_global.has_oldest_timestamp == false &&
+            conn->txn_global.oldest_timestamp == WT_TS_NONE);
+
+        /*
+         * Set the stable timestamp from recovery timestamp and process the trees for rollback to
+         * stable.
+         */
         conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
         conn->txn_global.has_stable_timestamp = true;
         WT_ERR(__wt_txn_rollback_to_stable(session, NULL));
