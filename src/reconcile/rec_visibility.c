@@ -467,7 +467,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * no longer needed
      */
     if (upd_select->upd != NULL &&
-      (upd_select->upd_saved || (vpack != NULL && F_ISSET(vpack, WT_UNPACK_OVERFLOW) &&
+      (upd_select->upd_saved || (vpack != NULL && F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) &&
                                   vpack->raw != WT_CELL_VALUE_OVFL_RM)))
         WT_ERR(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
