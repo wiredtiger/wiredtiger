@@ -67,8 +67,8 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     if (hs_verify == false && ((uri = util_uri(session, *argv, "table")) == NULL))
         return (1);
 
-    if (hs_verify &&
-      (dump_address || dump_blocks || dump_layout || dump_offsets != NULL || dump_pages || stable_timestamp)) {
+    if (hs_verify && (dump_address || dump_blocks || dump_layout || dump_offsets != NULL ||
+                       dump_pages || stable_timestamp)) {
         (void)util_err(session, 0, "flags given on -h call");
     }
 
@@ -76,7 +76,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
       dump_pages || hs_verify || stable_timestamp) {
         size = strlen("dump_address,") + strlen("dump_blocks,") + strlen("dump_history") +
           strlen("dump_layout,") + strlen("dump_pages,") + strlen("dump_offsets[],") +
-          (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("hs_verify") + 
+          (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("hs_verify") +
           strlen("stable_timestamp,") + 20;
         if ((config = malloc(size)) == NULL) {
             ret = util_err(session, errno, NULL);
