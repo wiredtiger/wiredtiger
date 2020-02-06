@@ -1941,31 +1941,7 @@ tasks:
         vars:
           test_env_vars: ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
           # run for 24 hours ( 24 * 60 = 1440 minutes), don't stop at failed tests, use default config
-          format_test_script_args: -t 300 -j 16 -E
-            
-            
-            #set -o verbose
-
-            #ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
-
-            # run for 24 hours ( 24 * 60 = 1440 minutes), don't stop at failed tests, use default config
-            #${test_env_vars|} ${format_test_setting|} ./format.sh ${smp_command|} -t 1440 -E 2>&1
-            #format_ret=$?
-
-            # If any of the format job fails i.e, format.sh script returns 1 then check if it failed with
-            # any of the known errors.
-            #if [ $format_ret -ne 0 ]
-            #then
-              # Call the generic format skip error script to skip known errors
-            #  ./format_skip_errors.sh
-            #  if [ $? -eq 0 ]
-            #  then
-            #    exit 0
-            #  fi
-            #fi
-
-            # Propogate the exit status of format script.
-            #exit $format_ret
+          format_test_script_args: -t 1440 -E
   
   - name: format-stress-sanitizer-lsm-test
     commands:

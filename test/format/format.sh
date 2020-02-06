@@ -90,7 +90,6 @@ while :; do
 		config="$2"
 		shift ; shift ;;
 	-E)
-		echo "****** Skip Errors ******"
 		skip_errors=1
 		shift ;;
 	-F)
@@ -207,7 +206,6 @@ status="format.sh-status"
 
 skip_known_errors()
 {
-	echo "Check If Errors can be skipped"
 	# Return if "skip_errors" is not set or -E option is not passed
 	[[ $skip_errors -ne 1 ]] && return 1
 
@@ -233,7 +231,7 @@ skip_known_errors()
 		grep -q "$str_1" $log && grep -q "$str_2" $log && grep -q "$str_3" $log
 		
 		[[ $? -eq 0 ]] && {
-			echo "Skipping error :  { $str_1 && $str_2 && $str_3 }"
+			echo "Skip error :  { $str_1 && $str_2 && $str_3 }"
 			return 0
 		}
 	done
@@ -250,10 +248,9 @@ report_failure()
 
 	skip_known_errors $log
 	skip_ret=$?
+
 	echo "$name: failure status reported" > $dir/$status
-	[[ $skip_ret -ne 0 ]] && {
-		failure=$(($failure + 1))
-	}
+	[[ $skip_ret -ne 0 ]] && failure=$(($failure + 1))
 
 	# Forcibly quit if first-failure configured.
 	[[ $first_failure -ne 0 ]] && force_quit=1
@@ -286,7 +283,6 @@ resolve()
 
 		# Leave any process waiting for a gdb attach running, but report it as a failure.
 		grep -E 'waiting for debugger' $log > /dev/null && {
-			echo "waiting for debugger : report_failure"
 			report_failure $dir
 			continue
 		}
@@ -340,7 +336,6 @@ resolve()
 				verbose "$name: job in $dir successfully completed"
 			else
 				echo "$name: job in $dir failed abort/recovery testing"
-				echo "abort/recovery testing : report_failure"
 				report_failure $dir
 			fi
 			continue
@@ -350,7 +345,6 @@ resolve()
 		grep -E \
 		    'aborting WiredTiger library|format alarm timed out|run FAILED' \
 		    $log > /dev/null && {
-			echo "aborting WiredTiger library : report_failure"
 			report_failure $dir
 			continue
 		}
@@ -391,7 +385,6 @@ resolve()
 
 			echo "$name: job in $dir killed with signal $signame"
 			echo "$name: there may be a core dump associated with this failure"
-			echo "there may be a core dump associated : report_failure"
 			report_failure $dir
 			continue
 		}
@@ -401,7 +394,6 @@ resolve()
 		echo "$name: job in $dir exited with status $eret for an unknown reason"
 		echo "$name: reporting job in $dir as a failure"
 		echo "$name: $name needs to be updated"
-		echo "needs to be updated : report_failure"
 		report_failure $dir
 	done
 	return 0
@@ -487,7 +479,6 @@ while :; do
 	# Clean up and update status.
 	success_save=$success
 	failure_save=$failure
-	echo "resolve called"
 	resolve
 	[[ $success -ne $success_save ]] || [[ $failure -ne $failure_save ]] &&
 	    echo "$name: $success successful jobs, $failure failed jobs"
