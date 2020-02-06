@@ -32,12 +32,8 @@ __hs_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_
 static int
 __hs_start_internal_setup_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
 {
-    uint32_t new_session_flags;
-
-    new_session_flags = 0;
     WT_ASSERT(session, !F_ISSET(session, WT_CONN_HS_OPEN));
-    return (
-      __wt_open_internal_session(S2C(session), "hs_setup", true, new_session_flags, int_sessionp));
+    return (__wt_open_internal_session(S2C(session), "hs_setup", true, 0, int_sessionp));
 }
 
 /*
@@ -49,12 +45,9 @@ __hs_release_internal_setup_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL *i
 {
     WT_SESSION *wt_session;
 
-    if (session != int_session) {
-        wt_session = &int_session->iface;
-        WT_RET(wt_session->close(wt_session, NULL));
-    }
-
-    return (0);
+    WT_UNUSED(session); /* [-Werror=unused-parameter] */
+    wt_session = &int_session->iface;
+    return (wt_session->close(wt_session, NULL));
 }
 
 /*
@@ -62,28 +55,27 @@ __hs_release_internal_setup_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL *i
  *     Get the history store btree. Open a history store cursor if needed to get the btree.
  */
 int
-__wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_tree)
+__wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 {
     WT_DECL_RET;
     uint32_t session_flags;
     bool close_hs_cursor;
 
-    *hs_tree = NULL;
+    *hs_btreep = NULL;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     close_hs_cursor = false;
 
     /* If we have a cached version of history store btree in connection, return it. */
-    if ((*hs_tree = S2C(session)->hs_btree) != NULL) {
+    if ((*hs_btreep = S2C(session)->hs_btree) != NULL)
         return (0);
-    }
 
     if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
         WT_RET(__wt_hs_cursor(session, &session_flags));
         close_hs_cursor = true;
     }
 
-    *hs_tree = ((WT_CURSOR_BTREE *)session->hs_cursor)->btree;
-    WT_ASSERT(session, *hs_tree != NULL);
+    *hs_btreep = ((WT_CURSOR_BTREE *)session->hs_cursor)->btree;
+    WT_ASSERT(session, *hs_btreep != NULL);
 
     if (close_hs_cursor)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
@@ -102,12 +94,10 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION_IMPL *temp_setup_session;
-    bool release_temp_session;
+    WT_SESSION_IMPL *tmp_setup_session;
 
     conn = S2C(session);
-    release_temp_session = false;
-    temp_setup_session = NULL;
+    tmp_setup_session = NULL;
 
     WT_ERR(__wt_config_gets(session, cfg, "history_store.file_max", &cval));
     if (cval.val != 0 && cval.val < WT_HS_FILE_MIN)
@@ -118,13 +108,12 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
-    WT_ERR(__hs_start_internal_setup_session(session, &temp_setup_session));
-    release_temp_session = true;
+    WT_ERR(__hs_start_internal_setup_session(session, &tmp_setup_session));
 
     /*
      * Retrieve the btree from the history store cursor.
      */
-    WT_ERR(__wt_hs_get_btree(temp_setup_session, &btree));
+    WT_ERR(__wt_hs_get_btree(tmp_setup_session, &btree));
 
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
@@ -152,8 +141,8 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     WT_STAT_CONN_SET(session, cache_hs_ondisk_max, btree->file_max);
 
 err:
-    if (release_temp_session)
-        WT_TRET(__hs_release_internal_setup_session(session, temp_setup_session));
+    if (tmp_setup_session != NULL)
+        WT_TRET(__hs_release_internal_setup_session(session, tmp_setup_session));
     return (ret);
 }
 
@@ -271,7 +260,7 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
 int
 __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags)
 {
-    /* We should never reach here if working in context of the default session */
+    /* We should never reach here if working in context of the default session. */
     WT_ASSERT(session, S2C(session)->default_session != session);
 
     /*
