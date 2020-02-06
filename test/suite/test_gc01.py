@@ -85,7 +85,6 @@ class test_gc01(test_gc_base):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
-    @unittest.skip("Temporarily disabled")
     def test_gc(self):
         nrows = 10000
 
