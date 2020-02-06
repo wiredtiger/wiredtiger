@@ -399,17 +399,6 @@ struct __wt_connection_impl {
     uint64_t sweep_interval;        /* Handle sweep interval */
     uint64_t sweep_handles_min;     /* Handle sweep minimum open */
 
-    /*
-     * Flag to indicate whether the rollback to stable operation is in progress or not.
-     *
-     * Currently, the use of this flag is to not to append any on-disk original updates back into
-     * the update list. During rollback, it is possible that update in the update list can be from
-     * an older timestamp than the on-disk value. Also during rollback to stable, no other session
-     * that need the on-disk value, so ignoring the on-disk value to the update list doesn't have a
-     * problem.
-     */
-    bool rollback_to_stable;
-
     /* Set of btree IDs not being rolled back */
     uint8_t *stable_rollback_bitstring;
     uint32_t stable_rollback_maxfile;

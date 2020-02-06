@@ -219,6 +219,12 @@ __txn_abort_row_replace_with_hs_value(
         upd->txnid = hs_start.txnid;
         upd->durable_ts = durable_ts;
         upd->start_ts = hs_start.timestamp;
+
+        /*
+         * Set the flag to indicate that this update has been restored from history store for the
+         * rollback to stable operation.
+         */
+        F_SET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK);
     } else {
         WT_ERR(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
         upd->txnid = WT_TXN_NONE;
@@ -757,7 +763,6 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      * concurrently.
      */
     WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, &session));
-    S2C(session)->rollback_to_stable = true;
     ret = __txn_rollback_to_stable(session, cfg);
     WT_TRET(session->iface.close(&session->iface, NULL));
 

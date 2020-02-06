@@ -43,7 +43,7 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
-    @unittest.skip("Temporarily disabled")
+    #@unittest.skip("Temporarily disabled")
     def test_rollback_to_stable(self):
         nrows = 10000
 

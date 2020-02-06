@@ -62,6 +62,14 @@ __rec_append_orig_value(
         if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
             return (0);
 
+        /*
+         * Don't add the original value if there is an update restored from history store for
+         * rollback to stable operation. Another way of indicating that we don't need on-disk value
+         * anymore.
+         */
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK))
+            return (0);
+
         /* Add the original value after birthmarks. */
         if (upd->type == WT_UPDATE_BIRTHMARK) {
             WT_ASSERT(session, unpack != NULL && unpack->type != WT_CELL_DEL);
@@ -471,7 +479,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * during reconciliation of a backing overflow record that will be physically removed once it's
      * no longer needed
      */
-    if (upd_select->upd != NULL && !S2C(session)->rollback_to_stable &&
+    if (upd_select->upd != NULL &&
       (upd_select->upd_saved || (vpack != NULL && F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) &&
                                   vpack->raw != WT_CELL_VALUE_OVFL_RM)))
         WT_ERR(__rec_append_orig_value(session, page, upd_select->upd, vpack));
