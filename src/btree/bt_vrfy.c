@@ -664,7 +664,8 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
         }
 
         first = false;
-        WT_ERR(__wt_buf_set(session, &prev_hs_key, &hs_key, sizeof(WT_ITEM)));
+        WT_ERR(__wt_buf_initsize(session, &prev_hs_key, hs_key.size));
+        WT_ERR(__wt_buf_set(session, &prev_hs_key, hs_key.data, hs_key.size));
         prev_btree_id = btree_id;
 
         /*
