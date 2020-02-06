@@ -17,9 +17,11 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     size_t size;
     int ch;
     char *config, *dump_offsets, *uri;
-    bool dump_address, dump_blocks, dump_layout, dump_pages, dump_history, hs_verify, stable_timestamp;
+    bool dump_address, dump_blocks, dump_layout, dump_pages, dump_history, hs_verify,
+      stable_timestamp;
 
-    dump_address = dump_blocks = dump_history = dump_layout = dump_pages = hs_verify = stable_timestamp = false;
+    dump_address = dump_blocks = dump_history = dump_layout = dump_pages = hs_verify =
+      stable_timestamp = false;
     config = dump_offsets = uri = NULL;
     while ((ch = __wt_getopt(progname, argc, argv, "d:S:h")) != EOF)
         switch (ch) {

@@ -1577,7 +1577,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
-    WT_RET(__wt_config_gets(session, cfg, "hs_verify", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "hs_verify", &cval));
     if (cval.val == true) {
         WT_WITH_CHECKPOINT_LOCK(
           session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_verify_history_store_tree(session)));
