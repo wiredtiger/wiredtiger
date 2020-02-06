@@ -125,16 +125,8 @@ __debug_item_key(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
 
     session = ds->session;
 
-    /*
-     * If the format is 'S', it's a string and our version of it may not yet be nul-terminated.
-     */
-    if (WT_STREQ(ds->key_format, "S") && ((char *)data_arg)[size - 1] != '\0') {
-        WT_RET(__wt_buf_fmt(session, ds->t2, "%.*s", (int)size, (char *)data_arg));
-        data_arg = ds->t2->data;
-        size = ds->t2->size + 1;
-    }
     return (ds->f(ds, "\t%s%s{%s}\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
-      __wt_buf_set_printable_format(session, data_arg, size, ds->key_format, ds->t1)));
+      __wt_key_string(session, data_arg, size, ds->key_format, ds->t1)));
 }
 
 /*
