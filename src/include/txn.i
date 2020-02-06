@@ -825,8 +825,6 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     if (*updp != NULL)
         return (0);
 
-    upd = NULL;
-
     /* If there is no ondisk value, there can't be anything in the history store either. */
     if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
         WT_RET(__upd_alloc_tombstone(session, updp, WT_TXN_NONE, WT_TS_NONE));
@@ -860,12 +858,11 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         (*updp)->txnid = start.txnid;
         (*updp)->start_ts = start.timestamp;
         F_SET((*updp), WT_UPDATE_RESTORED_FROM_DISK);
-        *updp = upd;
         return (0);
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    WT_ASSERT(session, upd == NULL);
+    WT_ASSERT(session, (*updp) == NULL);
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
         WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, cbt, updp, false, &buf));
 
