@@ -305,7 +305,7 @@ take_incr_backup(WT_SESSION *session, int i)
     FILELIST *flist;
     WT_CURSOR *backup_cur, *incr_cur;
     uint64_t offset, size, type;
-    size_t alloc, count, tmp_sz;
+    size_t alloc, count, rdsize, tmp_sz;
     int j, ret, rfd, wfd;
     char buf[1024], h[256], *tmp;
     const char *filename;
@@ -367,9 +367,10 @@ take_incr_backup(WT_SESSION *session, int i)
                 }
 
                 error_sys_check(lseek(rfd, (wt_off_t)offset, SEEK_SET));
-                error_sys_check(read(rfd, tmp, (size_t)size));
+                error_sys_check(rdsize = (size_t)read(rfd, tmp, (size_t)size));
                 error_sys_check(lseek(wfd, (wt_off_t)offset, SEEK_SET));
-                error_sys_check(write(wfd, tmp, (size_t)size));
+                /* Use the read size since we may have read less than the granularity. */
+                error_sys_check(write(wfd, tmp, rdsize));
             } else {
                 /* Whole file, so close both files and just copy the whole thing. */
                 testutil_assert(first == true);

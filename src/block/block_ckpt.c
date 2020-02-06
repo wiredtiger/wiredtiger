@@ -669,10 +669,14 @@ __ckpt_add_blkmod_entry(
     end = (uint64_t)(offset + len) / blk_mod->granularity;
     WT_ASSERT(session, end < UINT32_MAX);
     end_rdup = WT_MAX(__wt_rduppo2((uint32_t)end, 8), WT_BLOCK_MODS_LIST_MIN);
-    if (end_rdup > blk_mod->nbits) {
+    if ((end_rdup << 3) > blk_mod->nbits) {
         /* If we don't have enough, extend the buffer. */
-        WT_RET(__wt_buf_extend(session, &blk_mod->bitstring, end_rdup));
-        blk_mod->nbits = end_rdup;
+        if (blk_mod->nbits == 0) {
+            WT_RET(__wt_buf_initsize(session, &blk_mod->bitstring, end_rdup));
+            memset(blk_mod->bitstring.mem, 0, end_rdup);
+        } else
+            WT_RET(__wt_buf_extend(session, &blk_mod->bitstring, end_rdup));
+        blk_mod->nbits = end_rdup << 3;
     }
 
     /* Set all the bits needed to record this offset/length pair. */
