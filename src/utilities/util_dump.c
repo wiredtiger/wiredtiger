@@ -114,7 +114,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
                 goto err;
             }
             __wt_scr_free(session_impl, &tmp);
-            WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
+            WT_ERR(__wt_scr_alloc(session_impl, 0, &tmp));
             WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
         }
         if (checkpoint != NULL)
