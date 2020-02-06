@@ -578,16 +578,17 @@ tasks:
         vars:
           directory: test/cursor_order
 
-  - name: fops-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "compile wiredtiger"
-      - func: "make check directory"
-        vars:
-          directory: test/fops
+  # Temporarily disabled
+  # - name: fops-test
+  #   tags: ["pull_request"]
+  #   depends_on:
+  #     - name: compile
+  #   commands:
+  #     - func: "fetch artifacts"
+  #     - func: "compile wiredtiger"
+  #     - func: "make check directory"
+  #       vars:
+  #         directory: test/fops
 
   # Temporarily disabled
   # - name: format-test
@@ -1433,23 +1434,24 @@ tasks:
             pip install scons==3.1.1
             scons-3.1.1.bat ${smp_command|} check
 
-  - name: fops
-    tags: ["pull_request"]
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            set -o errexit
-            set -o verbose
-            if [ "Windows_NT" = "$OS" ]; then
-              cmd.exe /c t_fops.exe
-            else
-              build_posix/test/fops/t
-            fi
+  # Temporarily disabled
+  # - name: fops
+  #   tags: ["pull_request"]
+  #   depends_on:
+  #   - name: compile
+  #   commands:
+  #     - func: "fetch artifacts"
+  #     - command: shell.exec
+  #       params:
+  #         working_dir: "wiredtiger"
+  #         script: |
+  #           set -o errexit
+  #           set -o verbose
+  #           if [ "Windows_NT" = "$OS" ]; then
+  #             cmd.exe /c t_fops.exe
+  #           else
+  #             build_posix/test/fops/t
+  #           fi
 
   # Temporarily disabled
   # - name: format
@@ -2264,7 +2266,8 @@ buildvariants:
     - name: compile
     - name: make-check-test
     - name: unit-test
-    - name: fops
+    # Temporarily disabled
+    # - name: fops
     - name: time-shift-sensitivity-test
     - name: compile-msan
     - name: make-check-msan-test
@@ -2312,7 +2315,8 @@ buildvariants:
     - name: compile
     - name: ".windows_only"
     - name: ".unit_test"
-    - name: fops
+    # Temporarily disabled
+    # - name: fops
 
 - name: macos-1012
   display_name: OS X 10.12
@@ -2328,7 +2332,8 @@ buildvariants:
     - name: compile
     - name: make-check-test
     - name: unit-test
-    - name: fops
+    # Temporarily disabled
+    # - name: fops
 
 # Temporarily disabled
 # - name: little-endian
