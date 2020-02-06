@@ -724,11 +724,21 @@ done:
          */
         conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
         conn->txn_global.has_stable_timestamp = true;
+
+        /*
+         * Set the oldest timestamp to WT_TS_NONE to make sure that we didn't remove any history
+         * window as part of rollback to stable operation.
+         */
+        conn->txn_global.oldest_timestamp = WT_TS_NONE;
+        conn->txn_global.has_oldest_timestamp = true;
+
         WT_ERR(__wt_txn_rollback_to_stable(session, NULL));
 
-        /* Reset the stable timestamp. */
+        /* Reset the stable and oldest timestamp. */
         conn->txn_global.stable_timestamp = WT_TS_NONE;
         conn->txn_global.has_stable_timestamp = false;
+        conn->txn_global.oldest_timestamp = WT_TS_NONE;
+        conn->txn_global.has_oldest_timestamp = false;
     } else if (do_checkpoint)
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
