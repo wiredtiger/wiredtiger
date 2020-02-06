@@ -46,8 +46,8 @@ static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *)
 static int __verify_row_leaf_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static const char *__verify_timestamp_to_pretty_string(wt_timestamp_t);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
-static int __verify_history_key_with_table(WT_SESSION_IMPL *, const char *, WT_ITEM *);
 static int __verify_btree_id_with_meta(WT_SESSION_IMPL *, uint32_t, const char **);
+
 /*
  * __verify_config --
  *     Debugging: verification supports dumping pages in various formats.
@@ -582,33 +582,6 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
 }
 
 /*
- * __verify_history_key_with_table --
- *     With a given history store key, and a table name, iterate through the table and check if the
- *     key exists in the table.
- */
-static int
-__verify_history_key_with_table(WT_SESSION_IMPL *session, const char *uri, WT_ITEM *hs_key)
-{
-    WT_CURSOR *data_cursor;
-    WT_DECL_RET;
-    WT_ITEM data_key;
-
-    WT_ERR(__wt_open_cursor(session, uri, NULL, NULL, &data_cursor));
-
-    while ((ret = data_cursor->next(data_cursor)) == 0) {
-        /* The cursor raw flag, makes sure that we can place it into a WT_ITEM */
-        F_SET(data_cursor, WT_CURSOR_RAW_OK);
-        WT_ERR(data_cursor->get_key(data_cursor, &data_key));
-        if (__wt_lex_compare(hs_key, &data_key) == 0) {
-            break;
-        }
-    }
-
-err:
-    return (ret);
-}
-
-/*
  * __verify_btree_id_with_meta --
  *     With a given btree id, iterate through the metafile table and check if the btree id exists in
  *     any table. If exists, we place the table URI into a variable Otherwise should return
@@ -627,12 +600,11 @@ __verify_btree_id_with_meta(WT_SESSION_IMPL *session, uint32_t btree_id, const c
     WT_ERR(meta_cursor->reset(meta_cursor));
     while ((ret = meta_cursor->next(meta_cursor)) == 0) {
         meta_cursor->get_value(meta_cursor, &meta_value);
-        ret = __wt_config_getones(session, meta_value, "id", &id);
-        WT_ERR_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_value, "id", &id));
         if (ret == WT_NOTFOUND) {
             continue;
         }
-        if (btree_id == strtoul(id.str, NULL, 10)) {
+        if (errno != ERANGE && btree_id == __wt_strtouq(id.str, NULL, 10)) {
             meta_cursor->get_key(meta_cursor, uri);
             goto done;
         }
@@ -653,7 +625,7 @@ err:
 int
 __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
 {
-    WT_CURSOR *cursor;
+    WT_CURSOR *cursor, *data_cursor;
     WT_DECL_RET;
     WT_ITEM hs_key;
     WT_ITEM prev_hs_key;
@@ -678,19 +650,19 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
           &hs_stop.timestamp, &hs_stop.txnid));
 
         /*
-         *  Keep track of the previous comparison. The History Store is stored in order, so we can
-         *  avoid redundant comparisons. the first flag is used to avoid comparing against
-         * uninitialized variables.
+         *  Keep track of the previous comparison. The history store is stored in order, so we can
+         *  avoid redundant comparisons. The first flag is used to avoid comparing against
+         *  uninitialized variables.
          */
         if (!first && prev_btree_id == btree_id) {
             WT_ERR(__wt_compare(session, NULL, &hs_key, &prev_hs_key, &cmp));
-            if (cmp) {
+            if (cmp == 0) {
                 continue;
             }
         }
 
         first = false;
-        memcpy(&prev_hs_key, &hs_key, sizeof(WT_ITEM));
+        WT_ERR(__wt_buf_set(session, &prev_hs_key, &hs_key, sizeof(WT_ITEM)));
         prev_btree_id = btree_id;
 
         /*
@@ -698,7 +670,14 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
          * history store key with the data store.
          */
         WT_ERR(__verify_btree_id_with_meta(session, btree_id, &uri));
-        WT_ERR(__verify_history_key_with_table(session, uri, &hs_key));
+        WT_ERR(__wt_open_cursor(session, uri, NULL, NULL, &data_cursor));
+
+        data_cursor->set_key(data_cursor, &hs_key);
+        WT_ERR_NOTFOUND_OK(data_cursor->search(data_cursor));
+        if (ret == WT_NOTFOUND) {
+            WT_ERR_MSG(session, WT_ERROR, "key exists in history store but not in data store");
+        }
+        WT_TRET(data_cursor->close(data_cursor));
     }
 err:
     WT_TRET(__wt_hs_cursor_close(session, &cursor, session_flags));
@@ -706,6 +685,7 @@ err:
     if (ret != WT_NOTFOUND) {
         return (ret);
     }
+
     return (0);
 }
 
