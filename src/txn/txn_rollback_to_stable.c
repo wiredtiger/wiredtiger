@@ -10,8 +10,8 @@
 
 /*
  * __txn_abort_newer_update --
- *     Abort updates in an update change with timestamps newer than the rollback timestamp.
- *     Also, clear the history store flag for the first stable update in the update also.
+ *     Abort updates in an update change with timestamps newer than the rollback timestamp. Also,
+ *     clear the history store flag for the first stable update in the update also.
  */
 static void
 __txn_abort_newer_update(
@@ -146,6 +146,7 @@ __txn_abort_row_replace_with_hs_value(
 
     hs_cursor = NULL;
     hs_upd = upd = NULL;
+    durable_ts = WT_TS_NONE;
     hs_btree_id = S2BT(session)->id;
     session_flags = 0;
     valid_update_found = false;
