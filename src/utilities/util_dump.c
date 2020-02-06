@@ -34,9 +34,7 @@ int
 util_dump(WT_SESSION *session, int argc, char *argv[])
 {
     WT_CURSOR *cursor;
-    WT_DECL_ITEM(timestamp_buf);
     WT_DECL_ITEM(tmp);
-    WT_DECL_ITEM(tmp2);
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl;
     int ch, i;
@@ -95,8 +93,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         goto err;
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
-    WT_RET(__wt_scr_alloc(session_impl, 0, &tmp2));
-    WT_RET(__wt_scr_alloc(session_impl, 0, &timestamp_buf));
     for (i = 0; i < argc; i++) {
         if (json && i > 0)
             if (dump_json_separator(session) != 0)
@@ -109,19 +105,20 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             goto err;
 
         WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
-        if (checkpoint != NULL)
-            WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
         if (timestamp != NULL) {
-            WT_ERR(time_pair_to_timestamp(session_impl, timestamp, timestamp_buf));
-            WT_ERR(__wt_buf_catfmt(
-              session_impl, tmp2, "read_timestamp=%s,", (char *)timestamp_buf->data));
-            WT_ERR(__wt_buf_catfmt(session_impl, tmp2, "isolation=snapshot,"));
-            if ((ret = session->begin_transaction(session, (char *)tmp2->data)) != 0) {
+            WT_ERR(time_pair_to_timestamp(session_impl, timestamp, tmp));
+            WT_ERR(__wt_buf_catfmt(session_impl, tmp, "isolation=snapshot,"));
+            if ((ret = session->begin_transaction(session, (char *)tmp->data)) != 0) {
                 fprintf(stderr, "%s: begin transaction failed: %s\n", progname,
                   session->strerror(session, ret));
                 goto err;
             }
+            __wt_scr_free(session_impl, &tmp);
+            WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
+            WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
         }
+        if (checkpoint != NULL)
+            WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
         WT_ERR(
           __wt_buf_catfmt(session_impl, tmp, "dump=%s", json ? "json" : (hex ? "hex" : "print")));
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
@@ -165,8 +162,6 @@ err:
         ret = util_err(session, errno, NULL);
 
     __wt_scr_free(session_impl, &tmp);
-    __wt_scr_free(session_impl, &tmp2);
-    __wt_scr_free(session_impl, &timestamp_buf);
     free(uri);
     free(simpleuri);
 
@@ -180,17 +175,18 @@ err:
 static int
 time_pair_to_timestamp(WT_SESSION_IMPL *session_impl, char *ts_string, WT_ITEM *buf)
 {
-    uint64_t timestamp;
+    wt_timestamp_t timestamp;
     uint32_t first, second;
 
     if (ts_string[0] == '(') {
-        sscanf(ts_string, "(%u,%u)", &first, &second);
-        timestamp = ((unsigned long long)first << 32) | second;
+        if (sscanf(ts_string, "(%" SCNu32 " ,%" SCNu32 ")", &first, &second) != 2)
+            return (EIO);
+        timestamp = ((wt_timestamp_t)first << 32) | second;
     } else
-        timestamp = strtoul(ts_string, NULL, 10);
+        timestamp = __wt_strtouq(ts_string, NULL, 10);
 
-    WT_RET(__wt_buf_catfmt(session_impl, buf, "%lx", timestamp));
-    return 0;
+    WT_RET(__wt_buf_catfmt(session_impl, buf, "read_timestamp=%" PRIx64 ",", timestamp));
+    return (0);
 }
 
 /*
