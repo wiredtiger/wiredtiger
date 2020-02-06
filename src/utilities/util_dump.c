@@ -104,8 +104,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if ((uri = util_uri(session, argv[i], "table")) == NULL)
             goto err;
 
-        WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
         if (timestamp != NULL) {
+            WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
             WT_ERR(time_pair_to_timestamp(session_impl, timestamp, tmp));
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "isolation=snapshot,"));
             if ((ret = session->begin_transaction(session, (char *)tmp->data)) != 0) {
@@ -113,10 +113,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
                   session->strerror(session, ret));
                 goto err;
             }
-            __wt_scr_free(session_impl, &tmp);
-            WT_ERR(__wt_scr_alloc(session_impl, 0, &tmp));
-            WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
         }
+        WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
         if (checkpoint != NULL)
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
         WT_ERR(
@@ -180,7 +178,7 @@ time_pair_to_timestamp(WT_SESSION_IMPL *session_impl, char *ts_string, WT_ITEM *
 
     if (ts_string[0] == '(') {
         if (sscanf(ts_string, "(%" SCNu32 " ,%" SCNu32 ")", &first, &second) != 2)
-            return (EIO);
+            return (EINVAL);
         timestamp = ((wt_timestamp_t)first << 32) | second;
     } else
         timestamp = __wt_strtouq(ts_string, NULL, 10);
