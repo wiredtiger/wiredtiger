@@ -47,6 +47,8 @@ static int __verify_row_leaf_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static const char *__verify_timestamp_to_pretty_string(wt_timestamp_t);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
 static int __verify_btree_id_with_meta(WT_SESSION_IMPL *, uint32_t, const char **);
+static int __verify_ts_stable_cmp(
+  WT_SESSION_IMPL *, WT_ITEM *, WT_REF *, uint32_t, wt_timestamp_t, wt_timestamp_t, WT_VSTUFF *);
 
 /*
  * __verify_config --
@@ -642,8 +644,8 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
     uri = NULL;
     first = true;
 
-    __wt_hs_cursor(session, &cursor, &session_flags);
-    WT_ERR(cursor->reset(cursor));
+    WT_ERR(__wt_hs_cursor(session, &session_flags));
+    cursor = session->hs_cursor;
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start.timestamp, &hs_start.txnid,
@@ -680,7 +682,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
         WT_TRET(data_cursor->close(data_cursor));
     }
 err:
-    WT_TRET(__wt_hs_cursor_close(session, &cursor, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags));
 
     if (ret != WT_NOTFOUND) {
         return (ret);
