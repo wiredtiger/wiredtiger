@@ -274,7 +274,7 @@ builtins = [
       'or via: apt-get install libsnappy-dev' ],
     [ 'zlib', 'z',
       'Need to install zlib\n' + \
-      'It can be installed via: apt-get install zlib1g' ]
+      'It can be installed via: apt-get install zlib1g' ],
     [ 'zstd', 'zstd',
       'Need to install zstd\n' + \
       'It can be installed via: apt-get install zstd' ]
