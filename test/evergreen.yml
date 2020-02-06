@@ -1148,20 +1148,21 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt2834_join_bloom_fix 2>&1
 
-  - name: csuite-wt2853-perf-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
+  # Temporarily disabled
+  # - name: csuite-wt2853-perf-test
+  #   tags: ["pull_request"]
+  #   depends_on:
+  #     - name: compile
+  #   commands:
+  #     - func: "fetch artifacts"
+  #     - command: shell.exec
+  #       params:
+  #         working_dir: "wiredtiger/build_posix"
+  #         script: |
+  #           set -o errexit
+  #           set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/csuite/test_wt2853_perf 2>&1
+  #           ${test_env_vars|} $(pwd)/test/csuite/test_wt2853_perf 2>&1
 
   # - name: csuite-wt2909-checkpoint-integrity-test
   #   tags: ["pull_request"]
