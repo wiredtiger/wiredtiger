@@ -2242,6 +2242,8 @@ buildvariants:
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
+    - name: configure-combinations
+    - name: coverage-report
 
 - name: large-scale-test
   display_name: Large scale testing
