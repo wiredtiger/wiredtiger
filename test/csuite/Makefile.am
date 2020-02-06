@@ -86,7 +86,6 @@ all_TESTS += test_wt2834_join_bloom_fix
 
 test_wt2853_perf_SOURCES = wt2853_perf/main.c
 noinst_PROGRAMS += test_wt2853_perf
-# Temporarily disabled
 all_TESTS += test_wt2853_perf
 
 test_wt2909_checkpoint_integrity_SOURCES = wt2909_checkpoint_integrity/main.c
@@ -144,7 +143,6 @@ all_TESTS += test_wt4699_json
 
 test_wt4803_history_store_abort_SOURCES = wt4803_history_store_abort/main.c
 noinst_PROGRAMS += test_wt4803_history_store_abort
-# Temporarily disabled
 all_TESTS += test_wt4803_history_store_abort
 
 test_wt4891_meta_ckptlist_get_alloc_SOURCES=wt4891_meta_ckptlist_get_alloc/main.c
