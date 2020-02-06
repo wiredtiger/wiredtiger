@@ -385,6 +385,7 @@ resolve()
 
 			echo "$name: job in $dir killed with signal $signame"
 			echo "$name: there may be a core dump associated with this failure"
+			
 			report_failure $dir
 			continue
 		}
