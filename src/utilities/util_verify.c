@@ -68,25 +68,27 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
         return (1);
 
     if (hs_verify &&
-      (dump_address || dump_blocks || dump_layout || dump_offsets != NULL || dump_pages)) {
-        (void)util_err(session, 0, "-d flags given on non -d call");
+      (dump_address || dump_blocks || dump_layout || dump_offsets != NULL || dump_pages || stable_timestamp)) {
+        (void)util_err(session, 0, "flags given on -h call");
     }
 
     if (dump_address || dump_blocks || dump_history || dump_layout || dump_offsets != NULL ||
-      dump_pages || hs_verify) {
+      dump_pages || hs_verify || stable_timestamp) {
         size = strlen("dump_address,") + strlen("dump_blocks,") + strlen("dump_history") +
           strlen("dump_layout,") + strlen("dump_pages,") + strlen("dump_offsets[],") +
-          (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("hs_verify") + 20;
+          (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("hs_verify") + 
+          strlen("stable_timestamp,") + 20;
         if ((config = malloc(size)) == NULL) {
             ret = util_err(session, errno, NULL);
             goto err;
         }
-        if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s%s%s",
+        if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s%s%s%s",
                dump_address ? "dump_address," : "", dump_blocks ? "dump_blocks," : "",
                dump_history ? "dump_history," : "", dump_layout ? "dump_layout," : "",
                dump_offsets != NULL ? "dump_offsets=[" : "",
                dump_offsets != NULL ? dump_offsets : "", dump_offsets != NULL ? "]," : "",
-               dump_pages ? "dump_pages," : "", hs_verify ? "hs_verify" : "")) != 0) {
+               dump_pages ? "dump_pages," : "", hs_verify ? "hs_verify" : "",
+               stable_timestamp ? "stable_timestamp," : "")) != 0) {
             (void)util_err(session, ret, NULL);
             goto err;
         }
