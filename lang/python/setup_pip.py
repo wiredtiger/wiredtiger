@@ -275,6 +275,9 @@ builtins = [
     [ 'zlib', 'z',
       'Need to install zlib\n' + \
       'It can be installed via: apt-get install zlib1g' ]
+    [ 'zstd', 'zstd',
+      'Need to install zstd\n' + \
+      'It can be installed via: apt-get install zstd' ]
 ]
 builtin_names = [b[0] for b in builtins]
 builtin_libraries = [b[1] for b in builtins]
