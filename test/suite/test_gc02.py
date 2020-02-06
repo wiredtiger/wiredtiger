@@ -29,6 +29,7 @@
 from test_gc01 import test_gc_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
+import unittest
 
 def timestamp_str(t):
     return '%x' % t
@@ -39,6 +40,7 @@ class test_gc02(test_gc_base):
     conn_config = 'cache_size=1GB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
+    @unittest.skip("Temporarily disabled")
     def test_gc(self):
         nrows = 100000
 
