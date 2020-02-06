@@ -908,7 +908,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                  */
                 if ((ret = hs_cursor->next(hs_cursor)) == WT_NOTFOUND) {
                     WT_ASSERT(session, hs_stop_tmp.timestamp == on_disk_start->timestamp);
-                    /* Set the history value to be the full value from the data store. */
+                    /* Fallback to the onpage value as the base value. */
                     orig_hs_value_buf = hs_value;
                     hs_value = on_disk_buf;
                     upd_type = WT_UPDATE_STANDARD;
@@ -929,7 +929,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                 WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
 
                 if (cmp != 0) {
-                    /* Set the history value to be the full value from the data store. */
+                    /* Fallback to the onpage value as the base value. */
                     orig_hs_value_buf = hs_value;
                     hs_value = on_disk_buf;
                     upd_type = WT_UPDATE_STANDARD;
