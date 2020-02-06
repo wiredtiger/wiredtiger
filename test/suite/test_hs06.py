@@ -67,7 +67,6 @@ class test_hs06(wttest.WiredTigerTestCase):
             return str(i)
         return i
 
-    @unittest.skip("Temporarily disabled")
     def test_hs_reads(self):
         # Create a small table.
         uri = "table:test_hs06"
@@ -81,13 +80,13 @@ class test_hs06(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Load another 1Mb of data with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
@@ -110,7 +109,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         # be reading it straight from the history store without initialising a full
         # update chain of every version of the data.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
-        for i in range(1, 10000):
+        for i in range(1, 2000):
             self.assertEqual(cursor[self.create_key(i)], value1)
         self.session.rollback_transaction()
 
