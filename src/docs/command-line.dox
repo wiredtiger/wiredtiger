@@ -174,7 +174,7 @@ Dump all characters in a hexadecimal encoding (the default is to leave
 printable characters unencoded).
 
 @par <code>-t</code>
-By default, the \c dump command reads the most recent timestamp versions of 
+By default, the \c dump command reads the most recent timestamp versions of
 the data source; the \c -t option changes the \c dump command to read at a
 specific timestamp.
 
