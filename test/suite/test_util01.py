@@ -152,7 +152,7 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
             key = self.get_key(i)
             value = 0
             if not write_expected:
-                value = self.get_value(i + random.randint(1, self.nentries));
+                value = self.get_value(i + random.randint(1, self.nentries))
             else:
                 value = self.get_value(i)
             cursor[key] = value
