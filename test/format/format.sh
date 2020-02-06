@@ -90,6 +90,7 @@ while :; do
 		config="$2"
 		shift ; shift ;;
 	-E)
+		echo "***** SKIP ERRORS *****"
 		skip_errors=1
 		shift ;;
 	-F)
@@ -204,8 +205,12 @@ success=0
 running=0
 status="format.sh-status"
 
+# Function to check if skip_errors is set and it can be skipped.
+# return 0 - Error found and skip
+# return 1 - skip_errors flag not set or no (known error) match found
 skip_known_errors()
 {
+	echo "Check Skip Known ERRORS"
 	# Return if "skip_errors" is not set or -E option is not passed
 	[[ $skip_errors -ne 1 ]] && return 1
 
@@ -213,29 +218,33 @@ skip_known_errors()
 
 	# Define each array with multi-signature matching for a single known error
 	# and append it to the skip_error_list
+
 	err_1=("heap-buffer-overflow" "__split_parent")
 	err_2=("heap-use-after-free" "__wt_btcur_next_random")
 	err_3=("__cursor_page_pinned" "current_state == WT_REF_LIMBO || current_state == WT_REF_MEM")
 	err_4=("cache clean check: no" "cache dirty check: no" "format run more than 15 minutes past the maximum time")
 
+	# skip_error_list is the list of errors to skip, and each error could
+	# have multiple signatures to be able to reach a finer match
 	skip_error_list=( err_1[@] err_2[@] err_3[@] err_4[@] )
 
 	# Loop through the skip list and search in the log file.
-	count=${#skip_error_list[@]}
-	for ((i=0; i<$count; i++))
+	err_count=${#skip_error_list[@]}
+	for ((i=0; i<$err_count; i++))
 	do
-		str_1=${!skip_error_list[i]:0:1}
-		str_2=${!skip_error_list[i]:1:1}
-		str_3=${!skip_error_list[i]:2:1}
+		# Tokenize the multi-signature error
+		err_tokens[0]=${!skip_error_list[i]:0:1}
+		err_tokens[1]=${!skip_error_list[i]:1:1}
+		err_tokens[2]=${!skip_error_list[i]:2:1}
+		echo "Checking errors $err_tokens[0] && $err_tokens[1] && $err_tokens[2]"
 
-		grep -q "$str_1" $log && grep -q "$str_2" $log && grep -q "$str_3" $log
+		grep -q "$err_tokens[0]" $log && grep -q "$err_tokens[1]" $log && grep -q "$err_tokens[2]" $log
 		
 		[[ $? -eq 0 ]] && {
-			echo "Skip error :  { $str_1 && $str_2 && $str_3 }"
+			echo "Skip error :  { $err_tokens[0] && $err_tokens[1] && $err_tokens[2] }"
 			return 0
 		}
 	done
-
 	return 1
 }
 
