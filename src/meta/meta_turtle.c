@@ -81,7 +81,6 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
         WT_ERR(__wt_getline(session, fs, value));
         if (value->size == 0)
             WT_PANIC_ERR(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
-
         WT_ERR(__wt_metadata_update(session, key->data, value->data));
     }
 
@@ -120,6 +119,7 @@ __metadata_load_bulk_max_write_gen(WT_SESSION_IMPL *session, uint64_t *max_write
         WT_ERR(cursor->get_value(cursor, &value));
         if ((ret = __wt_meta_checkpoint(session, key, NULL, &ckpt) == 0)) {
             *max_write_gen = WT_MAX(*max_write_gen, ckpt.write_gen);
+            __wt_meta_checkpoint_free(session, &ckpt);
         } else
             WT_ERR_NOTFOUND_OK(ret);
 
