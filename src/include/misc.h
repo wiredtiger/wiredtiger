@@ -53,6 +53,10 @@
 #define WT_PETABYTE ((uint64_t)1125899906842624)
 #define WT_EXABYTE ((uint64_t)1152921504606846976)
 
+/* Strings used for indicating failed string buffer construction. */
+#define WT_ERR_STRING "[Error]"
+#define WT_NO_ADDR_STRING "[NoAddr]"
+
 /*
  * Sizes that cannot be larger than 2**32 are stored in uint32_t fields in common structures to save
  * space. To minimize conversions from size_t to uint32_t through the code, we use the following

@@ -692,7 +692,7 @@ restart:
     unpack->newest_stop_txn = WT_TXN_MAX;
     unpack->raw = (uint8_t)__wt_cell_type_raw(cell);
     unpack->type = (uint8_t)__wt_cell_type(cell);
-    unpack->ovfl = 0;
+    unpack->flags = 0;
 
     /*
      * Handle cells with none of RLE counts, validity window or data length: short key/data cells
@@ -824,7 +824,7 @@ restart:
         /*
          * Set overflow flag.
          */
-        unpack->ovfl = 1;
+        F_SET(unpack, WT_CELL_UNPACK_OVERFLOW);
     /* FALLTHROUGH */
 
     case WT_CELL_ADDR_DEL:
@@ -911,7 +911,7 @@ __wt_cell_unpack_dsk(
         unpack->__len = 0;
         unpack->prefix = 0;
         unpack->raw = unpack->type = WT_CELL_VALUE;
-        unpack->ovfl = 0;
+        unpack->flags = 0;
         return;
     }
 
@@ -936,9 +936,15 @@ __wt_cell_unpack_dsk(
      * Previous startup txnid=0, ts=y       txnid=0, ts=1           txnid=MAX, ts=MAX
      */
     if (dsk->write_gen <= S2C(session)->base_write_gen) {
-        unpack->start_txn = WT_TXN_NONE;
+        /* Let reconciliation know we cleared the transaction ids and the cell needs to be rebuilt.
+         */
+        if (unpack->start_txn != WT_TXN_NONE) {
+            unpack->start_txn = WT_TXN_NONE;
+            F_SET(unpack, WT_CELL_UNPACK_TXNIDS_CLEARED);
+        }
         if (unpack->stop_txn != WT_TXN_MAX) {
             unpack->stop_txn = WT_TXN_NONE;
+            F_SET(unpack, WT_CELL_UNPACK_TXNIDS_CLEARED);
             if (unpack->stop_ts == WT_TS_MAX)
                 unpack->stop_ts = 1;
         } else
