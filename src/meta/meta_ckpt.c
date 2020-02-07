@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
 static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int __ckpt_load_blk_mods(WT_SESSION_IMPL *, const char *, WT_CKPT *);
@@ -107,7 +106,7 @@ __wt_meta_checkpoint(
      * default checkpoint, it's creation, return "no data" and let our caller handle it.
      */
     if (checkpoint == NULL) {
-        if ((ret = __ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
+        if ((ret = __wt_ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
             ret = 0;
             ckpt->addr.data = ckpt->raw.data = NULL;
             ckpt->addr.size = ckpt->raw.size = 0;
@@ -230,11 +229,11 @@ __ckpt_named(WT_SESSION_IMPL *session, const char *checkpoint, const char *confi
 }
 
 /*
- * __ckpt_last --
+ * __wt_ckpt_last --
  *     Return the information associated with the file's last checkpoint.
  */
-static int
-__ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
+int
+__wt_ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM a, k, v;

@@ -94,13 +94,12 @@ err:
 }
 
 /*
- * __metadata_load_bulk_max_write_gen --
- *     Create any bulk-loaded file stubs and aggregate the maximum write gen.
+ * __metadata_load_bulk --
+ *     Create any bulk-loaded file stubs.
  */
 static int
-__metadata_load_bulk_max_write_gen(WT_SESSION_IMPL *session, uint64_t *max_write_gen)
+__metadata_load_bulk(WT_SESSION_IMPL *session)
 {
-    WT_CKPT ckpt;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     uint32_t allocsize;
@@ -108,7 +107,6 @@ __metadata_load_bulk_max_write_gen(WT_SESSION_IMPL *session, uint64_t *max_write
     const char *key, *value;
     bool exist;
 
-    *max_write_gen = 0;
     /*
      * If a file was being bulk-loaded during the hot backup, it will appear in the metadata file,
      * but the file won't exist. Create on demand.
@@ -116,12 +114,6 @@ __metadata_load_bulk_max_write_gen(WT_SESSION_IMPL *session, uint64_t *max_write
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &key));
-        if ((ret = __wt_meta_checkpoint(session, key, NULL, &ckpt) == 0)) {
-            *max_write_gen = WT_MAX(*max_write_gen, ckpt.write_gen);
-            __wt_meta_checkpoint_free(session, &ckpt);
-        } else
-            WT_ERR_NOTFOUND_OK(ret);
-
         if (!WT_PREFIX_SKIP(key, "file:"))
             continue;
 
@@ -141,6 +133,37 @@ __metadata_load_bulk_max_write_gen(WT_SESSION_IMPL *session, uint64_t *max_write
     }
     WT_ERR_NOTFOUND_OK(ret);
 
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
+ * __metadata_get_max_write_gen --
+ *     Get the maximum write gen by aggregating the write gens of each file.
+ */
+static int
+__metadata_get_max_write_gen(WT_SESSION_IMPL *session, uint64_t *max_write_genp)
+{
+    WT_CKPT ckpt;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    uint64_t max_write_gen;
+    const char *value;
+
+    max_write_gen = 0;
+
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_value(cursor, &value));
+        if ((ret = __wt_ckpt_last(session, value, &ckpt) == 0)) {
+            max_write_gen = WT_MAX(max_write_gen, ckpt.write_gen);
+            __wt_meta_checkpoint_free(session, &ckpt);
+        } else
+            WT_ERR_NOTFOUND_OK(ret);
+    }
+    WT_ERR_NOTFOUND_OK(ret);
+    *max_write_genp = max_write_gen;
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
@@ -189,7 +212,7 @@ __wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
  *     Check the turtle file and create if necessary.
  */
 int
-__wt_turtle_init(WT_SESSION_IMPL *session, uint64_t *max_write_gen)
+__wt_turtle_init(WT_SESSION_IMPL *session, uint64_t *max_write_genp)
 {
     WT_DECL_RET;
     char *metaconf, *unused_value;
@@ -197,7 +220,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, uint64_t *max_write_gen)
     bool load, loadTurtle;
 
     load = loadTurtle = false;
-    *max_write_gen = 0;
+    *max_write_genp = 0;
 
     /*
      * Discard any turtle setup file left-over from previous runs. This doesn't matter for
@@ -270,8 +293,10 @@ __wt_turtle_init(WT_SESSION_IMPL *session, uint64_t *max_write_gen)
         /* Load any hot-backup information. */
         WT_RET(__metadata_load_hot_backup(session));
 
-        /* Create any bulk-loaded file stubs and aggregate the maximum write gen. */
-        WT_RET(__metadata_load_bulk_max_write_gen(session, max_write_gen));
+        /* Create any bulk-loaded file stubs. */
+        WT_RET(__metadata_load_bulk(session));
+
+        WT_RET(__metadata_get_max_write_gen(session, max_write_genp));
     }
 
     if (load || loadTurtle) {
