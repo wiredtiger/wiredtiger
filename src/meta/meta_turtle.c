@@ -116,7 +116,6 @@ __metadata_load_bulk_max_write_gen(WT_SESSION_IMPL *session, uint64_t *max_write
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &key));
-        WT_ERR(cursor->get_value(cursor, &value));
         if ((ret = __wt_meta_checkpoint(session, key, NULL, &ckpt) == 0)) {
             *max_write_gen = WT_MAX(*max_write_gen, ckpt.write_gen);
             __wt_meta_checkpoint_free(session, &ckpt);
@@ -135,6 +134,7 @@ __metadata_load_bulk_max_write_gen(WT_SESSION_IMPL *session, uint64_t *max_write
          * If the file doesn't exist, assume it's a bulk-loaded file; retrieve the allocation size
          * and re-create the file.
          */
+        WT_ERR(cursor->get_value(cursor, &value));
         filecfg[1] = value;
         WT_ERR(__wt_direct_io_size_check(session, filecfg, "allocation_size", &allocsize));
         WT_ERR(__wt_block_manager_create(session, key, allocsize));
