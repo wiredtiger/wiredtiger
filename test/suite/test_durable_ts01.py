@@ -62,11 +62,7 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
         return self.keyfmt == 'r' and \
             (self.ds.is_lsm() or self.uri == 'lsm')
 
-    # Rollback to stable yet not completely finished with replacing on-disk value with history store.
-    # So all the recovery scenarios that are doing rollback to stable fail. These test needs to enable
-    # with history store replace PR.
     # Test durable timestamp.
-    @unittest.skip("Temporarily Disabled")
     def test_durable_ts01(self):
         if self.skip():
             return
