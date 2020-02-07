@@ -765,7 +765,7 @@ __hs_restore_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t saved_times
  */
 int
 __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp,
-  bool allow_prepare, WT_ITEM *on_disk_buf, WT_TIME_PAIR *on_disk_start)
+  bool allow_prepare, WT_ITEM *on_disk_buf)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
@@ -907,14 +907,11 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                  * doesn't match our timestamp then we return not found.
                  */
                 if ((ret = hs_cursor->next(hs_cursor)) == WT_NOTFOUND) {
-                    if (hs_stop_tmp.timestamp == on_disk_start->timestamp) {
-                        /* Set the history value to be the full value from the data store. */
-                        orig_hs_value_buf = hs_value;
-                        hs_value = on_disk_buf;
-                        upd_type = WT_UPDATE_STANDARD;
-                        break;
-                    } else
-                        WT_ERR(ret);
+                    /* Fallback to the onpage value as the base value. */
+                    orig_hs_value_buf = hs_value;
+                    hs_value = on_disk_buf;
+                    upd_type = WT_UPDATE_STANDARD;
+                    break;
                 }
                 hs_start_tmp.timestamp = WT_TS_NONE;
                 hs_start_tmp.txnid = WT_TXN_NONE;
@@ -929,6 +926,14 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                   &hs_start_tmp.txnid, &hs_stop_tmp.timestamp, &hs_stop_tmp.txnid));
 
                 WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+
+                if (cmp != 0) {
+                    /* Fallback to the onpage value as the base value. */
+                    orig_hs_value_buf = hs_value;
+                    hs_value = on_disk_buf;
+                    upd_type = WT_UPDATE_STANDARD;
+                    break;
+                }
 
                 WT_ERR(hs_cursor->get_value(
                   hs_cursor, &durable_timestamp_tmp, &prepare_state_tmp, &upd_type, hs_value));

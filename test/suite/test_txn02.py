@@ -204,7 +204,6 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
         pr_logs = fnmatch.filter(os.listdir(self.backup_dir), "*gerLog*")
         self.assertEqual(cur_logs, pr_logs)
 
-    @unittest.skip("Temporarily disabled")
     def test_ops(self):
         self.backup_dir = os.path.join(self.home, "WT_BACKUP")
         self.session2 = self.conn.open_session()

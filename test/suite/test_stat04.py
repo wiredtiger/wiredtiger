@@ -73,7 +73,6 @@ class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(statcursor[stat.dsrc.btree_entries][2], expectpairs)
         statcursor.close()
 
-    @unittest.skip("Temporarily disabled")
     def test_stat_nentries(self):
         """
         Test to make sure the number of key/value pairs is accurate.
