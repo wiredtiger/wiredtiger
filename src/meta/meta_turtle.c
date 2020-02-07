@@ -140,7 +140,7 @@ err:
 
 /*
  * __metadata_get_max_write_gen --
- *     Get the maximum write gen by aggregating the write gens of each file.
+ *     Get the maximum write gen by aggregating the write gen of each file.
  */
 static int
 __metadata_get_max_write_gen(WT_SESSION_IMPL *session, uint64_t *max_write_genp)
@@ -298,7 +298,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, uint64_t *max_write_genp)
         /* Create any bulk-loaded file stubs. */
         WT_RET(__metadata_load_bulk(session));
 
-        /* Get the max write gen of all the tables. */
+        /* Get the max write gen. */
         WT_RET(__metadata_get_max_write_gen(session, max_write_genp));
     }
 
