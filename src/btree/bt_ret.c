@@ -186,8 +186,8 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
     }
 
     /*
-     * If there's no full update, the base item is the on-page item.
-     * If the update is a tombstone, the base item is an empty item.
+     * If there's no full update, the base item is the on-page item. If the update is a tombstone,
+     * the base item is an empty item.
      */
     if (upd == NULL) {
         /*
