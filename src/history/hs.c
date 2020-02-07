@@ -149,7 +149,6 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
     WT_BTREE *hs_btree;
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **cstats;
-    WT_DECL_RET;
     WT_DSRC_STATS **dstats;
     int64_t v;
 
@@ -172,7 +171,7 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
      * Get a history store cursor, we need the underlying data handle; we can get to it by way of
      * the underlying btree handle, but it's a little ugly.
      */
-    return(__wt_hs_get_btree(session, &hs_btree));
+    WT_RET(__wt_hs_get_btree(session, &hs_btree));
 
     dstats = hs_btree->dhandle->stats;
 
@@ -189,7 +188,7 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
         WT_STAT_SET(session, dstats, cursor_remove, 0);
     }
 
-    return (ret);
+    return (0);
 }
 
 /*
