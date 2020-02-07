@@ -152,6 +152,7 @@ __metadata_get_max_write_gen(WT_SESSION_IMPL *session, uint64_t *max_write_genp)
     const char *value;
 
     max_write_gen = 0;
+    memset(&ckpt, 0, sizeof(ckpt));
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
