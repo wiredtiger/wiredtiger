@@ -214,7 +214,12 @@ __txn_abort_row_replace_with_hs_value(
      */
     if (valid_update_found) {
         WT_ERR(__wt_update_alloc(session, hs_value, &upd, &size, WT_UPDATE_STANDARD));
-        upd->txnid = hs_start.txnid;
+
+        /* Clear the transaction id when recovery is in progress. */
+        if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+            upd->txnid = WT_TXN_NONE;
+        else
+            upd->txnid = hs_start.txnid;
         upd->durable_ts = durable_ts;
         upd->start_ts = hs_start.timestamp;
 
