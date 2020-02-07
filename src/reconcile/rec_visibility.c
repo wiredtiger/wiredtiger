@@ -63,9 +63,8 @@ __rec_append_orig_value(
             return (0);
 
         /*
-         * Don't add the original value if there is an update restored from history store for
-         * rollback to stable operation. Another way of indicating that we don't need on-disk value
-         * anymore.
+         * If the update is restored from the history store for the rollback to stable operation we
+         * don't need the on-disk value anymore and we're done.
          */
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK))
             return (0);

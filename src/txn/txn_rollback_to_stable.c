@@ -11,7 +11,7 @@
 /*
  * __txn_abort_newer_update --
  *     Abort updates in an update change with timestamps newer than the rollback timestamp. Also,
- *     clear the history store flag for the first stable update in the update also.
+ *     clear the history store flag for the first stable update in the update.
  */
 static void
 __txn_abort_newer_update(
@@ -72,13 +72,11 @@ __txn_abort_newer_insert(
 }
 
 /*
- * __txn_abort_row_replace_upd_list --
- *     Abort updates in the update list and replace it with the provided update
- *
+ * __txn_row_add_update --
+ *     Add the provided update to the head of the update list.
  */
 static inline int
-__txn_abort_row_replace_upd_list(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_UPDATE *upd)
+__txn_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_UPDATE *upd)
 {
     WT_DECL_RET;
     WT_PAGE_MODIFY *mod;
@@ -108,8 +106,8 @@ __txn_abort_row_replace_upd_list(
     old_upd = *upd_entry;
 
     /*
-     * Point the new WT_UPDATE item to the next element in the list. If we get it right, the
-     * serialization function lock acts as our memory barrier to flush this write.
+     * Point the new WT_UPDATE item to the next element in the list. The serialization function acts
+     * as our memory barrier to flush this write.
      */
     upd->next = old_upd;
 
@@ -167,8 +165,8 @@ __txn_abort_row_replace_with_hs_value(
      * Scan the history store for the given btree and key with maximum start and stop time pair to
      * let the search point to the last version of the key and start traversing backwards to find
      * out the satisfying record according the given timestamp. Any satisfying history store record
-     * is moved into data store and remove it from history store. If none of the history store
-     * records satisfy the given timestamp, the key is removed from data store.
+     * is moved into data store and removed from history store. If none of the history store records
+     * satisfy the given timestamp, the key is removed from data store.
      */
     ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, WT_TS_MAX);
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
@@ -232,7 +230,7 @@ __txn_abort_row_replace_with_hs_value(
         upd->start_ts = WT_TS_NONE;
     }
 
-    WT_ERR(__txn_abort_row_replace_upd_list(session, page, rip, upd));
+    WT_ERR(__txn_row_add_update(session, page, rip, upd));
     upd = NULL;
 
     /* Finally remove that update from history store. */
@@ -253,10 +251,8 @@ err:
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
-    if (hs_upd != NULL)
-        __wt_free(session, hs_upd);
-    if (upd != NULL)
-        __wt_free(session, upd);
+    __wt_free(session, hs_upd);
+    __wt_free(session, upd);
     if (hs_cursor != NULL)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
 
@@ -305,14 +301,12 @@ __txn_abort_row_ondisk_kv(
         /* Stable version according to the timestamp. */
         return (0);
 
-    WT_ERR(__txn_abort_row_replace_upd_list(session, page, rip, upd));
+    WT_ERR(__txn_row_add_update(session, page, rip, upd));
     WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
     return (0);
 
 err:
-    if (upd != NULL)
-        __wt_free(session, upd);
-
+    __wt_free(session, upd);
     return (ret);
 }
 
