@@ -26,22 +26,22 @@ __hs_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_
 }
 
 /*
- * __hs_start_internal_setup_session --
- *     Create a temporary internal session to setup history store.
+ * __hs_start_internal_session --
+ *     Create a temporary internal session to retrieve history store.
  */
 static int
-__hs_start_internal_setup_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
+__hs_start_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
 {
     WT_ASSERT(session, !F_ISSET(session, WT_CONN_HS_OPEN));
-    return (__wt_open_internal_session(S2C(session), "hs_setup", true, 0, int_sessionp));
+    return (__wt_open_internal_session(S2C(session), "hs_access", true, 0, int_sessionp));
 }
 
 /*
- * __hs_release_internal_setup_session --
- *     Release the temporary internal session started to setup history store.
+ * __hs_release_internal_session --
+ *     Release the temporary internal session started to retrieve history store.
  */
 static int
-__hs_release_internal_setup_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
+__hs_release_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
 {
     WT_SESSION *wt_session;
 
@@ -64,10 +64,6 @@ __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
     *hs_btreep = NULL;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     close_hs_cursor = false;
-
-    /* If we have a cached version of history store btree in connection, return it. */
-    if ((*hs_btreep = S2C(session)->hs_btree) != NULL)
-        return (0);
 
     if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
         WT_RET(__wt_hs_cursor(session, &session_flags));
@@ -108,7 +104,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
-    WT_ERR(__hs_start_internal_setup_session(session, &tmp_setup_session));
+    WT_ERR(__hs_start_internal_session(session, &tmp_setup_session));
 
     /*
      * Retrieve the btree from the history store cursor.
@@ -118,9 +114,6 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
         conn->cache->hs_fileid = btree->id;
-
-    /* Cache the history store btree reference. */
-    conn->hs_btree = btree;
 
     /*
      * Set special flags for the history store table: the history store flag (used, for example, to
@@ -142,7 +135,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
 
 err:
     if (tmp_setup_session != NULL)
-        WT_TRET(__hs_release_internal_setup_session(session, tmp_setup_session));
+        WT_TRET(__hs_release_internal_session(session, tmp_setup_session));
     return (ret);
 }
 
@@ -156,10 +149,13 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
     WT_BTREE *hs_btree;
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **cstats;
+    WT_DECL_RET;
     WT_DSRC_STATS **dstats;
+    WT_SESSION_IMPL *tmp_hs_session;
     int64_t v;
 
     conn = S2C(session);
+    tmp_hs_session = NULL;
 
     /*
      * History store table statistics are copied from the underlying history store table data-source
@@ -168,14 +164,24 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
     if (!F_ISSET(conn, WT_CONN_HS_OPEN))
         return (0);
 
+    if (F_ISSET(conn, WT_CONN_CLOSING))
+        return (0);
+
     /* Set the connection-wide statistics. */
     cstats = conn->stats;
+
+    /*
+     * If we are working in context of default session, we need to open a temporary session to
+     * retrieve the history store btree information.
+     */
+    if (session == S2C(session)->default_session)
+        WT_ERR(__hs_start_internal_session(session, &tmp_hs_session));
 
     /*
      * Get a history store cursor, we need the underlying data handle; we can get to it by way of
      * the underlying btree handle, but it's a little ugly.
      */
-    WT_RET(__wt_hs_get_btree(session, &hs_btree));
+    WT_ERR(__wt_hs_get_btree(tmp_hs_session == NULL ? session : tmp_hs_session, &hs_btree));
 
     dstats = hs_btree->dhandle->stats;
 
@@ -192,7 +198,11 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
         WT_STAT_SET(session, dstats, cursor_remove, 0);
     }
 
-    return (0);
+err:
+    if (tmp_hs_session != NULL)
+        WT_TRET(__hs_release_internal_session(session, tmp_hs_session));
+
+    return (ret);
 }
 
 /*

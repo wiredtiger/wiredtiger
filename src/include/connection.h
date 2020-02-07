@@ -220,9 +220,6 @@ struct __wt_connection_impl {
 
     WT_FH *lock_fh; /* Lock file handle */
 
-    /* History Store Btree reference */
-    WT_BTREE *hs_btree;
-
     /*
      * The connection keeps a cache of data handles. The set of handles can grow quite large so we
      * maintain both a simple list and a hash table of lists. The hash table key is based on a hash
