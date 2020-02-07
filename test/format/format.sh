@@ -236,12 +236,12 @@ skip_known_errors()
 		err_tokens[0]=${!skip_error_list[i]:0:1}
 		err_tokens[1]=${!skip_error_list[i]:1:1}
 		err_tokens[2]=${!skip_error_list[i]:2:1}
-		echo "Checking errors $err_tokens[0] && $err_tokens[1] && $err_tokens[2]"
+		echo "Checking errors ${err_tokens[0]} && ${err_tokens[1]} && ${err_tokens[2]}"
 
-		grep -q "$err_tokens[0]" $log && grep -q "$err_tokens[1]" $log && grep -q "$err_tokens[2]" $log
+		grep -q "${err_tokens[0]}" $log && grep -q "${err_tokens[1]}" $log && grep -q "${err_tokens[2]}" $log
 		
 		[[ $? -eq 0 ]] && {
-			echo "Skip error :  { $err_tokens[0] && $err_tokens[1] && $err_tokens[2] }"
+			echo "Skip error :  { ${err_tokens[0]} && ${err_tokens[1]} && ${err_tokens[2]} }"
 			return 0
 		}
 	done
