@@ -616,7 +616,7 @@ format:
  *     Set the connection's base write generation.
  */
 int
-__wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session)
+__wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session, uint64_t max_write_gen)
 {
     WT_CKPT ckpt;
 
@@ -626,7 +626,7 @@ __wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session)
      * We track the maximum page generation we've ever seen, and I'm not interested in debugging
      * off-by-ones.
      */
-    S2C(session)->base_write_gen = ckpt.write_gen + 1;
+    S2C(session)->base_write_gen = WT_MAX(ckpt.write_gen, max_write_gen) + 1;
 
     __wt_meta_checkpoint_free(session, &ckpt);
 
