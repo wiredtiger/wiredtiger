@@ -62,6 +62,13 @@ __rec_append_orig_value(
         if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
             return (0);
 
+        /*
+         * If the update is restored from the history store for the rollback to stable operation we
+         * don't need the on-disk value anymore and we're done.
+         */
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK))
+            return (0);
+
         /* Add the original value after birthmarks. */
         if (upd->type == WT_UPDATE_BIRTHMARK) {
             WT_ASSERT(session, unpack != NULL && unpack->type != WT_CELL_DEL);
@@ -89,9 +96,6 @@ __rec_append_orig_value(
     if (unpack == NULL || unpack->type == WT_CELL_DEL)
         WT_RET(__wt_update_alloc(session, NULL, &append, &size, WT_UPDATE_TOMBSTONE));
     else {
-        /* Timestamp should always be in descending order */
-        WT_ASSERT(session, upd->start_ts >= unpack->start_ts);
-
         WT_RET(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
         WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
