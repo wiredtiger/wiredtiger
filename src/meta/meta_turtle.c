@@ -298,6 +298,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session, uint64_t *max_write_genp)
         /* Create any bulk-loaded file stubs. */
         WT_RET(__metadata_load_bulk(session));
 
+        /* Get the max write gen of all the tables. */
         WT_RET(__metadata_get_max_write_gen(session, max_write_genp));
     }
 
