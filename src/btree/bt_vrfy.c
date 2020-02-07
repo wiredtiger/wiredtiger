@@ -586,7 +586,7 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
 /*
  * __verify_btree_id_with_meta --
  *     With a given btree id, iterate through the metafile table and check if the btree id exists in
- *     any table. If exists, we place the table URI into a variable Otherwise should return
+ *     any table. If exists, we place the table URI into a variable otherwise should return
  *     WT_NOTFOUND.
  */
 static int
@@ -598,21 +598,16 @@ __verify_btree_id_with_meta(WT_SESSION_IMPL *session, uint32_t btree_id, const c
     const char *meta_value;
 
     WT_ERR(__wt_metadata_cursor(session, &meta_cursor));
-
-    WT_ERR(meta_cursor->reset(meta_cursor));
     while ((ret = meta_cursor->next(meta_cursor)) == 0) {
-        meta_cursor->get_value(meta_cursor, &meta_value);
-        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, meta_value, "id", &id));
-        if (ret == WT_NOTFOUND) {
-            continue;
+        WT_ERR(meta_cursor->get_value(meta_cursor, &meta_value));
+        if ((ret = __wt_config_getones(session, meta_value, "id", &id)) == 0) {
+            if (btree_id == __wt_strtouq(id.str, NULL, 10)) {
+                meta_cursor->get_key(meta_cursor, uri);
+                break;
+            }
         }
-        if (errno != ERANGE && btree_id == __wt_strtouq(id.str, NULL, 10)) {
-            meta_cursor->get_key(meta_cursor, uri);
-            goto done;
-        }
+        WT_ERR_NOTFOUND_OK(ret);
     }
-
-done:
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
     return (ret);
@@ -632,8 +627,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
     WT_ITEM hs_key;
     WT_ITEM prev_hs_key;
     WT_TIME_PAIR hs_start, hs_stop;
-    uint32_t prev_btree_id;
-    uint32_t session_flags, btree_id;
+    uint32_t btree_id, session_flags, prev_btree_id;
     int cmp;
     const char *uri;
     bool first;
@@ -643,6 +637,8 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
     prev_btree_id = 0;
     uri = NULL;
     first = true;
+    WT_CLEAR(prev_hs_key);
+    WT_CLEAR(hs_key);
 
     WT_ERR(__wt_hs_cursor(session, &session_flags));
     cursor = session->hs_cursor;
@@ -658,14 +654,14 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
          */
         if (!first && prev_btree_id == btree_id) {
             WT_ERR(__wt_compare(session, NULL, &hs_key, &prev_hs_key, &cmp));
-            if (cmp == 0) {
+            if (cmp == 0)
                 continue;
-            }
         }
 
         first = false;
-        WT_ERR(__wt_buf_initsize(session, &prev_hs_key, hs_key.size));
-        WT_ERR(__wt_buf_set(session, &prev_hs_key, hs_key.data, hs_key.size));
+
+        prev_hs_key.data = hs_key.data;
+        prev_hs_key.size = hs_key.size;
         prev_btree_id = btree_id;
 
         /*
@@ -677,19 +673,15 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
 
         data_cursor->set_key(data_cursor, &hs_key);
         WT_ERR_NOTFOUND_OK(data_cursor->search(data_cursor));
-        if (ret == WT_NOTFOUND) {
+        if (ret == WT_NOTFOUND)
             WT_ERR_MSG(session, WT_ERROR, "key exists in history store but not in data store");
-        }
-        WT_TRET(data_cursor->close(data_cursor));
+        WT_ERR(data_cursor->close(data_cursor));
     }
+    WT_ERR_NOTFOUND_OK(ret);
 err:
+    //__wt_scr_free(session, &hs_key);
     WT_TRET(__wt_hs_cursor_close(session, session_flags));
-
-    if (ret != WT_NOTFOUND) {
-        return (ret);
-    }
-
-    return (0);
+    return (ret);
 }
 
 /*

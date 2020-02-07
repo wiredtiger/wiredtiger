@@ -23,7 +23,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     dump_address = dump_blocks = dump_history = dump_layout = dump_pages = hs_verify =
       stable_timestamp = false;
     config = dump_offsets = uri = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "d:S:h")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "d:hS")) != EOF)
         switch (ch) {
         case 'd':
             if (strcmp(__wt_optarg, "dump_address") == 0)
@@ -48,11 +48,11 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             else
                 return (usage());
             break;
-        case 'S':
-            stable_timestamp = true;
-            break;
         case 'h':
             hs_verify = true;
+            break;
+        case 'S':
+            stable_timestamp = true;
             break;
         case '?':
         default:
