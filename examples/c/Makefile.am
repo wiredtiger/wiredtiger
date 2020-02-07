@@ -7,6 +7,8 @@ noinst_PROGRAMS = \
 	ex_access \
 	ex_all \
 	ex_async \
+	ex_backup \
+	ex_backup_block \
 	ex_call_center \
 	ex_config_parse \
 	ex_cursor \
@@ -25,9 +27,6 @@ noinst_PROGRAMS = \
 	ex_stat \
 	ex_sync \
 	ex_thread
-# Move this to the end as autotools treats everything after # as a comment
-# ex_backup
-# ex_backup_block
 
 ex_encrypt_LDFLAGS = -rdynamic
 ex_file_system_LDFLAGS = -rdynamic

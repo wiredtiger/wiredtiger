@@ -31,7 +31,7 @@ import os
 import shutil
 import string
 from suite_subprocess import suite_subprocess
-import unittest, wiredtiger, wttest
+import wiredtiger, wttest
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from helper import compare_files
 
@@ -134,7 +134,6 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
                 self.confirmPathDoesNotExist(self.objs[i][0])
 
     # Test backup of database subsets.
-    @unittest.skip("Temporarily Disabled")
     def test_backup_table(self):
         self.populate(0)
         self.backup_table([0,2,4,6])
