@@ -151,11 +151,9 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
     WT_CONNECTION_STATS **cstats;
     WT_DECL_RET;
     WT_DSRC_STATS **dstats;
-    WT_SESSION_IMPL *tmp_hs_session;
     int64_t v;
 
     conn = S2C(session);
-    tmp_hs_session = NULL;
 
     /*
      * History store table statistics are copied from the underlying history store table data-source
@@ -171,17 +169,10 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
     cstats = conn->stats;
 
     /*
-     * If we are working in context of default session, we need to open a temporary session to
-     * retrieve the history store btree information.
-     */
-    if (session == S2C(session)->default_session)
-        WT_ERR(__hs_start_internal_session(session, &tmp_hs_session));
-
-    /*
      * Get a history store cursor, we need the underlying data handle; we can get to it by way of
      * the underlying btree handle, but it's a little ugly.
      */
-    WT_ERR(__wt_hs_get_btree(tmp_hs_session == NULL ? session : tmp_hs_session, &hs_btree));
+    return(__wt_hs_get_btree(session, &hs_btree));
 
     dstats = hs_btree->dhandle->stats;
 
@@ -197,10 +188,6 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
         WT_STAT_SET(session, dstats, cursor_update, 0);
         WT_STAT_SET(session, dstats, cursor_remove, 0);
     }
-
-err:
-    if (tmp_hs_session != NULL)
-        WT_TRET(__hs_release_internal_session(session, tmp_hs_session));
 
     return (ret);
 }
