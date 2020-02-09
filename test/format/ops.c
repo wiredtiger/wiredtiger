@@ -1027,7 +1027,7 @@ wts_read_scan(void)
     WT_DECL_RET;
     WT_ITEM key, value;
     WT_SESSION *session;
-    uint64_t keyno, last_keyno;
+    uint64_t keyno;
 
     conn = g.wts_conn;
 
@@ -1052,14 +1052,10 @@ wts_read_scan(void)
     testutil_check(ret);
 
     /* Check a random subset of the records using the key. */
-    for (last_keyno = keyno = 0; keyno < g.key_cnt;) {
-        keyno += mmrand(NULL, 1, 17);
+    for (keyno = 0; keyno < g.key_cnt;) {
+        keyno += mmrand(NULL, 1, g.key_cnt / 337);
         if (keyno > g.rows)
             keyno = g.rows;
-        if (keyno - last_keyno > 1000) {
-            track("read row scan", keyno, NULL);
-            last_keyno = keyno;
-        }
 
         switch (ret = read_row_worker(cursor, keyno, &key, &value, false)) {
         case 0:
