@@ -603,8 +603,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              * Impossible slot, there's no backing on-page item.
              */
             cbt->slot = UINT32_MAX;
-            WT_ERR(__wt_value_return_upd(cbt, upd));
-            WT_ERR(__wt_rec_cell_build_val(session, r, cbt->iface.value.data, cbt->iface.value.size,
+            WT_RET(__wt_value_return_upd(cbt, upd));
+            WT_RET(__wt_rec_cell_build_val(session, r, cbt->iface.value.data, cbt->iface.value.size,
               start_ts, start_txn, stop_ts, stop_txn, 0));
             break;
         case WT_UPDATE_STANDARD:

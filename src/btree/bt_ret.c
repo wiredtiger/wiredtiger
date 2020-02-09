@@ -194,11 +194,13 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
     WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
 
     /*
-     * Find a complete update that's visible to us, tracking modifications that are visible to us.
+     * Find a complete update.
      */
     for (; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
+
+        WT_ASSERT(session, upd->type != WT_UPDATE_BIRTHMARK);
 
         if (WT_UPDATE_DATA_VALUE(upd))
             break;
@@ -207,8 +209,10 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
     }
 
-    WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_BIRTHMARK);
-
+    /*
+     * If there's no full update, the base item is the on-page item. If the update is a tombstone,
+     * the base item is an empty item.
+     */
     if (upd == NULL) {
         /*
          * Callers of this function set the cursor slot to an impossible value to check we don't try
