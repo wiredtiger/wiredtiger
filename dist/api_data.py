@@ -1375,7 +1375,7 @@ methods = {
         type='boolean'),
     Config('hs_verify', 'false', r'''
         Verify the history store''',
-        type='boolean')
+        type='boolean'),
     Config('stable_timestamp', 'false', r'''
         Ensure that no valid timestamps after the stable timestamp exist,
         to be run after rollback_to_stable.''',
@@ -1384,7 +1384,7 @@ methods = {
         Treat any verification problem as an error; by default, verify will
         warn, but not fail, in the case of errors that won't affect future
         behavior (for example, a leaked block)''',
-        type='boolean'),
+        type='boolean')
 ]),
 
 'WT_SESSION.begin_transaction' : Method([
