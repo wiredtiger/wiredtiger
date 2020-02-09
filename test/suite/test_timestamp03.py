@@ -154,6 +154,7 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         self.backup_check(check_value, valcnt_ts_log, valcnt_ts_nolog,
             valcnt_nots_log, valcnt_nots_nolog)
 
+    @unittest.skip("Temporarily disabled")
     def test_timestamp03(self):
         uri_ts_log      = self.uri + self.table_ts_log
         uri_ts_nolog    = self.uri + self.table_ts_nolog

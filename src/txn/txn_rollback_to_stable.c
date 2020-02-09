@@ -763,6 +763,11 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, &session));
     ret = __txn_rollback_to_stable(session, cfg);
+    /*
+     * Forcibly log a checkpoint after rollback to stable to ensure that both in-memory and on-disk
+     * versions are same.
+     */
+    WT_TRET(session->iface.checkpoint(&session->iface, "force=1"));
     WT_TRET(session->iface.close(&session->iface, NULL));
 
     return (ret);
