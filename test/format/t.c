@@ -267,15 +267,17 @@ main(int argc, char *argv[])
 
         track("starting up", 0ULL, NULL);
 
+        /* Load and verify initial records */
         wts_open(g.home, true, &g.wts_conn);
         wts_init();
-
-        /* Load and verify initial records */
         TIMED_MAJOR_OP(wts_load());
         TIMED_MAJOR_OP(wts_verify("post-bulk verify"));
         TIMED_MAJOR_OP(wts_read_scan());
+        wts_close();
 
         /* Operations. */
+        wts_reopen();
+        wts_checkpoints();
         for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
             wts_ops(ops_seconds, reps == FORMAT_OPERATION_REPS);
 
