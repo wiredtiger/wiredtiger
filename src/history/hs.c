@@ -161,7 +161,7 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
     if (!F_ISSET(conn, WT_CONN_HS_OPEN))
         return (0);
 
-    if (F_ISSET(conn, WT_CONN_CLOSING))
+    if (conn->default_session == session)
         return (0);
 
     /* Set the connection-wide statistics. */
