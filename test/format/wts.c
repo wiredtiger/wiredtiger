@@ -305,10 +305,10 @@ wts_checkpoints(void)
     /*
      * Configuring WiredTiger library checkpoints is done separately, rather than as part of the
      * original database open because format tests small caches and you can get into cache stuck
-     * trouble during bulk load. Imagine a single thread doing lots of inserts and creating huge
-     * leaf pages. Those pages can't be evicted when there are checkpoints running in the tree and
-     * the cache gets stuck. That workload is unlikely enough the library can't handle it, and we
-     * configure it away here.
+     * trouble during the initial load (where bulk load isn't configured). There's a single thread
+     * doing lots of inserts and creating huge leaf pages. Those pages can't be evicted if there's a
+     * checkpoint running in the tree, and the cache can get stuck. That workload is unlikely enough
+     * we're not going to fix it in the library, so configure it away here.
      */
     if (g.c_checkpoint_flag != CHECKPOINT_WIREDTIGER)
         return;
