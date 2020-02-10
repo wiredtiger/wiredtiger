@@ -578,6 +578,9 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         if (is_dup && !F_ISSET(othercb, WT_CURBACKUP_INCR))
             WT_ERR_MSG(session, EINVAL,
               "Incremental duplicate cursor must have an incremental primary backup cursor");
+        if (is_dup && othercb->incr_src == NULL)
+            WT_ERR_MSG(
+              session, EINVAL, "Incremental primary cursor must have a known source identifier");
         F_SET(cb, WT_CURBACKUP_INCR);
     }
 err:
