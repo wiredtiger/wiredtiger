@@ -15,17 +15,6 @@
 #define WT_HS_SESSION_FLAGS (WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_NO_RECONCILE)
 
 /*
- * __hs_store_time_pair --
- *     Store the time pair to use for the history store inserts.
- */
-static void
-__hs_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_t txnid)
-{
-    session->orig_timestamp_to_las = timestamp;
-    session->orig_txnid_to_las = txnid;
-}
-
-/*
  * __hs_start_internal_session --
  *     Create a temporary internal session to retrieve history store.
  */
