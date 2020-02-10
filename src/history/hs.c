@@ -161,9 +161,6 @@ __wt_hs_stats_update(WT_SESSION_IMPL *session)
     if (!F_ISSET(conn, WT_CONN_HS_OPEN))
         return (0);
 
-    if (conn->default_session == session)
-        return (0);
-
     /* Set the connection-wide statistics. */
     cstats = conn->stats;
 
@@ -256,8 +253,12 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
 int
 __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags)
 {
-    /* We should never reach here if working in context of the default session. */
-    WT_ASSERT(session, S2C(session)->default_session != session);
+    /*
+     * We should never reach here if working in context of the default session. The only exception
+     * is when we are processing connection close requests.
+     */
+    WT_ASSERT(
+      session, S2C(session)->default_session != session || F_ISSET(S2C(session), WT_CONN_CLOSING));
 
     /*
      * We don't want to get tapped for eviction after we start using the history store cursor; save
