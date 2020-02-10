@@ -1053,7 +1053,7 @@ wts_read_scan(void)
 
     /* Check a random subset of the records using the key. */
     for (keyno = 0; keyno < g.key_cnt;) {
-        keyno += mmrand(NULL, 1, 1000));
+        keyno += mmrand(NULL, 1, 1000);
         if (keyno > g.rows)
             keyno = g.rows;
 
