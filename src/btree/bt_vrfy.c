@@ -679,7 +679,6 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
     }
     WT_ERR_NOTFOUND_OK(ret);
 err:
-    //__wt_scr_free(session, &hs_key);
     WT_TRET(__wt_hs_cursor_close(session, session_flags));
     return (ret);
 }
