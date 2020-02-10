@@ -247,6 +247,7 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
         config = 'incremental=(enabled,this_id="ID3")'
         bkup_c = self.session.open_cursor('backup:', None, config)
         ret = bkup_c.next()
+        self.assertTrue(ret == 0)
         newfile = bkup_c.get_key()
         config = 'incremental=(file=' + newfile + ')'
         msg = '/known source identifier/'
