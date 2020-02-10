@@ -151,10 +151,10 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
         for i in range(0, self.nentries):
             key = self.get_key(i)
             value = 0
-            if not write_expected:
-                value = self.get_value(i + random.randint(1, self.nentries))
-            else:
+            if write_expected:
                 value = self.get_value(i)
+            else:
+                value = self.get_value(i + random.randint(1, self.nentries))
             cursor[key] = value
             if write_expected:
                 expectout.write(self.dumpstr(key, hexoutput))
