@@ -1835,13 +1835,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     verify_image = true;
 #endif
 
-    /*
-     * If reconciliation requires multiple blocks and checkpoint is running we'll eventually fail.
-     * It's possible this is a big page that will take a lot of writes, avoid wasted work.
-     */
-    if (!last_block && __wt_btree_ckpt_blocks_eviction(session))
-        return (__wt_set_return(session, EBUSY));
-
     /* Make sure there's enough room for another write. */
     WT_RET(__wt_realloc_def(session, &r->multi_allocated, r->multi_next + 1, &r->multi));
     multi = &r->multi[r->multi_next++];
