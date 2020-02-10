@@ -48,6 +48,18 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
+    def large_modifies(self, uri, value, ds, location, nbytes, nrows, commit_ts):
+        # Load a slight modification.
+        session = self.session
+        cursor = session.open_cursor(uri)
+        session.begin_transaction()
+        for i in range(0, nrows):
+            cursor.set_key(i)
+            mods = [wiredtiger.Modify(value, location, nbytes)]
+            self.assertEqual(cursor.modify(mods), 0)
+        session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+        cursor.close()
+
     def large_removes(self, uri, ds, nrows, commit_ts):
         # Remove a large number of records.
         session = self.session
