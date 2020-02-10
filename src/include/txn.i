@@ -792,8 +792,16 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
             continue;
         upd_visible = __wt_txn_upd_visible_type(session, upd);
         if (upd_visible == WT_VISIBLE_TRUE) {
-            /* Don't consider TOMBSTONE updates for the history store. */
-            if (type == WT_UPDATE_TOMBSTONE && WT_IS_HS(S2BT(session)))
+            /*
+             * Don't consider TOMBSTONE updates for the history store. The only exception is a
+             * tombstone with zero transaction id and timestamp. We apply this special type of
+             * tombstone as a way to indicate that a history store record should be made invisible
+             * by a non-timestamped update succeeding it (rather than manipulating the aggregated
+             * timestamps for garbage collection purposes which is what we generally use tombstones
+             * for in the history store).
+             */
+            if (type == WT_UPDATE_TOMBSTONE && WT_IS_HS(S2BT(session)) &&
+              !(upd->txnid == WT_TXN_NONE && upd->start_ts == WT_TS_NONE))
                 continue;
             *updp = upd;
             return (0);
