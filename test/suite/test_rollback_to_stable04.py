@@ -26,9 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import time, unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
-from wiredtiger import stat
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 def timestamp_str(t):
@@ -37,10 +35,10 @@ def timestamp_str(t):
 def mod_val(value, char, location, nbytes=1):
     return value[0:location] + char + value[location+nbytes:]
 
-# test_rollback_to_stable03.py
+# test_rollback_to_stable04.py
 # Test that rollback to stable always replaces the on-disk value with a full update
 # from the history store.
-class test_rollback_to_stable03(test_rollback_to_stable_base):
+class test_rollback_to_stable04(test_rollback_to_stable_base):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
@@ -48,7 +46,7 @@ class test_rollback_to_stable03(test_rollback_to_stable_base):
         nrows = 10000
 
         # Create a table without logging.
-        uri = "table:rollback_to_stable03"
+        uri = "table:rollback_to_stable04"
         ds = SimpleDataSet(
             self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
         ds.populate()
