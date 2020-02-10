@@ -216,13 +216,12 @@ skip_known_errors()
 
 	# Define each array with multi-signature matching for a single known error
 	# and append it to the skip_error_list
-	err_1=("heap-buffer-overflow" "__split_parent")
-	err_2=("heap-use-after-free" "__wt_btcur_next_random")
-	err_3=("cache clean check: no" "cache dirty check: no" "format run more than 15 minutes past the maximum time")
+	err_1=("heap-buffer-overflow" "__split_parent") # Delete this error line post WT-5518 fix
+	err_2=("heap-use-after-free" "__wt_btcur_next_random") # Delete this error line post WT-5552 fix
 
 	# skip_error_list is the list of errors to skip, and each error could
 	# have multiple signatures to be able to reach a finer match
-	skip_error_list=( err_1[@] err_2[@] err_3[@] )
+	skip_error_list=( err_1[@] err_2[@] )
 
 	# Loop through the skip list and search in the log file.
 	err_count=${#skip_error_list[@]}
@@ -231,12 +230,11 @@ skip_known_errors()
 		# Tokenize the multi-signature error
 		err_tokens[0]=${!skip_error_list[i]:0:1}
 		err_tokens[1]=${!skip_error_list[i]:1:1}
-		err_tokens[2]=${!skip_error_list[i]:2:1}
 
-		grep -q "${err_tokens[0]}" $log && grep -q "${err_tokens[1]}" $log && grep -q "${err_tokens[2]}" $log
+		grep -q "${err_tokens[0]}" $log && grep -q "${err_tokens[1]}" $log
 		
 		[[ $? -eq 0 ]] && {
-			echo "Skip error :  { ${err_tokens[0]} && ${err_tokens[1]} && ${err_tokens[2]} }"
+			echo "Skip error :  { ${err_tokens[0]} && ${err_tokens[1]} }"
 			return 0
 		}
 	done
