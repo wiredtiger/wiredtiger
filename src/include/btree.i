@@ -1735,3 +1735,33 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
 
     return (ret);
 }
+
+/*
+ * __wt_bt_col_var_cursor_walk_txn_read --
+ *     transactionally read the onpage value and the history store for col var cursor walk.
+ */
+static inline int
+__wt_bt_col_var_cursor_walk_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,
+  WT_CELL_UNPACK *unpack, WT_COL *cip, WT_UPDATE **updp)
+{
+    WT_UPDATE *upd;
+
+    upd = NULL;
+    *updp = NULL;
+    cbt->slot = WT_COL_SLOT(page, cip);
+    WT_RET(__wt_txn_read(session, cbt, NULL, unpack, &upd));
+    if (upd == NULL)
+        return (0);
+    if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+            __wt_free_update_list(session, &upd);
+        return (0);
+    }
+
+    *updp = upd;
+    WT_RET(__wt_value_return(cbt, upd));
+    cbt->tmp->data = cbt->iface.value.data;
+    cbt->tmp->size = cbt->iface.value.size;
+    cbt->cip_saved = cip;
+    return (0);
+}
