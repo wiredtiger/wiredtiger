@@ -382,7 +382,9 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
         if (dhandle != session->dhandle && dhandle->session_inuse == 0 &&
           (WT_DHANDLE_INACTIVE(dhandle) ||
               (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time) ||
-              (dhandle->type == WT_DHANDLE_TYPE_BTREE && __wt_btree_bytes_evictable(session) == 0))) {
+              (dhandle->type == WT_DHANDLE_TYPE_BTREE &&
+                __wt_btree_bytes_evictable(session) == 0)
+              )) {
             WT_STAT_CONN_INCR(session, dh_session_handles);
             WT_ASSERT(session, !WT_IS_METADATA(dhandle));
             __session_discard_dhandle(session, dhandle_cache);
