@@ -30,11 +30,10 @@ __hs_start_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sess
  *     Release the temporary internal session started to retrieve history store.
  */
 static int
-__hs_release_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
+__hs_release_internal_session(WT_SESSION_IMPL *int_session)
 {
     WT_SESSION *wt_session;
 
-    WT_UNUSED(session); /* [-Werror=unused-parameter] */
     wt_session = &int_session->iface;
     return (wt_session->close(wt_session, NULL));
 }
@@ -135,7 +134,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
 
 err:
     if (tmp_setup_session != NULL)
-        WT_TRET(__hs_release_internal_session(session, tmp_setup_session));
+        WT_TRET(__hs_release_internal_session(tmp_setup_session));
     return (ret);
 }
 

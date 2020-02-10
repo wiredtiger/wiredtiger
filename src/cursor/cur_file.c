@@ -720,7 +720,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
 
     /*
      * Cursors on metadata should not be cached, doing so interferes with named checkpoints. Also
-     * disable history store cursor caching in case there are being opened in context of default
+     * disable history store cursor caching in case they are being opened in context of default
      * session.
      */
     if (cacheable && strcmp(WT_METAFILE_URI, cursor->internal_uri) != 0 &&
