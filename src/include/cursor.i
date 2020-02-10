@@ -447,38 +447,3 @@ slow:
     cbt->rip_saved = rip;
     return (0);
 }
-
-/*
- * __cursor_row_slot_val_return --
- *     Return a row-store leaf page slot's value.
- */
-static inline int
-__cursor_row_slot_val_return(
-  WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK *kpack, WT_UPDATE *upd)
-{
-    WT_CELL_UNPACK *vpack, _vpack;
-    WT_ITEM *vb;
-    WT_PAGE *page;
-    WT_SESSION_IMPL *session;
-
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
-    page = cbt->ref->page;
-    vpack = &_vpack;
-    vb = &cbt->iface.value;
-
-    /*
-     * If the item was ever modified, use the WT_UPDATE data.  Note the
-     * caller passes us the update: it has already resolved which one
-     * (if any) is visible.
-     */
-    if (upd != NULL)
-        return (__wt_value_return(cbt, upd));
-
-    /* Else, simple values have their location encoded in the WT_ROW. */
-    if (__wt_row_leaf_value(page, rip, vb))
-        return (0);
-
-    /* Else, take the value from the original page cell. */
-    __wt_row_leaf_value_cell(session, page, rip, kpack, vpack);
-    return (__wt_page_cell_data_ref(session, cbt->ref->page, vpack, vb));
-}

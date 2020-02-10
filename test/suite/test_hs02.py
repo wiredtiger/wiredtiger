@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from helper import copy_wiredtiger_home
-import unittest, wiredtiger, wttest
+import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 
 def timestamp_str(t):
@@ -61,7 +61,6 @@ class test_hs02(wttest.WiredTigerTestCase):
         session.rollback_transaction()
         self.assertEqual(count, nrows)
 
-    @unittest.skip("Temporarily disabled")
     def test_hs(self):
         nrows = 10000
 
