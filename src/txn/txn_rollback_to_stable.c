@@ -381,6 +381,7 @@ __rollback_abort_row_reconciled_page_internal(WT_SESSION_IMPL *session, const vo
      */
     WT_CLEAR(tmp);
 
+    mod_page = NULL;
     image_local = image;
 
     if (image_local == NULL) {
@@ -394,15 +395,11 @@ __rollback_abort_row_reconciled_page_internal(WT_SESSION_IMPL *session, const vo
     WT_ROW_FOREACH (mod_page, rip, i)
         WT_ERR_NOTFOUND_OK(
           __rollback_row_ondisk_fixup_key(session, mod_page, rip, rollback_timestamp, false));
-    __wt_page_out(session, &mod_page);
 
-    if (0) {
 err:
-        if (mod_page != NULL)
-            __wt_page_out(session, &mod_page);
-
-        __wt_buf_free(session, &tmp);
-    }
+    if (mod_page != NULL)
+        __wt_page_out(session, &mod_page);
+    __wt_buf_free(session, &tmp);
 
     return (ret);
 }
