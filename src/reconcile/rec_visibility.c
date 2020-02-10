@@ -376,8 +376,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * WT-5469.
              */
             if (upd->start_ts <= upd_select->stop_ts && upd->txnid <= upd_select->stop_txn) {
-                upd_select->start_ts = upd->start_ts;
-                upd_select->durable_ts = upd->durable_ts;
+                upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
+                /* If durable timestamp is provided, use it. */
+                if (upd->durable_ts != WT_TS_NONE)
+                    upd_select->durable_ts = upd->durable_ts;
                 upd_select->start_txn = upd->txnid;
             }
 
