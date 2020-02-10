@@ -183,15 +183,15 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./t ${many_db_args|} 2>&1
+  "thread test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/build_posix/test/thread"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./t ${thread_test_args|} 2>&1
   # Temporarily disabled
-  # "thread test":
-  #   command: shell.exec
-  #   params:
-  #     working_dir: "wiredtiger/build_posix/test/thread"
-  #     script: |
-  #       set -o errexit
-  #       set -o verbose
-  #       ${test_env_vars|} ./t ${thread_test_args|} 2>&1
   # "random abort test":
   #   command: shell.exec
   #   params:
@@ -657,17 +657,16 @@ tasks:
         vars:
           directory: test/salvage
 
-  # Temporarily disabled
-  # - name: thread-test
-  #   tags: ["pull_request"]
-  #   depends_on:
-  #     - name: compile
-  #   commands:
-  #     - func: "fetch artifacts"
-  #     - func: "compile wiredtiger"
-  #     - func: "make check directory"
-  #       vars:
-  #         directory: test/thread
+  - name: thread-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: test/thread
 
   - name: bench-wtperf-test
     tags: ["pull_request"]
@@ -1043,21 +1042,20 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt4699_json 2>&1
 
-  # Temporarily disabled
-  # - name: csuite-wt4803-history-store-abort-test
-  #   tags: ["pull_request"]
-  #   depends_on:
-  #     - name: compile
-  #   commands:
-  #     - func: "fetch artifacts"
-  #     - command: shell.exec
-  #       params:
-  #         working_dir: "wiredtiger/build_posix"
-  #         script: |
-  #           set -o errexit
-  #           set -o verbose
+  - name: csuite-wt4803-history-store-abort-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
 
-  #           ${test_env_vars|} $(pwd)/test/csuite/test_wt4803_history_store_abort 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt4803_history_store_abort 2>&1
 
   - name: csuite-wt4891-meta-ckptlist-get-alloc-test
     tags: ["pull_request"]
@@ -1908,26 +1906,25 @@ tasks:
         vars:
           many_db_args: -I -D 40
 
-      # Temporarily disabled
-      # # extended test/thread runs
-      # - func: "thread test"
-      #   vars:
-      #     thread_test_args: -t f
-      # - func: "thread test"
-      #   vars:
-      #     thread_test_args: -S -F -n 100000 -t f
-      # - func: "thread test"
-      #   vars:
-      #     thread_test_args: -t r
-      # - func: "thread test"
-      #   vars:
-      #     thread_test_args: -S -F -n 100000 -t r
-      # - func: "thread test"
-      #   vars:
-      #     thread_test_args: -t v
-      # - func: "thread test"
-      #   vars:
-      #     thread_test_args: -S -F -n 100000 -t v
+      # extended test/thread runs
+      - func: "thread test"
+        vars:
+          thread_test_args: -t f
+      - func: "thread test"
+        vars:
+          thread_test_args: -S -F -n 100000 -t f
+      - func: "thread test"
+        vars:
+          thread_test_args: -t r
+      - func: "thread test"
+        vars:
+          thread_test_args: -S -F -n 100000 -t r
+      - func: "thread test"
+        vars:
+          thread_test_args: -t v
+      - func: "thread test"
+        vars:
+          thread_test_args: -S -F -n 100000 -t v
 
       # Temporarily disabled
       # # random-abort - default (random time and number of threads)
@@ -2293,6 +2290,8 @@ buildvariants:
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
+    - name: configure-combinations
+    - name: coverage-report
 
 - name: large-scale-test
   display_name: Large scale testing

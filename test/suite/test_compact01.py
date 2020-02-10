@@ -61,7 +61,6 @@ class test_compact(wttest.WiredTigerTestCase, suite_subprocess):
         'eviction_dirty_target=80,eviction_dirty_trigger=95,statistics=(all)'
 
     # Test compaction.
-    @unittest.skip("Temporarily disabled")
     def test_compact(self):
         # Populate an object
         uri = self.type + self.name

@@ -110,7 +110,6 @@ class test_txn09(wttest.WiredTigerTestCase, suite_subprocess):
         self.check(self.session2, "isolation=read-committed", committed)
         self.check(self.session2, "isolation=read-uncommitted", current)
 
-    @unittest.skip("Temporarily disabled")
     def test_ops(self):
         # print "Creating %s with config '%s'" % (self.uri, self.create_params)
         self.session.create(self.uri, self.create_params)

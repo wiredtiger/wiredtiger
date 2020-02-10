@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
 static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int __ckpt_load_blk_mods(WT_SESSION_IMPL *, const char *, WT_CKPT *);
@@ -34,7 +33,12 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
     conn = S2C(session);
     if (config == NULL)
         return (0);
-    WT_RET(__wt_config_getones(session, config, "checkpoint_backup_info", &v));
+    /*
+     * We could be reading in a configuration from an earlier release. If the string doesn't exist
+     * then we're done.
+     */
+    if ((ret = __wt_config_getones(session, config, "checkpoint_backup_info", &v)) != 0)
+        return (ret == WT_NOTFOUND ? 0 : ret);
     __wt_config_subinit(session, &blkconf, &v);
     /*
      * Load block lists. Ignore any that have an id string that is not known.
@@ -107,7 +111,7 @@ __wt_meta_checkpoint(
      * default checkpoint, it's creation, return "no data" and let our caller handle it.
      */
     if (checkpoint == NULL) {
-        if ((ret = __ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
+        if ((ret = __wt_ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
             ret = 0;
             ckpt->addr.data = ckpt->raw.data = NULL;
             ckpt->addr.size = ckpt->raw.size = 0;
@@ -230,11 +234,11 @@ __ckpt_named(WT_SESSION_IMPL *session, const char *checkpoint, const char *confi
 }
 
 /*
- * __ckpt_last --
+ * __wt_ckpt_last --
  *     Return the information associated with the file's last checkpoint.
  */
-static int
-__ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
+int
+__wt_ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM a, k, v;
@@ -616,7 +620,7 @@ format:
  *     Set the connection's base write generation.
  */
 int
-__wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session)
+__wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session, uint64_t max_write_gen)
 {
     WT_CKPT ckpt;
 
@@ -626,7 +630,7 @@ __wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session)
      * We track the maximum page generation we've ever seen, and I'm not interested in debugging
      * off-by-ones.
      */
-    S2C(session)->base_write_gen = ckpt.write_gen + 1;
+    S2C(session)->base_write_gen = WT_MAX(ckpt.write_gen, max_write_gen) + 1;
 
     __wt_meta_checkpoint_free(session, &ckpt);
 
@@ -757,11 +761,11 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
-        WT_RET(__wt_raw_to_hex(session, blk->bitstring.mem, blk->nbits >> 3, &bitstring));
+        WT_RET(__wt_raw_to_hex(session, blk->bitstring.data, blk->bitstring.size, &bitstring));
         WT_RET(__wt_buf_catfmt(session, buf, "%s%s=(id=%" PRIu32 ",granularity=%" PRIu64
                                              ",nbits=%" PRIu64 ",offset=%" PRIu64 ",blocks=%.*s)",
           i == 0 ? "" : ",", blk->id_str, i, blk->granularity, blk->nbits, blk->offset,
-          (int)bitstring.size, (char *)bitstring.mem));
+          (int)bitstring.size, (char *)bitstring.data));
         __wt_buf_free(session, &bitstring);
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));

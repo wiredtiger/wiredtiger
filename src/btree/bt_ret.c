@@ -163,13 +163,12 @@ __value_return(WT_CURSOR_BTREE *cbt)
  *     Change the cursor to reference an internal update structure return value.
  */
 int
-__wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool ignore_visibility)
+__wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_MODIFY_VECTOR modifies;
     WT_SESSION_IMPL *session;
-    bool skipped_birthmark;
 
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -195,17 +194,11 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool ignore_visibili
     WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
 
     /*
-     * Find a complete update that's visible to us, tracking modifications that are visible to us.
+     * Find a complete update.
      */
-    for (skipped_birthmark = false; upd != NULL; upd = upd->next) {
+    for (; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
-
-        if (!ignore_visibility && !__wt_txn_upd_visible(session, upd)) {
-            if (upd->type == WT_UPDATE_BIRTHMARK)
-                skipped_birthmark = true;
-            continue;
-        }
 
         if (upd->type == WT_UPDATE_BIRTHMARK) {
             upd = NULL;
@@ -215,38 +208,24 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool ignore_visibili
         if (WT_UPDATE_DATA_VALUE(upd))
             break;
 
-        if (upd->type == WT_UPDATE_MODIFY) {
+        if (upd->type == WT_UPDATE_MODIFY)
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
-
-            /*
-             * Once a modify is found, all previously committed modifications should be applied
-             * regardless of visibility.
-             */
-            ignore_visibility = true;
-        }
     }
 
     /*
-     * If there's no visible update and we skipped a birthmark, the base item is an empty item (in
-     * other words, birthmarks we can't read act as tombstones). If there's no visible update and we
-     * didn't skip a birthmark, the base item is the on-page item, which must be globally visible.
-     * If there's a visible update and it's a tombstone, the base item is an empty item. If there's
-     * a visible update and it's not a tombstone, the base item is the on-page item.
+     * If there's no full update, the base item is the on-page item. If the update is a tombstone,
+     * the base item is an empty item.
      */
     if (upd == NULL) {
-        if (skipped_birthmark)
-            WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
-        else {
-            /*
-             * Callers of this function set the cursor slot to an impossible value to check we don't
-             * try and return on-page values when the update list should have been sufficient (which
-             * happens, for example, if an update list was truncated, deleting some standard update
-             * required by a previous modify update). Assert the case.
-             */
-            WT_ASSERT(session, cbt->slot != UINT32_MAX);
+        /*
+         * Callers of this function set the cursor slot to an impossible value to check we don't try
+         * and return on-page values when the update list should have been sufficient (which
+         * happens, for example, if an update list was truncated, deleting some standard update
+         * required by a previous modify update). Assert the case.
+         */
+        WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
-            WT_ERR(__value_return(cbt));
-        }
+        WT_ERR(__value_return(cbt));
     } else if (upd->type == WT_UPDATE_TOMBSTONE)
         WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
     else
@@ -307,7 +286,7 @@ __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
     if (upd == NULL)
         WT_RET(__value_return(cbt));
     else
-        WT_RET(__wt_value_return_upd(cbt, upd, false));
+        WT_RET(__wt_value_return_upd(cbt, upd));
     F_SET(cursor, WT_CURSTD_VALUE_INT);
     return (0);
 }
