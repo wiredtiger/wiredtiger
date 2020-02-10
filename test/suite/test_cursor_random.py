@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import unittest, wiredtiger, wttest
+import wiredtiger, wttest
 from wtdataset import SimpleDataSet, ComplexDataSet, simple_key, simple_value
 from wtscenario import make_scenarios
 
@@ -148,7 +148,6 @@ class test_cursor_random(wttest.WiredTigerTestCase):
 
     # Check that next_random succeeds in the presence of a set of values, some of
     # which are deleted.
-    @unittest.skip("Temporarily Disabled")
     def test_cursor_random_deleted_partial(self):
         uri = self.type
         ds = self.dataset(self, uri, 10000,
