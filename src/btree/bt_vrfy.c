@@ -252,33 +252,41 @@ err:
  *     information and is used for verifying timestamp range overlaps.
  */
 static int
-__verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, WT_VSTUFF *vs)
+__verify_key_hs(WT_SESSION_IMPL *session_impl, WT_ITEM *key, WT_CELL_UNPACK *unpack, WT_VSTUFF *vs)
 {
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
+    WT_SESSION *session;
     WT_TIME_PAIR prev_start, start, stop;
     uint32_t hs_btree_id, session_flags;
     int cmp, exact;
 
-    btree = S2BT(session);
+    btree = S2BT(session_impl);
     hs_btree_id = btree->id;
     /* Set the data store timestamp and transactions to initiate timestamp range verification */
     prev_start.timestamp = unpack->start_ts;
     prev_start.txnid = unpack->start_txn;
+    session = &(session_impl->iface);
     session_flags = 0;
     stop.timestamp = 0;
     stop.txnid = 0;
 
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+    WT_ERR(__wt_scr_alloc(session_impl, 0, &hs_key));
 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
-     * and iterate backwards until we reach a different key or btree.
+     * and iterate backwards until we reach a different key or btree. We need to wrap this in a
+     * snapshot transaction to ensure that modifications done whilst iterating the history store
+     * don't cause false positives.
      */
-    WT_ERR(__wt_hs_cursor(session, &session_flags));
-    hs_cursor = session->hs_cursor;
+    if ((ret = session->begin_transaction(session, "isolation=snapshot")) != 0) {
+        WT_ERR(__wt_msg(session_impl, "Could not open a transaction for the hs_cursor"));
+        goto err;
+    }
+    WT_ERR(__wt_hs_cursor(session_impl, &session_flags));
+    hs_cursor = session_impl->hs_cursor;
     hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
     WT_ERR(hs_cursor->search_near(hs_cursor, &exact));
 
@@ -293,46 +301,49 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
         if (hs_btree_id != btree->id)
             break;
 
-        WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+        WT_ERR(__wt_compare(session_impl, NULL, hs_key, key, &cmp));
         if (cmp != 0)
             break;
 
 #ifdef HAVE_DIAGNOSTIC
         /* Optionally dump historical time pairs and values in debug mode. */
         if (vs->dump_history)
-            WT_ERR(__wt_debug_cursor_hs(session, hs_cursor));
+            WT_ERR(__wt_debug_cursor_hs(session_impl, hs_cursor));
 #else
         WT_UNUSED(vs);
 #endif
 
         /*
-         * verify that the current record's stop time pair doesn't overlap with the start time pair
-         * of its successor
+         * Verify that the current record's stop time pair doesn't overlap with the start time pair
+         * of its successor.
          */
         if (prev_start.timestamp < stop.timestamp) {
-            WT_ERR_MSG(session, WT_ERROR,
+            WT_ERR_MSG(session_impl, WT_ERROR,
               "In the Btree %" PRIu32
               ", Key %s has a overlap of "
               "timestamp ranges between history store stop timestamp %s being "
               "newer than a more recent timestamp range having start timestamp %s",
-              hs_btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
+              hs_btree_id,
+              __wt_buf_set_printable(session_impl, hs_key->data, hs_key->size, vs->tmp1),
               __verify_timestamp_to_pretty_string(stop.timestamp),
               __verify_timestamp_to_pretty_string(prev_start.timestamp));
         }
         if (prev_start.txnid < stop.txnid) {
-            WT_ERR_MSG(session, WT_ERROR,
+            WT_ERR_MSG(session_impl, WT_ERROR,
               "In the Btree %" PRIu32
               ", Key %s has a overlap of "
               "timestamp ranges between history store stop transaction (%" PRIu64
               ") being "
               "newer than a more recent timestamp range having start transaction (%" PRIu64 ")",
-              hs_btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
+              hs_btree_id,
+              __wt_buf_set_printable(session_impl, hs_key->data, hs_key->size, vs->tmp1),
               stop.txnid, prev_start.txnid);
         }
         prev_start.timestamp = start.timestamp;
         prev_start.txnid = start.txnid;
 
-        WT_ERR(__verify_ts_stable_cmp(session, key, NULL, 0, start.timestamp, stop.timestamp, vs));
+        WT_ERR(
+          __verify_ts_stable_cmp(session_impl, key, NULL, 0, start.timestamp, stop.timestamp, vs));
     }
     WT_ERR_NOTFOUND_OK(ret);
 
@@ -341,8 +352,9 @@ err:
     if (ret == WT_NOTFOUND)
         ret = 0;
 
-    __wt_scr_free(session, &hs_key);
-    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    __wt_scr_free(session_impl, &hs_key);
+    WT_TRET(__wt_hs_cursor_close(session_impl, session_flags));
+    WT_TRET(session->commit_transaction(session, NULL));
 
     return (ret);
 }
