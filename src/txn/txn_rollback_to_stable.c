@@ -202,9 +202,9 @@ __txn_abort_row_replace_with_hs_value(
 
         /* Get current value and convert to full update if it is a modify. */
         WT_ERR(hs_cursor->get_value(hs_cursor, &durable_ts, &prepare_state, &type, hs_value));
-        if (type == WT_UPDATE_MODIFY) {
+        if (type == WT_UPDATE_MODIFY)
             WT_ERR(__wt_modify_apply_item(session, &full_value, hs_value->data, false));
-        } else {
+        else {
             WT_ASSERT(session, type == WT_UPDATE_STANDARD);
             WT_ERR(__wt_buf_set(session, &full_value, hs_value->data, hs_value->size));
         }
