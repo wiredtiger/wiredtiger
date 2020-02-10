@@ -624,8 +624,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor, *data_cursor;
     WT_DECL_RET;
-    WT_ITEM hs_key;
-    WT_ITEM prev_hs_key;
+    WT_ITEM hs_key, prev_hs_key;
     WT_TIME_PAIR hs_start, hs_stop;
     uint32_t btree_id, session_flags, prev_btree_id;
     int cmp;
