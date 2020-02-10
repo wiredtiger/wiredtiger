@@ -11,7 +11,7 @@
 void
 util_copyright(void)
 {
-    printf("%s\n", "Copyright (c) 2008-2019 MongoDB, Inc.");
+    printf("%s\n", "Copyright (c) 2008-2020 MongoDB, Inc.");
     printf("%s\n\n", "All rights reserved.");
 
     printf("%s\n\n",
