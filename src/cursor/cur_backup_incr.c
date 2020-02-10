@@ -115,7 +115,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
           cb->granularity, WT_BACKUP_RANGE);
     } else if (btree == NULL || F_ISSET(cb, WT_CURBACKUP_FORCE_FULL)) {
         /* We don't have this object's incremental information, and it's a full file copy. */
-        WT_RET(__wt_scr_alloc(session, 0, &buf));
+        WT_ERR(__wt_scr_alloc(session, 0, &buf));
         free_buf = true;
         /* If this is a log file, use the full pathname that may include the log path. */
         file = cb->incr_file;
