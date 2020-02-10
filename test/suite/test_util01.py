@@ -146,7 +146,7 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
         return b.strip(b'\x00').decode() + '\n'
 
     def write_entries(self, cursor, expectout, hexoutput, commit_timestamp, write_expected):
-        if commit_timestamp:
+        if commit_timestamp is not None:
             self.session.begin_transaction()
         for i in range(0, self.nentries):
             key = self.get_key(i)
@@ -159,7 +159,7 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
             if write_expected:
                 expectout.write(self.dumpstr(key, hexoutput))
                 expectout.write(self.dumpstr(value, hexoutput))
-        if commit_timestamp:
+        if commit_timestamp is not None:
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_timestamp))
 
     def dump(self, usingapi, hexoutput, commit_timestamp, read_timestamp):
@@ -182,7 +182,7 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
                 expectout.write('table:' + self.tablename + '\n')
                 expectout.write('colgroups=,columns=,' + params + '\n')
                 expectout.write('Data\n')
-            if commit_timestamp and read_timestamp:
+            if commit_timestamp is not None and read_timestamp is not None:
                 if commit_timestamp == read_timestamp:
                     self.write_entries(cursor, expectout, hexoutput, commit_timestamp, True)
                     self.write_entries(cursor, expectout, hexoutput, commit_timestamp + 1, False)
