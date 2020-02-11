@@ -463,7 +463,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      */
     if (__rec_need_save_upd(
           session, upd_select->upd, max_txn, max_ts, list_uncommitted, r->flags)) {
-        WT_ASSERT(session, r->max_txn != WT_TS_NONE);
+        /* During recovery, there are no transaction id's. */
+        if (!F_ISSET(S2C(session), WT_CONN_RECOVERING))
+            WT_ASSERT(session, r->max_txn != WT_TS_NONE);
 
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
         upd_select->upd_saved = true;

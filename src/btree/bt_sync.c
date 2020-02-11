@@ -499,11 +499,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
 
             /*
-             * Write dirty pages, if we can't skip them. If we skip a page, mark the tree dirty. The
-             * checkpoint marked it clean and we can't skip future checkpoints until this page is
-             * written.
+             * Write dirty pages, if we can't skip them except for history store. As part of
+             * checkpoint, history store gets populated, so we shouldn't ignore the changes in this
+             * checkpoint. If we skip a page, mark the tree dirty. The checkpoint marked it clean
+             * and we can't skip future checkpoints until this page is written.
              */
-            if (__sync_checkpoint_can_skip(session, page)) {
+            if (!is_hs && __sync_checkpoint_can_skip(session, page)) {
                 __wt_tree_modify_set(session);
                 continue;
             }

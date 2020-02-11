@@ -154,7 +154,6 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         self.backup_check(check_value, valcnt_ts_log, valcnt_ts_nolog,
             valcnt_nots_log, valcnt_nots_nolog)
 
-    @unittest.skip("Temporarily disabled")
     def test_timestamp03(self):
         uri_ts_log      = self.uri + self.table_ts_log
         uri_ts_nolog    = self.uri + self.table_ts_nolog
@@ -306,9 +305,56 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
             self.check(self.session, 'read_timestamp=' + timestamp_str(t + 100),
                 self.table_nots_nolog, dict((k, self.value2) for k in orig_keys))
 
-        # Take a checkpoint using the given configuration.
-        # All tables will have new values
-        self.ckpt_backup(self.value2, nkeys, nkeys, nkeys, nkeys)
+        # Take a checkpoint using the given configuration.  Then verify
+        # whether value2 appears in a copy of that data or not.
+        valcnt_ts_log = valcnt_nots_log = valcnt_nots_nolog = nkeys
+        if self.ckpt_ts == False:
+            # if use_timestamp is false, then all updates will be checkpointed.
+            valcnt_ts_nolog = nkeys
+        else:
+            # Checkpoint will happen with stable_timestamp=100.
+            if self.using_log == True:
+                # only table_ts_nolog will have old values when logging is enabled
+                self.ckpt_backup(self.value, 0, nkeys, 0, 0)
+            else:
+                # Both table_ts_nolog and table_ts_log will have old values when
+                # logging is disabled.
+                self.ckpt_backup(self.value, nkeys, nkeys, 0, 0)
+            # table_ts_nolog will not have any new values (i.e. value2)
+            valcnt_ts_nolog = 0
+
+        if self.ckpt_ts == False:
+            valcnt_ts_log = nkeys
+        # Take a checkpoint using the given configuration.  Then verify
+        # whether value2 appears in a copy of that data or not.
+        valcnt_ts_log = valcnt_nots_log = valcnt_nots_nolog = nkeys
+        if self.ckpt_ts == False:
+            # if use_timestamp is false, then all updates will be checkpointed.
+            valcnt_ts_nolog = nkeys
+        else:
+            # Checkpoint will happen with stable_timestamp=100.
+            if self.using_log == True:
+                # only table_ts_nolog will have old values when logging is enabled
+                self.ckpt_backup(self.value, 0, nkeys, 0, 0)
+            else:
+                # Both table_ts_nolog and table_ts_log will have old values when
+                # logging is disabled.
+                self.ckpt_backup(self.value, nkeys, nkeys, 0, 0)
+            # table_ts_nolog will not have any new values (i.e. value2)
+            valcnt_ts_nolog = 0
+
+        if self.ckpt_ts == False:
+            valcnt_ts_log = nkeys
+        else:
+            # When log is enabled, table_ts_log will have all new values, else
+            # none.
+            if self.using_log == True:
+                valcnt_ts_log = nkeys
+            else:
+                valcnt_ts_log = 0
+
+        self.ckpt_backup(self.value2, valcnt_ts_log, valcnt_ts_nolog,
+            valcnt_nots_log, valcnt_nots_nolog)
 
         # Update the stable_timestamp to the latest, but not the
         # oldest_timestamp and make sure we can see the data.  Once the
