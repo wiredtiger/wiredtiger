@@ -867,7 +867,9 @@ static const char *const __stats_connection_desc[] = {
   "transaction: read timestamp queue insert to empty",
   "transaction: read timestamp queue inserts to head",
   "transaction: read timestamp queue inserts total", "transaction: read timestamp queue length",
-  "transaction: rollback to stable calls", "transaction: rollback to stable updates aborted",
+  "transaction: rollback to stable calls", "transaction: rollback to stable keys removed",
+  "transaction: rollback to stable keys restored", "transaction: rollback to stable pages visited",
+  "transaction: rollback to stable updates aborted",
   "transaction: rollback to stable updates removed from history store",
   "transaction: set timestamp calls", "transaction: set timestamp durable calls",
   "transaction: set timestamp durable updates", "transaction: set timestamp oldest calls",
@@ -1308,6 +1310,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_read_queue_inserts = 0;
     stats->txn_read_queue_len = 0;
     stats->txn_rollback_to_stable = 0;
+    stats->txn_rollback_keys_removed = 0;
+    stats->txn_rollback_keys_restored = 0;
+    stats->txn_rollback_pages_visited = 0;
     stats->txn_rollback_upd_aborted = 0;
     stats->txn_rollback_hs_removed = 0;
     stats->txn_set_ts = 0;
@@ -1753,6 +1758,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_read_queue_inserts += WT_STAT_READ(from, txn_read_queue_inserts);
     to->txn_read_queue_len += WT_STAT_READ(from, txn_read_queue_len);
     to->txn_rollback_to_stable += WT_STAT_READ(from, txn_rollback_to_stable);
+    to->txn_rollback_keys_removed += WT_STAT_READ(from, txn_rollback_keys_removed);
+    to->txn_rollback_keys_restored += WT_STAT_READ(from, txn_rollback_keys_restored);
+    to->txn_rollback_pages_visited += WT_STAT_READ(from, txn_rollback_pages_visited);
     to->txn_rollback_upd_aborted += WT_STAT_READ(from, txn_rollback_upd_aborted);
     to->txn_rollback_hs_removed += WT_STAT_READ(from, txn_rollback_hs_removed);
     to->txn_set_ts += WT_STAT_READ(from, txn_set_ts);

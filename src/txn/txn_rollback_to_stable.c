@@ -233,6 +233,7 @@ __txn_abort_row_replace_with_hs_value(
         upd->txnid = WT_TXN_NONE;
         upd->durable_ts = WT_TS_NONE;
         upd->start_ts = WT_TS_NONE;
+        WT_STAT_CONN_INCR(session, txn_rollback_keys_removed);
     }
 
     WT_ERR(__txn_row_add_update(session, page, rip, upd));
@@ -302,6 +303,7 @@ __txn_abort_row_ondisk_kv(
         upd->txnid = vpack->start_txn;
         upd->durable_ts = vpack->start_ts;
         upd->start_ts = vpack->start_ts;
+        WT_STAT_CONN_INCR(session, txn_rollback_keys_restored);
     } else
         /* Stable version according to the timestamp. */
         return (0);
@@ -474,6 +476,7 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
         }
         page = ref->page;
     }
+    WT_STAT_CONN_INCR(session, txn_rollback_pages_visited);
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
