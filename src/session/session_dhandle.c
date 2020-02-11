@@ -362,9 +362,10 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DATA_HANDLE_CACHE *dhandle_cache, *dhandle_cache_tmp;
-    uint64_t now;
+    uint64_t evict_bytes, now;
 
     conn = S2C(session);
+    evict_bytes = 0;
 
     /*
      * Periodically sweep for dead handles; if we've swept recently, don't do it again.
@@ -379,11 +380,13 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
     TAILQ_FOREACH_SAFE(dhandle_cache, &session->dhandles, q, dhandle_cache_tmp)
     {
         dhandle = dhandle_cache->dhandle;
+        if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
+            WT_WITH_DHANDLE(session, dhandle, evict_bytes = __wt_btree_bytes_evictable(session));
+
         if (dhandle != session->dhandle && dhandle->session_inuse == 0 &&
           (WT_DHANDLE_INACTIVE(dhandle) ||
               (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time) ||
-              (dhandle->type == WT_DHANDLE_TYPE_BTREE &&
-                __wt_btree_bytes_evictable(session) == 0))) {
+              (dhandle->type == WT_DHANDLE_TYPE_BTREE && evict_bytes == 0))) {
             WT_STAT_CONN_INCR(session, dh_session_handles);
             WT_ASSERT(session, !WT_IS_METADATA(dhandle));
             __session_discard_dhandle(session, dhandle_cache);
