@@ -113,9 +113,13 @@ new_page:
     cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
     if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
         cbt->ins = NULL;
+    /*
+     * FIXME-PM-1523: Now we only do transaction read if we have an update chain and it doesn't work
+     * in durable history. Review this when we have a plan for fixed-length column store.
+     */
     if (cbt->ins != NULL)
 restart_read:
-    WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
+    WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, NULL, &upd));
     if (upd == NULL) {
         cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
         cbt->iface.value.data = &cbt->v;
@@ -280,9 +284,11 @@ restart_read:
                 --cbt->recno;
                 continue;
             }
-            WT_RET(__wt_page_cell_data_ref(session, page, &unpack, cbt->tmp));
 
-            cbt->cip_saved = cip;
+            WT_RET(__wt_bt_col_var_cursor_walk_txn_read(session, cbt, page, &unpack, cip, &upd));
+            if (upd == NULL)
+                continue;
+            return (0);
         }
         cbt->iface.value.data = cbt->tmp->data;
         cbt->iface.value.size = cbt->tmp->size;
@@ -391,7 +397,9 @@ restart_read_insert:
 restart_read_page:
         rip = &page->pg_row[cbt->slot];
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
-        WT_RET(__wt_txn_read(session, cbt, WT_ROW_UPDATE(page, rip), &upd));
+        WT_RET(__wt_txn_read(session, cbt, WT_ROW_UPDATE(page, rip), NULL, &upd));
+        if (upd == NULL)
+            continue;
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
             if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                 ++cbt->page_deleted_count;
@@ -399,7 +407,7 @@ restart_read_page:
                 __wt_free_update_list(session, &upd);
             continue;
         }
-        return (__cursor_row_slot_val_return(cbt, rip, kpack_used ? &kpack : NULL, upd));
+        return (__wt_value_return(cbt, upd));
     }
     /* NOTREACHED */
 }
