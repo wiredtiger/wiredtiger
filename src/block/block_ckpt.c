@@ -675,7 +675,7 @@ __ckpt_add_blkmod_entry(
             WT_RET(__wt_buf_initsize(session, &blk_mod->bitstring, end_rdup));
             memset(blk_mod->bitstring.mem, 0, end_rdup);
         } else
-            WT_RET(__wt_buf_extend(session, &blk_mod->bitstring, end_rdup));
+            WT_RET(__wt_buf_set(session, &blk_mod->bitstring, blk_mod->bitstring.data, end_rdup));
         blk_mod->nbits = end_rdup << 3;
     }
 

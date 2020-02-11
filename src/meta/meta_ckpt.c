@@ -764,6 +764,8 @@ __ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
                                              ",nbits=%" PRIu64 ",offset=%" PRIu64 ",blocks=%.*s)",
           i == 0 ? "" : ",", blk->id_str, i, blk->granularity, blk->nbits, blk->offset,
           (int)bitstring.size, (char *)bitstring.data));
+        /* The hex string length should match the appropriate number of bits. */
+        WT_ASSERT(session, (blk->nbits >> 2) <= bitstring.size);
         __wt_buf_free(session, &bitstring);
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
