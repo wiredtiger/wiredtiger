@@ -1054,11 +1054,13 @@ __wt_prepare_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_sessi
 {
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
-    uint32_t old_state;
-    bool cas_result;
+    uint64_t sleep_usec, yield_count;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+
+    sleep_usec = 10;
+    yield_count = 0;
 
     if (!pfh->mmap_file_mappable)
         return;
@@ -1068,10 +1070,10 @@ __wt_prepare_remap_resize_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_sessi
 
 wait:
     /* Wait until it looks like no one is resizing the region */
-    while ((old_state = pfh->mmap_resizing) == 1)
-        WT_PAUSE();
+    while (pfh->mmap_resizing == 1)
+        __wt_spin_backoff(&yield_count, &sleep_usec);
 
-    if ((cas_result = __wt_atomic_casv32(&pfh->mmap_resizing, old_state, 1)) == false)
+    if (__wt_atomic_casv32(&pfh->mmap_resizing, 0, 1) == false)
         goto wait;
 
     /*
@@ -1079,7 +1081,7 @@ wait:
      * flag, new sessions will not use the region, defaulting to system calls instead.
      */
     while (pfh->mmap_usecount > 0)
-        WT_PAUSE();
+        __wt_spin_backoff(&yield_count, &sleep_usec);
 }
 
 /*
