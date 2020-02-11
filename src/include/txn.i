@@ -887,7 +887,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
      * Return null not tombstone if nothing is found in history store.
      */
     WT_ASSERT(session,
-      upd == NULL || (upd->type != WT_UPDATE_BIRTHMARK && upd->type != WT_UPDATE_TOMBSTONE));
+      (*updp) == NULL || ((*updp)->type != WT_UPDATE_BIRTHMARK && (*updp)->type != WT_UPDATE_TOMBSTONE));
 
     /*
      * FIXME-PM-1521: We call transaction read in a lot of places so we can't do this yet. When we
