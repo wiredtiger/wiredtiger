@@ -92,13 +92,16 @@ __curbackup_incr_next(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     wt_off_t size;
+    uint32_t raw;
     const char *file;
     bool free_buf;
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     btree = cb->incr_cursor == NULL ? NULL : ((WT_CURSOR_BTREE *)cb->incr_cursor)->btree;
+    raw = F_MASK(cursor, WT_CURSTD_RAW);
     free_buf = false;
     CURSOR_API_CALL(cursor, session, get_value, btree);
+    F_CLR(cursor, WT_CURSTD_RAW);
 
     if (cb->incr_init) {
         /* Look for the next chunk that had modifications.  */
@@ -149,6 +152,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
     }
 
 err:
+    F_SET(cursor, raw);
     if (free_buf)
         __wt_scr_free(session, &buf);
     API_END_RET(session, ret);
