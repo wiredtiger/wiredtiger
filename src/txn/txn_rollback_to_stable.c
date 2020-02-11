@@ -159,12 +159,12 @@ __txn_abort_row_replace_with_hs_value(
     WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
 
     /* Get the full update value from the data store. */
-    unpack = &_unpack;
-    __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
     WT_CLEAR(ds_value);
-    if (!__wt_row_leaf_value(page, rip, &ds_value))
+    if (!__wt_row_leaf_value(page, rip, &ds_value)) {
+        unpack = &_unpack;
+        __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
         WT_ERR(__wt_page_cell_data_ref(session, page, unpack, &ds_value));
-
+    }
     WT_CLEAR(full_value);
     WT_ERR(__wt_buf_set(session, &full_value, ds_value.data, ds_value.size));
 
@@ -275,6 +275,7 @@ err:
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
+    __wt_buf_free(session, &ds_value);
     __wt_buf_free(session, &full_value);
     __wt_free(session, hs_upd);
     __wt_free(session, upd);
