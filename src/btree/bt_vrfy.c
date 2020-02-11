@@ -258,7 +258,6 @@ __verify_key_hs(WT_SESSION_IMPL *session_impl, WT_ITEM *key, WT_CELL_UNPACK *unp
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
-    WT_SESSION *session;
     WT_TIME_PAIR prev_start, start, stop;
     uint32_t hs_btree_id, session_flags;
     int cmp, exact;
@@ -268,7 +267,6 @@ __verify_key_hs(WT_SESSION_IMPL *session_impl, WT_ITEM *key, WT_CELL_UNPACK *unp
     /* Set the data store timestamp and transactions to initiate timestamp range verification */
     prev_start.timestamp = unpack->start_ts;
     prev_start.txnid = unpack->start_txn;
-    session = &(session_impl->iface);
     session_flags = 0;
     stop.timestamp = 0;
     stop.txnid = 0;
@@ -277,14 +275,12 @@ __verify_key_hs(WT_SESSION_IMPL *session_impl, WT_ITEM *key, WT_CELL_UNPACK *unp
 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
-     * and iterate backwards until we reach a different key or btree. We need to wrap this in a
-     * snapshot transaction to ensure that modifications done whilst iterating the history store
-     * don't cause false positives.
+     * and iterate backwards until we reach a different key or btree. We need to do this in a
+     * snapshot to ensure that modifications done whilst iterating the history store don't cause
+     * false positives.
      */
-    if ((ret = session->begin_transaction(session, "isolation=snapshot")) != 0) {
-        WT_ERR(__wt_msg(session_impl, "Could not open a transaction for the hs_cursor"));
-        goto err;
-    }
+    __wt_txn_get_snapshot(session_impl);
+
     WT_ERR(__wt_hs_cursor(session_impl, &session_flags));
     hs_cursor = session_impl->hs_cursor;
     hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
@@ -354,7 +350,8 @@ err:
 
     __wt_scr_free(session_impl, &hs_key);
     WT_TRET(__wt_hs_cursor_close(session_impl, session_flags));
-    WT_TRET(session->commit_transaction(session, NULL));
+
+    __wt_txn_release_snapshot(session_impl);
 
     return (ret);
 }
