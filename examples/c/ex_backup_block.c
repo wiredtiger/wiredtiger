@@ -127,16 +127,16 @@ setup_directories(void)
          * For incremental backups we need 0-N. The 0 incremental directory will compare with the
          * original at the end.
          */
-        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d && mkdir %s.%d && mkdir %s.%d/%s", home_incr,
-          i, home_incr, i, home_incr, i, logpath);
+        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d && mkdir -p %s.%d/%s", home_incr, i,
+          home_incr, i, logpath);
         error_check(system(buf));
         if (i == 0)
             continue;
         /*
          * For full backups we need 1-N.
          */
-        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d && mkdir %s.%d && mkdir %s.%d/%s", home_full,
-          i, home_full, i, home_full, i, logpath);
+        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d && mkdir -p %s.%d/%s", home_full, i,
+          home_full, i, logpath);
         error_check(system(buf));
     }
 }
@@ -455,10 +455,7 @@ main(int argc, char *argv[])
     (void)argc; /* Unused variable */
     (void)testutil_set_progname(argv);
 
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "rm -rf %s && mkdir %s", home, home);
-    error_check(system(cmd_buf));
-    (void)snprintf(
-      cmd_buf, sizeof(cmd_buf), "rm -rf %s/%s && mkdir %s/%s", home, logpath, home, logpath);
+    (void)snprintf(cmd_buf, sizeof(cmd_buf), "rm -rf %s && mkdir -p %s/%s", home, home, logpath);
     error_check(system(cmd_buf));
     error_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
 
