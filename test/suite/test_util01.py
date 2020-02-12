@@ -236,7 +236,6 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
     def test_dump_process_timestamp_old(self):
         self.dump(False, False, 5, 5)
 
-    @unittest.skip("Temporarily Disabled")
     def test_dump_process_timestamp_none(self):
         self.dump(False, False, 5 , 3)
 
