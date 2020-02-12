@@ -510,6 +510,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         }
     }
 
+    /* Set special flags for the history store table. */
+    if (strcmp(session->dhandle->name, WT_HS_URI) == 0) {
+        F_SET(btree, WT_BTREE_HS);
+        F_SET(btree, WT_BTREE_NO_LOGGING);
+    }
+
     /* Configure encryption. */
     WT_RET(__wt_btree_config_encryptor(session, cfg, &btree->kencryptor));
 
