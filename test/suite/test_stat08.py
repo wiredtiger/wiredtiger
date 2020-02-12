@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import os
 import wiredtiger, wttest
 
 # test_stat08.py
@@ -41,6 +42,13 @@ class test_stat08(wttest.WiredTigerTestCase):
         READ_TIME : "session: page read from disk to cache time (usecs)"}
 
     def check_stats(self, cur, k):
+        #
+        # Some Windows machines lack the time granularity to detect microseconds.
+        # Skip the time check on Windows.
+        #
+        if os.name == "nt" and k is self.READ_TIME:
+            return
+
         exp_desc = self.session_stats[k]
         cur.set_key(k)
         cur.search()
