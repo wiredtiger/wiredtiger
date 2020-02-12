@@ -31,56 +31,22 @@ from helper import copy_wiredtiger_home
 import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
+from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 def timestamp_str(t):
     return '%x' % t
 
-# test_rollback_to_stable01.py
-# Shared base class used by gc tests.
-class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
-    def large_updates(self, uri, value, ds, nrows, commit_ts):
-        # Update a large number of records.
-        session = self.session
-        cursor = session.open_cursor(uri)
-        for i in range(0, nrows):
-            session.begin_transaction()
-            cursor[ds.key(i)] = value
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-        cursor.close()
-
-    def large_removes(self, uri, ds, nrows, commit_ts):
-        # Remove a large number of records.
-        session = self.session
-        cursor = session.open_cursor(uri)
-        for i in range(0, nrows):
-            session.begin_transaction()
-            cursor.set_key(i)
-            cursor.remove()
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-        cursor.close()
-
-    def check(self, check_value, uri, nrows, read_ts):
-        session = self.session
-        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
-        cursor = session.open_cursor(uri)
-        count = 0
-        for k, v in cursor:
-            self.assertEqual(v, check_value)
-            count += 1
-        session.commit_transaction()
-        self.assertEqual(count, nrows)
-
-# Test that rollback to stable clears the remove operation.
+# test_rollback_to_stable03.py
+# Test that rollback to stable clears the history store updates from reconciled pages.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
-    # Force a small cache.
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
+    conn_config = 'cache_size=4GB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
     def test_rollback_to_stable(self):
-        nrows = 10000
+        nrows = 1000
 
         # Create a table without logging.
-        uri = "table:rollback_to_stable01"
+        uri = "table:rollback_to_stable03"
         ds = SimpleDataSet(
             self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
         ds.populate()
@@ -90,22 +56,23 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
             ',stable_timestamp=' + timestamp_str(1))
 
         valuea = "aaaaa" * 100
+        valueb = "bbbbb" * 100
         self.large_updates(uri, valuea, ds, nrows, 10)
         # Check that all updates are seen
         self.check(valuea, uri, nrows, 10)
 
         # Remove all keys with newer timestamp
-        self.large_removes(uri, ds, nrows, 20)
-        # Check that the no keys should be visible
-        self.check(valuea, uri, 0, 20)
+        self.large_updates(uri, valueb, ds, nrows, 20)
+        # Check that all updates are seen
+        self.check(valueb, uri, nrows, 20)
 
-        # Pin oldest and stable to timestamp 100.
+        # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
         # Checkpoint to ensure that all the updates are flushed to disk.
         self.session.checkpoint()
 
         self.conn.rollback_to_stable()
-        # Check that the new updates are only seen after the update timestamp
+        # Check that the old updates are only seen even with the update timestamp
         self.check(valuea, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
@@ -114,7 +81,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
             stat_cursor[stat.conn.txn_rollback_hs_removed][2])
         stat_cursor.close()
         self.assertEqual(calls, 1)
-        self.assertTrue(upd_aborted >= nrows)
+        self.assertTrue(upd_aborted == nrows * 2)
 
 if __name__ == '__main__':
     wttest.run()

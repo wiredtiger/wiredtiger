@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -377,6 +377,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              */
             if (upd->start_ts <= upd_select->stop_ts && upd->txnid <= upd_select->stop_txn) {
                 upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
+                /* If durable timestamp is provided, use it. */
+                if (upd->durable_ts != WT_TS_NONE)
+                    upd_select->durable_ts = upd->durable_ts;
                 upd_select->start_txn = upd->txnid;
             }
 
