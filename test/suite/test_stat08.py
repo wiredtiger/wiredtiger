@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -33,7 +33,7 @@ import wiredtiger, wttest
 class test_stat08(wttest.WiredTigerTestCase):
 
     nentries = 350000
-    conn_config = 'cache_size=50MB,statistics=(all)'
+    conn_config = 'cache_size=10MB,statistics=(all)'
     entry_value = "abcde" * 40
     BYTES_READ = 4000
     READ_TIME = 4003

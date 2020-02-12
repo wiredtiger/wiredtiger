@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -273,14 +273,6 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 
     if (max == 0)
         testutil_die(ENOMEM, "wiredtiger_open configuration buffer too small");
-
-    /*
-     * Direct I/O may not work with backups, doing copies through the buffer cache after configuring
-     * direct I/O in Linux won't work. If direct I/O is configured, turn off backups. This isn't a
-     * great place to do this check, but it's only here we have the configuration string.
-     */
-    if (strstr(config, "direct_io") != NULL)
-        g.c_backups = 0;
 
     testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
 

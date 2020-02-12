@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -87,6 +87,8 @@ struct __wt_block_desc;
 typedef struct __wt_block_desc WT_BLOCK_DESC;
 struct __wt_block_header;
 typedef struct __wt_block_header WT_BLOCK_HEADER;
+struct __wt_block_mods;
+typedef struct __wt_block_mods WT_BLOCK_MODS;
 struct __wt_bloom;
 typedef struct __wt_bloom WT_BLOOM;
 struct __wt_bloom_hash;
@@ -390,7 +392,7 @@ typedef uint64_t wt_timestamp_t;
 #include "error.h"
 #include "log.h"
 #include "lsm.h"
-#include "meta.h"
+#include "meta.h" /* required by block.h */
 #include "optrack.h"
 #include "os.h"
 #include "reconcile.h"

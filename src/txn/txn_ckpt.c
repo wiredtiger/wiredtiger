@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -1226,6 +1226,7 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
               "cannot be deleted during a hot backup",
               ckpt->name);
         }
+
     /*
      * Mark old checkpoints that are being deleted and figure out which trees we can skip in this
      * checkpoint.

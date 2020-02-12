@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -298,7 +298,7 @@ struct __wt_connection_impl {
     uint64_t ckpt_write_pages;
 
     /* Checkpoint and incremental backup data */
-    uint64_t ckpt_incr_granularity;
+    uint64_t incr_granularity;
     WT_BLKINCR incr_backups[WT_BLKINCR_MAX];
 
     /* Connection's maximum and base write generations. */

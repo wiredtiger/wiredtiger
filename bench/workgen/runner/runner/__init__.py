@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # runner/__init__.py
-#	Used as a first import by runners, does any common initialization.
+#   Used as a first import by runners, does any common initialization.
 from __future__ import print_function
 
 import os, shutil, sys

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -2673,6 +2673,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_metadata_set_base_write_gen(session));
 
     WT_ERR(__wt_metadata_cursor(session, NULL));
+
+    /*
+     * Load any incremental backup information. This reads the metadata so must be done after the
+     * turtle file is initialized.
+     */
+    WT_ERR(__wt_backup_open(session));
 
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));
