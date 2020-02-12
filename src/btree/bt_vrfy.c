@@ -276,8 +276,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
      * and iterate backwards until we reach a different key or btree. We need to do this whilst
-     * holding a snapshot to ensure that modifications done whilst iterating the history store
-     * don't cause false positives.
+     * holding a snapshot to ensure that modifications done whilst iterating the history store don't
+     * cause false positives.
      */
     __wt_txn_get_snapshot(session);
 
