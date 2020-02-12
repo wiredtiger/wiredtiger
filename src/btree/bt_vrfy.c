@@ -267,7 +267,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
     hs_btree_id = btree->id;
     /* Set the data store timestamp and transactions to initiate timestamp range verification */
     prev_start.timestamp = unpack->start_ts;
-    prev_start.txnid = WT_TXN_MAX;
+    prev_start.txnid = unpack->start_txn;
     session_flags = 0;
     stop.timestamp = 0;
     stop.txnid = 0;
@@ -623,10 +623,10 @@ int
 __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor, *data_cursor;
-    WT_DECL_RET;
-    WT_TIME_PAIR hs_start, hs_stop;
-    WT_ITEM hs_key, prev_hs_key;
     WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    WT_ITEM hs_key, prev_hs_key;
+    WT_TIME_PAIR hs_start, hs_stop;
     uint32_t btree_id, session_flags, prev_btree_id;
     int cmp;
     const char *uri;
@@ -647,7 +647,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
           &hs_stop.timestamp, &hs_stop.txnid));
         /*
          *  Keep track of the previous comparison. The history store is stored in order, so we can
-         *  avoid redundant comparisons. The cursor to the data store is NULL on first iterations.
+         *  avoid redundant comparisons. Previous btree ID isn't set, until data cursor is open.
          */
         if (data_cursor == NULL || (prev_btree_id != btree_id)) {
             /*
