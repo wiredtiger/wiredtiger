@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -847,9 +847,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     __checkpoint_timing_stress(session);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
-
-    /* Checkpoint the history store file at snapshot isolation but first refresh our snapshot. */
-    __wt_txn_get_snapshot(session);
 
     /*
      * Get a history store dhandle. If the history store file is opened for a special operation this

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -167,8 +167,13 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t 
      * visible.
      */
     if (LF_ISSET(WT_REC_IN_MEMORY))
-        return !__wt_txn_visible_all(session, max_txn, max_ts);
+        return (!__wt_txn_visible_all(session, max_txn, max_ts));
 
+    /*
+     * FIXME-PM-1523: The current implementation doesn't work with fixed-length column store.
+     * Currently, we don't write history versions to history store for fixed-length column store. I
+     * don't know how that is going to work in durable history.
+     */
     if (!LF_ISSET(WT_REC_HS))
         return false;
 
@@ -180,7 +185,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t 
         return false;
 
     /* No need to save updates if everything is globally visible. */
-    return !__wt_txn_visible_all(session, max_txn, max_ts);
+    return (!__wt_txn_visible_all(session, max_txn, max_ts));
 }
 
 /*
@@ -372,6 +377,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              */
             if (upd->start_ts <= upd_select->stop_ts && upd->txnid <= upd_select->stop_txn) {
                 upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
+                /* If durable timestamp is provided, use it. */
+                if (upd->durable_ts != WT_TS_NONE)
+                    upd_select->durable_ts = upd->durable_ts;
                 upd_select->start_txn = upd->txnid;
             }
 
@@ -404,11 +412,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * Leaving the update unset means that we can skip reconciling. If we've set the stop
              * time pair because of a tombstone after the on-disk value, we still have work to do so
              * that is NOT ok. Let's append the on-disk value to the chain.
-             *
-             * FIXME-PM-1521: How are we going to remove deleted keys from disk image? We may need
-             * to return a different return code to tell reconciliation it is safe to remove the
-             * key. In that case, we can use __rec_append_orig_value instead of duplicating code
-             * here.
              */
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));
@@ -460,7 +463,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      */
     if (__rec_need_save_upd(
           session, upd_select->upd, max_txn, max_ts, list_uncommitted, r->flags)) {
-        WT_ASSERT(session, r->max_txn != WT_TS_NONE);
+        /* During recovery, there are no transaction id's. */
+        WT_ASSERT(
+          session, !F_ISSET(S2C(session), WT_CONN_RECOVERING) ? r->max_txn != WT_TS_NONE : true);
 
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
         upd_select->upd_saved = true;

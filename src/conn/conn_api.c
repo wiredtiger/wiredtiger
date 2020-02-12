@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -1247,7 +1247,7 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
 
     CONNECTION_API_CALL(conn, session, rollback_to_stable, config, cfg);
     WT_STAT_CONN_INCR(session, txn_rollback_to_stable);
-    WT_TRET(__wt_txn_rollback_to_stable(session, cfg));
+    WT_TRET(__wt_rollback_to_stable(session, cfg));
 err:
     API_END_RET(session, ret);
 }
@@ -2295,6 +2295,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     bool config_base_set, try_salvage;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
+    uint64_t max_write_gen;
 
     /* Leave lots of space for optional additional configuration. */
     const char *cfg[] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
@@ -2305,6 +2306,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     session = NULL;
     merge_cfg = NULL;
     try_salvage = false;
+    max_write_gen = 0;
 
     WT_RET(__wt_library_init());
 
@@ -2657,7 +2659,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * THE TURTLE FILE MUST BE THE LAST FILE CREATED WHEN INITIALIZING THE
      * DATABASE HOME, IT'S WHAT WE USE TO DECIDE IF WE'RE CREATING OR NOT.
      */
-    WT_ERR(__wt_turtle_init(session));
+    WT_ERR(__wt_turtle_init(session, &max_write_gen));
 
     /*
      * If the user wants to salvage, do so before opening the metadata cursor. We do this after the
@@ -2668,7 +2670,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR(__wt_metadata_salvage(session));
 
     /* Set the connection's base write generation. */
-    WT_ERR(__wt_metadata_set_base_write_gen(session));
+    WT_ERR(__wt_metadata_set_base_write_gen(session, max_write_gen));
 
     WT_ERR(__wt_metadata_cursor(session, NULL));
 

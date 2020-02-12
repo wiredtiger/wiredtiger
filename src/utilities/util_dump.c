@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -25,6 +25,7 @@ static int dump_table_config(WT_SESSION *, WT_CURSOR *, WT_CURSOR *, const char 
 static int dump_table_parts_config(WT_SESSION *, WT_CURSOR *, const char *, const char *, bool);
 static int dup_json_string(const char *, char **);
 static int print_config(WT_SESSION *, const char *, const char *, bool, bool);
+static int time_pair_to_timestamp(WT_SESSION_IMPL *, char *, WT_ITEM *);
 static int usage(void);
 
 static FILE *fp;
@@ -37,21 +38,24 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl;
     int ch, i;
-    char *checkpoint, *ofile, *p, *simpleuri, *uri;
+    char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
     bool hex, json, reverse;
 
     session_impl = (WT_SESSION_IMPL *)session;
 
     cursor = NULL;
-    checkpoint = ofile = simpleuri = uri = NULL;
+    checkpoint = ofile = simpleuri = uri = timestamp = NULL;
     hex = json = reverse = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "c:f:jrx")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "c:f:t:jrx")) != EOF)
         switch (ch) {
         case 'c':
             checkpoint = __wt_optarg;
             break;
         case 'f':
             ofile = __wt_optarg;
+            break;
+        case 't':
+            timestamp = __wt_optarg;
             break;
         case 'j':
             json = true;
@@ -100,6 +104,16 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if ((uri = util_uri(session, argv[i], "table")) == NULL)
             goto err;
 
+        if (timestamp != NULL) {
+            WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
+            WT_ERR(time_pair_to_timestamp(session_impl, timestamp, tmp));
+            WT_ERR(__wt_buf_catfmt(session_impl, tmp, "isolation=snapshot,"));
+            if ((ret = session->begin_transaction(session, (char *)tmp->data)) != 0) {
+                fprintf(stderr, "%s: begin transaction failed: %s\n", progname,
+                  session->strerror(session, ret));
+                goto err;
+            }
+        }
         WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
         if (checkpoint != NULL)
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
@@ -150,6 +164,27 @@ err:
     free(simpleuri);
 
     return (ret);
+}
+
+/*
+ * time_pair_to_timestamp --
+ *     Convert a timestamp output format to timestamp representation.
+ */
+static int
+time_pair_to_timestamp(WT_SESSION_IMPL *session_impl, char *ts_string, WT_ITEM *buf)
+{
+    wt_timestamp_t timestamp;
+    uint32_t first, second;
+
+    if (ts_string[0] == '(') {
+        if (sscanf(ts_string, "(%" SCNu32 " ,%" SCNu32 ")", &first, &second) != 2)
+            return (EINVAL);
+        timestamp = ((wt_timestamp_t)first << 32) | second;
+    } else
+        timestamp = __wt_strtouq(ts_string, NULL, 10);
+
+    WT_RET(__wt_buf_catfmt(session_impl, buf, "read_timestamp=%" PRIx64 ",", timestamp));
+    return (0);
 }
 
 /*
@@ -626,7 +661,7 @@ usage(void)
 {
     (void)fprintf(stderr,
       "usage: %s %s "
-      "dump [-jrx] [-c checkpoint] [-f output-file] uri\n",
+      "dump [-jrx] [-c checkpoint] [-f output-file] [-t timestamp] uri\n",
       progname, usage_prefix);
     return (1);
 }

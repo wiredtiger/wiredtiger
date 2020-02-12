@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -300,6 +300,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
         if (cbt->recno >= cbt->ref->ref_recno + page->entries)
             return (0);
 
+        *valid = true;
         /*
          * An update would have appeared as an "insert" object; no further checks to do.
          */
@@ -335,7 +336,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
          * Check for an update ondisk or in the history store. For column store, an insert object
          * can have the same key as an on-page or history store object.
          */
-        WT_RET(__wt_txn_read(session, cbt, NULL, &upd));
+        WT_RET(__wt_txn_read(session, cbt, NULL, NULL, &upd));
         if (upd != NULL) {
             if (upd->type == WT_UPDATE_TOMBSTONE) {
                 if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
@@ -344,6 +345,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
             }
             if (updp != NULL)
                 *updp = upd;
+            *valid = true;
         }
         break;
     case BTREE_ROW:
@@ -368,7 +370,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
           (page->modify != NULL && page->modify->mod_row_update != NULL) ?
             page->modify->mod_row_update[cbt->slot] :
             NULL,
-          &upd));
+          NULL, &upd));
         if (upd != NULL) {
             if (upd->type == WT_UPDATE_TOMBSTONE) {
                 if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
@@ -377,10 +379,10 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
             }
             if (updp != NULL)
                 *updp = upd;
+            *valid = true;
         }
         break;
     }
-    *valid = true;
     return (0);
 }
 

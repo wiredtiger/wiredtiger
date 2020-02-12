@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -275,8 +275,12 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
-     * and iterate backwards until we reach a different key or btree.
+     * and iterate backwards until we reach a different key or btree. We need to do this whilst
+     * holding a snapshot to ensure that modifications done whilst iterating the history store don't
+     * cause false positives.
      */
+    __wt_txn_get_snapshot(session);
+
     WT_ERR(__wt_hs_cursor(session, &session_flags));
     hs_cursor = session->hs_cursor;
     hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
@@ -306,8 +310,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
 #endif
 
         /*
-         * verify that the current record's stop time pair doesn't overlap with the start time pair
-         * of its successor
+         * Verify that the current record's stop time pair doesn't overlap with the start time pair
+         * of its successor.
          */
         if (prev_start.timestamp < stop.timestamp) {
             WT_ERR_MSG(session, WT_ERROR,
@@ -343,6 +347,8 @@ err:
 
     __wt_scr_free(session, &hs_key);
     WT_TRET(__wt_hs_cursor_close(session, session_flags));
+
+    __wt_txn_release_snapshot(session);
 
     return (ret);
 }

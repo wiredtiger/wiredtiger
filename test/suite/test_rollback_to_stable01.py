@@ -120,5 +120,13 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         # Check that the new updates are only seen after the update timestamp
         self.check(valuea, uri, nrows, 20)
 
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        calls = stat_cursor[stat.conn.txn_rollback_to_stable][2]
+        upd_aborted = (stat_cursor[stat.conn.txn_rollback_upd_aborted][2] +
+            stat_cursor[stat.conn.txn_rollback_hs_removed][2])
+        stat_cursor.close()
+        self.assertEqual(calls, 1)
+        self.assertTrue(upd_aborted >= nrows)
+
 if __name__ == '__main__':
     wttest.run()

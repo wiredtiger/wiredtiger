@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -508,6 +508,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
             btree->leafpage_compadjust = true;
             btree->maxleafpage_precomp = btree->maxmempage_image;
         }
+    }
+
+    /* Set special flags for the history store table. */
+    if (strcmp(session->dhandle->name, WT_HS_URI) == 0) {
+        F_SET(btree, WT_BTREE_HS);
+        F_SET(btree, WT_BTREE_NO_LOGGING);
     }
 
     /* Configure encryption. */

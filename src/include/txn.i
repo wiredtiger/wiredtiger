@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -812,13 +812,12 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
  *     function will search the history store for a visible update.
  */
 static inline int
-__wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
+__wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_CELL_UNPACK *vpack,
+  WT_UPDATE **updp)
 {
     WT_ITEM buf;
     WT_TIME_PAIR start, stop;
     size_t size;
-
-    WT_CLEAR(buf);
 
     *updp = NULL;
     WT_RET(__wt_txn_read_upd_list(session, upd, updp));
@@ -831,8 +830,23 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         return (0);
     }
 
+    buf.data = NULL;
+    buf.size = 0;
+    buf.mem = NULL;
+    buf.memsize = 0;
+    buf.flags = 0;
+
     /* Check the ondisk value. */
-    WT_RET(__wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop));
+    if (vpack == NULL)
+        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop));
+    else {
+        start.timestamp = vpack->start_ts;
+        start.txnid = vpack->start_txn;
+        stop.timestamp = vpack->stop_ts;
+        stop.txnid = vpack->start_txn;
+        buf.data = vpack->data;
+        buf.size = vpack->size;
+    }
 
     /*
      * If the stop pair is set, that means that there is a tombstone at that time. If the stop time
@@ -842,7 +856,6 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX && !WT_IS_HS(S2BT(session)) &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
         WT_RET(__upd_alloc_tombstone(session, updp, stop.txnid, stop.timestamp));
-        F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
         return (0);
     }
 
@@ -862,16 +875,18 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS)) {
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
         WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, cbt, updp, false, &buf));
 
-        /* There is no BIRTHMARK in the history store file. */
-        WT_ASSERT(session, (*updp) == NULL || (*updp)->type != WT_UPDATE_BIRTHMARK);
-    }
     /*
-     * If we checked the update list, the ondisk value and the history store, we should return a
-     * tombstone to indicate we didn't find anything.
+     * There is no BIRTHMARK in the history store file.
      *
+     * Return null not tombstone if nothing is found in history store.
+     */
+    WT_ASSERT(session, (*updp) == NULL ||
+        ((*updp)->type != WT_UPDATE_BIRTHMARK && (*updp)->type != WT_UPDATE_TOMBSTONE));
+
+    /*
      * FIXME-PM-1521: We call transaction read in a lot of places so we can't do this yet. When we
      * refactor this function to return a byte array, we should tackle this at the same time.
      */

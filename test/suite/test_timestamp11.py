@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -39,7 +39,6 @@ def timestamp_str(t):
 class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
     session_config = 'isolation=snapshot'
 
-    @unittest.skip("Temporarily disabled")
     def test_timestamp_range(self):
         base = 'timestamp11'
         uri = 'file:' + base
