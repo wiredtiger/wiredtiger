@@ -875,19 +875,16 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS)) {
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
         WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, cbt, updp, false, &buf));
 
-        /* There is no BIRTHMARK in the history store file. */
-        WT_ASSERT(session, (*updp) == NULL || (*updp)->type != WT_UPDATE_BIRTHMARK);
-    }
     /*
      * There is no BIRTHMARK in the history store file.
      *
      * Return null not tombstone if nothing is found in history store.
      */
-    WT_ASSERT(
-      session, upd == NULL || upd->type != WT_UPDATE_BIRTHMARK || upd->type != WT_UPDATE_TOMBSTONE);
+    WT_ASSERT(session, (*updp) == NULL ||
+        ((*updp)->type != WT_UPDATE_BIRTHMARK && (*updp)->type != WT_UPDATE_TOMBSTONE));
 
     /*
      * FIXME-PM-1521: We call transaction read in a lot of places so we can't do this yet. When we
