@@ -93,7 +93,6 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             goto err;
         }
     }
-
     if ((ret = session->verify(session, uri, config)) != 0)
         (void)util_err(session, ret, "session.verify: %s", uri);
     else {

@@ -30,7 +30,8 @@ typedef struct {
     bool dump_layout;
     bool dump_pages;
     bool hs_verify;
-    /* Page layout information */
+
+    /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100];
 
     WT_ITEM *tmp1, *tmp2, *tmp3, *tmp4; /* Temporary buffers */
@@ -46,7 +47,6 @@ static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *)
 static int __verify_row_leaf_page_hs(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
 static const char *__verify_timestamp_to_pretty_string(wt_timestamp_t);
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
-static int __verify_btree_id_with_meta(WT_SESSION_IMPL *, uint32_t, const char **);
 static int __verify_ts_stable_cmp(
   WT_SESSION_IMPL *, WT_ITEM *, WT_REF *, uint32_t, wt_timestamp_t, wt_timestamp_t, WT_VSTUFF *);
 
@@ -267,7 +267,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
     hs_btree_id = btree->id;
     /* Set the data store timestamp and transactions to initiate timestamp range verification */
     prev_start.timestamp = unpack->start_ts;
-    prev_start.txnid = unpack->start_txn;
+    prev_start.txnid = WT_TXN_MAX;
     session_flags = 0;
     stop.timestamp = 0;
     stop.txnid = 0;
@@ -601,8 +601,8 @@ __verify_btree_id_with_meta(WT_SESSION_IMPL *session, uint32_t btree_id, const c
     while ((ret = meta_cursor->next(meta_cursor)) == 0) {
         WT_ERR(meta_cursor->get_value(meta_cursor, &meta_value));
         if ((ret = __wt_config_getones(session, meta_value, "id", &id)) == 0) {
-            if (btree_id == __wt_strtouq(id.str, NULL, 10)) {
-                meta_cursor->get_key(meta_cursor, uri);
+            if (btree_id == id.val) {
+                WT_ERR(meta_cursor->get_key(meta_cursor, uri));
                 break;
             }
         }
@@ -624,63 +624,91 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor, *data_cursor;
     WT_DECL_RET;
-    WT_ITEM hs_key, prev_hs_key;
     WT_TIME_PAIR hs_start, hs_stop;
+    WT_ITEM hs_key, prev_hs_key;
+    WT_DECL_ITEM(tmp);
     uint32_t btree_id, session_flags, prev_btree_id;
     int cmp;
     const char *uri;
-    bool first;
 
     session_flags = 0;
-    /* Dodging uninitialized build error. Don't trust this initial value. */
-    prev_btree_id = 0;
+    prev_btree_id = 0; /* [-Wconditional-uninitialized] */
+    data_cursor = NULL;
     uri = NULL;
-    first = true;
     WT_CLEAR(prev_hs_key);
     WT_CLEAR(hs_key);
 
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_hs_cursor(session, &session_flags));
     cursor = session->hs_cursor;
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start.timestamp, &hs_start.txnid,
           &hs_stop.timestamp, &hs_stop.txnid));
-
         /*
          *  Keep track of the previous comparison. The history store is stored in order, so we can
-         *  avoid redundant comparisons. The first flag is used to avoid comparing against
-         *  uninitialized variables.
+         *  avoid redundant comparisons. The prev_hs_key is checked against NULL to avoid errors
+         *  with the id upon the first iteration.
          */
-        if (!first && prev_btree_id == btree_id) {
+        if (data_cursor == NULL || (prev_btree_id != btree_id)) {
+            /*
+            * Find the URI from the metadata and validate the btree ID. Using this URI, verify the
+            * history store key with the data store.
+            */
+            if (data_cursor != NULL) {
+                WT_ERR(data_cursor->close(data_cursor));
+                /* Setting data_cursor to null, to avoid double free */
+                data_cursor = NULL;
+            }
+            WT_ERR(__verify_btree_id_with_meta(session, btree_id, &uri));
+            WT_ERR(__wt_open_cursor(session, uri, NULL, NULL, &data_cursor));
+            F_SET(data_cursor, WT_CURSOR_RAW_OK);
+        } else {
             WT_ERR(__wt_compare(session, NULL, &hs_key, &prev_hs_key, &cmp));
             if (cmp == 0)
                 continue;
         }
-
-        first = false;
-
-        prev_hs_key.data = hs_key.data;
-        prev_hs_key.size = hs_key.size;
+        
+        WT_RET(__wt_buf_set(session, &prev_hs_key, hs_key.data, hs_key.size));
         prev_btree_id = btree_id;
 
-        /*
-         * Find the URI from the metadata and validate the btree ID. Using this URI, verify the
-         * history store key with the data store.
-         */
-        WT_ERR(__verify_btree_id_with_meta(session, btree_id, &uri));
-        WT_ERR(__wt_open_cursor(session, uri, NULL, NULL, &data_cursor));
-
         data_cursor->set_key(data_cursor, &hs_key);
-        WT_ERR_NOTFOUND_OK(data_cursor->search(data_cursor));
-        if (ret == WT_NOTFOUND)
-            WT_ERR_MSG(session, WT_ERROR, "key exists in history store but not in data store");
-        WT_ERR(data_cursor->close(data_cursor));
+        ret = (data_cursor->search(data_cursor));
+        if (ret == WT_NOTFOUND) {
+            WT_ERR_MSG(session, WT_NOTFOUND,
+              "In the Btree %" PRIu32
+              ", The associated history store key %s cannot be found in the data store",
+              btree_id, __wt_buf_set_printable(session, hs_key.data, hs_key.size, tmp));
+        }
+
+        WT_ERR(ret);
+        
     }
     WT_ERR_NOTFOUND_OK(ret);
 err:
+    if (data_cursor != NULL)
+        WT_ERR(data_cursor->close(data_cursor));
+    __wt_scr_free(session, &tmp);
     WT_TRET(__wt_hs_cursor_close(session, session_flags));
     return (ret);
 }
+
+/*
+ * __datastore_search --
+ *     Assumes an open data cursor is given
+ */
+// void __datastore_search(WT_CURSOR *data_cursor, WT_ITEM *hs_key) {
+//     F_SET(data_cursor, WT_CURSOR_RAW_OK);
+//     data_cursor->set_key(data_cursor, hs_key);
+//     ret = (data_cursor->search(data_cursor));
+//     if (ret == WT_NOTFOUND) {
+//         WT_ERR_MSG(session, WT_NOTFOUND,
+//             "In the Btree %" PRIu32
+//             ", The associated history store key %s cannot be found in the data store",
+//             btree_id, __wt_buf_set_printable(session, hs_key.data, hs_key.size, tmp));
+//     }
+//     WT_ERR(ret);
+// }
 
 /*
  * __verify_tree --
