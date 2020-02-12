@@ -665,10 +665,10 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
             F_SET(data_cursor, WT_CURSOR_RAW_OK);
         } else {
             WT_ERR(__wt_compare(session, NULL, &hs_key, &prev_hs_key, &cmp));
+            printf("comparing %s %s", (char *) hs_key, (char *) prev_hs_key);
             if (cmp == 0)
                 continue;
         }
-        
         WT_RET(__wt_buf_set(session, &prev_hs_key, hs_key.data, hs_key.size));
         prev_btree_id = btree_id;
 
@@ -692,23 +692,6 @@ err:
     WT_TRET(__wt_hs_cursor_close(session, session_flags));
     return (ret);
 }
-
-/*
- * __datastore_search --
- *     Assumes an open data cursor is given
- */
-// void __datastore_search(WT_CURSOR *data_cursor, WT_ITEM *hs_key) {
-//     F_SET(data_cursor, WT_CURSOR_RAW_OK);
-//     data_cursor->set_key(data_cursor, hs_key);
-//     ret = (data_cursor->search(data_cursor));
-//     if (ret == WT_NOTFOUND) {
-//         WT_ERR_MSG(session, WT_NOTFOUND,
-//             "In the Btree %" PRIu32
-//             ", The associated history store key %s cannot be found in the data store",
-//             btree_id, __wt_buf_set_printable(session, hs_key.data, hs_key.size, tmp));
-//     }
-//     WT_ERR(ret);
-// }
 
 /*
  * __verify_tree --
