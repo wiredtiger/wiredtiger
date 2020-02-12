@@ -435,10 +435,11 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     WT_RET(__wt_config_getones(r->session, config, "checkpoint_lsn", &cval));
 
     if ((ret = __wt_ckpt_last(r->session, config, &ckpt)) == 0)
-        S2C(r->session)
+        S2C(r->session) {
           ->max_write_gen = S2C(r->session)->base_write_gen =
           WT_MAX(S2C(r->session)->max_write_gen, ckpt.write_gen + 1);
-    else
+        __wt_meta_checkpoint_free(session, &ckpt);
+    } else
         WT_RET_NOTFOUND_OK(ret);
     /* If there is checkpoint logged for the file, apply everything. */
     if (cval.type != WT_CONFIG_ITEM_STRUCT)
