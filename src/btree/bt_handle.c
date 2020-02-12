@@ -110,12 +110,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     /* Initialize and configure the WT_BTREE structure. */
     WT_ERR(__btree_conf(session, &ckpt));
 
-    /* Set special flags for the history store table. */
-    if (strcmp(dhandle->name, WT_HS_URI) == 0) {
-        F_SET(btree, WT_BTREE_HS);
-        F_SET(btree, WT_BTREE_NO_LOGGING);
-    }
-
     /* Connect to the underlying block manager. */
     filename = dhandle->name;
     if (!WT_PREFIX_SKIP(filename, "file:"))
@@ -514,6 +508,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
             btree->leafpage_compadjust = true;
             btree->maxleafpage_precomp = btree->maxmempage_image;
         }
+    }
+
+    /* Set special flags for the history store table. */
+    if (strcmp(session->dhandle->name, WT_HS_URI) == 0) {
+        F_SET(btree, WT_BTREE_HS);
+        F_SET(btree, WT_BTREE_NO_LOGGING);
     }
 
     /* Configure encryption. */

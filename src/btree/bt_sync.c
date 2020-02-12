@@ -35,13 +35,21 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
     /*
      * We can skip some dirty pages during a checkpoint. The requirements:
      *
-     * 1. they must be leaf pages,
-     * 2. there is a snapshot transaction active (which is the case in
+     * 1. Not a history btree. As part of the checkpointing the data store,
+     *    we will move the older values into the history store without using
+     *    any transactions. This led to representation of all the modifications
+     *    on the history store page with a transaction that is maximum than
+     *    the checkpoint snapshot. But these modifications are done by the
+     *    checkpoint itself, so we shouldn't ignore them for consistency.
+     * 2. they must be leaf pages,
+     * 3. there is a snapshot transaction active (which is the case in
      *    ordinary application checkpoints but not all internal cases),
-     * 3. the first dirty update on the page is sufficiently recent the
+     * 4. the first dirty update on the page is sufficiently recent the
      *    checkpoint transaction would skip them,
-     * 4. there's already an address for every disk block involved.
+     * 5. there's already an address for every disk block involved.
      */
+    if (WT_IS_HS(S2BT(session)))
+        return (false);
     if (WT_PAGE_IS_INTERNAL(page))
         return (false);
     if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
@@ -499,12 +507,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
 
             /*
-             * Write dirty pages, if we can't skip them except for history store. As part of
-             * checkpoint, history store gets populated, so we shouldn't ignore the changes in this
-             * checkpoint. If we skip a page, mark the tree dirty. The checkpoint marked it clean
-             * and we can't skip future checkpoints until this page is written.
+             * Write dirty pages, if we can't skip them. If we skip a page, mark the tree dirty. The
+             * checkpoint marked it clean and we can't skip future checkpoints until this page is
+             * written.
              */
-            if (!is_hs && __sync_checkpoint_can_skip(session, page)) {
+            if (__sync_checkpoint_can_skip(session, page)) {
                 __wt_tree_modify_set(session);
                 continue;
             }
