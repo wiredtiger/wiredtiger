@@ -122,7 +122,7 @@ setup_directories(void)
     int i;
     char buf[1024];
 
-    for (i = 0; i < MAX_ITERATIONS; i++) {
+    for (i = 0; i <= MAX_ITERATIONS; i++) {
         /*
          * For incremental backups we need 0-N. The 0 incremental directory will compare with the
          * original at the end.
@@ -174,6 +174,28 @@ add_work(WT_SESSION *session, int iter, int iterj)
     error_check(cursor->close(cursor));
     if (cursor2 != NULL)
         error_check(cursor2->close(cursor2));
+}
+
+static void
+remove_work(WT_SESSION *session, int iter, int iterj)
+{
+    WT_CURSOR *cursor;
+    int i;
+    char k[64], v[64];
+
+    error_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+
+    /*
+     * Remove records from the main table.
+     */
+    for (i = 0; i < MAX_KEYS; i++) {
+        (void)snprintf(k, sizeof(k), "key.%d.%d.%d", iter, iterj, i);
+        (void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter, iterj, i);
+        cursor->set_key(cursor, k);
+        cursor->set_value(cursor, v);
+        error_check(cursor->remove(cursor));
+    }
+    error_check(cursor->close(cursor));
 }
 
 static int
@@ -423,7 +445,7 @@ take_incr_backup(WT_SESSION *session, int i)
          * that they start out at the same for the next incremental round. We then check each
          * incremental directory along the way.
          */
-        for (j = i; j < MAX_ITERATIONS; j++) {
+        for (j = i; j <= MAX_ITERATIONS; j++) {
             (void)snprintf(h, sizeof(h), "%s.%d", home_incr, j);
             if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
                 (void)snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h,
@@ -440,6 +462,29 @@ take_incr_backup(WT_SESSION *session, int i)
     error_check(finalize_files(flist, count));
     free(tmp);
     /*! [incremental backup using block transfer]*/
+}
+
+static void
+remove_all_records_validate(WT_SESSION *session)
+{
+    int i, j;
+    /*
+     * Remove all the records
+     * Take backups and validate
+     */
+    remove_work(session,0,0);
+    for (i = 1; i < MAX_ITERATIONS ; i++) {
+        printf("Iteration %d: Removing data\n", i);
+        for (j = 0; j < i; j++) {
+            remove_work(session, i, j);
+        }
+    }
+    take_full_backup(session, i);
+
+    take_incr_backup(session, i);
+
+    printf("Dumping and comparing data\n");
+    error_check(compare_backups(i));
 }
 
 int
@@ -496,6 +541,8 @@ main(int argc, char *argv[])
         error_check(compare_backups(i));
     }
 
+    remove_all_records_validate(session);
+
     printf("Close and reopen the connection\n");
     /*
      * Close and reopen the connection to illustrate the durability of id information.
@@ -506,7 +553,7 @@ main(int argc, char *argv[])
     /*
      * We should have an entry for i-1 and i-2. Use the older one.
      */
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 2, i);
+    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 1, i+1);
     error_check(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur));
     error_check(backup_cur->close(backup_cur));
 
@@ -540,7 +587,7 @@ main(int argc, char *argv[])
     /*
      * We should not have any information.
      */
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 2, i);
+    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 1, i+1);
     testutil_assert(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur) == ENOENT);
     error_check(wt_conn->close(wt_conn, NULL));
 
