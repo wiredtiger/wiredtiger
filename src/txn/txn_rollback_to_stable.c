@@ -134,7 +134,7 @@ __txn_abort_row_replace_with_hs_value(
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(key);
     WT_DECL_RET;
-    WT_ITEM ds_value, full_value;
+    WT_ITEM full_value;
     WT_TIME_PAIR hs_start, hs_stop;
     WT_UPDATE *hs_upd, *upd;
     wt_timestamp_t durable_ts;
@@ -159,14 +159,13 @@ __txn_abort_row_replace_with_hs_value(
     WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
 
     /* Get the full update value from the data store. */
-    WT_CLEAR(ds_value);
-    if (!__wt_row_leaf_value(page, rip, &ds_value)) {
+    WT_CLEAR(full_value);
+    if (!__wt_row_leaf_value(page, rip, &full_value)) {
         unpack = &_unpack;
         __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
-        WT_ERR(__wt_page_cell_data_ref(session, page, unpack, &ds_value));
+        WT_ERR(__wt_page_cell_data_ref(session, page, unpack, &full_value));
     }
-    WT_CLEAR(full_value);
-    WT_ERR(__wt_buf_set(session, &full_value, ds_value.data, ds_value.size));
+    WT_ERR(__wt_buf_set(session, &full_value, full_value.data, full_value.size));
 
     /* Open a history store table cursor. */
     WT_ERR(__wt_hs_cursor(session, &session_flags));
@@ -275,7 +274,6 @@ err:
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
-    __wt_buf_free(session, &ds_value);
     __wt_buf_free(session, &full_value);
     __wt_free(session, hs_upd);
     __wt_free(session, upd);
