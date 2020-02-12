@@ -1246,7 +1246,7 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
     CONNECTION_API_CALL(conn, session, rollback_to_stable, config, cfg);
-    WT_STAT_CONN_INCR(session, txn_rollback_to_stable);
+    WT_STAT_CONN_INCR(session, txn_rts);
     WT_TRET(__wt_txn_rollback_to_stable(session, cfg));
 err:
     API_END_RET(session, ret);

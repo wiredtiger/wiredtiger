@@ -5707,17 +5707,17 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! transaction: read timestamp queue length */
 #define	WT_STAT_CONN_TXN_READ_QUEUE_LEN			1369
 /*! transaction: rollback to stable calls */
-#define	WT_STAT_CONN_TXN_ROLLBACK_TO_STABLE		1370
+#define	WT_STAT_CONN_TXN_RTS				1370
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_CONN_TXN_ROLLBACK_KEYS_REMOVED		1371
+#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1371
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_CONN_TXN_ROLLBACK_KEYS_RESTORED		1372
+#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1372
 /*! transaction: rollback to stable pages visited */
-#define	WT_STAT_CONN_TXN_ROLLBACK_PAGES_VISITED		1373
+#define	WT_STAT_CONN_TXN_RTS_PAGES_VISITED		1373
 /*! transaction: rollback to stable updates aborted */
-#define	WT_STAT_CONN_TXN_ROLLBACK_UPD_ABORTED		1374
+#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED		1374
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_CONN_TXN_ROLLBACK_HS_REMOVED		1375
+#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1375
 /*! transaction: set timestamp calls */
 #define	WT_STAT_CONN_TXN_SET_TS				1376
 /*! transaction: set timestamp durable calls */

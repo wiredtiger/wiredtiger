@@ -41,7 +41,7 @@ __txn_abort_newer_update(
             first_upd = upd->next;
 
             upd->txnid = WT_TXN_ABORTED;
-            WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
+            WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
             upd->durable_ts = upd->start_ts = WT_TS_NONE;
         }
     }
@@ -204,7 +204,7 @@ __txn_abort_row_replace_with_hs_value(
         WT_WITH_BTREE(session, cbt->btree,
           ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
         WT_ERR(ret);
-        WT_STAT_CONN_INCR(session, txn_rollback_hs_removed);
+        WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
     }
 
@@ -233,7 +233,7 @@ __txn_abort_row_replace_with_hs_value(
         upd->txnid = WT_TXN_NONE;
         upd->durable_ts = WT_TS_NONE;
         upd->start_ts = WT_TS_NONE;
-        WT_STAT_CONN_INCR(session, txn_rollback_keys_removed);
+        WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
     }
 
     WT_ERR(__txn_row_add_update(session, page, rip, upd));
@@ -249,7 +249,7 @@ __txn_abort_row_replace_with_hs_value(
         WT_WITH_BTREE(session, cbt->btree,
           ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
         WT_ERR(ret);
-        WT_STAT_CONN_INCR(session, txn_rollback_hs_removed);
+        WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
     }
 
@@ -303,13 +303,13 @@ __txn_abort_row_ondisk_kv(
         upd->txnid = vpack->start_txn;
         upd->durable_ts = vpack->start_ts;
         upd->start_ts = vpack->start_ts;
-        WT_STAT_CONN_INCR(session, txn_rollback_keys_restored);
+        WT_STAT_CONN_INCR(session, txn_rts_keys_restored);
     } else
         /* Stable version according to the timestamp. */
         return (0);
 
     WT_ERR(__txn_row_add_update(session, page, rip, upd));
-    WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
+    WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
     return (0);
 
 err:
@@ -476,7 +476,7 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
         }
         page = ref->page;
     }
-    WT_STAT_CONN_INCR(session, txn_rollback_pages_visited);
+    WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
