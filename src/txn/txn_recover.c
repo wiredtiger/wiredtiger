@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -732,7 +732,7 @@ done:
         conn->txn_global.oldest_timestamp = WT_TS_NONE;
         conn->txn_global.has_oldest_timestamp = true;
 
-        WT_ERR(__wt_txn_rollback_to_stable(session, NULL));
+        WT_ERR(__wt_rollback_to_stable(session, NULL));
 
         /* Reset the stable and oldest timestamp. */
         conn->txn_global.stable_timestamp = WT_TS_NONE;
