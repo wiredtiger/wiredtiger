@@ -647,14 +647,13 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
           &hs_stop.timestamp, &hs_stop.txnid));
         /*
          *  Keep track of the previous comparison. The history store is stored in order, so we can
-         *  avoid redundant comparisons. The prev_hs_key is checked against NULL to avoid errors
-         *  with the id upon the first iteration.
+         *  avoid redundant comparisons. The cursor to the data store is NULL on first iterations.
          */
         if (data_cursor == NULL || (prev_btree_id != btree_id)) {
             /*
-            * Find the URI from the metadata and validate the btree ID. Using this URI, verify the
-            * history store key with the data store.
-            */
+             * Find the URI from the metadata and validate the btree ID. Using this URI, verify the
+             * history store key with the data store.
+             */
             if (data_cursor != NULL) {
                 WT_ERR(data_cursor->close(data_cursor));
                 /* Setting data_cursor to null, to avoid double free */
@@ -665,11 +664,10 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
             F_SET(data_cursor, WT_CURSOR_RAW_OK);
         } else {
             WT_ERR(__wt_compare(session, NULL, &hs_key, &prev_hs_key, &cmp));
-            printf("comparing %s %s", (char *) hs_key, (char *) prev_hs_key);
             if (cmp == 0)
                 continue;
         }
-        WT_RET(__wt_buf_set(session, &prev_hs_key, hs_key.data, hs_key.size));
+        WT_ERR(__wt_buf_set(session, &prev_hs_key, hs_key.data, hs_key.size));
         prev_btree_id = btree_id;
 
         data_cursor->set_key(data_cursor, &hs_key);
@@ -682,12 +680,11 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
         }
 
         WT_ERR(ret);
-        
     }
     WT_ERR_NOTFOUND_OK(ret);
 err:
     if (data_cursor != NULL)
-        WT_ERR(data_cursor->close(data_cursor));
+        data_cursor->close(data_cursor);
     __wt_scr_free(session, &tmp);
     WT_TRET(__wt_hs_cursor_close(session, session_flags));
     return (ret);
