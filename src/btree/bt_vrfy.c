@@ -600,11 +600,9 @@ __verify_btree_id_with_meta(WT_SESSION_IMPL *session, uint32_t btree_id, const c
     WT_ERR(__wt_metadata_cursor(session, &meta_cursor));
     while ((ret = meta_cursor->next(meta_cursor)) == 0) {
         WT_ERR(meta_cursor->get_value(meta_cursor, &meta_value));
-        if ((ret = __wt_config_getones(session, meta_value, "id", &id)) == 0) {
-            if (btree_id == id.val) {
-                WT_ERR(meta_cursor->get_key(meta_cursor, uri));
-                break;
-            }
+        if ((ret = __wt_config_getones(session, meta_value, "id", &id)) == 0 && btree_id == id.val) {
+            WT_ERR(meta_cursor->get_key(meta_cursor, uri));
+            break;
         }
         WT_ERR_NOTFOUND_OK(ret);
     }
@@ -674,9 +672,8 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
         ret = (data_cursor->search(data_cursor));
         if (ret == WT_NOTFOUND) {
             WT_ERR_MSG(session, WT_NOTFOUND,
-              "In the Btree %" PRIu32
-              ", The associated history store key %s cannot be found in the data store",
-              btree_id, __wt_buf_set_printable(session, hs_key.data, hs_key.size, tmp));
+              "In the URI %s, the associated history store key %s cannot be found in the data store",
+              uri, __wt_buf_set_printable(session, hs_key.data, hs_key.size, tmp));
         }
 
         WT_ERR(ret);
