@@ -630,8 +630,7 @@ __wt_metadata_update_base_write_gen(WT_SESSION_IMPL *session, const char *config
     memset(&ckpt, 0, sizeof(ckpt));
 
     if ((ret = __wt_ckpt_last(session, config, &ckpt)) == 0) {
-        conn->max_write_gen = conn->base_write_gen =
-          WT_MAX(ckpt.write_gen + 1, conn->base_write_gen);
+        conn->base_write_gen = WT_MAX(ckpt.write_gen + 1, conn->base_write_gen);
         __wt_meta_checkpoint_free(session, &ckpt);
     } else
         WT_RET_NOTFOUND_OK(ret);
@@ -661,40 +660,6 @@ __wt_metadata_init_base_write_gen(WT_SESSION_IMPL *session)
 }
 
 /*
- * __ckptlist_review_write_gen --
- *     Review the checkpoint's write generation.
- */
-static void
-__ckptlist_review_write_gen(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
-{
-    uint64_t v;
-
-    /*
-     * Every page written in a given wiredtiger_open() session needs to be in a single "generation",
-     * it's how we know to ignore transactional information found on pages written in previous
-     * generations. We make this work by writing the maximum write generation we've ever seen as the
-     * write-generation of the metadata file's checkpoint. When wiredtiger_open() is called, we copy
-     * that write generation into the connection's name space as the base write generation value.
-     * Then, whenever we open a file, if the file's write generation is less than the base value, we
-     * update the file's write generation so all writes will appear after the base value, and we
-     * ignore transactions on pages where the write generation is less than the base value.
-     *
-     * At every checkpoint, if the file's checkpoint write generation is larger than the
-     * connection's maximum write generation, update the connection.
-     */
-    do {
-        WT_ORDERED_READ(v, S2C(session)->max_write_gen);
-    } while (
-      ckpt->write_gen > v && !__wt_atomic_cas64(&S2C(session)->max_write_gen, v, ckpt->write_gen));
-
-    /*
-     * If checkpointing the metadata file, update its write generation to be the maximum we've seen.
-     */
-    if (session->dhandle != NULL && WT_IS_METADATA(session->dhandle) && ckpt->write_gen < v)
-        ckpt->write_gen = v;
-}
-
-/*
  * __wt_meta_ckptlist_to_meta --
  *     Convert a checkpoint list into its metadata representation.
  */
@@ -710,9 +675,6 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         /* Skip deleted checkpoints. */
         if (F_ISSET(ckpt, WT_CKPT_DELETE))
             continue;
-        /* Review the current checkpoint's write generation. */
-        if (F_ISSET(ckpt, WT_CKPT_ADD))
-            __ckptlist_review_write_gen(session, ckpt);
 
         if (F_ISSET(ckpt, WT_CKPT_ADD | WT_CKPT_UPDATE)) {
             /*
