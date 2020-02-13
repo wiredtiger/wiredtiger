@@ -409,7 +409,6 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 {
     WT_CKPT ckpt;
     WT_CONFIG_ITEM cval;
-    WT_DECL_RET;
     WT_LSN lsn;
     uint32_t fileid, lsnfile, lsnoffset;
 
@@ -434,13 +433,6 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     WT_RET(__wt_strdup(r->session, uri, &r->files[fileid].uri));
     WT_RET(__wt_config_getones(r->session, config, "checkpoint_lsn", &cval));
 
-    if ((ret = __wt_ckpt_last(r->session, config, &ckpt)) == 0) {
-        S2C(r->session)
-          ->max_write_gen = S2C(r->session)->base_write_gen =
-          WT_MAX(S2C(r->session)->max_write_gen, ckpt.write_gen + 1);
-        __wt_meta_checkpoint_free(r->session, &ckpt);
-    } else
-        WT_RET_NOTFOUND_OK(ret);
     /* If there is checkpoint logged for the file, apply everything. */
     if (cval.type != WT_CONFIG_ITEM_STRUCT)
         WT_INIT_LSN(&lsn);
@@ -459,6 +451,13 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     if ((!WT_IS_MAX_LSN(&lsn) && !WT_IS_INIT_LSN(&lsn)) &&
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
         r->max_ckpt_lsn = lsn;
+
+    /*
+     * In the case of recovering from a failed checkpoint with logging enabled, we need to update
+     * the base write gen because the trees that have been checkpointed successfully in the failed
+     * checkpoint may have greater write gens.
+     */
+    WT_RET(__wt_metadata_update_base_write_gen(r->session, config));
 
     return (0);
 }

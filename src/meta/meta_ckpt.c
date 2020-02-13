@@ -616,24 +616,46 @@ format:
 }
 
 /*
- * __wt_metadata_set_base_write_gen --
- *     Set the connection's base write generation.
+ * __wt_metadata_update_base_write_gen --
+ *     Update the connection's base write generation.
  */
 int
-__wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session, uint64_t max_write_gen)
+__wt_metadata_update_base_write_gen(WT_SESSION_IMPL *session, const char *config)
 {
     WT_CKPT ckpt;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
 
-    WT_RET(__wt_meta_checkpoint(session, WT_METAFILE_URI, NULL, &ckpt));
+    conn = S2C(session);
+    memset(&ckpt, 0, sizeof(ckpt));
+
+    if ((ret = __wt_ckpt_last(session, config, &ckpt)) == 0) {
+        conn->max_write_gen = conn->base_write_gen =
+          WT_MAX(ckpt.write_gen + 1, conn->base_write_gen);
+        __wt_meta_checkpoint_free(session, &ckpt);
+    } else
+        WT_RET_NOTFOUND_OK(ret);
+
+    return (0);
+}
+
+/*
+ * __wt_metadata_init_base_write_gen --
+ *     Initialize the connection's base write generation.
+ */
+int
+__wt_metadata_init_base_write_gen(WT_SESSION_IMPL *session)
+{
+    char *config;
+
+    /* Retrieve the metadata entry for the file. */
+    WT_RET(__wt_metadata_search(session, WT_METAFILE_URI, &config));
 
     /*
      * We track the maximum page generation we've ever seen, and I'm not interested in debugging
      * off-by-ones.
      */
-    S2C(session)
-      ->max_write_gen = S2C(session)->base_write_gen = WT_MAX(ckpt.write_gen, max_write_gen) + 1;
-
-    __wt_meta_checkpoint_free(session, &ckpt);
+    WT_RET(__wt_metadata_update_base_write_gen(session, config));
 
     return (0);
 }
