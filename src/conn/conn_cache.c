@@ -316,6 +316,9 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
      */
     if (conn->evict_server_running)
         WT_STAT_SET(session, stats, cache_eviction_walks_active, cache->walk_session->nhazard);
+
+    /* TODO: WT-5585 Remove lookaside score statistic after MongoDB switches to an alternative. */
+    WT_STAT_SET(session, stats, cache_lookaside_score, 0);
 }
 
 /*
