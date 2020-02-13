@@ -588,8 +588,7 @@ ops_open_session(TINFO *tinfo, bool *ckpt_handlep)
          */
         while ((ret = session->open_cursor(session, g.uri, NULL, "append", &cursor)) == EBUSY)
             __wt_yield();
-
-        testutil_check(ret);
+        testutil_checkfmt(ret, "%s", g.uri);
         *ckpt_handlep = false;
     }
 
