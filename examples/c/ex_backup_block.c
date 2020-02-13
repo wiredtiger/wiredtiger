@@ -43,6 +43,7 @@ static const char *const incr_out = "./backup_block_incr";
 
 static const char *const uri = "table:main";
 static const char *const uri2 = "table:extra";
+static const char *const uri3 = "table:newtable";
 
 typedef struct __filelist {
     const char *name;
@@ -55,8 +56,10 @@ static size_t filelist_count = 0;
 #define FLIST_INIT 16
 
 #define CONN_CONFIG "create,cache_size=100MB,log=(enabled=true,path=logpath,file_max=100K)"
-#define MAX_ITERATIONS 5
+#define MAX_ITERATIONS 10
 #define MAX_KEYS 10000
+
+bool newtable=false;
 
 static int
 compare_backups(int i)
@@ -142,20 +145,20 @@ setup_directories(void)
 }
 
 static void
-add_work(WT_SESSION *session, int iter, int iterj)
+add_work(WT_SESSION *session, int iter, int iterj, const char *const t_uri1, const char *const t_uri2)
 {
     WT_CURSOR *cursor, *cursor2;
     int i;
     char k[64], v[64];
 
-    error_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+    error_check(session->open_cursor(session, t_uri1, NULL, NULL, &cursor));
     /*
      * Only on even iterations add content to the extra table. This illustrates and shows that
      * sometimes only some tables will be updated.
      */
     cursor2 = NULL;
     if (iter % 2 == 0)
-        error_check(session->open_cursor(session, uri2, NULL, NULL, &cursor2));
+        error_check(session->open_cursor(session, t_uri2, NULL, NULL, &cursor2));
     /*
      * Perform some operations with individual auto-commit transactions.
      */
@@ -392,7 +395,13 @@ take_incr_backup(WT_SESSION *session, int i)
             printf("Incremental %s: KEY: Off %" PRIu64 " Size: %" PRIu64 " %s\n", filename, offset,
               size, type == WT_BACKUP_FILE ? "WT_BACKUP_FILE" : "WT_BACKUP_RANGE");
 #endif
-            if (type == WT_BACKUP_RANGE) {
+            /*
+             * The new condition (newtable == false) is to skip copying blocks for new created objects.
+             * The code below tries to open a write file descriptor on the newly created files to copy
+             * the blocks and it fails because the newly created file does not exist in the incremental
+             * directory
+             */
+            if ((type == WT_BACKUP_RANGE) && (newtable == false)) {
                 /*
                  * We should never get a range key after a whole file so the read file descriptor
                  * should be valid. If the read descriptor is valid, so is the write one.
@@ -404,9 +413,11 @@ take_incr_backup(WT_SESSION *session, int i)
                 }
                 if (first) {
                     (void)snprintf(buf, sizeof(buf), "%s/%s", home, filename);
+                    printf("Read From : %s\n", buf);
                     error_sys_check(rfd = open(buf, O_RDONLY, 0));
                     (void)snprintf(h, sizeof(h), "%s.%d", home_incr, i);
                     (void)snprintf(buf, sizeof(buf), "%s/%s", h, filename);
+                    printf("Write To : %s\n", buf);
                     error_sys_check(wfd = open(buf, O_WRONLY, 0));
                     first = false;
                 }
@@ -473,7 +484,7 @@ remove_all_records_validate(WT_SESSION *session)
      * Take backups and validate
      */
     remove_work(session,0,0);
-    for (i = 1; i < MAX_ITERATIONS ; i++) {
+    for (i = 1; i < MAX_ITERATIONS/2 ; i++) {
         printf("Iteration %d: Removing data\n", i);
         for (j = 0; j < i; j++) {
             remove_work(session, i, j);
@@ -485,6 +496,48 @@ remove_all_records_validate(WT_SESSION *session)
 
     printf("Dumping and comparing data\n");
     error_check(compare_backups(i));
+}
+
+static void
+drop_old_add_new_objects(WT_CONNECTION *wt_conn)
+{
+    WT_SESSION *session;
+    WT_CURSOR *backup_cur;
+    int ret, i, j;
+    char buf[1024];
+
+    error_check(wt_conn->close(wt_conn, NULL));
+    error_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
+    error_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
+    error_check(session->create(session, uri3, "key_format=S,value_format=S"));
+
+    error_check(session->open_cursor(session, "backup:", NULL, NULL, &backup_cur));
+    error_check(backup_cur->close(backup_cur));
+
+    error_check(session->drop(session, uri2, "force"));
+
+    newtable = true;
+
+    for (i = MAX_ITERATIONS/2+1 ; i < MAX_ITERATIONS ; i++) {
+        printf("Iteration %d: adding data\n", i);
+        for (j = 0; j < i; j++) {
+            add_work(session, i, j, uri, uri3);
+            error_check(session->checkpoint(session, NULL));
+        }
+
+        printf("Iteration %d: taking incremental backup\n", i);
+        take_incr_backup(session, i);
+
+        // Check if the dropped object exists in the incremental folder.
+        (void)snprintf(
+            buf, sizeof(buf), "../../wt -R -h %s.%d list | grep %s", home_incr, i, uri2);
+        ret = system(buf);
+        testutil_assertfmt(ret != 0, "%s dropped, but file exists in %s.%d\n", uri2, home_incr, i);
+
+        // Clean up
+        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d", home_incr, i);
+        error_check(system(buf));
+    }
 }
 
 int
@@ -509,18 +562,18 @@ main(int argc, char *argv[])
     error_check(session->create(session, uri, "key_format=S,value_format=S"));
     error_check(session->create(session, uri2, "key_format=S,value_format=S"));
     printf("Adding initial data\n");
-    add_work(session, 0, 0);
+    add_work(session, 0, 0, uri, uri2);
 
     printf("Taking initial backup\n");
     take_full_backup(session, 0);
 
     error_check(session->checkpoint(session, NULL));
 
-    for (i = 1; i < MAX_ITERATIONS; i++) {
+    for (i = 1; i < MAX_ITERATIONS/2 ; i++) {
         printf("Iteration %d: adding data\n", i);
         /* For each iteration we may add work and checkpoint multiple times. */
         for (j = 0; j < i; j++) {
-            add_work(session, i, j);
+            add_work(session, i, j, uri, uri2);
             error_check(session->checkpoint(session, NULL));
         }
 
@@ -543,6 +596,8 @@ main(int argc, char *argv[])
 
     remove_all_records_validate(session);
 
+    drop_old_add_new_objects(wt_conn);
+
     printf("Close and reopen the connection\n");
     /*
      * Close and reopen the connection to illustrate the durability of id information.
@@ -553,7 +608,7 @@ main(int argc, char *argv[])
     /*
      * We should have an entry for i-1 and i-2. Use the older one.
      */
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 1, i+1);
+    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", MAX_ITERATIONS-2, MAX_ITERATIONS);
     error_check(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur));
     error_check(backup_cur->close(backup_cur));
 
