@@ -29,6 +29,7 @@ typedef struct {
     bool dump_history;
     bool dump_layout;
     bool dump_pages;
+    bool hs_verify;
 
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100];
@@ -586,6 +587,112 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
           __verify_addr_string(session, ref, vs->tmp1), unpack->oldest_start_txn,
           unpack->newest_stop_txn);
     return (0);
+}
+
+/*
+ * __verify_btree_id_with_meta --
+ *     With a given btree id, iterate through the metafile table and check if the btree id exists in
+ *     any table. If exists, we place the table URI into a variable otherwise should return
+ *     WT_NOTFOUND.
+ */
+static int
+__verify_btree_id_with_meta(WT_SESSION_IMPL *session, uint32_t btree_id, const char **uri)
+{
+    WT_CONFIG_ITEM id;
+    WT_CURSOR *meta_cursor;
+    WT_DECL_RET;
+    const char *meta_value;
+
+    meta_cursor = NULL;
+    WT_RET(__wt_metadata_cursor(session, &meta_cursor));
+    while ((ret = meta_cursor->next(meta_cursor)) == 0) {
+        WT_ERR(meta_cursor->get_value(meta_cursor, &meta_value));
+        if ((ret = __wt_config_getones(session, meta_value, "id", &id)) == 0 &&
+          btree_id == id.val) {
+            WT_ERR(meta_cursor->get_key(meta_cursor, uri));
+            break;
+        }
+        WT_ERR_NOTFOUND_OK(ret);
+    }
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
+    return (ret);
+}
+
+/*
+ * __wt_verify_history_store_tree --
+ *     Verify the history store tree, by iterating and checking all the keys in the history and that
+ *     it exists in both the meta file and the respective data store table. Skips duplicate keys by
+ *     storing the previous key.
+ */
+int
+__wt_verify_history_store_tree(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *cursor, *data_cursor;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    WT_ITEM hs_key, prev_hs_key;
+    WT_TIME_PAIR hs_start, hs_stop;
+    uint32_t btree_id, session_flags, prev_btree_id;
+    int cmp;
+    const char *uri;
+
+    session_flags = 0;
+    prev_btree_id = 0; /* [-Wconditional-uninitialized] */
+    data_cursor = NULL;
+    uri = NULL;
+    WT_CLEAR(prev_hs_key);
+    WT_CLEAR(hs_key);
+
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+    WT_ERR(__wt_hs_cursor(session, &session_flags));
+    cursor = session->hs_cursor;
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start.timestamp, &hs_start.txnid,
+          &hs_stop.timestamp, &hs_stop.txnid));
+        /*
+         *  Keep track of the previous comparison. The history store is stored in order, so we can
+         *  avoid redundant comparisons. Previous btree ID isn't set, until data cursor is open.
+         */
+        if (data_cursor == NULL || (prev_btree_id != btree_id)) {
+            /*
+             * Find the URI from the metadata and validate the btree ID. Using this URI, verify the
+             * history store key with the data store.
+             */
+            if (data_cursor != NULL) {
+                WT_ERR(data_cursor->close(data_cursor));
+                /* Setting data_cursor to null, to avoid double free */
+                data_cursor = NULL;
+            }
+            WT_ERR(__verify_btree_id_with_meta(session, btree_id, &uri));
+            WT_ERR(__wt_open_cursor(session, uri, NULL, NULL, &data_cursor));
+            F_SET(data_cursor, WT_CURSOR_RAW_OK);
+        } else {
+            WT_ERR(__wt_compare(session, NULL, &hs_key, &prev_hs_key, &cmp));
+            if (cmp == 0)
+                continue;
+        }
+        WT_ERR(__wt_buf_set(session, &prev_hs_key, hs_key.data, hs_key.size));
+        prev_btree_id = btree_id;
+
+        data_cursor->set_key(data_cursor, &hs_key);
+        ret = data_cursor->search(data_cursor);
+        if (ret == WT_NOTFOUND) {
+            WT_ERR_MSG(session, WT_NOTFOUND,
+              "In the URI %s, the associated history store key %s cannot be found in the data "
+              "store",
+              uri, __wt_buf_set_printable(session, hs_key.data, hs_key.size, tmp));
+        }
+
+        WT_ERR(ret);
+    }
+err:
+    if (data_cursor != NULL)
+        data_cursor->close(data_cursor);
+    __wt_scr_free(session, &tmp);
+    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    return (ret);
 }
 
 /*
