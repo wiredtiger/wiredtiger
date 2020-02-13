@@ -403,7 +403,7 @@ err:
 /*
  * __recovery_setup_file --
  *     Set up the recovery slot for a file, track the largest file ID, and update the base write gen
- *     to the maximun write gen we see.
+ *     to the maximun write gen we have seen.
  */
 static int
 __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
@@ -453,11 +453,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
         r->max_ckpt_lsn = lsn;
 
-    /*
-     * In the case of recovering from a failed checkpoint with logging enabled, we need to update
-     * the base write gen because the trees that have been checkpointed successfully in the failed
-     * checkpoint may have greater write gens.
-     */
+    /* Update the base write gen to the maximum write gen we have seen. */
     WT_RET(__wt_metadata_update_base_write_gen(r->session, config));
 
     return (0);
