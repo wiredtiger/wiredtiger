@@ -92,7 +92,7 @@ __wt_value_return_buf(
     page = ref->page;
     cursor = &cbt->iface;
 
-    /* Initialise to globally visible. */
+    /* Initialize to globally visible. */
     if (start != NULL && stop != NULL) {
         start->txnid = WT_TXN_NONE;
         start->timestamp = WT_TS_NONE;
