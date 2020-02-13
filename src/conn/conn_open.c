@@ -192,7 +192,8 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
  *     Start the worker threads.
  */
 int
-__wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
+
+(WT_SESSION_IMPL *session, const char *cfg[])
 {
     /*
      * Start the optional statistics thread. Start statistics first so that other optional threads
@@ -204,7 +205,7 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Run recovery.
      * NOTE: This call will start (and stop) eviction if recovery is
-     * required. Recovery must run before the history store table is created
+     * required.  Recovery must run before the history store table is created
      * (because recovery will update the metadata), and before eviction is
      * started for real.
      */

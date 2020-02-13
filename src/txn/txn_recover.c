@@ -403,7 +403,7 @@ err:
 /*
  * __recovery_setup_file --
  *     Set up the recovery slot for a file, track the largest file ID, and update the base write gen
- *     to the maximum write gen we have seen.
+ *     based on the file's configuration.
  */
 static int
 __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
@@ -433,8 +433,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
           uri, r->files[fileid].uri, fileid);
     WT_RET(__wt_strdup(r->session, uri, &r->files[fileid].uri));
     WT_RET(__wt_config_getones(r->session, config, "checkpoint_lsn", &cval));
-
-    /* If there is checkpoint logged for the file, apply everything. */
+    /* If there is no checkpoint logged for the file, apply everything. */
     if (cval.type != WT_CONFIG_ITEM_STRUCT)
         WT_INIT_LSN(&lsn);
     /* NOLINTNEXTLINE(cert-err34-c) */
@@ -453,7 +452,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
         r->max_ckpt_lsn = lsn;
 
-    /* Update the base write gen to the maximum write gen we have seen. */
+    /* Update the base write gen based on this file's configuration. */
     WT_RET(__wt_metadata_update_base_write_gen(r->session, config));
 
     return (0);
