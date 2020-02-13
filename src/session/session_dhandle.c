@@ -366,7 +366,6 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
     bool empty_btree;
 
     conn = S2C(session);
-    empty_btree = false;
 
     /*
      * Periodically sweep for dead handles; if we've swept recently, don't do it again.
