@@ -41,7 +41,7 @@ __rollback_abort_newer_update(
             first_upd = upd->next;
 
             upd->txnid = WT_TXN_ABORTED;
-            WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
+            WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
             upd->durable_ts = upd->start_ts = WT_TS_NONE;
         }
     }
@@ -127,12 +127,14 @@ static int
 __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
   wt_timestamp_t rollback_timestamp, bool replace)
 {
+    WT_CELL_UNPACK *unpack, _unpack;
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(key);
     WT_DECL_RET;
+    WT_ITEM full_value;
     WT_TIME_PAIR hs_start, hs_stop;
     WT_UPDATE *hs_upd, *upd;
     wt_timestamp_t durable_ts;
@@ -155,6 +157,15 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
+
+    /* Get the full update value from the data store. */
+    WT_CLEAR(full_value);
+    if (!__wt_row_leaf_value(page, rip, &full_value)) {
+        unpack = &_unpack;
+        __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
+        WT_ERR(__wt_page_cell_data_ref(session, page, unpack, &full_value));
+    }
+    WT_ERR(__wt_buf_set(session, &full_value, full_value.data, full_value.size));
 
     /* Open a history store table cursor. */
     WT_ERR(__wt_hs_cursor(session, &session_flags));
@@ -188,7 +199,14 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         /* Set this comparison as exact match of the search for later use. */
         cbt->compare = 0;
 
+        /* Get current value and convert to full update if it is a modify. */
         WT_ERR(hs_cursor->get_value(hs_cursor, &durable_ts, &prepare_state, &type, hs_value));
+        if (type == WT_UPDATE_MODIFY)
+            WT_ERR(__wt_modify_apply_item(session, &full_value, hs_value->data, false));
+        else {
+            WT_ASSERT(session, type == WT_UPDATE_STANDARD);
+            WT_ERR(__wt_buf_set(session, &full_value, hs_value->data, hs_value->size));
+        }
 
         /* Stop processing when we find the update that is less than the given update. */
         if (durable_ts <= rollback_timestamp) {
@@ -204,7 +222,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_WITH_BTREE(session, cbt->btree,
           ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
         WT_ERR(ret);
-        WT_STAT_CONN_INCR(session, txn_rollback_hs_removed);
+        WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
     }
 
@@ -214,7 +232,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * list. Otherwise remove the key by adding a tombstone.
          */
         if (valid_update_found) {
-            WT_ERR(__wt_update_alloc(session, hs_value, &upd, &size, WT_UPDATE_STANDARD));
+            WT_ERR(__wt_update_alloc(session, &full_value, &upd, &size, WT_UPDATE_STANDARD));
 
             /* Clear the transaction id when recovery is in progress. */
             if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
@@ -234,6 +252,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             upd->txnid = WT_TXN_NONE;
             upd->durable_ts = WT_TS_NONE;
             upd->start_ts = WT_TS_NONE;
+            WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
         }
 
         WT_ERR(__rollback_row_add_update(session, page, rip, upd));
@@ -250,7 +269,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_WITH_BTREE(session, cbt->btree,
           ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
         WT_ERR(ret);
-        WT_STAT_CONN_INCR(session, txn_rollback_hs_removed);
+        WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
     }
 
@@ -258,6 +277,7 @@ err:
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
+    __wt_buf_free(session, &full_value);
     __wt_free(session, hs_upd);
     __wt_free(session, upd);
     if (hs_cursor != NULL)
@@ -304,12 +324,13 @@ __rollback_abort_row_ondisk_kv(
         upd->txnid = vpack->start_txn;
         upd->durable_ts = vpack->start_ts;
         upd->start_ts = vpack->start_ts;
+        WT_STAT_CONN_INCR(session, txn_rts_keys_restored);
     } else
         /* Stable version according to the timestamp. */
         return (0);
 
     WT_ERR(__rollback_row_add_update(session, page, rip, upd));
-    WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
+    WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
     return (0);
 
 err:
@@ -552,6 +573,7 @@ __rollback_abort_newer_updates(
         }
         page = ref->page;
     }
+    WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:

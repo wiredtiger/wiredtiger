@@ -17,11 +17,13 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     size_t size;
     int ch;
     char *config, *dump_offsets, *uri;
-    bool dump_address, dump_blocks, dump_history, dump_layout, dump_pages, stable_timestamp;
+    bool dump_address, dump_blocks, dump_layout, dump_pages, dump_history, hs_verify,
+      stable_timestamp;
 
-    dump_address = dump_blocks = dump_history = dump_layout = dump_pages = stable_timestamp = false;
+    dump_address = dump_blocks = dump_history = dump_layout = dump_pages = hs_verify =
+      stable_timestamp = false;
     config = dump_offsets = uri = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "d:S")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "d:hS")) != EOF)
         switch (ch) {
         case 'd':
             if (strcmp(__wt_optarg, "dump_address") == 0)
@@ -46,6 +48,9 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
             else
                 return (usage());
             break;
+        case 'h':
+            hs_verify = true;
+            break;
         case 'S':
             stable_timestamp = true;
             break;
@@ -57,28 +62,33 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     argv += __wt_optind;
 
     /* The remaining argument is the table name. */
-    if (argc != 1)
+    if ((argc != 1 && !hs_verify) || (hs_verify && argc != 0))
         return (usage());
-    if ((uri = util_uri(session, *argv, "table")) == NULL)
+    if (!hs_verify && ((uri = util_uri(session, *argv, "table")) == NULL))
         return (1);
 
-    /* Build the configuration string as necessary. */
+    if (hs_verify && (dump_address || dump_blocks || dump_layout || dump_offsets != NULL ||
+                       dump_pages || stable_timestamp)) {
+        (void)util_err(session, 0, "flags given on -h call");
+    }
+
     if (dump_address || dump_blocks || dump_history || dump_layout || dump_offsets != NULL ||
-      dump_pages || stable_timestamp) {
-        size = strlen("dump_address,") + strlen("dump_blocks,") + strlen("dump_history,") +
+      dump_pages || hs_verify || stable_timestamp) {
+        size = strlen("dump_address,") + strlen("dump_blocks,") + strlen("dump_history") +
           strlen("dump_layout,") + strlen("dump_pages,") + strlen("dump_offsets[],") +
-          (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("stable_timestamp,") + 20;
+          (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("hs_verify") +
+          strlen("stable_timestamp,") + 20;
         if ((config = malloc(size)) == NULL) {
             ret = util_err(session, errno, NULL);
             goto err;
         }
-        if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s%s%s",
+        if ((ret = __wt_snprintf(config, size, "%s%s%s%s%s%s%s%s%s%s",
                dump_address ? "dump_address," : "", dump_blocks ? "dump_blocks," : "",
                dump_history ? "dump_history," : "", dump_layout ? "dump_layout," : "",
                dump_offsets != NULL ? "dump_offsets=[" : "",
                dump_offsets != NULL ? dump_offsets : "", dump_offsets != NULL ? "]," : "",
-               dump_pages ? "dump_pages," : "", stable_timestamp ? "stable_timestamp," : "")) !=
-          0) {
+               dump_pages ? "dump_pages," : "", hs_verify ? "hs_verify" : "",
+               stable_timestamp ? "stable_timestamp," : "")) != 0) {
             (void)util_err(session, ret, NULL);
             goto err;
         }
@@ -107,6 +117,6 @@ usage(void)
       "verify %s\n",
       progname, usage_prefix,
       "[-d dump_address | dump_blocks | dump_history | dump_layout | "
-      "dump_offsets=#,# | dump_pages] [-S] uri");
+      "dump_offsets=#,# | dump_pages] [-h] [-S] uri");
     return (1);
 }

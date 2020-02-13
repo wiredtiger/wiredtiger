@@ -15,17 +15,41 @@
 #define WT_HS_SESSION_FLAGS (WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_NO_RECONCILE)
 
 /*
+ * __hs_start_internal_session --
+ *     Create a temporary internal session to retrieve history store.
+ */
+static int
+__hs_start_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
+{
+    WT_ASSERT(session, !F_ISSET(session, WT_CONN_HS_OPEN));
+    return (__wt_open_internal_session(S2C(session), "hs_access", true, 0, int_sessionp));
+}
+
+/*
+ * __hs_release_internal_session --
+ *     Release the temporary internal session started to retrieve history store.
+ */
+static int
+__hs_release_internal_session(WT_SESSION_IMPL *int_session)
+{
+    WT_SESSION *wt_session;
+
+    wt_session = &int_session->iface;
+    return (wt_session->close(wt_session, NULL));
+}
+
+/*
  * __wt_hs_get_btree --
  *     Get the history store btree. Open a history store cursor if needed to get the btree.
  */
 int
-__wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_tree)
+__wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 {
     WT_DECL_RET;
     uint32_t session_flags;
     bool close_hs_cursor;
 
-    *hs_tree = NULL;
+    *hs_btreep = NULL;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     close_hs_cursor = false;
 
@@ -34,8 +58,8 @@ __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_tree)
         close_hs_cursor = true;
     }
 
-    *hs_tree = ((WT_CURSOR_BTREE *)session->hs_cursor)->btree;
-    WT_ASSERT(session, *hs_tree != NULL);
+    *hs_btreep = ((WT_CURSOR_BTREE *)session->hs_cursor)->btree;
+    WT_ASSERT(session, *hs_btreep != NULL);
 
     if (close_hs_cursor)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
@@ -54,10 +78,10 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    bool reset_no_dh_flag;
+    WT_SESSION_IMPL *tmp_setup_session;
 
     conn = S2C(session);
-    reset_no_dh_flag = false;
+    tmp_setup_session = NULL;
 
     WT_ERR(__wt_config_gets(session, cfg, "history_store.file_max", &cval));
     if (cval.val != 0 && cval.val < WT_HS_FILE_MIN)
@@ -68,17 +92,12 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 
+    WT_ERR(__hs_start_internal_session(session, &tmp_setup_session));
+
     /*
-     * Retrieve the btree from the history store cursor. This function might need to open a cursor
-     * from the default session and hence need to flip the no-dhandle flag temporarily in case it is
-     * set. TODO: WT-5501 We should find a way to do this without opening a history store cursor
-     * from the default session.
+     * Retrieve the btree from the history store cursor.
      */
-    if (F_ISSET(session, WT_SESSION_NO_DATA_HANDLES)) {
-        reset_no_dh_flag = true;
-        F_CLR(session, WT_SESSION_NO_DATA_HANDLES);
-    }
-    WT_ERR(__wt_hs_get_btree(session, &btree));
+    WT_ERR(__wt_hs_get_btree(tmp_setup_session, &btree));
 
     /*
      * Disable bulk loads into history store. We should set original to 0 the first time we
@@ -114,9 +133,8 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     WT_STAT_CONN_SET(session, cache_hs_ondisk_max, btree->file_max);
 
 err:
-    if (reset_no_dh_flag)
-        F_SET(session, WT_SESSION_NO_DATA_HANDLES);
-
+    if (tmp_setup_session != NULL)
+        WT_TRET(__hs_release_internal_session(tmp_setup_session));
     return (ret);
 }
 
@@ -234,6 +252,13 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
 int
 __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags)
 {
+    /*
+     * We should never reach here if working in context of the default session. The only exception
+     * is when we are processing connection close requests.
+     */
+    WT_ASSERT(
+      session, S2C(session)->default_session != session || F_ISSET(S2C(session), WT_CONN_CLOSING));
+
     /*
      * We don't want to get tapped for eviction after we start using the history store cursor; save
      * a copy of the current eviction state, we'll turn eviction off before we return.

@@ -665,9 +665,12 @@ struct __wt_connection_stats {
     int64_t txn_read_queue_head;
     int64_t txn_read_queue_inserts;
     int64_t txn_read_queue_len;
-    int64_t txn_rollback_to_stable;
-    int64_t txn_rollback_upd_aborted;
-    int64_t txn_rollback_hs_removed;
+    int64_t txn_rts;
+    int64_t txn_rts_keys_removed;
+    int64_t txn_rts_keys_restored;
+    int64_t txn_rts_pages_visited;
+    int64_t txn_rts_upd_aborted;
+    int64_t txn_rts_hs_removed;
     int64_t txn_set_ts;
     int64_t txn_set_ts_durable;
     int64_t txn_set_ts_durable_upd;
