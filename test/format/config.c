@@ -938,22 +938,24 @@ config_find(const char *s, size_t len, bool fatal)
 void
 config_single(const char *s, bool perm)
 {
+    enum { RANGE_NONE, RANGE_FIXED, RANGE_WEIGHTED } range;
     CONFIG *cp;
-    long vlong;
     uint32_t v;
-    char *p;
-    const char *ep;
+    long v1, v2;
+    u_int i, steps;
+    char *ep;
+    const char *equalp, *vp1, *vp2;
 
-    if ((ep = strchr(s, '=')) == NULL) {
+    if ((equalp = strchr(s, '=')) == NULL) {
         fprintf(stderr, "%s: %s: illegal configuration value\n", progname, s);
         exit(EXIT_FAILURE);
     }
 
-    if ((cp = config_find(s, (size_t)(ep - s), false)) == NULL)
+    if ((cp = config_find(s, (size_t)(equalp - s), false)) == NULL)
         return;
 
     F_SET(cp, perm ? C_PERM : C_TEMP);
-    ++ep;
+    ++equalp;
 
     if (F_ISSET(cp, C_STRING)) {
         /*
@@ -965,63 +967,108 @@ config_single(const char *s, bool perm)
         }
 
         if (strncmp(s, "checkpoints", strlen("checkpoints")) == 0) {
-            config_map_checkpoint(ep, &g.c_checkpoint_flag);
-            *cp->vstr = dstrdup(ep);
+            config_map_checkpoint(equalp, &g.c_checkpoint_flag);
+            *cp->vstr = dstrdup(equalp);
         } else if (strncmp(s, "checksum", strlen("checksum")) == 0) {
-            config_map_checksum(ep, &g.c_checksum_flag);
-            *cp->vstr = dstrdup(ep);
+            config_map_checksum(equalp, &g.c_checksum_flag);
+            *cp->vstr = dstrdup(equalp);
         } else if (strncmp(s, "compression", strlen("compression")) == 0) {
-            config_map_compression(ep, &g.c_compression_flag);
-            *cp->vstr = dstrdup(ep);
+            config_map_compression(equalp, &g.c_compression_flag);
+            *cp->vstr = dstrdup(equalp);
         } else if (strncmp(s, "data_source", strlen("data_source")) == 0 &&
-          strncmp("file", ep, strlen("file")) != 0 && strncmp("lsm", ep, strlen("lsm")) != 0 &&
-          strncmp("table", ep, strlen("table")) != 0) {
-            fprintf(stderr, "Invalid data source option: %s\n", ep);
+          strncmp("file", equalp, strlen("file")) != 0 &&
+          strncmp("lsm", equalp, strlen("lsm")) != 0 &&
+          strncmp("table", equalp, strlen("table")) != 0) {
+            fprintf(stderr, "Invalid data source option: %s\n", equalp);
             exit(EXIT_FAILURE);
         } else if (strncmp(s, "encryption", strlen("encryption")) == 0) {
-            config_map_encryption(ep, &g.c_encryption_flag);
-            *cp->vstr = dstrdup(ep);
+            config_map_encryption(equalp, &g.c_encryption_flag);
+            *cp->vstr = dstrdup(equalp);
         } else if (strncmp(s, "file_type", strlen("file_type")) == 0) {
-            config_map_file_type(ep, &g.type);
+            config_map_file_type(equalp, &g.type);
             *cp->vstr = dstrdup(config_file_type(g.type));
         } else if (strncmp(s, "isolation", strlen("isolation")) == 0) {
-            config_map_isolation(ep, &g.c_isolation_flag);
-            *cp->vstr = dstrdup(ep);
+            config_map_isolation(equalp, &g.c_isolation_flag);
+            *cp->vstr = dstrdup(equalp);
         } else if (strncmp(s, "logging_compression", strlen("logging_compression")) == 0) {
-            config_map_compression(ep, &g.c_logging_compression_flag);
-            *cp->vstr = dstrdup(ep);
+            config_map_compression(equalp, &g.c_logging_compression_flag);
+            *cp->vstr = dstrdup(equalp);
         } else
-            *cp->vstr = dstrdup(ep);
+            *cp->vstr = dstrdup(equalp);
 
         return;
     }
 
-    vlong = -1;
     if (F_ISSET(cp, C_BOOL)) {
-        if (strncmp(ep, "off", strlen("off")) == 0)
-            vlong = 0;
-        else if (strncmp(ep, "on", strlen("on")) == 0)
-            vlong = 1;
-    }
-    if (vlong == -1) {
-        vlong = strtol(ep, &p, 10);
-        if (*p != '\0') {
-            fprintf(stderr, "%s: %s: illegal numeric value\n", progname, s);
-            exit(EXIT_FAILURE);
+        v1 = -1;
+        if (strncmp(equalp, "off", strlen("off")) == 0)
+            v1 = 0;
+        else if (strncmp(equalp, "on", strlen("on")) == 0)
+            v1 = 1;
+        if (v1 == -1) {
+            v1 = strtol(equalp, &ep, 10);
+            if (*ep != '\0')
+                testutil_die(EINVAL, "%s: %s: illegal boolean value", progname, s);
         }
-    }
-    v = (uint32_t)vlong;
-    if (F_ISSET(cp, C_BOOL)) {
-        if (v != 0 && v != 1) {
-            fprintf(stderr, "%s: %s: value of boolean not 0 or 1\n", progname, s);
-            exit(EXIT_FAILURE);
-        }
-    } else if (v < cp->min || v > cp->maxset) {
-        fprintf(stderr, "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32 "\n",
-          progname, s, cp->min, cp->maxset);
-        exit(EXIT_FAILURE);
+        if (v1 != 0 && v1 != 1)
+            testutil_die(EINVAL, "%s: %s: value of boolean not 0 or 1", progname, s);
+
+        *cp->v = (uint32_t)v1;
+        return;
     }
 
+    /*
+     * Three possible syntax elements: a number, two numbers separated by a dash, two numbers
+     * separated by an asterisk. The first is a fixed value, the second is a range where all values
+     * are equally possible, the third is a weighted range where lower values are more likely.
+     */
+    vp1 = equalp;
+    range = RANGE_NONE;
+    if ((vp2 = strchr(vp1, '-')) != NULL) {
+        ++vp2;
+        range = RANGE_FIXED;
+    } else if ((vp2 = strchr(vp1, '*')) != NULL) {
+        ++vp2;
+        range = RANGE_WEIGHTED;
+    }
+
+    v1 = strtol(vp1, &ep, 10);
+    if (*ep != (range == RANGE_NONE ? '\0' : (range == RANGE_FIXED ? '-' : '*')))
+        testutil_die(EINVAL, "%s: %s: illegal numeric value", progname, s);
+    if (v1 < cp->min || v1 > cp->maxset)
+        testutil_die(EINVAL, "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32 "\n",
+          progname, s, cp->min, cp->maxset);
+
+    if (range != RANGE_NONE) {
+        v2 = strtol(vp2, &ep, 10);
+        if (*ep != '\0')
+            testutil_die(EINVAL, "%s: %s: illegal numeric value", progname, s);
+        if (v2 < cp->min || v2 > cp->maxset)
+            testutil_die(EINVAL,
+              "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32 "\n", progname, s,
+              cp->min, cp->maxset);
+
+        if (v1 > v2)
+            testutil_die(EINVAL, "%s: %s: illegal numeric range\n", progname, s);
+
+        if (range == RANGE_FIXED)
+            v1 = mmrand(NULL, (u_int)v1, (u_int)v2);
+        else {
+            /*
+             * Roll dice, 50% chance of proceeding to the next larger value, and 5 steps to the
+             * maximum value.
+             */
+            steps = ((v2 - v1) + 4) / 5;
+            if (steps == 0)
+                steps = 1;
+            for (i = 0; i < 5; ++i, v1 += steps)
+                if (mmrand(NULL, 0, 1) == 0)
+                    break;
+            v1 = WT_MIN(v1, v2);
+        }
+    }
+
+    v = (uint32_t)v1;
     *cp->v = v;
 }
 
