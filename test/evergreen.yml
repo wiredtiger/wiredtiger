@@ -53,7 +53,6 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-
         if [ "$OS" != "Windows_NT" ]; then
           sh reconf
           ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC"} \
