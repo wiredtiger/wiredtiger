@@ -192,8 +192,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
  *     Start the worker threads.
  */
 int
-
-(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 {
     /*
      * Start the optional statistics thread. Start statistics first so that other optional threads
