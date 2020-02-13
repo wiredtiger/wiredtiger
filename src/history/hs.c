@@ -88,7 +88,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
         WT_ERR_MSG(session, EINVAL, "max history store size %" PRId64 " below minimum %d", cval.val,
           WT_HS_FILE_MIN);
 
-    /* TODO: Remove after we switch to using history_store config in MongoDB. */
+    /* TODO: WT-5585 Remove after we switch to using history_store config in MongoDB. */
     if (cval.val == 0) {
         WT_ERR(__wt_config_gets(session, cfg, "cache_overflow.file_max", &cval));
         if (cval.val != 0 && cval.val < WT_HS_FILE_MIN)

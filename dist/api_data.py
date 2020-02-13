@@ -461,7 +461,7 @@ connection_runtime_config = [
             this size, a panic will be triggered. The default value means that
             the cache overflow file is unbounded and may use as much space as
             the filesystem will accommodate. The minimum non-zero setting is
-            100MB.''',    # !!! TODO: To be removed when we switch to history_store config
+            100MB.''',    # !!! TODO: WT-5585 To be removed when we switch to history_store config
             min='0')
         ]),
     Config('history_store', '', r'''
