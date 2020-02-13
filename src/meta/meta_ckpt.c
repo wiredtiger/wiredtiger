@@ -650,10 +650,8 @@ __wt_metadata_init_base_write_gen(WT_SESSION_IMPL *session)
     /* Retrieve the metadata entry for the file. */
     WT_RET(__wt_metadata_search(session, WT_METAFILE_URI, &config));
 
-    /*
-     * We track the maximum page generation we've ever seen, and I'm not interested in debugging
-     * off-by-ones.
-     */
+    /* Initialize the base write gen to 1 and update to the write gen of metadata. */
+    S2C(session)->base_write_gen = 1;
     WT_RET(__wt_metadata_update_base_write_gen(session, config));
 
     return (0);
