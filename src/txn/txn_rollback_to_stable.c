@@ -241,6 +241,9 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
                 upd->txnid = hs_start.txnid;
             upd->durable_ts = durable_ts;
             upd->start_ts = hs_start.timestamp;
+            __wt_verbose(session, WT_VERB_RTS, "Update restored from history store (txnid: %" PRIu64
+                                               ", start_ts: %" PRIu64 ", durable_ts: %" PRIu64 ")",
+              upd->txnid, upd->start_ts, upd->durable_ts);
 
             /*
              * Set the flag to indicate that this update has been restored from history store for
@@ -253,6 +256,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             upd->durable_ts = WT_TS_NONE;
             upd->start_ts = WT_TS_NONE;
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
+            __wt_verbose(session, WT_VERB_RTS, "%p: key removed", (void *)key);
         }
 
         WT_ERR(__rollback_row_add_update(session, page, rip, upd));
@@ -325,6 +329,9 @@ __rollback_abort_row_ondisk_kv(
         upd->durable_ts = vpack->start_ts;
         upd->start_ts = vpack->start_ts;
         WT_STAT_CONN_INCR(session, txn_rts_keys_restored);
+        __wt_verbose(session, WT_VERB_RTS,
+          "Key restored (txnid: %" PRIu64 ", start_ts: %" PRIu64 ", durable_ts: %" PRIu64 ")",
+          upd->txnid, upd->start_ts, upd->durable_ts);
     } else
         /* Stable version according to the timestamp. */
         return (0);
@@ -553,8 +560,10 @@ __rollback_abort_newer_updates(
     local_read = false;
 
     /* Review deleted page saved to the ref. */
-    if (ref->page_del != NULL && rollback_timestamp < ref->page_del->durable_timestamp)
+    if (ref->page_del != NULL && rollback_timestamp < ref->page_del->durable_timestamp) {
+        __wt_verbose(session, WT_VERB_RTS, "%p: deleted page rolled back", (void *)ref);
         WT_RET(__wt_delete_page_rollback(session, ref));
+    }
 
     /*
      * If we have a ref with no page, or the page is clean, find out whether the page has any
@@ -563,8 +572,10 @@ __rollback_abort_newer_updates(
      * read back into memory and processed like other modified pages.
      */
     if ((page = ref->page) == NULL || !__wt_page_is_modified(page)) {
-        if (!__rollback_page_needs_abort(session, ref, rollback_timestamp))
+        if (!__rollback_page_needs_abort(session, ref, rollback_timestamp)) {
+            __wt_verbose(session, WT_VERB_RTS, "%p: page skipped", (void *)ref);
             return (0);
+        }
 
         /* Page needs rollback, read it into cache. */
         if (page == NULL) {
@@ -574,6 +585,7 @@ __rollback_abort_newer_updates(
         page = ref->page;
     }
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
+    __wt_verbose(session, WT_VERB_RTS, "%p: page rolled back", (void *)ref);
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
@@ -791,8 +803,13 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * 2. The checkpoint durable timestamp is greater than the rollback timestamp.
          * 3. There is no durable timestamp in any checkpoint.
          */
-        if (S2BT(session)->modified || newest_durable_ts > rollback_timestamp || !durable_ts_found)
+        if (S2BT(session)->modified || newest_durable_ts > rollback_timestamp ||
+          !durable_ts_found) {
+            __wt_verbose(session, WT_VERB_RTS, "%s: file rolled back", uri);
             WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp));
+        } else
+            __wt_verbose(session, WT_VERB_RTS, "%s: file skipped", uri);
+
         WT_TRET(__wt_session_release_dhandle(session));
         WT_ERR(ret);
     }
