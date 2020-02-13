@@ -297,6 +297,7 @@ connection_stats = [
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
+    CacheStat('cache_lookaside_score', 'cache overflow score', 'no_clear,no_scale'),
     CacheStat('cache_overhead', 'percentage overhead', 'no_clear,no_scale'),
     CacheStat('cache_pages_dirty', 'tracked dirty pages in the cache', 'no_clear,no_scale'),
     CacheStat('cache_pages_inuse', 'pages currently held in the cache', 'no_clear,no_scale'),
