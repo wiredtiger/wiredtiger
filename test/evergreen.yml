@@ -54,35 +54,6 @@ functions:
         set -o errexit
         set -o verbose
 
-        ls /opt
-
-        echo "Find Command clang"
-        find /opt -name clang
-
-        CCCLANG=/opt/llvm-trunk/bin/clang
-        MONGOBIN=/opt/mongodbtoolchain/v3/bin
-        CUSTOMBIN=/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include
-
-        if [ -f "$CCCLANG" ]; then
-          echo "$CCCLANG exist"
-        else 
-          echo "$CCCLANG does not exist"
-        fi
-
-        if [ -d "$MONGOBIN" ]; then
-          echo "$MONGOBIN exist"
-          ls $MONGOBIN
-        else 
-          echo "$MONGOBIN does not exist"
-        fi
-
-        if [ -d "$CUSTOMBIN" ]; then
-          echo "$CUSTOMBIN exist"
-          ls $CUSTOMBIN
-        else 
-          echo "$CUSTOMBIN does not exist"
-        fi
-
         if [ "$OS" != "Windows_NT" ]; then
           sh reconf
           ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC"} \
@@ -2189,9 +2160,8 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          #configure_env_vars: CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/opt/mongodbtoolchain/v3/bin/clang PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-          #posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
-          configure_env_vars: CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/opt/mongodbtoolchain/v3/bin/clang PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
+          # CC is set to the system default "clang" binary here as a workaround. Change it back to mongodbtoolchain "clang" binary after BUILD-10248 fix.
+          configure_env_vars: CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/usr/bin/clang PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
           posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib         
       - func: "format test script"
         # to emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
@@ -2241,7 +2211,6 @@ buildvariants:
     - name: race-condition-stress-sanitizer-test
     - name: checkpoint-stress-test
     - name: static-wt-build-test
-    #- name: format-stress-sanitizer-test-ppc
 
 - name: ubuntu1804-compilers
   display_name: Ubuntu 18.04 Compilers
