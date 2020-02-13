@@ -850,23 +850,28 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Get a history store dhandle. If the history store file is opened for a special operation this
-     * will return EBUSY which we treat as an error.
+     * will return EBUSY which we treat as an error. In scenarios where the history store is not
+     * part of the metadata file (performing recovery on backup folder where no checkpoint
+     * occurred), this will return ENOENT which we ignore and continue.
      */
-    WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
-    hs_dhandle = session->dhandle;
+    ret = __wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0);
+    if (ret == 0) {
+        hs_dhandle = session->dhandle;
 
-    /*
-     * TODO: It is possible that we don't have a history store file in certain recovery scenarios.
-     * As such we could get a NULL dhandle.
-     */
-    if (hs_dhandle != NULL) {
-        time_start_hs = __wt_clock(session);
-        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
-        WT_ERR(ret);
-        time_stop_hs = __wt_clock(session);
-        hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
-        WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
-    }
+        /*
+         * TODO: It is possible that we don't have a history store file in certain recovery
+         * scenarios. As such we could get a NULL dhandle.
+         */
+        if (hs_dhandle != NULL) {
+            time_start_hs = __wt_clock(session);
+            WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
+            WT_ERR(ret);
+            time_stop_hs = __wt_clock(session);
+            hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
+            WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
+        }
+    } else
+        WT_ERR_ERROR_OK(ret, ENOENT);
 
     /*
      * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't

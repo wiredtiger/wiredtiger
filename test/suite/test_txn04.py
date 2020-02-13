@@ -183,7 +183,6 @@ class test_txn04(wttest.WiredTigerTestCase, suite_subprocess):
         # Backup the target we modified and verify the data.
         # print 'Call hot_backup with ' + self.uri
         self.hot_backup(self.uri, committed)
-    @unittest.skip("Temporarily disabled")
     def test_ops(self):
         self.backup_dir = os.path.join(self.home, "WT_BACKUP")
         self.session2 = self.conn.open_session()
