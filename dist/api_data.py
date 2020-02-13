@@ -1373,6 +1373,9 @@ methods = {
         Display the contents of in-memory pages as they are verified,
         using the application's message handler, intended for debugging''',
         type='boolean'),
+    Config('hs_verify', 'false', r'''
+        Verify the history store''',
+        type='boolean'),
     Config('stable_timestamp', 'false', r'''
         Ensure that no valid timestamps after the stable timestamp exist,
         to be run after rollback_to_stable.''',
