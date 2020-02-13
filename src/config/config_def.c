@@ -145,7 +145,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
     "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
     "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
     "\"version\",\"write\"]",
     NULL, 0},
@@ -600,7 +600,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
     "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
     "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
     "\"version\",\"write\"]",
     NULL, 0},
@@ -670,7 +670,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
     "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
     "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
     "\"version\",\"write\"]",
     NULL, 0},
@@ -737,7 +737,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
     "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
     "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
     "\"version\",\"write\"]",
     NULL, 0},
@@ -804,7 +804,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
     "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
     "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
     "\"version\",\"write\"]",
     NULL, 0},
