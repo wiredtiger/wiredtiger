@@ -2173,15 +2173,13 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          #configure_env_vars: CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/opt/mongodbtoolchain/v3/bin/clang PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-          #posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
-          #configure_env_vars: CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/opt/mongodbtoolchain/v3/bin/clang PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-          configure_env_vars: CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
+          # CC is set to the system default "clang" binary here as a workaround. Change it back to mongodbtoolchain "clang" binary after BUILD-10248 fix.
+          configure_env_vars: CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/usr/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
           posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
       - func: "format test script"
         vars:
           test_env_vars: ASAN_OPTIONS="abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=`ls /usr/bin/llvm-symbolizer* | tail -1`
-          # run for 24 hours ( 2 * 60 = 120 minutes), don't stop at failed tests, use default config
+          # run for 2 hours ( 2 * 60 = 120 minutes), don't stop at failed tests, use default config
           format_test_script_args: -t 120
 
   - name: format-stress-sanitizer-smoke-test-ppc
