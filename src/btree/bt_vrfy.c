@@ -597,7 +597,8 @@ __verify_btree_id_with_meta(WT_SESSION_IMPL *session, uint32_t btree_id, const c
     WT_DECL_RET;
     const char *meta_value;
 
-    WT_ERR(__wt_metadata_cursor(session, &meta_cursor));
+    meta_cursor = NULL;
+    WT_RET(__wt_metadata_cursor(session, &meta_cursor));
     while ((ret = meta_cursor->next(meta_cursor)) == 0) {
         WT_ERR(meta_cursor->get_value(meta_cursor, &meta_value));
         if ((ret = __wt_config_getones(session, meta_value, "id", &id)) == 0 &&
@@ -670,7 +671,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
         prev_btree_id = btree_id;
 
         data_cursor->set_key(data_cursor, &hs_key);
-        ret = (data_cursor->search(data_cursor));
+        ret = data_cursor->search(data_cursor);
         if (ret == WT_NOTFOUND) {
             WT_ERR_MSG(session, WT_NOTFOUND,
               "In the URI %s, the associated history store key %s cannot be found in the data "
@@ -680,7 +681,6 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
 
         WT_ERR(ret);
     }
-    WT_ERR_NOTFOUND_OK(ret);
 err:
     if (data_cursor != NULL)
         data_cursor->close(data_cursor);

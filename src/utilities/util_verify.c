@@ -64,7 +64,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
     /* The remaining argument is the table name. */
     if ((argc != 1 && !hs_verify) || (hs_verify && argc != 0))
         return (usage());
-    if (hs_verify == false && ((uri = util_uri(session, *argv, "table")) == NULL))
+    if (!hs_verify && ((uri = util_uri(session, *argv, "table")) == NULL))
         return (1);
 
     if (hs_verify && (dump_address || dump_blocks || dump_layout || dump_offsets != NULL ||
