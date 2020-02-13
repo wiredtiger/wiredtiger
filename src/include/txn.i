@@ -862,7 +862,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     /*
      * If the start time pair is visible then we need to return the ondisk value.
      *
-     * FIXME-PM-1521: This should be probably be refactored to return a buffer of bytes rather than
+     * FIXME-PM-1521: This should be probably be re-factored to return a buffer of bytes rather than
      * an update. This allocation is expensive and doesn't serve a purpose other than to work within
      * the current system.
      */
@@ -888,7 +888,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
 
     /*
      * FIXME-PM-1521: We call transaction read in a lot of places so we can't do this yet. When we
-     * refactor this function to return a byte array, we should tackle this at the same time.
+     * re-factor this function to return a byte array, we should tackle this at the same time.
      */
     return (0);
 }

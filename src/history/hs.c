@@ -1016,7 +1016,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
             ret = hs_cursor->remove(hs_cursor);
             if (ret != 0)
                 WT_PANIC_ERR(session, ret,
-                  "initialised prepared update but was unable to remove the corresponding entry "
+                  "initialized prepared update but was unable to remove the corresponding entry "
                   "from hs");
 
             /* This is going in our update list so it should be accounted for in cache usage. */

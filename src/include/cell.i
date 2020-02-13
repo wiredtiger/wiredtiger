@@ -931,7 +931,7 @@ __wt_cell_unpack_dsk(
      *
      * This is how the stop time pair should be interpreted for each type of delete:
      * -
-     *                  Timestamped delete  Non-timestamped delete  No delete
+     *                  Timestamp delete  Non-timestamp delete  No delete
      * Current startup  txnid=x, ts=y       txnid=x, ts=1           txnid=MAX, ts=MAX
      * Previous startup txnid=0, ts=y       txnid=0, ts=1           txnid=MAX, ts=MAX
      */
