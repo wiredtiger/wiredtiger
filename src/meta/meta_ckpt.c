@@ -645,15 +645,17 @@ __wt_metadata_update_base_write_gen(WT_SESSION_IMPL *session, const char *config
 int
 __wt_metadata_init_base_write_gen(WT_SESSION_IMPL *session)
 {
+    WT_DECL_RET;
     char *config;
 
-    /* Retrieve the metadata entry for the file. */
-    WT_RET(__wt_metadata_search(session, WT_METAFILE_URI, &config));
-
-    /* Initialize the base write gen to 1 and update to the write gen of metadata. */
+    /* Initialize the base write gen to 1 */
     S2C(session)->base_write_gen = 1;
-    WT_RET(__wt_metadata_update_base_write_gen(session, config));
-
+    /* Retrieve the metadata entry for the file. */
+    WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
+    /*Update base write gen to the write gen of metadata. */
+    WT_ERR(__wt_metadata_update_base_write_gen(session, config));
+err:
+    __wt_free(session, config);
     return (0);
 }
 
