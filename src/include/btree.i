@@ -149,6 +149,9 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
+    if (size == 0)
+        return;
+
     (void)__wt_atomic_add64(&btree->bytes_inmem, size);
     (void)__wt_atomic_add64(&cache->bytes_inmem, size);
     (void)__wt_atomic_addsize(&page->memory_footprint, size);
@@ -468,8 +471,6 @@ static inline void
 __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     uint64_t last_running;
-
-    WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
 
     last_running = 0;
     if (page->modify->page_state == WT_PAGE_CLEAN)
@@ -1048,12 +1049,13 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
 }
 
 /*
- * __wt_ref_info --
- *     Return the addr/size and type triplet for a reference.
+ * __wt_ref_info_all --
+ *     Return the addr/size, type and start/stop time pairs for a reference.
  */
 static inline void
-__wt_ref_info(
-  WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep, bool *is_leafp)
+__wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep,
+  bool *is_leafp, wt_timestamp_t *start_ts, wt_timestamp_t *stop_ts, uint64_t *start_txn,
+  uint64_t *stop_txn)
 {
     WT_ADDR *addr;
     WT_CELL_UNPACK *unpack, _unpack;
@@ -1074,18 +1076,41 @@ __wt_ref_info(
         *sizep = 0;
         if (is_leafp != NULL)
             *is_leafp = false;
+        if (start_ts != NULL)
+            *start_ts = 0;
+        if (stop_ts != NULL)
+            *stop_ts = 0;
+        if (start_txn != NULL)
+            *start_txn = 0;
+        if (stop_txn != NULL)
+            *stop_txn = 0;
     } else if (__wt_off_page(page, addr)) {
         *addrp = addr->addr;
         *sizep = addr->size;
         if (is_leafp != NULL)
             *is_leafp = addr->type != WT_ADDR_INT;
+        if (start_ts != NULL)
+            *start_ts = addr->oldest_start_ts;
+        if (start_txn != NULL)
+            *start_txn = addr->oldest_start_txn;
+        if (stop_ts != NULL)
+            *stop_ts = addr->oldest_start_ts;
+        if (stop_txn != NULL)
+            *stop_txn = addr->oldest_start_txn;
     } else {
         __wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
         *addrp = unpack->data;
         *sizep = unpack->size;
-
         if (is_leafp != NULL)
             *is_leafp = unpack->type != WT_CELL_ADDR_INT;
+        if (start_ts != NULL)
+            *start_ts = unpack->oldest_start_ts;
+        if (start_txn != NULL)
+            *start_txn = unpack->oldest_start_txn;
+        if (stop_ts != NULL)
+            *stop_ts = unpack->newest_stop_ts;
+        if (stop_txn != NULL)
+            *stop_txn = unpack->newest_stop_txn;
     }
 }
 
@@ -1130,6 +1155,36 @@ __wt_ref_info_lock(
 }
 
 /*
+ * __wt_ref_info --
+ *     Return the address, size and type triplet for a reference.
+ */
+static inline void
+__wt_ref_info(
+  WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep, bool *is_leafp)
+{
+    __wt_ref_info_all(session, ref, addrp, sizep, is_leafp, NULL, NULL, NULL, NULL);
+}
+
+/*
+ * __wt_ref_is_leaf --
+ *     Check if a reference is for a leaf page.
+ */
+static inline bool
+__wt_ref_is_leaf(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    size_t addr_size;
+    const uint8_t *addr;
+    bool is_leaf;
+
+    /*
+     * If the page has a disk address, we can crack it to figure out if this page is a leaf page or
+     * not. If there's no address, the page isn't on disk and we don't know the page type.
+     */
+    __wt_ref_info(session, ref, &addr, &addr_size, &is_leaf);
+    return is_leaf;
+}
+
+/*
  * __wt_ref_block_free --
  *     Free the on-disk block for a reference and clear the address.
  */
@@ -1169,25 +1224,6 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
         return (true);
     return (visible_all ? !__wt_txn_visible_all(session, page_del->txnid, page_del->timestamp) :
                           !__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
-}
-
-/*
- * __wt_page_las_active --
- *     Return if lookaside data for a page is still required.
- */
-static inline bool
-__wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_PAGE_LOOKASIDE *page_las;
-
-    if ((page_las = ref->page_las) == NULL)
-        return (false);
-    if (page_las->resolved)
-        return (false);
-    if (page_las->min_skipped_ts != WT_TS_MAX || page_las->has_prepares)
-        return (true);
-
-    return (!__wt_txn_visible_all(session, page_las->max_txn, page_las->max_ondisk_ts));
 }
 
 /*
@@ -1698,4 +1734,34 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
         WT_RET_MSG(session, EINVAL, "page-release WT_RESTART error mapped to EINVAL");
 
     return (ret);
+}
+
+/*
+ * __wt_bt_col_var_cursor_walk_txn_read --
+ *     transactionally read the onpage value and the history store for col var cursor walk.
+ */
+static inline int
+__wt_bt_col_var_cursor_walk_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,
+  WT_CELL_UNPACK *unpack, WT_COL *cip, WT_UPDATE **updp)
+{
+    WT_UPDATE *upd;
+
+    upd = NULL;
+    *updp = NULL;
+    cbt->slot = WT_COL_SLOT(page, cip);
+    WT_RET(__wt_txn_read(session, cbt, NULL, unpack, &upd));
+    if (upd == NULL)
+        return (0);
+    if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+            __wt_free_update_list(session, &upd);
+        return (0);
+    }
+
+    *updp = upd;
+    WT_RET(__wt_value_return(cbt, upd));
+    cbt->tmp->data = cbt->iface.value.data;
+    cbt->tmp->size = cbt->iface.value.size;
+    cbt->cip_saved = cip;
+    return (0);
 }

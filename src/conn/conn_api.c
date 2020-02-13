@@ -1058,10 +1058,10 @@ err:
     WT_TRET(__wt_txn_activity_drain(session));
 
     /*
-     * Disable lookaside eviction: it doesn't help us shut down and can lead to pages being marked
-     * dirty, causing spurious assertions to fire.
+     * Disable history store eviction: it doesn't help us shut down and can lead to pages being
+     * marked dirty, causing spurious assertions to fire.
      */
-    F_SET(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+    F_SET(conn, WT_CONN_EVICTION_NO_HS);
 
     /*
      * Clear any pending async operations and shut down the async worker threads and system before
@@ -1246,7 +1246,8 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
     CONNECTION_API_CALL(conn, session, rollback_to_stable, config, cfg);
-    WT_TRET(__wt_txn_rollback_to_stable(session, cfg));
+    WT_STAT_CONN_INCR(session, txn_rts);
+    WT_TRET(__wt_rollback_to_stable(session, cfg));
 err:
     API_END_RET(session, ret);
 }
@@ -1841,12 +1842,13 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
     static const WT_NAME_FLAG verbtypes[] = {{"api", WT_VERB_API}, {"backup", WT_VERB_BACKUP},
       {"block", WT_VERB_BLOCK}, {"checkpoint", WT_VERB_CHECKPOINT},
+      {"checkpoint_gc", WT_VERB_CHECKPOINT_GC},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"compact", WT_VERB_COMPACT},
       {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"error_returns", WT_VERB_ERROR_RETURNS},
       {"evict", WT_VERB_EVICT}, {"evict_stuck", WT_VERB_EVICT_STUCK},
       {"evictserver", WT_VERB_EVICTSERVER}, {"fileops", WT_VERB_FILEOPS},
-      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"lookaside", WT_VERB_LOOKASIDE},
-      {"lookaside_activity", WT_VERB_LOOKASIDE_ACTIVITY}, {"lsm", WT_VERB_LSM},
+      {"handleops", WT_VERB_HANDLEOPS}, {"log", WT_VERB_LOG}, {"hs", WT_VERB_HS},
+      {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
       {"mutex", WT_VERB_MUTEX}, {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ},
       {"rebalance", WT_VERB_REBALANCE}, {"reconcile", WT_VERB_RECONCILE},
@@ -1981,7 +1983,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
     static const WT_NAME_FLAG stress_types[] = {
       {"aggressive_sweep", WT_TIMING_STRESS_AGGRESSIVE_SWEEP},
       {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
-      {"lookaside_sweep_race", WT_TIMING_STRESS_LOOKASIDE_SWEEP},
+      {"history_store_sweep_race", WT_TIMING_STRESS_HS_SWEEP},
       {"split_1", WT_TIMING_STRESS_SPLIT_1}, {"split_2", WT_TIMING_STRESS_SPLIT_2},
       {"split_3", WT_TIMING_STRESS_SPLIT_3}, {"split_4", WT_TIMING_STRESS_SPLIT_4},
       {"split_5", WT_TIMING_STRESS_SPLIT_5}, {"split_6", WT_TIMING_STRESS_SPLIT_6},
@@ -2293,6 +2295,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     bool config_base_set, try_salvage;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
+    uint64_t max_write_gen;
 
     /* Leave lots of space for optional additional configuration. */
     const char *cfg[] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
@@ -2303,6 +2306,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     session = NULL;
     merge_cfg = NULL;
     try_salvage = false;
+    max_write_gen = 0;
 
     WT_RET(__wt_library_init());
 
@@ -2491,7 +2495,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     }
     WT_ERR(__wt_verbose_config(session, cfg));
     WT_ERR(__wt_timing_stress_config(session, cfg));
-    __wt_btree_page_version_config(session);
 
     /* Set up operation tracking if configured. */
     WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
@@ -2656,7 +2659,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * THE TURTLE FILE MUST BE THE LAST FILE CREATED WHEN INITIALIZING THE
      * DATABASE HOME, IT'S WHAT WE USE TO DECIDE IF WE'RE CREATING OR NOT.
      */
-    WT_ERR(__wt_turtle_init(session));
+    WT_ERR(__wt_turtle_init(session, &max_write_gen));
 
     /*
      * If the user wants to salvage, do so before opening the metadata cursor. We do this after the
@@ -2667,7 +2670,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR(__wt_metadata_salvage(session));
 
     /* Set the connection's base write generation. */
-    WT_ERR(__wt_metadata_set_base_write_gen(session));
+    WT_ERR(__wt_metadata_set_base_write_gen(session, max_write_gen));
 
     WT_ERR(__wt_metadata_cursor(session, NULL));
 

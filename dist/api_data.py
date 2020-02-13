@@ -461,7 +461,19 @@ connection_runtime_config = [
             this size, a panic will be triggered. The default value means that
             the cache overflow file is unbounded and may use as much space as
             the filesystem will accommodate. The minimum non-zero setting is
-            100MB.''',    # !!! Must match WT_LAS_FILE_MIN
+            100MB.''',    # !!! TODO: WT-5585 To be removed when we switch to history_store config
+            min='0')
+        ]),
+    Config('history_store', '', r'''
+        history store configuration options''',
+        type='category', subconfig=[
+        Config('file_max', '0', r'''
+            The maximum number of bytes that WiredTiger is allowed to use for
+            its history store mechanism. If the history store file exceeds
+            this size, a panic will be triggered. The default value means that
+            the history store file is unbounded and may use as much space as
+            the filesystem will accommodate. The minimum non-zero setting is
+            100MB.''',    # !!! Must match WT_HS_FILE_MIN
             min='0')
         ]),
     Config('cache_overhead', '8', r'''
@@ -506,7 +518,7 @@ connection_runtime_config = [
             type='boolean'),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force
-            lookaside eviction to happen more aggressively. This includes but
+            history store eviction to happen more aggressively. This includes but
             is not limited to not skewing newest, not favoring leaf pages,
             and modifying the eviction score mechanism.''',
             type='boolean'),
@@ -687,7 +699,7 @@ connection_runtime_config = [
         intended for use with internal stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_sweep', 'checkpoint_slow', 'lookaside_sweep_race',
+        'aggressive_sweep', 'checkpoint_slow', 'history_store_sweep_race',
         'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6',
         'split_7', 'split_8']),
     Config('verbose', '', r'''
@@ -698,6 +710,7 @@ connection_runtime_config = [
             'backup',
             'block',
             'checkpoint',
+            'checkpoint_gc',
             'checkpoint_progress',
             'compact',
             'compact_progress',
@@ -708,8 +721,8 @@ connection_runtime_config = [
             'fileops',
             'handleops',
             'log',
-            'lookaside',
-            'lookaside_activity',
+            'history_store',
+            'history_store_activity',
             'lsm',
             'lsm_manager',
             'metadata',
@@ -1346,12 +1359,18 @@ methods = {
 'WT_SESSION.upgrade' : Method([]),
 'WT_SESSION.verify' : Method([
     Config('dump_address', 'false', r'''
-        Display addresses and page types as pages are verified,
-        using the application's message handler, intended for debugging''',
+        Display page addresses, start and stop time pairs and page types as
+        pages are verified, using the application's message handler,
+        intended for debugging''',
         type='boolean'),
     Config('dump_blocks', 'false', r'''
         Display the contents of on-disk blocks as they are verified,
         using the application's message handler, intended for debugging''',
+        type='boolean'),
+    Config('dump_history', 'false', r'''
+        Display a key's values along with its start and stop time pairs as
+        they are verified against the history store, using the application's
+        message handler, intended for debugging''',
         type='boolean'),
     Config('dump_layout', 'false', r'''
         Display the layout of the files as they are verified, using the
@@ -1366,11 +1385,18 @@ methods = {
         Display the contents of in-memory pages as they are verified,
         using the application's message handler, intended for debugging''',
         type='boolean'),
+    Config('hs_verify', 'false', r'''
+        Verify the history store''',
+        type='boolean'),
+    Config('stable_timestamp', 'false', r'''
+        Ensure that no valid timestamps after the stable timestamp exist,
+        to be run after rollback_to_stable.''',
+        type='boolean'),
     Config('strict', 'false', r'''
         Treat any verification problem as an error; by default, verify will
         warn, but not fail, in the case of errors that won't affect future
         behavior (for example, a leaked block)''',
-        type='boolean')
+        type='boolean'),
 ]),
 
 'WT_SESSION.begin_transaction' : Method([

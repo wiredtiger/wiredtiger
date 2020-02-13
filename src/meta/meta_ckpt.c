@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
 static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int __ckpt_load_blk_mods(WT_SESSION_IMPL *, const char *, WT_CKPT *);
@@ -112,7 +111,7 @@ __wt_meta_checkpoint(
      * default checkpoint, it's creation, return "no data" and let our caller handle it.
      */
     if (checkpoint == NULL) {
-        if ((ret = __ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
+        if ((ret = __wt_ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
             ret = 0;
             ckpt->addr.data = ckpt->raw.data = NULL;
             ckpt->addr.size = ckpt->raw.size = 0;
@@ -235,11 +234,11 @@ __ckpt_named(WT_SESSION_IMPL *session, const char *checkpoint, const char *confi
 }
 
 /*
- * __ckpt_last --
+ * __wt_ckpt_last --
  *     Return the information associated with the file's last checkpoint.
  */
-static int
-__ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
+int
+__wt_ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM a, k, v;
@@ -621,7 +620,7 @@ format:
  *     Set the connection's base write generation.
  */
 int
-__wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session)
+__wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session, uint64_t max_write_gen)
 {
     WT_CKPT ckpt;
 
@@ -631,7 +630,7 @@ __wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session)
      * We track the maximum page generation we've ever seen, and I'm not interested in debugging
      * off-by-ones.
      */
-    S2C(session)->base_write_gen = ckpt.write_gen + 1;
+    S2C(session)->base_write_gen = WT_MAX(ckpt.write_gen, max_write_gen) + 1;
 
     __wt_meta_checkpoint_free(session, &ckpt);
 
@@ -688,6 +687,9 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         /* Skip deleted checkpoints. */
         if (F_ISSET(ckpt, WT_CKPT_DELETE))
             continue;
+        /* Review the current checkpoint's write generation. */
+        if (F_ISSET(ckpt, WT_CKPT_ADD))
+            __ckptlist_review_write_gen(session, ckpt);
 
         if (F_ISSET(ckpt, WT_CKPT_ADD | WT_CKPT_UPDATE)) {
             /*
@@ -799,10 +801,6 @@ __wt_meta_ckptlist_set(
           ckptlsn->l.file, (uintmax_t)ckptlsn->l.offset));
 
     WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
-
-    /* Review the checkpoint's write generation. */
-    WT_CKPT_FOREACH (ckptbase, ckpt)
-        __ckptlist_review_write_gen(session, ckpt);
 
 err:
     __wt_scr_free(session, &buf);

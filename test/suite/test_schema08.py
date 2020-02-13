@@ -28,7 +28,7 @@
 
 import fnmatch, os, shutil, sys
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # test_schema08.py
@@ -147,6 +147,7 @@ class test_schema08(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Test that creating and dropping tables does not write individual
     # log records.
+    @unittest.skip("Temporarily disabled")
     def test_schema08_create(self):
         self.count = 0
         self.lsns = []

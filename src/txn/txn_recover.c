@@ -661,7 +661,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
     /*
      * Recovery can touch more data than fits in cache, so it relies on regular eviction to manage
-     * paging. Start eviction threads for recovery without LAS cursors.
+     * paging. Start eviction threads for recovery without history store cursors.
      */
     WT_ERR(__wt_evict_create(session));
     eviction_started = true;
@@ -685,7 +685,61 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
 done:
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
-    if (do_checkpoint)
+
+    /*
+     * Perform rollback to stable only when the following conditions met.
+     * 1. The connection is not read-only. A read-only connection expects that there shouldn't be
+     *    any changes that need to be done on the database other than reading.
+     * 2. A valid recovery timestamp. The recovery timestamp is the stable timestamp retrieved
+     *    from the metadata checkpoint information to indicate the stable timestamp when the
+     *    checkpoint happened. Anything updates newer than this timestamp must rollback.
+     */
+    if (!F_ISSET(conn, WT_CONN_READONLY) && conn->txn_global.recovery_timestamp != WT_TS_NONE) {
+        /* Start the eviction threads for rollback to stable if not already started. */
+        if (!eviction_started) {
+            WT_ERR(__wt_evict_create(session));
+            eviction_started = true;
+        }
+
+        /*
+         * Currently, rollback to stable only needs to make changes to tables that use timestamps.
+         * That is because eviction does not run in parallel with a checkpoint, so content that is
+         * written never uses transaction IDs newer than the checkpoint's transaction ID and thus
+         * never needs to be rolled back. Once eviction is allowed while a checkpoint is active, it
+         * will be necessary to take the page write generation number into account during rollback
+         * to stable. For example, a page with write generation 10 and txnid 20 is written in one
+         * checkpoint, and in the next restart a new page with write generation 30 and txnid 20 is
+         * written. The rollback to stable operation should only rollback the latest page changes
+         * solely based on the write generation numbers.
+         */
+
+        WT_ASSERT(session, conn->txn_global.has_stable_timestamp == false &&
+            conn->txn_global.stable_timestamp == WT_TS_NONE);
+        WT_ASSERT(session, conn->txn_global.has_oldest_timestamp == false &&
+            conn->txn_global.oldest_timestamp == WT_TS_NONE);
+
+        /*
+         * Set the stable timestamp from recovery timestamp and process the trees for rollback to
+         * stable.
+         */
+        conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
+        conn->txn_global.has_stable_timestamp = true;
+
+        /*
+         * Set the oldest timestamp to WT_TS_NONE to make sure that we didn't remove any history
+         * window as part of rollback to stable operation.
+         */
+        conn->txn_global.oldest_timestamp = WT_TS_NONE;
+        conn->txn_global.has_oldest_timestamp = true;
+
+        WT_ERR(__wt_rollback_to_stable(session, NULL));
+
+        /* Reset the stable and oldest timestamp. */
+        conn->txn_global.stable_timestamp = WT_TS_NONE;
+        conn->txn_global.has_stable_timestamp = false;
+        conn->txn_global.oldest_timestamp = WT_TS_NONE;
+        conn->txn_global.has_oldest_timestamp = false;
+    } else if (do_checkpoint)
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
          * the checkpoint LSN and archiving.
@@ -712,7 +766,7 @@ err:
 
     /*
      * Destroy the eviction threads that were started in support of recovery. They will be restarted
-     * once the lookaside table is created.
+     * once the history store table is created.
      */
     if (eviction_started)
         WT_TRET(__wt_evict_destroy(session));

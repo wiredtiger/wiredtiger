@@ -821,10 +821,6 @@ __backup_list_uri_append(WT_SESSION_IMPL *session, const char *name, bool *skip)
       !WT_PREFIX_MATCH(name, WT_SYSTEM_PREFIX) && !WT_PREFIX_MATCH(name, "table:"))
         WT_RET_MSG(session, ENOTSUP, "hot backup is not supported for objects of type %s", name);
 
-    /* Ignore the lookaside table or system info. */
-    if (strcmp(name, WT_LAS_URI) == 0)
-        return (0);
-
     /* Add the metadata entry to the backup file. */
     WT_RET(__wt_metadata_search(session, name, &value));
     ret = __wt_fprintf(session, cb->bfs, "%s\n%s\n", name, value);

@@ -256,8 +256,7 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
     /* Free any address allocation. */
     __wt_ref_addr_free(session, ref);
 
-    /* Free any lookaside or page-deleted information. */
-    __wt_free(session, ref->page_las);
+    /* Free any page-deleted information. */
     if (ref->page_del != NULL) {
         __wt_free(session, ref->page_del->update_list);
         __wt_free(session, ref->page_del);
@@ -381,7 +380,7 @@ __free_skip_list(WT_SESSION_IMPL *session, WT_INSERT *ins, bool update_ignore)
 
     for (; ins != NULL; ins = next) {
         if (!update_ignore)
-            __wt_free_update_list(session, ins->upd);
+            __wt_free_update_list(session, &ins->upd);
         next = WT_SKIP_NEXT(ins);
         __wt_free(session, ins);
     }
@@ -403,8 +402,7 @@ __free_update(
      */
     if (!update_ignore)
         for (updp = update_head; entries > 0; --entries, ++updp)
-            if (*updp != NULL)
-                __wt_free_update_list(session, *updp);
+            __wt_free_update_list(session, updp);
 
     /* Free the update array. */
     __wt_free(session, update_head);
@@ -416,12 +414,13 @@ __free_update(
  *     structure and its associated data.
  */
 void
-__wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp)
 {
-    WT_UPDATE *next;
+    WT_UPDATE *next, *upd;
 
-    for (; upd != NULL; upd = next) {
+    for (upd = *updp; upd != NULL; upd = next) {
         next = upd->next;
         __wt_free(session, upd);
     }
+    *updp = NULL;
 }

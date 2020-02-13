@@ -184,7 +184,7 @@ __split_ovfl_key_cleanup(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref)
 
     cell = WT_PAGE_REF_OFFSET(page, cell_offset);
     __wt_cell_unpack(session, page, cell, &kpack);
-    if (kpack.ovfl && kpack.raw != WT_CELL_KEY_OVFL_RM)
+    if (FLD_ISSET(kpack.flags, WT_CELL_UNPACK_OVERFLOW) && kpack.raw != WT_CELL_KEY_OVFL_RM)
         WT_RET(__wt_ovfl_discard(session, page, cell));
 
     return (0);
@@ -806,18 +806,14 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
             }
         }
 
-        /* Check that we are not discarding active history. */
-        WT_ASSERT(session, !__wt_page_las_active(session, next_ref));
-
         /*
-         * The page-delete and lookaside memory weren't added to the parent's footprint, ignore it
-         * here.
+         * The page-delete and history store memory weren't added to the parent's footprint, ignore
+         * it here.
          */
         if (next_ref->page_del != NULL) {
             __wt_free(session, next_ref->page_del->update_list);
             __wt_free(session, next_ref->page_del);
         }
-        __wt_free(session, next_ref->page_las);
 
         /* Free the backing block and address. */
         WT_TRET(__wt_ref_block_free(session, next_ref));
@@ -1398,8 +1394,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     uint64_t recno;
     uint32_t i, slot;
 
-    WT_ASSERT(session, multi->page_las.las_pageid == 0);
-
     /*
      * In 04/2016, we removed column-store record numbers from the WT_PAGE structure, leading to
      * hard-to-debug problems because we corrupt the page if we search it using the wrong initial
@@ -1420,7 +1414,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * our caller will not discard the disk image when discarding the original page, and our caller
      * will discard the allocated page on error, when discarding the allocated WT_REF.
      */
-    WT_RET(__wt_page_inmem(session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, false, &page));
+    WT_RET(__wt_page_inmem(session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page));
     multi->disk_image = NULL;
 
     /*
@@ -1495,17 +1489,17 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     mod->first_dirty_txn = WT_TXN_FIRST;
 
     /*
-     * If the new page is modified, save the eviction generation to avoid repeatedly attempting
-     * eviction on the same page.
+     * Restore the previous page's modify state to avoid repeatedly attempting eviction on the same
+     * page.
      */
     mod->last_evict_pass_gen = orig->modify->last_evict_pass_gen;
     mod->last_eviction_id = orig->modify->last_eviction_id;
     mod->last_eviction_timestamp = orig->modify->last_eviction_timestamp;
-
-    /* Add the update/restore flag to any previous state. */
-    mod->last_stable_timestamp = orig->modify->last_stable_timestamp;
     mod->rec_max_txn = orig->modify->rec_max_txn;
     mod->rec_max_timestamp = orig->modify->rec_max_timestamp;
+    mod->last_stable_timestamp = orig->modify->last_stable_timestamp;
+
+    /* Add the update/restore flag to any previous state. */
     mod->restore_state = orig->modify->restore_state;
     FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
@@ -1606,21 +1600,14 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         break;
     }
 
-    /*
-     * There can be an address or a disk image or both, but if there is neither, there must be a
-     * backing lookaside page.
-     */
-    WT_ASSERT(session,
-      multi->page_las.las_pageid != 0 || multi->addr.addr != NULL || multi->disk_image != NULL);
+    /* There can be an address or a disk image or both. */
+    WT_ASSERT(session, multi->addr.addr != NULL || multi->disk_image != NULL);
 
     /* If closing the file, there better be an address. */
     WT_ASSERT(session, !closing || multi->addr.addr != NULL);
 
     /* If closing the file, there better not be any saved updates. */
     WT_ASSERT(session, !closing || multi->supd == NULL);
-
-    /* If there are saved updates, there better be a disk image. */
-    WT_ASSERT(session, multi->supd == NULL || multi->disk_image != NULL);
 
     /* Verify any disk image we have. */
     WT_ASSERT(session, multi->disk_image == NULL ||
@@ -1647,22 +1634,6 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         addr->type = multi->addr.type;
 
         WT_REF_SET_STATE(ref, WT_REF_DISK);
-    }
-
-    /*
-     * Copy any associated lookaside reference, potentially resetting WT_REF.state. Regardless of a
-     * backing address, WT_REF_LOOKASIDE overrides WT_REF_DISK.
-     */
-    if (multi->page_las.las_pageid != 0) {
-        /*
-         * We should not have a disk image if we did lookaside eviction.
-         */
-        WT_ASSERT(session, multi->disk_image == NULL);
-
-        WT_RET(__wt_calloc_one(session, &ref->page_las));
-        *ref->page_las = multi->page_las;
-        WT_ASSERT(session, ref->page_las->max_txn != WT_TXN_NONE);
-        WT_REF_SET_STATE(ref, WT_REF_LOOKASIDE);
     }
 
     /*
@@ -1741,6 +1712,9 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->pindex_hint = ref->pindex_hint;
     child->state = WT_REF_MEM;
     child->addr = ref->addr;
+
+    WT_ERR_ASSERT(session, ref->page_del == NULL, WT_PANIC,
+      "unexpected page-delete structure when splitting a page");
 
     /*
      * The address has moved to the replacement WT_REF. Make sure it isn't freed when the original

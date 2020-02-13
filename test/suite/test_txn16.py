@@ -33,7 +33,7 @@
 
 import fnmatch, os, shutil, time
 from suite_subprocess import suite_subprocess
-import wttest
+import unittest, wttest
 
 class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
     t1 = 'table:test_txn16_1'
@@ -113,6 +113,7 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
             off_conn = self.wiredtiger_open(homedir, self.conn_off)
             off_conn.close()
 
+    @unittest.skip("Temporarily disabled")
     def test_recovery(self):
         ''' Check log file creation when toggling. '''
 
