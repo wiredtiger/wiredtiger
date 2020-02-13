@@ -229,13 +229,12 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
             bkup_c, config), 0), msg)
 
         # - Force stop must be on primary, not duplicate.
-        #self.pr("Test force stop")
-        #self.pr("=========")
-        #config = 'incremental=(force_stop=true)'
-        #print "config is " + config
-        #self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-        #    lambda:self.assertEquals(self.session.open_cursor(None,
-        #    bkup_c, config), 0), msg)
+        self.pr("Test force stop")
+        self.pr("=========")
+        config = 'incremental=(force_stop=true)'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:self.assertEquals(self.session.open_cursor(None,
+            bkup_c, config), 0), msg)
 
         bkup_c.close()
 

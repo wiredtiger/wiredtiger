@@ -1156,7 +1156,7 @@ __verify_txn_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
 
 /*
  * __verify_timestamp_to_pretty_string --
- *     Convert a timestamp to a pretty string, utilises existing timestamp to string function.
+ *     Convert a timestamp to a pretty string, utilizes existing timestamp to string function.
  */
 static const char *
 __verify_timestamp_to_pretty_string(wt_timestamp_t ts)
