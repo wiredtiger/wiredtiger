@@ -402,7 +402,8 @@ err:
 
 /*
  * __recovery_setup_file --
- *     Set up the recovery slot for a file.
+ *     Set up the recovery slot for a file, track the largest file ID, and update the base write gen
+ *     to the maximun write gen we see.
  */
 static int
 __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
