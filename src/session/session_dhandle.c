@@ -383,8 +383,9 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
         dhandle = dhandle_cache->dhandle;
         empty_btree = false;
         if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
-            WT_WITH_DHANDLE(session, dhandle, empty_btree = (__wt_btree_bytes_evictable(session) == 0));
-        
+            WT_WITH_DHANDLE(
+              session, dhandle, empty_btree = (__wt_btree_bytes_evictable(session) == 0));
+
         if (dhandle != session->dhandle && dhandle->session_inuse == 0 &&
           (WT_DHANDLE_INACTIVE(dhandle) ||
               (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time) ||
