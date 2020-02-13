@@ -104,8 +104,6 @@ __wt_metadata_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
      * one.
      */
     cursor = NULL;
-    if (cursorp != NULL)
-        *cursorp = NULL;
     if (session->meta_cursor == NULL || F_ISSET(session->meta_cursor, WT_CURSTD_META_INUSE)) {
         WT_RET(__wt_metadata_cursor_open(session, NULL, &cursor));
         if (session->meta_cursor == NULL) {
