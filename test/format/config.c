@@ -941,8 +941,8 @@ config_single(const char *s, bool perm)
     enum { RANGE_NONE, RANGE_FIXED, RANGE_WEIGHTED } range;
     CONFIG *cp;
     uint32_t v;
-    long v1, v2;
-    u_int i, steps;
+    long steps, v1, v2;
+    u_int i;
     char *ep;
     const char *equalp, *vp1, *vp2;
 
