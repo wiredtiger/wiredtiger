@@ -160,7 +160,7 @@ err:
  */
 static bool
 __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t max_txn,
-  wt_timestamp_t max_ts, bool list_uncommitted, uint64_t flags)
+  wt_timestamp_t max_ts, bool has_newer_updates, uint64_t flags)
 {
     /*
      * Save updates for in-memory database, except when the maximum timestamp and txnid are globally
@@ -177,7 +177,7 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t 
     if (!LF_ISSET(WT_REC_HS))
         return false;
 
-    if (LF_ISSET(WT_REC_EVICT) && list_uncommitted)
+    if (LF_ISSET(WT_REC_EVICT) && has_newer_updates)
         return true;
 
     /* When in checkpoint, no need to save update if no onpage value is selected. */
@@ -200,10 +200,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_RET;
     WT_PAGE *page;
     WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd;
-    wt_timestamp_t max_ts, tombstone_durable_ts;
+    wt_timestamp_t max_ts, stable_ts, tombstone_durable_ts;
     size_t size, upd_memsize;
     uint64_t max_txn, txnid;
-    bool list_uncommitted;
+    bool has_newer_updates;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -216,9 +216,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     first_txn_upd = upd = last_upd = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
+    stable_ts = S2C(session)->txn_global.stable_timestamp;
     tombstone_durable_ts = WT_TS_MAX;
     max_txn = WT_TXN_NONE;
-    list_uncommitted = false;
+    has_newer_updates = false;
 
     /*
      * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
@@ -259,12 +260,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (F_ISSET(r, WT_REC_VISIBLE_ALL) && !WT_IS_METADATA(session->dhandle) ?
             WT_TXNID_LE(r->last_running, txnid) :
             !__txn_visible_id(session, txnid)) {
-            list_uncommitted = true;
+            has_newer_updates = true;
             continue;
         }
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            list_uncommitted = true;
+            has_newer_updates = true;
             if (upd->start_ts > max_ts)
                 max_ts = upd->start_ts;
 
@@ -281,6 +282,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd->start_ts > max_ts)
             max_ts = upd->start_ts;
 
+        /*
+         * FIXME-PM-1524: A temporary solution for not storing durable timestamp in the cell.
+         * Properly fix this problem in PM-1524.
+         */
+        if (upd->durable_ts != upd->start_ts && upd->durable_ts > stable_ts) {
+            has_newer_updates = true;
+            continue;
+        }
+
         /* Always select the newest committed update to write to disk */
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
@@ -295,7 +305,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * to discard updates from the stable update and older for correctness and we can't
              * discard an uncommitted update.
              */
-            if (upd_select->upd != NULL && list_uncommitted)
+            if (upd_select->upd != NULL && has_newer_updates)
                 return (__wt_set_return(session, EBUSY));
         } else if (!F_ISSET(r, WT_REC_EVICT))
             break;
@@ -450,10 +460,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         upd_select->upd = NULL;
     }
 
-    /* Should not see uncommitted changes in the history store */
-    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !list_uncommitted);
+    /* Should not see updates newer than the onpage value in the history store */
+    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !has_newer_updates);
 
-    r->leave_dirty = r->leave_dirty || list_uncommitted;
+    r->leave_dirty = r->leave_dirty || has_newer_updates;
     /*
      * The update doesn't have any further updates that need to be written to the history store,
      * skip saving the update as saving the update will cause reconciliation to think there is work
@@ -462,7 +472,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Additionally history store reconciliation is not set skip saving an update.
      */
     if (__rec_need_save_upd(
-          session, upd_select->upd, max_txn, max_ts, list_uncommitted, r->flags)) {
+          session, upd_select->upd, max_txn, max_ts, has_newer_updates, r->flags)) {
         /* During recovery, there are no transaction id's. */
         WT_ASSERT(
           session, !F_ISSET(S2C(session), WT_CONN_RECOVERING) ? r->max_txn != WT_TS_NONE : true);
