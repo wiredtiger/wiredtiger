@@ -938,7 +938,7 @@ config_find(const char *s, size_t len, bool fatal)
 void
 config_single(const char *s, bool perm)
 {
-    enum { RANGE_NONE, RANGE_FIXED, RANGE_WEIGHTED } range;
+    enum { RANGE_FIXED, RANGE_NONE, RANGE_WEIGHTED } range;
     CONFIG *cp;
     uint32_t v;
     long steps, v1, v2;
