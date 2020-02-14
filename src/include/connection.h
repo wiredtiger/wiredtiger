@@ -302,8 +302,7 @@ struct __wt_connection_impl {
     uint64_t incr_granularity;
     WT_BLKINCR incr_backups[WT_BLKINCR_MAX];
 
-    /* Connection's maximum and base write generations. */
-    uint64_t max_write_gen;
+    /* Connection's base write generation. */
     uint64_t base_write_gen;
 
     uint32_t stat_flags; /* Options declared in flags.py */

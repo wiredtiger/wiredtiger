@@ -267,7 +267,11 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
     hs_btree_id = btree->id;
     /* Set the data store timestamp and transactions to initiate timestamp range verification */
     prev_start.timestamp = unpack->start_ts;
-    prev_start.txnid = unpack->start_txn;
+    /*
+     * FIXME-PM-1694: Currently transaction IDs in Data store are wiped upon start up, thus we can't
+     * check data continuity from data store to history store.
+     */
+    prev_start.txnid = WT_TXN_MAX;
     session_flags = 0;
     stop.timestamp = 0;
     stop.txnid = 0;
@@ -330,7 +334,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
               ", Key %s has a overlap of "
               "timestamp ranges between history store stop transaction (%" PRIu64
               ") being "
-              "newer than a more recent timestamp range having start transaction (%" PRIu64 ")",
+              "newer than a more recent transaction range having start transaction (%" PRIu64 ")",
               hs_btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
               stop.txnid, prev_start.txnid);
         }

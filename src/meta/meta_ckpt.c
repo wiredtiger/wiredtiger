@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
 static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int __ckpt_load_blk_mods(WT_SESSION_IMPL *, const char *, WT_CKPT *);
@@ -111,7 +112,7 @@ __wt_meta_checkpoint(
      * default checkpoint, it's creation, return "no data" and let our caller handle it.
      */
     if (checkpoint == NULL) {
-        if ((ret = __wt_ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
+        if ((ret = __ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
             ret = 0;
             ckpt->addr.data = ckpt->raw.data = NULL;
             ckpt->addr.size = ckpt->raw.size = 0;
@@ -234,11 +235,11 @@ __ckpt_named(WT_SESSION_IMPL *session, const char *checkpoint, const char *confi
 }
 
 /*
- * __wt_ckpt_last --
+ * __ckpt_last --
  *     Return the information associated with the file's last checkpoint.
  */
-int
-__wt_ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
+static int
+__ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM a, k, v;
@@ -616,59 +617,48 @@ format:
 }
 
 /*
- * __wt_metadata_set_base_write_gen --
- *     Set the connection's base write generation.
+ * __wt_metadata_update_base_write_gen --
+ *     Update the connection's base write generation.
  */
 int
-__wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session, uint64_t max_write_gen)
+__wt_metadata_update_base_write_gen(WT_SESSION_IMPL *session, const char *config)
 {
     WT_CKPT ckpt;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
 
-    WT_RET(__wt_meta_checkpoint(session, WT_METAFILE_URI, NULL, &ckpt));
+    conn = S2C(session);
+    memset(&ckpt, 0, sizeof(ckpt));
 
-    /*
-     * We track the maximum page generation we've ever seen, and I'm not interested in debugging
-     * off-by-ones.
-     */
-    S2C(session)->base_write_gen = WT_MAX(ckpt.write_gen, max_write_gen) + 1;
-
-    __wt_meta_checkpoint_free(session, &ckpt);
+    if ((ret = __ckpt_last(session, config, &ckpt)) == 0) {
+        conn->base_write_gen = WT_MAX(ckpt.write_gen + 1, conn->base_write_gen);
+        __wt_meta_checkpoint_free(session, &ckpt);
+    } else
+        WT_RET_NOTFOUND_OK(ret);
 
     return (0);
 }
 
 /*
- * __ckptlist_review_write_gen --
- *     Review the checkpoint's write generation.
+ * __wt_metadata_init_base_write_gen --
+ *     Initialize the connection's base write generation.
  */
-static void
-__ckptlist_review_write_gen(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
+int
+__wt_metadata_init_base_write_gen(WT_SESSION_IMPL *session)
 {
-    uint64_t v;
+    WT_DECL_RET;
+    char *config;
 
-    /*
-     * Every page written in a given wiredtiger_open() session needs to be in a single "generation",
-     * it's how we know to ignore transactional information found on pages written in previous
-     * generations. We make this work by writing the maximum write generation we've ever seen as the
-     * write-generation of the metadata file's checkpoint. When wiredtiger_open() is called, we copy
-     * that write generation into the connection's name space as the base write generation value.
-     * Then, whenever we open a file, if the file's write generation is less than the base value, we
-     * update the file's write generation so all writes will appear after the base value, and we
-     * ignore transactions on pages where the write generation is less than the base value.
-     *
-     * At every checkpoint, if the file's checkpoint write generation is larger than the
-     * connection's maximum write generation, update the connection.
-     */
-    do {
-        WT_ORDERED_READ(v, S2C(session)->max_write_gen);
-    } while (
-      ckpt->write_gen > v && !__wt_atomic_cas64(&S2C(session)->max_write_gen, v, ckpt->write_gen));
+    /* Initialize the base write gen to 1 */
+    S2C(session)->base_write_gen = 1;
+    /* Retrieve the metadata entry for the metadata file. */
+    WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
+    /* Update base write gen to the write gen of metadata. */
+    WT_ERR(__wt_metadata_update_base_write_gen(session, config));
 
-    /*
-     * If checkpointing the metadata file, update its write generation to be the maximum we've seen.
-     */
-    if (session->dhandle != NULL && WT_IS_METADATA(session->dhandle) && ckpt->write_gen < v)
-        ckpt->write_gen = v;
+err:
+    __wt_free(session, config);
+    return (ret);
 }
 
 /*
@@ -687,9 +677,6 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         /* Skip deleted checkpoints. */
         if (F_ISSET(ckpt, WT_CKPT_DELETE))
             continue;
-        /* Review the current checkpoint's write generation. */
-        if (F_ISSET(ckpt, WT_CKPT_ADD))
-            __ckptlist_review_write_gen(session, ckpt);
 
         if (F_ISSET(ckpt, WT_CKPT_ADD | WT_CKPT_UPDATE)) {
             /*
