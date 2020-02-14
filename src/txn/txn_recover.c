@@ -408,12 +408,10 @@ err:
 static int
 __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 {
-    WT_CKPT ckpt;
     WT_CONFIG_ITEM cval;
     WT_LSN lsn;
     uint32_t fileid, lsnfile, lsnoffset;
 
-    memset(&ckpt, 0, sizeof(ckpt));
     WT_RET(__wt_config_getones(r->session, config, "id", &cval));
     fileid = (uint32_t)cval.val;
 
@@ -453,9 +451,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
         r->max_ckpt_lsn = lsn;
 
     /* Update the base write gen based on this file's configuration. */
-    WT_RET(__wt_metadata_update_base_write_gen(r->session, config));
-
-    return (0);
+    return (__wt_metadata_update_base_write_gen(r->session, config));
 }
 
 /*

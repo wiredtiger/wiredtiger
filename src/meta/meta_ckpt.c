@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
 static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int __ckpt_load_blk_mods(WT_SESSION_IMPL *, const char *, WT_CKPT *);
@@ -111,7 +112,7 @@ __wt_meta_checkpoint(
      * default checkpoint, it's creation, return "no data" and let our caller handle it.
      */
     if (checkpoint == NULL) {
-        if ((ret = __wt_ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
+        if ((ret = __ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
             ret = 0;
             ckpt->addr.data = ckpt->raw.data = NULL;
             ckpt->addr.size = ckpt->raw.size = 0;
@@ -234,11 +235,11 @@ __ckpt_named(WT_SESSION_IMPL *session, const char *checkpoint, const char *confi
 }
 
 /*
- * __wt_ckpt_last --
+ * __ckpt_last --
  *     Return the information associated with the file's last checkpoint.
  */
-int
-__wt_ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
+static int
+__ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
 {
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM a, k, v;
@@ -629,7 +630,7 @@ __wt_metadata_update_base_write_gen(WT_SESSION_IMPL *session, const char *config
     conn = S2C(session);
     memset(&ckpt, 0, sizeof(ckpt));
 
-    if ((ret = __wt_ckpt_last(session, config, &ckpt)) == 0) {
+    if ((ret = __ckpt_last(session, config, &ckpt)) == 0) {
         conn->base_write_gen = WT_MAX(ckpt.write_gen + 1, conn->base_write_gen);
         __wt_meta_checkpoint_free(session, &ckpt);
     } else
@@ -652,7 +653,7 @@ __wt_metadata_init_base_write_gen(WT_SESSION_IMPL *session)
     S2C(session)->base_write_gen = 1;
     /* Retrieve the metadata entry for the metadata file. */
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
-    /*Update base write gen to the write gen of metadata. */
+    /* Update base write gen to the write gen of metadata. */
     WT_ERR(__wt_metadata_update_base_write_gen(session, config));
 
 err:
