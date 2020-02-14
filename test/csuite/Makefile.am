@@ -13,13 +13,11 @@ noinst_PROGRAMS=
 
 test_random_abort_SOURCES = random_abort/main.c
 noinst_PROGRAMS += test_random_abort
-# Temporarily disabled
-# all_TESTS += random_abort/smoke.sh
+all_TESTS += random_abort/smoke.sh
 
 test_random_directio_SOURCES = random_directio/main.c random_directio/util.c
 noinst_PROGRAMS += test_random_directio
-# Temporarily disabled
-# all_TESTS += random_directio/smoke.sh
+all_TESTS += random_directio/smoke.sh
 
 test_rwlock_SOURCES = rwlock/main.c
 noinst_PROGRAMS += test_rwlock
