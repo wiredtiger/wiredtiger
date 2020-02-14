@@ -645,6 +645,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
     WT_CLEAR(prev_hs_key);
     WT_CLEAR(hs_key);
 
+    __wt_txn_get_snapshot(session);
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_hs_cursor(session, &session_flags));
     cursor = session->hs_cursor;
@@ -693,6 +694,7 @@ err:
         data_cursor->close(data_cursor);
     __wt_scr_free(session, &tmp);
     WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    __wt_txn_release_snapshot(session);
     return (ret);
 }
 
