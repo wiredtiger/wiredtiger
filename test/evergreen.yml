@@ -761,21 +761,20 @@ tasks:
 
   #           ${test_env_vars|} $(pwd)/../test/csuite/schema_abort/smoke.sh 2>&1
 
-  # Temporarily disabled
-  # - name: csuite-timestamp-abort-test
-  #   tags: ["pull_request"]
-  #   depends_on:
-  #     - name: compile
-  #   commands:
-  #     - func: "fetch artifacts"
-  #     - command: shell.exec
-  #       params:
-  #         working_dir: "wiredtiger/build_posix"
-  #         script: |
-  #           set -o errexit
-  #           set -o verbose
+  - name: csuite-timestamp-abort-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
 
-  #           ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
+            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
 
   - name: csuite-scope-test
     tags: ["pull_request"]
@@ -890,20 +889,20 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt2719_reconfig 2>&1
 
-  # - name: csuite-wt2999-join-extractor-test
-  #   tags: ["pull_request"]
-  #   depends_on:
-  #     - name: compile
-  #   commands:
-  #     - func: "fetch artifacts"
-  #     - command: shell.exec
-  #       params:
-  #         working_dir: "wiredtiger/build_posix"
-  #         script: |
-  #           set -o errexit
-  #           set -o verbose
+  - name: csuite-wt2999-join-extractor-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
 
-  #           ${test_env_vars|} $(pwd)/test/csuite/test_wt2999_join_extractor 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2999_join_extractor 2>&1
 
   - name: csuite-wt3120-filesys-test
     tags: ["pull_request"]
@@ -1146,21 +1145,20 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt2834_join_bloom_fix 2>&1
 
-  # Temporarily disabled
-  # - name: csuite-wt2853-perf-test
-  #   tags: ["pull_request"]
-  #   depends_on:
-  #     - name: compile
-  #   commands:
-  #     - func: "fetch artifacts"
-  #     - command: shell.exec
-  #       params:
-  #         working_dir: "wiredtiger/build_posix"
-  #         script: |
-  #           set -o errexit
-  #           set -o verbose
+  - name: csuite-wt2853-perf-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
 
-  #           ${test_env_vars|} $(pwd)/test/csuite/test_wt2853_perf 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2853_perf 2>&1
 
   # - name: csuite-wt2909-checkpoint-integrity-test
   #   tags: ["pull_request"]

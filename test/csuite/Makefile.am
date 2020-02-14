@@ -9,7 +9,7 @@ noinst_PROGRAMS=
 
 # The import test is only a shell script
 # Temporarily disabled
-# all_TESTS += import/smoke.sh
+all_TESTS += import/smoke.sh
 
 test_random_abort_SOURCES = random_abort/main.c
 noinst_PROGRAMS += test_random_abort
@@ -26,7 +26,7 @@ all_TESTS += test_rwlock
 test_schema_abort_SOURCES = schema_abort/main.c
 noinst_PROGRAMS += test_schema_abort
 # Temporarily disabled
-# all_TESTS += schema_abort/smoke.sh
+all_TESTS += schema_abort/smoke.sh
 
 test_scope_SOURCES = scope/main.c
 noinst_PROGRAMS += test_scope
@@ -34,8 +34,7 @@ all_TESTS += test_scope
 
 test_timestamp_abort_SOURCES = timestamp_abort/main.c
 noinst_PROGRAMS += test_timestamp_abort
-# Temporarily disabled
-# all_TESTS += timestamp_abort/smoke.sh
+all_TESTS += timestamp_abort/smoke.sh
 
 test_truncated_log_SOURCES = truncated_log/main.c
 noinst_PROGRAMS += test_truncated_log
@@ -56,7 +55,7 @@ all_TESTS += test_wt2246_col_append
 test_wt2323_join_visibility_SOURCES = wt2323_join_visibility/main.c
 noinst_PROGRAMS += test_wt2323_join_visibility
 # Temporarily disabled
-# all_TESTS += test_wt2323_join_visibility
+all_TESTS += test_wt2323_join_visibility
 
 test_wt2535_insert_race_SOURCES = wt2535_insert_race/main.c
 noinst_PROGRAMS += test_wt2535_insert_race
@@ -84,8 +83,7 @@ all_TESTS += test_wt2834_join_bloom_fix
 
 test_wt2853_perf_SOURCES = wt2853_perf/main.c
 noinst_PROGRAMS += test_wt2853_perf
-# Temporarily disabled
-# all_TESTS += test_wt2853_perf
+all_TESTS += test_wt2853_perf
 
 test_wt2909_checkpoint_integrity_SOURCES = wt2909_checkpoint_integrity/main.c
 noinst_PROGRAMS += test_wt2909_checkpoint_integrity
@@ -135,7 +133,7 @@ all_TESTS += test_wt4156_metadata_salvage
 test_wt4333_handle_locks_SOURCES = wt4333_handle_locks/main.c
 noinst_PROGRAMS += test_wt4333_handle_locks
 # Temporarily disabled
-# all_TESTS += test_wt4333_handle_locks
+all_TESTS += test_wt4333_handle_locks
 
 test_wt4699_json_SOURCES = wt4699_json/main.c
 noinst_PROGRAMS += test_wt4699_json
