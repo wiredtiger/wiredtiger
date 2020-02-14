@@ -850,16 +850,18 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Get a history store dhandle. If the history store file is opened for a special operation this
-     * will return EBUSY which we treat as an error.
+     * will return EBUSY which we treat as an error. In scenarios where the history store is not
+     * part of the metadata file (performing recovery on backup folder where no checkpoint
+     * occurred), this will return ENOENT which we ignore and continue.
      */
-    WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
+    WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0), ENOENT);
     hs_dhandle = session->dhandle;
 
     /*
-     * TODO: It is possible that we don't have a history store file in certain recovery scenarios.
-     * As such we could get a NULL dhandle.
+     * It is possible that we don't have a history store file in certain recovery scenarios. As such
+     * we could get a dhandle that is not opened.
      */
-    if (hs_dhandle != NULL) {
+    if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
         time_start_hs = __wt_clock(session);
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
         WT_ERR(ret);
@@ -896,7 +898,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
 
     /* Sync the history store file. */
-    if (hs_dhandle != NULL)
+    if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN))
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_sync(session, NULL));
 
     time_stop_fsync = __wt_clock(session);
