@@ -191,14 +191,14 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./t ${thread_test_args|} 2>&1
-  "random abort test":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger/build_posix/test/csuite"
-      script: |
-        set -o errexit
-        set -o verbose
-        ${test_env_vars|} ./test_random_abort ${random_abort_args|} 2>&1
+  # "random abort test":
+  #   command: shell.exec
+  #   params:
+  #     working_dir: "wiredtiger/build_posix/test/csuite"
+  #     script: |
+  #       set -o errexit
+  #       set -o verbose
+  #       ${test_env_vars|} ./test_random_abort ${random_abort_args|} 2>&1
   "timestamp abort test":
     command: shell.exec
     params:
@@ -731,7 +731,6 @@ tasks:
 
   #           ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
 
-  # Temporarily disabled
   # - name: csuite-random-directio-test
   #   tags: ["pull_request"]
   #   depends_on:
