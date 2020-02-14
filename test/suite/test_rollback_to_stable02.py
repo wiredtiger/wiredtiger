@@ -43,7 +43,6 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
-    @unittest.skip("Temporarily disabled")
     def test_rollback_to_stable(self):
         nrows = 10000
 
@@ -85,6 +84,14 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         self.conn.rollback_to_stable()
         # Check that the new updates are only seen after the update timestamp
         self.check(valuea, uri, nrows, 40)
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        calls = stat_cursor[stat.conn.txn_rts][2]
+        upd_aborted = (stat_cursor[stat.conn.txn_rts_upd_aborted][2] +
+            stat_cursor[stat.conn.txn_rts_hs_removed][2])
+        stat_cursor.close()
+        self.assertEqual(calls, 1)
+        self.assertTrue(upd_aborted >= nrows * 3)
 
 if __name__ == '__main__':
     wttest.run()

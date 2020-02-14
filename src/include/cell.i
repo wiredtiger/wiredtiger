@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -931,13 +931,12 @@ __wt_cell_unpack_dsk(
      *
      * This is how the stop time pair should be interpreted for each type of delete:
      * -
-     *                  Timestamped delete  Non-timestamped delete  No delete
+     *                  Timestamp delete  Non-timestamp delete  No delete
      * Current startup  txnid=x, ts=y       txnid=x, ts=1           txnid=MAX, ts=MAX
      * Previous startup txnid=0, ts=y       txnid=0, ts=1           txnid=MAX, ts=MAX
      */
     if (dsk->write_gen <= S2C(session)->base_write_gen) {
-        /* Let reconciliation know we cleared the transaction ids and the cell needs to be rebuilt.
-         */
+        /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
         if (unpack->start_txn != WT_TXN_NONE) {
             unpack->start_txn = WT_TXN_NONE;
             F_SET(unpack, WT_CELL_UNPACK_TXNIDS_CLEARED);

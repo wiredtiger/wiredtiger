@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -64,7 +64,6 @@ class test_timestamp12(wttest.WiredTigerTestCase):
         #print coll_actual
         self.assertTrue(coll_actual == coll_exp)
 
-    @unittest.skip("Temporarily disabled")
     def test_timestamp_recovery(self):
         #
         # Create several collection-like tables that are checkpoint durability.

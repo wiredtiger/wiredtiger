@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -446,7 +446,7 @@ err:
 
 /*
  * __wt_modify_vector_init --
- *     Initialise a modify vector.
+ *     Initialize a modify vector.
  */
 void
 __wt_modify_vector_init(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies)

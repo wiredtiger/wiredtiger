@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -1102,7 +1102,7 @@ __wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, 
         *addrp = unpack->data;
         *sizep = unpack->size;
         if (is_leafp != NULL)
-            *is_leafp = unpack->type != WT_ADDR_INT;
+            *is_leafp = unpack->type != WT_CELL_ADDR_INT;
         if (start_ts != NULL)
             *start_ts = unpack->oldest_start_ts;
         if (start_txn != NULL)
@@ -1734,4 +1734,34 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
         WT_RET_MSG(session, EINVAL, "page-release WT_RESTART error mapped to EINVAL");
 
     return (ret);
+}
+
+/*
+ * __wt_bt_col_var_cursor_walk_txn_read --
+ *     transactionally read the onpage value and the history store for col var cursor walk.
+ */
+static inline int
+__wt_bt_col_var_cursor_walk_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,
+  WT_CELL_UNPACK *unpack, WT_COL *cip, WT_UPDATE **updp)
+{
+    WT_UPDATE *upd;
+
+    upd = NULL;
+    *updp = NULL;
+    cbt->slot = WT_COL_SLOT(page, cip);
+    WT_RET(__wt_txn_read(session, cbt, NULL, unpack, &upd));
+    if (upd == NULL)
+        return (0);
+    if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+            __wt_free_update_list(session, &upd);
+        return (0);
+    }
+
+    *updp = upd;
+    WT_RET(__wt_value_return(cbt, upd));
+    cbt->tmp->data = cbt->iface.value.data;
+    cbt->tmp->size = cbt->iface.value.size;
+    cbt->cip_saved = cip;
+    return (0);
 }

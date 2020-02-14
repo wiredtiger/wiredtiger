@@ -48,6 +48,18 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
+    def large_modifies(self, uri, value, ds, location, nbytes, nrows, commit_ts):
+        # Load a slight modification.
+        session = self.session
+        cursor = session.open_cursor(uri)
+        session.begin_transaction()
+        for i in range(0, nrows):
+            cursor.set_key(i)
+            mods = [wiredtiger.Modify(value, location, nbytes)]
+            self.assertEqual(cursor.modify(mods), 0)
+        session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+        cursor.close()
+
     def large_removes(self, uri, ds, nrows, commit_ts):
         # Remove a large number of records.
         session = self.session
@@ -107,6 +119,14 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         self.conn.rollback_to_stable()
         # Check that the new updates are only seen after the update timestamp
         self.check(valuea, uri, nrows, 20)
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        calls = stat_cursor[stat.conn.txn_rts][2]
+        upd_aborted = (stat_cursor[stat.conn.txn_rts_upd_aborted][2] +
+            stat_cursor[stat.conn.txn_rts_hs_removed][2])
+        stat_cursor.close()
+        self.assertEqual(calls, 1)
+        self.assertTrue(upd_aborted >= nrows)
 
 if __name__ == '__main__':
     wttest.run()

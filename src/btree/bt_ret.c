@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -92,7 +92,7 @@ __wt_value_return_buf(
     page = ref->page;
     cursor = &cbt->iface;
 
-    /* Initialise to globally visible. */
+    /* Initialize to globally visible. */
     if (start != NULL && stop != NULL) {
         start->txnid = WT_TXN_NONE;
         start->timestamp = WT_TS_NONE;
@@ -142,7 +142,7 @@ __wt_value_return_buf(
     /*
      * WT_PAGE_COL_FIX: Take the value from the original page.
      *
-     * FIXME-PM-1521: Should also check visibility here
+     * FIXME-PM-1523: Should also check visibility here
      */
     v = __bit_getv_recno(ref, cursor->recno, btree->bitcnt);
     return (__wt_buf_set(session, buf, &v, 1));
@@ -200,10 +200,7 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
-        if (upd->type == WT_UPDATE_BIRTHMARK) {
-            upd = NULL;
-            break;
-        }
+        WT_ASSERT(session, upd->type != WT_UPDATE_BIRTHMARK);
 
         if (WT_UPDATE_DATA_VALUE(upd))
             break;
@@ -227,6 +224,7 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 
         WT_ERR(__value_return(cbt));
     } else if (upd->type == WT_UPDATE_TOMBSTONE)
+        /* If upd is a tombstone, the base value is the empty value. */
         WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
     else
         WT_ERR(__wt_buf_set(session, &cursor->value, upd->data, upd->size));

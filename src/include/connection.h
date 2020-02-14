@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -302,8 +302,7 @@ struct __wt_connection_impl {
     uint64_t incr_granularity;
     WT_BLKINCR incr_backups[WT_BLKINCR_MAX];
 
-    /* Connection's maximum and base write generations. */
-    uint64_t max_write_gen;
+    /* Connection's base write generation. */
     uint64_t base_write_gen;
 
     uint32_t stat_flags; /* Options declared in flags.py */
@@ -471,16 +470,17 @@ struct __wt_connection_impl {
 #define WT_VERB_RECONCILE 0x0001000000u
 #define WT_VERB_RECOVERY 0x0002000000u
 #define WT_VERB_RECOVERY_PROGRESS 0x0004000000u
-#define WT_VERB_SALVAGE 0x0008000000u
-#define WT_VERB_SHARED_CACHE 0x0010000000u
-#define WT_VERB_SPLIT 0x0020000000u
-#define WT_VERB_TEMPORARY 0x0040000000u
-#define WT_VERB_THREAD_GROUP 0x0080000000u
-#define WT_VERB_TIMESTAMP 0x0100000000u
-#define WT_VERB_TRANSACTION 0x0200000000u
-#define WT_VERB_VERIFY 0x0400000000u
-#define WT_VERB_VERSION 0x0800000000u
-#define WT_VERB_WRITE 0x1000000000u
+#define WT_VERB_RTS 0x0008000000u
+#define WT_VERB_SALVAGE 0x0010000000u
+#define WT_VERB_SHARED_CACHE 0x0020000000u
+#define WT_VERB_SPLIT 0x0040000000u
+#define WT_VERB_TEMPORARY 0x0080000000u
+#define WT_VERB_THREAD_GROUP 0x0100000000u
+#define WT_VERB_TIMESTAMP 0x0200000000u
+#define WT_VERB_TRANSACTION 0x0400000000u
+#define WT_VERB_VERIFY 0x0800000000u
+#define WT_VERB_VERSION 0x1000000000u
+#define WT_VERB_WRITE 0x2000000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint64_t verbose;
 

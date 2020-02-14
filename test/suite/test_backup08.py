@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -125,7 +125,6 @@ class test_backup08(wttest.WiredTigerTestCase):
         self.pr("query recovery ts: " + q)
         self.assertTimestampsEqual(q, timestamp_str(expected_rec_ts))
 
-    @unittest.skip("Temporarily disabled")
     def test_timestamp_backup(self):
         # Add some data and checkpoint using the timestamp or not
         # depending on the configuration. Get the expected timestamp
