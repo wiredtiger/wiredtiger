@@ -137,13 +137,10 @@ config_setup(void)
         }
     }
 
-    /*
-     * If data_source and file_type were both "permanent", we may still have a mismatch.
-     */
-    if (DATASOURCE("lsm") && g.type != ROW) {
-        fprintf(stderr, "%s: lsm data_source is only compatible with row file_type\n", progname);
-        exit(EXIT_FAILURE);
-    }
+    /* If data_source and file_type were both "permanent", we may still have a mismatch. */
+    if (DATASOURCE("lsm") && g.type != ROW)
+        testutil_die(
+          EINVAL, "%s: lsm data_source is only compatible with row file_type\n", progname);
 
     /*
      * Build the top-level object name: we're overloading data_source in our configuration, LSM
@@ -920,13 +917,10 @@ config_find(const char *s, size_t len, bool fatal)
         if (strncmp(s, cp->name, len) == 0 && cp->name[len] == '\0')
             return (cp);
 
-    /*
-     * Optionally ignore unknown keywords, it makes it easier to run old CONFIG files.
-     */
-    if (fatal) {
-        fprintf(stderr, "%s: %s: unknown required configuration keyword\n", progname, s);
-        exit(EXIT_FAILURE);
-    }
+    /* Optionally ignore unknown keywords, it makes it easier to run old CONFIG files. */
+    if (fatal)
+        testutil_die(EINVAL, "%s: %s: unknown required configuration keyword\n", progname, s);
+
     fprintf(stderr, "%s: %s: WARNING, ignoring unknown configuration keyword\n", progname, s);
     return (NULL);
 }
@@ -946,10 +940,8 @@ config_single(const char *s, bool perm)
     char *ep;
     const char *equalp, *vp1, *vp2;
 
-    if ((equalp = strchr(s, '=')) == NULL) {
-        fprintf(stderr, "%s: %s: illegal configuration value\n", progname, s);
-        exit(EXIT_FAILURE);
-    }
+    if ((equalp = strchr(s, '=')) == NULL)
+        testutil_die(EINVAL, "%s: %s: illegal configuration value\n", progname, s);
 
     if ((cp = config_find(s, (size_t)(equalp - s), false)) == NULL)
         return;
@@ -979,8 +971,7 @@ config_single(const char *s, bool perm)
           strncmp("file", equalp, strlen("file")) != 0 &&
           strncmp("lsm", equalp, strlen("lsm")) != 0 &&
           strncmp("table", equalp, strlen("table")) != 0) {
-            fprintf(stderr, "Invalid data source option: %s\n", equalp);
-            exit(EXIT_FAILURE);
+            testutil_die(EINVAL, "Invalid data source option: %s\n", equalp);
         } else if (strncmp(s, "encryption", strlen("encryption")) == 0) {
             config_map_encryption(equalp, &g.c_encryption_flag);
             *cp->vstr = dstrdup(equalp);
