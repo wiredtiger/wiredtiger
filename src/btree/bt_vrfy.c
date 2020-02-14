@@ -687,6 +687,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
 
         WT_ERR(ret);
     }
+    WT_ERR_NOTFOUND_OK(ret);
 err:
     if (data_cursor != NULL)
         data_cursor->close(data_cursor);
