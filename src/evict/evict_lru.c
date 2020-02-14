@@ -700,11 +700,9 @@ __evict_pass(WT_SESSION_IMPL *session)
         if (!WT_EVICT_HAS_WORKERS(session) &&
           (cache->evict_empty_score < WT_EVICT_SCORE_CUTOFF ||
             !__evict_queue_empty(cache->evict_urgent_queue, false))) {
-            F_CLR(cache->walk_session, WT_SESSION_LOCKED_PASS);
             F_CLR(session, WT_SESSION_LOCKED_PASS);
             WT_RET(__evict_lru_pages(session, true));
             F_SET(session, WT_SESSION_LOCKED_PASS);
-            F_SET(cache->walk_session, WT_SESSION_LOCKED_PASS);
         }
 
         if (cache->pass_intr != 0)
