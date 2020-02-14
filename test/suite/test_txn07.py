@@ -51,10 +51,11 @@ class test_txn07(wttest.WiredTigerTestCase, suite_subprocess):
     types = [
         ('row', dict(tabletype='row',
                     create_params = 'key_format=i,value_format=S')),
-        ('var', dict(tabletype='var',
-                    create_params = 'key_format=r,value_format=S')),
-        ('fix', dict(tabletype='fix',
-                    create_params = 'key_format=r,value_format=8t')),
+    # The commented columnar tests needs to be enabled once rollback to stable for columnar is fixed.
+    #    ('var', dict(tabletype='var',
+    #                create_params = 'key_format=r,value_format=S')),
+    #    ('fix', dict(tabletype='fix',
+    #                create_params = 'key_format=r,value_format=8t')),
     ]
     op1s = [
         ('trunc-all', dict(op1=('all', 0))),
@@ -126,7 +127,6 @@ class test_txn07(wttest.WiredTigerTestCase, suite_subprocess):
         finally:
             backup_conn.close()
 
-    @unittest.skip("Temporarily disabled")
     def test_ops(self):
         self.backup_dir = os.path.join(self.home, "WT_BACKUP")
         self.session2 = self.conn.open_session()
