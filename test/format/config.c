@@ -926,6 +926,25 @@ config_find(const char *s, size_t len, bool fatal)
 }
 
 /*
+ * config_value --
+ *     String to long helper function.
+ */
+static uint32_t
+config_value(const char *config, const char *p, int match)
+{
+    long v;
+    char *endptr;
+
+    errno = 0;
+    v = strtol(p, &endptr, 10);
+    if ((errno == ERANGE && (v == LONG_MAX || v == LONG_MIN)) || (errno != 0 && v == 0) ||
+      *endptr != match || v < 0 || v > UINT32_MAX)
+        testutil_die(
+          EINVAL, "%s: %s: illegal numeric value or value out of range", progname, config);
+    return ((uint32_t)v);
+}
+
+/*
  * config_single --
  *     Set a single configuration structure value.
  */
@@ -934,10 +953,8 @@ config_single(const char *s, bool perm)
 {
     enum { RANGE_FIXED, RANGE_NONE, RANGE_WEIGHTED } range;
     CONFIG *cp;
-    uint32_t v;
-    long steps, v1, v2;
+    uint32_t steps, v1, v2;
     u_int i;
-    char *ep;
     const char *equalp, *vp1, *vp2;
 
     if ((equalp = strchr(s, '=')) == NULL)
@@ -991,20 +1008,17 @@ config_single(const char *s, bool perm)
     }
 
     if (F_ISSET(cp, C_BOOL)) {
-        v1 = -1;
         if (strncmp(equalp, "off", strlen("off")) == 0)
             v1 = 0;
         else if (strncmp(equalp, "on", strlen("on")) == 0)
             v1 = 1;
-        if (v1 == -1) {
-            v1 = strtol(equalp, &ep, 10);
-            if (*ep != '\0')
-                testutil_die(EINVAL, "%s: %s: illegal boolean value", progname, s);
-        }
-        if (v1 != 0 && v1 != 1)
-            testutil_die(EINVAL, "%s: %s: value of boolean not 0 or 1", progname, s);
+        else {
+            v1 = config_value(s, equalp, '\0');
+	    if (v1 != 0 && v1 != 1)
+		testutil_die(EINVAL, "%s: %s: value of boolean not 0 or 1", progname, s);
+	}
 
-        *cp->v = (uint32_t)v1;
+        *cp->v = v1;
         return;
     }
 
@@ -1023,22 +1037,17 @@ config_single(const char *s, bool perm)
         range = RANGE_WEIGHTED;
     }
 
-    v1 = strtol(vp1, &ep, 10);
-    if (*ep != (range == RANGE_NONE ? '\0' : (range == RANGE_FIXED ? '-' : '*')))
-        testutil_die(EINVAL, "%s: %s: illegal numeric value", progname, s);
+    v1 = config_value(s, vp1, range == RANGE_NONE ? '\0' : (range == RANGE_FIXED ? '-' : '*'));
     if (v1 < cp->min || v1 > cp->maxset)
         testutil_die(EINVAL, "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32 "\n",
           progname, s, cp->min, cp->maxset);
 
     if (range != RANGE_NONE) {
-        v2 = strtol(vp2, &ep, 10);
-        if (*ep != '\0')
-            testutil_die(EINVAL, "%s: %s: illegal numeric value", progname, s);
+        v2 = config_value(s, vp2, '\0');
         if (v2 < cp->min || v2 > cp->maxset)
             testutil_die(EINVAL,
               "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32 "\n", progname, s,
               cp->min, cp->maxset);
-
         if (v1 > v2)
             testutil_die(EINVAL, "%s: %s: illegal numeric range\n", progname, s);
 
@@ -1059,8 +1068,7 @@ config_single(const char *s, bool perm)
         }
     }
 
-    v = (uint32_t)v1;
-    *cp->v = v;
+    *cp->v = v1;
 }
 
 /*
