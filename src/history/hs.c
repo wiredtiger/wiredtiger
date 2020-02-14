@@ -376,7 +376,7 @@ __hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
 static int
 __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t btree_id,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_TIME_PAIR stop_ts_pair, bool *deleted_prev_hs)
+  WT_TIME_PAIR stop_ts_pair)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -427,8 +427,7 @@ retry:
     WT_ERR(__wt_row_modify(cbt, &cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
 
 err:
-    WT_ASSERT(session, deleted_prev_hs != NULL);
-    if (ret == 0 && upd->start_ts == WT_TS_NONE && !(*deleted_prev_hs)) {
+    if (ret == 0 && upd->start_ts == WT_TS_NONE) {
 #ifdef HAVE_DIAGNOSTIC
         /*
          * We need to initialise the last searched key so that we can do key comparisons when we
@@ -438,7 +437,6 @@ err:
         WT_TRET(__wt_cursor_key_order_init(cbt));
 #endif
         WT_TRET(__hs_delete_key(session, cursor, btree_id, key));
-        *deleted_prev_hs = true;
     }
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
@@ -460,15 +458,14 @@ err:
 static int
 __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t btree_id,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_TIME_PAIR stop_ts_pair, bool *deleted_prev_hs)
+  WT_TIME_PAIR stop_ts_pair)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    WT_WITH_BTREE(
-      session, cbt->btree, ret = __hs_insert_record_with_btree(session, cursor, btree_id, key, upd,
-                             type, hs_value, stop_ts_pair, deleted_prev_hs));
+    WT_WITH_BTREE(session, cbt->btree, ret = __hs_insert_record_with_btree(session, cursor,
+                                         btree_id, key, upd, type, hs_value, stop_ts_pair));
     return (ret);
 }
 
@@ -519,7 +516,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
     uint32_t btree_id, i;
     uint8_t *p;
     int nentries;
-    bool deleted_prev_hs, squashed;
+    bool squashed;
 
     page = r->page;
     prev_upd = NULL;
@@ -644,7 +641,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
 
         WT_ERR(__hs_calculate_full_value(session, full_value, upd, "", 0));
 
-        deleted_prev_hs = squashed = false;
+        squashed = false;
 
         /*
          * Flush the updates on stack. Stopping once we run out or we reach the onpage upd start
@@ -690,11 +687,11 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                         prev_full_value->size / 10, entries, &nentries) == 0) {
                         WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
                         WT_ERR(__hs_insert_record(session, cursor, btree_id, key, upd,
-                          WT_UPDATE_MODIFY, modify_value, stop_ts_pair, &deleted_prev_hs));
+                          WT_UPDATE_MODIFY, modify_value, stop_ts_pair));
                         __wt_scr_free(session, &modify_value);
                     } else
                         WT_ERR(__hs_insert_record(session, cursor, btree_id, key, upd,
-                          WT_UPDATE_STANDARD, full_value, stop_ts_pair, &deleted_prev_hs));
+                          WT_UPDATE_STANDARD, full_value, stop_ts_pair));
 
                     /* Flag the update as now in the history store. */
                     F_SET(upd, WT_UPDATE_HS);
