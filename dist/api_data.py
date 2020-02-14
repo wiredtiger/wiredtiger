@@ -733,6 +733,7 @@ connection_runtime_config = [
             'reconcile',
             'recovery',
             'recovery_progress',
+            'rts',
             'salvage',
             'shared_cache',
             'split',

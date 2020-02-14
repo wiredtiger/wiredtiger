@@ -446,7 +446,7 @@ err:
 
 /*
  * __wt_modify_vector_init --
- *     Initialise a modify vector.
+ *     Initialize a modify vector.
  */
 void
 __wt_modify_vector_init(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies)
