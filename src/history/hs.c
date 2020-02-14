@@ -1154,6 +1154,6 @@ __hs_delete_key(
     if (ret == WT_NOTFOUND)
         return (0);
 err:
-    __wt_free_update_list(session, &upd);
+    __wt_free(session, upd);
     return (ret);
 }
