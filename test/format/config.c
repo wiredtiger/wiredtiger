@@ -780,12 +780,23 @@ config_error(void)
 
     /* Display configuration names. */
     fprintf(stderr, "\n");
+    fprintf(stderr, "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n");
+    fprintf(stderr, "Configuration values:\n");
+    fprintf(stderr, "%10s: %s\n", "off", "boolean off");
+    fprintf(stderr, "%10s: %s\n", "on", "boolean on");
+    fprintf(stderr, "%10s: %s\n", "0", "boolean off");
+    fprintf(stderr, "%10s: %s\n", "1", "boolean on");
+    fprintf(stderr, "%10s: %s\n", "NNN", "unsigned number");
+    fprintf(stderr, "%10s: %s\n", "NNN-NNN", "number range, each number equally likely");
+    fprintf(stderr, "%10s: %s\n", "NNN*NNN", "number range, lower numbers more likely");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n");
     fprintf(stderr, "Configuration names:\n");
     for (cp = c; cp->name != NULL; ++cp)
-        if (strlen(cp->name) > 17)
-            fprintf(stderr, "%s\n%17s: %s\n", cp->name, " ", cp->desc);
+        if (strlen(cp->name) > 25)
+            fprintf(stderr, "%s: %s\n", cp->name, cp->desc);
         else
-            fprintf(stderr, "%17s: %s\n", cp->name, cp->desc);
+            fprintf(stderr, "%25s: %s\n", cp->name, cp->desc);
 }
 
 /*
