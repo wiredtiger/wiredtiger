@@ -854,24 +854,21 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * part of the metadata file (performing recovery on backup folder where no checkpoint
      * occurred), this will return ENOENT which we ignore and continue.
      */
-    ret = __wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0);
-    if (ret == 0) {
-        hs_dhandle = session->dhandle;
+    WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0), ENOENT);
+    hs_dhandle = session->dhandle;
 
-        /*
-         * TODO: It is possible that we don't have a history store file in certain recovery
-         * scenarios. As such we could get a NULL dhandle.
-         */
-        if (hs_dhandle != NULL) {
-            time_start_hs = __wt_clock(session);
-            WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
-            WT_ERR(ret);
-            time_stop_hs = __wt_clock(session);
-            hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
-            WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
-        }
-    } else
-        WT_ERR_ERROR_OK(ret, ENOENT);
+    /*
+     * It is possible that we don't have a history store file in certain recovery scenarios. As such
+     * we could get a dhandle that is not opened.
+     */
+    if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
+        time_start_hs = __wt_clock(session);
+        WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
+        WT_ERR(ret);
+        time_stop_hs = __wt_clock(session);
+        hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
+        WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
+    }
 
     /*
      * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't
@@ -901,7 +898,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
 
     /* Sync the history store file. */
-    if (hs_dhandle != NULL)
+    if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN))
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint_sync(session, NULL));
 
     time_stop_fsync = __wt_clock(session);
