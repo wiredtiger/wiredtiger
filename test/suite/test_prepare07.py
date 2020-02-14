@@ -139,7 +139,6 @@ class test_prepare07(wttest.WiredTigerTestCase):
         cursor_b.close()
         session_b.close()
 
-    @unittest.skip("Temporarily disabled")
     def test_older_prepare_updates(self):
         # Create a small table.
         uri = "table:test"

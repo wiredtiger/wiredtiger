@@ -1853,7 +1853,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"mutex", WT_VERB_MUTEX}, {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ},
       {"rebalance", WT_VERB_REBALANCE}, {"reconcile", WT_VERB_RECONCILE},
       {"recovery", WT_VERB_RECOVERY}, {"recovery_progress", WT_VERB_RECOVERY_PROGRESS},
-      {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
+      {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"temporary", WT_VERB_TEMPORARY},
       {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
       {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},
@@ -2295,7 +2295,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     bool config_base_set, try_salvage;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
-    uint64_t max_write_gen;
 
     /* Leave lots of space for optional additional configuration. */
     const char *cfg[] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
@@ -2306,7 +2305,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     session = NULL;
     merge_cfg = NULL;
     try_salvage = false;
-    max_write_gen = 0;
 
     WT_RET(__wt_library_init());
 
@@ -2659,7 +2657,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * THE TURTLE FILE MUST BE THE LAST FILE CREATED WHEN INITIALIZING THE
      * DATABASE HOME, IT'S WHAT WE USE TO DECIDE IF WE'RE CREATING OR NOT.
      */
-    WT_ERR(__wt_turtle_init(session, &max_write_gen));
+    WT_ERR(__wt_turtle_init(session));
 
     /*
      * If the user wants to salvage, do so before opening the metadata cursor. We do this after the
@@ -2669,8 +2667,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (F_ISSET(conn, WT_CONN_SALVAGE))
         WT_ERR(__wt_metadata_salvage(session));
 
-    /* Set the connection's base write generation. */
-    WT_ERR(__wt_metadata_set_base_write_gen(session, max_write_gen));
+    /* Initialize the connection's base write generation. */
+    WT_ERR(__wt_metadata_init_base_write_gen(session));
 
     WT_ERR(__wt_metadata_cursor(session, NULL));
 
