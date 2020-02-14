@@ -38,11 +38,11 @@ def timestamp_str(t):
 # test_rollback_to_stable01.py
 # Shared base class used by gc tests.
 class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
-    def large_updates(self, uri, value, ds, nrows, commit_ts, start_key=0):
+    def large_updates(self, uri, value, ds, nrows, commit_ts):
         # Update a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
-        for i in range(start_key, nrows+start_key):
+        for i in range(0, nrows):
             session.begin_transaction()
             cursor[ds.key(i)] = value
             session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
@@ -82,17 +82,6 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         session.commit_transaction()
         self.assertEqual(count, nrows)
 
-    def count(self, check_value, uri, nrows, read_ts):
-        session = self.session
-        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
-        cursor = session.open_cursor(uri)
-        count = 0
-        for k, v in cursor:
-            if (v == check_value):
-                count += 1
-        session.commit_transaction()
-        self.assertEqual(count, nrows)
-
 # Test that rollback to stable clears the remove operation.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
     # Force a small cache.
@@ -119,7 +108,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
 
         # Remove all keys with newer timestamp.
         self.large_removes(uri, ds, nrows, 20)
-        # Check that the update is not visible at newer timestamp.
+        # Check that the no keys should be visible.
         self.check(valuea, uri, 0, 20)
 
         # Pin stable to timestamp 10.
@@ -128,26 +117,24 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         self.conn.rollback_to_stable()
-        # Check that the update is visible at the newer timestamp.
+        # Check that the new updates are only seen after the update timestamp.
         self.check(valuea, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
-        upd_aborted = (stat_cursor[stat.conn.txn_rts_upd_aborted][2] +
-            stat_cursor[stat.conn.txn_rts_hs_removed][2])
         hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
         pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
+        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
         stat_cursor.close()
-        self.assertEqual(calls, 1)
-        self.assertTrue(upd_aborted >= nrows)
-        self.tty("upd_aborted: " + str(upd_aborted-hs_removed))
-        self.tty("hs_removed: " + str(hs_removed))
-        self.tty("keys_removed: " + str(keys_removed))
-        self.tty("keys_restored: " + str(keys_restored))
-        self.tty("pages_visited: " + str(pages_visited))
 
+        self.assertEqual(calls, 1)
+        self.assertEqual(hs_removed, 0)
+        self.assertEqual(keys_removed, 0)
+        self.assertEqual(upd_aborted, nrows)
+        self.assertGreater(keys_restored, 0)
+        self.assertGreater(pages_visited, 0)
 
 if __name__ == '__main__':
     wttest.run()
