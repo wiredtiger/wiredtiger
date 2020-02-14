@@ -86,8 +86,7 @@ all_TESTS += test_wt2834_join_bloom_fix
 
 test_wt2853_perf_SOURCES = wt2853_perf/main.c
 noinst_PROGRAMS += test_wt2853_perf
-# Temporarily disabled
-# all_TESTS += test_wt2853_perf
+all_TESTS += test_wt2853_perf
 
 test_wt2909_checkpoint_integrity_SOURCES = wt2909_checkpoint_integrity/main.c
 noinst_PROGRAMS += test_wt2909_checkpoint_integrity
