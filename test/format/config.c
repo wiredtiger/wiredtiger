@@ -788,7 +788,8 @@ config_error(void)
     fprintf(stderr, "%10s: %s\n", "1", "boolean on");
     fprintf(stderr, "%10s: %s\n", "NNN", "unsigned number");
     fprintf(stderr, "%10s: %s\n", "NNN-NNN", "number range, each number equally likely");
-    fprintf(stderr, "%10s: %s\n", "NNN*NNN", "number range, lower numbers more likely");
+    fprintf(stderr, "%10s: %s\n", "NNN:NNN", "number range, lower numbers more likely");
+    fprintf(stderr, "%10s: %s\n", "string", "configuration value");
     fprintf(stderr, "\n");
     fprintf(stderr, "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n");
     fprintf(stderr, "Configuration names:\n");
@@ -1035,20 +1036,20 @@ config_single(const char *s, bool perm)
 
     /*
      * Three possible syntax elements: a number, two numbers separated by a dash, two numbers
-     * separated by an asterisk. The first is a fixed value, the second is a range where all values
-     * are equally possible, the third is a weighted range where lower values are more likely.
+     * separated by an colon. The first is a fixed value, the second is a range where all values are
+     * equally possible, the third is a weighted range where lower values are more likely.
      */
     vp1 = equalp;
     range = RANGE_NONE;
     if ((vp2 = strchr(vp1, '-')) != NULL) {
         ++vp2;
         range = RANGE_FIXED;
-    } else if ((vp2 = strchr(vp1, '*')) != NULL) {
+    } else if ((vp2 = strchr(vp1, ':')) != NULL) {
         ++vp2;
         range = RANGE_WEIGHTED;
     }
 
-    v1 = config_value(s, vp1, range == RANGE_NONE ? '\0' : (range == RANGE_FIXED ? '-' : '*'));
+    v1 = config_value(s, vp1, range == RANGE_NONE ? '\0' : (range == RANGE_FIXED ? '-' : ':'));
     if (v1 < cp->min || v1 > cp->maxset)
         testutil_die(EINVAL, "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32 "\n",
           progname, s, cp->min, cp->maxset);
