@@ -1014,9 +1014,9 @@ config_single(const char *s, bool perm)
             v1 = 1;
         else {
             v1 = config_value(s, equalp, '\0');
-	    if (v1 != 0 && v1 != 1)
-		testutil_die(EINVAL, "%s: %s: value of boolean not 0 or 1", progname, s);
-	}
+            if (v1 != 0 && v1 != 1)
+                testutil_die(EINVAL, "%s: %s: value of boolean not 0 or 1", progname, s);
+        }
 
         *cp->v = v1;
         return;
