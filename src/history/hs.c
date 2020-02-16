@@ -427,6 +427,13 @@ retry:
     WT_ERR(__wt_row_modify(cbt, &cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
 
 err:
+    /*
+     * If we inserted an update with no timestamp, we need to delete all history records for that
+     * key in front of where we just inserted. For timestamped tables that are occasionally getting
+     * a non-timestamped update, that means that all timestamped updates should get removed. In the
+     * case of non-timestamped tables, that means that all updates with higher transaction ids will
+     * get removed.
+     */
     if (ret == 0 && upd->start_ts == WT_TS_NONE) {
 #ifdef HAVE_DIAGNOSTIC
         /*
