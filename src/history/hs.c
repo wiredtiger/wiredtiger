@@ -1133,9 +1133,6 @@ __hs_delete_key(
         WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
         if (cmp != 0)
             break;
-        /* Ignore non-timestamped writes. These won't cause visibility issues. */
-        if (hs_start.timestamp == WT_TS_NONE)
-            continue;
         /*
          * Append a globally visible tombstone to the update list. This will effectively make the
          * value invisible and the key itself will eventually get removed during reconciliation.
