@@ -186,22 +186,21 @@ add_work(WT_SESSION *session, int iter, int iterj, const char *t_uri1, const cha
 }
 
 static void
-add_bulk_load(WT_SESSION *session, int iter, int iterj, const char *t_uri)
+add_bulk_load(WT_SESSION *session, int iter_i, int iter_j, const char *t_uri)
 {
     WT_CURSOR *cursor;
     int i;
     char v[64];
     int k;
 
-    error_check(session->open_cursor(session, t_uri, NULL, "bulk,append", &cursor));
+    error_check(session->open_cursor(session, t_uri, NULL, "bulk", &cursor));
 
     /*
      * Perform some operations with individual auto-commit transactions.
      */
     for (i = 0; i < MAX_KEYS; i++) {
-        //(void)snprintf(k, sizeof(k), "key.%d.%d.%d", iter, iterj, i);
-        k = iter + iterj + i;
-        (void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter, iterj, i);
+        k = iter_i + iter_j + i;
+        (void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter_i, iter_j, i);
 
         printf("Inserting Key : %d -- Value : %s\n", k, v);
         cursor->set_key(cursor, k);
@@ -212,7 +211,7 @@ add_bulk_load(WT_SESSION *session, int iter, int iterj, const char *t_uri)
 }
 
 static void
-remove_work(WT_SESSION *session, int iter, int iterj)
+remove_work(WT_SESSION *session, int iter_i, int iter_j)
 {
     WT_CURSOR *cursor;
     int i;
@@ -224,8 +223,8 @@ remove_work(WT_SESSION *session, int iter, int iterj)
      * Remove records from the main table.
      */
     for (i = 0; i < MAX_KEYS; i++) {
-        (void)snprintf(k, sizeof(k), "key.%d.%d.%d", iter, iterj, i);
-        (void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter, iterj, i);
+        (void)snprintf(k, sizeof(k), "key.%d.%d.%d", iter_i, iter_j, i);
+        (void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter_i, iter_j, i);
         cursor->set_key(cursor, k);
         cursor->set_value(cursor, v);
         error_check(cursor->remove(cursor));
