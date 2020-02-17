@@ -200,7 +200,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_RET;
     WT_PAGE *page;
     WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd;
-    wt_timestamp_t last_ckpt_timestamp, max_ts, tombstone_durable_ts;
+    wt_timestamp_t checkpoint_timestamp, max_ts, tombstone_durable_ts;
     size_t size, upd_memsize;
     uint64_t max_txn, txnid;
     bool has_newer_updates;
@@ -215,7 +215,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     page = r->page;
     first_txn_upd = upd = last_upd = NULL;
     upd_memsize = 0;
-    last_ckpt_timestamp = S2C(session)->txn_global.last_ckpt_timestamp;
+    checkpoint_timestamp = S2C(session)->txn_global.checkpoint_timestamp;
     max_ts = WT_TS_NONE;
     tombstone_durable_ts = WT_TS_MAX;
     max_txn = WT_TXN_NONE;
@@ -286,7 +286,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * FIXME-PM-1524: A temporary solution for not storing durable timestamp in the cell.
          * Properly fix this problem in PM-1524.
          */
-        if (upd->durable_ts != upd->start_ts && upd->durable_ts > last_ckpt_timestamp) {
+        if (upd->durable_ts != upd->start_ts && upd->durable_ts > checkpoint_timestamp) {
             has_newer_updates = true;
             continue;
         }
