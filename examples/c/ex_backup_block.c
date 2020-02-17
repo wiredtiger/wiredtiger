@@ -64,7 +64,7 @@ static size_t filelist_count = 0;
 #define MAX_KEYS 10000
 
 // The variable is to copy full file instead of copying blocks for new created objects
-bool new_object = false;
+static bool new_object = false;
 
 static int
 compare_backups(int i, const char *t_uri)
@@ -505,13 +505,14 @@ take_incr_backup(WT_SESSION *session, int i)
     /*! [incremental backup using block transfer]*/
 }
 
+/*
+ * Remove all the records, take backups and validate
+ */
 static void
 remove_all_records_validate(WT_SESSION *session)
 {
     int i, j;
-    /*
-     * Remove all the records, take backups and validate
-     */
+
     remove_work(session, 0, 0);
     for (i = 1; i < ITERATIONS_MULTIPLIER; i++) {
         printf("Iteration %d: Removing data\n", i);
