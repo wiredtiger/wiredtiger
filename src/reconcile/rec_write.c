@@ -1731,15 +1731,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_PAGE *page;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-#ifdef HAVE_DIAGNOSTIC
-    bool verify_image;
-#endif
 
     btree = S2BT(session);
     page = r->page;
-#ifdef HAVE_DIAGNOSTIC
-    verify_image = true;
-#endif
 
     /*
      * If reconciliation requires multiple blocks and checkpoint is running we'll eventually fail,
@@ -1853,9 +1847,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_RET(__wt_bt_write(session, compressed_image == NULL ? &chunk->image : compressed_image, addr,
       &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
       compressed_image != NULL));
-#ifdef HAVE_DIAGNOSTIC
-    verify_image = false;
-#endif
+
     WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.addr));
     multi->addr.size = (uint8_t)addr_size;
 
@@ -1866,16 +1858,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (!WT_PAGE_IS_INTERNAL(page) && compressed_size != 0 && btree->leafpage_compadjust)
         __rec_compression_adjust(
           session, btree->maxleafpage, compressed_size, last_block, &btree->maxleafpage_precomp);
-
-#ifdef HAVE_DIAGNOSTIC
-    /*
-     * The I/O routines verify all disk images we write, but there are paths in reconciliation that
-     * don't do I/O. Verify those images, too.
-     */
-    WT_ASSERT(session, verify_image == false ||
-        __wt_verify_dsk_image(
-          session, "[reconcile-image]", chunk->image.data, 0, &multi->addr, true) == 0);
-#endif
 
 copy_image:
     /*
