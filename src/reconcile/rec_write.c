@@ -1813,7 +1813,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (F_ISSET(r, WT_REC_IN_MEMORY))
         goto copy_image;
 
-    /* If there are saved updates, we may have moved updates to the history store in evicition. */
+    /* If there are saved updates, we may have moved updates to the history store in eviction. */
     if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
         if (r->leave_dirty)
             r->cache_write_restore = true;
