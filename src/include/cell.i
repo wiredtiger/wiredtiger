@@ -955,9 +955,8 @@ __wt_cell_unpack_dsk(
         if (unpack->newest_stop_txn != WT_TXN_MAX) {
             unpack->newest_stop_txn = WT_TXN_NONE;
             F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
-            if (unpack->newest_stop_ts == WT_TS_MAX) {
+            if (unpack->newest_stop_ts == WT_TS_MAX)
                 unpack->newest_stop_ts = 1;
-            }
         } else
             WT_ASSERT(session, unpack->newest_stop_ts == WT_TS_MAX);
     } else {

@@ -372,7 +372,6 @@ __verify_dsk_row(
     void *huffman;
     size_t prefix;
     uint32_t cell_num, cell_type, i, key_cnt;
-    uint8_t *end;
     int cmp;
 
     btree = S2BT(session);
@@ -387,8 +386,6 @@ __verify_dsk_row(
     WT_ERR(__wt_scr_alloc(session, 0, &tmp2));
     last = last_ovfl;
 
-    end = (uint8_t *)dsk + dsk->mem_size;
-
     last_cell_type = FIRST;
     cell_num = 0;
     key_cnt = 0;
@@ -396,11 +393,7 @@ __verify_dsk_row(
         ++cell_num;
 
         /* Carefully unpack the cell. */
-        ret = __wt_cell_unpack_safe(session, dsk, cell, unpack, end);
-        if (ret != 0) {
-            (void)__err_cell_corrupt(session, ret, cell_num, tag);
-            goto err;
-        }
+        __wt_cell_unpack_dsk(session, dsk, cell, unpack);
 
         /* Check the raw and collapsed cell types. */
         WT_ERR(__err_cell_type(session, cell_num, tag, unpack->raw, dsk->type));

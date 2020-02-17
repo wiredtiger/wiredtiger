@@ -480,7 +480,7 @@ __hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDA
  *     Copy one set of saved updates into the database's history store table.
  */
 int
-__wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_MULTI *multi)
+__wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
 {
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
@@ -492,7 +492,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
 #define MAX_REVERSE_MODIFY_NUM 16
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
-    WT_PAGE *page;
     WT_SAVE_UPD *list;
     WT_SESSION_IMPL *session;
     WT_UPDATE *prev_upd, *upd;
@@ -504,7 +503,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
     int nentries;
     bool squashed;
 
-    page = r->page;
     prev_upd = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
     insert_cnt = 0;
@@ -670,8 +668,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                     } else
                         WT_ERR(__hs_insert_record(session, cursor, btree_id, key, upd,
                           WT_UPDATE_STANDARD, full_value, stop_ts_pair));
-
-                    r->cache_write_hs = true;
 
                     /* Flag the update as now in the history store. */
                     F_SET(upd, WT_UPDATE_HS);

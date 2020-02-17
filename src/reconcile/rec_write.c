@@ -1731,9 +1731,15 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_PAGE *page;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+#ifdef HAVE_DIAGNOSTIC
+    bool verify_image;
+#endif
 
     btree = S2BT(session);
     page = r->page;
+#ifdef HAVE_DIAGNOSTIC
+    verify_image = true;
+#endif
 
     /*
      * If reconciliation requires multiple blocks and checkpoint is running we'll eventually fail,
@@ -1817,20 +1823,19 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (r->cache_write_restore && multi->supd != NULL) {
         WT_ASSERT(session, F_ISSET(r, WT_REC_EVICT) && r->leave_dirty);
         goto copy_image;
-    } else if (F_ISSET(r, WT_REC_EVICT)) {
-        WT_ASSERT(session, !r->leave_dirty || multi->supd == NULL);
-        /*
-         * XXX If no entries were used, the page is empty and we can only restore eviction/restore
-         * or history store updates against empty row-store leaf pages, column-store modify attempts
-         * to allocate a zero-length array.
-         */
-        if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
-            return (__wt_set_return(session, EBUSY));
+    }
 
-        /* If no entries were used, we have nothing to do. */
-        if (chunk->entries == 0)
-            return (0);
-    } else if (F_ISSET(r, WT_REC_CHECKPOINT) && chunk->entries == 0)
+    WT_ASSERT(session, F_ISSET(r, WT_REC_CHECKPOINT) || !r->leave_dirty || multi->supd == NULL);
+    /*
+     * XXX If no entries were used, the page is empty and we can only restore eviction/restore or
+     * history store updates against empty row-store leaf pages, column-store modify attempts to
+     * allocate a zero-length array.
+     */
+    if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
+        return (__wt_set_return(session, EBUSY));
+
+    /* If no entries were used, we have nothing to do. */
+    if (chunk->entries == 0)
         return (0);
 
     /*
@@ -1845,6 +1850,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_RET(__wt_bt_write(session, compressed_image == NULL ? &chunk->image : compressed_image, addr,
       &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
       compressed_image != NULL));
+#ifdef HAVE_DIAGNOSTIC
+    verify_image = false;
+#endif
     WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.addr));
     multi->addr.size = (uint8_t)addr_size;
 
@@ -1857,6 +1865,15 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
           session, btree->maxleafpage, compressed_size, last_block, &btree->maxleafpage_precomp);
 
 copy_image:
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * The I/O routines verify all disk images we write, but there are paths in reconciliation that
+     * don't do I/O. Verify those images, too.
+     */
+    WT_ASSERT(session, verify_image == false ||
+        __wt_verify_dsk_image(
+          session, "[reconcile-image]", chunk->image.data, 0, &multi->addr, true) == 0);
+#endif
     /*
      * If re-instantiating this page in memory (either because eviction wants to, or because we
      * skipped updates to build the disk image), save a copy of the disk image.
@@ -2277,7 +2294,8 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
-            WT_ERR(__wt_hs_insert_updates(session->hs_cursor, S2BT(session), r, multi));
+            WT_ERR(__wt_hs_insert_updates(session->hs_cursor, S2BT(session), r->page, multi));
+            r->cache_write_hs = true;
             if (!r->cache_write_restore) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;

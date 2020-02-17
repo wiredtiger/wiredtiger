@@ -417,9 +417,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /* Should not see uncommitted changes in the history store */
     WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !list_uncommitted);
 
-    r->leave_dirty = r->leave_dirty || list_uncommitted;
-    r->cache_write_restore =
-      r->cache_write_restore || (F_ISSET(r, WT_REC_EVICT) && list_uncommitted);
+    if (list_uncommitted)
+        r->leave_dirty = true;
+    if (list_uncommitted && F_ISSET(r, WT_REC_EVICT))
+        r->cache_write_restore = true;
+
     /*
      * The update doesn't have any further updates that need to be written to the history store,
      * skip saving the update as saving the update will cause reconciliation to think there is work
