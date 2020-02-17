@@ -312,10 +312,10 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
         /*
          * Eviction should only be here if following the history store or in-memory eviction path.
-         *
-         * PM-1521-FIXME: What will we do for in memory database?
+         * Otherwise, we must be reconciling a fixed length column store page.
          */
-        WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) || F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY));
+        WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) ||
+            (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX));
 
         /*
          * We have written the page, but something prevents it from being evicted. If we wrote the
