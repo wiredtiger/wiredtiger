@@ -284,7 +284,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
         /*
          * FIXME-PM-1524: A temporary solution for not storing durable timestamp in the cell.
-         * Properly fix this problem in PM-1524.
+         * Properly fix this problem in PM-1524. It is currently not OK to write prepared updates
+         * with durable timestamp larger than checkpoint timestamp to data store as we don't store
+         * durable timestamp in the cell. However, it is OK to write them to the history store as we
+         * store the durable timestamp in the history store value.
          */
         if (upd->durable_ts != upd->start_ts && upd->durable_ts > checkpoint_timestamp) {
             has_newer_updates = true;
