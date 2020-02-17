@@ -1063,7 +1063,7 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key,
      * key.
      */
     max = r->last;
-    if (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty)
+    if (r->cache_write_restore)
         for (i = r->supd_next; i > 0; --i) {
             supd = &r->supd[i - 1];
             if (supd->ins == NULL)
@@ -1813,11 +1813,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (F_ISSET(r, WT_REC_IN_MEMORY))
         goto copy_image;
 
-    /* If there are saved updates, we may have moved updates to the history store in eviction. */
-    if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
-        if (r->leave_dirty)
-            r->cache_write_restore = true;
-
+    /* If we need to restore the page to memory, copy the disk image. */
+    if (r->cache_write_restore && multi->supd != NULL) {
+        WT_ASSERT(session, F_ISSET(r, WT_REC_EVICT) && r->leave_dirty);
+        goto copy_image;
+    } else if (F_ISSET(r, WT_REC_EVICT)) {
+        WT_ASSERT(session, !r->leave_dirty || multi->supd == NULL);
         /*
          * XXX If no entries were used, the page is empty and we can only restore eviction/restore
          * or history store updates against empty row-store leaf pages, column-store modify attempts
@@ -1827,14 +1828,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             return (__wt_set_return(session, EBUSY));
 
         /* If no entries were used, we have nothing to do. */
-        if (!r->leave_dirty && chunk->entries == 0)
+        if (chunk->entries == 0)
             return (0);
-        /*
-         * If there are updates newer than the selected onpage value in eviction, copy the disk
-         * image.
-         */
-        if (r->leave_dirty)
-            goto copy_image;
     } else if (F_ISSET(r, WT_REC_CHECKPOINT) && chunk->entries == 0)
         return (0);
 
@@ -1866,7 +1861,7 @@ copy_image:
      * If re-instantiating this page in memory (either because eviction wants to, or because we
      * skipped updates to build the disk image), save a copy of the disk image.
      */
-    if (F_ISSET(r, WT_REC_SCRUB) || (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty))
+    if (F_ISSET(r, WT_REC_SCRUB) || (r->cache_write_restore && multi->supd != NULL))
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     return (0);
@@ -2163,9 +2158,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              * eviction has decided to retain the page in memory because the latter can't handle
              * update lists and splits can.
              */
-        if (F_ISSET(r, WT_REC_IN_MEMORY) ||
-          (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0))
+        if (F_ISSET(r, WT_REC_IN_MEMORY) || r->cache_write_restore) {
+            WT_ASSERT(session, F_ISSET(r, WT_REC_IN_MEMORY) ||
+                (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0));
             goto split;
+        }
 
         /*
          * We may have a root page, create a sync point. (The write code ignores root page updates,
