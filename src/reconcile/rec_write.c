@@ -1847,7 +1847,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_RET(__wt_bt_write(session, compressed_image == NULL ? &chunk->image : compressed_image, addr,
       &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
       compressed_image != NULL));
-
     WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.addr));
     multi->addr.size = (uint8_t)addr_size;
 
