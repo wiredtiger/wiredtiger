@@ -1829,8 +1829,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         /* If no entries were used, we have nothing to do. */
         if (!r->leave_dirty && chunk->entries == 0)
             return (0);
-        /* If there are updates newer than the selected onpage value in eviction, copy the disk
-         * image. */
+        /* 
+         * If there are updates newer than the selected onpage value in eviction, copy the disk
+         * image. 
+         */
         if (r->leave_dirty)
             goto copy_image;
     }
