@@ -15,32 +15,6 @@ static int __btree_preload(WT_SESSION_IMPL *);
 static int __btree_tree_open_empty(WT_SESSION_IMPL *, bool);
 
 /*
- * __wt_btree_page_version_config --
- *     Select a Btree page format.
- */
-void
-__wt_btree_page_version_config(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-
-/*
- * Write timestamp format pages if at the right version or if configured at build-time.
- *
- * WiredTiger version where timestamp page format is written. This is a future release, and the
- * values may require update when the release is named.
- */
-#define WT_VERSION_TS_MAJOR 3
-#define WT_VERSION_TS_MINOR 3
-    __wt_process.page_version_ts =
-      conn->compat_major >= WT_VERSION_TS_MAJOR && conn->compat_minor >= WT_VERSION_TS_MINOR;
-#if defined(HAVE_PAGE_VERSION_TS)
-    __wt_process.page_version_ts = true;
-#endif
-}
-
-/*
  * __btree_clear --
  *     Clear a Btree, either on handle discard or re-open.
  */
@@ -135,12 +109,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     /* Initialize and configure the WT_BTREE structure. */
     WT_ERR(__btree_conf(session, &ckpt));
-
-    /*
-     * We could be a re-open of a table that was put in the lookaside dropped list. Remove our id
-     * from that list.
-     */
-    __wt_las_remove_dropped(session);
 
     /* Connect to the underlying block manager. */
     filename = dhandle->name;
@@ -251,12 +219,11 @@ __wt_btree_close(WT_SESSION_IMPL *session)
     F_SET(btree, WT_BTREE_CLOSED);
 
     /*
-     * If closing a tree let sweep drop lookaside entries for it.
+     * Verify the history store state. If the history store is open and this btree has history store
+     * entries, it can't be a metadata file, nor can it be the history store file.
      */
-    if (F_ISSET(S2C(session), WT_CONN_LOOKASIDE_OPEN) && btree->lookaside_entries) {
-        WT_ASSERT(session, !WT_IS_METADATA(btree->dhandle) && !F_ISSET(btree, WT_BTREE_LOOKASIDE));
-        WT_TRET(__wt_las_save_dropped(session));
-    }
+    WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_HS_OPEN) || !btree->hs_entries ||
+        (!WT_IS_METADATA(btree->dhandle) && !WT_IS_HS(btree)));
 
     /*
      * If we turned eviction off and never turned it back on, do that now, otherwise the counter
@@ -543,6 +510,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         }
     }
 
+    /* Set special flags for the history store table. */
+    if (strcmp(session->dhandle->name, WT_HS_URI) == 0) {
+        F_SET(btree, WT_BTREE_HS);
+        F_SET(btree, WT_BTREE_NO_LOGGING);
+    }
+
     /* Configure encryption. */
     WT_RET(__wt_btree_config_encryptor(session, cfg, &btree->kencryptor));
 
@@ -644,7 +617,7 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
      * the disk image on return, the in-memory object steals it.
      */
     WT_ERR(__wt_page_inmem(session, NULL, dsk.data,
-      WT_DATA_IN_ITEM(&dsk) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, true, &page));
+      WT_DATA_IN_ITEM(&dsk) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, &page));
     dsk.mem = NULL;
 
     /* Finish initializing the root, root reference links. */

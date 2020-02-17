@@ -62,12 +62,20 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     upd = upd_arg;
     logged = false;
 
-    /* We're going to modify the page, we should have loaded history. */
-    WT_ASSERT(session, cbt->ref->state != WT_REF_LIMBO);
-
     /* If we don't yet have a modify structure, we'll need one. */
     WT_RET(__wt_page_modify_init(session, page));
     mod = page->modify;
+
+    /*
+     * We should have EITHER:
+     * - A full update list to instantiate with.
+     * - An update to append the existing update list with.
+     * - A key/value pair to create an update with and append to the update list.
+     *
+     * A full update list is distinguished from an update by checking whether it has any "next"
+     * update.
+     */
+    WT_ASSERT(session, (value == NULL && upd_arg != NULL) || (value != NULL && upd_arg == NULL));
 
     /*
      * Modify: allocate an update array as necessary, build a WT_UPDATE structure, and call a
@@ -101,16 +109,15 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             upd_size = __wt_update_list_memsize(upd);
 
             /*
-             * We are restoring updates that couldn't be evicted, there should only be one update
-             * list per key.
-             */
-            WT_ASSERT(session, *upd_entry == NULL);
-
-            /*
+             * If it's a full update list, we're trying to instantiate the row. Otherwise, it's just
+             * a single update that we'd like to append to the update list.
+             *
              * Set the "old" entry to the second update in the list so that the serialization
              * function succeeds in swapping the first update into place.
              */
-            old_upd = *upd_entry = upd->next;
+            if (upd->next != NULL)
+                *upd_entry = upd->next;
+            old_upd = *upd_entry;
         }
 
         /*
@@ -259,18 +266,11 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, WT_UPDATE **up
      */
     WT_ASSERT(session, modify_type != WT_UPDATE_INVALID);
 
-    /*
-     * Allocate the WT_UPDATE structure and room for the value, then copy the value into place.
-     */
-    if (modify_type == WT_UPDATE_BIRTHMARK || modify_type == WT_UPDATE_RESERVE ||
-      modify_type == WT_UPDATE_TOMBSTONE)
-        WT_RET(__wt_calloc(session, 1, WT_UPDATE_SIZE, &upd));
-    else {
-        WT_RET(__wt_calloc(session, 1, WT_UPDATE_SIZE + value->size, &upd));
-        if (value->size != 0) {
-            upd->size = WT_STORE_SIZE(value->size);
-            memcpy(upd->data, value->data, value->size);
-        }
+    /* Allocate the WT_UPDATE structure and room for the value, then copy any value into place. */
+    WT_RET(__wt_calloc(session, 1, WT_UPDATE_SIZE + (value == NULL ? 0 : value->size), &upd));
+    if (value != NULL && value->size != 0) {
+        upd->size = WT_STORE_SIZE(value->size);
+        memcpy(upd->data, value->data, value->size);
     }
     upd->type = (uint8_t)modify_type;
 
@@ -310,10 +310,10 @@ __wt_update_obsolete_check(
      *
      * Birthmarks are a special case: once a birthmark becomes obsolete, it can be discarded if
      * there is a globally visible update before it and subsequent reads will see the on-page value
-     * (as expected). Inserting updates into the lookaside table relies on this behavior to avoid
-     * creating update chains with multiple birthmarks. We cannot discard the birthmark if it's the
-     * first globally visible update as the previous updates can be aborted and be freed causing the
-     * entire update chain being removed.
+     * (as expected). Inserting updates into the history store table relies on this behavior to
+     * avoid creating update chains with multiple birthmarks. We cannot discard the birthmark if
+     * it's the first globally visible update as the previous updates can be aborted and be freed
+     * causing the entire update chain being removed.
      */
     for (first = prev = NULL, upd_visible_all_seen = false, count = 0; upd != NULL;
          prev = upd, upd = upd->next, count++) {
@@ -349,7 +349,7 @@ __wt_update_obsolete_check(
         }
     }
 
-    __wt_cache_update_lookaside_score(session, upd_seen, upd_unstable);
+    __wt_cache_update_hs_score(session, upd_seen, upd_unstable);
 
     /*
      * We cannot discard this WT_UPDATE structure, we can only discard WT_UPDATE structures

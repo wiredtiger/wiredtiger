@@ -73,19 +73,6 @@ found:
 }
 
 /*
- * __ref_is_leaf --
- *     Check if a reference is for a leaf page.
- */
-static inline bool
-__ref_is_leaf(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    bool is_leaf;
-
-    __wt_ref_info_lock(session, ref, NULL, NULL, &is_leaf);
-    return (is_leaf);
-}
-
-/*
  * __ref_ascend --
  *     Ascend the tree one level.
  */
@@ -443,12 +430,7 @@ descend:
                 /*
                  * Only look at unlocked pages in memory: fast-path some common cases.
                  */
-                if (LF_ISSET(WT_READ_NO_WAIT) && current_state != WT_REF_MEM &&
-                  current_state != WT_REF_LIMBO)
-                    break;
-
-                /* Skip lookaside pages if not requested. */
-                if (current_state == WT_REF_LOOKASIDE && !LF_ISSET(WT_READ_LOOKASIDE))
+                if (LF_ISSET(WT_READ_NO_WAIT) && current_state != WT_REF_MEM)
                     break;
             } else if (LF_ISSET(WT_READ_TRUNCATE)) {
                 /*
@@ -589,7 +571,7 @@ __tree_walk_skip_count_callback(WT_SESSION_IMPL *session, WT_REF *ref, void *con
      */
     if (ref->state == WT_REF_DELETED && __wt_delete_page_skip(session, ref, false))
         *skipp = true;
-    else if (*skipleafcntp > 0 && __ref_is_leaf(session, ref)) {
+    else if (*skipleafcntp > 0 && __wt_ref_is_leaf(session, ref)) {
         --*skipleafcntp;
         *skipp = true;
     } else

@@ -12,55 +12,40 @@ static void __rec_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *);
 static void __rec_destroy(WT_SESSION_IMPL *, void *);
 static int __rec_destroy_session(WT_SESSION_IMPL *);
 static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
-static int __rec_las_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *);
-static int __rec_las_wrapup_err(WT_SESSION_IMPL *, WT_RECONCILE *);
+static int __rec_hs_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
 static int __rec_split_row_promote(WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
 static int __rec_split_write(WT_SESSION_IMPL *, WT_RECONCILE *, WT_REC_CHUNK *, WT_ITEM *, bool);
-static int __rec_write_check_complete(WT_SESSION_IMPL *, WT_RECONCILE *, int, bool *);
 static void __rec_write_page_status(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_write_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int __rec_write_wrapup_err(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
-static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *, bool *);
+static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
 
 /*
  * __wt_reconcile --
  *     Reconcile an in-memory page into its on-disk format, and write it.
  */
 int
-__wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags,
-  bool *lookaside_retryp)
+__wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags)
 {
     WT_DECL_RET;
     WT_PAGE *page;
     bool no_reconcile_set, page_locked;
 
-    if (lookaside_retryp != NULL)
-        *lookaside_retryp = false;
-
     page = ref->page;
 
-    __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s%s)", (void *)ref,
+    __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
-      LF_ISSET(WT_REC_LOOKASIDE) ? ", lookaside" : "",
-      LF_ISSET(WT_REC_UPDATE_RESTORE) ? ", update/restore" : "");
+      LF_ISSET(WT_REC_HS) ? ", history store" : "");
 
     /*
      * Sanity check flags.
-     *
-     * We can only do update/restore eviction when the version that ends up
-     * in the page image is the oldest one any reader could need.
-     * Otherwise we would need to keep updates in memory that go back older
-     * than the version in the disk image, and since modify operations
-     * aren't idempotent, that is problematic.
      *
      * If we try to do eviction using transaction visibility, we had better
      * have a snapshot.  This doesn't apply to checkpoints: there are
      * (rare) cases where we write data at read-uncommitted isolation.
      */
-    WT_ASSERT(session, !LF_ISSET(WT_REC_LOOKASIDE) || !LF_ISSET(WT_REC_UPDATE_RESTORE));
-    WT_ASSERT(session, !LF_ISSET(WT_REC_UPDATE_RESTORE) || LF_ISSET(WT_REC_VISIBLE_ALL));
     WT_ASSERT(session, !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
         F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
 
@@ -99,7 +84,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * Reconcile the page. The reconciliation code unlocks the page as soon as possible, and returns
      * that information.
      */
-    ret = __reconcile(session, ref, salvage, flags, lookaside_retryp, &page_locked);
+    ret = __reconcile(session, ref, salvage, flags, &page_locked);
 
 err:
     if (page_locked)
@@ -151,7 +136,7 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
  */
 static int
 __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags,
-  bool *lookaside_retryp, bool *page_lockedp)
+  bool *page_lockedp)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -196,14 +181,20 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     }
 
     /*
-     * Update the global lookaside score. Only use observations during eviction, not checkpoints and
-     * don't count eviction of the lookaside table itself.
+     * Update the global history store score. Only use observations during eviction, not checkpoints
+     * and don't count eviction of the history store table itself.
      */
-    if (F_ISSET(r, WT_REC_EVICT) && !F_ISSET(btree, WT_BTREE_LOOKASIDE))
-        __wt_cache_update_lookaside_score(session, r->updates_seen, r->updates_unstable);
+    if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_HS(btree))
+        __wt_cache_update_hs_score(session, r->updates_seen, r->updates_unstable);
 
-    /* Check for a successful reconciliation. */
-    WT_TRET(__rec_write_check_complete(session, r, ret, lookaside_retryp));
+    /*
+     * Tests in this function are history store tests and tests to decide if rewriting a page in
+     * memory is worth doing. In-memory configurations can't use a history store table, and we
+     * ignore page rewrite desirability checks for in-memory eviction because a small cache can
+     * force us to rewrite every possible page.
+     */
+    if (F_ISSET(r, WT_REC_IN_MEMORY))
+        ret = 0;
 
     /* Wrap up the page reconciliation. */
     if (ret == 0 && (ret = __rec_write_wrapup(session, r, page)) == 0)
@@ -228,11 +219,11 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_STAT_CONN_INCR(session, rec_pages_eviction);
         WT_STAT_DATA_INCR(session, rec_pages_eviction);
     }
-    if (r->cache_write_lookaside) {
-        WT_STAT_CONN_INCR(session, cache_write_lookaside);
-        WT_STAT_DATA_INCR(session, cache_write_lookaside);
+    if (r->cache_write_hs) {
+        WT_STAT_CONN_INCR(session, cache_write_hs);
+        WT_STAT_DATA_INCR(session, cache_write_hs);
     }
-    if (r->cache_write_restore) {
+    if (r->leave_dirty) {
         WT_STAT_CONN_INCR(session, cache_write_restore);
         WT_STAT_DATA_INCR(session, cache_write_restore);
     }
@@ -288,68 +279,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 }
 
 /*
- * __rec_write_check_complete --
- *     Check that reconciliation should complete.
- */
-static int
-__rec_write_check_complete(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, int tret, bool *lookaside_retryp)
-{
-    /*
-     * Tests in this function are lookaside tests and tests to decide if rewriting a page in memory
-     * is worth doing. In-memory configurations can't use a lookaside table, and we ignore page
-     * rewrite desirability checks for in-memory eviction because a small cache can force us to
-     * rewrite every possible page.
-     */
-    if (F_ISSET(r, WT_REC_IN_MEMORY))
-        return (0);
-
-    /*
-     * Fall back to lookaside eviction during checkpoints if a page can't be evicted.
-     */
-    if (tret == EBUSY && lookaside_retryp != NULL && !F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
-      !r->update_uncommitted)
-        *lookaside_retryp = true;
-
-    /* Don't continue if we have already given up. */
-    WT_RET(tret);
-
-    /*
-     * Check if this reconciliation attempt is making progress. If there's any sign of progress,
-     * don't fall back to the lookaside table.
-     *
-     * Check if the current reconciliation split, in which case we'll likely get to write at least
-     * one of the blocks. If we've created a page image for a page that previously didn't have one,
-     * or we had a page image and it is now empty, that's also progress.
-     */
-    if (r->multi_next > 1)
-        return (0);
-
-    /*
-     * We only suggest lookaside if currently in an evict/restore attempt and some updates were
-     * saved. Our caller sets the evict/restore flag based on various conditions (like if this is a
-     * leaf page), which is why we're testing that flag instead of a set of other conditions. If no
-     * updates were saved, eviction will succeed without needing to restore anything.
-     */
-    if (!F_ISSET(r, WT_REC_UPDATE_RESTORE) || lookaside_retryp == NULL ||
-      (r->multi_next == 1 && r->multi->supd_entries == 0))
-        return (0);
-
-    /*
-     * Check if the current reconciliation applied some updates, in which case evict/restore should
-     * gain us some space.
-     *
-     * Check if lookaside eviction is possible. If any of the updates we saw were uncommitted, the
-     * lookaside table cannot be used.
-     */
-    if (r->update_uncommitted || r->update_used)
-        return (0);
-
-    *lookaside_retryp = true;
-    return (__wt_set_return(session, EBUSY));
-}
-
-/*
  * __rec_write_page_status --
  *     Set the page status after reconciliation.
  */
@@ -382,10 +311,11 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             S2C(session)->modified = true;
 
         /*
-         * Eviction should only be here if following the save/restore eviction path.
+         * Eviction should only be here if following the history store or in-memory eviction path.
+         *
+         * PM-1521-FIXME: What will we do for in memory database?
          */
-        WT_ASSERT(session,
-          !F_ISSET(r, WT_REC_EVICT) || F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE));
+        WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) || F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY));
 
         /*
          * We have written the page, but something prevents it from being evicted. If we wrote the
@@ -393,7 +323,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * checkpoint would write. Make sure that checkpoint visits the page and (if necessary)
          * fixes things up.
          */
-        if (r->las_skew_newest)
+        if (r->hs_skew_newest)
             mod->first_dirty_txn = WT_TXN_FIRST;
     } else {
         /*
@@ -513,7 +443,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
      * Fake up a reference structure, and write the next root page.
      */
     __wt_root_ref_init(session, &fake_ref, next, page->type == WT_PAGE_COL_INT);
-    return (__wt_reconcile(session, &fake_ref, NULL, flags, NULL));
+    return (__wt_reconcile(session, &fake_ref, NULL, flags));
 
 err:
     __wt_page_out(session, &next);
@@ -596,38 +526,34 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * We usually prefer to skew to newer versions, the logic being that by the time the next
      * checkpoint runs, it is likely that all the updates we choose will be stable. However, if
      * checkpointing with a timestamp (indicated by a stable_timestamp being set), and there is a
-     * checkpoint already running, or this page was read with lookaside history, or the stable
+     * checkpoint already running, or this page was read with history store history, or the stable
      * timestamp hasn't changed since last time this page was successfully, skew oldest instead.
      */
     if (F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DEBUG_MODE) &&
       __wt_random(&session->rnd) % 3 == 0)
-        r->las_skew_newest = false;
+        r->hs_skew_newest = false;
     else
-        r->las_skew_newest = LF_ISSET(WT_REC_LOOKASIDE) && LF_ISSET(WT_REC_VISIBLE_ALL);
+        r->hs_skew_newest = LF_ISSET(WT_REC_HS) && LF_ISSET(WT_REC_VISIBLE_ALL);
 
-    if (r->las_skew_newest && !__wt_btree_immediately_durable(session) &&
+    if (r->hs_skew_newest && !__wt_btree_immediately_durable(session) &&
       txn_global->has_stable_timestamp &&
       ((btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT) &&
          txn_global->stable_is_pinned) ||
-          FLD_ISSET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE) ||
+          FLD_ISSET(page->modify->restore_state, WT_PAGE_RS_HS) ||
           page->modify->last_stable_timestamp == txn_global->stable_timestamp))
-        r->las_skew_newest = false;
+        r->hs_skew_newest = false;
+
+    /* When operating on the history store table, we should never try history store eviction. */
+    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_HS) || !LF_ISSET(WT_REC_HS));
 
     /*
-     * When operating on the lookaside table, we should never try update/restore or lookaside
-     * eviction.
-     */
-    WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_LOOKASIDE) || !LF_ISSET(WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE));
-
-    /*
-     * Lookaside table eviction is configured when eviction gets aggressive,
+     * History store table eviction is configured when eviction gets aggressive,
      * adjust the flags for cases we don't support.
      *
      * We don't yet support fixed-length column-store combined with the
-     * lookaside table. It's not hard to do, but the underlying function
+     * history store table. It's not hard to do, but the underlying function
      * that reviews which updates can be written to the evicted page and
-     * which updates need to be written to the lookaside table needs access
+     * which updates need to be written to the history store table needs access
      * to the original value from the page being evicted, and there's no
      * code path for that in the case of fixed-length column-store objects.
      * (Row-store and variable-width column-store objects provide a
@@ -636,7 +562,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * now, turn it off.
      */
     if (page->type == WT_PAGE_COL_FIX)
-        LF_CLR(WT_REC_LOOKASIDE);
+        LF_CLR(WT_REC_HS);
 
     r->flags = flags;
 
@@ -647,10 +573,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /* Track if updates were used and/or uncommitted. */
     r->updates_seen = r->updates_unstable = 0;
-    r->update_uncommitted = r->update_used = false;
-
-    /* Track if all the updates are with prepare in-progress state. */
-    r->all_upd_prepare_in_prog = true;
 
     /* Track if the page can be marked clean. */
     r->leave_dirty = false;
@@ -713,7 +635,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     r->salvage = salvage;
 
-    r->cache_write_lookaside = r->cache_write_restore = false;
+    r->cache_write_hs = r->cache_write_restore = false;
 
     /*
      * The fake cursor used to figure out modified update values points to the enclosing WT_REF as a
@@ -1136,11 +1058,12 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key,
 
     /*
      * Note #2: if we skipped updates, an update key may be larger than the last key stored in the
-     * previous block (probable for append-centric workloads). If there are skipped updates, check
-     * for one larger than the last key and smaller than the current key.
+     * previous block (probable for append-centric workloads). If there are skipped updates and we
+     * cannot evict the page, check for one larger than the last key and smaller than the current
+     * key.
      */
     max = r->last;
-    if (F_ISSET(r, WT_REC_UPDATE_RESTORE))
+    if (r->leave_dirty)
         for (i = r->supd_next; i > 0; --i) {
             supd = &r->supd[i - 1];
             if (supd->ins == NULL)
@@ -1545,7 +1468,7 @@ __rec_split_write_supd(
         WT_RET(__rec_supd_move(session, multi, r->supd, r->supd_next));
         r->supd_next = 0;
         r->supd_memsize = 0;
-        goto done;
+        return (ret);
     }
 
     /*
@@ -1600,14 +1523,6 @@ __rec_split_write_supd(
         r->supd_next = j;
     }
 
-done:
-    if (F_ISSET(r, WT_REC_LOOKASIDE)) {
-        /* Track the oldest lookaside timestamp seen so far. */
-        multi->page_las.max_txn = r->max_txn;
-        multi->page_las.max_ondisk_ts = r->max_ondisk_ts;
-        multi->page_las.min_skipped_ts = r->min_skipped_ts;
-    }
-
 err:
     __wt_scr_free(session, &key);
     return (ret);
@@ -1645,16 +1560,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
             F_SET(dsk, WT_PAGE_EMPTY_V_NONE);
     }
 
-    /*
-     * Note in the page header if using the lookaside table eviction path and we found updates that
-     * weren't globally visible when reconciling this page.
-     */
-    if (F_ISSET(r, WT_REC_LOOKASIDE) && multi->supd != NULL)
-        F_SET(dsk, WT_PAGE_LAS_UPDATE);
-
     dsk->unused = 0;
-
-    dsk->version = __wt_process.page_version_ts ? WT_PAGE_VERSION_TS : WT_PAGE_VERSION_ORIG;
 
     /* Clear the memory owned by the block manager. */
     memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);
@@ -1835,6 +1741,13 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     verify_image = true;
 #endif
 
+    /*
+     * If reconciliation requires multiple blocks and checkpoint is running we'll eventually fail,
+     * unless we're the checkpoint thread. Big pages take a lot of writes, avoid wasting work.
+     */
+    if (!last_block && WT_BTREE_SYNCING(btree) && !WT_SESSION_BTREE_SYNC(session))
+        return (__wt_set_return(session, EBUSY));
+
     /* Make sure there's enough room for another write. */
     WT_RET(__wt_realloc_def(session, &r->multi_allocated, r->multi_next + 1, &r->multi));
     multi = &r->multi[r->multi_next++];
@@ -1907,35 +1820,28 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         goto copy_image;
 
     /*
-     * If there are saved updates, either doing update/restore eviction or lookaside eviction.
+     * If there are saved updates, do history store eviction.
      */
     if (multi->supd != NULL) {
         /*
          * XXX If no entries were used, the page is empty and we can only restore eviction/restore
-         * or lookaside updates against empty row-store leaf pages, column-store modify attempts to
-         * allocate a zero-length array.
+         * or history store updates against empty row-store leaf pages, column-store modify attempts
+         * to allocate a zero-length array.
          */
         if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
             return (__wt_set_return(session, EBUSY));
 
-        if (F_ISSET(r, WT_REC_LOOKASIDE)) {
-            r->cache_write_lookaside = true;
+        r->cache_write_hs = true;
 
-            /*
-             * Lookaside eviction writes disk images, but if no entries were used, there's no disk
-             * image to write. There's no more work to do in this case, lookaside eviction doesn't
-             * copy disk images.
-             */
-            if (chunk->entries == 0)
-                return (0);
-        } else {
+        if (r->leave_dirty)
             r->cache_write_restore = true;
 
-            /*
-             * Update/restore never writes a disk image, but always copies a disk image.
-             */
+        /* If there are uncommitted changes and no entries were used, copy the disk image. */
+        if (r->leave_dirty && chunk->entries == 0)
             goto copy_image;
-        }
+        /* If no entries were used, we have nothing to do. */
+        else if (chunk->entries == 0)
+            return (0);
     }
 
     /*
@@ -1979,7 +1885,7 @@ copy_image:
      * If re-instantiating this page in memory (either because eviction wants to, or because we
      * skipped updates to build the disk image), save a copy of the disk image.
      */
-    if (F_ISSET(r, WT_REC_SCRUB) || (F_ISSET(r, WT_REC_UPDATE_RESTORE) && multi->supd != NULL))
+    if (F_ISSET(r, WT_REC_SCRUB) || r->leave_dirty)
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     return (0);
@@ -2224,11 +2130,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     mod->rec_result = 0;
 
     /*
-     * If using the lookaside table eviction path and we found updates that weren't globally visible
-     * when reconciling this page, copy them into the database's lookaside store.
+     * If using the history store table eviction path and we found updates that weren't globally
+     * visible when reconciling this page, copy them into the database's history store.
      */
-    if (F_ISSET(r, WT_REC_LOOKASIDE))
-        WT_RET(__rec_las_wrapup(session, r));
+    if (F_ISSET(r, WT_REC_HS))
+        WT_RET(__rec_hs_wrapup(session, r));
 
     /*
      * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
@@ -2276,8 +2182,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              * eviction has decided to retain the page in memory because the latter can't handle
              * update lists and splits can.
              */
-        if (F_ISSET(r, WT_REC_IN_MEMORY) ||
-          (F_ISSET(r, WT_REC_UPDATE_RESTORE) && r->multi->supd_entries != 0))
+        if (F_ISSET(r, WT_REC_IN_MEMORY) || (r->leave_dirty && r->multi->supd_entries != 0))
             goto split;
 
         /*
@@ -2289,7 +2194,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             r->multi->addr.addr = NULL;
             mod->mod_disk_image = r->multi->disk_image;
             r->multi->disk_image = NULL;
-            mod->mod_page_las = r->multi->page_las;
         } else {
             __wt_checkpoint_tree_reconcile_update(session, r->multi->addr.newest_durable_ts,
               r->multi->addr.oldest_start_ts, r->multi->addr.oldest_start_txn,
@@ -2317,6 +2221,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 split:
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
             multi->addr.reuse = 0;
+
         mod->mod_multi = r->multi;
         mod->mod_multi_entries = r->multi_next;
         mod->rec_result = WT_PM_REC_MULTIBLOCK;
@@ -2366,28 +2271,18 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 WT_TRET(__wt_btree_block_free(session, multi->addr.addr, multi->addr.size));
         }
 
-    /*
-     * If using the lookaside table eviction path and we found updates that weren't globally visible
-     * when reconciling this page, we might have already copied them into the database's lookaside
-     * store. Remove them.
-     */
-    if (F_ISSET(r, WT_REC_LOOKASIDE))
-        WT_TRET(__rec_las_wrapup_err(session, r));
-
     WT_TRET(__wt_ovfl_track_wrapup_err(session, page));
 
     return (ret);
 }
 
 /*
- * __rec_las_wrapup --
- *     Copy all of the saved updates into the database's lookaside table.
+ * __rec_hs_wrapup --
+ *     Copy all of the saved updates into the database's history store table.
  */
 static int
-__rec_las_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+__rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
-    WT_CURSOR *cursor;
-    WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_MULTI *multi;
     uint32_t i, session_flags;
@@ -2399,46 +2294,19 @@ __rec_las_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     if (i == r->multi_next)
         return (0);
 
-    /* Ensure enough room for a column-store key without checking. */
-    WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-
-    __wt_las_cursor(session, &cursor, &session_flags);
+    WT_RET(__wt_hs_cursor(session, &session_flags));
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
-            WT_ERR(__wt_las_insert_block(cursor, S2BT(session), r->page, multi, key));
-
-            __wt_free(session, multi->supd);
-            multi->supd_entries = 0;
+            WT_ERR(__wt_hs_insert_updates(session->hs_cursor, S2BT(session), r, multi));
+            if (!r->leave_dirty) {
+                __wt_free(session, multi->supd);
+                multi->supd_entries = 0;
+            }
         }
 
 err:
-    WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
-
-    __wt_scr_free(session, &key);
-    return (ret);
-}
-
-/*
- * __rec_las_wrapup_err --
- *     Discard any saved updates from the database's lookaside buffer.
- */
-static int
-__rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
-{
-    WT_DECL_RET;
-    WT_MULTI *multi;
-    uint64_t las_pageid;
-    uint32_t i;
-
-    /*
-     * Note the additional check for a non-zero lookaside page ID, that flags if lookaside table
-     * entries for this page have been written.
-     */
-    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-        if (multi->supd != NULL && (las_pageid = multi->page_las.las_pageid) != 0)
-            WT_TRET(__wt_las_remove_block(session, las_pageid));
-
+    WT_TRET(__wt_hs_cursor_close(session, session_flags));
     return (ret);
 }
 

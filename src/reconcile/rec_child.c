@@ -136,6 +136,7 @@ __wt_rec_child_modify(
         switch (r->tested_ref_state = ref->state) {
         case WT_REF_DISK:
             /* On disk, not modified by definition. */
+            WT_ASSERT(session, ref->addr != NULL);
             goto done;
 
         case WT_REF_DELETED:
@@ -171,31 +172,6 @@ __wt_rec_child_modify(
              * of truncated pages aren't expected to be common.
              */
             break;
-
-        case WT_REF_LIMBO:
-            WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
-        /* FALLTHROUGH */
-        case WT_REF_LOOKASIDE:
-            /*
-             * On disk or in cache with lookaside updates.
-             *
-             * We should never be here during eviction: active child pages in an evicted page's
-             * subtree fails the eviction attempt.
-             */
-            if (F_ISSET(r, WT_REC_EVICT) && __wt_page_las_active(session, ref)) {
-                WT_ASSERT(session, false);
-                return (__wt_set_return(session, EBUSY));
-            }
-
-            /*
-             * A page evicted with lookaside entries may not have an address, if no updates were
-             * visible to reconciliation. Any child pages in that state should be ignored.
-             */
-            if (ref->addr == NULL) {
-                *statep = WT_CHILD_IGNORE;
-                WT_CHILD_RELEASE(session, *hazardp, ref);
-            }
-            goto done;
 
         case WT_REF_MEM:
             /*
