@@ -553,20 +553,12 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
         }
 
         /*
-         * Trim any updates before writing to history store. This saves wasted work, but is also
-         * necessary because the reconciliation only resolves existing birthmarks if they aren't
-         * obsolete.
+         * Trim any updates before writing to history store. This saves wasted work.
          */
         WT_WITH_BTREE(
           session, btree, upd = __wt_update_obsolete_check(session, page, list->onpage_upd, true));
         __wt_free_update_list(session, &upd);
         upd = list->onpage_upd;
-
-        /*
-         * It's not OK for the update list to contain a birthmark on entry - we will generate one
-         * below if necessary.
-         */
-        WT_ASSERT(session, __wt_count_birthmarks(upd) == 0);
 
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
@@ -906,8 +898,8 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
             break;
         }
 
-        /* We do not have birthmarks and tombstones in the history store anymore. */
-        WT_ASSERT(session, upd_type != WT_UPDATE_BIRTHMARK && upd_type != WT_UPDATE_TOMBSTONE);
+        /* We do not have tombstones in the history store anymore. */
+        WT_ASSERT(session, upd_type != WT_UPDATE_TOMBSTONE);
 
         /*
          * Keep walking until we get a non-modify update. Once we get to that point, squash the
