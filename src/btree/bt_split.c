@@ -1359,24 +1359,6 @@ err:
     return (ret);
 }
 
-#ifdef HAVE_DIAGNOSTIC
-/*
- * __wt_count_birthmarks --
- *     Sanity check an update list. In particular, make sure there no birthmarks.
- */
-int
-__wt_count_birthmarks(WT_UPDATE *upd)
-{
-    int birthmark_count;
-
-    for (birthmark_count = 0; upd != NULL; upd = upd->next)
-        if (upd->type == WT_UPDATE_BIRTHMARK)
-            ++birthmark_count;
-
-    return (birthmark_count);
-}
-#endif
-
 /*
  * __split_multi_inmem --
  *     Instantiate a page from a disk image.
@@ -1464,13 +1446,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                 key->size = WT_INSERT_KEY_SIZE(supd->ins);
             }
 
-            WT_ASSERT(session, __wt_count_birthmarks(upd) <= 1);
-
             /* Search the page. */
             WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
-
-            /* Birthmarks should only be applied to on-page values. */
-            WT_ASSERT(session, cbt.compare == 0 || upd->type != WT_UPDATE_BIRTHMARK);
 
             /* Apply the modification. */
             WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true));
