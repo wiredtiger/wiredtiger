@@ -43,7 +43,9 @@ static const char *const incr_out = "./backup_block_incr";
 
 static const char *const uri = "table:main";
 static const char *const uri2 = "table:extra";
-static const char *const uri3 = "table:newtable";
+static const char *const uri3 = "table:new_table";
+static const char *const uri4 = "table:logged_table";
+static const char *const uri5 = "table:not_logged_table";
 
 typedef struct __filelist {
     const char *name;
@@ -59,7 +61,8 @@ static size_t filelist_count = 0;
 #define MAX_ITERATIONS 5
 #define MAX_KEYS 10000
 
-bool newtable = false;
+// The variable is to copy full file instead of copying blocks for new created objects
+bool new_object = false;
 
 static int
 compare_backups(int i, const char *t_uri)
@@ -126,7 +129,7 @@ setup_directories(void)
     int i;
     char buf[1024];
 
-    for (i = 0; i <= MAX_ITERATIONS * 3; i++) {
+    for (i = 0; i <= MAX_ITERATIONS * 4; i++) {
         /*
          * For incremental backups we need 0-N. The 0 incremental directory will compare with the
          * original at the end.
@@ -153,13 +156,15 @@ add_work(WT_SESSION *session, int iter, int iterj, const char *t_uri1, const cha
     char k[64], v[64];
 
     error_check(session->open_cursor(session, t_uri1, NULL, NULL, &cursor));
+
     /*
      * Only on even iterations add content to the extra table. This illustrates and shows that
      * sometimes only some tables will be updated.
      */
     cursor2 = NULL;
-    if (iter % 2 == 0)
+    if (iter % 2 == 0) {
         error_check(session->open_cursor(session, t_uri2, NULL, NULL, &cursor2));
+    }
     /*
      * Perform some operations with individual auto-commit transactions.
      */
@@ -178,6 +183,32 @@ add_work(WT_SESSION *session, int iter, int iterj, const char *t_uri1, const cha
     error_check(cursor->close(cursor));
     if (cursor2 != NULL)
         error_check(cursor2->close(cursor2));
+}
+
+static void
+add_bulk_load(WT_SESSION *session, int iter, int iterj, const char *t_uri)
+{
+    WT_CURSOR *cursor;
+    int i;
+    char v[64];
+    int k;
+
+    error_check(session->open_cursor(session, t_uri, NULL, "bulk,append", &cursor));
+
+    /*
+     * Perform some operations with individual auto-commit transactions.
+     */
+    for (i = 0; i < MAX_KEYS; i++) {
+        //(void)snprintf(k, sizeof(k), "key.%d.%d.%d", iter, iterj, i);
+        k = iter + iterj + i;
+        (void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter, iterj, i);
+
+        printf("Inserting Key : %d -- Value : %s\n", k, v);
+        cursor->set_key(cursor, k);
+        cursor->set_value(cursor, v);
+        error_check(cursor->insert(cursor));
+    }
+    error_check(cursor->close(cursor));
 }
 
 static void
@@ -397,12 +428,12 @@ take_incr_backup(WT_SESSION *session, int i)
               size, type == WT_BACKUP_FILE ? "WT_BACKUP_FILE" : "WT_BACKUP_RANGE");
 #endif
             /*
-             * The new condition (newtable == false) is to skip copying blocks for new created
+             * The new condition (new_object == false) is to skip copying blocks for new created
              * objects. The code below tries to open a write file descriptor on the newly created
              * files to copy the blocks and it fails because the newly created file does not exist
              * in the incremental directory
              */
-            if ((type == WT_BACKUP_RANGE) && (newtable == false)) {
+            if ((type == WT_BACKUP_RANGE) && (new_object == false)) {
                 /*
                  * We should never get a range key after a whole file so the read file descriptor
                  * should be valid. If the read descriptor is valid, so is the write one.
@@ -457,7 +488,7 @@ take_incr_backup(WT_SESSION *session, int i)
          * that they start out at the same for the next incremental round. We then check each
          * incremental directory along the way.
          */
-        for (j = i; j <= MAX_ITERATIONS * 3; j++) {
+        for (j = i; j <= MAX_ITERATIONS * 4; j++) {
             (void)snprintf(h, sizeof(h), "%s.%d", home_incr, j);
             if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
                 (void)snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h,
@@ -516,7 +547,7 @@ drop_old_add_new_objects(WT_CONNECTION *wt_conn)
 
     error_check(session->drop(session, uri2, "force"));
 
-    newtable = true;
+    new_object = true;
 
     for (i = MAX_ITERATIONS + 1; i < MAX_ITERATIONS * 2; i++) {
         printf("Iteration %d: adding data\n", i);
@@ -537,7 +568,7 @@ drop_old_add_new_objects(WT_CONNECTION *wt_conn)
         (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d", home_incr, i);
         error_check(system(buf));
     }
-    newtable = false;
+    new_object = false;
 }
 
 static void
@@ -565,6 +596,45 @@ create_dropped_object_new_content(WT_CONNECTION *wt_conn)
         printf("Dumping and comparing data\n");
         error_check(compare_backups(i, uri2));
     }
+}
+
+/*
+ * This function will insert bulk data in logged and not-logged table
+ */
+static void
+insert_bulk_data(WT_CONNECTION *wt_conn)
+{
+    WT_SESSION *session;
+    new_object = true;
+
+    error_check(wt_conn->close(wt_conn, NULL));
+    error_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
+    error_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
+    /*
+     * Insert bulk data into logged table
+     */
+    error_check(session->create(session, uri4, "key_format=i,value_format=S"));
+
+    add_bulk_load(session, 0, 0, uri4);
+    // ID 15 is used for logged table
+    take_full_backup(session, MAX_ITERATIONS * 3);
+    take_incr_backup(session, MAX_ITERATIONS * 3);
+    printf("Dumping and comparing data\n");
+    error_check(compare_backups(MAX_ITERATIONS * 3, uri4));
+
+    /*
+     * Insert bulk data into not logged table
+     */
+    error_check(session->create(session, uri5, "key_format=i,value_format=S,log=(enabled=false)"));
+
+    add_bulk_load(session, 0, 0, uri5);
+    // ID 16 is used for not logged table
+    take_full_backup(session, 16);
+    take_incr_backup(session, 16);
+    printf("Dumping and comparing data\n");
+    error_check(compare_backups(16, uri5));
+
+    new_object = false;
 }
 
 int
@@ -630,6 +700,9 @@ main(int argc, char *argv[])
     printf("*** Create previously dropped object with new content ***\n");
     create_dropped_object_new_content(wt_conn);
 
+    printf("*** Insert data into Logged and Not-Logged tables ***\n");
+    insert_bulk_data(wt_conn);
+
     printf("Close and reopen the connection\n");
     /*
      * Close and reopen the connection to illustrate the durability of id information.
@@ -640,8 +713,8 @@ main(int argc, char *argv[])
     /*
      * We should have an entry for i-1 and i-2. Use the older one.
      */
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)",
-      (MAX_ITERATIONS * 3) - 2, MAX_ITERATIONS * 3);
+    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", 16, 17);
+    printf("Command Buf : %s\n", cmd_buf);
     error_check(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur));
     error_check(backup_cur->close(backup_cur));
 
@@ -677,6 +750,7 @@ main(int argc, char *argv[])
      */
     (void)snprintf(
       cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 1, i + 1);
+    printf("Command Buf : %s\n", cmd_buf);
     testutil_assert(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur) == ENOENT);
     error_check(wt_conn->close(wt_conn, NULL));
 
