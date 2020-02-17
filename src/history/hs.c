@@ -679,6 +679,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_M
                         WT_ERR(__hs_insert_record(session, cursor, btree_id, key, upd,
                           WT_UPDATE_STANDARD, full_value, stop_ts_pair));
 
+                    r->cache_write_hs = true;
+
                     /* Flag the update as now in the history store. */
                     F_SET(upd, WT_UPDATE_HS);
                     ++insert_cnt;

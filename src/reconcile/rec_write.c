@@ -223,7 +223,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_STAT_CONN_INCR(session, cache_write_hs);
         WT_STAT_DATA_INCR(session, cache_write_hs);
     }
-    if (r->leave_dirty) {
+    if (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty) {
         WT_STAT_CONN_INCR(session, cache_write_restore);
         WT_STAT_DATA_INCR(session, cache_write_restore);
     }
@@ -1063,7 +1063,7 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key,
      * key.
      */
     max = r->last;
-    if (r->leave_dirty)
+    if (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty)
         for (i = r->supd_next; i > 0; --i) {
             supd = &r->supd[i - 1];
             if (supd->ins == NULL)
@@ -1819,8 +1819,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (F_ISSET(r, WT_REC_IN_MEMORY))
         goto copy_image;
 
-    /* If there are saved updates, we may have moved updates to the history store. */
-    if (multi->supd != NULL) {
+    /* If there are saved updates, we may have moved updates to the history store in evicition. */
+    if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
+        if (r->leave_dirty)
+            r->cache_write_restore = true;
+
         /*
          * XXX If no entries were used, the page is empty and we can only restore eviction/restore
          * or history store updates against empty row-store leaf pages, column-store modify attempts
@@ -1829,16 +1832,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
             return (__wt_set_return(session, EBUSY));
 
-        r->cache_write_hs = true;
-
-        if (r->leave_dirty)
-            r->cache_write_restore = true;
-
         /* If no entries were used, we have nothing to do. */
         if (!r->leave_dirty && chunk->entries == 0)
             return (0);
-        /* If there are updates newer than the selected onpage value in eviction, copy the disk image. */
-        if (r->leave_dirty && F_ISSET(r, WT_REC_EVICT))
+        /* If there are updates newer than the selected onpage value in eviction, copy the disk
+         * image. */
+        if (r->leave_dirty)
             goto copy_image;
     }
 
@@ -1868,7 +1867,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         __rec_compression_adjust(
           session, btree->maxleafpage, compressed_size, last_block, &btree->maxleafpage_precomp);
 
-copy_image:
 #ifdef HAVE_DIAGNOSTIC
     /*
      * The I/O routines verify all disk images we write, but there are paths in reconciliation that
@@ -1879,11 +1877,12 @@ copy_image:
           session, "[reconcile-image]", chunk->image.data, 0, &multi->addr, true) == 0);
 #endif
 
+copy_image:
     /*
      * If re-instantiating this page in memory (either because eviction wants to, or because we
      * skipped updates to build the disk image), save a copy of the disk image.
      */
-    if (F_ISSET(r, WT_REC_SCRUB) || r->leave_dirty)
+    if (F_ISSET(r, WT_REC_SCRUB) || (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty))
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     return (0);
@@ -2180,7 +2179,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              * eviction has decided to retain the page in memory because the latter can't handle
              * update lists and splits can.
              */
-        if (F_ISSET(r, WT_REC_IN_MEMORY) || (r->leave_dirty && r->multi->supd_entries != 0))
+        if (F_ISSET(r, WT_REC_IN_MEMORY) ||
+          (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0))
             goto split;
 
         /*
@@ -2297,7 +2297,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
             WT_ERR(__wt_hs_insert_updates(session->hs_cursor, S2BT(session), r, multi));
-            if (!r->leave_dirty) {
+            if (F_ISSET(r, WT_REC_CHECKPOINT) || !r->leave_dirty) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
             }
