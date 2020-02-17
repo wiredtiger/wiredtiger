@@ -45,7 +45,11 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         for i in range(0, nrows):
             session.begin_transaction()
             cursor[ds.key(i)] = value
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+            if commit_ts == 0:
+                session.commit_transaction()
+            else:
+                session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+
         cursor.close()
 
     def large_modifies(self, uri, value, ds, location, nbytes, nrows, commit_ts):
@@ -57,7 +61,11 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             cursor.set_key(i)
             mods = [wiredtiger.Modify(value, location, nbytes)]
             self.assertEqual(cursor.modify(mods), 0)
-        session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+
+        if commit_ts == 0:
+            session.commit_transaction()
+        else:
+            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
     def large_removes(self, uri, ds, nrows, commit_ts):
@@ -68,12 +76,18 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             session.begin_transaction()
             cursor.set_key(i)
             cursor.remove()
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+            if commit_ts == 0:
+                session.commit_transaction()
+            else:
+                session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
     def check(self, check_value, uri, nrows, read_ts):
         session = self.session
-        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        if read_ts == 0:
+            session.begin_transaction()
+        else:
+            session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
@@ -85,7 +99,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
 # Test that rollback to stable clears the remove operation.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
     # Force a small cache.
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
+    conn_config = 'cache_size=20MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
     def test_rollback_to_stable(self):

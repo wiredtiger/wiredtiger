@@ -665,14 +665,9 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
      * inconsistent.
      */
     if (__wt_btree_immediately_durable(session)) {
-        /*
-         * Add the btree ID to the bitstring, so we can exclude any history store entries for this
-         * btree.
-         */
         if (btree->id >= conn->stable_rollback_maxfile)
             WT_PANIC_RET(session, EINVAL, "btree file ID %" PRIu32 " larger than max %" PRIu32,
               btree->id, conn->stable_rollback_maxfile);
-        __bit_set(conn->stable_rollback_bitstring, btree->id);
         return (0);
     }
 
@@ -799,6 +794,16 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         } else
             __wt_verbose(session, WT_VERB_RTS, "%s: file skipped", uri);
 
+        if (newest_durable_ts == WT_TS_NONE) {
+            /*
+             * Add the btree ID to the bitstring, so we can cleanup any history store entries for
+             * this btree.
+             */
+            __wt_verbose(
+              session, WT_VERB_RTS, "%s: non-timestamped file history store cleanup", uri);
+            __bit_set(S2C(session)->rollback_bitstring_hs, S2BT(session)->id);
+        }
+
         WT_TRET(__wt_session_release_dhandle(session));
         WT_ERR(ret);
     }
@@ -806,6 +811,63 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
+ * __rollback_to_stable_btree_hs_cleanup --
+ *     Wipe all history store updates for the selected btrees (non-timestamped tables)
+ */
+static int
+__rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint8_t *rollback_bitstring)
+{
+    WT_CURSOR *hs_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(hs_key);
+    WT_DECL_RET;
+    WT_TIME_PAIR hs_start, hs_stop;
+    WT_UPDATE *hs_upd;
+    uint32_t hs_btree_id, session_flags;
+
+    hs_cursor = NULL;
+    hs_upd = NULL;
+    session_flags = 0;
+
+    /* Allocate buffers for the history store key. */
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+
+    /* Open a history store table cursor. */
+    WT_ERR(__wt_hs_cursor(session, &session_flags));
+    hs_cursor = session->hs_cursor;
+    cbt = (WT_CURSOR_BTREE *)hs_cursor;
+
+    /* Walk the file. */
+    while ((ret = hs_cursor->next(hs_cursor)) == 0) {
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start.timestamp,
+          &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
+
+        /* Check for the found btree in the required cleanup list. */
+        if (!__bit_test(rollback_bitstring, hs_btree_id))
+            continue;
+
+        /* Set this comparison as exact match of the search for later use. */
+        cbt->compare = 0;
+
+        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
+        WT_WITH_BTREE(session, cbt->btree,
+          ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
+        WT_ERR(ret);
+        WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
+        hs_upd = NULL;
+    }
+    WT_ERR_NOTFOUND_OK(ret);
+
+err:
+    __wt_scr_free(session, &hs_key);
+    __wt_free(session, hs_upd);
+    if (hs_cursor != NULL)
+        WT_TRET(__wt_hs_cursor_close(session, session_flags));
+
     return (ret);
 }
 
@@ -818,6 +880,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    uint64_t first;
 
     conn = S2C(session);
 
@@ -843,12 +906,20 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      * current value is already in use, and hence we need to add one here.
      */
     conn->stable_rollback_maxfile = conn->next_file_id + 1;
-    WT_ERR(__bit_alloc(session, conn->stable_rollback_maxfile, &conn->stable_rollback_bitstring));
+    WT_ERR(__bit_alloc(session, conn->stable_rollback_maxfile, &conn->rollback_bitstring_hs));
     WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_btree_apply(session));
+
+    /*
+     * If connection is not in-memory and the bit string is not empty, clean the history store for
+     * non-timestamp tables.
+     */
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) &&
+      (__bit_ffs(conn->rollback_bitstring_hs, conn->stable_rollback_maxfile, &first) == 0))
+        __rollback_to_stable_btree_hs_cleanup(session, conn->rollback_bitstring_hs);
 
 err:
     F_CLR(conn, WT_CONN_EVICTION_NO_HS);
-    __wt_free(session, conn->stable_rollback_bitstring);
+    __wt_free(session, conn->rollback_bitstring_hs);
     return (ret);
 }
 
