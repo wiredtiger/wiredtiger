@@ -223,7 +223,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_STAT_CONN_INCR(session, cache_write_hs);
         WT_STAT_DATA_INCR(session, cache_write_hs);
     }
-    if (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty) {
+    if (r->cache_write_restore) {
         WT_STAT_CONN_INCR(session, cache_write_restore);
         WT_STAT_DATA_INCR(session, cache_write_restore);
     }
