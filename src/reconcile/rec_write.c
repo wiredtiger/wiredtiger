@@ -1819,9 +1819,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (F_ISSET(r, WT_REC_IN_MEMORY))
         goto copy_image;
 
-    /*
-     * If there are saved updates, do history store eviction.
-     */
+    /* If there are saved updates, we may have moved updates to the history store in eviction. */
     if (multi->supd != NULL) {
         /*
          * XXX If no entries were used, the page is empty and we can only restore eviction/restore
@@ -1836,12 +1834,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         if (r->leave_dirty)
             r->cache_write_restore = true;
 
-        /* If there are uncommitted changes and no entries were used, copy the disk image. */
-        if (r->leave_dirty && chunk->entries == 0)
-            goto copy_image;
         /* If no entries were used, we have nothing to do. */
-        else if (chunk->entries == 0)
+        if (!r->leave_dirty && chunk->entries == 0)
             return (0);
+        /* If there are updates newer than the selected onpage value in eviction, copy the disk image. */
+        if (r->leave_dirty && F_ISSET(r, WT_REC_EVICT))
+            goto copy_image;
     }
 
     /*
