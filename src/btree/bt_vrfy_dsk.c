@@ -215,7 +215,7 @@ __verify_dsk_ts_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num, const char
         ts2_bp = __wt_timestamp_to_string(ts2, ts_string[1]);
         break;
     }
-    WT_ASSERT(session, false);
+
     WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
                                   " on page at %s failed verification with %s "
                                   "timestamp of %s, %s the parent's %s timestamp of %s",
