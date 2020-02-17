@@ -1819,7 +1819,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (F_ISSET(r, WT_REC_IN_MEMORY))
         goto copy_image;
 
-    /* If there are saved updates, we may have moved updates to the history store in eviction. */
+    /* If there are saved updates, we may have moved updates to the history store. */
     if (multi->supd != NULL) {
         /*
          * XXX If no entries were used, the page is empty and we can only restore eviction/restore
