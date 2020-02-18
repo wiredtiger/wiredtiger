@@ -837,7 +837,7 @@ __wt_rec_row_leaf(
                   session, btree, r, vpack, start_txn, start_ts, stop_txn, stop_ts));
 
                 dictionary = true;
-            } else if (F_ISSET(vpack, WT_CELL_UNPACK_TXNIDS_CLEARED)) {
+            } else if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED)) {
                 /*
                  * The transaction ids are cleared after restart. Repack the cell to flush the
                  * cleared transaction ids.

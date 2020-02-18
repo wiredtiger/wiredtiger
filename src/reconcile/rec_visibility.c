@@ -329,8 +329,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (upd->start_ts != WT_TS_NONE)
                 upd_select->stop_ts = upd->start_ts;
-            if (upd->txnid != WT_TXN_NONE)
+            if (upd->txnid != WT_TXN_NONE) {
                 upd_select->stop_txn = upd->txnid;
+                if (upd->start_ts == WT_TS_NONE)
+                    upd_select->stop_ts = 1;
+            }
             if (upd->durable_ts != WT_TS_NONE)
                 tombstone_durable_ts = upd->durable_ts;
             /* Ignore all the aborted transactions. */
@@ -417,7 +420,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /* Should not see uncommitted changes in the history store */
     WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !list_uncommitted);
 
-    r->leave_dirty = r->leave_dirty || list_uncommitted;
+    /* Mark the page dirty after reconciliation. */
+    if (list_uncommitted)
+        r->leave_dirty = true;
+    /*
+     * We should restore the update chains to the new disk image if there are uncommitted changes in
+     * eviction.
+     */
+    if (list_uncommitted && F_ISSET(r, WT_REC_EVICT))
+        r->cache_write_restore = true;
+
     /*
      * The update doesn't have any further updates that need to be written to the history store,
      * skip saving the update as saving the update will cause reconciliation to think there is work
