@@ -1216,12 +1216,12 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix"
+          working_dir: "wiredtiger/build_posix/test/csuite"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/csuite/test_wt5212_incremental_backup 2>&1
+            ${test_env_vars|} $(pwd)/test_wt5212_incremental_backup 2>&1
 
   # End of csuite test tasks
 
