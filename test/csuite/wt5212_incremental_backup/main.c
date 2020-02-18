@@ -85,28 +85,28 @@ compare_backups(int i, const char *t_uri)
      * with the final incremental directory.
      */
     if (i == 0)
-        (void)snprintf(
-          buf, sizeof(buf), "%s -R -h %s dump %s > %s.%d", WT_UTIL, home, t_uri, full_out, i);
+        testutil_check(__wt_snprintf(
+          buf, sizeof(buf), "%s -R -h %s dump %s > %s.%d", WT_UTIL, home, t_uri, full_out, i));
     else
-        (void)snprintf(buf, sizeof(buf), "%s -R -h %s.%d dump %s > %s.%d", WT_UTIL, home_full, i,
-          t_uri, full_out, i);
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s -R -h %s.%d dump %s > %s.%d", WT_UTIL,
+          home_full, i, t_uri, full_out, i));
     testutil_check(system(buf));
     /*
      * Now run dump on the incremental directory.
      */
-    (void)snprintf(buf, sizeof(buf), "%s -R -h %s.%d dump %s > %s.%d", WT_UTIL, home_incr, i, t_uri,
-      incr_out, i);
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s -R -h %s.%d dump %s > %s.%d", WT_UTIL,
+      home_incr, i, t_uri, incr_out, i));
     testutil_check(system(buf));
 
     /*
      * Compare the files.
      */
-    (void)snprintf(buf, sizeof(buf), "cmp %s.%d %s.%d", full_out, i, incr_out, i);
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "cmp %s.%d %s.%d", full_out, i, incr_out, i));
     ret = system(buf);
     if (i == 0)
-        (void)snprintf(msg, sizeof(msg), "%s", "MAIN");
+        testutil_check(__wt_snprintf(msg, sizeof(msg), "%s", "MAIN"));
     else
-        (void)snprintf(msg, sizeof(msg), "%d", i);
+        testutil_check(__wt_snprintf(msg, sizeof(msg), "%d", i));
     printf("Iteration %s: Tables %s.%d and %s.%d %s\n", msg, full_out, i, incr_out, i,
       ret == 0 ? "identical" : "differ");
     if (ret != 0)
@@ -116,8 +116,8 @@ compare_backups(int i, const char *t_uri)
      * If they compare successfully, clean up.
      */
     if (i != 0) {
-        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d %s.%d %s.%d %s.%d", home_full, i, home_incr,
-          i, full_out, i, incr_out, i);
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s.%d %s.%d %s.%d %s.%d", home_full,
+          i, home_incr, i, full_out, i, incr_out, i));
         testutil_check(system(buf));
     }
     return (ret);
@@ -139,16 +139,16 @@ setup_directories(void)
          * For incremental backups we need 0-N. The 0 incremental directory will compare with the
          * original at the end.
          */
-        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d && mkdir -p %s.%d/%s", home_incr, i,
-          home_incr, i, logpath);
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s.%d && mkdir -p %s.%d/%s",
+          home_incr, i, home_incr, i, logpath));
         testutil_check(system(buf));
         if (i == 0)
             continue;
         /*
          * For full backups we need 1-N.
          */
-        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d && mkdir -p %s.%d/%s", home_full, i,
-          home_full, i, logpath);
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s.%d && mkdir -p %s.%d/%s",
+          home_full, i, home_full, i, logpath));
         testutil_check(system(buf));
     }
 }
@@ -174,8 +174,8 @@ add_work(WT_SESSION *session, int iter, int iterj, const char *t_uri1, const cha
      * Perform some operations with individual auto-commit transactions.
      */
     for (i = 0; i < MAX_KEYS; i++) {
-        (void)snprintf(k, sizeof(k), "key.%d.%d.%d", iter, iterj, i);
-        (void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter, iterj, i);
+        testutil_check(__wt_snprintf(k, sizeof(k), "key.%d.%d.%d", iter, iterj, i));
+        testutil_check(__wt_snprintf(v, sizeof(v), "value.%d.%d.%d", iter, iterj, i));
         cursor->set_key(cursor, k);
         cursor->set_value(cursor, v);
         testutil_check(cursor->insert(cursor));
@@ -202,7 +202,7 @@ add_bulk_load(WT_SESSION *session, int iter_i, int iter_j, const char *t_uri)
 
     for (i = 0; i < MAX_KEYS; i++) {
         k = iter_i + iter_j + i;
-        (void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter_i, iter_j, i);
+        testutil_check(__wt_snprintf(v, sizeof(v), "value.%d.%d.%d", iter_i, iter_j, i));
 
         cursor->set_key(cursor, k);
         cursor->set_value(cursor, v);
@@ -224,8 +224,8 @@ remove_work(WT_SESSION *session, int iter_i, int iter_j)
      * Remove records from the main table.
      */
     for (i = 0; i < MAX_KEYS; i++) {
-        (void)snprintf(k, sizeof(k), "key.%d.%d.%d", iter_i, iter_j, i);
-        (void)snprintf(v, sizeof(v), "value.%d.%d.%d", iter_i, iter_j, i);
+        testutil_check(__wt_snprintf(k, sizeof(k), "key.%d.%d.%d", iter_i, iter_j, i));
+        testutil_check(__wt_snprintf(v, sizeof(v), "value.%d.%d.%d", iter_i, iter_j, i));
         cursor->set_key(cursor, k);
         cursor->set_value(cursor, v);
         testutil_check(cursor->remove(cursor));
@@ -233,7 +233,7 @@ remove_work(WT_SESSION *session, int iter_i, int iter_j)
     testutil_check(cursor->close(cursor));
 }
 
-static int
+static void
 finalize_files(FILELIST *flistp, size_t count)
 {
     size_t i;
@@ -248,9 +248,9 @@ finalize_files(FILELIST *flistp, size_t count)
         if (last_flist[i].name == NULL)
             break;
         if (!last_flist[i].exist) {
-            (void)snprintf(buf, sizeof(buf), "rm WT_BLOCK_LOG_*/%s%s",
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "rm WT_BLOCK_LOG_*/%s%s",
               strncmp(last_flist[i].name, WTLOG, WTLOGLEN) == 0 ? "logpath/" : "",
-              last_flist[i].name);
+              last_flist[i].name));
             testutil_check(system(buf));
         }
         free((void *)last_flist[i].name);
@@ -260,7 +260,6 @@ finalize_files(FILELIST *flistp, size_t count)
     /* Set up the current list as the new previous list. */
     last_flist = flistp;
     filelist_count = count;
-    return (0);
 }
 
 /*
@@ -268,7 +267,7 @@ finalize_files(FILELIST *flistp, size_t count)
  * the previous iteration. Mark any name we see as existing so that the finalize function can remove
  * any that don't exist. We walk the list each time. This is slow.
  */
-static int
+static void
 process_file(FILELIST **flistp, size_t *countp, size_t *allocp, const char *filename)
 {
     FILELIST *flist;
@@ -302,7 +301,6 @@ process_file(FILELIST **flistp, size_t *countp, size_t *allocp, const char *file
             break;
         }
     }
-    return (0);
 }
 
 static void
@@ -320,13 +318,13 @@ take_full_backup(WT_SESSION *session, int i)
      * into the appropriate full directory.
      */
     if (i != 0) {
-        (void)snprintf(h, sizeof(h), "%s.%d", home_full, i);
+        testutil_check(__wt_snprintf(h, sizeof(h), "%s.%d", home_full, i));
         hdir = h;
     } else
         hdir = home_incr;
     if (i == 0) {
-        (void)snprintf(
-          buf, sizeof(buf), "incremental=(granularity=1M,enabled=true,this_id=ID%d)", i);
+        testutil_check(__wt_snprintf(
+          buf, sizeof(buf), "incremental=(granularity=1M,enabled=true,this_id=ID%d)", i));
         testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
     } else
         testutil_check(session->open_cursor(session, "backup:", NULL, NULL, &cursor));
@@ -337,23 +335,23 @@ take_full_backup(WT_SESSION *session, int i)
     testutil_assert(flist != NULL);
     while ((ret = cursor->next(cursor)) == 0) {
         testutil_check(cursor->get_key(cursor, &filename));
-        testutil_check(process_file(&flist, &count, &alloc, filename));
+        process_file(&flist, &count, &alloc, filename);
 
         /*
          * If it is a log file, prepend the path for cp.
          */
         if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
-            (void)snprintf(f, sizeof(f), "%s/%s", logpath, filename);
+            testutil_check(__wt_snprintf(f, sizeof(f), "%s/%s", logpath, filename));
         else
-            (void)snprintf(f, sizeof(f), "%s", filename);
+            testutil_check(__wt_snprintf(f, sizeof(f), "%s", filename));
 
         if (i == 0)
             /*
              * Take a full backup into each incremental directory.
              */
             for (j = 0; j < ITERATIONS_MULTIPLIER * 3; j++) {
-                (void)snprintf(h, sizeof(h), "%s.%d", home_incr, j);
-                (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, f, h, f);
+                testutil_check(__wt_snprintf(h, sizeof(h), "%s.%d", home_incr, j));
+                testutil_check(__wt_snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, f, h, f));
 #if 0
                 printf("FULL: Copy: %s\n", buf);
 #endif
@@ -361,9 +359,9 @@ take_full_backup(WT_SESSION *session, int i)
             }
         else {
 #if 0
-            (void)snprintf(h, sizeof(h), "%s.%d", home_full, i);
+            testutil_check(__wt_snprintf(h, sizeof(h), "%s.%d", home_full, i);
 #endif
-            (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, f, hdir, f);
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, f, hdir, f));
 #if 0
             printf("FULL %d: Copy: %s\n", i, buf);
 #endif
@@ -372,7 +370,7 @@ take_full_backup(WT_SESSION *session, int i)
     }
     scan_end_check(ret == WT_NOTFOUND);
     testutil_check(cursor->close(cursor));
-    testutil_check(finalize_files(flist, count));
+    finalize_files(flist, count);
 }
 
 static void
@@ -392,7 +390,8 @@ take_incr_backup(WT_SESSION *session, int i)
     tmp = NULL;
     tmp_sz = 0;
     /* Open the backup data source for incremental backup. */
-    (void)snprintf(buf, sizeof(buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 1, i);
+    testutil_check(
+      __wt_snprintf(buf, sizeof(buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 1, i));
     testutil_check(session->open_cursor(session, "backup:", NULL, buf, &backup_cur));
     rfd = wfd = -1;
     count = 0;
@@ -402,20 +401,21 @@ take_incr_backup(WT_SESSION *session, int i)
     /* For each file listed, open a duplicate backup cursor and copy the blocks. */
     while ((ret = backup_cur->next(backup_cur)) == 0) {
         testutil_check(backup_cur->get_key(backup_cur, &filename));
-        testutil_check(process_file(&flist, &count, &alloc, filename));
-        (void)snprintf(h, sizeof(h), "%s.0", home_incr);
+        process_file(&flist, &count, &alloc, filename);
+        testutil_check(__wt_snprintf(h, sizeof(h), "%s.0", home_incr));
         if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
-            (void)snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h,
-              logpath, filename);
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home, logpath,
+              filename, h, logpath, filename));
         else
-            (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename);
+            testutil_check(
+              __wt_snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename));
 #if 0
         printf("Copying backup: %s\n", buf);
 #endif
         testutil_check(system(buf));
         first = true;
 
-        (void)snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename);
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename));
         testutil_check(session->open_cursor(session, NULL, backup_cur, buf, &incr_cur));
 #if 0
         printf("Taking incremental %d: File %s\n", i, filename);
@@ -444,10 +444,10 @@ take_incr_backup(WT_SESSION *session, int i)
                     tmp_sz = size;
                 }
                 if (first) {
-                    (void)snprintf(buf, sizeof(buf), "%s/%s", home, filename);
+                    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, filename));
                     error_sys_check(rfd = open(buf, O_RDONLY, 0));
-                    (void)snprintf(h, sizeof(h), "%s.%d", home_incr, i);
-                    (void)snprintf(buf, sizeof(buf), "%s/%s", h, filename);
+                    testutil_check(__wt_snprintf(h, sizeof(h), "%s.%d", home_incr, i));
+                    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", h, filename));
                     error_sys_check(wfd = open(buf, O_WRONLY, 0));
                     first = false;
                 }
@@ -462,10 +462,11 @@ take_incr_backup(WT_SESSION *session, int i)
                 testutil_assert(first == true);
                 rfd = wfd = -1;
                 if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
-                    (void)snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home, logpath,
-                      filename, h, logpath, filename);
+                    testutil_check(__wt_snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home,
+                      logpath, filename, h, logpath, filename));
                 else
-                    (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename);
+                    testutil_check(__wt_snprintf(
+                      buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename));
 #if 0
                 printf("Incremental: Whole file copy: %s\n", buf);
 #endif
@@ -489,12 +490,13 @@ take_incr_backup(WT_SESSION *session, int i)
          * incremental directory along the way.
          */
         for (j = i; j <= MAX_ITERATIONS; j++) {
-            (void)snprintf(h, sizeof(h), "%s.%d", home_incr, j);
+            testutil_check(__wt_snprintf(h, sizeof(h), "%s.%d", home_incr, j));
             if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
-                (void)snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h,
-                  logpath, filename);
+                testutil_check(__wt_snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home,
+                  logpath, filename, h, logpath, filename));
             else
-                (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename);
+                testutil_check(
+                  __wt_snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename));
             testutil_check(system(buf));
         }
     }
@@ -502,7 +504,7 @@ take_incr_backup(WT_SESSION *session, int i)
 
     /* Done processing all files. Close backup cursor. */
     testutil_check(backup_cur->close(backup_cur));
-    testutil_check(finalize_files(flist, count));
+    finalize_files(flist, count);
     free(tmp);
     /*! [incremental backup using block transfer]*/
 }
@@ -599,13 +601,13 @@ drop_old_add_new_objects(WT_CONNECTION *wt_conn)
         take_incr_backup(session, i);
 
         // Check if the dropped object exists in the incremental folder.
-        (void)snprintf(
-          buf, sizeof(buf), "%s -R -h %s.%d list | grep %s", WT_UTIL, home_incr, i, uri2);
+        testutil_check(__wt_snprintf(
+          buf, sizeof(buf), "%s -R -h %s.%d list | grep %s", WT_UTIL, home_incr, i, uri2));
         ret = system(buf);
         testutil_assertfmt(ret != 0, "%s dropped, but file exists in %s.%d\n", uri2, home_incr, i);
 
         // Clean up
-        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d", home_incr, i);
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s.%d", home_incr, i));
         testutil_check(system(buf));
     }
     new_object = false;
@@ -694,7 +696,8 @@ main(int argc, char *argv[])
     (void)argc; /* Unused variable */
     (void)testutil_set_progname(argv);
 
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "rm -rf %s && mkdir -p %s/%s", home, home, logpath);
+    testutil_check(
+      __wt_snprintf(cmd_buf, sizeof(cmd_buf), "rm -rf %s && mkdir -p %s/%s", home, home, logpath));
     testutil_check(system(cmd_buf));
     testutil_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
 
@@ -728,15 +731,15 @@ main(int argc, char *argv[])
     /*
      * We should have an entry for MAX_ITERATIONS-1 and MAX_ITERATIONS-2. Use the older one.
      */
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)",
-      MAX_ITERATIONS - 2, MAX_ITERATIONS);
+    testutil_check(__wt_snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)",
+      MAX_ITERATIONS - 2, MAX_ITERATIONS));
     testutil_check(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur));
     testutil_check(backup_cur->close(backup_cur));
 
     /*
      * After we're done, release resources. Test the force stop setting.
      */
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(force_stop=true)");
+    testutil_check(__wt_snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(force_stop=true)"));
     testutil_check(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur));
     testutil_check(backup_cur->close(backup_cur));
 
@@ -763,12 +766,12 @@ main(int argc, char *argv[])
     /*
      * We should not have any information.
      */
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)",
-      MAX_ITERATIONS - 2, MAX_ITERATIONS);
+    testutil_check(__wt_snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)",
+      MAX_ITERATIONS - 2, MAX_ITERATIONS));
     testutil_assert(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur) == ENOENT);
     testutil_check(wt_conn->close(wt_conn, NULL));
 
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "%s/WiredTiger.backup.block", home);
+    testutil_check(__wt_snprintf(cmd_buf, sizeof(cmd_buf), "%s/WiredTiger.backup.block", home));
     ret = stat(cmd_buf, &sb);
     testutil_assert(ret == -1 && errno == ENOENT);
 
