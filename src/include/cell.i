@@ -959,11 +959,6 @@ __wt_cell_unpack_dsk(
                 unpack->newest_stop_ts = 1;
         } else
             WT_ASSERT(session, unpack->newest_stop_ts == WT_TS_MAX);
-    } else {
-        if (unpack->stop_txn != WT_TXN_MAX && unpack->stop_ts == WT_TS_MAX)
-            unpack->stop_ts = 1;
-        if (unpack->newest_stop_txn != WT_TXN_MAX && unpack->newest_stop_ts == WT_TS_MAX)
-            unpack->newest_stop_ts = 1;
     }
 }
 
