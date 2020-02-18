@@ -1210,10 +1210,9 @@ tasks:
 
   - name: csuite-wt5212-incremental-backup-test
     tags: ["pull_request"]
-    depends_on:
-      - name: compile
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix/test/csuite"
