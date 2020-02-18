@@ -607,7 +607,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_SPLIT_ERROR_PHASE complete;
     size_t parent_decr, size;
     uint64_t split_gen;
-    uint32_t deleted_entries, parent_entries, result_entries;
+    uint32_t deleted_entries, parent_entries, result_entries, state;
     uint32_t *deleted_refs;
     uint32_t hint, i, j;
     bool empty_parent;
@@ -688,17 +688,37 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     alloc_index->entries = result_entries;
     for (alloc_refp = alloc_index->index, hint = i = 0; i < parent_entries; ++i) {
         next_ref = pindex->index[i];
-        if (next_ref == ref)
+        if (next_ref == ref) {
             for (j = 0; j < new_entries; ++j) {
                 ref_new[j]->home = parent;
                 ref_new[j]->pindex_hint = hint++;
                 *alloc_refp++ = ref_new[j];
             }
-        else if (next_ref->state != WT_REF_SPLIT) {
-            /* Skip refs we have marked for deletion. */
-            next_ref->pindex_hint = hint++;
-            *alloc_refp++ = next_ref;
+            continue;
         }
+
+        /*
+         * Skip refs we have marked for deletion.
+         *
+         * Other threads of control may be locking and unlocking the WT_REF, and at a high rate in
+         * some workloads. Read the WT_REF state, but if it's locked, review the list of deleted
+         * entries instead of waiting for it to become unlocked (the list of deleted entries should
+         * be relatively short in most workloads).
+         */
+        if (deleted_entries != 0) {
+            WT_ORDERED_READ(state, next_ref->state);
+            if (state == WT_REF_LOCKED)
+                for (j = 0, deleted_refs = scr->mem; j < deleted_entries; ++j)
+                    if (deleted_refs[j] == i) {
+                        state = WT_REF_SPLIT;
+                        break;
+                    }
+            if (state == WT_REF_SPLIT)
+                continue;
+        }
+
+        next_ref->pindex_hint = hint++;
+        *alloc_refp++ = next_ref;
     }
 
     /* Check that we filled in all the entries. */
