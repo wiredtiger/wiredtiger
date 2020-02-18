@@ -430,14 +430,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
 
-    /* Should not see uncommitted changes in the history store */
-    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !list_uncommitted);
+    /* Should not see newer updates in the history store */
+    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !has_newer_updates);
 
     /* Mark the page dirty after reconciliation. */
     if (has_newer_updates)
         r->leave_dirty = true;
     /*
-     * We should restore the update chains to the new disk image if there are uncommitted changes in
+     * We should restore the update chains to the new disk image if there are newer updates in
      * eviction.
      */
     if (has_newer_updates && F_ISSET(r, WT_REC_EVICT))
@@ -451,7 +451,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Additionally history store reconciliation is not set skip saving an update.
      */
     if (__rec_need_save_upd(
-          session, upd_select->upd, max_txn, max_ts, list_uncommitted, r->flags)) {
+          session, upd_select->upd, max_txn, max_ts, has_newer_updates, r->flags)) {
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
         upd_select->upd_saved = true;
     }
