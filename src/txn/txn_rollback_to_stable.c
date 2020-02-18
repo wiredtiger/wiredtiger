@@ -230,11 +230,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         if (valid_update_found) {
             WT_ERR(__wt_update_alloc(session, &full_value, &upd, &size, WT_UPDATE_STANDARD));
 
-            /* Clear the transaction id when recovery is in progress. */
-            if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-                upd->txnid = WT_TXN_NONE;
-            else
-                upd->txnid = hs_start.txnid;
+            upd->txnid = WT_TXN_NONE;
             upd->durable_ts = durable_ts;
             upd->start_ts = hs_start.timestamp;
             __wt_verbose(session, WT_VERB_RTS, "Update restored from history store (txnid: %" PRIu64
@@ -867,7 +863,11 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      * concurrently.
      */
     WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, &session));
+
+    F_SET(session, WT_SESSION_RTS);
     ret = __rollback_to_stable(session, cfg);
+    F_CLR(session, WT_SESSION_RTS);
+
     /*
      * Forcibly log a checkpoint after rollback to stable to ensure that both in-memory and on-disk
      * versions are same.
