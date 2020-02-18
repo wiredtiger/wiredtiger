@@ -1376,7 +1376,6 @@ done:
              */
             ret = __wt_key_return(cbt);
             break;
-        case WT_UPDATE_BIRTHMARK:
         case WT_UPDATE_TOMBSTONE:
         default:
             return (__wt_illegal_value(session, modify_type));

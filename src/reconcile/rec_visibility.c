@@ -69,12 +69,6 @@ __rec_append_orig_value(
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK))
             return (0);
 
-        /* Add the original value after birthmarks. */
-        if (upd->type == WT_UPDATE_BIRTHMARK) {
-            WT_ASSERT(session, unpack != NULL && unpack->type != WT_CELL_DEL);
-            break;
-        }
-
         /* On page value already on chain */
         if (unpack != NULL && unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid)
             return (0);
@@ -124,28 +118,11 @@ __rec_append_orig_value(
         }
     }
 
-    /*
-     * If we're saving the original value for a birthmark, transfer over the transaction ID and
-     * clear out the birthmark update. Else, set the entry's transaction information to the lowest
-     * possible value (as cleared memory matches the lowest possible transaction ID and timestamp,
-     * do nothing).
-     */
-    if (upd->type == WT_UPDATE_BIRTHMARK) {
-        WT_ASSERT(session, append->start_ts == upd->start_ts && append->txnid == upd->txnid);
-        append->next = upd->next;
-    }
-
     if (tombstone != NULL)
         append = tombstone;
 
     /* Append the new entry into the update list. */
     WT_PUBLISH(upd->next, append);
-
-    /* Replace the birthmark with an aborted transaction. */
-    if (upd->type == WT_UPDATE_BIRTHMARK) {
-        WT_ORDERED_WRITE(upd->txnid, WT_TXN_ABORTED);
-        WT_ORDERED_WRITE(upd->type, WT_UPDATE_STANDARD);
-    }
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 
@@ -365,8 +342,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (upd->start_ts != WT_TS_NONE)
                 upd_select->stop_ts = upd->start_ts;
-            if (upd->txnid != WT_TXN_NONE)
+            if (upd->txnid != WT_TXN_NONE) {
                 upd_select->stop_txn = upd->txnid;
+                if (upd->start_ts == WT_TS_NONE)
+                    upd_select->stop_ts = 1;
+            }
             if (upd->durable_ts != WT_TS_NONE)
                 tombstone_durable_ts = upd->durable_ts;
             /* Ignore all the aborted transactions. */
@@ -450,23 +430,19 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
 
+    /* Should not see uncommitted changes in the history store */
+    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !list_uncommitted);
+
+    /* Mark the page dirty after reconciliation. */
+    if (has_newer_updates)
+        r->leave_dirty = true;
     /*
-     * If the update we chose was a birthmark.
+     * We should restore the update chains to the new disk image if there are uncommitted changes in
+     * eviction.
      */
-    if (upd != NULL && upd->type == WT_UPDATE_BIRTHMARK) {
-        /*
-         * Resolve the birthmark now regardless of whether the update being written to the data file
-         * is the same as it was the previous reconciliation. Otherwise the history store can end up
-         * with two birthmark records in the same update chain.
-         */
-        WT_ERR(__rec_append_orig_value(session, page, upd, vpack));
-        upd_select->upd = NULL;
-    }
+    if (has_newer_updates && F_ISSET(r, WT_REC_EVICT))
+        r->cache_write_restore = true;
 
-    /* Should not see updates newer than the onpage value in the history store */
-    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !has_newer_updates);
-
-    r->leave_dirty = r->leave_dirty || has_newer_updates;
     /*
      * The update doesn't have any further updates that need to be written to the history store,
      * skip saving the update as saving the update will cause reconciliation to think there is work
@@ -475,11 +451,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Additionally history store reconciliation is not set skip saving an update.
      */
     if (__rec_need_save_upd(
-          session, upd_select->upd, max_txn, max_ts, has_newer_updates, r->flags)) {
-        /* During recovery, there are no transaction id's. */
-        WT_ASSERT(
-          session, !F_ISSET(S2C(session), WT_CONN_RECOVERING) ? r->max_txn != WT_TS_NONE : true);
-
+          session, upd_select->upd, max_txn, max_ts, list_uncommitted, r->flags)) {
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
         upd_select->upd_saved = true;
     }
@@ -491,10 +463,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
     /*
      * Returning an update means the original on-page value might be lost, and that's a problem if
-     * there's a reader that needs it. This call makes a copy of the on-page value and if there is a
-     * birthmark in the update list, replaces it. We do that any time there are saved updates and
-     * during reconciliation of a backing overflow record that will be physically removed once it's
-     * no longer needed
+     * there's a reader that needs it. This call makes a copy of the on-page value. We do that any
+     * time there are saved updates and during reconciliation of a backing overflow record that will
+     * be physically removed once it's no longer needed.
      */
     if (upd_select->upd != NULL &&
       (upd_select->upd_saved || (vpack != NULL && F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) &&

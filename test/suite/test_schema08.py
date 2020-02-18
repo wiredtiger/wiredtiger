@@ -147,7 +147,6 @@ class test_schema08(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Test that creating and dropping tables does not write individual
     # log records.
-    @unittest.skip("Temporarily disabled")
     def test_schema08_create(self):
         self.count = 0
         self.lsns = []
