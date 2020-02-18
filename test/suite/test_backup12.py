@@ -46,14 +46,17 @@ class test_backup12(wttest.WiredTigerTestCase, suite_subprocess):
     mult=0
 
     pfx = 'test_backup'
+    # Set the key and value big enough that we modify a few blocks.
+    bigkey = 'Key' * 100
+    bigval = 'Value' * 100
 
     def add_data(self, uri):
 
         c = self.session.open_cursor(uri)
         for i in range(0, self.nops):
             num = i + (self.mult * self.nops)
-            key = 'key' + str(num)
-            val = 'value' + str(num)
+            key = self.bigkey + str(num)
+            val = self.bigval + str(num)
             c[key] = val
         self.session.checkpoint()
         c.close()
@@ -76,7 +79,7 @@ class test_backup12(wttest.WiredTigerTestCase, suite_subprocess):
         #
         # Note, this first backup is actually done before a checkpoint is taken.
         #
-        config = 'incremental=(enabled,this_id="ID1")'
+        config = 'incremental=(enabled,granularity=1M,this_id="ID1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
 
         # Add more data while the backup cursor is open.
