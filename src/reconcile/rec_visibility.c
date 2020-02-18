@@ -423,8 +423,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /* Mark the page dirty after reconciliation. */
     if (list_uncommitted)
         r->leave_dirty = true;
-    /* We should restore the update chains to the new disk image if there are uncommitted changes in
-     * eviction. */
+    /*
+     * We should restore the update chains to the new disk image if there are uncommitted changes in
+     * eviction.
+     */
     if (list_uncommitted && F_ISSET(r, WT_REC_EVICT))
         r->cache_write_restore = true;
 
