@@ -162,7 +162,7 @@ class test_backup12(wttest.WiredTigerTestCase, suite_subprocess):
                 else:
                     self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
                     rfp = open(newfile, "r+b")
-                    wfp = open(self.dir + '/' + newfile, "w")
+                    wfp = open(self.dir + '/' + newfile, "w+b")
                     rfp.seek(offset, 0)
                     wfp.seek(offset, 0)
                     buf = rfp.read(size)
