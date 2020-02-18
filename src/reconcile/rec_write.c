@@ -311,8 +311,9 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             S2C(session)->modified = true;
 
         /*
-         * Eviction should only be here if following the history store or in-memory eviction path.
-         * Otherwise, we must be reconciling a fixed length column store page.
+         * Eviction should only be here if allowing writes to history store or in the in-memory
+         * eviction case. Otherwise, we must be reconciling a fixed length column store page (which
+         * does not allow history store content).
          */
         WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) ||
             (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX));
