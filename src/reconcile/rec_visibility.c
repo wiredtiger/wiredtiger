@@ -430,8 +430,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
 
-    /* Should not see newer updates in the history store */
-    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !has_newer_updates);
+    /* Should not see newer updates in the history store, except when we are checkpointing. */
+    WT_ASSERT(session,
+      F_ISSET(r, WT_REC_CHECKPOINT) || !F_ISSET(S2BT(session), WT_BTREE_HS) || !has_newer_updates);
 
     /* Mark the page dirty after reconciliation. */
     if (has_newer_updates)
