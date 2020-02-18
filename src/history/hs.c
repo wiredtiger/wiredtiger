@@ -429,7 +429,7 @@ retry:
 err:
     /*
      * If we inserted an update with no timestamp, we need to delete all history records for that
-     * key that are further in the history table than us (the key is lexographically greater). For
+     * key that are further in the history table than us (the key is lexicographically greater). For
      * timestamped tables that are occasionally getting a non-timestamped update, that means that
      * all timestamped updates should get removed. In the case of non-timestamped tables, that means
      * that all updates with higher transaction ids will get removed (which could happen at some
@@ -1151,7 +1151,7 @@ __hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
          * visible so let's just bail out here.
          */
         if (WT_TXNID_LT(txnid, oldest_id))
-            WT_ERR_MSG(session, WT_ERROR,
+            WT_RET_MSG(session, WT_ERROR,
               "failed to delete history store contents for a key since the current update is not "
               "globally visible; current transaction id: %" PRIu64
               ", oldest transaction id: %" PRIu64,
