@@ -2177,8 +2177,15 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              * update lists and splits can.
              */
         if (F_ISSET(r, WT_REC_IN_MEMORY) || r->cache_write_restore) {
+            /*
+             * If we're restoring the update list, we should be leaving the page dirty due to
+             * updates that can't be written to the history store because they are uncommitted OR
+             * because the page is from a fixed length column store which doesn't support writing
+             * updates to the history store.
+             */
             WT_ASSERT(session, F_ISSET(r, WT_REC_IN_MEMORY) ||
-                (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0));
+                (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty &&
+                                 (r->multi->supd_entries != 0 || page->type == WT_PAGE_COL_FIX)));
             goto split;
         }
 
