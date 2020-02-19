@@ -864,9 +864,9 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, &session));
 
-    F_SET(session, WT_SESSION_RTS);
+    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
     ret = __rollback_to_stable(session, cfg);
-    F_CLR(session, WT_SESSION_RTS);
+    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
 
     /*
      * Forcibly log a checkpoint after rollback to stable to ensure that both in-memory and on-disk
