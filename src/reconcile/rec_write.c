@@ -187,15 +187,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_HS(btree))
         __wt_cache_update_hs_score(session, r->updates_seen, r->updates_unstable);
 
-    /*
-     * Tests in this function are history store tests and tests to decide if rewriting a page in
-     * memory is worth doing. In-memory configurations can't use a history store table, and we
-     * ignore page rewrite desirability checks for in-memory eviction because a small cache can
-     * force us to rewrite every possible page.
-     */
-    if (F_ISSET(r, WT_REC_IN_MEMORY))
-        ret = 0;
-
     /* Wrap up the page reconciliation. */
     if (ret == 0 && (ret = __rec_write_wrapup(session, r, page)) == 0)
         __rec_write_page_status(session, r);
@@ -2163,6 +2154,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * in memory. If the page is subsequently modified, that is OK, we'll just reconcile it
          * again.
          */
+        WT_ASSERT(session, !r->cache_write_restore);
         mod->rec_result = WT_PM_REC_EMPTY;
         break;
     case 1: /* 1-for-1 page swap */
