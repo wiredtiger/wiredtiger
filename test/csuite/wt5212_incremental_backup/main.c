@@ -37,7 +37,7 @@ static const char *const home_full = "WT_BLOCK_LOG_FULL";
 static const char *const home_incr = "WT_BLOCK_LOG_INCR";
 static const char *const logpath = "logpath";
 
-#define WT_UTIL "../../../wt"
+#define WT_UTIL "../../wt"
 #define WTLOG "WiredTigerLog"
 #define WTLOGLEN strlen(WTLOG)
 
