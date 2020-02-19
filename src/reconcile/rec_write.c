@@ -2154,7 +2154,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * in memory. If the page is subsequently modified, that is OK, we'll just reconcile it
          * again.
          */
-        WT_ASSERT(session, !r->cache_write_restore);
         mod->rec_result = WT_PM_REC_EMPTY;
         break;
     case 1: /* 1-for-1 page swap */
