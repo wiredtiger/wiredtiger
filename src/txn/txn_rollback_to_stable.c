@@ -436,14 +436,20 @@ __rollback_abort_row_reconciled_page(
     if ((mod = page->modify) == NULL)
         return (0);
 
-    if (mod->rec_result == WT_PM_REC_REPLACE)
+    if (mod->rec_result == WT_PM_REC_REPLACE) {
         WT_RET(__rollback_abort_row_reconciled_page_internal(session, mod->u1.r.disk_image,
           mod->u1.r.replace.addr, mod->u1.r.replace.size, rollback_timestamp));
-    else if (mod->rec_result == WT_PM_REC_MULTIBLOCK) {
+
+        /* Mark the page as dirty to let the reconciliation happens again on the page. */
+        __wt_page_only_modify_set(session, page);
+    } else if (mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         for (multi = mod->mod_multi, multi_entry = 0; multi_entry < mod->mod_multi_entries;
              ++multi, ++multi_entry)
             WT_RET(__rollback_abort_row_reconciled_page_internal(
               session, multi->disk_image, multi->addr.addr, multi->addr.size, rollback_timestamp));
+
+        /* Mark the page as dirty to let the reconciliation happens again on the page. */
+        __wt_page_only_modify_set(session, page);
     }
 
     return (0);
