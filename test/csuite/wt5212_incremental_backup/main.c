@@ -168,9 +168,7 @@ add_work(WT_SESSION *session, const char *t_uri, bool bulk_load)
     } else {
         testutil_check(session->open_cursor(session, t_uri, NULL, NULL, &cursor));
     }
-    /*
-     * Perform some operations with individual auto-commit transactions.
-     */
+
     for (i = 0; i < MAX_KEYS; i++) {
         key = i + (counter * MAX_KEYS);
         testutil_check(__wt_snprintf(v, sizeof(v), "value.%d", key));
@@ -561,7 +559,7 @@ drop_old_add_new_table(WT_SESSION *session)
 }
 
 /*
- * This function will create previously dropped table urii (table:main) and add different content to
+ * This function will create previously dropped table uri (table:main) and add different content to
  * it, take backups and validate the backups.
  */
 static void
