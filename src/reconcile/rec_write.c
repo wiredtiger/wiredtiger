@@ -2178,7 +2178,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              */
         if (F_ISSET(r, WT_REC_IN_MEMORY) || r->cache_write_restore) {
             WT_ASSERT(session, F_ISSET(r, WT_REC_IN_MEMORY) ||
-                (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && (r->multi->supd_entries != 0)));
+                (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0));
             goto split;
         }
 
