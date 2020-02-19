@@ -37,7 +37,7 @@ static const char *const home_full = "WT_BLOCK_LOG_FULL";
 static const char *const home_incr = "WT_BLOCK_LOG_INCR";
 static const char *const logpath = "logpath";
 
-#define WT_UTIL "../../wt"
+#define WT_UTIL "../../../wt"
 #define WTLOG "WiredTigerLog"
 #define WTLOGLEN strlen(WTLOG)
 
@@ -227,7 +227,7 @@ remove_work(WT_SESSION *session, int iter_i, int iter_j)
         testutil_check(__wt_snprintf(k, sizeof(k), "key.%d.%d.%d", iter_i, iter_j, i));
         testutil_check(__wt_snprintf(v, sizeof(v), "value.%d.%d.%d", iter_i, iter_j, i));
         cursor->set_key(cursor, k);
-        cursor->set_value(cursor, v);
+
         testutil_check(cursor->remove(cursor));
     }
     testutil_check(cursor->close(cursor));
@@ -385,8 +385,6 @@ take_incr_backup(WT_SESSION *session, int i)
     const char *filename;
     bool first;
 
-    /*! [incremental backup using block transfer]*/
-
     tmp = NULL;
     tmp_sz = 0;
     /* Open the backup data source for incremental backup. */
@@ -506,9 +504,12 @@ take_incr_backup(WT_SESSION *session, int i)
     testutil_check(backup_cur->close(backup_cur));
     finalize_files(flist, count);
     free(tmp);
-    /*! [incremental backup using block transfer]*/
 }
 
+/*
+ * This function will add records to the table, do intermittent checkpoints, take
+ * incremental/full backups and validate the backups.
+ */ 
 static void
 add_data_validate_backups(WT_SESSION *session)
 {
@@ -548,7 +549,7 @@ add_data_validate_backups(WT_SESSION *session)
 }
 
 /*
- * Remove all the records, take backups and validate
+ * Remove all the records, take backup and validate the backup.
  */
 static void
 remove_all_records_validate(WT_SESSION *session)
@@ -570,22 +571,18 @@ remove_all_records_validate(WT_SESSION *session)
     testutil_check(compare_backups(i, uri));
 }
 
+/*
+ * This function will drop the existing table uri2 (table:extra) that is part of the backups 
+ * and create new table (table:new_table), take incremental backup and validate.
+ */ 
 static void
-drop_old_add_new_objects(WT_CONNECTION *wt_conn)
+drop_old_add_new_table(WT_SESSION *session)
 {
-    WT_CURSOR *backup_cur;
-    WT_SESSION *session;
+    //WT_SESSION *session;
     int ret, i, j;
     char buf[1024];
 
-    testutil_check(wt_conn->close(wt_conn, NULL));
-    testutil_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
-    testutil_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
     testutil_check(session->create(session, uri3, "key_format=S,value_format=S"));
-
-    testutil_check(session->open_cursor(session, "backup:", NULL, NULL, &backup_cur));
-    testutil_check(backup_cur->close(backup_cur));
-
     testutil_check(session->drop(session, uri2, "force"));
 
     new_object = true;
@@ -614,24 +611,22 @@ drop_old_add_new_objects(WT_CONNECTION *wt_conn)
 }
 
 /*
- * Create previously dropped object and add new contents to it
+ * This function will create previously dropped table uri2 (table:extra)
+ * and add different content to it.
  */
 static void
-create_dropped_object_add_new_content(WT_CONNECTION *wt_conn)
+//create_dropped_table_add_new_content(WT_CONNECTION *wt_conn)
+create_dropped_table_add_new_content(WT_SESSION *session)
 {
-    WT_SESSION *session;
+    //WT_SESSION *session;
     int i, j;
 
-    testutil_check(wt_conn->close(wt_conn, NULL));
-    testutil_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
-    testutil_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
     testutil_check(session->create(session, uri2, "key_format=S,value_format=S"));
 
     for (i = ITERATIONS_MULTIPLIER * 2; i < ITERATIONS_MULTIPLIER * 3; i++) {
         printf("Iteration %d: adding data\n", i);
         for (j = ITERATIONS_MULTIPLIER * 2; j < i; j++) {
             add_work(session, i, j, uri, uri2);
-            testutil_check(session->checkpoint(session, NULL));
         }
 
         take_full_backup(session, i);
@@ -647,14 +642,9 @@ create_dropped_object_add_new_content(WT_CONNECTION *wt_conn)
  * This function will insert bulk data in logged and not-logged table
  */
 static void
-insert_bulk_data(WT_CONNECTION *wt_conn)
+insert_bulk_data(WT_SESSION *session)
 {
-    WT_SESSION *session;
     new_object = true;
-
-    testutil_check(wt_conn->close(wt_conn, NULL));
-    testutil_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
-    testutil_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
     /*
      * Insert bulk data into logged table
      */
@@ -686,11 +676,10 @@ insert_bulk_data(WT_CONNECTION *wt_conn)
 int
 main(int argc, char *argv[])
 {
-    struct stat sb;
     WT_CONNECTION *wt_conn;
     WT_CURSOR *backup_cur;
     WT_SESSION *session;
-    int i, ret;
+    int i;
     char cmd_buf[256];
 
     (void)argc; /* Unused variable */
@@ -712,14 +701,21 @@ main(int argc, char *argv[])
     printf("*** Remove old records and validate ***\n");
     remove_all_records_validate(session);
 
-    printf("*** Drop old and add new objects ***\n");
-    drop_old_add_new_objects(wt_conn);
+    /*
+     * Close and re-open the connection to drop existing table.
+     */ 
+    testutil_check(wt_conn->close(wt_conn, NULL));
+    testutil_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
+    testutil_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
 
-    printf("*** Create previously dropped object and add new content ***\n");
-    create_dropped_object_add_new_content(wt_conn);
+    printf("*** Drop old and add new table ***\n");
+    drop_old_add_new_table(session);
+
+    printf("*** Create previously dropped table and add new content ***\n");
+    create_dropped_table_add_new_content(session);
 
     printf("*** Insert data into Logged and Not-Logged tables ***\n");
-    insert_bulk_data(wt_conn);
+    insert_bulk_data(session);
 
     printf("Close and reopen the connection\n");
     /*
@@ -737,13 +733,6 @@ main(int argc, char *argv[])
     testutil_check(backup_cur->close(backup_cur));
 
     /*
-     * After we're done, release resources. Test the force stop setting.
-     */
-    testutil_check(__wt_snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(force_stop=true)"));
-    testutil_check(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur));
-    testutil_check(backup_cur->close(backup_cur));
-
-    /*
      * Close the connection. We're done and want to run the final comparison between the incremental
      * and original.
      */
@@ -757,23 +746,6 @@ main(int argc, char *argv[])
         free((void *)last_flist[i].name);
     }
     free(last_flist);
-
-    /*
-     * Reopen the connection to verify that the forced stop should remove incremental information.
-     */
-    testutil_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
-    testutil_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
-    /*
-     * We should not have any information.
-     */
-    testutil_check(__wt_snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)",
-      MAX_ITERATIONS - 2, MAX_ITERATIONS));
-    testutil_assert(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur) == ENOENT);
-    testutil_check(wt_conn->close(wt_conn, NULL));
-
-    testutil_check(__wt_snprintf(cmd_buf, sizeof(cmd_buf), "%s/WiredTiger.backup.block", home));
-    ret = stat(cmd_buf, &sb);
-    testutil_assert(ret == -1 && errno == ENOENT);
 
     return (EXIT_SUCCESS);
 }
