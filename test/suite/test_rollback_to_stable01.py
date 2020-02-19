@@ -147,7 +147,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         self.assertEqual(hs_removed, 0)
         self.assertEqual(keys_removed, 0)
         self.assertEqual(upd_aborted, nrows)
-        self.assertGreater(keys_restored, 0)
+        self.assertGreaterEqual(keys_restored, 0)
         self.assertGreater(pages_visited, 0)
 
 if __name__ == '__main__':
