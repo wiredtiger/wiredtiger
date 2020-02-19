@@ -223,7 +223,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_STAT_CONN_INCR(session, cache_write_hs);
         WT_STAT_DATA_INCR(session, cache_write_hs);
     }
-    if (r->leave_dirty) {
+    if (r->cache_write_restore) {
         WT_STAT_CONN_INCR(session, cache_write_restore);
         WT_STAT_DATA_INCR(session, cache_write_restore);
     }
@@ -311,11 +311,12 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             S2C(session)->modified = true;
 
         /*
-         * Eviction should only be here if following the history store or in-memory eviction path.
-         *
-         * PM-1521-FIXME: What will we do for in memory database?
+         * Eviction should only be here if allowing writes to history store or in the in-memory
+         * eviction case. Otherwise, we must be reconciling a fixed length column store page (which
+         * does not allow history store content).
          */
-        WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) || F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY));
+        WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) ||
+            (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX));
 
         /*
          * We have written the page, but something prevents it from being evicted. If we wrote the
@@ -1063,7 +1064,7 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key,
      * key.
      */
     max = r->last;
-    if (r->leave_dirty)
+    if (r->cache_write_restore)
         for (i = r->supd_next; i > 0; --i) {
             supd = &r->supd[i - 1];
             if (supd->ins == NULL)
@@ -1819,30 +1820,24 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (F_ISSET(r, WT_REC_IN_MEMORY))
         goto copy_image;
 
-    /*
-     * If there are saved updates, do history store eviction.
-     */
-    if (multi->supd != NULL) {
-        /*
-         * XXX If no entries were used, the page is empty and we can only restore eviction/restore
-         * or history store updates against empty row-store leaf pages, column-store modify attempts
-         * to allocate a zero-length array.
-         */
-        if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
-            return (__wt_set_return(session, EBUSY));
-
-        r->cache_write_hs = true;
-
-        if (r->leave_dirty)
-            r->cache_write_restore = true;
-
-        /* If there are uncommitted changes and no entries were used, copy the disk image. */
-        if (r->leave_dirty && chunk->entries == 0)
-            goto copy_image;
-        /* If no entries were used, we have nothing to do. */
-        else if (chunk->entries == 0)
-            return (0);
+    /* If we need to restore the page to memory, copy the disk image. */
+    if (r->cache_write_restore && multi->supd != NULL) {
+        WT_ASSERT(session, F_ISSET(r, WT_REC_EVICT) && r->leave_dirty);
+        goto copy_image;
     }
+
+    WT_ASSERT(session, F_ISSET(r, WT_REC_CHECKPOINT) || !r->leave_dirty || multi->supd == NULL);
+    /*
+     * XXX If no entries were used, the page is empty and we can only restore eviction/restore or
+     * history store updates against empty row-store leaf pages, column-store modify attempts to
+     * allocate a zero-length array.
+     */
+    if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
+        return (__wt_set_return(session, EBUSY));
+
+    /* If no entries were used, we have nothing to do. */
+    if (chunk->entries == 0)
+        return (0);
 
     /*
      * If we wrote this block before, re-use it. Prefer a checksum of the compressed image. It's an
@@ -1880,12 +1875,11 @@ copy_image:
         __wt_verify_dsk_image(
           session, "[reconcile-image]", chunk->image.data, 0, &multi->addr, true) == 0);
 #endif
-
     /*
      * If re-instantiating this page in memory (either because eviction wants to, or because we
      * skipped updates to build the disk image), save a copy of the disk image.
      */
-    if (F_ISSET(r, WT_REC_SCRUB) || r->leave_dirty)
+    if (F_ISSET(r, WT_REC_SCRUB) || (r->cache_write_restore && multi->supd != NULL))
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     return (0);
@@ -2182,8 +2176,11 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              * eviction has decided to retain the page in memory because the latter can't handle
              * update lists and splits can.
              */
-        if (F_ISSET(r, WT_REC_IN_MEMORY) || (r->leave_dirty && r->multi->supd_entries != 0))
+        if (F_ISSET(r, WT_REC_IN_MEMORY) || r->cache_write_restore) {
+            WT_ASSERT(session, F_ISSET(r, WT_REC_IN_MEMORY) ||
+                (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0));
             goto split;
+        }
 
         /*
          * We may have a root page, create a sync point. (The write code ignores root page updates,
@@ -2298,8 +2295,9 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
-            WT_ERR(__wt_hs_insert_updates(session->hs_cursor, S2BT(session), r, multi));
-            if (!r->leave_dirty) {
+            WT_ERR(__wt_hs_insert_updates(session->hs_cursor, S2BT(session), r->page, multi));
+            r->cache_write_hs = true;
+            if (!r->cache_write_restore) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
             }

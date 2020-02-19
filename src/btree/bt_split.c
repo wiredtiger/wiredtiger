@@ -607,7 +607,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     WT_SPLIT_ERROR_PHASE complete;
     size_t parent_decr, size;
     uint64_t split_gen;
-    uint32_t deleted_entries, parent_entries, result_entries;
+    uint32_t deleted_entries, parent_entries, result_entries, state;
     uint32_t *deleted_refs;
     uint32_t hint, i, j;
     bool empty_parent;
@@ -688,17 +688,37 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     alloc_index->entries = result_entries;
     for (alloc_refp = alloc_index->index, hint = i = 0; i < parent_entries; ++i) {
         next_ref = pindex->index[i];
-        if (next_ref == ref)
+        if (next_ref == ref) {
             for (j = 0; j < new_entries; ++j) {
                 ref_new[j]->home = parent;
                 ref_new[j]->pindex_hint = hint++;
                 *alloc_refp++ = ref_new[j];
             }
-        else if (next_ref->state != WT_REF_SPLIT) {
-            /* Skip refs we have marked for deletion. */
-            next_ref->pindex_hint = hint++;
-            *alloc_refp++ = next_ref;
+            continue;
         }
+
+        /*
+         * Skip refs we have marked for deletion.
+         *
+         * Other threads of control may be locking and unlocking the WT_REF, and at a high rate in
+         * some workloads. Read the WT_REF state, but if it's locked, review the list of deleted
+         * entries instead of waiting for it to become unlocked (the list of deleted entries should
+         * be relatively short in most workloads).
+         */
+        if (deleted_entries != 0) {
+            WT_ORDERED_READ(state, next_ref->state);
+            if (state == WT_REF_LOCKED)
+                for (j = 0, deleted_refs = scr->mem; j < deleted_entries; ++j)
+                    if (deleted_refs[j] == i) {
+                        state = WT_REF_SPLIT;
+                        break;
+                    }
+            if (state == WT_REF_SPLIT)
+                continue;
+        }
+
+        next_ref->pindex_hint = hint++;
+        *alloc_refp++ = next_ref;
     }
 
     /* Check that we filled in all the entries. */
@@ -1359,24 +1379,6 @@ err:
     return (ret);
 }
 
-#ifdef HAVE_DIAGNOSTIC
-/*
- * __wt_count_birthmarks --
- *     Sanity check an update list. In particular, make sure there no birthmarks.
- */
-int
-__wt_count_birthmarks(WT_UPDATE *upd)
-{
-    int birthmark_count;
-
-    for (birthmark_count = 0; upd != NULL; upd = upd->next)
-        if (upd->type == WT_UPDATE_BIRTHMARK)
-            ++birthmark_count;
-
-    return (birthmark_count);
-}
-#endif
-
 /*
  * __split_multi_inmem --
  *     Instantiate a page from a disk image.
@@ -1464,13 +1466,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
                 key->size = WT_INSERT_KEY_SIZE(supd->ins);
             }
 
-            WT_ASSERT(session, __wt_count_birthmarks(upd) <= 1);
-
             /* Search the page. */
             WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
-
-            /* Birthmarks should only be applied to on-page values. */
-            WT_ASSERT(session, cbt.compare == 0 || upd->type != WT_UPDATE_BIRTHMARK);
 
             /* Apply the modification. */
             WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true));

@@ -1861,9 +1861,6 @@ __wt_verbose_dump_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     case WT_UPDATE_INVALID:
         upd_type = "WT_UPDATE_INVALID";
         break;
-    case WT_UPDATE_BIRTHMARK:
-        upd_type = "WT_UPDATE_BIRTHMARK";
-        break;
     case WT_UPDATE_MODIFY:
         upd_type = "WT_UPDATE_MODIFY";
         break;

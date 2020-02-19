@@ -820,8 +820,8 @@ record_loop:
                 /*
                  * The key on the old disk image is unchanged. Use time pairs from the cell.
                  *
-                 * FIXME-PM-1524: Currently, we don't store durable_ts in cell, which is a problem
-                 * we need to solve for prepared transactions. Revisit this in PM-1524.
+                 * FIXME-prepare-support: Currently, we don't store durable_ts in cell, which is a
+                 * problem we need to solve for prepared transactions.
                  */
                 durable_ts = newest_durable_ts;
                 start_ts = vpack->start_ts;
