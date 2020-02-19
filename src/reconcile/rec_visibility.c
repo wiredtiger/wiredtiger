@@ -140,19 +140,12 @@ __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t 
   wt_timestamp_t max_ts, bool has_newer_updates, uint64_t flags)
 {
     /*
-     * Save updates for in-memory database, except when the maximum timestamp and txnid are globally
+     * Save updates for any reconciliation that doesn't involve history store (in-memory database
+     * and fixed length column store), except when the maximum timestamp and txnid are globally
      * visible.
      */
-    if (LF_ISSET(WT_REC_IN_MEMORY))
-        return (!__wt_txn_visible_all(session, max_txn, max_ts));
-
-    /*
-     * FIXME-PM-1523: The current implementation doesn't work with fixed-length column store.
-     * Currently, we don't write history versions to history store for fixed-length column store. I
-     * don't know how that is going to work in durable history.
-     */
     if (!LF_ISSET(WT_REC_HS))
-        return false;
+        return (!__wt_txn_visible_all(session, max_txn, max_ts));
 
     if (LF_ISSET(WT_REC_EVICT) && has_newer_updates)
         return true;
