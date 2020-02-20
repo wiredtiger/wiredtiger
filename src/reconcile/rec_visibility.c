@@ -341,7 +341,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             if (upd->txnid != WT_TXN_NONE) {
                 upd_select->stop_txn = upd->txnid;
                 if (upd->start_ts == WT_TS_NONE)
-                    upd_select->stop_ts = 1;
+                    upd_select->stop_ts = WT_TS_NONE;
             }
             if (upd->durable_ts != WT_TS_NONE)
                 tombstone_durable_ts = upd->durable_ts;
@@ -425,9 +425,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /* Update the maximum timestamp. */
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
-
-    /* Should not see newer updates in the history store */
-    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !has_newer_updates);
 
     /* Mark the page dirty after reconciliation. */
     if (has_newer_updates)
