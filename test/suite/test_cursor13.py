@@ -505,7 +505,7 @@ class test_cursor13_sweep(test_cursor13_big_base):
         #         ', closes = ' + str(self.closecount))
         #self.tty('stats after = ' + str(end_stats))
         #self.tty('sweep stats after = ' + str(end_sweep_stats))
-        self.assertEquals(end_stats[0] - begin_stats[0], self.closecount)
+        self.assertGreaterEqual(end_stats[0] - begin_stats[0], self.closecount)
         swept = end_sweep_stats[3] - begin_sweep_stats[3]
 
         # Although this is subject to tuning parameters, we know that
