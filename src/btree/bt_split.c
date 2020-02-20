@@ -699,6 +699,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
             next_ref = pindex->index[i];
             WT_ASSERT(session, next_ref->state != WT_REF_SPLIT);
 
+	    /* Protect against including the replaced WT_REF in the list of deleted items. */
             if (next_ref != ref && next_ref->state == WT_REF_DELETED &&
               __wt_delete_page_skip(session, next_ref, true) &&
               WT_REF_CAS_STATE(session, next_ref, WT_REF_DELETED, WT_REF_LOCKED)) {
@@ -711,10 +712,10 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         }
 
     /*
-     * The final entry count consists of the original count, plus any new pages, less any WT_REFs
-     * we're removing (deleted entries plus the entry we're replacing).
+     * The final entry count is the original count, where one entry will be replaced by some number
+     * of new entries, and some number will be deleted.
      */
-    result_entries = (parent_entries + new_entries) - (deleted_entries + (discard ? 1 : 0));
+    result_entries = (parent_entries + (new_entries - 1)) - deleted_entries;
 
     /*
      * If there are no remaining entries on the parent, give up, we can't leave an empty internal
@@ -764,7 +765,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
         *alloc_refp++ = next_ref;
     }
 
-    /* Check that we filled in all the entries. */
+    /* Check we filled in the expected number of entries. */
     WT_ASSERT(session, alloc_refp - alloc_index->index == (ptrdiff_t)result_entries);
 
     /* Start making real changes to the tree, errors are fatal. */
