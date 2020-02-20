@@ -699,7 +699,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
             next_ref = pindex->index[i];
             WT_ASSERT(session, next_ref->state != WT_REF_SPLIT);
 
-	    /* Protect against including the replaced WT_REF in the list of deleted items. */
+            /* Protect against including the replaced WT_REF in the list of deleted items. */
             if (next_ref != ref && next_ref->state == WT_REF_DELETED &&
               __wt_delete_page_skip(session, next_ref, true) &&
               WT_REF_CAS_STATE(session, next_ref, WT_REF_DELETED, WT_REF_LOCKED)) {
