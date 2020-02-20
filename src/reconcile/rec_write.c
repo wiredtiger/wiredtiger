@@ -2098,6 +2098,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * examining tree WT_REFs for leaf pages. Lock the WT_REF unless we know we have exclusive
          * access.
          */
+	previous_state = WT_REF_LOCKED; /* -Wuninitialized */
         if (!F_ISSET(r, WT_REC_EVICT))
             for (;; __wt_yield()) {
                 previous_state = ref->state;
