@@ -591,6 +591,12 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
         for (; upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
+
+            /* Ignore consecutive tombstones. */
+            if (upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL &&
+              upd->next->type == WT_UPDATE_TOMBSTONE)
+                continue;
+
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
             /*
              * If we've reached a full update and its in the history store we don't need to continue
