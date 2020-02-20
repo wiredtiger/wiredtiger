@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
@@ -110,6 +111,22 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         self.check(value_modQ, uri, nrows, 30)
         self.check(value_modQ, uri, nrows, 70)
         self.check(value_modQ, uri, nrows, 150)
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        calls = stat_cursor[stat.conn.txn_rts][2]
+        hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
+        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
+        keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
+        pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
+        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
+        stat_cursor.close()
+
+        self.assertEqual(calls, 1)
+        self.assertEqual(keys_removed, 0)
+        self.assertEqual(keys_restored, 0)
+        self.assertGreater(pages_visited, 0)
+        self.assertGreaterEqual(upd_aborted, 0)
+        self.assertGreaterEqual(hs_removed, nrows * 11)
 
 if __name__ == '__main__':
     wttest.run()

@@ -85,7 +85,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
 # Test that rollback to stable clears the remove operation.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
     # Force a small cache.
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
+    conn_config = 'cache_size=20MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
     def test_rollback_to_stable(self):
@@ -103,30 +103,38 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
 
         valuea = "aaaaa" * 100
         self.large_updates(uri, valuea, ds, nrows, 10)
-        # Check that all updates are seen
+        # Check that all updates are seen.
         self.check(valuea, uri, nrows, 10)
 
-        # Remove all keys with newer timestamp
+        # Remove all keys with newer timestamp.
         self.large_removes(uri, ds, nrows, 20)
-        # Check that the no keys should be visible
+        # Check that the no keys should be visible.
         self.check(valuea, uri, 0, 20)
 
-        # Pin oldest and stable to timestamp 100.
+        # Pin stable to timestamp 10.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
         # Checkpoint to ensure that all the updates are flushed to disk.
         self.session.checkpoint()
 
         self.conn.rollback_to_stable()
-        # Check that the new updates are only seen after the update timestamp
+        # Check that the new updates are only seen after the update timestamp.
         self.check(valuea, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
-        upd_aborted = (stat_cursor[stat.conn.txn_rts_upd_aborted][2] +
-            stat_cursor[stat.conn.txn_rts_hs_removed][2])
+        hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
+        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
+        keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
+        pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
+        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
         stat_cursor.close()
+
         self.assertEqual(calls, 1)
-        self.assertTrue(upd_aborted >= nrows)
+        self.assertEqual(hs_removed, 0)
+        self.assertEqual(keys_removed, 0)
+        self.assertEqual(upd_aborted, nrows)
+        self.assertGreaterEqual(keys_restored, 0)
+        self.assertGreater(pages_visited, 0)
 
 if __name__ == '__main__':
     wttest.run()

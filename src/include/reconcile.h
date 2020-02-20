@@ -41,8 +41,8 @@ struct __wt_reconcile {
     u_int updates_unstable; /* Count of updates not visible_all. */
 
     /*
-     * When we can't mark the page clean (for example, checkpoint found some uncommitted updates),
-     * there's a leave-dirty flag.
+     * When we can't mark the page clean after reconciliation (for example, checkpoint or eviction
+     * found some uncommitted updates), there's a leave-dirty flag.
      */
     bool leave_dirty;
 

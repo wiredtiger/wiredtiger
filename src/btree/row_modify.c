@@ -288,11 +288,10 @@ __wt_update_obsolete_check(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, bool update_accounting)
 {
     WT_TXN_GLOBAL *txn_global;
-    WT_UPDATE *first, *next, *prev;
+    WT_UPDATE *first, *next;
     size_t size;
     uint64_t oldest, stable;
     u_int count, upd_seen, upd_unstable;
-    bool upd_visible_all_seen;
 
     txn_global = &S2C(session)->txn_global;
 
@@ -308,20 +307,16 @@ __wt_update_obsolete_check(
      *
      * Only updates with globally visible, self-contained data can terminate update chains.
      *
-     * Birthmarks are a special case: once a birthmark becomes obsolete, it can be discarded if
-     * there is a globally visible update before it and subsequent reads will see the on-page value
-     * (as expected). Inserting updates into the history store table relies on this behavior to
-     * avoid creating update chains with multiple birthmarks. We cannot discard the birthmark if
-     * it's the first globally visible update as the previous updates can be aborted and be freed
-     * causing the entire update chain being removed.
      */
-    for (first = prev = NULL, upd_visible_all_seen = false, count = 0; upd != NULL;
-         prev = upd, upd = upd->next, count++) {
+    for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
         ++upd_seen;
-        if (!__wt_txn_upd_visible_all(session, upd)) {
+        if (__wt_txn_upd_visible_all(session, upd)) {
+            if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
+                first = upd;
+        } else {
             first = NULL;
             /*
              * While we're here, also check for the update being kept only for timestamp history to
@@ -329,23 +324,6 @@ __wt_update_obsolete_check(
              */
             if (upd->start_ts != WT_TS_NONE && upd->start_ts >= oldest && upd->start_ts < stable)
                 ++upd_unstable;
-        } else {
-            if (first == NULL) {
-                /*
-                 * If we have seen a globally visible update before the birthmark, the birthmark can
-                 * be discarded.
-                 */
-                if (upd_visible_all_seen && upd->type == WT_UPDATE_BIRTHMARK)
-                    first = prev;
-                /*
-                 * We cannot discard the birthmark if it is the first globally visible update as the
-                 * previous updates can be aborted resulting the entire update chain being removed.
-                 */
-                else if (upd->type == WT_UPDATE_BIRTHMARK || WT_UPDATE_DATA_VALUE(upd))
-                    first = upd;
-            }
-
-            upd_visible_all_seen = true;
         }
     }
 

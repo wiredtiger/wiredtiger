@@ -756,21 +756,24 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 }
 
 /*
- * __upd_alloc_tombstone --
- *     Allocate a tombstone update at a given transaction id and timestamp.
+ * __wt_upd_alloc_tombstone --
+ *     Allocate a tombstone update with default values.
  */
 static inline int
-__upd_alloc_tombstone(
-  WT_SESSION_IMPL *session, WT_UPDATE **updp, uint64_t txnid, wt_timestamp_t start_ts)
+__wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp)
 {
-    size_t size;
+    size_t notused;
 
-    WT_RET(__wt_update_alloc(session, NULL, updp, &size, WT_UPDATE_TOMBSTONE));
-    (*updp)->txnid = txnid;
-    /* FIXME: Reevaluate this as part of PM-1524. */
-    (*updp)->durable_ts = (*updp)->start_ts = start_ts;
-    F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
-    return (0);
+    /*
+     * The underlying allocation code clears memory, which is the equivalent of setting:
+     *
+     *    WT_UPDATE.txnid = WT_TXN_NONE;
+     *    WT_UPDATE.durable_ts = WT_TS_NONE;
+     *    WT_UPDATE.start_ts = WT_TS_NONE;
+     *    WT_UPDATE.prepare_state = WT_PREPARE_INIT;
+     *    WT_UPDATE.flags = 0;
+     */
+    return (__wt_update_alloc(session, NULL, updp, &notused, WT_UPDATE_TOMBSTONE));
 }
 
 /*
@@ -792,16 +795,9 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
             continue;
         upd_visible = __wt_txn_upd_visible_type(session, upd);
         if (upd_visible == WT_VISIBLE_TRUE) {
-            /*
-             * Don't consider TOMBSTONE updates for the history store. The only exception is a
-             * tombstone with zero transaction id and timestamp. We apply this special type of
-             * tombstone as a way to indicate that a history store record should be made invisible
-             * by a non-timestamped update succeeding it (rather than manipulating the aggregated
-             * timestamps for garbage collection purposes which is what we generally use tombstones
-             * for in the history store).
-             */
+            /* Don't consider tombstone updates for the history store during rollback to stable. */
             if (type == WT_UPDATE_TOMBSTONE && WT_IS_HS(S2BT(session)) &&
-              !(upd->txnid == WT_TXN_NONE && upd->start_ts == WT_TS_NONE))
+              F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
                 continue;
             *updp = upd;
             return (0);
@@ -833,10 +829,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         return (0);
 
     /* If there is no ondisk value, there can't be anything in the history store either. */
-    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
-        WT_RET(__upd_alloc_tombstone(session, updp, WT_TXN_NONE, WT_TS_NONE));
-        return (0);
-    }
+    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX)
+        return (__wt_upd_alloc_tombstone(session, updp));
 
     buf.data = NULL;
     buf.size = 0;
@@ -859,11 +853,16 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     /*
      * If the stop pair is set, that means that there is a tombstone at that time. If the stop time
      * pair is visible to our txn then that means we've just spotted a tombstone and should return
-     * "not found", except for history store scan.
+     * "not found", except for history store scan during rollback to stable.
      */
-    if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX && !WT_IS_HS(S2BT(session)) &&
+    if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
+      (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE)) &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
-        WT_RET(__upd_alloc_tombstone(session, updp, stop.txnid, stop.timestamp));
+        WT_RET(__wt_upd_alloc_tombstone(session, updp));
+        (*updp)->txnid = stop.txnid;
+        /* FIXME: Reevaluate this as part of PM-1524. */
+        (*updp)->durable_ts = (*updp)->start_ts = stop.timestamp;
+        F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
         return (0);
     }
 
@@ -887,12 +886,9 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, cbt, updp, false, &buf));
 
     /*
-     * There is no BIRTHMARK in the history store file.
-     *
      * Return null not tombstone if nothing is found in history store.
      */
-    WT_ASSERT(session, (*updp) == NULL ||
-        ((*updp)->type != WT_UPDATE_BIRTHMARK && (*updp)->type != WT_UPDATE_TOMBSTONE));
+    WT_ASSERT(session, (*updp) == NULL || (*updp)->type != WT_UPDATE_TOMBSTONE);
 
     /*
      * FIXME-PM-1521: We call transaction read in a lot of places so we can't do this yet. When we

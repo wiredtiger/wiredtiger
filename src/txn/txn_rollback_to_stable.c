@@ -214,11 +214,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             break;
         }
 
-        WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &size, WT_UPDATE_TOMBSTONE));
-        hs_upd->txnid = WT_TXN_NONE;
-        hs_upd->durable_ts = WT_TS_NONE;
-        hs_upd->start_ts = WT_TS_NONE;
-
+        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
         WT_WITH_BTREE(session, cbt->btree,
           ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
         WT_ERR(ret);
@@ -234,11 +230,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         if (valid_update_found) {
             WT_ERR(__wt_update_alloc(session, &full_value, &upd, &size, WT_UPDATE_STANDARD));
 
-            /* Clear the transaction id when recovery is in progress. */
-            if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-                upd->txnid = WT_TXN_NONE;
-            else
-                upd->txnid = hs_start.txnid;
+            upd->txnid = WT_TXN_NONE;
             upd->durable_ts = durable_ts;
             upd->start_ts = hs_start.timestamp;
             __wt_verbose(session, WT_VERB_RTS, "Update restored from history store (txnid: %" PRIu64
@@ -251,10 +243,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
              */
             F_SET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK);
         } else {
-            WT_ERR(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
-            upd->txnid = WT_TXN_NONE;
-            upd->durable_ts = WT_TS_NONE;
-            upd->start_ts = WT_TS_NONE;
+            WT_ERR(__wt_upd_alloc_tombstone(session, &upd));
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
             __wt_verbose(session, WT_VERB_RTS, "%p: key removed", (void *)key);
         }
@@ -265,11 +254,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
     /* Finally remove that update from history store. */
     if (valid_update_found) {
-        WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &size, WT_UPDATE_TOMBSTONE));
-        hs_upd->txnid = WT_TXN_NONE;
-        hs_upd->durable_ts = WT_TS_NONE;
-        hs_upd->start_ts = WT_TS_NONE;
-
+        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
         WT_WITH_BTREE(session, cbt->btree,
           ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
         WT_ERR(ret);
@@ -878,7 +863,11 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      * concurrently.
      */
     WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, &session));
+
+    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
     ret = __rollback_to_stable(session, cfg);
+    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
+
     /*
      * Forcibly log a checkpoint after rollback to stable to ensure that both in-memory and on-disk
      * versions are same.

@@ -69,12 +69,6 @@ __rec_append_orig_value(
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK))
             return (0);
 
-        /* Add the original value after birthmarks. */
-        if (upd->type == WT_UPDATE_BIRTHMARK) {
-            WT_ASSERT(session, unpack != NULL && unpack->type != WT_CELL_DEL);
-            break;
-        }
-
         /* On page value already on chain */
         if (unpack != NULL && unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid)
             return (0);
@@ -124,28 +118,11 @@ __rec_append_orig_value(
         }
     }
 
-    /*
-     * If we're saving the original value for a birthmark, transfer over the transaction ID and
-     * clear out the birthmark update. Else, set the entry's transaction information to the lowest
-     * possible value (as cleared memory matches the lowest possible transaction ID and timestamp,
-     * do nothing).
-     */
-    if (upd->type == WT_UPDATE_BIRTHMARK) {
-        WT_ASSERT(session, append->start_ts == upd->start_ts && append->txnid == upd->txnid);
-        append->next = upd->next;
-    }
-
     if (tombstone != NULL)
         append = tombstone;
 
     /* Append the new entry into the update list. */
     WT_PUBLISH(upd->next, append);
-
-    /* Replace the birthmark with an aborted transaction. */
-    if (upd->type == WT_UPDATE_BIRTHMARK) {
-        WT_ORDERED_WRITE(upd->txnid, WT_TXN_ABORTED);
-        WT_ORDERED_WRITE(upd->type, WT_UPDATE_STANDARD);
-    }
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 
@@ -160,24 +137,20 @@ err:
  */
 static bool
 __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t max_txn,
-  wt_timestamp_t max_ts, bool list_uncommitted, uint64_t flags)
+  wt_timestamp_t max_ts, bool has_newer_updates, uint64_t flags, WT_PAGE *page)
 {
     /*
-     * Save updates for in-memory database, except when the maximum timestamp and txnid are globally
+     * Save updates for any reconciliation that doesn't involve history store (in-memory database
+     * and fixed length column store), except when the maximum timestamp and txnid are globally
      * visible.
      */
-    if (LF_ISSET(WT_REC_IN_MEMORY))
+    if (LF_ISSET(WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX)
         return (!__wt_txn_visible_all(session, max_txn, max_ts));
 
-    /*
-     * FIXME-PM-1523: The current implementation doesn't work with fixed-length column store.
-     * Currently, we don't write history versions to history store for fixed-length column store. I
-     * don't know how that is going to work in durable history.
-     */
     if (!LF_ISSET(WT_REC_HS))
         return false;
 
-    if (LF_ISSET(WT_REC_EVICT) && list_uncommitted)
+    if (LF_ISSET(WT_REC_EVICT) && has_newer_updates)
         return true;
 
     /* When in checkpoint, no need to save update if no onpage value is selected. */
@@ -200,10 +173,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_RET;
     WT_PAGE *page;
     WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd;
-    wt_timestamp_t max_ts, tombstone_durable_ts;
+    wt_timestamp_t checkpoint_timestamp, max_ts, tombstone_durable_ts;
     size_t size, upd_memsize;
     uint64_t max_txn, txnid;
-    bool list_uncommitted;
+    bool has_newer_updates;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -215,10 +188,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     page = r->page;
     first_txn_upd = upd = last_upd = NULL;
     upd_memsize = 0;
+    checkpoint_timestamp = S2C(session)->txn_global.checkpoint_timestamp;
     max_ts = WT_TS_NONE;
     tombstone_durable_ts = WT_TS_MAX;
     max_txn = WT_TXN_NONE;
-    list_uncommitted = false;
+    has_newer_updates = false;
 
     /*
      * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
@@ -259,12 +233,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (F_ISSET(r, WT_REC_VISIBLE_ALL) && !WT_IS_METADATA(session->dhandle) ?
             WT_TXNID_LE(r->last_running, txnid) :
             !__txn_visible_id(session, txnid)) {
-            list_uncommitted = true;
+            has_newer_updates = true;
             continue;
         }
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            list_uncommitted = true;
+            has_newer_updates = true;
             if (upd->start_ts > max_ts)
                 max_ts = upd->start_ts;
 
@@ -281,6 +255,18 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd->start_ts > max_ts)
             max_ts = upd->start_ts;
 
+        /*
+         * FIXME-prepare-support: A temporary solution for not storing durable timestamp in the
+         * cell. Properly fix this problem in PM-1524. It is currently not OK to write prepared
+         * updates with durable timestamp larger than checkpoint timestamp to data store as we don't
+         * store durable timestamp in the cell. However, it is OK to write them to the history store
+         * as we store the durable timestamp in the history store value.
+         */
+        if (upd->durable_ts != upd->start_ts && upd->durable_ts > checkpoint_timestamp) {
+            has_newer_updates = true;
+            continue;
+        }
+
         /* Always select the newest committed update to write to disk */
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
@@ -295,7 +281,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * to discard updates from the stable update and older for correctness and we can't
              * discard an uncommitted update.
              */
-            if (upd_select->upd != NULL && list_uncommitted)
+            if (upd_select->upd != NULL && has_newer_updates)
                 return (__wt_set_return(session, EBUSY));
         } else if (!F_ISSET(r, WT_REC_EVICT))
             break;
@@ -352,8 +338,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (upd->start_ts != WT_TS_NONE)
                 upd_select->stop_ts = upd->start_ts;
-            if (upd->txnid != WT_TXN_NONE)
+            if (upd->txnid != WT_TXN_NONE) {
                 upd_select->stop_txn = upd->txnid;
+                if (upd->start_ts == WT_TS_NONE)
+                    upd_select->stop_ts = 1;
+            }
             if (upd->durable_ts != WT_TS_NONE)
                 tombstone_durable_ts = upd->durable_ts;
             /* Ignore all the aborted transactions. */
@@ -437,23 +426,19 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
 
+    /* Should not see newer updates in the history store */
+    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !has_newer_updates);
+
+    /* Mark the page dirty after reconciliation. */
+    if (has_newer_updates)
+        r->leave_dirty = true;
     /*
-     * If the update we chose was a birthmark.
+     * We should restore the update chains to the new disk image if there are newer updates in
+     * eviction.
      */
-    if (upd != NULL && upd->type == WT_UPDATE_BIRTHMARK) {
-        /*
-         * Resolve the birthmark now regardless of whether the update being written to the data file
-         * is the same as it was the previous reconciliation. Otherwise the history store can end up
-         * with two birthmark records in the same update chain.
-         */
-        WT_ERR(__rec_append_orig_value(session, page, upd, vpack));
-        upd_select->upd = NULL;
-    }
+    if (has_newer_updates && F_ISSET(r, WT_REC_EVICT))
+        r->cache_write_restore = true;
 
-    /* Should not see uncommitted changes in the history store */
-    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !list_uncommitted);
-
-    r->leave_dirty = r->leave_dirty || list_uncommitted;
     /*
      * The update doesn't have any further updates that need to be written to the history store,
      * skip saving the update as saving the update will cause reconciliation to think there is work
@@ -462,11 +447,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Additionally history store reconciliation is not set skip saving an update.
      */
     if (__rec_need_save_upd(
-          session, upd_select->upd, max_txn, max_ts, list_uncommitted, r->flags)) {
-        /* During recovery, there are no transaction id's. */
-        WT_ASSERT(
-          session, !F_ISSET(S2C(session), WT_CONN_RECOVERING) ? r->max_txn != WT_TS_NONE : true);
-
+          session, upd_select->upd, max_txn, max_ts, has_newer_updates, r->flags, page)) {
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
         upd_select->upd_saved = true;
     }
@@ -478,10 +459,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
     /*
      * Returning an update means the original on-page value might be lost, and that's a problem if
-     * there's a reader that needs it. This call makes a copy of the on-page value and if there is a
-     * birthmark in the update list, replaces it. We do that any time there are saved updates and
-     * during reconciliation of a backing overflow record that will be physically removed once it's
-     * no longer needed
+     * there's a reader that needs it. This call makes a copy of the on-page value. We do that any
+     * time there are saved updates and during reconciliation of a backing overflow record that will
+     * be physically removed once it's no longer needed.
      */
     if (upd_select->upd != NULL &&
       (upd_select->upd_saved || (vpack != NULL && F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) &&
