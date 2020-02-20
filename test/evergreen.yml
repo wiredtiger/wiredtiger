@@ -1102,7 +1102,6 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt2246_col_append 2>&1
 
-  Temporarily disabled
   - name: csuite-wt2323-join-visibility-test
     tags: ["pull_request"]
     depends_on:
