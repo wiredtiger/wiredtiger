@@ -14,8 +14,8 @@
  */
 #define WT_HS_SESSION_FLAGS (WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_NO_RECONCILE)
 
-static int __hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, uint64_t txnid);
+static int __hs_delete_key(
+  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key);
 
 /*
  * __hs_start_internal_session --
@@ -444,7 +444,7 @@ err:
          */
         WT_TRET(__wt_cursor_key_order_init(cbt));
 #endif
-        WT_TRET(__hs_delete_key(session, cursor, btree_id, key, hs_upd->txnid));
+        WT_TRET(__hs_delete_key(session, cursor, btree_id, key));
     }
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
@@ -1099,8 +1099,8 @@ err:
  *     Delete an entire key's worth of data in the history store.
  */
 static int
-__hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, uint64_t txnid)
+__hs_delete_key(
+  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key)
 {
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_RET;
@@ -1108,13 +1108,11 @@ __hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
     WT_TIME_PAIR hs_start, hs_stop;
     WT_UPDATE *upd;
     size_t size;
-    uint64_t oldest_id;
     uint32_t hs_btree_id;
     int cmp;
 
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     upd = NULL;
-    oldest_id = __wt_txn_oldest_id(session);
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -1143,19 +1141,6 @@ __hs_delete_key(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_i
         WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
         if (cmp != 0)
             break;
-        /*
-         * We can only safely clear out the history store records for a given key if the current
-         * update is globally visible. If it isn't, there are still some readers in the system that
-         * should be able to read one of the timestamped values with an earlier transaction id. We
-         * don't have a reasonable way of doing this if our non-timestamped update isn't globally
-         * visible so let's just bail out here.
-         */
-        if (WT_TXNID_LT(txnid, oldest_id))
-            WT_RET_MSG(session, WT_ERROR,
-              "failed to delete history store contents for a key since the current update is not "
-              "globally visible; current transaction id: %" PRIu64
-              ", oldest transaction id: %" PRIu64,
-              txnid, oldest_id);
         /*
          * Append a globally visible tombstone to the update list. This will effectively make the
          * value invisible and the key itself will eventually get removed during reconciliation.
