@@ -100,7 +100,7 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_t
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (newest_stop_ts == WT_TS_NONE) {
+    if (oldest_start_ts != WT_TS_NONE && newest_stop_ts == WT_TS_NONE) {
         __wt_errx(session, "newest stop timestamp of 0");
         WT_ASSERT(session, newest_stop_ts != WT_TS_NONE);
     }
