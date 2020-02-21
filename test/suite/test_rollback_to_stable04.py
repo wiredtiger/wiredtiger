@@ -55,7 +55,7 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         if self.in_memory:
             config += 'cache_size=250MB,statistics=(all),in_memory=true'
         else:
-            config += 'cache_size=20MB,statistics=(all),log=(enabled),in_memory=false'
+            config += 'cache_size=50MB,statistics=(all),log=(enabled),in_memory=false'
         return config
 
     def test_rollback_to_stable(self):

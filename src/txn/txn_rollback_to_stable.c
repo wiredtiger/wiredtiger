@@ -248,6 +248,12 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             __wt_verbose(session, WT_VERB_RTS, "Update restored from history store (txnid: %" PRIu64
                                                ", start_ts: %" PRIu64 ", durable_ts: %" PRIu64 ")",
               upd->txnid, upd->start_ts, upd->durable_ts);
+
+            /*
+             * Set the flag to indicate that this update has been restored from history store for
+             * the rollback to stable operation.
+             */
+            F_SET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK);
         } else {
             WT_ERR(__wt_upd_alloc_tombstone(session, &upd));
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
@@ -494,12 +500,15 @@ __rollback_abort_newer_row_leaf(
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
             __rollback_abort_newer_insert(session, insert, rollback_timestamp);
 
-        /* Abort any on-disk value. */
+        /* If the configuration is not in-memory, abort any on-disk value. */
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             WT_RET(__rollback_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
     }
 
-    /* Abort history store updates from the reconciled pages of data store. */
+    /*
+     * If the configuration is not in-memory, abort history store updates from the reconciled pages
+     * of data store.
+     */
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         WT_RET(__rollback_abort_row_reconciled_page(session, page, rollback_timestamp));
     return (0);
@@ -976,8 +985,8 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
     F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
 
     /*
-     * Forcibly log a checkpoint when not in in-memory configuration after rollback to stable to
-     * ensure that both in-memory and on-disk versions are same.
+     * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to
+     * ensure that both in-memory and on-disk versions are the same.
      */
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         WT_TRET(session->iface.checkpoint(&session->iface, "force=1"));
