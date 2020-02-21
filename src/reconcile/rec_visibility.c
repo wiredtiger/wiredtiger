@@ -61,7 +61,7 @@ __rec_append_orig_value(
     size_t size, total_size;
 
 #ifdef HAVE_DIAGNOSTIC
-	last_committed_upd = NULL;
+    last_committed_upd = NULL;
 #endif
 
     for (;; upd = upd->next) {
