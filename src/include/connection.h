@@ -284,12 +284,18 @@ struct __wt_connection_impl {
     bool ckpt_signalled;   /* Checkpoint signalled */
 
     uint64_t ckpt_usecs;    /* Checkpoint timer */
+    uint64_t ckpt_prep_max; /* Checkpoint prepare time min/max */
+    uint64_t ckpt_prep_min;
+    uint64_t ckpt_prep_recent; /* Checkpoint prepare time recent/total */
+    uint64_t ckpt_prep_total;
     uint64_t ckpt_time_max; /* Checkpoint time min/max */
     uint64_t ckpt_time_min;
     uint64_t ckpt_time_recent; /* Checkpoint time recent/total */
     uint64_t ckpt_time_total;
 
     /* Checkpoint stats and verbosity timers */
+    struct timespec ckpt_prep_end;
+    struct timespec ckpt_prep_start;
     struct timespec ckpt_timer_start;
     struct timespec ckpt_timer_scrub_end;
 
