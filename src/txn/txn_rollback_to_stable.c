@@ -776,7 +776,16 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             WT_ERR_NOTFOUND_OK(ret);
         }
 
-        WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
+        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
+        /* Ignore performing rollback to stable on files that don't exist. */
+        if (ret == ENOENT) {
+            __wt_verbose(
+              session, WT_VERB_RTS, "%s: rollback to stable ignored on non existing file", uri);
+            ret = 0;
+            continue;
+        }
+        WT_ERR(ret);
+
         /*
          * The rollback operation should be performed on this file based on the following:
          * 1. The tree is modified.
