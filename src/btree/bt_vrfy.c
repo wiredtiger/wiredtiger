@@ -607,10 +607,11 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri)
     char *uri_itr;
 
     session_flags = 0;
-    prev_btree_id = 0; /* [-Wconditional-uninitialized] */
     data_cursor = NULL;
     WT_CLEAR(prev_hs_key);
     WT_CLEAR(hs_key);
+    btree_id_given_uri = 0; /* [-Wconditional-uninitialized] */
+    prev_btree_id = 0;      /* [-Wconditional-uninitialized] */
     uri_itr = NULL;
 
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));

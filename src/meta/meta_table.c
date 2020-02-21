@@ -362,7 +362,7 @@ __wt_metadata_uri_to_btree_id(WT_SESSION_IMPL *session, const char *uri, uint32_
 
     WT_ERR(__wt_metadata_search(session, uri, &value));
     WT_ERR(__wt_config_getones(session, value, "id", &id));
-    *btree_id = id.val;
+    *btree_id = (uint32_t)id.val;
 
 err:
     __wt_free(session, value);
