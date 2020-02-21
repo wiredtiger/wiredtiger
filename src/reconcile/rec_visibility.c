@@ -55,7 +55,14 @@ __rec_append_orig_value(
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_UPDATE *append, *tombstone;
+#ifdef HAVE_DIAGNOSTIC
+    WT_UPDATE *last_committed_upd;
+#endif
     size_t size, total_size;
+
+#ifdef HAVE_DIAGNOSTIC
+    last_committed_upd = NULL;
+#endif
 
     for (;; upd = upd->next) {
         /* Done if at least one self-contained update is globally visible. */
@@ -72,6 +79,11 @@ __rec_append_orig_value(
         /* On page value already on chain */
         if (unpack != NULL && unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid)
             return (0);
+
+#ifdef HAVE_DIAGNOSTIC
+        if (upd->txnid != WT_TXN_ABORTED)
+            last_committed_upd = upd;
+#endif
 
         /* Leave reference at the last item in the chain. */
         if (upd->next == NULL)
@@ -90,6 +102,9 @@ __rec_append_orig_value(
     if (unpack == NULL || unpack->type == WT_CELL_DEL)
         WT_RET(__wt_update_alloc(session, NULL, &append, &size, WT_UPDATE_TOMBSTONE));
     else {
+        /* Timestamp should always be in descending order. */
+        WT_ASSERT(
+          session, last_committed_upd == NULL || last_committed_upd->start_ts >= unpack->start_ts);
         WT_RET(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
         WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
@@ -106,8 +121,9 @@ __rec_append_orig_value(
          * 20.
          */
         if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
-            /* Timestamp should always be in descending order */
-            WT_ASSERT(session, upd->start_ts >= unpack->stop_ts);
+            /* Timestamp should always be in descending order. */
+            WT_ASSERT(session,
+              last_committed_upd == NULL || last_committed_upd->start_ts >= unpack->stop_ts);
 
             WT_ERR(__wt_update_alloc(session, NULL, &tombstone, &size, WT_UPDATE_TOMBSTONE));
             tombstone->txnid = unpack->stop_txn;
