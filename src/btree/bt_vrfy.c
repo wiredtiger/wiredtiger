@@ -591,7 +591,7 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
 /*
  * __wt_verify_history_store_tree --
  *     Verify the history store. There can't be an entry in the history store without having the
- *     latest value for the respective key in the data store. If given a uri limit the verification
+ *     latest value for the respective key in the data store. If given a uri, limit the verification
  *     to the corresponding btree.
  */
 int
@@ -667,6 +667,10 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri)
                 /* Setting data_cursor to null, to avoid double free */
                 data_cursor = NULL;
             }
+            /*
+             * Using the btree-id find the metadata entry and extract the URI for this btree. Don't
+             * forget to free the copy of the URI returned.
+             */
             __wt_free(session, uri_itr);
             ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_itr);
             if (ret != 0)
