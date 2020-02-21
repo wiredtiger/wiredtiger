@@ -7,34 +7,6 @@
  */
 
 /*
- * __wt_ref_cas_state_int --
- *     Try to do a compare and swap, if successful update the ref history in diagnostic mode.
- */
-static inline bool
-__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t old_state,
-  uint32_t new_state, const char *func, int line)
-{
-    bool cas_result;
-
-    /* Parameters that are used in a macro for diagnostic builds */
-    WT_UNUSED(session);
-    WT_UNUSED(func);
-    WT_UNUSED(line);
-
-    cas_result = __wt_atomic_casv32(&ref->state, old_state, new_state);
-
-#ifdef HAVE_DIAGNOSTIC
-    /*
-     * The history update here has potential to race; if the state gets updated again after the CAS
-     * above but before the history has been updated.
-     */
-    if (cas_result)
-        WT_REF_SAVE_STATE(ref, new_state, func, line);
-#endif
-    return (cas_result);
-}
-
-/*
  * __wt_txn_context_prepare_check --
  *     Return an error if the current transaction is in the prepare state.
  */
@@ -267,8 +239,7 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
     WT_TXN *txn;
     WT_UPDATE **updp;
     wt_timestamp_t ts;
-    uint32_t previous_state;
-    uint8_t prepare_state;
+    u_int prepare_state, previous_state;
 
     txn = &session->txn;
 
@@ -319,7 +290,7 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 {
     WT_TXN *txn;
     WT_UPDATE **updp;
-    uint32_t previous_state;
+    u_int previous_state;
 
     txn = &session->txn;
 

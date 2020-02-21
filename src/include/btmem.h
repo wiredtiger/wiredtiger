@@ -792,7 +792,7 @@ struct __wt_page_deleted {
      */
     volatile uint8_t prepare_state; /* Prepare state. */
 
-    uint32_t previous_state; /* Previous state */
+    uint8_t previous_state; /* Previous state */
 
     WT_UPDATE **update_list; /* List of updates for abort */
 };
@@ -808,8 +808,7 @@ struct __wt_time_pair {
 
 /*
  * WT_REF --
- *	A single in-memory page and the state information used to determine if
- * it's OK to dereference the pointer to the page.
+ *	A single in-memory page and state information.
  */
 struct __wt_ref {
     WT_PAGE *page; /* Page */
@@ -821,13 +820,15 @@ struct __wt_ref {
     WT_PAGE *volatile home;        /* Reference page */
     volatile uint32_t pindex_hint; /* Reference page index hint */
 
-#define WT_REF_DISK 0        /* Page is on disk */
-#define WT_REF_DELETED 1     /* Page is on disk, but deleted */
-#define WT_REF_LOCKED 2      /* Page locked for exclusive access */
-#define WT_REF_MEM 3         /* Page is in cache and valid */
-#define WT_REF_READING 4     /* Page being read */
-#define WT_REF_SPLIT 5       /* Parent page split (WT_REF dead) */
-    volatile uint32_t state; /* Page state */
+#define WT_REF_DISK 0       /* Page is on disk */
+#define WT_REF_DELETED 1    /* Page is on disk, but deleted */
+#define WT_REF_LOCKED 2     /* Page locked for exclusive access */
+#define WT_REF_MEM 3        /* Page is in cache and valid */
+#define WT_REF_READING 4    /* Page being read */
+#define WT_REF_SPLIT 5      /* Parent page split (WT_REF dead) */
+    volatile uint8_t state; /* Page state */
+
+    uint8_t __unused[3]; /* Padding */
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,

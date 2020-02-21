@@ -2025,7 +2025,8 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
     WT_CACHE *cache;
     WT_EVICT_ENTRY *evict;
     WT_EVICT_QUEUE *queue, *other_queue, *urgent_queue;
-    uint32_t candidates, previous_state;
+    uint32_t candidates;
+    u_int previous_state;
     bool is_app, server_only, urgent_ok;
 
     *btreep = NULL;
@@ -2189,7 +2190,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
     WT_REF *ref;
     WT_TRACK_OP_DECL;
     uint64_t time_start, time_stop;
-    uint32_t previous_state;
+    u_int previous_state;
     bool app_timer;
 
     WT_TRACK_OP_INIT(session);

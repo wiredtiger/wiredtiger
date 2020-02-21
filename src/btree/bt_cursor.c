@@ -58,7 +58,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
 {
     WT_CURSOR *cursor;
     WT_SESSION_IMPL *session;
-    uint32_t current_state;
+    u_int current_state;
 
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cursor->session;
