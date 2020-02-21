@@ -80,8 +80,10 @@ __rec_append_orig_value(
         if (unpack != NULL && unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid)
             return (0);
 
+#ifdef HAVE_DIAGNOSTIC
         if (upd->txnid != WT_TXN_ABORTED)
             last_committed_upd = upd;
+#endif
 
         /* Leave reference at the last item in the chain. */
         if (upd->next == NULL)
