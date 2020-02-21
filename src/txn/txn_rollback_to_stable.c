@@ -197,10 +197,11 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             break;
 
         /*
-         * Set this comparison as exact match of the search for later use during the removal of the
-         * key as part of rollback to stable. In case if we don't mark the comparison result as
-         * same, later the __wt_row_modify function will not properly remove the update from history
-         * store.
+         * As part of the history store search, we never get an exact match based on our search
+         * criteria as we always search for a maximum record for that key. Make sure that we set the
+         * comparison result as an exact match to remove this key as part of rollback to stable. In
+         * case if we don't mark the comparison result as same, later the __wt_row_modify function
+         * will not properly remove the update from history store.
          */
         cbt->compare = 0;
 
