@@ -14,7 +14,7 @@
  */
 #define WT_HS_SESSION_FLAGS (WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_NO_RECONCILE)
 
-static int __hs_delete_key(
+static int __hs_delete_key_from_pos(
   WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key);
 
 /*
@@ -444,7 +444,7 @@ err:
          */
         WT_TRET(__wt_cursor_key_order_init(cbt));
 #endif
-        WT_TRET(__hs_delete_key(session, cursor, btree_id, key));
+        WT_TRET(__hs_delete_key_from_pos(session, cursor, btree_id, key));
     }
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
@@ -1091,11 +1091,58 @@ err:
 }
 
 /*
- * __hs_delete_key --
+ * __wt_hs_delete_key --
  *     Delete an entire key's worth of data in the history store.
  */
+int
+__wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key)
+{
+    WT_CURSOR *hs_cursor;
+    WT_DECL_RET;
+    WT_ITEM hs_key;
+    WT_TIME_PAIR hs_start, hs_stop;
+    uint32_t hs_btree_id, session_flags;
+    int cmp, exact;
+
+    session_flags = 0;
+
+    WT_RET(__wt_hs_cursor(session, &session_flags));
+    hs_cursor = session->hs_cursor;
+    hs_cursor->set_key(hs_cursor, btree_id, key, WT_TS_NONE, WT_TXN_NONE);
+    ret = hs_cursor->search_near(hs_cursor, &exact);
+    /* Empty history store is fine. */
+    if (ret == WT_NOTFOUND)
+        goto done;
+    WT_ERR(ret);
+    if (exact < 0)
+        ret = hs_cursor->next(hs_cursor);
+    /* That means there is only one record in the history store and it doesn't belong to our key. */
+    if (ret == WT_NOTFOUND)
+        goto done;
+    WT_ERR(ret);
+    /* Bailing out here also means we have no history store records for our key. */
+    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start.timestamp,
+      &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
+    if (hs_btree_id != btree_id)
+        goto done;
+    WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
+    if (cmp != 0)
+        goto done;
+    WT_ERR(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key));
+done:
+    ret = 0;
+err:
+    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    return (ret);
+}
+
+/*
+ * __hs_delete_key_from_pos --
+ *     Delete an entire key's worth of data in the history store assuming that the input cursor is
+ *     positioned at the beginning of the key range.
+ */
 static int
-__hs_delete_key(
+__hs_delete_key_from_pos(
   WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key)
 {
     WT_CURSOR_BTREE *hs_cbt;

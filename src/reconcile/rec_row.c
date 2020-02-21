@@ -723,7 +723,7 @@ __wt_rec_row_leaf(
     wt_timestamp_t durable_ts, newest_durable_ts, start_ts, stop_ts;
     uint64_t slvg_skip, start_txn, stop_txn;
     uint32_t i;
-    bool dictionary, key_onpage_ovfl, ovfl_key;
+    bool dictionary, key_onpage_ovfl, ovfl_key, remove_key;
     void *copy;
 
     btree = S2BT(session);
@@ -738,6 +738,8 @@ __wt_rec_row_leaf(
     vpack = &_vpack;
 
     upd = NULL;
+
+    remove_key = false;
 
     /*
      * Acquire the newest-durable timestamp for this page so we can roll it forward. If it exists,
@@ -891,6 +893,7 @@ __wt_rec_row_leaf(
                 break;
             case WT_UPDATE_TOMBSTONE:
 remove_key:
+                remove_key = true;
                 /*
                  * If this key/value pair was deleted, we're done.
                  *
@@ -1026,6 +1029,12 @@ leaf_insert:
 
     /* Write the remnant page. */
     ret = __wt_rec_split_finish(session, r);
+    /*
+     * If we're removing a key, we should also remove the history store contents associated with
+     * that key.
+     */
+    if (ret == 0 && remove_key)
+        ret = __wt_hs_delete_key(session, btree->id, tmpkey);
 
 err:
     /* Free the update if it is external. */
