@@ -279,6 +279,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
             }
             if (updp != NULL)
                 *updp = upd;
+            else if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+                __wt_free_update_list(session, &upd);
             *valid = true;
             return (0);
         }
@@ -345,6 +347,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
             }
             if (updp != NULL)
                 *updp = upd;
+            else if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+                __wt_free_update_list(session, &upd);
             *valid = true;
         }
         break;
@@ -379,6 +383,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
             }
             if (updp != NULL)
                 *updp = upd;
+            else if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+                __wt_free_update_list(session, &upd);
             *valid = true;
         }
         break;
