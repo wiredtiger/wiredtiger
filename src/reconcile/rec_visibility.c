@@ -54,10 +54,17 @@ __rec_append_orig_value(
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_UPDATE *append, *last_committed_upd, *tombstone;
+    WT_UPDATE *append, *tombstone;
+#ifdef HAVE_DIAGNOSTIC
+    WT_UPDATE *last_committed_upd;
+#else
     size_t size, total_size;
 
-    for (last_committed_upd = NULL;; upd = upd->next) {
+#ifdef HAVE_DIAGNOSTIC
+	last_committed_upd = NULL;
+#else
+
+    for (;; upd = upd->next) {
         /* Done if at least one self-contained update is globally visible. */
         if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
             return (0);
