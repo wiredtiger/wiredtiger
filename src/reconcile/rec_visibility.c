@@ -57,12 +57,12 @@ __rec_append_orig_value(
     WT_UPDATE *append, *tombstone;
 #ifdef HAVE_DIAGNOSTIC
     WT_UPDATE *last_committed_upd;
-#else
+#endif
     size_t size, total_size;
 
 #ifdef HAVE_DIAGNOSTIC
 	last_committed_upd = NULL;
-#else
+#endif
 
     for (;; upd = upd->next) {
         /* Done if at least one self-contained update is globally visible. */
