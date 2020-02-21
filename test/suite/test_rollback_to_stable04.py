@@ -53,13 +53,13 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
     def conn_config(self):
         config = ''
         if self.in_memory:
-            config += 'cache_size=250MB,statistics=(all),in_memory=true'
+            config += 'cache_size=2GB,statistics=(all),in_memory=true'
         else:
-            config += 'cache_size=50MB,statistics=(all),log=(enabled),in_memory=false'
+            config += 'cache_size=500MB,statistics=(all),log=(enabled),in_memory=false'
         return config
 
     def test_rollback_to_stable(self):
-        nrows = 1000
+        nrows = 10000
 
         # Create a table without logging.
         uri = "table:rollback_to_stable04"
