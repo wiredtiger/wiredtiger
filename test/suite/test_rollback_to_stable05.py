@@ -36,21 +36,26 @@ from test_rollback_to_stable01 import test_rollback_to_stable_base
 def timestamp_str(t):
     return '%x' % t
 
-# test_rollback_to_stable02.py
-# Test that rollback to stable brings back the history value to replace on-disk value.
-class test_rollback_to_stable02(test_rollback_to_stable_base):
+# test_rollback_to_stable05.py
+# Test that rollback to stable cleans history store for non-timestamp tables.
+class test_rollback_to_stable05(test_rollback_to_stable_base):
     # Force a small cache.
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
     def test_rollback_to_stable(self):
-        nrows = 10000
+        nrows = 5000
 
-        # Create a table without logging.
-        uri = "table:rollback_to_stable02"
-        ds = SimpleDataSet(
-            self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
-        ds.populate()
+        # Create two tables without logging.
+        uri_1 = "table:rollback_to_stable05_1"
+        ds_1 = SimpleDataSet(
+            self, uri_1, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+        ds_1.populate()
+
+        uri_2 = "table:rollback_to_stable05_2"
+        ds_2 = SimpleDataSet(
+            self, uri_2, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+        ds_2.populate()
 
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
@@ -60,30 +65,48 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         valueb = "bbbbb" * 100
         valuec = "ccccc" * 100
         valued = "ddddd" * 100
-        self.large_updates(uri, valuea, ds, nrows, 10)
-        # Check that all updates are seen.
-        self.check(valuea, uri, nrows, 10)
+        self.large_updates(uri_1, valuea, ds_1, nrows, 0)
+        self.check(valuea, uri_1, nrows, 0)
 
-        self.large_updates(uri, valueb, ds, nrows, 20)
-        # Check that the new updates are only seen after the update timestamp.
-        self.check(valueb, uri, nrows, 20)
+        self.large_updates(uri_2, valuea, ds_2, nrows, 0)
+        self.check(valuea, uri_2, nrows, 0)
 
-        self.large_updates(uri, valuec, ds, nrows, 30)
-        # Check that the new updates are only seen after the update timestamp.
-        self.check(valuec, uri, nrows, 30)
+        # Start a long running transaction and keep it open.
+        session_2 = self.conn.open_session()
+        session_2.begin_transaction('isolation=snapshot')
 
-        self.large_updates(uri, valued, ds, nrows, 40)
-        # Check that the new updates are only seen after the update timestamp.
-        self.check(valued, uri, nrows, 40)
+        self.large_updates(uri_1, valueb, ds_1, nrows, 0)
+        self.check(valueb, uri_1, nrows, 0)
+
+        self.large_updates(uri_1, valuec, ds_1, nrows, 0)
+        self.check(valuec, uri_1, nrows, 0)
+
+        self.large_updates(uri_1, valued, ds_1, nrows, 0)
+        self.check(valued, uri_1, nrows, 0)
+
+        # Add updates to the another table.
+        self.large_updates(uri_2, valueb, ds_2, nrows, 0)
+        self.check(valueb, uri_2, nrows, 0)
+
+        self.large_updates(uri_2, valuec, ds_2, nrows, 0)
+        self.check(valuec, uri_2, nrows, 0)
+
+        self.large_updates(uri_2, valued, ds_2, nrows, 0)
+        self.check(valued, uri_2, nrows, 0)
 
         # Pin stable to timestamp 10.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
+
         # Checkpoint to ensure that all the data is flushed.
         self.session.checkpoint()
 
+        # Clear all running transactions before rollback to stable.
+        session_2.commit_transaction()
+        session_2.close()
+
         self.conn.rollback_to_stable()
-        # Check that the new updates are only seen after the update timestamp.
-        self.check(valuea, uri, nrows, 40)
+        self.check(valued, uri_1, nrows, 0)
+        self.check(valued, uri_2, nrows, 0)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -97,8 +120,8 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         self.assertEqual(calls, 1)
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
-        self.assertGreater(pages_visited, 0)
-        self.assertGreaterEqual(upd_aborted, nrows * 3)
+        self.assertEqual(pages_visited, 0)
+        self.assertGreaterEqual(upd_aborted, nrows * 3 * 2)
 
 if __name__ == '__main__':
     wttest.run()

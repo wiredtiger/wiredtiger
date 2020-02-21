@@ -398,8 +398,6 @@ struct __wt_connection_impl {
     uint64_t sweep_interval;        /* Handle sweep interval */
     uint64_t sweep_handles_min;     /* Handle sweep minimum open */
 
-    /* Set of btree IDs not being rolled back */
-    uint8_t *stable_rollback_bitstring;
     uint32_t stable_rollback_maxfile;
 
     /* Locked: collator list */
