@@ -357,20 +357,23 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
         if (upd != NULL) {
             /*
-             * The beginning of the validity window is the selected update's time pair.
-             *
-             * FIXME-PM-1521: We shouldn't need to check for this. We're actually allowed to commit
-             * updates to the same key out of timestamp order. So we can have stop time pairs
-             * earlier than their respective start time pair. We need to figure out what to do in
-             * WT-5469.
+             * If we're seeing a non-timestamped tombstone being applied on top of a timestamped
+             * update, force the tombstone to be globally visible so that we destroy the key. This
+             * isn't technically correct but when we mix timestamps, we're not guaranteeing that
+             * that older readers will be able to continue reading content that has been made
+             * invisible by a non-timestamped update.
              */
-            if (upd->start_ts <= upd_select->stop_ts && upd->txnid <= upd_select->stop_txn) {
-                upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
-                /* If durable timestamp is provided, use it. */
-                if (upd->durable_ts != WT_TS_NONE)
-                    upd_select->durable_ts = upd->durable_ts;
-                upd_select->start_txn = upd->txnid;
-            }
+            if (upd_select->stop_ts == WT_TS_NONE && upd->start_ts != WT_TS_NONE)
+                upd_select->stop_txn = WT_TXN_NONE;
+            else
+                WT_ASSERT(session,
+                  upd->start_ts <= upd_select->stop_ts && upd->txnid <= upd_select->stop_txn);
+            /* The beginning of the validity window is the selected update's time pair. */
+            upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
+            /* If durable timestamp is provided, use it. */
+            if (upd->durable_ts != WT_TS_NONE)
+                upd_select->durable_ts = upd->durable_ts;
+            upd_select->start_txn = upd->txnid;
 
             /* Use the tombstone durable timestamp as the overall durable timestamp if it exists. */
             if (tombstone_durable_ts != WT_TS_MAX)
