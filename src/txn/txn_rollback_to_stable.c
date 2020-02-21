@@ -196,7 +196,12 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         if (cmp != 0)
             break;
 
-        /* Set this comparison as exact match of the search for later use. */
+        /*
+         * Set this comparison as exact match of the search for later use during the removal of the
+         * key as part of rollback to stable. In case if we don't mark the comparison result as
+         * same, later the __wt_row_modify function will not properly remove the update from history
+         * store.
+         */
         cbt->compare = 0;
 
         /* Get current value and convert to full update if it is a modify. */
@@ -215,6 +220,12 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         }
 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
+
+        /*
+         * Any history store updates don't use transactions as those updates should be immediately
+         * visible and doesn't follow the transaction semantics. Due to this reason, the history
+         * store updates are directly modified using the low level api instead of cursor api.
+         */
         WT_WITH_BTREE(session, cbt->btree,
           ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
         WT_ERR(ret);
@@ -436,7 +447,11 @@ __rollback_abort_row_reconciled_page(
         WT_RET(__rollback_abort_row_reconciled_page_internal(session, mod->u1.r.disk_image,
           mod->u1.r.replace.addr, mod->u1.r.replace.size, rollback_timestamp));
 
-        /* Mark the page as dirty to let the reconciliation happens again on the page. */
+        /*
+         * As this page has newer aborts that are aborted, make sure to mark the page as dirty to
+         * let the reconciliation happens again on the page. Otherwise, the eviction may pick the
+         * already reconciled page to write to disk with newer updates.
+         */
         __wt_page_only_modify_set(session, page);
     } else if (mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         for (multi = mod->mod_multi, multi_entry = 0; multi_entry < mod->mod_multi_entries;
@@ -444,7 +459,11 @@ __rollback_abort_row_reconciled_page(
             WT_RET(__rollback_abort_row_reconciled_page_internal(
               session, multi->disk_image, multi->addr.addr, multi->addr.size, rollback_timestamp));
 
-        /* Mark the page as dirty to let the reconciliation happens again on the page. */
+        /*
+         * As this page has newer aborts that are aborted, make sure to mark the page as dirty to
+         * let the reconciliation happens again on the page. Otherwise, the eviction may pick the
+         * already reconciled page to write to disk with newer updates.
+         */
         __wt_page_only_modify_set(session, page);
     }
 
@@ -751,7 +770,6 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
     hs_upd = NULL;
     session_flags = 0;
 
-    /* Allocate buffers for the history store key. */
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
 
     /* Open a history store table cursor. */
@@ -783,6 +801,12 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
         cbt->compare = 0;
 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
+
+        /*
+         * Any history store updates don't use transactions as those updates should be immediately
+         * visible and doesn't follow the transaction semantics. Due to this reason, the history
+         * store updates are directly modified using the low level api instead of cursor api.
+         */
         WT_WITH_BTREE(session, cbt->btree,
           ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
         WT_ERR(ret);
