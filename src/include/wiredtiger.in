@@ -1694,7 +1694,7 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @param name the URI of the table or file to verify, optional if verifying the history
-     * store
+	 * store
 	 * @configstart{WT_SESSION.verify, see dist/api_data.py}
 	 * @config{dump_address, Display page addresses\, start and stop time pairs and page types
 	 * as pages are verified\, using the application's message handler\, intended for
