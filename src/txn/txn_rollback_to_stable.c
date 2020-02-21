@@ -781,7 +781,6 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         if (ret == ENOENT) {
             __wt_verbose(
               session, WT_VERB_RTS, "%s: rollback to stable ignored on non existing file", uri);
-            ret = 0;
             continue;
         }
         WT_ERR(ret);
