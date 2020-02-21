@@ -341,7 +341,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             if (upd->txnid != WT_TXN_NONE) {
                 upd_select->stop_txn = upd->txnid;
                 if (upd->start_ts == WT_TS_NONE)
-                    upd_select->stop_ts = 1;
+                    upd_select->stop_ts = WT_TS_NONE;
             }
             if (upd->durable_ts != WT_TS_NONE)
                 tombstone_durable_ts = upd->durable_ts;
