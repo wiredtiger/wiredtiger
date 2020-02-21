@@ -239,7 +239,7 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
     WT_TXN *txn;
     WT_UPDATE **updp;
     wt_timestamp_t ts;
-    u_int prepare_state, previous_state;
+    uint8_t prepare_state, previous_state;
 
     txn = &session->txn;
 
@@ -290,7 +290,7 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 {
     WT_TXN *txn;
     WT_UPDATE **updp;
-    u_int previous_state;
+    uint8_t previous_state;
 
     txn = &session->txn;
 

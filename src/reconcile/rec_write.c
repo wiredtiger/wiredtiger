@@ -2060,7 +2060,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
     uint32_t i;
-    u_int previous_state;
+    uint8_t previous_state;
 
     btree = S2BT(session);
     bm = btree->bm;

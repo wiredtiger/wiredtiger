@@ -93,8 +93,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     size_t addr_size;
     uint64_t time_diff, time_start, time_stop;
     uint32_t page_flags;
+    uint8_t final_state, new_state, previous_state;
     const uint8_t *addr;
-    u_int final_state, new_state, previous_state;
     bool timer;
 
     time_start = time_stop = 0;
@@ -215,7 +215,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     WT_DECL_RET;
     WT_PAGE *page;
     uint64_t sleep_usecs, yield_cnt;
-    u_int current_state;
+    uint8_t current_state;
     int force_attempts;
     bool busy, cache_work, evict_skip, is_leaf_page, stalled, wont_need;
 

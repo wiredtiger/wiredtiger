@@ -188,7 +188,7 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
     wt_timestamp_t multi_newest_stop_ts;
     uint64_t multi_newest_stop_txn;
     uint32_t i;
-    u_int previous_state;
+    uint8_t previous_state;
     bool obsolete;
 
     /* Ignore root pages as they can never be deleted. */

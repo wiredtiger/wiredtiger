@@ -17,7 +17,7 @@ static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
  *     Release exclusive access to a page.
  */
 static inline void
-__evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, u_int previous_state)
+__evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state)
 {
     WT_ASSERT(session, ref->state == WT_REF_LOCKED && ref->page != NULL);
 
@@ -55,7 +55,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     WT_BTREE *btree;
     WT_DECL_RET;
     uint32_t evict_flags;
-    u_int previous_state;
+    uint8_t previous_state;
     bool locked;
 
     btree = S2BT(session);
@@ -89,7 +89,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
  *     Evict a page.
  */
 int
-__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, u_int previous_state, uint32_t flags)
+__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32_t flags)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;

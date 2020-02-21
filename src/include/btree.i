@@ -21,7 +21,7 @@ __wt_ref_is_root(WT_REF *ref)
  *     Try to do a compare and swap, if successful update the ref history in diagnostic mode.
  */
 static inline bool
-__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, u_int old_state, u_int new_state,
+__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state, uint8_t new_state,
   const char *func, int line)
 {
     bool cas_result;
@@ -1134,8 +1134,8 @@ __wt_ref_info_lock(
   WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, size_t *sizep, bool *is_leafp)
 {
     size_t size;
+    uint8_t previous_state;
     const uint8_t *addr;
-    u_int previous_state;
     bool is_leaf;
 
     /*
