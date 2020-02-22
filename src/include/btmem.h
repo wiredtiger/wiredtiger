@@ -820,6 +820,17 @@ struct __wt_ref {
     WT_PAGE *volatile home;        /* Reference page */
     volatile uint32_t pindex_hint; /* Reference page index hint */
 
+    uint8_t __unused[2]; /* Padding */
+
+/*
+ * Define both an internal- and leaf-page flag for now: we only need one, but for now it provides an
+ * easy way to assert a page-type flag is always set until that work is debugged. If we run out of
+ * flags, remove the internal flag and rewrite any tests using it to be "!leaf" instead.
+ */
+#define WT_REF_IS_INTERNAL 0x01 /* Page is an internal page */
+#define WT_REF_IS_LEAF 0x02     /* Page is a leaf page */
+    uint8_t flags;
+
 #define WT_REF_DISK 0       /* Page is on disk */
 #define WT_REF_DELETED 1    /* Page is on disk, but deleted */
 #define WT_REF_LOCKED 2     /* Page locked for exclusive access */
@@ -827,8 +838,6 @@ struct __wt_ref {
 #define WT_REF_READING 4    /* Page being read */
 #define WT_REF_SPLIT 5      /* Parent page split (WT_REF dead) */
     volatile uint8_t state; /* Page state */
-
-    uint8_t __unused[3]; /* Padding */
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,

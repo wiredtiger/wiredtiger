@@ -244,6 +244,12 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
         return;
 
     /*
+     * Flagging the page type in the WT_REF is a change, and the only current user of WT_REF.flags.
+     * Assert for now, to ensure we find all paths which allocate a WT_REF (02/2020).
+     */
+    WT_ASSERT(session, ref->flags == WT_REF_IS_INTERNAL || ref->flags == WT_REF_IS_LEAF);
+
+    /*
      * Optionally free the referenced pages. (The path to free referenced page is used for error
      * cleanup, no instantiated and then discarded page should have WT_REF entries with real pages.
      * The page may have been marked dirty as well; page discard checks for that, so we mark it
