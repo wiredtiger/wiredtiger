@@ -38,13 +38,13 @@
 
 #define ITERATIONS              10
 #define MAX_NTABLES             100
-#define URI_MAX_LEN             30
 
 #define MAX_KEY_SIZE            100
 #define MAX_VALUE_SIZE          1000
 #define MAX_MODIFY_ENTRIES      10
 #define MAX_MODIFY_DIFF         500
 
+#define URI_MAX_LEN             32
 #define URI_FORMAT              "table:t%d-%d"
 #define KEY_FORMAT              "key-%d-%d"
 
@@ -154,7 +154,7 @@ key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPER
     key_num = change_count % 10000;
     *typep = op_type = (OPERATION_TYPE)((change_count % 40000) / 10000);
 
-    snprintf(key, key_size, KEY_FORMAT, key_num % 100, key_num / 100);
+    snprintf(key, key_size, KEY_FORMAT, (int)(key_num % 100), (int)(key_num / 100));
     if (op_type == REMOVE)
         return;                 /* remove needs no key */
 
