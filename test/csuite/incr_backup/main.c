@@ -36,19 +36,22 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-static const int ITERATIONS = 10;
-static const int MAX_NTABLES = 100;
-static const char *URI_FORMAT = "table:t%d-%d";
-static const char URI_MAX_LEN = 30;
+#define ITERATIONS              10
+#define MAX_NTABLES             100
+#define URI_MAX_LEN             30
 
-static const int MAX_KEY_SIZE = 100;
-static const int MAX_VALUE_SIZE = 1000;
-static const int MAX_MODIFY_ENTRIES = 10;
-static const int MAX_MODIFY_DIFF = 500;
-static const char *KEY_FORMAT = "key-%d-%d";
+#define MAX_KEY_SIZE            100
+#define MAX_VALUE_SIZE          1000
+#define MAX_MODIFY_ENTRIES      10
+#define MAX_MODIFY_DIFF         500
+
+#define URI_FORMAT              "table:t%d-%d"
+#define KEY_FORMAT              "key-%d-%d"
 
 static int verbose_level = 0;
 static uint64_t seed = 0;
+
+static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
  * TODO: set this to true for true incremental backup testing.
@@ -70,7 +73,7 @@ typedef struct {
     uint64_t change_count; /* number of changes so far to the table */
     WT_RAND_STATE rand;
 } TABLE;
-#define TABLE_VALID(tablep)	((tablep)->name != NULL)
+#define TABLE_VALID(tablep)    ((tablep)->name != NULL)
 
 /*
  * The set of all tables in play, and other information used for this run.
@@ -105,7 +108,7 @@ typedef enum {
 
 /*
  * usage --
- *	Print usage message and exit.
+ *     Print usage message and exit.
  */
 static void
 usage(void)
@@ -116,10 +119,10 @@ usage(void)
 
 /*
  * die --
- *	Called when testutil_assert or testutil_check fails.
+ *     Called when testutil_assert or testutil_check fails.
  */
 static void
-die()
+die(void)
 {
     fprintf(stderr,
             "**** FAILURE\n"
@@ -129,7 +132,7 @@ die()
 
 /*
  * key_value --
- *	Return the key, value and operation type for the n'th change to a table.
+ *     Return the key, value and operation type for the n'th change to a table.
  * The first 10000 changes to a table are all inserts, the next 10000 are
  * updates of the same records, the the next 10000 are all modifications of
  * the existing records, the next 10000 will be drops. Then we repeat the cycle.
@@ -184,7 +187,7 @@ key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPER
 
 /*
  * active_files_init --
- *	Initialize (clear) the active file strucxt.
+ *     Initialize (clear) the active file strucxt.
  */
 static void
 active_files_init(ACTIVE_FILES *active)
@@ -194,7 +197,7 @@ active_files_init(ACTIVE_FILES *active)
 
 /*
  * active_files_print --
- *	Print the set of active files for debugging.
+ *     Print the set of active files for debugging.
  */
 static void
 active_files_print(ACTIVE_FILES *active, const char *msg)
@@ -208,7 +211,7 @@ active_files_print(ACTIVE_FILES *active, const char *msg)
 
 /*
  * active_files_add --
- *	Add a new name to the active file list.
+ *     Add a new name to the active file list.
  */
 static void
 active_files_add(ACTIVE_FILES *active, const char *name)
@@ -222,7 +225,7 @@ active_files_add(ACTIVE_FILES *active, const char *name)
 
 /*
  * active_files_sort_function --
- *	Sort function for qsort.
+ *     Sort function for qsort.
  */
 static int
 active_files_sort_function(const void *left, const void *right)
@@ -232,7 +235,7 @@ active_files_sort_function(const void *left, const void *right)
 
 /*
  * active_files_sort --
- *	Sort the list of names in the active file list.
+ *     Sort the list of names in the active file list.
  */
 static void
 active_files_sort(ACTIVE_FILES *active)
@@ -242,7 +245,7 @@ active_files_sort(ACTIVE_FILES *active)
 
 /*
  * active_files_remove_missing --
- *	Files in the previous list that are missing from the current list are removed.
+ *     Files in the previous list that are missing from the current list are removed.
  */
 static void
 active_files_remove_missing(ACTIVE_FILES *prev, ACTIVE_FILES *cur, const char *dirname)
@@ -285,7 +288,7 @@ active_files_remove_missing(ACTIVE_FILES *prev, ACTIVE_FILES *cur, const char *d
 
 /*
  * active_files_free --
- *	Free the list of active files.
+ *     Free the list of active files.
  */
 static void
 active_files_free(ACTIVE_FILES *active)
@@ -300,7 +303,7 @@ active_files_free(ACTIVE_FILES *active)
 
 /*
  * active_files_move --
- *	Move an active file list to the destination list.
+ *     Move an active file list to the destination list.
  */
 static void
 active_files_move(ACTIVE_FILES *dest, ACTIVE_FILES *src)
@@ -375,7 +378,7 @@ table_updates(WT_SESSION *session, TABLE *table)
 
 /*
  * create_table --
- *	Create a table for the given slot.
+ *     Create a table for the given slot.
  */
 static void
 create_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
@@ -428,7 +431,7 @@ static void
 check_table(WT_SESSION *session, TABLE *table)
 {
     WT_CURSOR *cursor;
-    WT_ITEM item, got_value;;
+    WT_ITEM item, got_value;
     OPERATION_TYPE op_type;
     uint64_t boundary, change_count, expect_records, got_records, total_changes;
     int keylow, keyhigh, ret;
@@ -436,10 +439,12 @@ check_table(WT_SESSION *session, TABLE *table)
     char *got_key;
     char key[MAX_KEY_SIZE];
 
-    VERBOSE(3, "Checking: %s\n", table->name);
+    expect_records = 0;
     total_changes = table->change_count;
     boundary = total_changes % 10000;
     op_type = (OPERATION_TYPE)(total_changes % 40000) / 10000;
+
+    VERBOSE(3, "Checking: %s\n", table->name);
     switch (op_type) {
     case INSERT:
         expect_records = total_changes % 10000;
@@ -552,7 +557,7 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
     WT_CURSOR *cursor, *file_cursor;
     WT_SESSION *session;
     void *tmp;
-    size_t rdsize;
+    ssize_t rdsize;
     uint64_t offset, size, type;
     int rfd, ret, wfd, nfiles, nrange, ncopy;
     char buf[4096], rbuf[4096], wbuf[4096];
@@ -605,8 +610,7 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
                     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, filename));
                     VERBOSE(5, "Reopen read file: %s\n", buf);
                     reopen_file(&rfd, rbuf, sizeof(rbuf), buf, O_RDONLY);
-                    testutil_check(lseek(rfd, (wt_off_t)offset, SEEK_SET));
-                    rdsize = (size_t)read(rfd, tmp, (size_t)size);
+                    rdsize = pread(rfd, tmp, (size_t)size, (wt_off_t)offset);
                     testutil_assert(rdsize >= 0);
                     testutil_check(close(rfd));
 
@@ -614,9 +618,8 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
                     VERBOSE(5, "Reopen write file: %s\n", buf);
                     // TODO: O_CREAT added...
                     reopen_file(&wfd, wbuf, sizeof(wbuf), buf, O_WRONLY | O_CREAT);
-                    testutil_check(lseek(wfd, (wt_off_t)offset, SEEK_SET));
                     /* Use the read size since we may have read less than the granularity. */
-                    testutil_assert((size_t)write(wfd, tmp, rdsize) == rdsize);
+                    testutil_assert(pwrite(wfd, tmp, (size_t)rdsize, (wt_off_t)offset) == rdsize);
                     testutil_check(close(wfd));
                     free(tmp);
                 } else {
@@ -686,10 +689,9 @@ main(int argc, char *argv[])
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     uint32_t iter, next_checkpoint, slot;
-    int ncheckpoints, status;
+    int ch, ncheckpoints, status;
     const char *envconf, *working_dir;
     char home[1024], backup_check[1024], backup_dir[1024], command[4096];
-    char ch;
 
     ncheckpoints = 0;
     (void)testutil_set_progname(argv);
@@ -708,7 +710,7 @@ main(int argc, char *argv[])
             seed = (uint64_t)atoll(__wt_optarg);
             break;
         case 'v':
-            verbose_level = atol(__wt_optarg);
+            verbose_level = atoi(__wt_optarg);
             break;
         default:
             usage();
