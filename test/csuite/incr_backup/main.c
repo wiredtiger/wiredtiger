@@ -204,7 +204,7 @@ active_files_print(ACTIVE_FILES *active, const char *msg)
 {
     uint32_t i;
 
-    VERBOSE(6, "Active files: %s, %d entries\n", msg, active->count);
+    VERBOSE(6, "Active files: %s, %d entries\n", msg, (int)active->count);
     for (i = 0; i < active->count; i++)
         VERBOSE(6, "  %s\n", active->names[i]);
 }
@@ -367,9 +367,6 @@ table_updates(WT_SESSION *session, TABLE *table)
             case REMOVE:
                 testutil_check(cur->remove(cur));
                 break;
-            default:
-                testutil_assert(false);
-                break;
             }
         }
         testutil_check(cur->close(cur));
@@ -387,7 +384,7 @@ create_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
 
     testutil_assert(!TABLE_VALID(&tinfo->table[slot]));
     uri = dcalloc(1, URI_MAX_LEN);
-    snprintf(uri, URI_MAX_LEN, URI_FORMAT, slot, tinfo->table[slot].name_index++);
+    snprintf(uri, URI_MAX_LEN, URI_FORMAT, (int)slot, (int)tinfo->table[slot].name_index++);
 
     VERBOSE(3, "create %s\n", uri);
     testutil_check(session->create(session, uri, "key_format=S,value_format=u"));
@@ -402,7 +399,7 @@ rename_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
 
     testutil_assert(TABLE_VALID(&tinfo->table[slot]));
     uri = dcalloc(1, URI_MAX_LEN);
-    snprintf(uri, URI_MAX_LEN, URI_FORMAT, slot, tinfo->table[slot].name_index++);
+    snprintf(uri, URI_MAX_LEN, URI_FORMAT, (int)slot, (int)tinfo->table[slot].name_index++);
 
     olduri = tinfo->table[slot].name;
     VERBOSE(3, "rename %s %s\n", olduri, uri);
@@ -509,7 +506,7 @@ base_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     tinfo->full_backup_number = tinfo->incr_backup_number++;
     (void)snprintf(buf, sizeof(buf), "incremental=(granularity=1M,enabled=true,this_id=ID%d)",
-        tinfo->full_backup_number);
+                   (int)tinfo->full_backup_number);
     VERBOSE(3, "open_cursor(session, \"backup:\", NULL, \"%s\", &cursor)\n", buf);
     testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
 
@@ -573,7 +570,7 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
     active_files_init(&active);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     (void)snprintf(buf, sizeof(buf), "incremental=(src_id=ID%d,this_id=ID%d)",
-                   tinfo->full_backup_number, tinfo->incr_backup_number++);
+                   (int)tinfo->full_backup_number, (int)tinfo->incr_backup_number++);
     VERBOSE(3, "open_cursor(session, \"backup:\", NULL, \"%s\", &cursor)\n", buf);
     testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
 
@@ -757,7 +754,7 @@ main(int argc, char *argv[])
     next_checkpoint = __wt_random(&rnd) % tinfo.table_count;
 
     for (iter = 0; iter < ITERATIONS; iter++) {
-        VERBOSE(1, "**** iteration %d ****\n", iter);
+        VERBOSE(1, "**** iteration %d ****\n", (int)iter);
         /*
          * We have schema changes during about half the iterations.
          * The number of schema changes varies, averaging 10.
