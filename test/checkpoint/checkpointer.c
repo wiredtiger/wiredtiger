@@ -139,7 +139,10 @@ real_checkpointer(void)
     WT_SESSION *session;
     uint64_t delay;
     int ret;
-    char buf[128], *checkpoint_config, timestamp_buf[64];
+    char buf[128], timestamp_buf[64];
+    const char *checkpoint_config;
+
+    checkpoint_config = "use_timestamp=false";
 
     if (g.running == 0)
         return (log_print_err("Checkpoint thread started stopped\n", EINVAL, 1));
@@ -151,10 +154,12 @@ real_checkpointer(void)
     if ((ret = g.conn->open_session(g.conn, NULL, NULL, &session)) != 0)
         return (log_print_err("conn.open_session", ret, 1));
 
-    if (WT_PREFIX_MATCH(g.checkpoint_name, "WiredTigerCheckpoint"))
-        checkpoint_config = NULL;
-    else {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "name=%s", g.checkpoint_name));
+    if (g.use_timestamps)
+        checkpoint_config = "use_timestamp=true";
+
+    if (!WT_PREFIX_MATCH(g.checkpoint_name, "WiredTigerCheckpoint")) {
+        testutil_check(
+          __wt_snprintf(buf, sizeof(buf), "name=%s,%s", g.checkpoint_name, checkpoint_config));
         checkpoint_config = buf;
     }
 

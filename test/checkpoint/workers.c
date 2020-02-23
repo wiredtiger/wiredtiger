@@ -256,7 +256,8 @@ real_worker(void)
         } else if (ret == 0 && __wt_random(&rnd) % 7 != 0) {
             if (g.use_timestamps) {
                 if (__wt_try_readlock((WT_SESSION_IMPL *)session, &g.clock_lock) == 0) {
-                    testutil_check(__wt_snprintf(buf, sizeof(buf), "commit_timestamp=%x", g.ts + 1));
+                    testutil_check(
+                      __wt_snprintf(buf, sizeof(buf), "commit_timestamp=%x", g.ts + 1));
                     __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
                     if ((ret = session->commit_transaction(session, buf)) != 0) {
                         (void)log_print_err("real_worker:commit_transaction", ret, 1);
@@ -269,7 +270,7 @@ real_worker(void)
                     (void)log_print_err("real_worker:commit_transaction", ret, 1);
                     goto err;
                 }
-            restart_txn = true;
+                restart_txn = true;
             }
         } else {
             if ((ret = session->rollback_transaction(session, NULL)) != 0) {
