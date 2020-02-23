@@ -172,9 +172,9 @@ real_checkpointer(void)
         if (!g.running)
             goto done;
 
-        /* Verify the content of the checkpoint. */
-        if ((ret = verify_consistency(session, true)) != 0)
-            return (log_print_err("verify_consistency (offline)", ret, 1));
+        /* Verify the content of the checkpoint at the stable timestamp. */
+        if (g.use_timestamps && (ret = verify_consistency(session, true)) != 0)
+            return (log_print_err("verify_consistency (timestamps)", ret, 1));
 
         /*
          * Random value between 4 and 8 seconds.
@@ -198,13 +198,13 @@ done:
  *     The key/values should match across all tables.
  */
 static int
-verify_consistency(WT_SESSION *session, bool use_checkpoint)
+verify_consistency(WT_SESSION *session, bool use_timestamps)
 {
     WT_CURSOR **cursors;
     uint64_t key_count;
     int i, ret, t_ret;
-    char ckpt_buf[128], next_uri[128];
-    const char *ckpt, *type0, *typei;
+    char cfg_buf[128], next_uri[128], timestamp_buf[64];
+    const char *type0, *typei;
 
     ret = t_ret = 0;
     key_count = 0;
@@ -212,23 +212,18 @@ verify_consistency(WT_SESSION *session, bool use_checkpoint)
     if (cursors == NULL)
         return (log_print_err("verify_consistency", ENOMEM, 1));
 
-    if (use_checkpoint) {
-        testutil_check(
-          __wt_snprintf(ckpt_buf, sizeof(ckpt_buf), "checkpoint=%s", g.checkpoint_name));
-        ckpt = ckpt_buf;
+    if (use_timestamps) {
+        testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable"));
+        testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf),
+          "isolation=snapshot,read_timestamp=%s,roundup_timestamps=(read=true)", timestamp_buf));
     } else {
-        ckpt = NULL;
-        testutil_check(session->begin_transaction(session, "isolation=snapshot"));
+        testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf), "isolation=snapshot"));
     }
 
+    testutil_check(session->begin_transaction(session, cfg_buf));
     for (i = 0; i < g.ntables; i++) {
-        /*
-         * TODO: LSM doesn't currently support reading from checkpoints.
-         */
-        if (use_checkpoint && g.cookies[i].type == LSM)
-            continue;
         testutil_check(__wt_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", i));
-        if ((ret = session->open_cursor(session, next_uri, NULL, ckpt, &cursors[i])) != 0) {
+        if ((ret = session->open_cursor(session, next_uri, NULL, NULL, &cursors[i])) != 0) {
             (void)log_print_err("verify_consistency:session.open_cursor", ret, 1);
             goto err;
         }
@@ -283,7 +278,7 @@ verify_consistency(WT_SESSION *session, bool use_checkpoint)
         }
     }
     printf("Finished verifying a %s with %d tables and %" PRIu64 " keys\n",
-      use_checkpoint ? "checkpoint" : "snapshot", g.ntables, key_count);
+      use_timestamps ? "checkpoint" : "snapshot", g.ntables, key_count);
     fflush(stdout);
 
 err:
@@ -291,8 +286,7 @@ err:
         if (cursors[i] != NULL && (ret = cursors[i]->close(cursors[i])) != 0)
             (void)log_print_err("verify_consistency:cursor close", ret, 1);
     }
-    if (!use_checkpoint)
-        testutil_check(session->commit_transaction(session, NULL));
+    testutil_check(session->commit_transaction(session, NULL));
     free(cursors);
     return (ret);
 }
