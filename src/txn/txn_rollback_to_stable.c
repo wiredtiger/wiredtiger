@@ -443,7 +443,8 @@ __rollback_abort_row_reconciled_page(
     if ((mod = page->modify) == NULL)
         return (0);
 
-    if (mod->rec_result == WT_PM_REC_REPLACE) {
+    if (mod->rec_result == WT_PM_REC_REPLACE &&
+      mod->mod_replace.newest_durable_ts > rollback_timestamp) {
         WT_RET(__rollback_abort_row_reconciled_page_internal(session, mod->u1.r.disk_image,
           mod->u1.r.replace.addr, mod->u1.r.replace.size, rollback_timestamp));
 
@@ -456,8 +457,9 @@ __rollback_abort_row_reconciled_page(
     } else if (mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         for (multi = mod->mod_multi, multi_entry = 0; multi_entry < mod->mod_multi_entries;
              ++multi, ++multi_entry)
-            WT_RET(__rollback_abort_row_reconciled_page_internal(
-              session, multi->disk_image, multi->addr.addr, multi->addr.size, rollback_timestamp));
+            if (multi->addr.newest_durable_ts > rollback_timestamp)
+                WT_RET(__rollback_abort_row_reconciled_page_internal(session, multi->disk_image,
+                  multi->addr.addr, multi->addr.size, rollback_timestamp));
 
         /*
          * As this page has newer aborts that are aborted, make sure to mark the page as dirty to

@@ -28,6 +28,7 @@
 
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 def timestamp_str(t):
@@ -37,11 +38,35 @@ def timestamp_str(t):
 # Test that rollback to stable removes all keys when the stable timestamp is earlier than
 # all commit timestamps.
 class test_rollback_to_stable06(test_rollback_to_stable_base):
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
+    in_memory_values = [
+        ('no_inmem', dict(in_memory=False)),
+        ('inmem', dict(in_memory=True))
+    ]
+
+    prepare_values = [
+        ('no_prepare', dict(prepare=False)),
+        ('prepare', dict(prepare=True))
+    ]
+
+    scenarios = make_scenarios(in_memory_values, prepare_values)
+
+    def conn_config(self):
+        config = ''
+        # Temporarily solution to have good cache size until prepare updates are written to disk.
+        if self.prepare:
+            config += 'cache_size=250MB,statistics=(all)'
+        else:
+            config += 'cache_size=50MB,statistics=(all)'
+        if self.in_memory:
+            config += ',in_memory=true'
+        else:
+            config += ',log=(enabled),in_memory=false'
+        return config
+
     def test_rollback_to_stable(self):
-        nrows = 10000
+        nrows = 1000
 
         # Create a table without logging.
         uri = "table:rollback_to_stable06"
@@ -71,7 +96,8 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         self.check(value_d, uri, nrows, 50)
 
         # Checkpoint to ensure the data is flushed, then rollback to the stable timestamp.
-        self.session.checkpoint()
+        if not self.in_memory:
+            self.session.checkpoint()
         self.conn.rollback_to_stable()
 
         # Check that all keys are removed.
@@ -91,10 +117,15 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
 
         self.assertEqual(calls, 1)
         self.assertEqual(keys_restored, 0)
-        self.assertEqual(keys_removed, nrows)
         self.assertGreater(pages_visited, 0)
-        self.assertGreaterEqual(upd_aborted, 0)
-        self.assertGreaterEqual(hs_removed, nrows * 3)
+        if self.in_memory or self.prepare:
+            self.assertEqual(keys_removed, 0)
+            self.assertEqual(upd_aborted, nrows * 4)
+            self.assertEqual(hs_removed, 0)
+        else:
+            self.assertGreaterEqual(keys_removed, 0)
+            self.assertGreaterEqual(upd_aborted, 0)
+            self.assertGreaterEqual(hs_removed, nrows * 3)
 
 if __name__ == '__main__':
     wttest.run()
