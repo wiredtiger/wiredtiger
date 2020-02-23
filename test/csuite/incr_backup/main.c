@@ -27,8 +27,8 @@
  */
 
 /*
- * This program tests incremental backup in a randomized way.
- * The random seed used is reported and can be used in another run.
+ * This program tests incremental backup in a randomized way. The random seed used is reported and
+ * can be used in another run.
  */
 
 #include "test_util.h"
@@ -36,17 +36,17 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-#define ITERATIONS              10
-#define MAX_NTABLES             100
+#define ITERATIONS 10
+#define MAX_NTABLES 100
 
-#define MAX_KEY_SIZE            100
-#define MAX_VALUE_SIZE          1000
-#define MAX_MODIFY_ENTRIES      10
-#define MAX_MODIFY_DIFF         500
+#define MAX_KEY_SIZE 100
+#define MAX_VALUE_SIZE 1000
+#define MAX_MODIFY_ENTRIES 10
+#define MAX_MODIFY_DIFF 500
 
-#define URI_MAX_LEN             32
-#define URI_FORMAT              "table:t%d-%d"
-#define KEY_FORMAT              "key-%d-%d"
+#define URI_MAX_LEN 32
+#define URI_FORMAT "table:t%d-%d"
+#define KEY_FORMAT "key-%d-%d"
 
 static int verbose_level = 0;
 static uint64_t seed = 0;
@@ -58,38 +58,38 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
  */
 static bool slow_incremental = true;
 
-#define VERBOSE(level, fmt, ...) do {           \
-        if (level <= verbose_level)             \
-            printf(fmt, __VA_ARGS__);           \
-    } while(0)
+#define VERBOSE(level, fmt, ...)      \
+    do {                              \
+        if (level <= verbose_level)   \
+            printf(fmt, __VA_ARGS__); \
+    } while (0)
 
 /*
  * We keep an array of tables, each one may or may not be in use.
  * "In use" means it has been created, and will be updated from time to time.
  */
 typedef struct {
-    char *name;   /* non-null entries represent tables in use */
-    uint32_t name_index; /* bumped when we rename or drop, so we get unique names. */
+    char *name;            /* non-null entries represent tables in use */
+    uint32_t name_index;   /* bumped when we rename or drop, so we get unique names. */
     uint64_t change_count; /* number of changes so far to the table */
     WT_RAND_STATE rand;
 } TABLE;
-#define TABLE_VALID(tablep)    ((tablep)->name != NULL)
+#define TABLE_VALID(tablep) ((tablep)->name != NULL)
 
 /*
  * The set of all tables in play, and other information used for this run.
  */
 typedef struct {
-    TABLE *table;         /* set of potential tables */
-    uint32_t table_count; /* size of table array */
-    uint32_t tables_in_use;  /* count of tables that exist */
+    TABLE *table;           /* set of potential tables */
+    uint32_t table_count;   /* size of table array */
+    uint32_t tables_in_use; /* count of tables that exist */
     uint32_t full_backup_number;
     uint32_t incr_backup_number;
 } TABLE_INFO;
 
 /*
- * The set of active files in a backup.  This is our "memory" of files that are
- * used in each backup, so we can remove any that are not mentioned in the next
- * backup.
+ * The set of active files in a backup. This is our "memory" of files that are used in each backup,
+ * so we can remove any that are not mentioned in the next backup.
  */
 typedef struct {
     char **names;
@@ -102,9 +102,7 @@ extern char *__wt_optarg;
 /*
  * The choices of operations we do to each table.
  */
-typedef enum {
-    INSERT, UPDATE, MODIFY, REMOVE
-} OPERATION_TYPE;
+typedef enum { INSERT, UPDATE, MODIFY, REMOVE } OPERATION_TYPE;
 
 /*
  * usage --
@@ -125,22 +123,21 @@ static void
 die(void)
 {
     fprintf(stderr,
-            "**** FAILURE\n"
-            "To reproduce, please rerun with: %s -S %" PRIu64 "\n",
-            progname, seed);
+      "**** FAILURE\n"
+      "To reproduce, please rerun with: %s -S %" PRIu64 "\n",
+      progname, seed);
 }
 
 /*
  * key_value --
- *     Return the key, value and operation type for the n'th change to a table.
- * The first 10000 changes to a table are all inserts, the next 10000 are
- * updates of the same records, the the next 10000 are all modifications of
- * the existing records, the next 10000 will be drops. Then we repeat the cycle.
- * That makes it easy on the checking side (knowing how many total changes have
- * been made) to check the state of the table.
+ *     Return the key, value and operation type for the n'th change to a table. The first 10000
+ *     changes to a table are all inserts, the next 10000 are updates of the same records, the next
+ *     10000 are all modifications of the existing records, the next 10000 will be drops. Then we
+ *     repeat the cycle. That makes it easy on the checking side (knowing how many total changes
+ *     have been made) to check the state of the table.
  *
- * The keys generated are unique among the 10000, but we purposely don't make them
- * sequential.  "key-0-0", "key-1-0", "key-2-0""... "key-99-0", "key-0-1", "key-1-1", ...
+ * The keys generated are unique among the 10000, but we purposely don't make them sequential.
+ *     "key-0-0", "key-1-0", "key-2-0""... "key-99-0", "key-0-1", "key-1-1", ...
  */
 static void
 key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPERATION_TYPE *typep)
@@ -154,20 +151,19 @@ key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPER
     key_num = change_count % 10000;
     *typep = op_type = (OPERATION_TYPE)((change_count % 40000) / 10000);
 
-    snprintf(key, key_size, KEY_FORMAT, (int)(key_num % 100), (int)(key_num / 100));
+    __wt_snprintf(key, key_size, KEY_FORMAT, (int)(key_num % 100), (int)(key_num / 100));
     if (op_type == REMOVE)
-        return;                 /* remove needs no key */
+        return; /* remove needs no key */
 
     value_size = 10 + (u_int)op_type * 10 + change_count % 500;
     testutil_assert(item->size > value_size);
 
     /*
-     * For a given key, a value is first inserted, then later updated, then modified.
-     * When a value is inserted, it is all the letter 'a'.  When the value is updated,
-     * is is mostly 'b', with some 'c' mixed in.  When the value is to modified, we'll
-     * end up with a value with mostly 'b' and 'M' mixed in in different spots.
-     * Thus the modify operation will have both additions ('M') and subtractions ('c')
-     * from the previous version.
+     * For a given key, a value is first inserted, then later updated, then modified. When a value
+     * is inserted, it is all the letter 'a'. When the value is updated, is mostly 'b', with some
+     * 'c' mixed in. When the value is to modified, we'll end up with a value with mostly 'b' and
+     * 'M' mixed in in different spots. Thus the modify operation will have both additions ('M') and
+     * subtractions ('c') from the previous version.
      */
     if (op_type == INSERT)
         ch = 'a';
@@ -240,7 +236,7 @@ active_files_sort_function(const void *left, const void *right)
 static void
 active_files_sort(ACTIVE_FILES *active)
 {
-    qsort(active->names, active->count, sizeof(char *), active_files_sort_function);
+    __wt_qsort(active->names, active->count, sizeof(char *), active_files_sort_function);
 }
 
 /*
@@ -259,9 +255,9 @@ active_files_remove_missing(ACTIVE_FILES *prev, ACTIVE_FILES *cur, const char *d
      * Walk through the two lists looking for non-matches.
      */
     for (prevpos = 0; prevpos < prev->count; prevpos++) {
-      again:
+again:
         if (curpos >= cur->count)
-            cmp = -1;  /* There are extra entries at the end of the prev list */
+            cmp = -1; /* There are extra entries at the end of the prev list */
         else
             cmp = strcmp(prev->names[prevpos], cur->names[curpos]);
 
@@ -269,16 +265,17 @@ active_files_remove_missing(ACTIVE_FILES *prev, ACTIVE_FILES *cur, const char *d
             curpos++;
         else if (cmp < 0) {
             /*
-             * There is something in the prev list not in the current list.
-             * Remove it, and continue - don't advance the current list.
+             * There is something in the prev list not in the current list. Remove it, and continue
+             * - don't advance the current list.
              */
-            snprintf(filename, sizeof(filename), "%s/%s", dirname, prev->names[prevpos]);
+            testutil_check(
+              __wt_snprintf(filename, sizeof(filename), "%s/%s", dirname, prev->names[prevpos]));
             VERBOSE(3, "Removing file from backup: %s\n", filename);
-            //TODO: remove(filename);
+            // TODO: remove(filename);
         } else {
             /*
-             * There is something in the current list not in the prev list.
-             * Walk past it in the current list and try again.
+             * There is something in the current list not in the prev list. Walk past it in the
+             * current list and try again.
              */
             curpos++;
             goto again;
@@ -315,7 +312,7 @@ active_files_move(ACTIVE_FILES *dest, ACTIVE_FILES *src)
 
 /*
  * table_updates --
- *      Potentially make changes to a single table.
+ *     Potentially make changes to a single table.
  */
 static void
 table_updates(WT_SESSION *session, TABLE *table)
@@ -343,10 +340,10 @@ table_updates(WT_SESSION *session, TABLE *table)
             item.size = sizeof(value);
             key_value(change_count, key, sizeof(key), &item, &op_type);
             if (strstr(table->name, "68-") != NULL) {
-                //printf("  table 68 KEY=%s\n", key);
+                // printf("  table 68 KEY=%s\n", key);
             }
             cur->set_key(cur, key);
-            switch(op_type) {
+            switch (op_type) {
             case INSERT:
                 cur->set_value(cur, &item);
                 testutil_check(cur->insert(cur));
@@ -360,8 +357,8 @@ table_updates(WT_SESSION *session, TABLE *table)
                 item2.size = sizeof(value2);
                 key_value(change_count - 10000, NULL, 0, &item2, &op_type);
                 modify_count = MAX_MODIFY_ENTRIES;
-                testutil_check(wiredtiger_calc_modify(session, &item2, &item, MAX_MODIFY_DIFF,
-                                                      modify_entries, &modify_count));
+                testutil_check(wiredtiger_calc_modify(
+                  session, &item2, &item, MAX_MODIFY_DIFF, modify_entries, &modify_count));
                 testutil_check(cur->modify(cur, modify_entries, modify_count));
                 break;
             case REMOVE:
@@ -384,7 +381,8 @@ create_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
 
     testutil_assert(!TABLE_VALID(&tinfo->table[slot]));
     uri = dcalloc(1, URI_MAX_LEN);
-    snprintf(uri, URI_MAX_LEN, URI_FORMAT, (int)slot, (int)tinfo->table[slot].name_index++);
+    testutil_check(
+      __wt_snprintf(uri, URI_MAX_LEN, URI_FORMAT, (int)slot, (int)tinfo->table[slot].name_index++));
 
     VERBOSE(3, "create %s\n", uri);
     testutil_check(session->create(session, uri, "key_format=S,value_format=u"));
@@ -399,7 +397,8 @@ rename_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
 
     testutil_assert(TABLE_VALID(&tinfo->table[slot]));
     uri = dcalloc(1, URI_MAX_LEN);
-    snprintf(uri, URI_MAX_LEN, URI_FORMAT, (int)slot, (int)tinfo->table[slot].name_index++);
+    testutil_check(
+      __wt_snprintf(uri, URI_MAX_LEN, URI_FORMAT, (int)slot, (int)tinfo->table[slot].name_index++));
 
     olduri = tinfo->table[slot].name;
     VERBOSE(3, "rename %s %s\n", olduri, uri);
@@ -485,28 +484,28 @@ check_table(WT_SESSION *session, TABLE *table)
 
 static void
 base_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABLE_INFO *tinfo,
-    ACTIVE_FILES *active)
+  ACTIVE_FILES *active)
 {
     WT_CURSOR *cursor;
     WT_SESSION *session;
     int nfiles, ret;
-    char *filename;
     char buf[4096];
+    char *filename;
 
     nfiles = 0;
 
     VERBOSE(2, "BASE BACKUP: %s\n", backup_home);
     active_files_free(active);
     active_files_init(active);
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-                                 "rm -rf %s && mkdir %s", backup_home, backup_home));
+    testutil_check(
+      __wt_snprintf(buf, sizeof(buf), "rm -rf %s && mkdir %s", backup_home, backup_home));
     VERBOSE(3, " => %s\n", buf);
     testutil_check(system(buf));
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     tinfo->full_backup_number = tinfo->incr_backup_number++;
-    (void)snprintf(buf, sizeof(buf), "incremental=(granularity=1M,enabled=true,this_id=ID%d)",
-                   (int)tinfo->full_backup_number);
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+      "incremental=(granularity=1M,enabled=true,this_id=ID%d)", (int)tinfo->full_backup_number);
     VERBOSE(3, "open_cursor(session, \"backup:\", NULL, \"%s\", &cursor)\n", buf);
     testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
 
@@ -514,8 +513,8 @@ base_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
         nfiles++;
         testutil_check(cursor->get_key(cursor, &filename));
         active_files_add(active, filename);
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "cp %s/%s %s/%s",
-                                     home, filename, backup_home, filename));
+        testutil_check(
+          __wt_snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, backup_home, filename));
         VERBOSE(3, " => %s\n", buf);
         testutil_check(system(buf));
     }
@@ -527,8 +526,8 @@ base_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
 }
 
 /*
- * Open a file if it isn't already open.  The "memory" of the open file
- * name is kept in the buffer passed in.
+ * Open a file if it isn't already open. The "memory" of the open file name is kept in the buffer
+ * passed in.
  */
 static void
 reopen_file(int *fdp, char *buf, size_t buflen, const char *filename, int oflag)
@@ -548,7 +547,7 @@ reopen_file(int *fdp, char *buf, size_t buflen, const char *filename, int oflag)
  */
 static void
 incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABLE_INFO *tinfo,
-    ACTIVE_FILES *master_active)
+  ACTIVE_FILES *master_active)
 {
     ACTIVE_FILES active;
     WT_CURSOR *cursor, *file_cursor;
@@ -559,7 +558,7 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
     int rfd, ret, wfd, nfiles, nrange, ncopy;
     char buf[4096], rbuf[4096], wbuf[4096];
     char *filename;
- 
+
     VERBOSE(2, "INCREMENTAL BACKUP: %s\n", backup_home);
     active_files_print(master_active, "master list before incremental backup");
     WT_CLEAR(rbuf);
@@ -569,8 +568,8 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
 
     active_files_init(&active);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    (void)snprintf(buf, sizeof(buf), "incremental=(src_id=ID%d,this_id=ID%d)",
-                   (int)tinfo->full_backup_number, (int)tinfo->incr_backup_number++);
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "incremental=(src_id=ID%d,this_id=ID%d)",
+      (int)tinfo->full_backup_number, (int)tinfo->incr_backup_number++));
     VERBOSE(3, "open_cursor(session, \"backup:\", NULL, \"%s\", &cursor)\n", buf);
     testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
 
@@ -580,21 +579,20 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
         active_files_add(&active, filename);
         if (slow_incremental) {
             /*
-             * The "slow" version of an incremental backup is to copy the entire
-             * file that was indicated to be changed.  This may be useful for debugging
-             * problems that occur in backup.  This path is typically disabled for
-             * the test program.
+             * The "slow" version of an incremental backup is to copy the entire file that was
+             * indicated to be changed. This may be useful for debugging problems that occur in
+             * backup. This path is typically disabled for the test program.
              */
-            testutil_check(__wt_snprintf(buf, sizeof(buf), "cp %s/%s %s/%s",
-                                         home, filename, backup_home, filename));
+            testutil_check(__wt_snprintf(
+              buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, backup_home, filename));
             VERBOSE(3, " => %s\n", buf);
             testutil_check(system(buf));
         } else {
             /*
-             * Here is the normal incremental backup.
-             * Now that we know what file has changed, we get the specific changes
+             * Here is the normal incremental backup. Now that we know what file has changed, we get
+             * the specific changes
              */
-            (void)snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename);
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename));
             testutil_check(session->open_cursor(session, NULL, cursor, buf, &file_cursor));
             VERBOSE(3, "open_cursor(session, NULL, cursor, \"%s\", &file_cursor)\n", buf);
             while ((ret = file_cursor->next(file_cursor)) == 0) {
@@ -621,8 +619,8 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
                     free(tmp);
                 } else {
                     ncopy++;
-                    testutil_check(__wt_snprintf(buf, sizeof(buf), "cp %s/%s %s/%s",
-                                                 home, filename, backup_home, filename));
+                    testutil_check(__wt_snprintf(
+                      buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, backup_home, filename));
                     VERBOSE(3, " => %s\n", buf);
                     testutil_check(system(buf));
                 }
@@ -639,7 +637,7 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
     testutil_check(cursor->close(cursor));
     testutil_check(session->close(session, NULL));
     VERBOSE(2, " finished incremental backup: %d files, %d range copy, %d file copy\n", nfiles,
-            nrange, ncopy);
+      nrange, ncopy);
     active_files_sort(&active);
     active_files_remove_missing(master_active, &active, backup_home);
 
@@ -655,14 +653,14 @@ check_backup(const char *backup_home, const char *backup_check, TABLE_INFO *tinf
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    char buf[4096];
     uint32_t slot;
+    char buf[4096];
 
-    VERBOSE(2, "CHECK BACKUP: copy %s to %s, then check %s\n", backup_home, backup_check, backup_check);
+    VERBOSE(
+      2, "CHECK BACKUP: copy %s to %s, then check %s\n", backup_home, backup_check, backup_check);
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-                                 "rm -rf %s && cp -r %s %s",
-                                 backup_check, backup_home, backup_check));
+    testutil_check(__wt_snprintf(
+      buf, sizeof(buf), "rm -rf %s && cp -r %s %s", backup_check, backup_home, backup_check));
     testutil_check(system(buf));
 
     testutil_check(wiredtiger_open(backup_check, NULL, NULL, &conn));
@@ -672,7 +670,7 @@ check_backup(const char *backup_home, const char *backup_check, TABLE_INFO *tinf
         if (TABLE_VALID(&tinfo->table[slot]))
             check_table(session, &tinfo->table[slot]);
     }
-    
+
     testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, NULL));
 }
@@ -692,7 +690,7 @@ main(int argc, char *argv[])
 
     ncheckpoints = 0;
     (void)testutil_set_progname(argv);
-    custom_die = die;           /* Set our own abort handler */
+    custom_die = die; /* Set our own abort handler */
     WT_CLEAR(tinfo);
     active_files_init(&active);
 
@@ -727,8 +725,8 @@ main(int argc, char *argv[])
     testutil_check(__wt_snprintf(backup_check, sizeof(backup_check), "%s.CHECK", home));
     printf("Seed: %" PRIu64 "\n", seed);
 
-    testutil_check(__wt_snprintf(command, sizeof(command),
-                                 "rm -rf %s %s; mkdir %s", home, backup_dir, home));
+    testutil_check(
+      __wt_snprintf(command, sizeof(command), "rm -rf %s %s; mkdir %s", home, backup_dir, home));
     if ((status = system(command)) < 0)
         testutil_die(status, "system: %s", command);
 
@@ -741,9 +739,8 @@ main(int argc, char *argv[])
     tinfo.table = dcalloc(tinfo.table_count, sizeof(tinfo.table[0]));
 
     /*
-     * Give each table its own random generator.  This makes
-     * it easier to simplify a failing test to use fewer tables,
-     * but have those just tables behave the same.
+     * Give each table its own random generator. This makes it easier to simplify a failing test to
+     * use fewer tables, but have those just tables behave the same.
      */
     for (slot = 0; slot < tinfo.table_count; slot++) {
         tinfo.table[slot].rand.v = seed + slot;
@@ -756,17 +753,16 @@ main(int argc, char *argv[])
     for (iter = 0; iter < ITERATIONS; iter++) {
         VERBOSE(1, "**** iteration %d ****\n", (int)iter);
         /*
-         * We have schema changes during about half the iterations.
-         * The number of schema changes varies, averaging 10.
+         * We have schema changes during about half the iterations. The number of schema changes
+         * varies, averaging 10.
          */
         if (tinfo.tables_in_use == 0 || __wt_random(&rnd) % 2 != 0) {
             while (__wt_random(&rnd) % 10 != 0) {
 
                 /*
-                 * For schema events, we choose to create, rename or drop tables.
-                 * We pick a random slot, and if it is empty, create a table there.
-                 * Otherwise, we rename or drop.  That should give us a steady state
-                 * with slots mostly filled.
+                 * For schema events, we choose to create, rename or drop tables. We pick a random
+                 * slot, and if it is empty, create a table there. Otherwise, we rename or drop.
+                 * That should give us a steady state with slots mostly filled.
                  */
                 slot = __wt_random(&rnd) % tinfo.table_count;
                 if (!TABLE_VALID(&tinfo.table[slot]))
