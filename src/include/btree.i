@@ -17,6 +17,34 @@ __wt_ref_is_root(WT_REF *ref)
 }
 
 /*
+ * __wt_ref_cas_state_int --
+ *     Try to do a compare and swap, if successful update the ref history in diagnostic mode.
+ */
+static inline bool
+__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state, uint8_t new_state,
+  const char *func, int line)
+{
+    bool cas_result;
+
+    /* Parameters that are used in a macro for diagnostic builds */
+    WT_UNUSED(session);
+    WT_UNUSED(func);
+    WT_UNUSED(line);
+
+    cas_result = __wt_atomic_casv8(&ref->state, old_state, new_state);
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * The history update here has potential to race; if the state gets updated again after the CAS
+     * above but before the history has been updated.
+     */
+    if (cas_result)
+        WT_REF_SAVE_STATE(ref, new_state, func, line);
+#endif
+    return (cas_result);
+}
+
+/*
  * __wt_page_is_empty --
  *     Return if the page is empty.
  */
@@ -633,23 +661,6 @@ __wt_off_page(WT_PAGE *page, const void *p)
 }
 
 /*
- * __wt_ref_addr_free --
- *     Free the address in a reference, if necessary.
- */
-static inline void
-__wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    if (ref->addr == NULL)
-        return;
-
-    if (ref->home == NULL || __wt_off_page(ref->home, ref->addr)) {
-        __wt_free(session, ((WT_ADDR *)ref->addr)->addr);
-        __wt_free(session, ref->addr);
-    }
-    ref->addr = NULL;
-}
-
-/*
  * __wt_ref_key --
  *     Return a reference to a row-store internal page key as cheaply as possible.
  */
@@ -1123,7 +1134,7 @@ __wt_ref_info_lock(
   WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, size_t *sizep, bool *is_leafp)
 {
     size_t size;
-    uint32_t previous_state;
+    uint8_t previous_state;
     const uint8_t *addr;
     bool is_leaf;
 
