@@ -151,7 +151,8 @@ key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPER
     key_num = change_count % 10000;
     *typep = op_type = (OPERATION_TYPE)((change_count % 40000) / 10000);
 
-    __wt_snprintf(key, key_size, KEY_FORMAT, (int)(key_num % 100), (int)(key_num / 100));
+    testutil_check(
+      __wt_snprintf(key, key_size, KEY_FORMAT, (int)(key_num % 100), (int)(key_num / 100)));
     if (op_type == REMOVE)
         return; /* remove needs no key */
 
@@ -505,7 +506,7 @@ base_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     tinfo->full_backup_number = tinfo->incr_backup_number++;
     testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "incremental=(granularity=1M,enabled=true,this_id=ID%d)", (int)tinfo->full_backup_number);
+      "incremental=(granularity=1M,enabled=true,this_id=ID%d)", (int)tinfo->full_backup_number));
     VERBOSE(3, "open_cursor(session, \"backup:\", NULL, \"%s\", &cursor)\n", buf);
     testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
 
