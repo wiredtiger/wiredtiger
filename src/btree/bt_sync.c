@@ -336,7 +336,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
-    bool is_hs, timer, tried_eviction;
+    bool dirty, is_hs, timer, tried_eviction;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -488,18 +488,20 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 WT_ERR(ret);
             }
 
-            /*
-             * Take a local reference to the page modify structure now that we know the page is
-             * dirty. It needs to be done in this order otherwise the page modify structure could
-             * have been created between taking the reference and checking modified.
-             */
             page = walk->page;
 
             /*
-             * Skip clean pages, but need to make sure maximum transaction ID is always updated.
+             * Check if the page is dirty. Add a barrier between the check and taking a reference to
+             * any page modify structure. (It needs to be ordered else a page could be dirtied after
+             * taking the local reference.)
              */
-            if (!__wt_page_is_modified(page)) {
-                if (((mod = page->modify) != NULL) && mod->rec_max_txn > btree->rec_max_txn)
+            dirty = __wt_page_is_modified(page);
+            WT_READ_BARRIER();
+
+            /* Skip clean pages, but always update the maximum transaction ID. */
+            if (!dirty) {
+                mod = page->modify;
+                if (mod != NULL && mod->rec_max_txn > btree->rec_max_txn)
                     btree->rec_max_txn = mod->rec_max_txn;
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
