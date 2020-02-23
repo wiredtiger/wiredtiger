@@ -219,8 +219,10 @@ real_worker(void)
     u_int i, keyno;
     int j, ret, t_ret;
     char buf[128];
+    bool restart_txn;
 
     ret = t_ret = 0;
+    restart_txn = false;
 
     if ((cursors = calloc((size_t)(g.ntables), sizeof(WT_CURSOR *))) == NULL)
         return (log_print_err("malloc", ENOMEM, 1));
@@ -260,28 +262,28 @@ real_worker(void)
                         (void)log_print_err("real_worker:commit_transaction", ret, 1);
                         goto err;
                     }
-                    goto begin;
+                    restart_txn = true;
                 }
             } else {
                 if ((ret = session->commit_transaction(session, NULL)) != 0) {
                     (void)log_print_err("real_worker:commit_transaction", ret, 1);
                     goto err;
                 }
-                goto begin;
+            restart_txn = true;
             }
         } else {
             if ((ret = session->rollback_transaction(session, NULL)) != 0) {
                 (void)log_print_err("real_worker:rollback_transaction", ret, 1);
                 goto err;
             }
-            goto begin;
+            restart_txn = true;
         }
-        if (0) {
-begin:
+        if (restart_txn) {
             if ((ret = session->begin_transaction(session, NULL)) != 0) {
                 (void)log_print_err("real_worker:begin_transaction", ret, 1);
                 goto err;
             }
+            restart_txn = false;
         }
     }
 
