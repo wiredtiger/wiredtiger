@@ -495,8 +495,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * any page modify structure. (It needs to be ordered else a page could be dirtied after
              * taking the local reference.)
              */
-            dirty = __wt_page_is_modified(page);
-            WT_READ_BARRIER();
+            WT_ORDERED_READ(dirty, __wt_page_is_modified(page));
 
             /* Skip clean pages, but always update the maximum transaction ID. */
             if (!dirty) {
