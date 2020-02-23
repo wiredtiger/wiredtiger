@@ -130,7 +130,7 @@ die(void)
 
 /*
  * key_value --
- *     Return the key, value and operation type for the n'th change to a table. The first 10000
+ *     Return the key, value and operation type for a given change to a table. The first 10000
  *     changes to a table are all inserts, the next 10000 are updates of the same records, the next
  *     10000 are all modifications of the existing records, the next 10000 will be drops. Then we
  *     repeat the cycle. That makes it easy on the checking side (knowing how many total changes
@@ -184,7 +184,7 @@ key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPER
 
 /*
  * active_files_init --
- *     Initialize (clear) the active file strucxt.
+ *     Initialize (clear) the active file struct.
  */
 static void
 active_files_init(ACTIVE_FILES *active)
@@ -612,7 +612,7 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
 
                     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", backup_home, filename));
                     VERBOSE(5, "Reopen write file: %s\n", buf);
-                    // TODO: O_CREAT added...
+                    // TODO: create flag added...
                     reopen_file(&wfd, wbuf, sizeof(wbuf), buf, O_WRONLY | O_CREAT);
                     /* Use the read size since we may have read less than the granularity. */
                     testutil_assert(pwrite(wfd, tmp, (size_t)rdsize, (wt_off_t)offset) == rdsize);
