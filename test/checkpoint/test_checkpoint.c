@@ -350,6 +350,7 @@ usage(void)
       "\t-r set number of runs (0 for continuous)\n"
       "\t-T specify a table configuration\n"
       "\t-t set a file type ( col | mix | row | lsm )\n"
-      "\t-W set number of worker threads\n");
+      "\t-W set number of worker threads\n"
+      "\t-x use timestamps\n");
     return (EXIT_FAILURE);
 }

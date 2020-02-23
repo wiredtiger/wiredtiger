@@ -33,7 +33,7 @@ static WT_THREAD_RET clock_thread(void *);
 static int compare_cursors(WT_CURSOR *, const char *, WT_CURSOR *, const char *);
 static int diagnose_key_error(WT_CURSOR *, int, WT_CURSOR *, int);
 static int real_checkpointer(void);
-static int verify_consistency(WT_SESSION *, bool);
+static int verify_consistency(WT_SESSION *, char *);
 
 /*
  * start_checkpoints --
@@ -139,7 +139,7 @@ real_checkpointer(void)
     WT_SESSION *session;
     uint64_t delay;
     int ret;
-    char buf[128], *checkpoint_config;
+    char buf[128], *checkpoint_config, timestamp_buf[64];
 
     if (g.running == 0)
         return (log_print_err("Checkpoint thread started stopped\n", EINVAL, 1));
@@ -160,8 +160,14 @@ real_checkpointer(void)
 
     while (g.running) {
         /* Check for consistency of online data */
-        if ((ret = verify_consistency(session, false)) != 0)
+        if ((ret = verify_consistency(session, NULL)) != 0)
             return (log_print_err("verify_consistency (online)", ret, 1));
+
+        if (g.use_timestamps) {
+            /* Prevent the stable from moving while we checkpoint and verify. */
+            __wt_readlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+            testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable"));
+        }
 
         /* Execute a checkpoint */
         if ((ret = session->checkpoint(session, checkpoint_config)) != 0)
@@ -173,8 +179,13 @@ real_checkpointer(void)
             goto done;
 
         /* Verify the content of the checkpoint at the stable timestamp. */
-        if (g.use_timestamps && (ret = verify_consistency(session, true)) != 0)
-            return (log_print_err("verify_consistency (timestamps)", ret, 1));
+        if (g.use_timestamps) {
+            if ((ret = verify_consistency(session, timestamp_buf)) != 0)
+                return (log_print_err("verify_consistency (timestamps)", ret, 1));
+
+            /* Release our lock so the clock can move forward again. */
+            __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+        }
 
         /*
          * Random value between 4 and 8 seconds.
@@ -198,12 +209,12 @@ done:
  *     The key/values should match across all tables.
  */
 static int
-verify_consistency(WT_SESSION *session, bool use_timestamps)
+verify_consistency(WT_SESSION *session, char *stable_timestamp)
 {
     WT_CURSOR **cursors;
     uint64_t key_count;
     int i, ret, t_ret;
-    char cfg_buf[128], next_uri[128], timestamp_buf[64];
+    char cfg_buf[128], next_uri[128];
     const char *type0, *typei;
 
     ret = t_ret = 0;
@@ -212,15 +223,14 @@ verify_consistency(WT_SESSION *session, bool use_timestamps)
     if (cursors == NULL)
         return (log_print_err("verify_consistency", ENOMEM, 1));
 
-    if (use_timestamps) {
-        testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable"));
-        testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf),
-          "isolation=snapshot,read_timestamp=%s,roundup_timestamps=(read=true)", timestamp_buf));
+    if (stable_timestamp != NULL) {
+        testutil_check(__wt_snprintf(
+          cfg_buf, sizeof(cfg_buf), "isolation=snapshot,read_timestamp=%s", stable_timestamp));
     } else {
         testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf), "isolation=snapshot"));
     }
-
     testutil_check(session->begin_transaction(session, cfg_buf));
+
     for (i = 0; i < g.ntables; i++) {
         testutil_check(__wt_snprintf(next_uri, sizeof(next_uri), "table:__wt%04d", i));
         if ((ret = session->open_cursor(session, next_uri, NULL, NULL, &cursors[i])) != 0) {
@@ -278,7 +288,7 @@ verify_consistency(WT_SESSION *session, bool use_timestamps)
         }
     }
     printf("Finished verifying a %s with %d tables and %" PRIu64 " keys\n",
-      use_timestamps ? "checkpoint" : "snapshot", g.ntables, key_count);
+      stable_timestamp != NULL ? "checkpoint" : "snapshot", g.ntables, key_count);
     fflush(stdout);
 
 err:
