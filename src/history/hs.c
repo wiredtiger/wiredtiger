@@ -14,6 +14,9 @@
  */
 #define WT_HS_SESSION_FLAGS (WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_NO_RECONCILE)
 
+static int __hs_delete_key(
+  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key);
+
 /*
  * __hs_start_internal_session --
  *     Create a temporary internal session to retrieve history store.
@@ -424,6 +427,25 @@ retry:
     WT_ERR(__wt_row_modify(cbt, &cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
 
 err:
+    /*
+     * If we inserted an update with no timestamp, we need to delete all history records for that
+     * key that are further in the history table than us (the key is lexicographically greater). For
+     * timestamped tables that are occasionally getting a non-timestamped update, that means that
+     * all timestamped updates should get removed. In the case of non-timestamped tables, that means
+     * that all updates with higher transaction ids will get removed (which could happen at some
+     * more relaxed isolation levels).
+     */
+    if (ret == 0 && upd->start_ts == WT_TS_NONE) {
+#ifdef HAVE_DIAGNOSTIC
+        /*
+         * We need to initialise the last searched key so that we can do key comparisons when we
+         * begin iterating over the history store. This needs to be done otherwise the subsequent
+         * "next" calls will blow up.
+         */
+        WT_TRET(__wt_cursor_key_order_init(cbt));
+#endif
+        WT_TRET(__hs_delete_key(session, cursor, btree_id, key));
+    }
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
 
@@ -591,6 +613,12 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
         for (; upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
+
+            /* Ignore consecutive tombstones. */
+            if (upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL &&
+              upd->next->type == WT_UPDATE_TOMBSTONE)
+                continue;
+
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
             /*
              * If we've reached a full update and its in the history store we don't need to continue
@@ -1059,5 +1087,71 @@ err:
 
     WT_ASSERT(session, upd != NULL || ret != 0);
 
+    return (ret);
+}
+
+/*
+ * __hs_delete_key --
+ *     Delete an entire key's worth of data in the history store.
+ */
+static int
+__hs_delete_key(
+  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key)
+{
+    WT_CURSOR_BTREE *hs_cbt;
+    WT_DECL_RET;
+    WT_ITEM hs_key;
+    WT_TIME_PAIR hs_start, hs_stop;
+    WT_UPDATE *upd;
+    size_t size;
+    uint32_t hs_btree_id;
+    int cmp;
+
+    hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
+    upd = NULL;
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * If we've decided we need to delete a key from the history store, we should have JUST inserted
+     * a zero timestamp update into the history store. Assuming this, we can just keep iterating
+     * until we hit the key boundary, inserting tombstones as we go.
+     */
+    WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start.timestamp,
+      &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
+    WT_ASSERT(session, hs_btree_id == btree_id);
+    WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
+    WT_ASSERT(session, cmp == 0);
+    WT_ASSERT(session, hs_start.timestamp == 0);
+#endif
+    /* If there is nothing else in history store, we're done here. */
+    ret = hs_cursor->next(hs_cursor);
+    for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
+        WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start.timestamp,
+          &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
+        /*
+         * If the btree id or key isn't ours, that means that we've hit the end of the key range and
+         * that there is no more history store content for this key.
+         */
+        if (hs_btree_id != btree_id)
+            break;
+        WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
+        if (cmp != 0)
+            break;
+        /*
+         * Append a globally visible tombstone to the update list. This will effectively make the
+         * value invisible and the key itself will eventually get removed during reconciliation.
+         */
+        WT_RET(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
+        upd->txnid = WT_TXN_NONE;
+        upd->start_ts = upd->durable_ts = WT_TS_NONE;
+        WT_WITH_BTREE(session, hs_cbt->btree,
+          ret = __wt_row_modify(hs_cbt, &hs_cursor->key, NULL, upd, WT_UPDATE_INVALID, true));
+        WT_ERR(ret);
+        upd = NULL;
+    }
+    if (ret == WT_NOTFOUND)
+        return (0);
+err:
+    __wt_free(session, upd);
     return (ret);
 }

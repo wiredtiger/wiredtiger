@@ -545,6 +545,7 @@ __wt_root_ref_init(WT_SESSION_IMPL *session, WT_REF *root_ref, WT_PAGE *root, bo
     memset(root_ref, 0, sizeof(*root_ref));
 
     root_ref->page = root;
+    F_SET(root_ref, WT_REF_IS_INTERNAL);
     WT_REF_SET_STATE(root_ref, WT_REF_MEM);
 
     root_ref->ref_recno = is_recno ? 1 : WT_RECNO_OOB;
@@ -655,15 +656,13 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         btree->original = 1;
 
     /*
-     * A note about empty trees: the initial tree is a single root page.
-     * It has a single reference to a leaf page, marked deleted.  The leaf
-     * page will be created by the first update.  If the root is evicted
-     * without being modified, that's OK, nothing is ever written.
+     * A note about empty trees: the initial tree is a single root page. It has a single reference
+     * to a leaf page, marked deleted. The leaf page will be created by the first update. If the
+     * root is evicted without being modified, that's OK, nothing is ever written.
      *
      * !!!
-     * Be cautious about changing the order of updates in this code: to call
-     * __wt_page_out on error, we require a correct page setup at each point
-     * where we might fail.
+     * Be cautious about changing the order of updates in this code: to call __wt_page_out on error,
+     * we require a correct page setup at each point where we might fail.
      */
     switch (btree->type) {
     case BTREE_COL_FIX:
@@ -676,6 +675,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         ref->home = root;
         ref->page = NULL;
         ref->addr = NULL;
+        F_SET(ref, WT_REF_IS_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         ref->ref_recno = 1;
         break;
@@ -688,6 +688,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         ref->home = root;
         ref->page = NULL;
         ref->addr = NULL;
+        F_SET(ref, WT_REF_IS_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         WT_ERR(__wt_row_ikey_incr(session, root, 0, "", 1, ref));
         break;
@@ -697,6 +698,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
     if (F_ISSET(btree, WT_BTREE_BULK)) {
         WT_ERR(__wt_btree_new_leaf_page(session, &leaf));
         ref->page = leaf;
+        F_SET(ref, WT_REF_IS_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
         WT_ERR(__wt_page_modify_init(session, leaf));
         __wt_page_only_modify_set(session, leaf);
@@ -758,7 +760,7 @@ __btree_preload(WT_SESSION_IMPL *session)
 
     /* Pre-load the second-level internal pages. */
     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref) {
-        __wt_ref_info(session, ref, &addr, &addr_size, NULL);
+        __wt_ref_info(session, ref, &addr, &addr_size);
         if (addr != NULL)
             WT_RET(bm->preload(bm, session, addr, addr_size));
     }

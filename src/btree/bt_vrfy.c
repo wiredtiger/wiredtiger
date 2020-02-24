@@ -550,8 +550,7 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
         buf->size = strlen("[Root]");
         return (buf->data);
     }
-    __wt_ref_info_all(
-      session, ref, &addr, &addr_size, NULL, &start_ts, &stop_ts, &start_txn, &stop_txn);
+    __wt_ref_info_all(session, ref, &addr, &addr_size, &start_ts, &stop_ts, &start_txn, &stop_txn);
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_buf_fmt(session, buf, "%s %s,%s", __wt_addr_string(session, addr, addr_size, tmp),
       addr != NULL ? __wt_time_pair_to_string(start_ts, start_txn, tp_string[0]) : "-/-",
@@ -571,7 +570,7 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
 {
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (unpack->newest_stop_ts == WT_TS_NONE)
+    if (unpack->oldest_start_ts != WT_TS_NONE && unpack->newest_stop_ts == WT_TS_NONE)
         WT_RET_MSG(session, WT_ERROR,
           "internal page reference at %s has a newest stop "
           "timestamp of 0",
@@ -734,7 +733,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
           __wt_page_type_string(page->type)));
 
     /* Track the shape of the tree. */
-    if (WT_PAGE_IS_INTERNAL(page))
+    if (F_ISSET(ref, WT_REF_IS_INTERNAL))
         ++vs->depth_internal[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];
     else
         ++vs->depth_leaf[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];
@@ -1238,7 +1237,7 @@ __verify_page_cell(
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
-            if (unpack.newest_stop_ts == WT_TS_NONE)
+            if (unpack.oldest_start_ts != WT_TS_NONE && unpack.newest_stop_ts == WT_TS_NONE)
                 WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
                                               " on page at %s has a "
                                               "newest stop timestamp of 0",
@@ -1282,7 +1281,7 @@ __verify_page_cell(
         case WT_CELL_VALUE_COPY:
         case WT_CELL_VALUE_OVFL:
         case WT_CELL_VALUE_SHORT:
-            if (unpack.stop_ts == WT_TS_NONE)
+            if (unpack.start_ts != WT_TS_NONE && unpack.stop_ts == WT_TS_NONE)
                 WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
                                               " on page at %s has a stop "
                                               "timestamp of 0",

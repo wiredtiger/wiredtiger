@@ -31,6 +31,7 @@ from helper import copy_wiredtiger_home
 import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
@@ -45,7 +46,11 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         for i in range(0, nrows):
             session.begin_transaction()
             cursor[ds.key(i)] = value
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+            if commit_ts == 0:
+                session.commit_transaction()
+            else:
+                session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+
         cursor.close()
 
     def large_modifies(self, uri, value, ds, location, nbytes, nrows, commit_ts):
@@ -57,7 +62,11 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             cursor.set_key(i)
             mods = [wiredtiger.Modify(value, location, nbytes)]
             self.assertEqual(cursor.modify(mods), 0)
-        session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+
+        if commit_ts == 0:
+            session.commit_transaction()
+        else:
+            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
     def large_removes(self, uri, ds, nrows, commit_ts):
@@ -68,12 +77,18 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             session.begin_transaction()
             cursor.set_key(i)
             cursor.remove()
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+            if commit_ts == 0:
+                session.commit_transaction()
+            else:
+                session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
     def check(self, check_value, uri, nrows, read_ts):
         session = self.session
-        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        if read_ts == 0:
+            session.begin_transaction()
+        else:
+            session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
@@ -84,9 +99,22 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
 
 # Test that rollback to stable clears the remove operation.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
-    # Force a small cache.
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
+
+    in_memory_values = [
+        ('no_inmem', dict(in_memory=False)),
+        ('inmem', dict(in_memory=True))
+    ]
+
+    scenarios = make_scenarios(in_memory_values)
+
+    def conn_config(self):
+        config = ''
+        if self.in_memory:
+            config += 'cache_size=50MB,statistics=(all),in_memory=true'
+        else:
+            config += 'cache_size=20MB,statistics=(all),log=(enabled),in_memory=false'
+        return config
 
     def test_rollback_to_stable(self):
         nrows = 10000
@@ -114,7 +142,8 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         # Pin stable to timestamp 10.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
         # Checkpoint to ensure that all the updates are flushed to disk.
-        self.session.checkpoint()
+        if not self.in_memory:
+            self.session.checkpoint()
 
         self.conn.rollback_to_stable()
         # Check that the new updates are only seen after the update timestamp.
@@ -132,8 +161,11 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         self.assertEqual(calls, 1)
         self.assertEqual(hs_removed, 0)
         self.assertEqual(keys_removed, 0)
-        self.assertEqual(upd_aborted, nrows)
-        self.assertGreater(keys_restored, 0)
+        if self.in_memory:
+            self.assertEqual(upd_aborted, nrows)
+        else:
+            self.assertEqual(upd_aborted + keys_restored, nrows)
+        self.assertGreaterEqual(keys_restored, 0)
         self.assertGreater(pages_visited, 0)
 
 if __name__ == '__main__':

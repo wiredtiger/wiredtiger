@@ -792,7 +792,7 @@ struct __wt_page_deleted {
      */
     volatile uint8_t prepare_state; /* Prepare state. */
 
-    uint32_t previous_state; /* Previous state */
+    uint8_t previous_state; /* Previous state */
 
     WT_UPDATE **update_list; /* List of updates for abort */
 };
@@ -808,8 +808,7 @@ struct __wt_time_pair {
 
 /*
  * WT_REF --
- *	A single in-memory page and the state information used to determine if
- * it's OK to dereference the pointer to the page.
+ *	A single in-memory page and state information.
  */
 struct __wt_ref {
     WT_PAGE *page; /* Page */
@@ -821,13 +820,25 @@ struct __wt_ref {
     WT_PAGE *volatile home;        /* Reference page */
     volatile uint32_t pindex_hint; /* Reference page index hint */
 
-#define WT_REF_DISK 0        /* Page is on disk */
-#define WT_REF_DELETED 1     /* Page is on disk, but deleted */
-#define WT_REF_LOCKED 2      /* Page locked for exclusive access */
-#define WT_REF_MEM 3         /* Page is in cache and valid */
-#define WT_REF_READING 4     /* Page being read */
-#define WT_REF_SPLIT 5       /* Parent page split (WT_REF dead) */
-    volatile uint32_t state; /* Page state */
+    uint8_t unused[2]; /* Padding: before the flags field so flags can be easily expanded. */
+
+/*
+ * Define both internal- and leaf-page flags for now: we only need one, but it provides an easy way
+ * to assert a page-type flag is always set (we allocate WT_REFs in lots of places and it's easy to
+ * miss one). If we run out of bits in the flags field, remove the internal flag and rewrite tests
+ * depending on it to be "!leaf" instead.
+ */
+#define WT_REF_IS_INTERNAL 0x01 /* Page is an internal page */
+#define WT_REF_IS_LEAF 0x02     /* Page is a leaf page */
+    uint8_t flags;
+
+#define WT_REF_DISK 0       /* Page is on disk */
+#define WT_REF_DELETED 1    /* Page is on disk, but deleted */
+#define WT_REF_LOCKED 2     /* Page locked for exclusive access */
+#define WT_REF_MEM 3        /* Page is in cache and valid */
+#define WT_REF_READING 4    /* Page being read */
+#define WT_REF_SPLIT 5      /* Parent page split (WT_REF dead) */
+    volatile uint8_t state; /* Page state */
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,

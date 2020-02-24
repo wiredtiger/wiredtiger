@@ -17,7 +17,7 @@ static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
  *     Release exclusive access to a page.
  */
 static inline void
-__evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state)
+__evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state)
 {
     WT_ASSERT(session, ref->state == WT_REF_LOCKED && ref->page != NULL);
 
@@ -54,7 +54,8 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    uint32_t evict_flags, previous_state;
+    uint32_t evict_flags;
+    uint8_t previous_state;
     bool locked;
 
     btree = S2BT(session);
@@ -88,7 +89,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
  *     Evict a page.
  */
 int
-__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state, uint32_t flags)
+__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32_t flags)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -156,7 +157,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state, uint3
         goto done;
 
     /* Count evictions of internal pages during normal operation. */
-    if (!closing && WT_PAGE_IS_INTERNAL(page)) {
+    if (!closing && F_ISSET(ref, WT_REF_IS_INTERNAL)) {
         WT_STAT_CONN_INCR(session, cache_eviction_internal);
         WT_STAT_DATA_INCR(session, cache_eviction_internal);
     }
@@ -473,7 +474,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
                               * this check safe: if that fails, we have raced with a read and should
                               * give up on evicting the parent.
                               */
-            if (!__wt_atomic_casv32(&child->state, WT_REF_DELETED, WT_REF_LOCKED))
+            if (!__wt_atomic_casv8(&child->state, WT_REF_DELETED, WT_REF_LOCKED))
                 return (__wt_set_return(session, EBUSY));
             active = __wt_page_del_active(session, child, true);
             child->state = WT_REF_DELETED;
@@ -518,7 +519,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * necessary but shouldn't fire much: the eviction code is biased for leaf pages, an internal
      * page shouldn't be selected for eviction until all children have been evicted.
      */
-    if (WT_PAGE_IS_INTERNAL(page)) {
+    if (F_ISSET(ref, WT_REF_IS_INTERNAL)) {
         WT_WITH_PAGE_INDEX(session, ret = __evict_child_check(session, ref));
         if (ret != 0)
             WT_STAT_CONN_INCR(session, cache_eviction_fail_active_children_on_an_internal_page);
@@ -609,7 +610,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     if (closing)
         LF_SET(WT_REC_VISIBILITY_ERR);
-    else if (WT_PAGE_IS_INTERNAL(page) || WT_IS_HS(S2BT(session)))
+    else if (F_ISSET(ref, WT_REF_IS_INTERNAL) || WT_IS_HS(S2BT(session)))
         ;
     else if (WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_HS);

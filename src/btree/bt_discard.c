@@ -215,6 +215,23 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
+ * __wt_ref_addr_free --
+ *     Free the address in a reference, if necessary.
+ */
+void
+__wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    if (ref->addr == NULL)
+        return;
+
+    if (ref->home == NULL || __wt_off_page(ref->home, ref->addr)) {
+        __wt_free(session, ((WT_ADDR *)ref->addr)->addr);
+        __wt_free(session, ref->addr);
+    }
+    ref->addr = NULL;
+}
+
+/*
  * __wt_free_ref --
  *     Discard the contents of a WT_REF structure (optionally including the pages it references).
  */
@@ -225,6 +242,12 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
 
     if (ref == NULL)
         return;
+
+    /*
+     * We create WT_REFs in many places, assert a WT_REF has been configured as either an internal
+     * page or a leaf page, to catch any we've missed.
+     */
+    WT_ASSERT(session, F_ISSET(ref, WT_REF_IS_INTERNAL) || F_ISSET(ref, WT_REF_IS_LEAF));
 
     /*
      * Optionally free the referenced pages. (The path to free referenced page is used for error

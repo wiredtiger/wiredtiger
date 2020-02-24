@@ -187,15 +187,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_HS(btree))
         __wt_cache_update_hs_score(session, r->updates_seen, r->updates_unstable);
 
-    /*
-     * Tests in this function are history store tests and tests to decide if rewriting a page in
-     * memory is worth doing. In-memory configurations can't use a history store table, and we
-     * ignore page rewrite desirability checks for in-memory eviction because a small cache can
-     * force us to rewrite every possible page.
-     */
-    if (F_ISSET(r, WT_REC_IN_MEMORY))
-        ret = 0;
-
     /* Wrap up the page reconciliation. */
     if (ret == 0 && (ret = __rec_write_wrapup(session, r, page)) == 0)
         __rec_write_page_status(session, r);
@@ -1404,8 +1395,12 @@ __wt_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      *
      * Pages with skipped or not-yet-globally visible updates aren't really empty; otherwise, the
      * page is truly empty and we will merge it into its parent during the parent's reconciliation.
+     *
+     * Checkpoint never writes uncommited changes to disk and only saves the updates to move older
+     * updates to the history store. Thus it can consider the reconciliation done if there are no
+     * more entries left to write. This will also remove its reference entry from its parent.
      */
-    if (r->entries == 0 && r->supd_next == 0)
+    if (r->entries == 0 && (r->supd_next == 0 || F_ISSET(r, WT_REC_CHECKPOINT)))
         return (0);
 
     /* Set the number of entries and size for the just finished chunk. */
@@ -1820,24 +1815,23 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (F_ISSET(r, WT_REC_IN_MEMORY))
         goto copy_image;
 
-    /* If we need to restore the page to memory, copy the disk image. */
-    if (r->cache_write_restore && multi->supd != NULL) {
-        WT_ASSERT(session, F_ISSET(r, WT_REC_EVICT) && r->leave_dirty);
-        goto copy_image;
+    /* Check the eviction flag as checkpoint also saves updates. */
+    if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
+        /*
+         * XXX If no entries were used, the page is empty and we can only restore eviction/restore
+         * or history store updates against empty row-store leaf pages, column-store modify attempts
+         * to allocate a zero-length array.
+         */
+        if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
+            return (__wt_set_return(session, EBUSY));
+
+        /* If we need to restore the page to memory, copy the disk image. */
+        if (r->cache_write_restore)
+            goto copy_image;
+
+        if (chunk->entries == 0)
+            return (0);
     }
-
-    WT_ASSERT(session, F_ISSET(r, WT_REC_CHECKPOINT) || !r->leave_dirty || multi->supd == NULL);
-    /*
-     * XXX If no entries were used, the page is empty and we can only restore eviction/restore or
-     * history store updates against empty row-store leaf pages, column-store modify attempts to
-     * allocate a zero-length array.
-     */
-    if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
-        return (__wt_set_return(session, EBUSY));
-
-    /* If no entries were used, we have nothing to do. */
-    if (chunk->entries == 0)
-        return (0);
 
     /*
      * If we wrote this block before, re-use it. Prefer a checksum of the compressed image. It's an
@@ -2064,10 +2058,12 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 {
     WT_BM *bm;
     WT_BTREE *btree;
+    WT_DECL_RET;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
     uint32_t i;
+    uint8_t previous_state;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -2091,7 +2087,24 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              */
         if (__wt_ref_is_root(ref))
             break;
-        WT_RET(__wt_ref_block_free(session, ref));
+
+        /*
+         * We're about to discard the WT_REF.addr field, and that can race with the cursor walk code
+         * examining tree WT_REFs for leaf pages. Lock the WT_REF unless we know we have exclusive
+         * access.
+         */
+        previous_state = WT_REF_LOCKED; /* -Wuninitialized */
+        if (!F_ISSET(r, WT_REC_EVICT))
+            for (;; __wt_yield()) {
+                previous_state = ref->state;
+                if (previous_state != WT_REF_LOCKED &&
+                  WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+                    break;
+            }
+        ret = __wt_ref_block_free(session, ref);
+        if (!F_ISSET(r, WT_REC_EVICT))
+            WT_REF_SET_STATE(ref, previous_state);
+        WT_RET(ret);
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;

@@ -17,7 +17,7 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, u
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (stop_ts == WT_TS_NONE) {
+    if (start_ts != WT_TS_NONE && stop_ts == WT_TS_NONE) {
         __wt_errx(session, "stop timestamp of 0");
         WT_ASSERT(session, stop_ts != WT_TS_NONE);
     }
@@ -100,7 +100,7 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_t
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (newest_stop_ts == WT_TS_NONE) {
+    if (oldest_start_ts != WT_TS_NONE && newest_stop_ts == WT_TS_NONE) {
         __wt_errx(session, "newest stop timestamp of 0");
         WT_ASSERT(session, newest_stop_ts != WT_TS_NONE);
     }
@@ -921,10 +921,7 @@ __wt_cell_unpack_dsk(
      * If the page came from a previous run, reset the transaction ids to "none" and timestamps to 1
      * as appropriate. Transaction ids shouldn't persist between runs so these are always set to
      * "none". Timestamps should persist between runs however, the absence of a timestamp (in the
-     * case of a non-timestamped write) should default to 1 rather than "max" as usual. For
-     * timestamps, we use 1 instead of "none" because we have some cell validity checks that ensure
-     * that all cell data is initialized and we only need to choose a timestamp that is visible to
-     * everyone (1 is fine for that purpose).
+     * case of a non-timestamped write) should default to WT_TS_NONE rather than "max" as usual.
      *
      * Note that it is still necessary to unpack each value above even if we end up overwriting them
      * since values in a cell need to be unpacked sequentially.
@@ -932,10 +929,10 @@ __wt_cell_unpack_dsk(
      * This is how the stop time pair should be interpreted for each type of delete:
      * -
      *                  Timestamp delete  Non-timestamp delete  No delete
-     * Current startup  txnid=x, ts=y       txnid=x, ts=1           txnid=MAX, ts=MAX
-     * Previous startup txnid=0, ts=y       txnid=0, ts=1           txnid=MAX, ts=MAX
+     * Current startup  txnid=x, ts=y       txnid=x, ts=WT_TS_NONE           txnid=MAX, ts=MAX
+     * Previous startup txnid=0, ts=y       txnid=0, ts=WT_TS_NONE           txnid=MAX, ts=MAX
      */
-    if (dsk->write_gen <= S2C(session)->base_write_gen) {
+    if (dsk->write_gen > 0 && dsk->write_gen <= S2C(session)->base_write_gen) {
         /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
         if (unpack->start_txn != WT_TXN_NONE) {
             unpack->start_txn = WT_TXN_NONE;
@@ -945,7 +942,7 @@ __wt_cell_unpack_dsk(
             unpack->stop_txn = WT_TXN_NONE;
             F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
             if (unpack->stop_ts == WT_TS_MAX)
-                unpack->stop_ts = 1;
+                unpack->stop_ts = WT_TS_NONE;
         } else
             WT_ASSERT(session, unpack->stop_ts == WT_TS_MAX);
         if (unpack->oldest_start_txn != WT_TXN_NONE) {
@@ -956,7 +953,7 @@ __wt_cell_unpack_dsk(
             unpack->newest_stop_txn = WT_TXN_NONE;
             F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
             if (unpack->newest_stop_ts == WT_TS_MAX)
-                unpack->newest_stop_ts = 1;
+                unpack->newest_stop_ts = WT_TS_NONE;
         } else
             WT_ASSERT(session, unpack->newest_stop_ts == WT_TS_MAX);
     }
