@@ -375,7 +375,7 @@ err:
  *     caller has to free the returned uri.
  */
 int
-__wt_metadata_btree_id_to_uri(WT_SESSION_IMPL *session, const uint32_t btree_id, char **uri)
+__wt_metadata_btree_id_to_uri(WT_SESSION_IMPL *session, uint32_t btree_id, char **uri)
 {
     WT_CONFIG_ITEM id;
     WT_CURSOR *cursor;
@@ -390,15 +390,11 @@ __wt_metadata_btree_id_to_uri(WT_SESSION_IMPL *session, const uint32_t btree_id,
         WT_ERR(cursor->get_value(cursor, &value));
         if ((ret = __wt_config_getones(session, value, "id", &id)) == 0 && btree_id == id.val) {
             WT_ERR(cursor->get_key(cursor, &key));
+            /* Return a copy as the uri. */
+            WT_ERR(__wt_strdup(session, key, uri));
             break;
         }
         WT_ERR_NOTFOUND_OK(ret);
-    }
-
-    /* If we found the key, return a copy as the uri. */
-    if (ret == 0) {
-        WT_ASSERT(session, key != NULL);
-        WT_ERR(__wt_strdup(session, key, uri));
     }
 
 err:

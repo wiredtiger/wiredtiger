@@ -132,7 +132,7 @@ usage(void)
       "Verify the entire history store, not applicable against a URI \n"
       "\t"
       "-d\t"
-      "Dump more information while verifying the URI \n"
+      "Dump more information while verifying the URI\n"
       "\t"
       "-s\t"
       "Verify the URI against the stable timestamp, valid only after a rollback-to-stable \n");
