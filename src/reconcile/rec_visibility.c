@@ -55,7 +55,14 @@ __rec_append_orig_value(
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_UPDATE *append, *tombstone;
+#ifdef HAVE_DIAGNOSTIC
+    WT_UPDATE *last_committed_upd;
+#endif
     size_t size, total_size;
+
+#ifdef HAVE_DIAGNOSTIC
+    last_committed_upd = NULL;
+#endif
 
     for (;; upd = upd->next) {
         /* Done if at least one self-contained update is globally visible. */
@@ -72,6 +79,11 @@ __rec_append_orig_value(
         /* On page value already on chain */
         if (unpack != NULL && unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid)
             return (0);
+
+#ifdef HAVE_DIAGNOSTIC
+        if (upd->txnid != WT_TXN_ABORTED)
+            last_committed_upd = upd;
+#endif
 
         /* Leave reference at the last item in the chain. */
         if (upd->next == NULL)
@@ -90,6 +102,9 @@ __rec_append_orig_value(
     if (unpack == NULL || unpack->type == WT_CELL_DEL)
         WT_RET(__wt_update_alloc(session, NULL, &append, &size, WT_UPDATE_TOMBSTONE));
     else {
+        /* Timestamp should always be in descending order. */
+        WT_ASSERT(
+          session, last_committed_upd == NULL || last_committed_upd->start_ts >= unpack->start_ts);
         WT_RET(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
         WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
@@ -106,8 +121,9 @@ __rec_append_orig_value(
          * 20.
          */
         if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
-            /* Timestamp should always be in descending order */
-            WT_ASSERT(session, upd->start_ts >= unpack->stop_ts);
+            /* Timestamp should always be in descending order. */
+            WT_ASSERT(session,
+              last_committed_upd == NULL || last_committed_upd->start_ts >= unpack->stop_ts);
 
             WT_ERR(__wt_update_alloc(session, NULL, &tombstone, &size, WT_UPDATE_TOMBSTONE));
             tombstone->txnid = unpack->stop_txn;
@@ -137,20 +153,16 @@ err:
  */
 static bool
 __rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t max_txn,
-  wt_timestamp_t max_ts, bool has_newer_updates, uint64_t flags)
+  wt_timestamp_t max_ts, bool has_newer_updates, uint64_t flags, WT_PAGE *page)
 {
     /*
-     * Save updates for in-memory database, except when the maximum timestamp and txnid are globally
+     * Save updates for any reconciliation that doesn't involve history store (in-memory database
+     * and fixed length column store), except when the maximum timestamp and txnid are globally
      * visible.
      */
-    if (LF_ISSET(WT_REC_IN_MEMORY))
+    if (LF_ISSET(WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX)
         return (!__wt_txn_visible_all(session, max_txn, max_ts));
 
-    /*
-     * FIXME-PM-1523: The current implementation doesn't work with fixed-length column store.
-     * Currently, we don't write history versions to history store for fixed-length column store. I
-     * don't know how that is going to work in durable history.
-     */
     if (!LF_ISSET(WT_REC_HS))
         return false;
 
@@ -345,7 +357,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             if (upd->txnid != WT_TXN_NONE) {
                 upd_select->stop_txn = upd->txnid;
                 if (upd->start_ts == WT_TS_NONE)
-                    upd_select->stop_ts = 1;
+                    upd_select->stop_ts = WT_TS_NONE;
             }
             if (upd->durable_ts != WT_TS_NONE)
                 tombstone_durable_ts = upd->durable_ts;
@@ -361,20 +373,23 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
         if (upd != NULL) {
             /*
-             * The beginning of the validity window is the selected update's time pair.
-             *
-             * FIXME-PM-1521: We shouldn't need to check for this. We're actually allowed to commit
-             * updates to the same key out of timestamp order. So we can have stop time pairs
-             * earlier than their respective start time pair. We need to figure out what to do in
-             * WT-5469.
+             * If we're seeing a non-timestamped tombstone being applied on top of a timestamped
+             * update, force the tombstone to be globally visible so that we destroy the key. This
+             * isn't technically correct but when we mix timestamps, we're not guaranteeing that
+             * that older readers will be able to continue reading content that has been made
+             * invisible by a non-timestamped update.
              */
-            if (upd->start_ts <= upd_select->stop_ts && upd->txnid <= upd_select->stop_txn) {
-                upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
-                /* If durable timestamp is provided, use it. */
-                if (upd->durable_ts != WT_TS_NONE)
-                    upd_select->durable_ts = upd->durable_ts;
-                upd_select->start_txn = upd->txnid;
-            }
+            if (upd_select->stop_ts == WT_TS_NONE && upd->start_ts != WT_TS_NONE)
+                upd_select->stop_txn = WT_TXN_NONE;
+            else
+                WT_ASSERT(session,
+                  upd->start_ts <= upd_select->stop_ts && upd->txnid <= upd_select->stop_txn);
+            /* The beginning of the validity window is the selected update's time pair. */
+            upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
+            /* If durable timestamp is provided, use it. */
+            if (upd->durable_ts != WT_TS_NONE)
+                upd_select->durable_ts = upd->durable_ts;
+            upd_select->start_txn = upd->txnid;
 
             /* Use the tombstone durable timestamp as the overall durable timestamp if it exists. */
             if (tombstone_durable_ts != WT_TS_MAX)
@@ -430,9 +445,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     if (max_ts > r->max_ts)
         r->max_ts = max_ts;
 
-    /* Should not see newer updates in the history store */
-    WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_HS) || !has_newer_updates);
-
     /* Mark the page dirty after reconciliation. */
     if (has_newer_updates)
         r->leave_dirty = true;
@@ -451,7 +463,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Additionally history store reconciliation is not set skip saving an update.
      */
     if (__rec_need_save_upd(
-          session, upd_select->upd, max_txn, max_ts, has_newer_updates, r->flags)) {
+          session, upd_select->upd, max_txn, max_ts, has_newer_updates, r->flags, page)) {
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
         upd_select->upd_saved = true;
     }

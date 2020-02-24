@@ -273,7 +273,7 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        if (unpack->newest_stop_ts == WT_TS_NONE)
+        if (unpack->oldest_start_ts != WT_TS_NONE && unpack->newest_stop_ts == WT_TS_NONE)
             WT_RET_VRFY(session, "cell %" PRIu32
                                  " on page at %s has a newest stop "
                                  "timestamp of 0",
@@ -313,7 +313,7 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
     case WT_CELL_VALUE_SHORT:
-        if (unpack->stop_ts == WT_TS_NONE)
+        if (unpack->start_ts != WT_TS_NONE && unpack->stop_ts == WT_TS_NONE)
             WT_RET_VRFY(session, "cell %" PRIu32
                                  " on page at %s has a stop "
                                  "timestamp of 0",
