@@ -244,10 +244,10 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
         return;
 
     /*
-     * Flagging the page type in the WT_REF is a change, and the only current user of WT_REF.flags.
-     * Assert for now, to ensure we find all paths which allocate a WT_REF (02/2020).
+     * We create WT_REFs in many places, assert a WT_REF has been configured as either an internal
+     * page or a leaf page, to catch any we've missed.
      */
-    WT_ASSERT(session, ref->flags == WT_REF_IS_INTERNAL || ref->flags == WT_REF_IS_LEAF);
+    WT_ASSERT(session, F_ISSET(ref, WT_REF_IS_INTERNAL) || F_ISSET(ref, WT_REF_IS_LEAF));
 
     /*
      * Optionally free the referenced pages. (The path to free referenced page is used for error
