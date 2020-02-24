@@ -34,7 +34,7 @@ from wtdataset import simple_key
 from wtscenario import make_scenarios
 import glob
 
-# test_backup14.py
+# test_backup13.py
 # Test cursor backup with a block-based incremental cursor.
 class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
@@ -78,7 +78,6 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
 
             if i == 0:
                 continue
-
             remove_dir = self.home_full + '.' + str(i)
             create_dir = self.home_full + '.' + str(i) + '/' + self.logpath
             if os.path.exists(remove_dir):
@@ -86,7 +85,6 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
             os.makedirs(create_dir)
 
     def take_full_backup(self):
-
         if self.counter != 0:
             hdir = self.home_full + '.' + str(self.counter)
         else:
@@ -148,9 +146,7 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
                 copy_to = h
 
             shutil.copy(copy_from, copy_to)
-
             first = True
-
             config = 'incremental=(file=' + newfile + ')'
             dup_cnt = 0
             incr_c = self.session.open_cursor(None, bkup_c, config)
