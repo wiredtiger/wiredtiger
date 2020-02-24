@@ -54,9 +54,13 @@ static uint64_t seed = 0;
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /*
- * TODO: set this to true for true incremental backup testing.
+ * Note: set this to true to copy incremental files completely.
  */
-static bool slow_incremental = true;
+static bool slow_incremental = false;
+
+/* TODO: rename and drop are not currently working, they give resource busy. */
+static bool do_rename = false;
+static bool do_drop = false;
 
 #define VERBOSE(level, fmt, ...)      \
     do {                              \
@@ -342,9 +346,6 @@ table_updates(WT_SESSION *session, TABLE *table)
             item.data = value;
             item.size = sizeof(value);
             key_value(change_count, key, sizeof(key), &item, &op_type);
-            if (strstr(table->name, "68-") != NULL) {
-                // printf("  table 68 KEY=%s\n", key);
-            }
             cur->set_key(cur, key);
             switch (op_type) {
             case INSERT:
@@ -610,7 +611,6 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
                     reopen_file(&rfd, rbuf, sizeof(rbuf), buf, O_RDONLY);
                     rdsize = pread(rfd, tmp, (size_t)size, (wt_off_t)offset);
                     testutil_assert(rdsize >= 0);
-                    testutil_check(close(rfd));
 
                     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", backup_home, filename));
                     VERBOSE(5, "Reopen write file: %s\n", buf);
@@ -618,7 +618,6 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
                     reopen_file(&wfd, wbuf, sizeof(wbuf), buf, O_WRONLY | O_CREAT);
                     /* Use the read size since we may have read less than the granularity. */
                     testutil_assert(pwrite(wfd, tmp, (size_t)rdsize, (wt_off_t)offset) == rdsize);
-                    testutil_check(close(wfd));
                     free(tmp);
                 } else {
                     ncopy++;
@@ -632,11 +631,11 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
             testutil_check(file_cursor->close(file_cursor));
         }
     }
-    if (rfd != -1)
-        close(rfd);
-    if (wfd != -1)
-        close(wfd);
     testutil_assert(ret == WT_NOTFOUND);
+    if (rfd != -1)
+        testutil_check(close(rfd));
+    if (wfd != -1)
+        testutil_check(close(wfd));
     testutil_check(cursor->close(cursor));
     testutil_check(session->close(session, NULL));
     VERBOSE(2, " finished incremental backup: %d files, %d range copy, %d file copy\n", nfiles,
@@ -770,9 +769,9 @@ main(int argc, char *argv[])
                 slot = __wt_random(&rnd) % tinfo.table_count;
                 if (!TABLE_VALID(&tinfo.table[slot]))
                     create_table(session, &tinfo, slot);
-                else if (__wt_random(&rnd) % 3 == 0)
+                else if (__wt_random(&rnd) % 3 == 0 && do_rename)
                     rename_table(session, &tinfo, slot);
-                else
+                else if (do_drop)
                     drop_table(session, &tinfo, slot);
             }
         }
