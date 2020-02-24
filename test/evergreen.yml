@@ -723,7 +723,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/../test/csuite/incr_backup/smoke.sh 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_incr_backup 2>&1
 
   - name: csuite-random-abort-test
     tags: ["pull_request"]
