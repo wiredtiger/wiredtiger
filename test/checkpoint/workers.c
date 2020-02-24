@@ -247,9 +247,8 @@ real_worker(void)
 
     for (i = 0; i < g.nops && g.running; ++i, __wt_yield()) {
         keyno = __wt_random(&rnd) % g.nkeys + 1;
-        for (j = 0; ret == 0 && j < g.ntables; j++) {
+        for (j = 0; ret == 0 && j < g.ntables; j++)
             ret = worker_op(cursors[j], keyno, i);
-        }
         if (ret != 0 && ret != WT_ROLLBACK) {
             (void)log_print_err("worker op failed", ret, 1);
             goto err;
