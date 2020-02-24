@@ -249,9 +249,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * metadata pages. Otherwise, eviction may select uncommitted metadata updates to write to
          * disk.
          */
-        if (F_ISSET(r, WT_REC_VISIBLE_ALL) && !WT_IS_METADATA(session->dhandle) ?
-            WT_TXNID_LE(r->last_running, txnid) && (!is_hs_page) :
-            !__txn_visible_id(session, txnid)) {
+        if (!is_hs_page && (F_ISSET(r, WT_REC_VISIBLE_ALL) && !WT_IS_METADATA(session->dhandle) ?
+                               WT_TXNID_LE(r->last_running, txnid) :
+                               !__txn_visible_id(session, txnid))) {
             has_newer_updates = true;
             continue;
         }
