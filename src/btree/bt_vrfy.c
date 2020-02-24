@@ -550,8 +550,7 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
         buf->size = strlen("[Root]");
         return (buf->data);
     }
-    __wt_ref_info_all(
-      session, ref, &addr, &addr_size, NULL, &start_ts, &stop_ts, &start_txn, &stop_txn);
+    __wt_ref_info_all(session, ref, &addr, &addr_size, &start_ts, &stop_ts, &start_txn, &stop_txn);
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_buf_fmt(session, buf, "%s %s,%s", __wt_addr_string(session, addr, addr_size, tmp),
       addr != NULL ? __wt_time_pair_to_string(start_ts, start_txn, tp_string[0]) : "-/-",
@@ -734,7 +733,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
           __wt_page_type_string(page->type)));
 
     /* Track the shape of the tree. */
-    if (WT_PAGE_IS_INTERNAL(page))
+    if (F_ISSET(ref, WT_REF_IS_INTERNAL))
         ++vs->depth_internal[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];
     else
         ++vs->depth_leaf[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];

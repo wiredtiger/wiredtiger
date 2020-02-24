@@ -31,6 +31,7 @@ from helper import copy_wiredtiger_home
 import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
+from wtscenario import make_scenarios
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 def timestamp_str(t):
@@ -39,12 +40,25 @@ def timestamp_str(t):
 # test_rollback_to_stable05.py
 # Test that rollback to stable cleans history store for non-timestamp tables.
 class test_rollback_to_stable05(test_rollback_to_stable_base):
-    # Force a small cache.
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
+    in_memory_values = [
+        ('no_inmem', dict(in_memory=False)),
+        ('inmem', dict(in_memory=True))
+    ]
+
+    scenarios = make_scenarios(in_memory_values)
+
+    def conn_config(self):
+        config = ''
+        if self.in_memory:
+            config += 'cache_size=100MB,statistics=(all),in_memory=true'
+        else:
+            config += 'cache_size=50MB,statistics=(all),log=(enabled),in_memory=false'
+        return config
+
     def test_rollback_to_stable(self):
-        nrows = 5000
+        nrows = 1000
 
         # Create two tables without logging.
         uri_1 = "table:rollback_to_stable05_1"
@@ -98,7 +112,8 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
 
         # Checkpoint to ensure that all the data is flushed.
-        self.session.checkpoint()
+        if not self.in_memory:
+            self.session.checkpoint()
 
         # Clear all running transactions before rollback to stable.
         session_2.commit_transaction()
@@ -110,8 +125,8 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
-        upd_aborted = (stat_cursor[stat.conn.txn_rts_upd_aborted][2] +
-            stat_cursor[stat.conn.txn_rts_hs_removed][2])
+        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
+        hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
         pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
@@ -120,8 +135,14 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
         self.assertEqual(calls, 1)
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
-        self.assertEqual(pages_visited, 0)
-        self.assertGreaterEqual(upd_aborted, nrows * 3 * 2)
+        if self.in_memory:
+            self.assertGreaterEqual(pages_visited, 0)
+            self.assertEqual(upd_aborted, 0)
+            self.assertEqual(hs_removed, 0)
+        else:
+            self.assertEqual(pages_visited, 0)
+            self.assertEqual(upd_aborted, 0)
+            self.assertEqual(hs_removed, nrows * 3 * 2)
 
 if __name__ == '__main__':
     wttest.run()

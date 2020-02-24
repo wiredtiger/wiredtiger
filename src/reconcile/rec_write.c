@@ -1395,8 +1395,12 @@ __wt_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      *
      * Pages with skipped or not-yet-globally visible updates aren't really empty; otherwise, the
      * page is truly empty and we will merge it into its parent during the parent's reconciliation.
+     *
+     * Checkpoint never writes uncommited changes to disk and only saves the updates to move older
+     * updates to the history store. Thus it can consider the reconciliation done if there are no
+     * more entries left to write. This will also remove its reference entry from its parent.
      */
-    if (r->entries == 0 && r->supd_next == 0)
+    if (r->entries == 0 && (r->supd_next == 0 || F_ISSET(r, WT_REC_CHECKPOINT)))
         return (0);
 
     /* Set the number of entries and size for the just finished chunk. */
@@ -1811,24 +1815,23 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     if (F_ISSET(r, WT_REC_IN_MEMORY))
         goto copy_image;
 
-    /* If we need to restore the page to memory, copy the disk image. */
-    if (r->cache_write_restore && multi->supd != NULL) {
-        WT_ASSERT(session, F_ISSET(r, WT_REC_EVICT) && r->leave_dirty);
-        goto copy_image;
+    /* Check the eviction flag as checkpoint also saves updates. */
+    if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
+        /*
+         * XXX If no entries were used, the page is empty and we can only restore eviction/restore
+         * or history store updates against empty row-store leaf pages, column-store modify attempts
+         * to allocate a zero-length array.
+         */
+        if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
+            return (__wt_set_return(session, EBUSY));
+
+        /* If we need to restore the page to memory, copy the disk image. */
+        if (r->cache_write_restore)
+            goto copy_image;
+
+        if (chunk->entries == 0)
+            return (0);
     }
-
-    WT_ASSERT(session, F_ISSET(r, WT_REC_CHECKPOINT) || !r->leave_dirty || multi->supd == NULL);
-    /*
-     * XXX If no entries were used, the page is empty and we can only restore eviction/restore or
-     * history store updates against empty row-store leaf pages, column-store modify attempts to
-     * allocate a zero-length array.
-     */
-    if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
-        return (__wt_set_return(session, EBUSY));
-
-    /* If no entries were used, we have nothing to do. */
-    if (chunk->entries == 0)
-        return (0);
 
     /*
      * If we wrote this block before, re-use it. Prefer a checksum of the compressed image. It's an

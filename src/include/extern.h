@@ -1817,8 +1817,6 @@ static inline bool __wt_rec_need_split(WT_RECONCILE *r, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state,
   uint8_t new_state, const char *func, int line) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline bool __wt_ref_is_leaf(WT_SESSION_IMPL *session, WT_REF *ref)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_ref_is_root(WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp,
   WT_CELL **cellp, void *datap, size_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -2163,12 +2161,12 @@ static inline void __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r
 static inline void __wt_rec_incr(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size);
 static inline void __wt_ref_info(
-  WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep, bool *is_leafp);
+  WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep);
 static inline void __wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp,
-  size_t *sizep, bool *is_leafp, wt_timestamp_t *start_ts, wt_timestamp_t *stop_ts,
-  uint64_t *start_txn, uint64_t *stop_txn);
+  size_t *sizep, wt_timestamp_t *start_ts, wt_timestamp_t *stop_ts, uint64_t *start_txn,
+  uint64_t *stop_txn);
 static inline void __wt_ref_info_lock(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, size_t *sizep, bool *is_leafp);
+  WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, size_t *sizep);
 static inline void __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep);
 static inline void __wt_ref_key_clear(WT_REF *ref);
 static inline void __wt_ref_key_onpage_set(WT_PAGE *page, WT_REF *ref, WT_CELL_UNPACK *unpack);

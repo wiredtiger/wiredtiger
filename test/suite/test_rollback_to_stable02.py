@@ -31,6 +31,7 @@ from helper import copy_wiredtiger_home
 import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
+from wtscenario import make_scenarios
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 def timestamp_str(t):
@@ -39,9 +40,22 @@ def timestamp_str(t):
 # test_rollback_to_stable02.py
 # Test that rollback to stable brings back the history value to replace on-disk value.
 class test_rollback_to_stable02(test_rollback_to_stable_base):
-    # Force a small cache.
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
+
+    in_memory_values = [
+        ('no_inmem', dict(in_memory=False)),
+        ('inmem', dict(in_memory=True))
+    ]
+
+    scenarios = make_scenarios(in_memory_values)
+
+    def conn_config(self):
+        config = ''
+        if self.in_memory:
+            config += 'cache_size=250MB,statistics=(all),in_memory=true'
+        else:
+            config += 'cache_size=50MB,statistics=(all),log=(enabled),in_memory=false'
+        return config
 
     def test_rollback_to_stable(self):
         nrows = 10000
@@ -79,7 +93,8 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         # Pin stable to timestamp 10.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
         # Checkpoint to ensure that all the data is flushed.
-        self.session.checkpoint()
+        if not self.in_memory:
+            self.session.checkpoint()
 
         self.conn.rollback_to_stable()
         # Check that the new updates are only seen after the update timestamp.
