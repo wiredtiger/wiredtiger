@@ -84,24 +84,25 @@ clock_thread(void *arg)
 
     g.ts = 0;
     while (g.running) {
-        __wt_writelock(session, &g.clock_lock);
-        ++g.ts;
-        testutil_check(
-          __wt_snprintf(buf, sizeof(buf), "oldest_timestamp=%x,stable_timestamp=%x", g.ts, g.ts));
-        testutil_check(g.conn->set_timestamp(g.conn, buf));
-        if (g.ts % 997 == 0) {
+        if (__wt_try_writelock(session, &g.clock_lock) == 0) {
+            ++g.ts;
+            testutil_check(__wt_snprintf(
+              buf, sizeof(buf), "oldest_timestamp=%x,stable_timestamp=%x", g.ts, g.ts));
+            testutil_check(g.conn->set_timestamp(g.conn, buf));
+            if (g.ts % 997 == 0) {
+                /*
+                 * Random value between 6 and 10 seconds.
+                 */
+                delay = __wt_random(&rnd) % 5;
+                __wt_sleep(delay + 6, 0);
+            }
+            __wt_writeunlock(session, &g.clock_lock);
             /*
-             * Random value between 6 and 10 seconds.
+             * Random value between 5000 and 10000.
              */
-            delay = __wt_random(&rnd) % 5;
-            __wt_sleep(delay + 6, 0);
+            delay = __wt_random(&rnd) % 5001;
+            __wt_sleep(0, delay + 5000);
         }
-        __wt_writeunlock(session, &g.clock_lock);
-        /*
-         * Random value between 5000 and 10000.
-         */
-        delay = __wt_random(&rnd) % 5001;
-        __wt_sleep(0, delay + 5000);
     }
 
     testutil_check(wt_session->close(wt_session, NULL));
