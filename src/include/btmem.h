@@ -828,7 +828,7 @@ struct __wt_ref {
 #define WT_REF_SPLIT 5      /* Parent page split (WT_REF dead) */
     volatile uint8_t state; /* Page state */
 
-    uint8_t __unused[3]; /* Padding */
+    uint8_t unused[3]; /* Padding */
 
     /*
      * Address: on-page cell if read from backing block, off-page WT_ADDR if instantiated in-memory,
