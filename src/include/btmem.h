@@ -820,7 +820,7 @@ struct __wt_ref {
     WT_PAGE *volatile home;        /* Reference page */
     volatile uint32_t pindex_hint; /* Reference page index hint */
 
-    uint8_t __unused[2]; /* Padding */
+    uint8_t unused[2]; /* Padding */
 
 /*
  * Define both an internal- and leaf-page flag for now: we only need one, but for now it provides an
