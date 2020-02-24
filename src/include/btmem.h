@@ -820,12 +820,13 @@ struct __wt_ref {
     WT_PAGE *volatile home;        /* Reference page */
     volatile uint32_t pindex_hint; /* Reference page index hint */
 
-    uint8_t unused[2]; /* Padding */
+    uint8_t unused[2]; /* Padding: before the flags field so flags can be easily expanded. */
 
 /*
- * Define both an internal- and leaf-page flag for now: we only need one, but for now it provides an
- * easy way to assert a page-type flag is always set until that work is debugged. If we run out of
- * flags, remove the internal flag and rewrite any tests using it to be "!leaf" instead.
+ * Define both internal- and leaf-page flags for now: we only need one, but it provides an easy way
+ * to assert a page-type flag is always set (we allocate WT_REFs in lots of places and it's easy to
+ * miss one). If we run out of bits in the flags field, remove the internal flag and rewrite tests
+ * depending on it to be "!leaf" instead.
  */
 #define WT_REF_IS_INTERNAL 0x01 /* Page is an internal page */
 #define WT_REF_IS_LEAF 0x02     /* Page is a leaf page */
