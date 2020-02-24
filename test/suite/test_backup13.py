@@ -50,19 +50,161 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
     home_full = "WT_BLOCK_LOG_FULL"
     home_incr = "WT_BLOCK_LOG_INCR"
     logpath = "logpath"
-    nops=10
+    nops=1000
     mult=0
     max_iteration=7
     counter=0
     new_table=False
     initial_backup=False
-    all_files = []
-    bkup_files = []
 
     pfx = 'test_backup'
     # Set the key and value big enough that we modify a few blocks.
     bigkey = 'Key' * 100
     bigval = 'Value' * 100
+
+    #
+    # Set up all the directories needed for the test. We have a full backup directory for each
+    # iteration and an incremental backup for each iteration. That way we can compare the full and
+    # incremental each time through.
+    #
+    def setup_directories(self):
+        for i in range(0, self.max_iteration):
+            remove_dir = self.home_incr + '.' + str(i)
+
+            create_dir = self.home_incr + '.' + str(i) + '/' + self.logpath
+            if os.path.exists(remove_dir):
+                os.remove(remove_dir)
+            os.makedirs(create_dir)
+
+            if i == 0:
+                continue
+
+            remove_dir = self.home_full + '.' + str(i)
+            create_dir = self.home_full + '.' + str(i) + '/' + self.logpath
+            if os.path.exists(remove_dir):
+                os.remove(remove_dir)
+            os.makedirs(create_dir)
+
+    def take_full_backup(self):
+
+        if self.counter != 0:
+            hdir = self.home_full + '.' + str(self.counter)
+        else:
+            hdir = self.home_incr
+
+        #
+        # First time through we take a full backup into the incremental directories. Otherwise only
+        # into the appropriate full directory.
+        #
+        if self.initial_backup == True:
+            buf = 'incremental=(granularity=1M,enabled=true,this_id=ID0)'
+            cursor = self.session.open_cursor('backup:', None, buf)
+        else:
+            cursor = self.session.open_cursor('backup:', None, None)
+
+        while True:
+            ret = cursor.next()
+            if ret != 0:
+                break
+            newfile = cursor.get_key()
+
+            if self.counter == 0:
+                # Take a full bakcup into each incremental directory
+                for i in range(0, self.max_iteration):
+                    copy_from = newfile
+                    # If it is log file, prepend the path.
+                    if ("WiredTigerLog" in newfile):
+                        copy_to = self.home_incr + '.' + str(i) + '/' + self.logpath
+                    else:
+                        copy_to = self.home_incr + '.' + str(i)
+                    shutil.copy(copy_from, copy_to)
+            else:
+                copy_from = newfile
+                # If it is log file, prepend the path.
+                if ("WiredTigerLog" in newfile):
+                    copy_to = hdir + '/' + self.logpath
+                else:
+                    copy_to = hdir
+
+                shutil.copy(copy_from, copy_to)
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        cursor.close()
+
+    def take_incr_backup(self):
+        # Open the backup data source for incremental backup.
+        buf = 'incremental=(src_id="ID' +  str(self.counter-1) + '",this_id="ID' + str(self.counter) + '")'
+        bkup_c = self.session.open_cursor('backup:', None, buf)
+        while True:
+            ret = bkup_c.next()
+            if ret != 0:
+                break
+            newfile = bkup_c.get_key()
+            h = self.home_incr + '.0'
+            copy_from = newfile
+            # If it is log file, prepend the path.
+            if ("WiredTigerLog" in newfile):
+                copy_to = h + '/' + self.logpath
+            else:
+                copy_to = h
+
+            shutil.copy(copy_from, copy_to)
+
+            first = True
+
+            config = 'incremental=(file=' + newfile + ')'
+            dup_cnt = 0
+            incr_c = self.session.open_cursor(None, bkup_c, config)
+
+            # For each file listed, open a duplicate backup cursor and copy the blocks.
+            while True:
+                ret = incr_c.next()
+                if ret != 0:
+                    break
+                incrlist = incr_c.get_keys()
+                offset = incrlist[0]
+                size = incrlist[1]
+                curtype = incrlist[2]
+                # 1 is WT_BACKUP_FILE
+                # 2 is WT_BACKUP_RANGE
+                self.assertTrue(curtype == 1 or curtype == 2)
+                if curtype == 1:
+                    if first == True:
+                        h = self.home_incr + '.' + str(self.counter)
+                        first = False
+
+                    copy_from = newfile
+                    if ("WiredTigerLog" in newfile):
+                        copy_to = h + '/' + self.logpath
+                    else:
+                        copy_to = h
+                    shutil.copy(copy_from, copy_to)
+                else:
+                    self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
+                    write_from = newfile
+                    write_to = self.home_incr + '.' + str(self.counter) + '/' + newfile
+                    rfp = open(write_from, "r+b")
+                    wfp = open(write_to, "w+b")
+                    rfp.seek(offset, 0)
+                    wfp.seek(offset, 0)
+                    buf = rfp.read(size)
+                    wfp.write(buf)
+                    rfp.close()
+                    wfp.close()
+                dup_cnt += 1
+            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+            incr_c.close()
+
+            # For each file, we want to copy the file into each of the later incremental directories
+            for i in range(self.counter, self.max_iteration):
+                h = self.home_incr + '.' + str(i)
+                copy_from = newfile
+                if ("WiredTigerLog" in newfile):
+                    copy_to = h + '/' + self.logpath
+                else:
+                    copy_to = h
+                shutil.copy(copy_from, copy_to)
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        bkup_c.close()
 
     def compare_backups(self, t_uri):
         #
@@ -81,216 +223,44 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
         home_dir = self.home_incr + '.' + str(self.counter)
         self.runWt(['-R', '-h', home_dir, 'dump', t_uri], outfilename=incr_backup_out)
 
-        #self.assertEqual(True,
-            #compare_files(self, full_backup_out, incr_backup_out))
-        if compare_files(self, full_backup_out, incr_backup_out) == True:
-            self.pr(full_backup_out + " & " + full_backup_out + " are identical.")
-        else:
-            self.pr(" ***** NOT identical ****")
+        self.assertEqual(True,
+            compare_files(self, full_backup_out, incr_backup_out))
 
-    def setup_directories(self):
-
-        for i in range(0, self.max_iteration):
-            remove_dir = self.home_incr + '.' + str(i)
-            self.pr("Remove " + remove_dir)
-
-            create_dir = self.home_incr + '.' + str(i) + '/' + self.logpath
-            if os.path.exists(remove_dir):
-                os.remove(remove_dir)
-            os.makedirs(create_dir)
-
-            if i == 0:
-                continue
-            
-            remove_dir = self.home_full + '.' + str(i)
-            create_dir = self.home_full + '.' + str(i) + '/' + self.logpath
-            if os.path.exists(remove_dir):
-                os.remove(remove_dir)
-            os.makedirs(create_dir)
-    
-    def process_finalize_files(self):
-        if self.initial_backup == True:
-            return
-
-        # We need to remove files in the backup directory that are not in the current backup.
-        all_set = set(self.all_files)
-        bkup_set = set(self.bkup_files)
-        rem_files = list(all_set - bkup_set)
-        for l in rem_files:
-            path = 'WT_BLOCK_LOG_*/'
-            if ("WiredTigerLog" in l):
-                path = path + self.logpath
-            path = path + '/' + l
-            self.pr('Remove file: ' + path)
-            fileList = glob.glob(path, recursive=True)
-            for filePath in fileList:
-                os.remove(filePath)
-            #os.remove(self.dir + '/' + l)
-            #os.remove(path)
-
-    def take_full_backup(self):
-
-        if self.counter != 0:
-            hdir = self.home_full + '.' + str(self.counter)
-        else:
-            hdir = self.home_incr
-
-        if self.initial_backup == True:
-            buf = 'incremental=(granularity=1M,enabled=true,this_id=ID0)'
-            cursor = self.session.open_cursor('backup:', None, buf)
-        else:
-            cursor = self.session.open_cursor('backup:', None, None)
-
-        #self.all_files = []
-        while True:
-            ret = cursor.next()
-            if ret != 0:
-                break
-            newfile = cursor.get_key()
-            # If it is log file, prpend the path for cp
-            if ("WiredTigerLog" in newfile):
-                #copy_file = self.logpath + '/' + newfile
-                copy_file = newfile
-            else:
-                copy_file = newfile
-            
-            if self.counter == 0:
-                # Take a full bakcup into each incremental directory
-                for i in range(0, self.max_iteration):
-                    #copy_from = self.home + '/' + copy_file
-                    copy_from = copy_file
-                    if ("WiredTigerLog" in copy_file):
-                        copy_to = self.home_incr + '.' + str(i) + '/' + self.logpath
-                    else:
-                        copy_to = self.home_incr + '.' + str(i)
-                    shutil.copy(copy_from, copy_to)
-            else:
-                #copy_from = self.home + '/' + copy_file
-                copy_from = copy_file
-                if ("WiredTigerLog" in copy_file):
-                    copy_to = hdir + '/' + self.logpath
-                else:
-                    copy_to = hdir
-
-                shutil.copy(copy_from, copy_to)
-            self.all_files.append(newfile)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        cursor.close()
-        #self.process_finalize_files()
-
-    def take_incr_backup(self):
-        buf = 'incremental=(src_id="ID' +  str(self.counter-1) + '",this_id="ID' + str(self.counter) + '")'
-        #print("Increment Backup Config : " , buf)
-        bkup_c = self.session.open_cursor('backup:', None, buf)
-        #self.bkup_files = []
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
-            newfile = bkup_c.get_key()
-            h = self.home_incr + '.0'
-            if ("WiredTigerLog" in newfile):
-                #copy_from = self.home + '/' + self.logpath + '/' + newfile
-                copy_from = newfile
-                copy_to = h + '/' + self.logpath
-            else:
-                #copy_from = self.home + '/' + newfile
-                copy_from = newfile
-                copy_to = h
-        
-            shutil.copy(copy_from, copy_to)
-
-            first = True
-
-            config = 'incremental=(file=' + newfile + ')'
-            #self.pr('Open incremental cursor with Config ' + config)
-            dup_cnt = 0
-            incr_c = self.session.open_cursor(None, bkup_c, config)
-            self.bkup_files.append(newfile)
-            self.all_files.append(newfile)
-            while True:
-                ret = incr_c.next()
-                if ret != 0:
-                    break
-                incrlist = incr_c.get_keys()
-                offset = incrlist[0]
-                size = incrlist[1]
-                curtype = incrlist[2]
-                # 1 is WT_BACKUP_FILE
-                # 2 is WT_BACKUP_RANGE
-                self.assertTrue(curtype == 1 or curtype == 2)
-                if curtype == 1:
-                    if first == True:
-                        h = self.home_incr + '.' + str(self.counter)
-                        first = False
-
-                    #self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-                    if ("WiredTigerLog" in newfile):
-                        #copy_from = self.home + '/' + self.logpath + '/' + newfile
-                        copy_from = newfile
-                        copy_to = h + '/' + self.logpath
-                    else:
-                        #copy_from = self.home + '/' + newfile
-                        copy_from = newfile
-                        copy_to = h
-                    shutil.copy(copy_from, copy_to)
-                else:
-                    self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
-                    #write_from = self.home + '/' + newfile
-                    write_from = newfile
-                    write_to = self.home_incr + '.' + str(self.counter) + '/' + newfile
-                    rfp = open(write_from, "r+b")
-                    wfp = open(write_to, "w+b")
-                    rfp.seek(offset, 0)
-                    wfp.seek(offset, 0)
-                    buf = rfp.read(size)
-                    wfp.write(buf)
-                    rfp.close()
-                    wfp.close()
-                dup_cnt += 1
-            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-            incr_c.close()
-
-            # For each file, we want to copy the file into each of the later incremental directories
-            for i in range(self.counter, self.max_iteration):
-                h = self.home_incr + '.' + str(i)
-                if ("WiredTigerLog" in newfile):
-                    #copy_from = self.home + '/' + self.logpath + '/' + newfile
-                    copy_from = newfile
-                    copy_to = h + '/' + self.logpath
-                else:
-                    #copy_from = self.home + '/' + newfile
-                    copy_from = newfile
-                    copy_to = h
-                shutil.copy(copy_from, copy_to)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        bkup_c.close()
-        #self.process_finalize_files()
-
-
+    #
+    # Add data to the given uri.
+    #
     def add_data(self, uri, bulk_option):
         c = self.session.open_cursor(uri, None, bulk_option)
         for i in range(0, self.nops):
-            num = i + (self.counter * self.nops)
-            #key = self.bigkey + str(num)
-            key = str(num)
-            #val = self.bigval + str(num)
-            val = str(num)
+            num = i + (self.mult * self.nops)
+            key = self.bigkey + str(num)
+            val = self.bigval + str(num)
             c[key] = val
-        #self.session.checkpoint()
         c.close()
+
         # Increase the multiplier so that later calls insert unique items.
+        self.mult += 1
+        # Increase the counter so that later backups have unique ids.
         if self.initial_backup == False:
             self.counter += 1
 
+    #
+    # Remove data from uri (table:main)
+    #
     def remove_data(self):
         c = self.session.open_cursor(self.uri)
-        for i in range(0, self.nops):
-            num = i + (self.counter * self.nops)
-            key = self.bigkey + str(num)
-            c.set_key(key)
-            self.assertEquals(c.remove(), 0)
+        #
+        # We run the outer loop until mult value to make sure we remove all the inserted records
+        # from the main table.
+        #
+        for i in range(0, self.mult):
+            for j in range(i, self.nops):
+                num = j + (i * self.nops)
+                key = self.bigkey + str(num)
+                c.set_key(key)
+                self.assertEquals(c.remove(), 0)
         c.close()
+        # Increase the counter so that later backups have unique ids.
         self.counter += 1
 
     #
@@ -336,10 +306,10 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.add_data(self.uri2, None)
         self.take_incr_backup()
 
-        full_backup_out = 'OutFile.txt'
+        table_list = 'tablelist.txt'
         # Assert if the dropped table (table:main) exists in the incremental folder.
-        self.runWt(['-R', '-h', self.home, 'list'], outfilename=full_backup_out)
-        ret = os.system("grep " + self.uri + " " + full_backup_out)
+        self.runWt(['-R', '-h', self.home, 'list'], outfilename=table_list)
+        ret = os.system("grep " + self.uri + " " + table_list)
         self.assertNotEqual(ret, 0, self.uri + " dropped, but table exists in " + self.home)
 
     #
@@ -359,7 +329,7 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
     #
     def insert_bulk_data(self):
         #
-        # Insert bulk data into logged table.
+        # Insert bulk data into uri3 (table:logged_table).
         #
         self.session.create(self.uri_logged, "key_format=S,value_format=S")
         self.add_data(self.uri_logged, 'bulk')
@@ -368,7 +338,7 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.compare_backups(self.uri_logged)
 
         #
-        # Insert bulk data into not-logged table.
+        # Insert bulk data into uri4 (table:not_logged_table).
         #
         self.session.create(self.uri_not_logged, "key_format=S,value_format=S,log=(enabled=false)")
         self.add_data(self.uri_not_logged, 'bulk')
