@@ -84,13 +84,7 @@ clock_thread(void *arg)
 
     g.stable_ts = 0;
     while (g.running) {
-        /*
-         * We try to acquire the lock here as it may be held by the checkpointer thread, which can
-         * be terminated while it is holding the lock. By trying to acquire we avoid a deadlock on
-         * exit.
-         */
-        if (__wt_try_writelock(session, &g.clock_lock))
-            continue;
+        __wt_writelock(session, &g.clock_lock);
         ++g.stable_ts;
         testutil_check(__wt_snprintf(buf, sizeof(buf), "stable_timestamp=%x", g.stable_ts));
         testutil_check(g.conn->set_timestamp(g.conn, buf));
