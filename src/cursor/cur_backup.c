@@ -351,8 +351,7 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
     return (0);
 
 err:
-    if (blk != NULL)
-        __wt_free(session, blk->id_str);
+    __wt_free(session, blk->id_str);
     return (ret);
 }
 
