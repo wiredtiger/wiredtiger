@@ -78,6 +78,10 @@ class test_backup13(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Now copy the files returned by the backup cursor.
         all_files = []
+        
+        # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
+        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
+        # If that changes then this, and the use of the duplicate below can change.
         while True:
             ret = bkup_c.next()
             if ret != 0:
@@ -117,10 +121,8 @@ class test_backup13(wttest.WiredTigerTestCase, suite_subprocess):
                 offset = incrlist[0]
                 size = incrlist[1]
                 curtype = incrlist[2]
-                # 1 is WT_BACKUP_FILE
-                # 2 is WT_BACKUP_RANGE
-                self.assertTrue(curtype == 1 or curtype == 2)
-                if curtype == 1:
+                self.assertTrue(curtype == wiredtiger.WT_BACKUP_FILE or curtype == wiredtiger.WT_BACKUP_RANGE)
+                if curtype == wiredtiger.WT_BACKUP_FILE:
                     self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
                     shutil.copy(newfile, self.dir)
                 else:
