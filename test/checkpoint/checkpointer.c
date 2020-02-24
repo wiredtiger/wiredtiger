@@ -82,27 +82,31 @@ clock_thread(void *arg)
     testutil_check(g.conn->open_session(g.conn, NULL, NULL, &wt_session));
     session = (WT_SESSION_IMPL *)wt_session;
 
-    g.ts = 0;
+    g.stable_ts = 0;
     while (g.running) {
-        if (__wt_try_writelock(session, &g.clock_lock) == 0) {
-            ++g.ts;
-            testutil_check(__wt_snprintf(
-              buf, sizeof(buf), "oldest_timestamp=%x,stable_timestamp=%x", g.ts, g.ts));
-            testutil_check(g.conn->set_timestamp(g.conn, buf));
-            if (g.ts % 997 == 0) {
-                /*
-                 * Random value between 6 and 10 seconds.
-                 */
-                delay = __wt_random(&rnd) % 5;
-                __wt_sleep(delay + 6, 0);
-            }
-            __wt_writeunlock(session, &g.clock_lock);
+        /*
+         * We try to acquire the lock here as it may be held by the checkpointer thread, which can
+         * be terminated while it is holding the lock. By trying to acquire we avoid a deadlock on
+         * exit.
+         */
+        if (__wt_try_writelock(session, &g.clock_lock))
+            continue;
+        ++g.stable_ts;
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "stable_timestamp=%x", g.stable_ts));
+        testutil_check(g.conn->set_timestamp(g.conn, buf));
+        if (g.stable_ts % 997 == 0) {
             /*
-             * Random value between 5000 and 10000.
+             * Random value between 6 and 10 seconds.
              */
-            delay = __wt_random(&rnd) % 5001;
-            __wt_sleep(0, delay + 5000);
+            delay = __wt_random(&rnd) % 5;
+            __wt_sleep(delay + 6, 0);
         }
+        __wt_writeunlock(session, &g.clock_lock);
+        /*
+         * Random value between 5000 and 10000.
+         */
+        delay = __wt_random(&rnd) % 5001;
+        __wt_sleep(0, delay + 5000);
     }
 
     testutil_check(wt_session->close(wt_session, NULL));
@@ -144,6 +148,7 @@ real_checkpointer(void)
     const char *checkpoint_config;
 
     checkpoint_config = "use_timestamp=false";
+    g.oldest_ts = 0;
 
     if (g.running == 0)
         return (log_print_err("Checkpoint thread started stopped\n", EINVAL, 1));
@@ -170,8 +175,7 @@ real_checkpointer(void)
             return (log_print_err("verify_consistency (online)", ret, 1));
 
         if (g.use_timestamps) {
-            /* Prevent the stable from moving while we checkpoint and verify. */
-            __wt_readlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+            WT_ORDERED_READ(g.oldest_ts, g.stable_ts);
             testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable"));
         }
 
@@ -185,17 +189,17 @@ real_checkpointer(void)
             goto done;
 
         /* Verify the content of the checkpoint at the stable timestamp. */
-        if (g.use_timestamps) {
+        if (g.use_timestamps)
             if ((ret = verify_consistency(session, timestamp_buf)) != 0)
                 return (log_print_err("verify_consistency (timestamps)", ret, 1));
 
-            /* Release our lock so the clock can move forward again. */
-            __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+        /* Advance the oldest timestamp to the most recently set stable timestamp. */
+        if (g.use_timestamps && g.oldest_ts != 0) {
+            testutil_check(__wt_snprintf(
+              timestamp_buf, sizeof(timestamp_buf), "oldest_timestamp=%x", g.oldest_ts));
+            testutil_check(g.conn->set_timestamp(g.conn, timestamp_buf));
         }
-
-        /*
-         * Random value between 4 and 8 seconds.
-         */
+        /* Random value between 4 and 8 seconds. */
         if (g.sweep_stress) {
             delay = __wt_random(&rnd) % 5;
             __wt_sleep(delay + 4, 0);

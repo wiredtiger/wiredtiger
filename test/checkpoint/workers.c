@@ -219,10 +219,10 @@ real_worker(void)
     u_int i, keyno;
     int j, ret, t_ret;
     char buf[128];
-    bool restart_txn;
+    bool start_txn;
 
     ret = t_ret = 0;
-    restart_txn = false;
+    start_txn = true;
 
     if ((cursors = calloc((size_t)(g.ntables), sizeof(WT_CURSOR *))) == NULL)
         return (log_print_err("malloc", ENOMEM, 1));
@@ -240,12 +240,19 @@ real_worker(void)
             goto err;
         }
 
-    if ((ret = session->begin_transaction(session, NULL)) != 0) {
-        (void)log_print_err("real_worker:begin_transaction", ret, 1);
-        goto err;
-    }
-
     for (i = 0; i < g.nops && g.running; ++i, __wt_yield()) {
+        if (start_txn) {
+            if ((ret = session->begin_transaction(session, NULL)) != 0) {
+                (void)log_print_err("real_worker:begin_transaction", ret, 1);
+                goto err;
+            }
+            for (j = 0; j < g.ntables; j++)
+                if ((ret = cursors[j]->reset(cursors[j])) != 0) {
+                    (void)log_print_err("cursor.reset", ret, 1);
+                    goto err;
+                }
+            start_txn = false;
+        }
         keyno = __wt_random(&rnd) % g.nkeys + 1;
         for (j = 0; ret == 0 && j < g.ntables; j++)
             ret = worker_op(cursors[j], keyno, i);
@@ -256,34 +263,27 @@ real_worker(void)
             if (g.use_timestamps) {
                 if (__wt_try_readlock((WT_SESSION_IMPL *)session, &g.clock_lock) == 0) {
                     testutil_check(
-                      __wt_snprintf(buf, sizeof(buf), "commit_timestamp=%x", g.ts + 1));
+                      __wt_snprintf(buf, sizeof(buf), "commit_timestamp=%x", g.stable_ts + 1));
                     __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
                     if ((ret = session->commit_transaction(session, buf)) != 0) {
                         (void)log_print_err("real_worker:commit_transaction", ret, 1);
                         goto err;
                     }
-                    restart_txn = true;
+                    start_txn = true;
                 }
             } else {
                 if ((ret = session->commit_transaction(session, NULL)) != 0) {
                     (void)log_print_err("real_worker:commit_transaction", ret, 1);
                     goto err;
                 }
-                restart_txn = true;
+                start_txn = true;
             }
         } else {
             if ((ret = session->rollback_transaction(session, NULL)) != 0) {
                 (void)log_print_err("real_worker:rollback_transaction", ret, 1);
                 goto err;
             }
-            restart_txn = true;
-        }
-        if (restart_txn) {
-            if ((ret = session->begin_transaction(session, NULL)) != 0) {
-                (void)log_print_err("real_worker:begin_transaction", ret, 1);
-                goto err;
-            }
-            restart_txn = false;
+            start_txn = true;
         }
     }
 

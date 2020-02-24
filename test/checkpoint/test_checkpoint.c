@@ -249,7 +249,8 @@ cleanup(bool remove_dir)
 {
     g.running = 0;
     g.ntables_created = 0;
-    g.ts = 0;
+    g.stable_ts = 0;
+    g.oldest_ts = 0;
 
     if (remove_dir)
         testutil_make_work_dir(g.home);
