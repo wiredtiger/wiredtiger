@@ -227,7 +227,7 @@ active_files_add(ACTIVE_FILES *active, const char *name)
 static int
 active_files_sort_function(const void *left, const void *right)
 {
-    return (strcmp((const char *)left, (const char *)right));
+    return (strcmp(*(const char **)left, *(const char **)right));
 }
 
 /*
@@ -251,6 +251,8 @@ active_files_remove_missing(ACTIVE_FILES *prev, ACTIVE_FILES *cur, const char *d
     int cmp;
     char filename[1024];
 
+    active_files_print(prev, "computing removals: previous list of active files");
+    active_files_print(cur, "computing removals: current list of active files");
     curpos = 0;
     /*
      * Walk through the two lists looking for non-matches.
@@ -272,7 +274,7 @@ again:
             testutil_check(
               __wt_snprintf(filename, sizeof(filename), "%s/%s", dirname, prev->names[prevpos]));
             VERBOSE(3, "Removing file from backup: %s\n", filename);
-            // TODO: remove(filename);
+            remove(filename);
         } else {
             /*
              * There is something in the current list not in the prev list. Walk past it in the
