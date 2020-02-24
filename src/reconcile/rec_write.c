@@ -1395,7 +1395,7 @@ __wt_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      *
      * Pages with skipped or not-yet-globally visible updates aren't really empty; otherwise, the
      * page is truly empty and we will merge it into its parent during the parent's reconciliation.
-     * 
+     *
      * If checkpoint has no entry left to write, reconciliation is done.
      */
     if (r->entries == 0 && (r->supd_next == 0 || F_ISSET(r, WT_REC_CHECKPOINT)))
@@ -1815,9 +1815,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
         /*
-         * XXX If no entries were used, the page is empty and we can only restore eviction/restore or
-         * history store updates against empty row-store leaf pages, column-store modify attempts to
-         * allocate a zero-length array.
+         * XXX If no entries were used, the page is empty and we can only restore eviction/restore
+         * or history store updates against empty row-store leaf pages, column-store modify attempts
+         * to allocate a zero-length array.
          */
         if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
             return (__wt_set_return(session, EBUSY));
