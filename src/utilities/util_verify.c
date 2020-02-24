@@ -125,16 +125,5 @@ usage(void)
       progname, usage_prefix,
       "[-d dump_address | dump_blocks | dump_history | dump_layout | "
       "dump_offsets=#,# | dump_pages] [-s] -a|uri");
-    (void)fprintf(stderr,
-      "Verify options:\n"
-      "\t"
-      "-a\t"
-      "Verify the entire history store, not applicable against a URI\n"
-      "\t"
-      "-d\t"
-      "Dump more information while verifying the URI\n"
-      "\t"
-      "-s\t"
-      "Verify the URI against the stable timestamp, valid only after a rollback-to-stable\n");
     return (1);
 }
