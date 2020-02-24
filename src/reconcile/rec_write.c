@@ -1396,7 +1396,7 @@ __wt_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      * Pages with skipped or not-yet-globally visible updates aren't really empty; otherwise, the
      * page is truly empty and we will merge it into its parent during the parent's reconciliation.
      *
-     * Checkpoint never writes uncommited changes to disk and only saves the updates to move older
+     * Checkpoint never writes uncommitted changes to disk and only saves the updates to move older
      * updates to the history store. Thus it can consider the reconciliation done if there are no
      * more entries left to write. This will also remove its reference entry from its parent.
      */
