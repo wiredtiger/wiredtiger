@@ -129,12 +129,12 @@ usage(void)
       "Verify options:\n"
       "\t"
       "-a\t"
-      "Verify the entire history store, not applicable against a URI \n"
+      "Verify the entire history store, not applicable against a URI\n"
       "\t"
       "-d\t"
       "Dump more information while verifying the URI\n"
       "\t"
       "-s\t"
-      "Verify the URI against the stable timestamp, valid only after a rollback-to-stable \n");
+      "Verify the URI against the stable timestamp, valid only after a rollback-to-stable\n");
     return (1);
 }
