@@ -28,6 +28,7 @@
 
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 def timestamp_str(t):
@@ -40,8 +41,22 @@ def mod_val(value, char, location, nbytes=1):
 # Test that rollback to stable always replaces the on-disk value with a full update
 # from the history store.
 class test_rollback_to_stable04(test_rollback_to_stable_base):
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
+
+    in_memory_values = [
+        ('no_inmem', dict(in_memory=False)),
+        ('inmem', dict(in_memory=True))
+    ]
+
+    scenarios = make_scenarios(in_memory_values)
+
+    def conn_config(self):
+        config = ''
+        if self.in_memory:
+            config += 'cache_size=2GB,statistics=(all),in_memory=true'
+        else:
+            config += 'cache_size=500MB,statistics=(all),log=(enabled),in_memory=false'
+        return config
 
     def test_rollback_to_stable(self):
         nrows = 10000
@@ -104,7 +119,8 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(30))
 
         # Checkpoint to ensure the data is flushed, then rollback to the stable timestamp.
-        self.session.checkpoint()
+        if not self.in_memory:
+            self.session.checkpoint()
         self.conn.rollback_to_stable()
 
         # Check that the correct data is seen at and after the stable timestamp.
@@ -125,8 +141,12 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
         self.assertGreater(pages_visited, 0)
-        self.assertGreaterEqual(upd_aborted, 0)
-        self.assertGreaterEqual(hs_removed, nrows * 11)
+        if self.in_memory:
+            self.assertGreaterEqual(upd_aborted, nrows * 11)
+            self.assertGreaterEqual(hs_removed, 0)
+        else:
+            self.assertGreaterEqual(upd_aborted, 0)
+            self.assertGreaterEqual(hs_removed, nrows * 11)
 
 if __name__ == '__main__':
     wttest.run()
