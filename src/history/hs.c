@@ -746,11 +746,14 @@ int
 __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   WT_ITEM *key, wt_timestamp_t timestamp)
 {
+    WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
-    WT_ITEM srch_key;
     int cmp, exact;
+    bool set_key;
 
-    WT_CLEAR(srch_key);
+    set_key = false;
+
+    WT_RET(__wt_scr_alloc(session, 0, &srch_key));
 
     /*
      * Because of the special visibility rules for the history store, a new key can appear in
@@ -758,13 +761,15 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      * it.
      *
      * Note that we need to compare the raw key off the cursor to determine where we are in the
-     * history store as opposed to comparing the key from the data store since the ordering is not
+     * history store as opposed to comparing the embedded data store key since the ordering is not
      * guaranteed to be the same.
      */
     for (;;) {
         cursor->set_key(cursor, btree_id, key, timestamp, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
-        if (srch_key.data == NULL)
-            WT_ERR(__wt_buf_set(session, &srch_key, cursor->key.data, cursor->key.size));
+        if (!set_key) {
+            set_key = true;
+            WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
+        }
         WT_ERR(cursor->search_near(cursor, &exact));
         if (exact > 0)
             WT_ERR(cursor->prev(cursor));
@@ -773,12 +778,12 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
          * There may be no history store entries for the given btree id and record key if they have
          * been removed by WT_CONNECTION::rollback_to_stable.
          */
-        WT_ERR(__wt_compare(session, NULL, &cursor->key, &srch_key, &cmp));
+        WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
         if (cmp <= 0)
             break;
     }
 err:
-    __wt_buf_free(session, &srch_key);
+    __wt_scr_free(session, &srch_key);
     return (ret);
 }
 

@@ -88,6 +88,7 @@ class test_inmem01(wttest.WiredTigerTestCase):
 
     # Run queries after adding, removing and re-inserting data.
     # Try out keeping a cursor open while adding new data.
+    @unittest.skip("Temporarily disabled")
     def test_insert_over_delete_replace(self):
         msg = '/WT_CACHE_FULL.*/'
         ds = SimpleDataSet(self, self.uri, 10000000, key_format=self.keyfmt,
