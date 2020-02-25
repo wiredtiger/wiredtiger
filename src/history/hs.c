@@ -1107,10 +1107,20 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
     WT_TIME_PAIR hs_start, hs_stop;
     uint32_t hs_btree_id, session_flags;
     int cmp, exact;
+    bool close_hs_cursor;
 
-    session_flags = 0;
+    session_flags = session->flags;
+    close_hs_cursor = false;
 
-    WT_RET(__wt_hs_cursor(session, &session_flags));
+    /*
+     * If we already have a history store cursor then don't open a new one. We do this while writing
+     * updates to the history store so it's important that we don't close the cursor since the upper
+     * layer logic will still be expecting it to be open.
+     */
+    if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
+        WT_RET(__wt_hs_cursor(session, &session_flags));
+        close_hs_cursor = true;
+    }
     hs_cursor = session->hs_cursor;
     /*
      * In order to delete a key range, we need to be able to inspect all history store records
@@ -1145,8 +1155,10 @@ retry:
 done:
     ret = 0;
 err:
-    F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
-    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
+        F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
+    if (close_hs_cursor)
+        WT_TRET(__wt_hs_cursor_close(session, session_flags));
     return (ret);
 }
 
