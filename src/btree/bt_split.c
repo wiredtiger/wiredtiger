@@ -119,6 +119,10 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_REF *ref;
     uint32_t read_flags;
 
+    /*
+     * Ignore pages not in-memory (deleted, on-disk, being read), there's no in-memory structure to
+     * check.
+     */
     read_flags = WT_READ_CACHE | WT_READ_NO_EVICT;
 
     /* The split is complete and live, verify all of the pages involved. */
@@ -126,14 +130,8 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
         /*
-         * An eviction thread might be attempting to evict the page
-         * (the WT_REF may be WT_REF_LOCKED), or it may be a disk based
-         * page (the WT_REF may be WT_REF_READING), or it may be in
-         * some other state.  Acquire a hazard pointer for any
-         * in-memory pages so we know the state of the page.
-         *
-         * Ignore pages not in-memory (deleted, on-disk, being read),
-         * there's no in-memory structure to check.
+         * The page might be in transition, being read or evicted or something else. Acquire a
+         * hazard pointer for the page so we know its state.
          */
         if ((ret = __wt_page_in(session, ref, read_flags)) == WT_NOTFOUND)
             continue;

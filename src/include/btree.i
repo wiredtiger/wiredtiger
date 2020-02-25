@@ -1138,7 +1138,7 @@ __wt_ref_info_lock(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, siz
      */
     for (;; __wt_yield()) {
         previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED && previous_state != WT_REF_READING &&
+        if (previous_state != WT_REF_LOCKED &&
           WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;
     }

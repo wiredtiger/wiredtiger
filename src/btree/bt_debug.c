@@ -1323,6 +1323,30 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 }
 
 /*
+ * __debug_ref_state --
+ *     Return a string representing the WT_REF state.
+ */
+static const char *
+__debug_ref_state(u_int state)
+{
+    switch (state) {
+    case WT_REF_DISK:
+        return ("disk");
+    case WT_REF_DELETED:
+        return ("deleted");
+    case WT_REF_LOCKED:
+        return ("locked");
+    case WT_REF_MEM:
+        return ("memory");
+    case WT_REF_SPLIT:
+        return ("split");
+    default:
+        return ("INVALID");
+    }
+    /* NOTREACHED */
+}
+
+/*
  * __debug_ref --
  *     Dump a WT_REF structure.
  */
@@ -1332,15 +1356,27 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     WT_SESSION_IMPL *session;
     size_t addr_size;
     const uint8_t *addr;
+    const char *flagsep;
 
     session = ds->session;
 
-    __wt_ref_info(session, ref, &addr, &addr_size);
-    return (ds->f(ds,
+    WT_RET(ds->f(ds,
       "\t"
-      "%p %s %s\n",
-      (void *)ref, __wt_ref_state_string(ref->state),
-      __wt_addr_string(session, addr, addr_size, ds->t1)));
+      "%p %s (",
+      (void *)ref, __debug_ref_state(ref->state)));
+    flagsep = "";
+    if (F_ISSET(ref, WT_REF_IS_INTERNAL)) {
+        WT_RET(ds->f(ds, "%s%s", flagsep, "internal"));
+        flagsep = ", ";
+    }
+    if (F_ISSET(ref, WT_REF_IS_LEAF)) {
+        WT_RET(ds->f(ds, "%s%s", flagsep, "leaf"));
+        flagsep = ", ";
+    }
+    if (F_ISSET(ref, WT_REF_READING))
+        WT_RET(ds->f(ds, "%s%s", flagsep, "reading"));
+    __wt_ref_info(session, ref, &addr, &addr_size);
+    return (ds->f(ds, ") %s\n", __wt_addr_string(session, addr, addr_size, ds->t1)));
 }
 
 /*

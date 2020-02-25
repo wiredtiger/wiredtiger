@@ -160,16 +160,19 @@ __wt_rec_child_modify(
              * We should never be here during eviction, active child pages in an evicted page's
              * subtree fails the eviction attempt.
              */
-            WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
-            if (F_ISSET(r, WT_REC_EVICT))
-                return (__wt_set_return(session, EBUSY));
+            WT_ERR_ASSERT(session, !F_ISSET(r, WT_REC_EVICT), EBUSY,
+              "unexpected WT_REF_LOCKED child state during eviction reconciliation");
+
+            /* If the page is being read from disk, it's not modified by definition. */
+            if (F_ISSET(ref, WT_REF_READING))
+                goto done;
 
             /*
-             * If called during checkpoint, the child is being considered by the eviction server or
-             * the child is a truncated page being read. The eviction may have started before the
-             * checkpoint and so we must wait for the eviction to be resolved. I suspect we could
-             * handle reads of truncated pages, but we can't distinguish between the two and reads
-             * of truncated pages aren't expected to be common.
+             * Otherwise, the child is being considered by the eviction server or the child is a
+             * deleted page being read. The eviction may have started before the checkpoint and so
+             * we must wait for the eviction to be resolved. I suspect we could handle reads of
+             * deleted pages, but we can't distinguish between the two and reads of deleted pages
+             * aren't expected to be common.
              */
             break;
 
@@ -180,9 +183,8 @@ __wt_rec_child_modify(
              * We should never be here during eviction, active child pages in an evicted page's
              * subtree fails the eviction attempt.
              */
-            WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
-            if (F_ISSET(r, WT_REC_EVICT))
-                return (__wt_set_return(session, EBUSY));
+            WT_ERR_ASSERT(session, !F_ISSET(r, WT_REC_EVICT), EBUSY,
+              "unexpected WT_REF_MEM child state during eviction reconciliation");
 
             /*
              * If called during checkpoint, acquire a hazard pointer so the child isn't evicted,
@@ -205,18 +207,6 @@ __wt_rec_child_modify(
             *hazardp = true;
             goto in_memory;
 
-        case WT_REF_READING:
-            /*
-             * Being read, not modified by definition.
-             *
-             * We should never be here during eviction, active child pages in an evicted page's
-             * subtree fails the eviction attempt.
-             */
-            WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
-            if (F_ISSET(r, WT_REC_EVICT))
-                return (__wt_set_return(session, EBUSY));
-            goto done;
-
         case WT_REF_SPLIT:
             /*
              * The page was split out from under us.
@@ -228,8 +218,8 @@ __wt_rec_child_modify(
              * checkpoint, all splits in process will have completed before we walk any pages for
              * checkpoint.
              */
-            WT_ASSERT(session, WT_REF_SPLIT != WT_REF_SPLIT);
-            return (__wt_set_return(session, EBUSY));
+            WT_ERR_ASSERT(
+              session, false, EBUSY, "unexpected WT_REF_SPLIT child state during reconciliation");
 
         default:
             return (__wt_illegal_value(session, r->tested_ref_state));

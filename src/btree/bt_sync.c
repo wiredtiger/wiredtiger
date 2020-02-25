@@ -199,7 +199,7 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
     /* Lock the ref to avoid any change during the obsolete checks.*/
     for (;; __wt_yield()) {
         previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED && previous_state != WT_REF_READING &&
+        if (previous_state != WT_REF_LOCKED &&
           WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;
     }
