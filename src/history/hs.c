@@ -746,45 +746,40 @@ int
 __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   WT_ITEM *key, wt_timestamp_t timestamp)
 {
-    WT_ITEM hs_key;
-    WT_TIME_PAIR hs_start, hs_stop;
-    uint32_t hs_btree_id;
+    WT_DECL_RET;
+    WT_ITEM srch_key;
     int cmp, exact;
+
+    WT_CLEAR(srch_key);
 
     /*
      * Because of the special visibility rules for the history store, a new key can appear in
      * between our search and the set of updates that we're interested in. Keep trying until we find
      * it.
+     *
+     * Note that we need to compare the raw key off the cursor to determine where we are in the
+     * history store as opposed to comparing the key from the data store since the ordering is not
+     * guaranteed to be the same.
      */
     for (;;) {
         cursor->set_key(cursor, btree_id, key, timestamp, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
-        WT_RET(cursor->search_near(cursor, &exact));
+        if (srch_key.data == NULL)
+            WT_ERR(__wt_buf_set(session, &srch_key, cursor->key.data, cursor->key.size));
+        WT_ERR(cursor->search_near(cursor, &exact));
         if (exact > 0)
-            WT_RET(cursor->prev(cursor));
+            WT_ERR(cursor->prev(cursor));
 
         /*
-         * Because of the special visibility rules for the history store, a new key can appear in
-         * between our search and the set of updates we're interested in. Keep trying while we have
-         * a key lower than we expect.
-         *
          * There may be no history store entries for the given btree id and record key if they have
          * been removed by WT_CONNECTION::rollback_to_stable.
          */
-        WT_CLEAR(hs_key);
-        WT_RET(cursor->get_key(cursor, &hs_btree_id, &hs_key, &hs_start.timestamp, &hs_start.txnid,
-          &hs_stop.timestamp, &hs_stop.txnid));
-        if (hs_btree_id < btree_id)
-            return (0);
-        else if (hs_btree_id == btree_id) {
-            WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
-            if (cmp < 0)
-                return (0);
-            if (cmp == 0 && hs_start.timestamp <= timestamp)
-                return (0);
-        }
+        WT_ERR(__wt_compare(session, NULL, &cursor->key, &srch_key, &cmp));
+        if (cmp <= 0)
+            break;
     }
-
-    /* NOTREACHED */
+err:
+    __wt_buf_free(session, &srch_key);
+    return (ret);
 }
 
 /*
