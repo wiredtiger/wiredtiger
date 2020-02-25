@@ -1165,6 +1165,7 @@ err:
     if (close_hs_cursor)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
     else
+        /* If the cursor isn't ours to close then at least release the page we're pointing at. */
         WT_TRET(hs_cursor->reset(hs_cursor));
     return (ret);
 }
@@ -1184,12 +1185,11 @@ __hs_delete_key_from_pos(
     WT_TIME_PAIR hs_start, hs_stop;
     WT_UPDATE *upd;
     size_t size;
-    uint32_t hs_btree_id, session_flags;
+    uint32_t hs_btree_id;
     int cmp;
 
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     upd = NULL;
-    session_flags = session->flags;
 
     /* If there is nothing else in history store, we're done here. */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
