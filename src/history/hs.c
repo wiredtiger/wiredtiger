@@ -644,6 +644,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
                 __wt_modify_vector_pop(&modifies, &upd);
+                if (upd->start_ts == WT_TS_NONE)
+                    WT_ERR(__wt_hs_delete_key(session, btree_id, key));
             } else
                 continue;
         }
@@ -669,6 +671,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
 
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
+                if (prev_upd->start_ts == WT_TS_NONE)
+                    WT_ERR(__wt_hs_delete_key(session, btree_id, key));
                 __wt_modify_vector_pop(&modifies, &prev_upd);
                 /* The base value of a modify newer than a tombstone is the empty value. */
                 WT_ERR(__hs_calculate_full_value(session, prev_full_value, prev_upd, "", 0));

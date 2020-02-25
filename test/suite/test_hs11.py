@@ -46,7 +46,7 @@ class test_hs11(wttest.WiredTigerTestCase):
         value1 = 'a' * 500
         value2 = 'b' * 500
 
-        # Apply a series of updates from timestamps 1-5.
+        # Apply a series of updates from timestamps 1-4.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(uri)
         for ts in range(1, 5):
@@ -55,7 +55,7 @@ class test_hs11(wttest.WiredTigerTestCase):
                 cursor[str(i)] = value1
                 self.session.commit_transaction('commit_timestamp=' + timestamp_str(ts))
 
-        # Reconcile and flush versions 1-4 to the history store.
+        # Reconcile and flush versions 1-3 to the history store.
         self.session.checkpoint()
 
         # Apply a non-timestamped tombstone. When the pages get evicted, the keys will get deleted
