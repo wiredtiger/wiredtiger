@@ -847,18 +847,12 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     __wt_cache_page_inmem_decr(session, parent, parent_decr);
 
     /*
-     * Swapping in the new page index released the page for eviction, we can no longer look inside
-     * the page, be careful logging the results.
+     * We've discarded the WT_REFs and swapping in a new page index released the page for eviction;
+     * we can no longer look inside the WT_REF or the page, be careful logging the results.
      */
-    if (ref->page == NULL)
-        __wt_verbose(session, WT_VERB_SPLIT,
-          "%p: reverse split into parent %p, %" PRIu32 " -> %" PRIu32 " (-%" PRIu32 ")",
-          (void *)ref->page, (void *)parent, parent_entries, result_entries,
-          parent_entries - result_entries);
-    else
-        __wt_verbose(session, WT_VERB_SPLIT,
-          "%p: split into parent %p, %" PRIu32 " -> %" PRIu32 " (+%" PRIu32 ")", (void *)ref->page,
-          (void *)parent, parent_entries, result_entries, result_entries - parent_entries);
+    __wt_verbose(session, WT_VERB_SPLIT,
+      "%p: split into parent, %" PRIu32 "->%" PRIu32 ", %" PRIu32 " deleted", (void *)ref,
+      parent_entries, result_entries, deleted_entries);
 
 err:
     __wt_scr_free(session, &scr);
