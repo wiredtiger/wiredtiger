@@ -18,9 +18,9 @@
  * pages of the truncate range, then walks the tree with a flag so the tree walk code skips reading
  * eligible pages within the range and instead just marks them as deleted, by changing their WT_REF
  * state to WT_REF_DELETED. Pages ineligible for this fast path include pages already in the cache,
- * having overflow items, or requiring lookaside records. Ineligible pages are read and have their
- * rows updated/deleted individually. The transaction for the delete operation is stored in memory
- * referenced by the WT_REF.page_del field.
+ * having overflow items, or requiring history store records. Ineligible pages are read and have
+ * their rows updated/deleted individually. The transaction for the delete operation is stored in
+ * memory referenced by the WT_REF.page_del field.
  *
  * Future cursor walks of the tree will skip the deleted page based on the transaction stored for
  * the delete, but it gets more complicated if a read is done using a random key, or a cursor walk
@@ -58,13 +58,13 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     WT_ADDR *ref_addr;
     WT_DECL_RET;
-    uint32_t previous_state;
+    uint8_t previous_state;
 
     *skipp = false;
 
     /* If we have a clean page in memory, attempt to evict it. */
     previous_state = ref->state;
-    if ((previous_state == WT_REF_MEM || previous_state == WT_REF_LIMBO) &&
+    if (previous_state == WT_REF_MEM &&
       WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
         if (__wt_page_is_modified(ref->page)) {
             WT_REF_SET_STATE(ref, previous_state);
@@ -84,7 +84,6 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     previous_state = ref->state;
     switch (previous_state) {
     case WT_REF_DISK:
-    case WT_REF_LOOKASIDE:
         break;
     default:
         return (0);
@@ -158,7 +157,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_UPDATE **updp;
     uint64_t sleep_usecs, yield_count;
-    uint32_t current_state;
+    uint8_t current_state;
     bool locked;
 
     /* Lock the reference. We cannot access ref->page_del except when locked. */
@@ -173,8 +172,6 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
                 locked = true;
             break;
         case WT_REF_DISK:
-        case WT_REF_LIMBO:
-        case WT_REF_LOOKASIDE:
         case WT_REF_READING:
         default:
             return (__wt_illegal_value(session, current_state));
@@ -238,13 +235,10 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
      * being read into memory right now, though, and the page could switch to an in-memory state at
      * any time. Lock down the structure, just to be safe.
      */
-    if (ref->page_del == NULL && ref->page_las == NULL)
-        return (true);
-
     if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
         return (false);
 
-    skip = !__wt_page_del_active(session, ref, visible_all) && !__wt_page_las_active(session, ref);
+    skip = !__wt_page_del_active(session, ref, visible_all);
 
     /*
      * The page_del structure can be freed as soon as the delete is stable: it is only read when the
@@ -349,7 +343,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * Allocate the per-page update array if one doesn't already exist. (It might already exist
-     * because deletes are instantiated after lookaside table updates.)
+     * because deletes are instantiated after the history store table updates.)
      */
     if (page->entries != 0 && page->modify->mod_row_update == NULL)
         WT_RET(__wt_calloc_def(session, page->entries, &page->modify->mod_row_update));

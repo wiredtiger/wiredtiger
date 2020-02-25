@@ -1062,12 +1062,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 }
 
                 /*
-                 * Writes to the lookaside file can be evicted as soon as they commit.
+                 * Don't reset the timestamp of the history store records with history store
+                 * transaction timestamp. Those records should already have the original time pair
+                 * when they are inserted into the history store.
                  */
-                if (conn->cache->las_fileid != 0 && fileid == conn->cache->las_fileid) {
-                    upd->txnid = WT_TXN_NONE;
+                if (conn->cache->hs_fileid != 0 && fileid == conn->cache->hs_fileid)
                     break;
-                }
 
                 __wt_txn_op_set_timestamp(session, op);
             } else {
@@ -1216,9 +1216,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-        /* Assert it's not an update to the lookaside file. */
-        WT_ASSERT(
-          session, S2C(session)->cache->las_fileid == 0 || !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
+        /* Assert it's not an update to the history store file. */
+        WT_ASSERT(session, S2C(session)->cache->hs_fileid == 0 || !WT_IS_HS(op->btree));
 
         /* Metadata updates should never be prepared. */
         WT_ASSERT(session, !WT_IS_METADATA(op->btree->dhandle));
@@ -1329,6 +1328,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+        /* Assert it's not an update to the history store file. */
+        WT_ASSERT(session, S2C(session)->cache->hs_fileid == 0 || !WT_IS_HS(op->btree));
+
         /* Metadata updates should never be rolled back. */
         WT_ASSERT(session, !WT_IS_METADATA(op->btree->dhandle));
         if (WT_IS_METADATA(op->btree->dhandle))
@@ -1344,6 +1346,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
             upd = op->u.op_upd;
 
             if (!prepare) {
+                if (S2C(session)->cache->hs_fileid != 0 &&
+                  op->btree->id == S2C(session)->cache->hs_fileid)
+                    break;
                 WT_ASSERT(session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
                 upd->txnid = WT_TXN_ABORTED;
             } else {
@@ -1481,6 +1486,10 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, txn_pinned_checkpoint_range,
       checkpoint_pinned == WT_TXN_NONE ? 0 : txn_global->current - checkpoint_pinned);
 
+    WT_STAT_SET(session, stats, txn_checkpoint_prep_max, conn->ckpt_prep_max);
+    WT_STAT_SET(session, stats, txn_checkpoint_prep_min, conn->ckpt_prep_min);
+    WT_STAT_SET(session, stats, txn_checkpoint_prep_recent, conn->ckpt_prep_recent);
+    WT_STAT_SET(session, stats, txn_checkpoint_prep_total, conn->ckpt_prep_total);
     WT_STAT_SET(session, stats, txn_checkpoint_time_max, conn->ckpt_time_max);
     WT_STAT_SET(session, stats, txn_checkpoint_time_min, conn->ckpt_time_min);
     WT_STAT_SET(session, stats, txn_checkpoint_time_recent, conn->ckpt_time_recent);
@@ -1855,9 +1864,6 @@ __wt_verbose_dump_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     switch (upd->type) {
     case WT_UPDATE_INVALID:
         upd_type = "WT_UPDATE_INVALID";
-        break;
-    case WT_UPDATE_BIRTHMARK:
-        upd_type = "WT_UPDATE_BIRTHMARK";
         break;
     case WT_UPDATE_MODIFY:
         upd_type = "WT_UPDATE_MODIFY";

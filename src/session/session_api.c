@@ -223,7 +223,7 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
              */
             WT_TRET_NOTFOUND_OK(cursor->reopen(cursor, false));
         else if (session->event_handler->handle_close != NULL &&
-          strcmp(cursor->internal_uri, WT_LAS_URI) != 0)
+          strcmp(cursor->internal_uri, WT_HS_URI) != 0)
             /*
              * Notify the user that we are closing the cursor handle via the registered close
              * callback.
@@ -1566,6 +1566,7 @@ err:
 static int
 __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
@@ -1576,10 +1577,24 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
-    WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_worker(session, uri, __wt_verify,
-                                              NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
+    WT_ERR(__wt_config_gets(session, cfg, "history_store", &cval));
+    if (cval.val == true) {
+        /* Can't give a URI with history store verification. */
+        if (uri != NULL)
+            WT_ERR_MSG(session, EINVAL, "URI not applicable when verifying the history store");
 
+        WT_WITH_CHECKPOINT_LOCK(session,
+          WT_WITH_SCHEMA_LOCK(session, ret = __wt_verify_history_store_tree(session, NULL)));
+    } else {
+        WT_WITH_CHECKPOINT_LOCK(session,
+          WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_worker(session, uri, __wt_verify, NULL,
+                                         cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
+        WT_ERR(ret);
+        /* TODO: WT-5643 Add history store verification for non file URI */
+        if (WT_PREFIX_MATCH(uri, "file:"))
+            WT_WITH_CHECKPOINT_LOCK(session,
+              WT_WITH_SCHEMA_LOCK(session, ret = __wt_verify_history_store_tree(session, uri)));
+    }
 err:
     if (ret != 0)
         WT_STAT_CONN_INCR(session, session_table_verify_fail);

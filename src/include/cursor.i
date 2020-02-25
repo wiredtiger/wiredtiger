@@ -368,29 +368,27 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 }
 
 /*
- * __cursor_row_slot_return --
- *     Return a row-store leaf page slot's K/V pair.
+ * __cursor_row_slot_key_return --
+ *     Return a row-store leaf page slot's key.
  */
 static inline int
-__cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
+__cursor_row_slot_key_return(
+  WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK *kpack, bool *kpack_used)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
-    WT_CELL_UNPACK *kpack, _kpack, *vpack, _vpack;
-    WT_ITEM *kb, *vb;
+    WT_ITEM *kb;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
     void *copy;
+
+    *kpack_used = false;
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     btree = S2BT(session);
     page = cbt->ref->page;
 
-    kpack = NULL;
-    vpack = &_vpack;
-
     kb = &cbt->iface.key;
-    vb = &cbt->iface.value;
 
     /*
      * The row-store key can change underfoot; explicitly take a copy.
@@ -405,7 +403,7 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
      * First, check for an immediately available key.
      */
     if (__wt_row_leaf_key_info(page, copy, NULL, &cell, &kb->data, &kb->size))
-        goto value;
+        return (0);
 
     /* Huffman encoded keys are a slow path in all cases. */
     if (btree->huffman_key != NULL)
@@ -419,9 +417,9 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
      * do it in lots of other places), but disabling shared builds (--disable-shared) results in the
      * compiler complaining about uninitialized field use.
      */
-    kpack = &_kpack;
     memset(kpack, 0, sizeof(*kpack));
     __wt_cell_unpack(session, page, cell, kpack);
+    *kpack_used = true;
     if (kpack->type == WT_CELL_KEY && cbt->rip_saved != NULL && cbt->rip_saved == rip - 1) {
         WT_ASSERT(session, cbt->row_key->size >= kpack->prefix);
 
@@ -447,21 +445,5 @@ slow:
     kb->data = cbt->row_key->data;
     kb->size = cbt->row_key->size;
     cbt->rip_saved = rip;
-
-value:
-    /*
-     * If the item was ever modified, use the WT_UPDATE data.  Note the
-     * caller passes us the update: it has already resolved which one
-     * (if any) is visible.
-     */
-    if (upd != NULL)
-        return (__wt_value_return(cbt, upd));
-
-    /* Else, simple values have their location encoded in the WT_ROW. */
-    if (__wt_row_leaf_value(page, rip, vb))
-        return (0);
-
-    /* Else, take the value from the original page cell. */
-    __wt_row_leaf_value_cell(session, page, rip, kpack, vpack);
-    return (__wt_page_cell_data_ref(session, cbt->ref->page, vpack, vb));
+    return (0);
 }
