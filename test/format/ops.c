@@ -564,7 +564,7 @@ ops_open_session(TINFO *tinfo, bool *ckpt_handlep)
      * WT_SESSION.open_cursor can return EBUSY if concurrent with a metadata operation, retry.
      */
     while ((ret = session->open_cursor(session, g.uri, NULL, "append", &cursor)) == EBUSY)
-            __wt_yield();
+        __wt_yield();
     testutil_checkfmt(ret, "%s", g.uri);
     *ckpt_handlep = false;
 
