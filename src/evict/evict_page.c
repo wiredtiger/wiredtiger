@@ -281,14 +281,6 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         }
     }
 
-    /*
-     * When deleting a chunk of the name-space, we can delete internal pages. However, if we are
-     * ever forced to re-instantiate that piece of the namespace, it comes back as a leaf page. Set
-     * the WT_REF type now so scanning cursors treat this chunk of the name space correctly.
-     */
-    F_CLR(ref, WT_REF_IS_INTERNAL);
-    F_SET(ref, WT_REF_IS_LEAF);
-
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
     return (0);
 }
