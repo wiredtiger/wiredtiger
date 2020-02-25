@@ -9,6 +9,12 @@
 #include "wt_internal.h"
 
 /*
+ * Rollback to stable should ignore tombstones in the history store since it needs to scan the
+ * entire table sequentially.
+ */
+#define WT_SESSION_ROLLBACK_TO_STABLE_FLAGS (WT_SESSION_IGNORE_HS_TOMBSTONE)
+
+/*
  * __rollback_abort_newer_update --
  *     Abort updates in an update change with timestamps newer than the rollback timestamp. Also,
  *     clear the history store flag for the first stable update in the update.
@@ -968,9 +974,9 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, &session));
 
-    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
+    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS);
     ret = __rollback_to_stable(session, cfg);
-    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
+    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS);
 
     /*
      * Forcibly log a checkpoint after rollback to stable to ensure that both in-memory and on-disk

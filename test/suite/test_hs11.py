@@ -61,8 +61,9 @@ class test_hs11(wttest.WiredTigerTestCase):
         # Apply a non-timestamped tombstone. When the pages get evicted, the keys will get deleted
         # since the tombstone is globally visible.
         for i in range(1, 10000):
-            cursor.set_key(str(i))
-            cursor.remove()
+            if i % 2 == 0:
+                cursor.set_key(str(i))
+                cursor.remove()
 
         # Now apply an update at timestamp 10 to recreate each key.
         for i in range(1, 10000):
@@ -74,6 +75,10 @@ class test_hs11(wttest.WiredTigerTestCase):
         for ts in range(1, 5):
             self.session.begin_transaction('read_timestamp=' + timestamp_str(ts))
             for i in range(1, 10000):
-                cursor.set_key(str(i))
-                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+                self.printVerbose(0, "blah: {}".format(i))
+                if i % 2 == 0:
+                    cursor.set_key(str(i))
+                    self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+                else:
+                    self.assertEqual(cursor[str(i)], value1)
             self.session.rollback_transaction()

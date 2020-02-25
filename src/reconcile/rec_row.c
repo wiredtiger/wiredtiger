@@ -739,8 +739,6 @@ __wt_rec_row_leaf(
 
     upd = NULL;
 
-    remove_key = false;
-
     /*
      * Acquire the newest-durable timestamp for this page so we can roll it forward. If it exists,
      * it's in the WT_REF structure or the parent's disk image.
@@ -780,6 +778,7 @@ __wt_rec_row_leaf(
             --slvg_skip;
             continue;
         }
+        remove_key = false;
 
         /*
          * Figure out the key: set any cell reference (and unpack it), set any instantiated key
@@ -1025,16 +1024,20 @@ leaf_insert:
         /* Write any K/V pairs inserted into the page after this key. */
         if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip))) != NULL)
             WT_ERR(__rec_row_leaf_insert(session, r, ins));
+        /*
+         * If we're removing a key, we should also remove the history store contents associated with
+         * that key. Even if we fail reconciliation after this point, we're safe to do this. In
+         * order for us to consider removing the key, a globally visible tombstone must exist
+         * meaning that the history store content is obsolete in any case.
+         */
+        if (remove_key) {
+            WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
+            WT_ERR(__wt_hs_delete_key(session, btree->id, tmpkey));
+        }
     }
 
     /* Write the remnant page. */
     ret = __wt_rec_split_finish(session, r);
-    /*
-     * If we're removing a key, we should also remove the history store contents associated with
-     * that key.
-     */
-    if (ret == 0 && remove_key)
-        ret = __wt_hs_delete_key(session, btree->id, tmpkey);
 
 err:
     /* Free the update if it is external. */

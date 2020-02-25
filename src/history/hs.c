@@ -444,6 +444,8 @@ err:
          */
         WT_TRET(__wt_cursor_key_order_init(cbt));
 #endif
+        /* We're pointing at the newly inserted update. Iterate once more to avoid deleting it. */
+        WT_TRET(cursor->next(cursor));
         WT_TRET(__hs_delete_key_from_pos(session, cursor, btree_id, key));
     }
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
@@ -1108,7 +1110,13 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
 
     WT_RET(__wt_hs_cursor(session, &session_flags));
     hs_cursor = session->hs_cursor;
-    hs_cursor->set_key(hs_cursor, btree_id, key, WT_TS_NONE, WT_TXN_NONE);
+    /*
+     * In order to delete a key range, we need to be able to inspect all history store records
+     * regardless of their stop time pairs.
+     */
+    F_SET(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
+retry:
+    hs_cursor->set_key(hs_cursor, btree_id, key, WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TXN_NONE);
     ret = hs_cursor->search_near(hs_cursor, &exact);
     /* Empty history store is fine. */
     if (ret == WT_NOTFOUND)
@@ -1128,10 +1136,14 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
     WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
     if (cmp != 0)
         goto done;
-    WT_ERR(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key));
+    ret = __hs_delete_key_from_pos(session, hs_cursor, btree_id, key);
+    if (ret == WT_RESTART)
+        goto retry;
+    WT_ERR(ret);
 done:
     ret = 0;
 err:
+    F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
     WT_TRET(__wt_hs_cursor_close(session, session_flags));
     return (ret);
 }
@@ -1151,27 +1163,20 @@ __hs_delete_key_from_pos(
     WT_TIME_PAIR hs_start, hs_stop;
     WT_UPDATE *upd;
     size_t size;
-    uint32_t hs_btree_id;
+    uint32_t hs_btree_id, session_flags;
     int cmp;
 
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     upd = NULL;
+    session_flags = session->flags;
 
-#ifdef HAVE_DIAGNOSTIC
     /*
-     * If we've decided we need to delete a key from the history store, we should have JUST inserted
-     * a zero timestamp update into the history store. Assuming this, we can just keep iterating
-     * until we hit the key boundary, inserting tombstones as we go.
+     * In order to delete a key range, we need to be able to scan all records regardless of their
+     * stop time pairs.
      */
-    WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start.timestamp,
-      &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
-    WT_ASSERT(session, hs_btree_id == btree_id);
-    WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
-    WT_ASSERT(session, cmp == 0);
-    WT_ASSERT(session, hs_start.timestamp == 0);
-#endif
+    F_SET(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
+
     /* If there is nothing else in history store, we're done here. */
-    ret = hs_cursor->next(hs_cursor);
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start.timestamp,
           &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
@@ -1199,6 +1204,9 @@ __hs_delete_key_from_pos(
     if (ret == WT_NOTFOUND)
         return (0);
 err:
+    /* Turn off the flag if it wasn't already on before we entered this function. */
+    if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
+        F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
     __wt_free(session, upd);
     return (ret);
 }
