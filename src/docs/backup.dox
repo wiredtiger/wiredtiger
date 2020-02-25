@@ -111,7 +111,7 @@ backup.
 
 2. Begin the incremental backup by opening a backup cursor with the
 \c backup: URI and config string of \c incremental=(src_id="ID1",this_id="ID2").
-Let’s call this \c backup_cursor. Like a normal full backup cursor,
+Call this \c backup_cursor. Like a normal full backup cursor,
 this cursor will return the filename as the key.  There is no associated
 value.  The information returned will be based on blocks tracked since the time of
 the previous backup designated with "ID1".  New block tracking will be started as
@@ -123,7 +123,7 @@ backup cursor to do the incremental backup on that file.  The list
 returned will also include log files, \c WiredTigerLog, that need to
 be copied. Configure that duplicate cursor with \c incremental=(file=name).
 The name comes from the string returned from \c backup_cursor->get_key().
-Let’s call this incr_cursor.
+Call this incr_cursor.
 
 4. The key format for the duplicate backup cursor, \c incr_cursor, is
 \c qqq, representing a file offset and size pair plus a type indicator
