@@ -478,6 +478,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
             root_incr += sizeof(WT_IKEY) + size;
         } else
             ref->ref_recno = (*root_refp)->ref_recno;
+        F_SET(ref, WT_REF_IS_INTERNAL);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
         /*
@@ -1020,6 +1021,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
             parent_incr += sizeof(WT_IKEY) + size;
         } else
             ref->ref_recno = (*page_refp)->ref_recno;
+        F_SET(ref, WT_REF_IS_INTERNAL);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
         /*
@@ -1575,6 +1577,20 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     WT_IKEY *ikey;
     WT_REF *ref;
 
+    /* There can be an address or a disk image or both. */
+    WT_ASSERT(session, multi->addr.addr != NULL || multi->disk_image != NULL);
+
+    /* If closing the file, there better be an address. */
+    WT_ASSERT(session, !closing || multi->addr.addr != NULL);
+
+    /* If closing the file, there better not be any saved updates. */
+    WT_ASSERT(session, !closing || multi->supd == NULL);
+
+    /* Verify any disk image we have. */
+    WT_ASSERT(session, multi->disk_image == NULL ||
+        __wt_verify_dsk_image(
+          session, "[page instantiate]", multi->disk_image, 0, &multi->addr, true) == 0);
+
     /* Allocate an underlying WT_REF. */
     WT_RET(__wt_calloc_one(session, refp));
     ref = *refp;
@@ -1598,19 +1614,15 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         break;
     }
 
-    /* There can be an address or a disk image or both. */
-    WT_ASSERT(session, multi->addr.addr != NULL || multi->disk_image != NULL);
-
-    /* If closing the file, there better be an address. */
-    WT_ASSERT(session, !closing || multi->addr.addr != NULL);
-
-    /* If closing the file, there better not be any saved updates. */
-    WT_ASSERT(session, !closing || multi->supd == NULL);
-
-    /* Verify any disk image we have. */
-    WT_ASSERT(session, multi->disk_image == NULL ||
-        __wt_verify_dsk_image(
-          session, "[page instantiate]", multi->disk_image, 0, &multi->addr, true) == 0);
+    switch (page->type) {
+    case WT_PAGE_COL_INT:
+    case WT_PAGE_ROW_INT:
+        F_SET(ref, WT_REF_IS_INTERNAL);
+        break;
+    default:
+        F_SET(ref, WT_REF_IS_LEAF);
+        break;
+    }
 
     /*
      * If there's an address, the page was written, set it.
@@ -1708,8 +1720,9 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->page = ref->page;
     child->home = ref->home;
     child->pindex_hint = ref->pindex_hint;
-    child->state = WT_REF_MEM;
     child->addr = ref->addr;
+    F_SET(child, WT_REF_IS_LEAF);
+    child->state = WT_REF_MEM;
 
     WT_ERR_ASSERT(session, ref->page_del == NULL, WT_PANIC,
       "unexpected page-delete structure when splitting a page");
@@ -1771,6 +1784,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     parent_incr += sizeof(WT_REF);
     child = split_ref[1];
     child->page = right;
+    F_SET(child, WT_REF_IS_LEAF);
     child->state = WT_REF_MEM;
 
     if (type == WT_PAGE_ROW_LEAF) {

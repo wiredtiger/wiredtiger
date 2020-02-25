@@ -566,7 +566,7 @@ __debug_tree_shape_worker(WT_DBG *ds, WT_REF *ref, int level)
 
     session = ds->session;
 
-    if (WT_PAGE_IS_INTERNAL(ref->page)) {
+    if (F_ISSET(ref, WT_REF_IS_INTERNAL)) {
         WT_RET(ds->f(ds,
           "%*s"
           "I"
@@ -1335,7 +1335,7 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 
     session = ds->session;
 
-    __wt_ref_info(session, ref, &addr, &addr_size, NULL);
+    __wt_ref_info(session, ref, &addr, &addr_size);
     return (ds->f(ds,
       "\t"
       "%p %s %s\n",

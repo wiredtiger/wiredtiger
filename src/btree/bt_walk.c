@@ -245,7 +245,8 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
     WT_PAGE_INDEX *pindex;
     WT_REF *couple, *ref, *ref_orig;
     uint64_t restart_sleep, restart_yield;
-    uint32_t current_state, slot;
+    uint32_t slot;
+    uint8_t current_state;
     bool empty_internal, prev, skip;
 
     btree = S2BT(session);
@@ -464,7 +465,7 @@ descend:
                 couple = NULL;
 
                 /* Return leaf pages to our caller. */
-                if (!WT_PAGE_IS_INTERNAL(ref->page)) {
+                if (F_ISSET(ref, WT_REF_IS_LEAF)) {
                     *refp = ref;
                     goto done;
                 }
@@ -571,7 +572,7 @@ __tree_walk_skip_count_callback(WT_SESSION_IMPL *session, WT_REF *ref, void *con
      */
     if (ref->state == WT_REF_DELETED && __wt_delete_page_skip(session, ref, false))
         *skipp = true;
-    else if (*skipleafcntp > 0 && __wt_ref_is_leaf(session, ref)) {
+    else if (*skipleafcntp > 0 && F_ISSET(ref, WT_REF_IS_LEAF)) {
         --*skipleafcntp;
         *skipp = true;
     } else

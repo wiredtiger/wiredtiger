@@ -31,6 +31,7 @@ from helper import copy_wiredtiger_home
 import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
+from wtscenario import make_scenarios
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 def timestamp_str(t):
@@ -39,8 +40,22 @@ def timestamp_str(t):
 # test_rollback_to_stable03.py
 # Test that rollback to stable clears the history store updates from reconciled pages.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
-    conn_config = 'cache_size=4GB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
+
+    in_memory_values = [
+        ('no_inmem', dict(in_memory=False)),
+        ('inmem', dict(in_memory=True))
+    ]
+
+    scenarios = make_scenarios(in_memory_values)
+
+    def conn_config(self):
+        config = 'cache_size=4GB,statistics=(all)'
+        if self.in_memory:
+            config += ',in_memory=true'
+        else:
+            config += ',log=(enabled),in_memory=false'
+        return config
 
     def test_rollback_to_stable(self):
         nrows = 1000
@@ -68,7 +83,8 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         # Pin stable to timestamp 10.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
         # Checkpoint to ensure that all the updates are flushed to disk.
-        self.session.checkpoint()
+        if not self.in_memory:
+            self.session.checkpoint()
 
         self.conn.rollback_to_stable()
         # Check that the old updates are only seen even with the update timestamp.
@@ -86,7 +102,10 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         self.assertEqual(calls, 1)
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
-        self.assertEqual(hs_removed, nrows)
+        if self.in_memory:
+            self.assertEqual(hs_removed, 0)
+        else:
+            self.assertEqual(hs_removed, nrows)
         self.assertEqual(upd_aborted, nrows)
         self.assertGreater(pages_visited, 0)
 

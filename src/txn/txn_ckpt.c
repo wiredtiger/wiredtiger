@@ -455,10 +455,11 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    /* Output a verbose progress message for long running checkpoints */
+    /* Output a verbose progress message for long running checkpoints. */
     if (conn->ckpt_progress_msg_count > 0)
         __wt_checkpoint_progress(session, true);
 
+    /* Compute end-to-end timer statistics for checkpoint. */
     __wt_epoch(session, &stop);
     msec = WT_TIMEDIFF_MS(stop, conn->ckpt_timer_scrub_end);
 
@@ -468,6 +469,16 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
         conn->ckpt_time_min = msec;
     conn->ckpt_time_recent = msec;
     conn->ckpt_time_total += msec;
+
+    /* Compute timer statistics for the checkpoint prepare. */
+    msec = WT_TIMEDIFF_MS(conn->ckpt_prep_end, conn->ckpt_prep_start);
+
+    if (msec > conn->ckpt_prep_max)
+        conn->ckpt_prep_max = msec;
+    if (conn->ckpt_prep_min == 0 || msec < conn->ckpt_prep_min)
+        conn->ckpt_prep_min = msec;
+    conn->ckpt_prep_recent = msec;
+    conn->ckpt_prep_total += msec;
 }
 
 /*
@@ -539,6 +550,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * Note: we don't go through the public API calls because they have side effects on cursors,
      * which applications can hold open across calls to checkpoint.
      */
+    WT_STAT_CONN_SET(session, txn_checkpoint_prep_running, 1);
+    __wt_epoch(session, &conn->ckpt_prep_start);
     WT_RET(__wt_txn_begin(session, txn_cfg));
 
     WT_DIAGNOSTIC_YIELD;
@@ -632,6 +645,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_WITH_TABLE_READ_LOCK(
       session, ret = __checkpoint_apply_operation(session, cfg, __wt_checkpoint_get_handles));
 
+    __wt_epoch(session, &conn->ckpt_prep_end);
+    WT_STAT_CONN_SET(session, txn_checkpoint_prep_running, 0);
     return (ret);
 }
 

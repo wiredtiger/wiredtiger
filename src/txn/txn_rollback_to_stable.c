@@ -334,7 +334,6 @@ __rollback_abort_row_ondisk_kv(
         return (0);
 
     WT_ERR(__rollback_row_add_update(session, page, rip, upd));
-    WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
     return (0);
 
 err:
@@ -501,12 +500,17 @@ __rollback_abort_newer_row_leaf(
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
             __rollback_abort_newer_insert(session, insert, rollback_timestamp);
 
-        /* Abort any on-disk value. */
-        WT_RET(__rollback_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
+        /* If the configuration is not in-memory, abort any on-disk value. */
+        if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+            WT_RET(__rollback_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
     }
 
-    /* Abort history store updates from the reconciled pages of data store. */
-    WT_RET(__rollback_abort_row_reconciled_page(session, page, rollback_timestamp));
+    /*
+     * If the configuration is not in-memory, abort history store updates from the reconciled pages
+     * of data store.
+     */
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+        WT_RET(__rollback_abort_row_reconciled_page(session, page, rollback_timestamp));
     return (0);
 }
 
@@ -640,14 +644,14 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
     ref = NULL;
     while ((ret = __wt_tree_walk(
               session, &ref, WT_READ_CACHE_LEAF | WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
-      ref != NULL) {
-        if (WT_PAGE_IS_INTERNAL(ref->page)) {
+      ref != NULL)
+        if (F_ISSET(ref, WT_REF_IS_INTERNAL)) {
             WT_INTL_FOREACH_BEGIN (session, ref->page, child_ref) {
                 WT_RET(__rollback_abort_newer_updates(session, child_ref, rollback_timestamp));
             }
             WT_INTL_FOREACH_END;
         }
-    }
+
     return (ret);
 }
 
@@ -783,10 +787,10 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
     ret = hs_cursor->search_near(hs_cursor, &exact);
 
     /*
-     * The search should always end up pointing either to the start of the required btree or end of
-     * previous btree. Move the cursor based on the result.
+     * The search should always end up pointing to the start of the required btree or end of the
+     * previous btree on success. Move the cursor based on the result.
      */
-    WT_ASSERT(session, exact != 0);
+    WT_ASSERT(session, (ret != 0 || exact != 0));
     if (ret == 0 && exact < 0)
         ret = hs_cursor->next(hs_cursor);
 
@@ -880,7 +884,15 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             WT_ERR_NOTFOUND_OK(ret);
         }
 
-        WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
+        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
+        /* Ignore performing rollback to stable on files that don't exist. */
+        if (ret == ENOENT) {
+            __wt_verbose(
+              session, WT_VERB_RTS, "%s: rollback to stable ignored on non existing file", uri);
+            continue;
+        }
+        WT_ERR(ret);
+
         /*
          * The rollback operation should be performed on this file based on the following:
          * 1. The tree is modified.
@@ -973,10 +985,11 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
     F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
 
     /*
-     * Forcibly log a checkpoint after rollback to stable to ensure that both in-memory and on-disk
-     * versions are same.
+     * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to
+     * ensure that both in-memory and on-disk versions are the same.
      */
-    WT_TRET(session->iface.checkpoint(&session->iface, "force=1"));
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+        WT_TRET(session->iface.checkpoint(&session->iface, "force=1"));
     WT_TRET(session->iface.close(&session->iface, NULL));
 
     return (ret);
