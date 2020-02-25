@@ -559,38 +559,14 @@ ops_open_session(TINFO *tinfo, bool *ckpt_handlep)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
-     * 10% of the time, perform some read-only operations from a checkpoint.
-     * Skip if we are using data-sources or LSM, they don't support reading
-     * from checkpoints.
+     * Configure "append", in the case of column stores, we append when inserting new rows.
+     *
+     * WT_SESSION.open_cursor can return EBUSY if concurrent with a metadata operation, retry.
      */
-    cursor = NULL;
-    if (!DATASOURCE("lsm") && mmrand(&tinfo->rnd, 1, 10) == 1) {
-        /*
-         * WT_SESSION.open_cursor can return EBUSY if concurrent with a metadata operation, retry.
-         */
-        while ((ret = session->open_cursor(
-                  session, g.uri, NULL, "checkpoint=WiredTigerCheckpoint", &cursor)) == EBUSY)
+    while ((ret = session->open_cursor(session, g.uri, NULL, "append", &cursor)) == EBUSY)
             __wt_yield();
-
-        /*
-         * If the checkpoint hasn't been created yet, ignore the error.
-         */
-        if (ret != ENOENT) {
-            testutil_check(ret);
-            *ckpt_handlep = true;
-        }
-    }
-    if (cursor == NULL) {
-        /*
-         * Configure "append", in the case of column stores, we append when inserting new rows.
-         *
-         * WT_SESSION.open_cursor can return EBUSY if concurrent with a metadata operation, retry.
-         */
-        while ((ret = session->open_cursor(session, g.uri, NULL, "append", &cursor)) == EBUSY)
-            __wt_yield();
-        testutil_checkfmt(ret, "%s", g.uri);
-        *ckpt_handlep = false;
-    }
+    testutil_checkfmt(ret, "%s", g.uri);
+    *ckpt_handlep = false;
 
     tinfo->session = session;
     tinfo->cursor = cursor;
