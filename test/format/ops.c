@@ -675,7 +675,14 @@ ops(void *arg)
 
             /* Pick the next truncate operation. */
             truncate_op += mmrand(&tinfo->rnd, 20000, 100000);
-        }
+        } else if (i < g.c_delete_pct)
+            op = REMOVE;
+        else if (i < g.c_delete_pct + g.c_insert_pct)
+            op = INSERT;
+        else if (i < g.c_delete_pct + g.c_insert_pct + g.c_modify_pct)
+            op = MODIFY;
+        else if (i < g.c_delete_pct + g.c_insert_pct + g.c_modify_pct + g.c_write_pct)
+            op = UPDATE;
 
         /* Select a row. */
         tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)g.rows);
