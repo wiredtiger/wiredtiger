@@ -65,8 +65,8 @@ typedef struct {
     volatile int running;          /* Whether to stop */
     int status;                    /* Exit status */
     bool sweep_stress;             /* Sweep stress test */
-    u_int stable_ts;               /* Current stable timestamp */
-    u_int oldest_ts;               /* Current oldest timestamp */
+    u_int ts_oldest;               /* Current oldest timestamp */
+    u_int ts_stable;               /* Current stable timestamp */
     bool use_timestamps;           /* Use txn timestamps */
     COOKIE *cookies;               /* Per-thread info */
     WT_RWLOCK clock_lock;          /* Clock synchronization */

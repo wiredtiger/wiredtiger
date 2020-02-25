@@ -216,12 +216,14 @@ real_worker(void)
     WT_CURSOR **cursors;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
-    u_int i, keyno;
+    u_int i, keyno, next_rnd;
     int j, ret, t_ret;
     char buf[128];
-    bool start_txn;
+    const char *begin_cfg;
+    bool reopen_cursors, start_txn;
 
     ret = t_ret = 0;
+    reopen_cursors = false;
     start_txn = true;
 
     if ((cursors = calloc((size_t)(g.ntables), sizeof(WT_CURSOR *))) == NULL)
@@ -231,6 +233,11 @@ real_worker(void)
         (void)log_print_err("conn.open_session", ret, 1);
         goto err;
     }
+
+    if (g.use_timestamps)
+        begin_cfg = "read_timestamp=1,roundup_timestamps=(read=true)";
+    else
+        begin_cfg = NULL;
 
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
@@ -242,15 +249,10 @@ real_worker(void)
 
     for (i = 0; i < g.nops && g.running; ++i, __wt_yield()) {
         if (start_txn) {
-            if ((ret = session->begin_transaction(session, NULL)) != 0) {
+            if ((ret = session->begin_transaction(session, begin_cfg)) != 0) {
                 (void)log_print_err("real_worker:begin_transaction", ret, 1);
                 goto err;
             }
-            for (j = 0; j < g.ntables; j++)
-                if ((ret = cursors[j]->reset(cursors[j])) != 0) {
-                    (void)log_print_err("cursor.reset", ret, 1);
-                    goto err;
-                }
             start_txn = false;
         }
         keyno = __wt_random(&rnd) % g.nkeys + 1;
@@ -259,24 +261,34 @@ real_worker(void)
         if (ret != 0 && ret != WT_ROLLBACK) {
             (void)log_print_err("worker op failed", ret, 1);
             goto err;
-        } else if (ret == 0 && __wt_random(&rnd) % 7 != 0) {
-            if (g.use_timestamps) {
-                if (__wt_try_readlock((WT_SESSION_IMPL *)session, &g.clock_lock) == 0) {
-                    testutil_check(
-                      __wt_snprintf(buf, sizeof(buf), "commit_timestamp=%x", g.stable_ts + 1));
-                    __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
-                    if ((ret = session->commit_transaction(session, buf)) != 0) {
+        } else if (ret == 0) {
+            next_rnd = __wt_random(&rnd);
+            if (next_rnd % 7 != 0) {
+                if (g.use_timestamps) {
+                    if (__wt_try_readlock((WT_SESSION_IMPL *)session, &g.clock_lock) == 0) {
+                        testutil_check(
+                          __wt_snprintf(buf, sizeof(buf), "commit_timestamp=%x", g.ts_stable + 1));
+                        __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                        if ((ret = session->commit_transaction(session, buf)) != 0) {
+                            (void)log_print_err("real_worker:commit_transaction", ret, 1);
+                            goto err;
+                        }
+                        start_txn = true;
+                        /* Occasionally reopen cursors during after committing. */
+                        if (next_rnd % 13 == 0) {
+                            reopen_cursors = true;
+                        }
+                    }
+                } else {
+                    if ((ret = session->commit_transaction(session, NULL)) != 0) {
                         (void)log_print_err("real_worker:commit_transaction", ret, 1);
                         goto err;
                     }
                     start_txn = true;
                 }
-            } else {
-                if ((ret = session->commit_transaction(session, NULL)) != 0) {
-                    (void)log_print_err("real_worker:commit_transaction", ret, 1);
-                    goto err;
-                }
-                start_txn = true;
+            } else if (next_rnd % 15 == 0) {
+                /* Occasionally reopen cursors during a running transaction. */
+                reopen_cursors = true;
             }
         } else {
             if ((ret = session->rollback_transaction(session, NULL)) != 0) {
@@ -284,6 +296,17 @@ real_worker(void)
                 goto err;
             }
             start_txn = true;
+        }
+        if (reopen_cursors) {
+            for (j = 0; j < g.ntables; j++) {
+                testutil_check(cursors[j]->close(cursors[j]));
+                if ((ret = session->open_cursor(
+                       session, g.cookies[j].uri, NULL, NULL, &cursors[j])) != 0) {
+                    (void)log_print_err("session.open_cursor", ret, 1);
+                    goto err;
+                }
+            }
+            reopen_cursors = false;
         }
     }
 
