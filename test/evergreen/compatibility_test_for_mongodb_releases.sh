@@ -115,7 +115,6 @@ run()
 	(verify 3.4 3.6) || return 1
 	(verify 3.6 4.0) || return 1
 	(verify 4.0 4.2) || return 1
-	(verify 4.0 develop) || return 1
 	(verify 4.2 develop) || return 1
 
 	return 0
