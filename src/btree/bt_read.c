@@ -23,7 +23,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
     page = ref->page;
 
     /* Leaf pages only. */
-    if (WT_PAGE_IS_INTERNAL(page))
+    if (F_ISSET(ref, WT_REF_IS_INTERNAL))
         return (false);
 
     /*
@@ -132,7 +132,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * Get the address: if there is no address, the page was deleted and a subsequent search or
      * insert is forcing re-creation of the name space.
      */
-    __wt_ref_info(session, ref, &addr, &addr_size, NULL);
+    __wt_ref_info(session, ref, &addr, &addr_size);
     if (addr == NULL) {
         WT_ASSERT(session, previous_state != WT_REF_DISK);
 
@@ -217,7 +217,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     uint64_t sleep_usecs, yield_cnt;
     uint8_t current_state;
     int force_attempts;
-    bool busy, cache_work, evict_skip, is_leaf_page, stalled, wont_need;
+    bool busy, cache_work, evict_skip, stalled, wont_need;
 
     btree = S2BT(session);
 
@@ -248,28 +248,13 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
-            /* Limit reads to cache-only. */
+            /* Optionally limit reads to cache-only. */
             if (LF_ISSET(WT_READ_CACHE))
                 return (WT_NOTFOUND);
 
-            /* Limit reads to internal pages only. */
-            if (LF_ISSET(WT_READ_CACHE_LEAF)) {
-                /*
-                 * Currently, the internal page read request is passed only in two scenarios.
-                 *  1. Garbage collection of history store
-                 *  2. Rollback to stable operation
-                 *
-                 * Lock the ref before we check the page type to avoid the ref getting changed
-                 * underneath. Retry the ref once again if failed to change the ref state
-                 * to WT_REF_LOCKED.
-                 */
-                if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
-                    continue;
-                is_leaf_page = __wt_ref_is_leaf(session, ref);
-                WT_REF_SET_STATE(ref, WT_REF_DISK);
-                if (is_leaf_page)
-                    return (WT_NOTFOUND);
-            }
+            /* Optionally limit reads to internal pages only. */
+            if (LF_ISSET(WT_READ_CACHE_LEAF) && F_ISSET(ref, WT_REF_IS_LEAF))
+                return (WT_NOTFOUND);
 
 read:
             /*

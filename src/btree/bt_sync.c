@@ -22,35 +22,34 @@ typedef struct {
  *     There are limited conditions under which we can skip writing a dirty page during checkpoint.
  */
 static inline bool
-__sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
+__sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TXN *txn;
     u_int i;
 
-    mod = page->modify;
+    mod = ref->page->modify;
     txn = &session->txn;
 
     /*
      * We can skip some dirty pages during a checkpoint. The requirements:
      *
-     * 1. Not a history btree. As part of the checkpointing the data store,
-     *    we will move the older values into the history store without using
-     *    any transactions. This led to representation of all the modifications
-     *    on the history store page with a transaction that is maximum than
-     *    the checkpoint snapshot. But these modifications are done by the
-     *    checkpoint itself, so we shouldn't ignore them for consistency.
+     * 1. Not a history btree. As part of the checkpointing the data store, we will move the older
+     *    values into the history store without using any transactions. This led to representation
+     *    of all the modifications on the history store page with a transaction that is maximum than
+     *    the checkpoint snapshot. But these modifications are done by the checkpoint itself, so we
+     *    shouldn't ignore them for consistency.
      * 2. they must be leaf pages,
-     * 3. there is a snapshot transaction active (which is the case in
-     *    ordinary application checkpoints but not all internal cases),
-     * 4. the first dirty update on the page is sufficiently recent the
-     *    checkpoint transaction would skip them,
+     * 3. there is a snapshot transaction active (which is the case in ordinary application
+     *    checkpoints but not all internal cases),
+     * 4. the first dirty update on the page is sufficiently recent the checkpoint transaction would
+     *     skip them,
      * 5. there's already an address for every disk block involved.
      */
     if (WT_IS_HS(S2BT(session)))
         return (false);
-    if (WT_PAGE_IS_INTERNAL(page))
+    if (F_ISSET(ref, WT_REF_IS_INTERNAL))
         return (false);
     if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (false);
@@ -213,8 +212,7 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
     }
 
     /* Ignore internal pages, these are taken care of during reconciliation. */
-    if ((ref->addr != NULL && !__wt_ref_is_leaf(session, ref)) ||
-      (ref->page != NULL && WT_PAGE_IS_INTERNAL(ref->page))) {
+    if (F_ISSET(ref, WT_REF_IS_INTERNAL)) {
         WT_REF_SET_STATE(ref, previous_state);
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping internal page with parent: %p",
           (void *)ref, (void *)ref->home);
@@ -336,7 +334,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
-    bool is_hs, timer, tried_eviction;
+    bool dirty, is_hs, timer, tried_eviction;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -482,24 +480,25 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
 
             /* Traverse through the internal page for obsolete child pages. */
-            if (is_hs && WT_PAGE_IS_INTERNAL(walk->page)) {
+            if (is_hs && F_ISSET(walk, WT_REF_IS_INTERNAL)) {
                 WT_WITH_PAGE_INDEX(
                   session, ret = __sync_ref_int_obsolete_cleanup(session, walk, &ref_list));
                 WT_ERR(ret);
             }
 
-            /*
-             * Take a local reference to the page modify structure now that we know the page is
-             * dirty. It needs to be done in this order otherwise the page modify structure could
-             * have been created between taking the reference and checking modified.
-             */
             page = walk->page;
 
             /*
-             * Skip clean pages, but need to make sure maximum transaction ID is always updated.
+             * Check if the page is dirty. Add a barrier between the check and taking a reference to
+             * any page modify structure. (It needs to be ordered else a page could be dirtied after
+             * taking the local reference.)
              */
-            if (!__wt_page_is_modified(page)) {
-                if (((mod = page->modify) != NULL) && mod->rec_max_txn > btree->rec_max_txn)
+            WT_ORDERED_READ(dirty, __wt_page_is_modified(page));
+
+            /* Skip clean pages, but always update the maximum transaction ID. */
+            if (!dirty) {
+                mod = page->modify;
+                if (mod != NULL && mod->rec_max_txn > btree->rec_max_txn)
                     btree->rec_max_txn = mod->rec_max_txn;
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
@@ -512,12 +511,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * checkpoint marked it clean and we can't skip future checkpoints until this page is
              * written.
              */
-            if (__sync_checkpoint_can_skip(session, page)) {
+            if (__sync_checkpoint_can_skip(session, walk)) {
                 __wt_tree_modify_set(session);
                 continue;
             }
 
-            if (WT_PAGE_IS_INTERNAL(page)) {
+            if (F_ISSET(walk, WT_REF_IS_INTERNAL)) {
                 internal_bytes += page->memory_footprint;
                 ++internal_pages;
                 /* Slow down checkpoints. */
@@ -544,7 +543,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * Once the transaction has given up it's snapshot it is no longer safe to reconcile
              * pages. That happens prior to the final metadata checkpoint.
              */
-            if (!WT_PAGE_IS_INTERNAL(page) && page->read_gen == WT_READGEN_WONT_NEED &&
+            if (F_ISSET(walk, WT_REF_IS_LEAF) && page->read_gen == WT_READGEN_WONT_NEED &&
               !tried_eviction && F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT)) {
                 ret = __wt_page_release_evict(session, walk, 0);
                 walk = NULL;

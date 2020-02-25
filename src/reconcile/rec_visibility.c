@@ -193,6 +193,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     size_t size, upd_memsize;
     uint64_t max_txn, txnid;
     bool has_newer_updates;
+    bool is_hs_page;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -209,6 +210,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     tombstone_durable_ts = WT_TS_MAX;
     max_txn = WT_TXN_NONE;
     has_newer_updates = false;
+    is_hs_page = F_ISSET(S2BT(session), WT_BTREE_HS);
 
     /*
      * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
@@ -238,7 +240,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         /*
          * Check whether the update was committed before reconciliation started. The global commit
          * point can move forward during reconciliation so we use a cached copy to avoid races when
-         * a concurrent transaction commits or rolls back while we are examining its updates. As
+         * a concurrent transaction commits or rolls back while we are examining its updates. This
+         * check is not required for history store updates as they are implicitly committed. As
          * prepared transaction IDs are globally visible, need to check the update state as well.
          *
          * The checkpoint transaction doesn't pin the oldest txn id, therefore the r->last_running
@@ -246,9 +249,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * metadata pages. Otherwise, eviction may select uncommitted metadata updates to write to
          * disk.
          */
-        if (F_ISSET(r, WT_REC_VISIBLE_ALL) && !WT_IS_METADATA(session->dhandle) ?
-            WT_TXNID_LE(r->last_running, txnid) :
-            !__txn_visible_id(session, txnid)) {
+        if (!is_hs_page && (F_ISSET(r, WT_REC_VISIBLE_ALL) && !WT_IS_METADATA(session->dhandle) ?
+                               WT_TXNID_LE(r->last_running, txnid) :
+                               !__txn_visible_id(session, txnid))) {
             has_newer_updates = true;
             continue;
         }
