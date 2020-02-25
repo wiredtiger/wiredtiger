@@ -259,23 +259,23 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
-    WT_TIME_PAIR prev_start, start, stop;
+    WT_TIME_PAIR newer_start, older_start, older_stop;
     uint32_t hs_btree_id, session_flags;
     int cmp, exact;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
-    /* Set the data store timestamp and transactions to initiate timestamp range verification */
-    prev_start.timestamp = unpack->start_ts;
     /*
-     * FIXME-PM-1694: Currently transaction IDs in Data store are wiped upon start up, thus we can't
-     * check data continuity from data store to history store.
+     * Set the data store timestamp and transactions to initiate timestamp range verification. Since
+     * transaction-ids are wiped out on start, we could possibly have a start txn-id of WT_TXN_NONE,
+     * in which case we initialize our newest with the max txn-id.
      */
-    prev_start.txnid = WT_TXN_MAX;
+    newer_start.timestamp = unpack->start_ts;
+    newer_start.txnid = (unpack->start_txn == WT_TXN_NONE ? WT_TXN_MAX : unpack->start_txn);
     session_flags = 0;
-    stop.timestamp = 0;
-    stop.txnid = 0;
+    older_stop.timestamp = 0;
+    older_stop.txnid = 0;
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
 
@@ -293,8 +293,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
         WT_ERR(hs_cursor->prev(hs_cursor));
 
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &start.timestamp, &start.txnid,
-          &stop.timestamp, &stop.txnid));
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &older_start.timestamp,
+          &older_start.txnid, &older_stop.timestamp, &older_stop.txnid));
 
         if (hs_btree_id != btree->id)
             break;
@@ -311,21 +311,22 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
         WT_UNUSED(vs);
 #endif
 
-        /*
-         * Verify that the current record's stop time pair doesn't overlap with the start time pair
-         * of its successor.
-         */
-        if (prev_start.timestamp < stop.timestamp) {
+        /* Verify that the newer record's start is later than the older record's stop. */
+        if (newer_start.timestamp < older_stop.timestamp) {
             WT_ERR_MSG(session, WT_ERROR,
               "In the Btree %" PRIu32
               ", Key %s has a overlap of "
               "timestamp ranges between history store stop timestamp %s being "
               "newer than a more recent timestamp range having start timestamp %s",
               hs_btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
-              __verify_timestamp_to_pretty_string(stop.timestamp, ts_string[0]),
-              __verify_timestamp_to_pretty_string(prev_start.timestamp, ts_string[1]));
+              __verify_timestamp_to_pretty_string(older_stop.timestamp, ts_string[0]),
+              __verify_timestamp_to_pretty_string(newer_start.timestamp, ts_string[1]));
         }
-        if (prev_start.txnid < stop.txnid) {
+        /*
+         * It is possible to have a start txn-id of WT_TXN_NONE for a record that was moved to
+         * history store from the data store after a restart, ignore comparing txn-id in that case.
+         */
+        if (newer_start.txnid != WT_TXN_NONE && newer_start.txnid < older_stop.txnid) {
             WT_ERR_MSG(session, WT_ERROR,
               "In the Btree %" PRIu32
               ", Key %s has a overlap of "
@@ -333,12 +334,17 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
               ") being "
               "newer than a more recent transaction range having start transaction (%" PRIu64 ")",
               hs_btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
-              stop.txnid, prev_start.txnid);
+              older_stop.txnid, newer_start.txnid);
         }
-        prev_start.timestamp = start.timestamp;
-        prev_start.txnid = start.txnid;
+        /*
+         * Since we are iterating from newer to older, the current older record becomes the newer
+         * for the next round of verification.
+         */
+        newer_start.timestamp = older_start.timestamp;
+        newer_start.txnid = older_start.txnid;
 
-        WT_ERR(__verify_ts_stable_cmp(session, key, NULL, 0, start.timestamp, stop.timestamp, vs));
+        WT_ERR(__verify_ts_stable_cmp(
+          session, key, NULL, 0, older_start.timestamp, older_stop.timestamp, vs));
     }
     WT_ERR_NOTFOUND_OK(ret);
 
