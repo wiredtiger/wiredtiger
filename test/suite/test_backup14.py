@@ -34,7 +34,7 @@ from wtdataset import simple_key
 from wtscenario import make_scenarios
 import glob
 
-# test_backup13.py
+# test_backup14.py
 # Test cursor backup with a block-based incremental cursor.
 class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
@@ -94,12 +94,11 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
         # First time through we take a full backup into the incremental directories. Otherwise only
         # into the appropriate full directory.
         #
+        buf = None
         if self.initial_backup == True:
             buf = 'incremental=(granularity=1M,enabled=true,this_id=ID0)'
-            cursor = self.session.open_cursor('backup:', None, buf)
-        else:
-            cursor = self.session.open_cursor('backup:', None, None)
 
+        cursor = self.session.open_cursor('backup:', None, buf)
         while True:
             ret = cursor.next()
             if ret != 0:
@@ -207,11 +206,11 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
         # Run wt dump on full backup directory
         #
         full_backup_out = self.full_out + '.' + str(self.counter)
+        home_dir = self.home_full + '.' + str(self.counter)
         if self.counter == 0:
-            self.runWt(['-R', '-h', self.home, 'dump', t_uri], outfilename=full_backup_out)
-        else:
-            home_dir = self.home_full + '.' + str(self.counter)
-            self.runWt(['-R', '-h', home_dir, 'dump', t_uri], outfilename=full_backup_out)
+            home_dir = self.home
+
+        self.runWt(['-R', '-h', home_dir, 'dump', t_uri], outfilename=full_backup_out)
         #
         # Run wt dump on incremental backup directory
         #
