@@ -764,7 +764,7 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      */
     for (;;) {
         cursor->set_key(cursor, btree_id, key, timestamp, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
-        if (srch_key.data != NULL)
+        if (srch_key.data == NULL)
             WT_ERR(__wt_buf_set(session, &srch_key, cursor->key.data, cursor->key.size));
         WT_ERR(cursor->search_near(cursor, &exact));
         if (exact > 0)
@@ -1105,8 +1105,6 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
     int cmp, exact;
 
     session_flags = 0;
-
-    printf("deleting key %.*s\n", (int)key->size, key->data);
 
     WT_RET(__wt_hs_cursor(session, &session_flags));
     hs_cursor = session->hs_cursor;
