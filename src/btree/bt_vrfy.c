@@ -272,7 +272,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
      * in which case we initialize our newest with the max txn-id.
      */
     newer_start.timestamp = unpack->start_ts;
-    newer_start.txnid = (unpack->start_txn == WT_TXN_NONE ? WT_TXN_MAX : unpack->start_txn);
+    newer_start.txnid = unpack->start_txn == WT_TXN_NONE ? WT_TXN_MAX : unpack->start_txn;
     session_flags = 0;
     older_stop.timestamp = 0;
     older_stop.txnid = 0;
