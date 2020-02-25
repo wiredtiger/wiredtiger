@@ -787,10 +787,10 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
     ret = hs_cursor->search_near(hs_cursor, &exact);
 
     /*
-     * The search should always end up pointing either to the start of the required btree or end of
-     * previous btree. Move the cursor based on the result.
+     * The search should always end up pointing to the start of the required btree or end of the
+     * previous btree on success. Move the cursor based on the result.
      */
-    WT_ASSERT(session, exact != 0);
+    WT_ASSERT(session, (ret != 0 || exact != 0));
     if (ret == 0 && exact < 0)
         ret = hs_cursor->next(hs_cursor);
 
