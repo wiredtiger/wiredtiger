@@ -75,7 +75,6 @@ class test_hs11(wttest.WiredTigerTestCase):
         for ts in range(1, 5):
             self.session.begin_transaction('read_timestamp=' + timestamp_str(ts))
             for i in range(1, 10000):
-                self.printVerbose(0, "blah: {}".format(i))
                 if i % 2 == 0:
                     cursor.set_key(str(i))
                     self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
