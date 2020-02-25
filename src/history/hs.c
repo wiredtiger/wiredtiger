@@ -643,9 +643,9 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
         /* Skip TOMBSTONE at the end of the update chain. */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
-                __wt_modify_vector_pop(&modifies, &upd);
                 if (upd->start_ts == WT_TS_NONE)
                     WT_ERR(__wt_hs_delete_key(session, btree_id, key));
+                __wt_modify_vector_pop(&modifies, &upd);
             } else
                 continue;
         }
