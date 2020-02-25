@@ -382,6 +382,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const
     WT_DECL_RET;
     WT_UPDATE *hs_upd;
     size_t notused;
+    uint32_t session_flags;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = NULL;
@@ -444,12 +445,16 @@ err:
          */
         WT_TRET(__wt_cursor_key_order_init(cbt));
 #endif
+        session_flags = session->flags;
+        F_SET(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
         /* We're pointing at the newly inserted update. Iterate once more to avoid deleting it. */
         ret = cursor->next(cursor);
         if (ret == WT_NOTFOUND)
             ret = 0;
         else if (ret == 0)
             WT_TRET(__hs_delete_key_from_pos(session, cursor, btree_id, key));
+        if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
+            F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
     }
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
@@ -1159,6 +1164,8 @@ err:
         F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
     if (close_hs_cursor)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    else
+        WT_TRET(hs_cursor->reset(hs_cursor));
     return (ret);
 }
 
@@ -1183,12 +1190,6 @@ __hs_delete_key_from_pos(
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     upd = NULL;
     session_flags = session->flags;
-
-    /*
-     * In order to delete a key range, we need to be able to scan all records regardless of their
-     * stop time pairs.
-     */
-    F_SET(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
 
     /* If there is nothing else in history store, we're done here. */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
@@ -1219,9 +1220,6 @@ __hs_delete_key_from_pos(
     if (ret == WT_NOTFOUND)
         return (0);
 err:
-    /* Turn off the flag if it wasn't already on before we entered this function. */
-    if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
-        F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
     __wt_free(session, upd);
     return (ret);
 }
