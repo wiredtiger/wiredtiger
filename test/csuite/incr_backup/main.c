@@ -40,7 +40,7 @@
 #define MAX_NTABLES 100
 
 #define MAX_KEY_SIZE 100
-#define MAX_VALUE_SIZE 1000
+#define MAX_VALUE_SIZE 10000
 #define MAX_MODIFY_ENTRIES 10
 #define MAX_MODIFY_DIFF 500
 
@@ -77,6 +77,7 @@ typedef struct {
     uint32_t name_index;   /* bumped when we rename or drop, so we get unique names. */
     uint64_t change_count; /* number of changes so far to the table */
     WT_RAND_STATE rand;
+    uint32_t max_value_size;
 } TABLE;
 #define TABLE_VALID(tablep) ((tablep)->name != NULL)
 
@@ -160,7 +161,8 @@ key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPER
     if (op_type == REMOVE)
         return; /* remove needs no key */
 
-    value_size = 10 + (u_int)op_type * 10 + change_count % 500;
+    /* The value sizes vary "predictably" between 10 and the max value size for this table. */
+    value_size = 10 + (change_count * 103) % (item->size - 20);
     testutil_assert(item->size > value_size);
 
     /*
@@ -331,20 +333,22 @@ table_updates(WT_SESSION *session, TABLE *table)
     uint64_t change_count;
     uint32_t i, nrecords;
     int modify_count;
-    u_char value[MAX_VALUE_SIZE], value2[MAX_VALUE_SIZE];
+    u_char *value, *value2;
     char key[MAX_KEY_SIZE];
 
     /*
      * We change each table in use about half the time.
      */
     if (__wt_random(&table->rand) % 2 == 0) {
+        value = dcalloc(1, table->max_value_size);
+        value2 = dcalloc(1, table->max_value_size);
         nrecords = __wt_random(&table->rand) % 1000;
         VERBOSE(4, "inserting %d records into %s\n", (int)nrecords, table->name);
         testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cur));
         for (i = 0; i < nrecords; i++) {
             change_count = table->change_count++;
             item.data = value;
-            item.size = sizeof(value);
+            item.size = table->max_value_size;
             key_value(change_count, key, sizeof(key), &item, &op_type);
             cur->set_key(cur, key);
             switch (op_type) {
@@ -358,7 +362,7 @@ table_updates(WT_SESSION *session, TABLE *table)
                 break;
             case MODIFY:
                 item2.data = value2;
-                item2.size = sizeof(value2);
+                item2.size = table->max_value_size;
                 key_value(change_count - 10000, NULL, 0, &item2, &op_type);
                 modify_count = MAX_MODIFY_ENTRIES;
                 testutil_check(wiredtiger_calc_modify(
@@ -370,6 +374,8 @@ table_updates(WT_SESSION *session, TABLE *table)
                 break;
             }
         }
+        free(value);
+        free(value2);
         testutil_check(cur->close(cur));
     }
 }
@@ -435,7 +441,7 @@ check_table(WT_SESSION *session, TABLE *table)
     OPERATION_TYPE op_type;
     uint64_t boundary, change_count, expect_records, got_records, total_changes;
     int keylow, keyhigh, ret;
-    u_char value[MAX_VALUE_SIZE];
+    u_char *value;
     char *got_key;
     char key[MAX_KEY_SIZE];
 
@@ -443,6 +449,7 @@ check_table(WT_SESSION *session, TABLE *table)
     total_changes = table->change_count;
     boundary = total_changes % 10000;
     op_type = (OPERATION_TYPE)(total_changes % 40000) / 10000;
+    value = dcalloc(1, table->max_value_size);
 
     VERBOSE(3, "Checking: %s\n", table->name);
     switch (op_type) {
@@ -467,7 +474,7 @@ check_table(WT_SESSION *session, TABLE *table)
         testutil_assert(sscanf(got_key, KEY_FORMAT, &keylow, &keyhigh) == 2);
         change_count = (u_int)keyhigh * 100 + (u_int)keylow;
         item.data = value;
-        item.size = sizeof(value);
+        item.size = table->max_value_size;
         if (op_type == INSERT || (op_type == UPDATE && change_count < boundary))
             change_count += 0;
         else if (op_type == UPDATE || (op_type == MODIFY && change_count < boundary))
@@ -484,14 +491,16 @@ check_table(WT_SESSION *session, TABLE *table)
     testutil_assert(got_records == expect_records);
     testutil_assert(ret == WT_NOTFOUND);
     testutil_check(cursor->close(cursor));
+    free(value);
 }
 
 static void
-base_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABLE_INFO *tinfo,
-  ACTIVE_FILES *active)
+base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, const char *backup_home,
+  TABLE_INFO *tinfo, ACTIVE_FILES *active)
 {
     WT_CURSOR *cursor;
     WT_SESSION *session;
+    uint32_t granularity;
     int nfiles, ret;
     char buf[4096];
     char *filename;
@@ -508,8 +517,15 @@ base_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     tinfo->full_backup_number = tinfo->incr_backup_number++;
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "incremental=(granularity=1M,enabled=true,this_id=ID%d)", (int)tinfo->full_backup_number));
+
+    /* Half of the runs with a low granularity: 1M */
+    if (__wt_random(rand) % 2 == 0)
+        granularity = 1;
+    else
+        granularity = 1 + __wt_random(rand) % 20;
+    testutil_check(
+      __wt_snprintf(buf, sizeof(buf), "incremental=(granularity=%dM,enabled=true,this_id=ID%d)",
+        (int)granularity, (int)tinfo->full_backup_number));
     VERBOSE(3, "open_cursor(session, \"backup:\", NULL, \"%s\", &cursor)\n", buf);
     testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
 
@@ -685,10 +701,10 @@ main(int argc, char *argv[])
     WT_CONNECTION *conn;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
-    uint32_t iter, next_checkpoint, slot;
+    uint32_t file_max, iter, max_value_size, next_checkpoint, rough_size, slot;
     int ch, ncheckpoints, status;
-    const char *envconf, *working_dir;
-    char home[1024], backup_check[1024], backup_dir[1024], command[4096];
+    const char *working_dir;
+    char conf[1024], home[1024], backup_check[1024], backup_dir[1024], command[4096];
 
     ncheckpoints = 0;
     (void)testutil_set_progname(argv);
@@ -732,9 +748,29 @@ main(int argc, char *argv[])
     if ((status = system(command)) < 0)
         testutil_die(status, "system: %s", command);
 
-    // TODO: make file_max variable on random
-    envconf = "create,log=(enabled=true,file_max=100K)";
-    testutil_check(wiredtiger_open(home, NULL, envconf, &conn));
+    /*
+     * We create an overall max_value_size.  From that, we'll set a random max_value_size per table.
+     * In addition, individual values put into each table vary randomly in size, up to the
+     * max_value_size of the table.
+     * This tends to make sure that 1) each table has a "personality" of size ranges within it
+     * 2) there are some runs that tend to have a lot more data than other runs.  If we made every
+     * insert choose a uniform random size between 1 and MAX_VALUE_SIZE, once we did a bunch
+     * of inserts, each run would look very much the same with respect to value size.
+     */
+    max_value_size = __wt_random(&rnd) % MAX_VALUE_SIZE;
+
+    /* Compute a random value of file_max. */
+    rough_size = __wt_random(&rnd) % 3;
+    if (rough_size == 0)
+        file_max = 100 + __wt_random(&rnd) % 100; /* small log files, min 100K */
+    else if (rough_size == 1)
+        file_max = 200 + __wt_random(&rnd) % 1000; /* 200K to ~1M */
+    else
+        file_max = 1000 + __wt_random(&rnd) % 20000; /* 1M to ~20M */
+    testutil_check(
+      __wt_snprintf(conf, sizeof(conf), "create,log=(enabled=true,file_max=%dK)", (int)file_max));
+    VERBOSE(2, "wiredtiger config: %s\n", conf);
+    testutil_check(wiredtiger_open(home, NULL, conf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     tinfo.table_count = __wt_random(&rnd) % MAX_NTABLES;
@@ -747,6 +783,7 @@ main(int argc, char *argv[])
     for (slot = 0; slot < tinfo.table_count; slot++) {
         tinfo.table[slot].rand.v = seed + slot;
         testutil_assert(!TABLE_VALID(&tinfo.table[slot]));
+        tinfo.table[slot].max_value_size = __wt_random(&rnd) % max_value_size;
     }
 
     /* How many files should we update until next checkpoint. */
@@ -754,6 +791,7 @@ main(int argc, char *argv[])
 
     for (iter = 0; iter < ITERATIONS; iter++) {
         VERBOSE(1, "**** iteration %d ****\n", (int)iter);
+
         /*
          * We have schema changes during about half the iterations. The number of schema changes
          * varies, averaging 10.
@@ -788,13 +826,13 @@ main(int argc, char *argv[])
         }
 
         if (iter == 0) {
-            base_backup(conn, home, backup_dir, &tinfo, &active);
+            base_backup(conn, &rnd, home, backup_dir, &tinfo, &active);
             check_backup(backup_dir, backup_check, &tinfo);
         } else {
             incr_backup(conn, home, backup_dir, &tinfo, &active);
             check_backup(backup_dir, backup_check, &tinfo);
             if (__wt_random(&rnd) % 10 == 0) {
-                base_backup(conn, home, backup_dir, &tinfo, &active);
+                base_backup(conn, &rnd, home, backup_dir, &tinfo, &active);
                 check_backup(backup_dir, backup_check, &tinfo);
             }
         }
