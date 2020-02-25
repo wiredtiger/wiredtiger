@@ -438,7 +438,7 @@ err:
     if (ret == 0 && upd->start_ts == WT_TS_NONE) {
 #ifdef HAVE_DIAGNOSTIC
         /*
-         * We need to initialise the last searched key so that we can do key comparisons when we
+         * We need to initialize the last searched key so that we can do key comparisons when we
          * begin iterating over the history store. This needs to be done otherwise the subsequent
          * "next" calls will blow up.
          */
