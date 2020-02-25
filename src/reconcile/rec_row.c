@@ -1030,7 +1030,7 @@ leaf_insert:
          * order for us to consider removing the key, a globally visible tombstone must exist
          * meaning that the history store content is obsolete in any case.
          */
-        if (remove_key) {
+        if (remove_key && !WT_IS_HS(btree)) {
             WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
             WT_ERR(__wt_hs_delete_key(session, btree->id, tmpkey));
         }

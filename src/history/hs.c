@@ -445,8 +445,11 @@ err:
         WT_TRET(__wt_cursor_key_order_init(cbt));
 #endif
         /* We're pointing at the newly inserted update. Iterate once more to avoid deleting it. */
-        WT_TRET(cursor->next(cursor));
-        WT_TRET(__hs_delete_key_from_pos(session, cursor, btree_id, key));
+        ret = cursor->next(cursor);
+        if (ret == WT_NOTFOUND)
+            ret = 0;
+        else if (ret == 0)
+            WT_TRET(__hs_delete_key_from_pos(session, cursor, btree_id, key));
     }
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
@@ -748,10 +751,11 @@ int
 __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   WT_ITEM *key, wt_timestamp_t timestamp)
 {
-    WT_ITEM hs_key;
-    WT_TIME_PAIR hs_start, hs_stop;
-    uint32_t hs_btree_id;
+    WT_DECL_RET;
+    WT_ITEM srch_key;
     int cmp, exact;
+
+    WT_CLEAR(srch_key);
 
     /*
      * Because of the special visibility rules for the history store, a new key can appear in
@@ -760,9 +764,11 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      */
     for (;;) {
         cursor->set_key(cursor, btree_id, key, timestamp, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
-        WT_RET(cursor->search_near(cursor, &exact));
+        if (srch_key.data != NULL)
+            WT_ERR(__wt_buf_set(session, &srch_key, cursor->key.data, cursor->key.size));
+        WT_ERR(cursor->search_near(cursor, &exact));
         if (exact > 0)
-            WT_RET(cursor->prev(cursor));
+            WT_ERR(cursor->prev(cursor));
 
         /*
          * Because of the special visibility rules for the history store, a new key can appear in
@@ -772,21 +778,13 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
          * There may be no history store entries for the given btree id and record key if they have
          * been removed by WT_CONNECTION::rollback_to_stable.
          */
-        WT_CLEAR(hs_key);
-        WT_RET(cursor->get_key(cursor, &hs_btree_id, &hs_key, &hs_start.timestamp, &hs_start.txnid,
-          &hs_stop.timestamp, &hs_stop.txnid));
-        if (hs_btree_id < btree_id)
-            return (0);
-        else if (hs_btree_id == btree_id) {
-            WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
-            if (cmp < 0)
-                return (0);
-            if (cmp == 0 && hs_start.timestamp <= timestamp)
-                return (0);
-        }
+        WT_ERR(__wt_compare(session, NULL, &cursor->key, &srch_key, &cmp));
+        if (cmp <= 0)
+            break;
     }
-
-    /* NOTREACHED */
+err:
+    __wt_buf_free(session, &srch_key);
+    return (ret);
 }
 
 /*
@@ -1108,6 +1106,8 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
 
     session_flags = 0;
 
+    printf("deleting key %.*s\n", (int)key->size, key->data);
+
     WT_RET(__wt_hs_cursor(session, &session_flags));
     hs_cursor = session->hs_cursor;
     /*
@@ -1189,6 +1189,7 @@ __hs_delete_key_from_pos(
         WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
         if (cmp != 0)
             break;
+        hs_cbt->compare = 0;
         /*
          * Append a globally visible tombstone to the update list. This will effectively make the
          * value invisible and the key itself will eventually get removed during reconciliation.

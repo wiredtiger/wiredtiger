@@ -407,8 +407,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * keep the same on-disk value but set the stop time pair to indicate that the validity
              * window ends when this tombstone started.
              */
-            WT_ASSERT(session,
-              vpack->start_ts <= upd_select->stop_ts && vpack->start_txn <= upd_select->stop_txn);
+            if (upd_select->stop_ts == WT_TS_NONE && vpack->start_ts != WT_TS_NONE)
+                upd_select->stop_txn = WT_TXN_NONE;
+            else
+                WT_ASSERT(session, vpack->start_ts <= upd_select->stop_ts &&
+                    vpack->start_txn <= upd_select->stop_txn);
             upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
             upd_select->start_txn = vpack->start_txn;
 
@@ -432,6 +435,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             upd_select->upd = upd;
         }
     }
+    /*
+     * If we've set the stop to a zeroed pair, we intend to remove the key. Instead of selecting the
+     * onpage value and setting the stop a zeroed time pair which would trigger a rewrite of the
+     * cell with the new stop time pair, we should unset the selected update so the key itself gets
+     * omitted from the new page image.
+     */
+    if (upd_select->stop_ts == WT_TS_NONE && upd_select->stop_txn == WT_TXN_NONE)
+        upd_select->upd = NULL;
 
     /*
      * Track the most recent transaction in the page. We store this in the tree at the end of
