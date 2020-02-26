@@ -1114,11 +1114,8 @@ __wt_txn_update_check(
     /* If there is no cursor, we don't need to check the on page value. */
     WT_ASSERT(session, cbt != NULL || (cbt == NULL && !check_onpage_value));
 
-    /*
-     * Check conflict against the on page value if it exists. No need to check against the metadata
-     * file as we lock the metadata file before updating it.
-     */
-    if (check_onpage_value && !WT_IS_METADATA(session->dhandle)) {
+    /* Check conflict against the on page value if it exists. */
+    if (check_onpage_value) {
         WT_RET(__wt_value_return_buf(cbt, cbt->ref, buf, &start, &stop));
         if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
           !__wt_txn_visible(session, stop.txnid, stop.timestamp))
