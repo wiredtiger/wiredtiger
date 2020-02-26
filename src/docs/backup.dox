@@ -93,7 +93,7 @@ rm -rf /path/database.backup &&
 
 Once a full backup has been done, it can be rolled forward incrementally by
 copying only modified blocks and new files to the backup copy directory.
-The application is responsible for retaining and removing files that
+The application is responsible for removing files that
 are no longer part of the backup when later incremental backups no longer
 return their name. This is especially important for WiredTiger log files
 that are no longer needed and must be removed before recovery is run.
@@ -120,21 +120,21 @@ and the most recent completed one.
 
 3. For each file returned by \c backup_cursor->next(), open a duplicate
 backup cursor to do the incremental backup on that file.  The list
-returned will also include log files, \c WiredTigerLog, that need to
+returned will also include log files (prefixed by \c WiredTigerLog) that need to
 be copied. Configure that duplicate cursor with \c incremental=(file=name).
-The name comes from the string returned from \c backup_cursor->get_key().
+The \c name comes from the string returned from \c backup_cursor->get_key().
 Call this incr_cursor.
 
 4. The key format for the duplicate backup cursor, \c incr_cursor, is
 \c qqq, representing a file offset and size pair plus a type indicator
 for the range given. There is no associated value. The type indicator
-will be one of WT_BACKUP_FILE or WT_BACKUP_RANGE. For WT_BACKUP_RANGE,
-for each offset/size returned by \c incr_cursor->next(), read the
-block from the source database file and write the block to the
+will be one of \c WT_BACKUP_FILE or \c WT_BACKUP_RANGE. For \c WT_BACKUP_RANGE,
+read the block from the source database file indicated by the file offset and
+size pair and write the block to the same offset in the
 backup database file, replacing the portion of the file represented by
 the offset/size pair.  It is not an error for an offset/size pair to extend past
 the current end of the source file, and any missing file data should be ignored.
-For WT_BACKUP_FILE, the user can choose to copy the entire file in
+For \c WT_BACKUP_FILE, the user can choose to copy the entire file in
 any way they choose, or to use the offset/size pair which will
 indicate the expected size WiredTiger knew at the time of the call.
 
