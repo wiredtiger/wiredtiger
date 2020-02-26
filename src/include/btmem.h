@@ -212,11 +212,11 @@ struct __wt_ovfl_reuse {
 #else
 #define WT_HS_COMPRESSOR "none"
 #endif
-#define WT_HS_CONFIG                                                                \
-    "key_format=" WT_UNCHECKED_STRING(IuQQQQ) ",value_format=" WT_UNCHECKED_STRING( \
-      QBBu) ",block_compressor=" WT_HS_COMPRESSOR                                   \
-            ",leaf_value_max=64MB"                                                  \
-            ",prefix_compression=true"
+#define WT_HS_CONFIG                                                              \
+    "key_format=" WT_UNCHECKED_STRING(IuQQ) ",value_format=" WT_UNCHECKED_STRING( \
+      QQBBu) ",block_compressor=" WT_HS_COMPRESSOR                                \
+             ",leaf_value_max=64MB"                                               \
+             ",prefix_compression=true"
 
 /*
  * WT_PAGE_MODIFY --
