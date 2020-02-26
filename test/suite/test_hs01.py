@@ -110,16 +110,6 @@ class test_hs01(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Scenario: 1
-        # Check to see if the history store is working with the old snapshot.
-        bigvalue1 = b"bbbbb" * 100
-        self.session.snapshot("name=xxx")
-        # Update the values in different session after snapshot.
-        self.large_updates(self.session, uri, bigvalue1, ds, nrows)
-        # Check to see the value after recovery.
-        self.durable_check(bigvalue1, uri, ds, nrows)
-        self.session.snapshot("drop=(all)")
-
-        # Scenario: 2
         # Check to see if the history store is working with the old reader.
         bigvalue2 = b"ccccc" * 100
         session2 = self.conn.open_session()
@@ -130,7 +120,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         session2.rollback_transaction()
         session2.close()
 
-        # Scenario: 3
+        # Scenario: 2
         # Check to see the history store working with modify operations.
         bigvalue3 = b"ccccc" * 100
         bigvalue3 = b'AA' + bigvalue3[2:]
@@ -146,7 +136,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         session2.rollback_transaction()
         session2.close()
 
-        # Scenario: 4
+        # Scenario: 3
         # Check to see if the history store is working with the old timestamp.
         bigvalue4 = b"ddddd" * 100
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))

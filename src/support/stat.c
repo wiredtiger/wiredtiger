@@ -859,8 +859,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: durable timestamp queue insert to empty",
   "transaction: durable timestamp queue inserts to head",
   "transaction: durable timestamp queue inserts total",
-  "transaction: durable timestamp queue length", "transaction: number of named snapshots created",
-  "transaction: number of named snapshots dropped", "transaction: prepared transactions",
+  "transaction: durable timestamp queue length", "transaction: prepared transactions",
   "transaction: prepared transactions committed",
   "transaction: prepared transactions currently active",
   "transaction: prepared transactions rolled back", "transaction: query timestamp calls",
@@ -897,7 +896,6 @@ static const char *const __stats_connection_desc[] = {
   "(usecs)",
   "transaction: transaction range of IDs currently pinned",
   "transaction: transaction range of IDs currently pinned by a checkpoint",
-  "transaction: transaction range of IDs currently pinned by named snapshots",
   "transaction: transaction range of timestamps currently pinned",
   "transaction: transaction range of timestamps pinned by a checkpoint",
   "transaction: transaction range of timestamps pinned by the oldest active read timestamp",
@@ -1304,8 +1302,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_durable_queue_head = 0;
     stats->txn_durable_queue_inserts = 0;
     stats->txn_durable_queue_len = 0;
-    stats->txn_snapshots_created = 0;
-    stats->txn_snapshots_dropped = 0;
     stats->txn_prepare = 0;
     stats->txn_prepare_commit = 0;
     stats->txn_prepare_active = 0;
@@ -1351,7 +1347,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing txn_checkpoint_fsync_post_duration */
     /* not clearing txn_pinned_range */
     /* not clearing txn_pinned_checkpoint_range */
-    /* not clearing txn_pinned_snapshot_range */
     /* not clearing txn_pinned_timestamp */
     /* not clearing txn_pinned_timestamp_checkpoint */
     /* not clearing txn_pinned_timestamp_reader */
@@ -1758,8 +1753,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_durable_queue_head += WT_STAT_READ(from, txn_durable_queue_head);
     to->txn_durable_queue_inserts += WT_STAT_READ(from, txn_durable_queue_inserts);
     to->txn_durable_queue_len += WT_STAT_READ(from, txn_durable_queue_len);
-    to->txn_snapshots_created += WT_STAT_READ(from, txn_snapshots_created);
-    to->txn_snapshots_dropped += WT_STAT_READ(from, txn_snapshots_dropped);
     to->txn_prepare += WT_STAT_READ(from, txn_prepare);
     to->txn_prepare_commit += WT_STAT_READ(from, txn_prepare_commit);
     to->txn_prepare_active += WT_STAT_READ(from, txn_prepare_active);
@@ -1806,7 +1799,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, txn_checkpoint_fsync_post_duration);
     to->txn_pinned_range += WT_STAT_READ(from, txn_pinned_range);
     to->txn_pinned_checkpoint_range += WT_STAT_READ(from, txn_pinned_checkpoint_range);
-    to->txn_pinned_snapshot_range += WT_STAT_READ(from, txn_pinned_snapshot_range);
     to->txn_pinned_timestamp += WT_STAT_READ(from, txn_pinned_timestamp);
     to->txn_pinned_timestamp_checkpoint += WT_STAT_READ(from, txn_pinned_timestamp_checkpoint);
     to->txn_pinned_timestamp_reader += WT_STAT_READ(from, txn_pinned_timestamp_reader);

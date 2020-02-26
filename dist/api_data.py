@@ -1448,9 +1448,6 @@ methods = {
             read timestamp will be rounded up to the oldest timestamp''',
             type='boolean'),
         ]),
-    Config('snapshot', '', r'''
-        use a named, in-memory snapshot, see
-        @ref transaction_named_snapshots'''),
     Config('sync', '', r'''
         whether to sync log records when the transaction commits,
         inherited from ::wiredtiger_open \c transaction_sync''',
@@ -1538,28 +1535,6 @@ methods = {
         are in use, or all current updates if there is no stable timestamp set. If false, this
         option generates a checkpoint with all updates including those later than the timestamp''',
         type='boolean'),
-]),
-
-'WT_SESSION.snapshot' : Method([
-    Config('drop', '', r'''
-            if non-empty, specifies which snapshots to drop. Where a group
-            of snapshots are being dropped, the order is based on snapshot
-            creation order not alphanumeric name order''',
-        type='category', subconfig=[
-        Config('all', 'false', r'''
-            drop all named snapshots''', type='boolean'),
-        Config('before', '', r'''
-            drop all snapshots up to but not including the specified name'''),
-        Config('names', '', r'''
-            drop specific named snapshots''', type='list'),
-        Config('to', '', r'''
-            drop all snapshots up to and including the specified name'''),
-    ]),
-    Config('include_updates', 'false', r'''
-        make updates from the current transaction visible to users of the
-        named snapshot.  Transactions started with such a named snapshot are
-        restricted to being read-only''', type='boolean'),
-    Config('name', '', r'''specify a name for the snapshot'''),
 ]),
 
 'WT_CONNECTION.add_collator' : Method([]),
