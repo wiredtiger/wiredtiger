@@ -214,12 +214,8 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
 int
 __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags)
 {
-    /*
-     * We should never reach here if working in context of the default session. The only exception
-     * is when we are processing connection close requests.
-     */
-    WT_ASSERT(
-      session, S2C(session)->default_session != session || F_ISSET(S2C(session), WT_CONN_CLOSING));
+    /* We should never reach here if working in context of the default session. */
+    WT_ASSERT(session, S2C(session)->default_session != session);
 
     /*
      * We don't want to get tapped for eviction after we start using the history store cursor; save
