@@ -481,7 +481,7 @@ base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, const ch
     else
         granularity = 1 + __wt_random(rand) % 20;
     testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "incremental=(granularity=%" PRIu32 "M,enabled=true,this_id=ID%d)", (int)granularity,
+      "incremental=(granularity=%" PRIu32 "M,enabled=true,this_id=ID%d)", granularity,
       (int)tinfo->full_backup_number));
     VERBOSE(3, "open_cursor(session, \"backup:\", NULL, \"%s\", &cursor)\n", buf);
     testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
@@ -794,7 +794,7 @@ main(int argc, char *argv[])
     else
         file_max = 1000 + __wt_random(&rnd) % 20000; /* 1M to ~20M */
     testutil_check(__wt_snprintf(
-      conf, sizeof(conf), "create,log=(enabled=true,file_max=%" PRIu32 "K)", (int)file_max));
+      conf, sizeof(conf), "create,log=(enabled=true,file_max=%" PRIu32 "K)", file_max));
     VERBOSE(2, "wiredtiger config: %s\n", conf);
     testutil_check(wiredtiger_open(home, NULL, conf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
