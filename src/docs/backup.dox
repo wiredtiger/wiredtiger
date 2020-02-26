@@ -82,7 +82,7 @@ Since backups can take a long time, it may be desirable to catch up at the
 end of a backup with the log files so that operations that occurred during
 backup can be recovered. WiredTiger provides the ability to open a duplicate
 backup cursor with the configuration \c target=log:. This secondary backup
-cursor will return the file names of all log files via \c cursor->get_key().
+cursor will return the file names of all log files via \c dup_cursor->get_key().
 This secondary cursor must be closed explicitly prior to closing the parent
 backup cursor.
 
