@@ -110,7 +110,6 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             print("Failed conn at '%s' with config '%s'" % (dir, conn_params))
         self.session = wttest.WiredTigerTestCase.setUpSessionOpen(self, self.conn)
 
-    @unittest.skip("Temporarily disabled")
     def test_rollback_to_stable(self):
         self.ConnectionOpen(self.cacheSize)
         # Configure small page sizes to ensure eviction comes through and we
