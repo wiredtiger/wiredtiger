@@ -845,6 +845,7 @@ backup(Session session)
 {
     char buf[] = new char[1024];
 
+    Cursor dup_cursor;
     /*! [backup]*/
     Cursor cursor;
     String filename;
@@ -889,6 +890,21 @@ backup(Session session)
                 ": backup failed: " + ex.toString());
         }
     /*! [backup]*/
+        try {
+	    /*! [backup log duplicate]*/
+            /* Open the backup data source. */
+            cursor = session.open_cursor("backup:", null, null);
+            /* Open a duplicate cursor for additional log files. */
+            dup_cursor = session.open_cursor(null, cursor, "target=(\"log:\")");
+	    /*! [backup log duplicate]*/
+
+            ret = dup_cursor.close();
+            ret = cursor.close();
+        }
+        catch (Exception ex) {
+            System.err.println(progname +
+                ": duplicate log backup failed: " + ex.toString());
+        }
         try {
 	    /*! [incremental backup]*/
             /* Open the backup data source for incremental backup. */
