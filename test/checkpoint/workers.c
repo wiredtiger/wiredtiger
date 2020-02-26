@@ -274,7 +274,7 @@ real_worker(void)
                             goto err;
                         }
                         start_txn = true;
-                        /* Occasionally reopen cursors during after committing. */
+                        /* Occasionally reopen cursors after committing. */
                         if (next_rnd % 13 == 0) {
                             reopen_cursors = true;
                         }

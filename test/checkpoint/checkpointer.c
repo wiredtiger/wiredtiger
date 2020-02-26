@@ -185,10 +185,13 @@ real_checkpointer(void)
         if (!g.running)
             goto done;
 
-        /* Verify the content of the checkpoint at the stable timestamp. */
-        if (g.use_timestamps)
-            if ((ret = verify_consistency(session, timestamp_buf)) != 0)
-                return (log_print_err("verify_consistency (timestamps)", ret, 1));
+        /*
+         * Verify the content of the checkpoint at the stable timestamp. We can't verify checkpoints
+         * without timestamps as such we don't perform a verification here in the non-timestamped
+         * scenario.
+         */
+        if (g.use_timestamps && (ret = verify_consistency(session, timestamp_buf)) != 0)
+            return (log_print_err("verify_consistency (timestamps)", ret, 1));
 
         /* Advance the oldest timestamp to the most recently set stable timestamp. */
         if (g.use_timestamps && g.ts_oldest != 0) {
