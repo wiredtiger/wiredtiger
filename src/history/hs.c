@@ -150,55 +150,6 @@ err:
 }
 
 /*
- * __wt_hs_stats_update --
- *     Update the history store table statistics for return to the application.
- */
-int
-__wt_hs_stats_update(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *hs_btree;
-    WT_CONNECTION_IMPL *conn;
-    WT_CONNECTION_STATS **cstats;
-    WT_DSRC_STATS **dstats;
-    int64_t v;
-
-    conn = S2C(session);
-
-    /*
-     * History store table statistics are copied from the underlying history store table data-source
-     * statistics. If there's no history store table, values remain 0.
-     */
-    if (!F_ISSET(conn, WT_CONN_HS_OPEN))
-        return (0);
-
-    /* Set the connection-wide statistics. */
-    cstats = conn->stats;
-
-    /*
-     * Get a history store cursor, we need the underlying data handle; we can get to it by way of
-     * the underlying btree handle, but it's a little ugly.
-     */
-    WT_RET(__wt_hs_get_btree(session, &hs_btree));
-
-    dstats = hs_btree->dhandle->stats;
-
-    v = WT_STAT_READ(dstats, cursor_update);
-    WT_STAT_SET(session, cstats, cache_hs_insert, v);
-
-    /*
-     * If we're clearing stats we need to clear the cursor values we just read. This does not clear
-     * the rest of the statistics in the history store data source stat cursor, but we own that
-     * namespace so we don't have to worry about users seeing inconsistent data source information.
-     */
-    if (FLD_ISSET(conn->stat_flags, WT_STAT_CLEAR)) {
-        WT_STAT_SET(session, dstats, cursor_update, 0);
-        WT_STAT_SET(session, dstats, cursor_remove, 0);
-    }
-
-    return (0);
-}
-
-/*
  * __wt_hs_create --
  *     Initialize the database's history store.
  */
@@ -263,12 +214,8 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
 int
 __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags)
 {
-    /*
-     * We should never reach here if working in context of the default session. The only exception
-     * is when we are processing connection close requests.
-     */
-    WT_ASSERT(
-      session, S2C(session)->default_session != session || F_ISSET(S2C(session), WT_CONN_CLOSING));
+    /* We should never reach here if working in context of the default session. */
+    WT_ASSERT(session, S2C(session)->default_session != session);
 
     /*
      * We don't want to get tapped for eviction after we start using the history store cursor; save
@@ -425,6 +372,12 @@ retry:
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &cursor->key, true, NULL, false, NULL));
     WT_ERR(ret);
     WT_ERR(__wt_row_modify(cbt, &cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
+
+    /*
+     * Since the two updates (tombstone and the standard) will reconcile into a single entry, we are
+     * incrementing the history store insert statistic by one.
+     */
+    WT_STAT_CONN_INCR(session, cache_hs_insert);
 
 err:
     /*
@@ -613,12 +566,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
         for (; upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
-
-            /* Ignore consecutive tombstones. */
-            if (upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL &&
-              upd->next->type == WT_UPDATE_TOMBSTONE)
-                continue;
-
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
             /*
              * If we've reached a full update and its in the history store we don't need to continue

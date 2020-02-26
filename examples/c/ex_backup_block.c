@@ -330,8 +330,6 @@ take_incr_backup(WT_SESSION *session, int i)
     const char *filename;
     bool first;
 
-    /*! [incremental backup using block transfer]*/
-
     tmp = NULL;
     tmp_sz = 0;
     /* Open the backup data source for incremental backup. */
@@ -439,7 +437,6 @@ take_incr_backup(WT_SESSION *session, int i)
     error_check(backup_cur->close(backup_cur));
     error_check(finalize_files(flist, count));
     free(tmp);
-    /*! [incremental backup using block transfer]*/
 }
 
 int
