@@ -738,7 +738,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
           __wt_page_type_string(page->type)));
 
     /* Track the shape of the tree. */
-    if (F_ISSET(ref, WT_REF_IS_INTERNAL))
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         ++vs->depth_internal[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];
     else
         ++vs->depth_leaf[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];

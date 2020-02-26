@@ -23,7 +23,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
     page = ref->page;
 
     /* Leaf pages only. */
-    if (F_ISSET(ref, WT_REF_IS_INTERNAL))
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (false);
 
     /*
@@ -117,12 +117,12 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     }
 
     /*
-     * Set the WT_REF_READING flag for normal reads. Checkpoints can skip over clean pages being
-     * read into cache, but need to wait for deletes to be resolved (in order for checkpoint to
-     * write the correct version of the page).
+     * Set the WT_REF_FLAG_READING flag for normal reads. Checkpoints can skip over clean pages
+     * being read into cache, but need to wait for deletes to be resolved (in order for checkpoint
+     * to write the correct version of the page).
      */
     if (previous_state == WT_REF_DISK)
-        F_SET(ref, WT_REF_READING);
+        F_SET(ref, WT_REF_FLAG_READING);
 
     /*
      * Get the address: if there is no address, the page was deleted and a subsequent search or
@@ -175,7 +175,7 @@ skip_read:
         break;
     }
 
-    F_CLR(ref, WT_REF_READING);
+    F_CLR(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, WT_REF_MEM);
 
     WT_ASSERT(session, ret == 0);
@@ -189,7 +189,7 @@ err:
     if (ref->page != NULL)
         __wt_ref_out(session, ref);
 
-    F_CLR(ref, WT_REF_READING);
+    F_CLR(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, previous_state);
 
     __wt_buf_free(session, &tmp);
@@ -252,7 +252,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
                 return (WT_NOTFOUND);
 
             /* Optionally limit reads to internal pages only. */
-            if (LF_ISSET(WT_READ_CACHE_LEAF) && F_ISSET(ref, WT_REF_IS_LEAF))
+            if (LF_ISSET(WT_READ_CACHE_LEAF) && F_ISSET(ref, WT_REF_FLAG_LEAF))
                 return (WT_NOTFOUND);
 
 read:
@@ -282,7 +282,7 @@ read:
             if (LF_ISSET(WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
 
-            if (F_ISSET(ref, WT_REF_READING)) {
+            if (F_ISSET(ref, WT_REF_FLAG_READING)) {
                 if (LF_ISSET(WT_READ_CACHE))
                     return (WT_NOTFOUND);
 

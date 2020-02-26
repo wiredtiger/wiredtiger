@@ -645,7 +645,7 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
     while ((ret = __wt_tree_walk(
               session, &ref, WT_READ_CACHE_LEAF | WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL)
-        if (F_ISSET(ref, WT_REF_IS_INTERNAL)) {
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             WT_INTL_FOREACH_BEGIN (session, ref->page, child_ref) {
                 WT_RET(__rollback_abort_newer_updates(session, child_ref, rollback_timestamp));
             }

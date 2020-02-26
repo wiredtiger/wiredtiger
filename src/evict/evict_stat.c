@@ -69,7 +69,7 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
         } else
             ++num_memory;
 
-        if (F_ISSET(next_walk, WT_REF_IS_INTERNAL))
+        if (F_ISSET(next_walk, WT_REF_FLAG_INTERNAL))
             ++pages_internal;
         else
             ++pages_leaf;

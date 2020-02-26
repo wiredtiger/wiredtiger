@@ -164,7 +164,7 @@ __wt_rec_child_modify(
               "unexpected WT_REF_LOCKED child state during eviction reconciliation");
 
             /* If the page is being read from disk, it's not modified by definition. */
-            if (F_ISSET(ref, WT_REF_READING))
+            if (F_ISSET(ref, WT_REF_FLAG_READING))
                 goto done;
 
             /*

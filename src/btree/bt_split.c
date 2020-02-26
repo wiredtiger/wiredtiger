@@ -476,7 +476,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
             root_incr += sizeof(WT_IKEY) + size;
         } else
             ref->ref_recno = (*root_refp)->ref_recno;
-        F_SET(ref, WT_REF_IS_INTERNAL);
+        F_SET(ref, WT_REF_FLAG_INTERNAL);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
         /*
@@ -1019,7 +1019,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
             parent_incr += sizeof(WT_IKEY) + size;
         } else
             ref->ref_recno = (*page_refp)->ref_recno;
-        F_SET(ref, WT_REF_IS_INTERNAL);
+        F_SET(ref, WT_REF_FLAG_INTERNAL);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
         /*
@@ -1615,10 +1615,10 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     switch (page->type) {
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
-        F_SET(ref, WT_REF_IS_INTERNAL);
+        F_SET(ref, WT_REF_FLAG_INTERNAL);
         break;
     default:
-        F_SET(ref, WT_REF_IS_LEAF);
+        F_SET(ref, WT_REF_FLAG_LEAF);
         break;
     }
 
@@ -1719,7 +1719,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->home = ref->home;
     child->pindex_hint = ref->pindex_hint;
     child->addr = ref->addr;
-    F_SET(child, WT_REF_IS_LEAF);
+    F_SET(child, WT_REF_FLAG_LEAF);
     child->state = WT_REF_MEM;
 
     WT_ERR_ASSERT(session, ref->page_del == NULL, WT_PANIC,
@@ -1782,7 +1782,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     parent_incr += sizeof(WT_REF);
     child = split_ref[1];
     child->page = right;
-    F_SET(child, WT_REF_IS_LEAF);
+    F_SET(child, WT_REF_FLAG_LEAF);
     child->state = WT_REF_MEM;
 
     if (type == WT_PAGE_ROW_LEAF) {

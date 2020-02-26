@@ -823,9 +823,11 @@ struct __wt_ref {
  * miss one). If we run out of bits in the flags field, remove the internal flag and rewrite tests
  * depending on it to be "!leaf" instead.
  */
-#define WT_REF_IS_INTERNAL 0x01 /* Page is an internal page */
-#define WT_REF_IS_LEAF 0x02     /* Page is a leaf page */
-#define WT_REF_READING 0x04     /* Page is being read in */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
+#define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
+#define WT_REF_FLAG_READING 0x4u  /* Page is being read in */
+                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 
 #define WT_REF_DISK 0       /* Page is on disk */

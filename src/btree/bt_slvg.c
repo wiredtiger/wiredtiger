@@ -1176,7 +1176,7 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
         addr = NULL;
 
         ref->ref_recno = trk->col_start;
-        F_SET(ref, WT_REF_IS_LEAF);
+        F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DISK);
 
         /*
@@ -1784,7 +1784,7 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
         addr = NULL;
 
         __wt_ref_key_clear(ref);
-        F_SET(ref, WT_REF_IS_LEAF);
+        F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DISK);
 
         /*

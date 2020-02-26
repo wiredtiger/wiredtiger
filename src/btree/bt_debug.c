@@ -566,7 +566,7 @@ __debug_tree_shape_worker(WT_DBG *ds, WT_REF *ref, int level)
 
     session = ds->session;
 
-    if (F_ISSET(ref, WT_REF_IS_INTERNAL)) {
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         WT_RET(ds->f(ds,
           "%*s"
           "I"
@@ -1365,15 +1365,15 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
       "%p %s (",
       (void *)ref, __debug_ref_state(ref->state)));
     flagsep = "";
-    if (F_ISSET(ref, WT_REF_IS_INTERNAL)) {
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         WT_RET(ds->f(ds, "%s%s", flagsep, "internal"));
         flagsep = ", ";
     }
-    if (F_ISSET(ref, WT_REF_IS_LEAF)) {
+    if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
         WT_RET(ds->f(ds, "%s%s", flagsep, "leaf"));
         flagsep = ", ";
     }
-    if (F_ISSET(ref, WT_REF_READING))
+    if (F_ISSET(ref, WT_REF_FLAG_READING))
         WT_RET(ds->f(ds, "%s%s", flagsep, "reading"));
     __wt_ref_info(session, ref, &addr, &addr_size);
     return (ds->f(ds, ") %s\n", __wt_addr_string(session, addr, addr_size, ds->t1)));
