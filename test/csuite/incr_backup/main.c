@@ -107,7 +107,7 @@ extern char *__wt_optarg;
 /*
  * The choices of operations we do to each table.
  */
-typedef enum { INSERT, MODIFY, REMOVE, UPDATE, OPERATION_TYPE_COUNT } OPERATION_TYPE;
+typedef enum { INSERT, MODIFY, REMOVE, UPDATE, _OPERATION_TYPE_COUNT } OPERATION_TYPE;
 
 /*
  * Cycle of changes to a table.
@@ -122,7 +122,7 @@ typedef enum { INSERT, MODIFY, REMOVE, UPDATE, OPERATION_TYPE_COUNT } OPERATION_
  * have been made) to check the state of the table.
  */
 #define KEYS_PER_TABLE 10000
-#define CHANGES_PER_CYCLE (KEYS_PER_TABLE * OPERATION_TYPE_COUNT)
+#define CHANGES_PER_CYCLE (KEYS_PER_TABLE * _OPERATION_TYPE_COUNT)
 
 /*
  * usage --
@@ -387,7 +387,7 @@ table_changes(WT_SESSION *session, TABLE *table)
                 cur->set_value(cur, &item);
                 testutil_check(cur->update(cur));
                 break;
-            default:
+            case _OPERATION_TYPE_COUNT:
                 testutil_assert(false);
                 break;
             }
@@ -650,7 +650,7 @@ check_table(WT_SESSION *session, TABLE *table)
     case REMOVE:
         expect_records = 10000 - (total_changes % 10000);
         break;
-    default:
+    case _OPERATION_TYPE_COUNT:
         testutil_assert(false);
         break;
     }
