@@ -880,6 +880,11 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
      */
     read_timestamp = allow_prepare ? txn->prepare_timestamp : txn->read_timestamp;
     ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp);
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto done;
+    }
+    WT_ERR(ret);
     WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start.timestamp, &hs_counter));
 
     /* Stop before crossing over to the next btree */
@@ -910,10 +915,8 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
      * FIXME-PM-1521: review the code in future
      */
     if (prepare_state == WT_PREPARE_INPROGRESS && !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) &&
-      !allow_prepare) {
-        ret = WT_PREPARE_CONFLICT;
-        goto done;
-    }
+      !allow_prepare)
+        WT_ERR(WT_PREPARE_CONFLICT);
 
     /* We do not have tombstones in the history store anymore. */
     WT_ASSERT(session, upd_type != WT_UPDATE_TOMBSTONE);
