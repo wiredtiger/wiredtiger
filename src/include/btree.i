@@ -1052,8 +1052,10 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
      * See the comment in __wt_row_leaf_key_info for an explanation of the magic.
      */
     if ((v & 0x03) == WT_KV_FLAG) {
-        value->data = WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_VALUE_OFFSET(v));
-        value->size = WT_KV_DECODE_VALUE_LEN(v);
+        if (value != NULL) {
+            value->data = WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_VALUE_OFFSET(v));
+            value->size = WT_KV_DECODE_VALUE_LEN(v);
+        }
         return (true);
     }
     return (false);

@@ -1062,16 +1062,32 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __txn_rollback_required --
+ *     Return write conflict.
+ */
+static inline int
+__txn_rollback_required(WT_SESSION_IMPL *session)
+{
+    WT_STAT_CONN_INCR(session, txn_update_conflict);
+    WT_STAT_DATA_INCR(session, txn_update_conflict);
+    return (__wt_txn_rollback_required(session, "conflict between concurrent operations"));
+}
+
+/*
  * __wt_txn_update_check --
  *     Check if the current transaction can update an item.
  */
 static inline int
-__wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__wt_txn_update_check(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool check_onpage_value)
 {
+    WT_ITEM *buf;
+    WT_TIME_PAIR start, stop;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     bool ignore_prepare_set;
 
+    buf = NULL;
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
 
@@ -1091,10 +1107,22 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (upd->txnid != WT_TXN_ABORTED) {
             if (ignore_prepare_set)
                 F_SET(txn, WT_TXN_IGNORE_PREPARE);
-            WT_STAT_CONN_INCR(session, txn_update_conflict);
-            WT_STAT_DATA_INCR(session, txn_update_conflict);
-            return (__wt_txn_rollback_required(session, "conflict between concurrent operations"));
+            return (__txn_rollback_required(session));
         }
+    }
+
+    /* If there is no cursor, we don't need to check the on page value. */
+    WT_ASSERT(session, cbt != NULL || (cbt == NULL && !check_onpage_value));
+
+    /* Check conflict against the on page value if it exists. */
+    if (check_onpage_value) {
+        WT_RET(__wt_value_return_buf(cbt, cbt->ref, buf, &start, &stop));
+        if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
+          !__wt_txn_visible(session, stop.txnid, stop.timestamp))
+            return (__txn_rollback_required(session));
+
+        if (!__wt_txn_visible(session, start.txnid, start.timestamp))
+            return (__txn_rollback_required(session));
     }
 
     if (ignore_prepare_set)

@@ -122,7 +122,9 @@ __wt_value_return_buf(
             stop->txnid = unpack.stop_txn;
         }
 
-        return (__wt_page_cell_data_ref(session, page, &unpack, buf));
+        if (buf != NULL)
+            return (__wt_page_cell_data_ref(session, page, &unpack, buf));
+        return (0);
     }
 
     if (page->type == WT_PAGE_COL_VAR) {
@@ -136,7 +138,9 @@ __wt_value_return_buf(
             stop->txnid = unpack.stop_txn;
         }
 
-        return (__wt_page_cell_data_ref(session, page, &unpack, buf));
+        if (buf != NULL)
+            return (__wt_page_cell_data_ref(session, page, &unpack, buf));
+        return (0);
     }
 
     /*
@@ -144,6 +148,7 @@ __wt_value_return_buf(
      *
      * FIXME-PM-1523: Should also check visibility here
      */
+    WT_ASSERT(session, buf != NULL);
     v = __bit_getv_recno(ref, cursor->recno, btree->bitcnt);
     return (__wt_buf_set(session, buf, &v, 1));
 }

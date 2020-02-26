@@ -78,10 +78,17 @@ __rollback_abort_newer_insert(
 static inline int
 __rollback_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_UPDATE *upd)
 {
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_PAGE_MODIFY *mod;
     WT_UPDATE *old_upd, **upd_entry;
     size_t upd_size;
+
+    /*
+     * Rollback to stable don't need to check the visibility of the on page value to detect
+     * conflict.
+     */
+    cbt = NULL;
 
     /* If we don't yet have a modify structure, we'll need one. */
     WT_RET(__wt_page_modify_init(session, page));
@@ -112,7 +119,7 @@ __rollback_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
     upd->next = old_upd;
 
     /* Serialize the update. */
-    WT_ERR(__wt_update_serial(session, page, upd_entry, &upd, upd_size, true));
+    WT_ERR(__wt_update_serial(session, cbt, page, upd_entry, &upd, upd_size, true, false));
 
 err:
     return (ret);
