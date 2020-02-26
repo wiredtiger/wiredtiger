@@ -159,34 +159,6 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 }
 
 /*
- * __cursor_disable_bulk --
- *     Disable bulk loads into a tree.
- */
-static inline void
-__cursor_disable_bulk(WT_SESSION_IMPL *session, WT_BTREE *btree)
-{
-    /*
-     * Once a tree (other than the LSM primary) is no longer empty, eviction should pay attention to
-     * it, and it's no longer possible to bulk-load into it.
-     */
-    if (!btree->original)
-        return;
-    if (btree->lsm_primary) {
-        btree->original = 0; /* Make the next test faster. */
-        return;
-    }
-
-    /*
-     * We use a compare-and-swap here to avoid races among the first inserts into a tree. Eviction
-     * is disabled when an empty tree is opened, and it must only be enabled once.
-     */
-    if (__wt_atomic_cas8(&btree->original, 1, 0)) {
-        btree->evict_disabled_open = false;
-        __wt_evict_file_exclusive_off(session);
-    }
-}
-
-/*
  * __cursor_fix_implicit --
  *     Return if search went past the end of the tree.
  */
@@ -843,7 +815,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     WT_RET(__cursor_size_chk(session, &cursor->value));
 
     /* It's no longer possible to bulk-load into the tree. */
-    __cursor_disable_bulk(session, btree);
+    __wt_cursor_disable_bulk(session, btree);
 
     /*
      * Insert a new record if WT_CURSTD_APPEND configured, (ignoring any application set record
@@ -1247,7 +1219,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     yield_count = sleep_usecs = 0;
 
     /* It's no longer possible to bulk-load into the tree. */
-    __cursor_disable_bulk(session, btree);
+    __wt_cursor_disable_bulk(session, btree);
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);

@@ -110,17 +110,6 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
      */
     WT_ERR(__wt_hs_get_btree(tmp_setup_session, &btree));
 
-    /*
-     * Disable bulk loads into history store. We should set original to 0 the first time we
-     * configure history store. We do not need compare-and-swap because no one can race us the first
-     * time we are configuring.
-     */
-    if (btree->original) {
-        btree->original = 0;
-        btree->evict_disabled_open = false;
-        WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
-    }
-
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
         conn->cache->hs_fileid = btree->id;
@@ -483,6 +472,9 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     insert_cnt = 0;
     btree_id = btree->id;
     __wt_modify_vector_init(session, &modifies);
+
+    /* Disable bulk loads into history store. */
+    __wt_cursor_disable_bulk(session, ((WT_CURSOR_BTREE *)cursor)->btree);
 
     if (!btree->hs_entries)
         btree->hs_entries = true;

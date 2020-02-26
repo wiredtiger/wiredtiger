@@ -2143,6 +2143,7 @@ static inline void __wt_cond_wait(
   WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs, bool (*run_func)(WT_SESSION_IMPL *));
 static inline void __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session);
 static inline void __wt_cursor_dhandle_incr_use(WT_SESSION_IMPL *session);
+static inline void __wt_cursor_disable_bulk(WT_SESSION_IMPL *session, WT_BTREE *btree);
 static inline void __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp);
 static inline void __wt_op_timer_start(WT_SESSION_IMPL *session);
 static inline void __wt_op_timer_stop(WT_SESSION_IMPL *session);
