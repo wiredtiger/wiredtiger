@@ -53,7 +53,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Minimum cache_size requirement of lsm is 31MB.
     types = [
-    # The commented columnar tests needs to be enabled once rollback to stable for columnar is fixed.
+    # The commented columnar tests needs to be enabled once rollback to stable for columnar is fixed in (WT-5548).
     #    ('col_fix', dict(empty=1, cacheSize='cache_size=20MB', extra_config=',key_format=r,value_format=8t')),
     #    ('col_var', dict(empty=0, cacheSize='cache_size=20MB', extra_config=',key_format=r')),
         ('lsm', dict(empty=0, cacheSize='cache_size=31MB', extra_config=',type=lsm')),
