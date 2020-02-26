@@ -183,7 +183,8 @@ struct __wt_cache {
      */
     int32_t evict_hs_score;
 
-    uint32_t hs_fileid; /* History store table file ID */
+    uint64_t hs_counter; /* History store counter */
+    uint32_t hs_fileid;  /* History store table file ID */
 
     /*
      * The "history_activity" verbose messages are throttled to once per checkpoint. To accomplish
