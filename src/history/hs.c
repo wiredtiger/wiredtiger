@@ -760,12 +760,19 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      * between our search and the set of updates that we're interested in. Keep trying until we find
      * it.
      *
+     * There may be no history store entries for the given btree id and record key if they have been
+     * removed by WT_CONNECTION::rollback_to_stable.
+     *
      * Note that we need to compare the raw key off the cursor to determine where we are in the
      * history store as opposed to comparing the embedded data store key since the ordering is not
      * guaranteed to be the same.
      */
     for (;;) {
         cursor->set_key(cursor, btree_id, key, timestamp, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
+        /*
+         * We're going to be searching with the same key on every iteration, so only copy the buffer
+         * on the first loop.
+         */
         if (!set_key) {
             set_key = true;
             WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
@@ -773,11 +780,6 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
         WT_ERR(cursor->search_near(cursor, &exact));
         if (exact > 0)
             WT_ERR(cursor->prev(cursor));
-
-        /*
-         * There may be no history store entries for the given btree id and record key if they have
-         * been removed by WT_CONNECTION::rollback_to_stable.
-         */
         WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
         if (cmp <= 0)
             break;
