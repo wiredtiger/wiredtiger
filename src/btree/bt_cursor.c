@@ -58,7 +58,6 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
 {
     WT_CURSOR *cursor;
     WT_SESSION_IMPL *session;
-    uint8_t current_state;
 
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cursor->session;
@@ -100,16 +99,6 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
     if (cbt->ref->page->read_gen == WT_READGEN_OLDEST)
         return (false);
 
-    /*
-     * We need a page with history: updates need complete update lists and a read might be based on
-     * a different timestamp than the one that brought the page into memory. Release the page and
-     * read it again with history if required. Eviction may be locking the page, wait until we see a
-     * "normal" state and then test against that state (eviction may have already locked the page
-     * again).
-     */
-    while ((current_state = cbt->ref->state) == WT_REF_LOCKED)
-        __wt_yield();
-    WT_ASSERT(session, current_state == WT_REF_MEM);
     return (true);
 }
 
