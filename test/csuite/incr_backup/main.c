@@ -728,7 +728,7 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     uint32_t file_max, iter, max_value_size, next_checkpoint, rough_size, slot;
     int ch, ncheckpoints, status;
-    const char *working_dir;
+    const char *backup_verbose, *working_dir;
     char conf[1024], home[1024], backup_check[1024], backup_dir[1024], command[4096];
 
     ncheckpoints = 0;
@@ -773,6 +773,8 @@ main(int argc, char *argv[])
     if ((status = system(command)) < 0)
         testutil_die(status, "system: %s", command);
 
+    backup_verbose = (verbose_level >= 4) ? "verbose=(backup)" : "";
+
     /*
      * We create an overall max_value_size.  From that, we'll set a random max_value_size per table.
      * In addition, individual values put into each table vary randomly in size, up to the
@@ -792,8 +794,8 @@ main(int argc, char *argv[])
         file_max = 200 + __wt_random(&rnd) % 1000; /* 200K to ~1M */
     else
         file_max = 1000 + __wt_random(&rnd) % 20000; /* 1M to ~20M */
-    testutil_check(__wt_snprintf(
-      conf, sizeof(conf), "create,log=(enabled=true,file_max=%" PRIu32 "K)", file_max));
+    testutil_check(__wt_snprintf(conf, sizeof(conf),
+      "create,%s,log=(enabled=true,file_max=%" PRIu32 "K)", backup_verbose, file_max));
     VERBOSE(2, "wiredtiger config: %s\n", conf);
     testutil_check(wiredtiger_open(home, NULL, conf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
