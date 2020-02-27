@@ -234,13 +234,11 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_STUFF *ss, stuff;
-    uint64_t btree_write_gen;
     uint32_t i, leaf_cnt;
 
     WT_UNUSED(cfg);
 
     btree = S2BT(session);
-    btree_write_gen = 0;
     bm = btree->bm;
 
     WT_CLEAR(stuff);
@@ -351,16 +349,17 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
      * Build an internal page that references all of the leaf pages, and write it, as well as any
      * merged pages, to the file.
      *
+     * In the case of metadata, we will bump the connection base write gen to the metadata write gen
+     * after metadata salvage completes.
+     *
      * Count how many leaf pages we have (we could track this during the array shuffling/splitting,
      * but that's a lot harder).
      */
     for (leaf_cnt = i = 0; i < ss->pages_next; ++i)
         if (ss->pages[i] != NULL) {
             ++leaf_cnt;
-            btree_write_gen = WT_MAX(btree_write_gen, ss->pages[i]->shared->gen);
+            btree->write_gen = WT_MAX(btree->write_gen, ss->pages[i]->shared->gen);
         }
-
-    btree->write_gen = btree_write_gen;
 
     if (leaf_cnt != 0)
         switch (ss->page_type) {
