@@ -44,7 +44,8 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase, suite_subproces
     keyfmt = [
         ('row-string', dict(keyfmt='S')),
         ('row-int', dict(keyfmt='i')),
-        ('column-store', dict(keyfmt='r')),
+    # The commented columnar tests needs to be enabled once rollback to stable for columnar is fixed in (WT-5548).
+    #    ('column-store', dict(keyfmt='r')),
     ]
     types = [
         ('file', dict(uri='file', ds=SimpleDataSet)),
