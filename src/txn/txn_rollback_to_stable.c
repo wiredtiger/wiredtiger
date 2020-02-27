@@ -139,6 +139,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_UPDATE *hs_upd, *upd;
     wt_timestamp_t durable_ts;
     size_t size;
+    uint64_t hs_counter;
     uint32_t hs_btree_id, session_flags;
     uint8_t prepare_state, type;
     int cmp;
@@ -181,8 +182,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
      */
     ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, WT_TS_MAX);
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start.timestamp,
-          &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
+        WT_ERR(
+          hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start.timestamp, &hs_counter));
 
         /* Stop before crossing over to the next btree */
         if (hs_btree_id != S2BT(session)->id)
@@ -206,7 +207,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         cbt->compare = 0;
 
         /* Get current value and convert to full update if it is a modify. */
-        WT_ERR(hs_cursor->get_value(hs_cursor, &durable_ts, &prepare_state, &type, hs_value));
+        WT_ERR(hs_cursor->get_value(
+          hs_cursor, &hs_stop.timestamp, &durable_ts, &prepare_state, &type, hs_value));
         if (type == WT_UPDATE_MODIFY)
             WT_ERR(__wt_modify_apply_item(session, &full_value, hs_value->data, false));
         else {
@@ -765,8 +767,9 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
     WT_ITEM key;
-    WT_TIME_PAIR hs_start, hs_stop;
+    WT_TIME_PAIR hs_start;
     WT_UPDATE *hs_upd;
+    uint64_t hs_counter;
     uint32_t hs_btree_id, session_flags;
     int exact;
 
@@ -783,7 +786,7 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
     cbt = (WT_CURSOR_BTREE *)hs_cursor;
 
     /* Walk the history store for the given btree. */
-    hs_cursor->set_key(hs_cursor, btree_id, &key, WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TXN_NONE);
+    hs_cursor->set_key(hs_cursor, btree_id, &key, WT_TS_NONE, 0);
     ret = hs_cursor->search_near(hs_cursor, &exact);
 
     /*
@@ -795,8 +798,8 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
         ret = hs_cursor->next(hs_cursor);
 
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start.timestamp,
-          &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
+        WT_ERR(
+          hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start.timestamp, &hs_counter));
 
         /* Stop crossing into the next btree boundary. */
         if (btree_id != hs_btree_id)

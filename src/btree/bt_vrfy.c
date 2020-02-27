@@ -260,6 +260,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
     WT_TIME_PAIR newer_start, older_start, older_stop;
+    uint64_t hs_counter;
     uint32_t hs_btree_id, session_flags;
     int cmp, exact;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -272,10 +273,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
      * in which case we initialize our newest with the max txn-id.
      */
     newer_start.timestamp = unpack->start_ts;
-    newer_start.txnid = unpack->start_txn == WT_TXN_NONE ? WT_TXN_MAX : unpack->start_txn;
     session_flags = 0;
     older_stop.timestamp = 0;
-    older_stop.txnid = 0;
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
 
@@ -285,7 +284,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
      */
     WT_ERR(__wt_hs_cursor(session, &session_flags));
     hs_cursor = session->hs_cursor;
-    hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
+    hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, UINT64_MAX);
     WT_ERR(hs_cursor->search_near(hs_cursor, &exact));
 
     /* If we jumped to the next key, go back to the previous key. */
@@ -293,8 +292,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
         WT_ERR(hs_cursor->prev(hs_cursor));
 
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &older_start.timestamp,
-          &older_start.txnid, &older_stop.timestamp, &older_stop.txnid));
+        WT_ERR(
+          hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &older_start.timestamp, &hs_counter));
 
         if (hs_btree_id != btree->id)
             break;
@@ -323,25 +322,10 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
               __verify_timestamp_to_pretty_string(newer_start.timestamp, ts_string[1]));
         }
         /*
-         * It is possible to have a start txn-id of WT_TXN_NONE for a record that was moved to
-         * history store from the data store after a restart, ignore comparing txn-id in that case.
-         */
-        if (newer_start.txnid != WT_TXN_NONE && newer_start.txnid < older_stop.txnid) {
-            WT_ERR_MSG(session, WT_ERROR,
-              "In the Btree %" PRIu32
-              ", Key %s has a overlap of "
-              "timestamp ranges between history store stop transaction (%" PRIu64
-              ") being "
-              "newer than a more recent transaction range having start transaction (%" PRIu64 ")",
-              hs_btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
-              older_stop.txnid, newer_start.txnid);
-        }
-        /*
          * Since we are iterating from newer to older, the current older record becomes the newer
          * for the next round of verification.
          */
         newer_start.timestamp = older_start.timestamp;
-        newer_start.txnid = older_start.txnid;
 
         WT_ERR(__verify_ts_stable_cmp(
           session, key, NULL, 0, older_start.timestamp, older_stop.timestamp, vs));
@@ -606,7 +590,8 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri)
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_ITEM hs_key, prev_hs_key;
-    WT_TIME_PAIR hs_start, hs_stop;
+    WT_TIME_PAIR hs_start;
+    uint64_t hs_counter;
     uint32_t btree_id, btree_id_given_uri, session_flags, prev_btree_id;
     int exact, cmp;
     char *uri_itr;
@@ -644,8 +629,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri)
 
     /* We have the history store cursor positioned at the first record that we want to verify. */
     for (; ret == 0; ret = cursor->next(cursor)) {
-        WT_ERR(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start.timestamp, &hs_start.txnid,
-          &hs_stop.timestamp, &hs_stop.txnid));
+        WT_ERR(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start.timestamp, &hs_counter));
 
         /* When limiting our verification to a uri, bail out if the btree-id doesn't match. */
         if (uri != NULL && btree_id != btree_id_given_uri)
