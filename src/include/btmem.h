@@ -191,10 +191,11 @@ struct __wt_ovfl_reuse {
  *
  * The first part of the key is comprised of a file ID, record key (byte-string for row-store,
  * record number for column-store) and timestamp. This allows us to search efficiently for a given
- * record key and read timestamp combination. The last part of the key is the transaction ID to
- * account for updates that don't have a timestamp associated with them. Since the transaction ID is
- * monotonically increasing, this will keep them in order.
+ * record key and read timestamp combination. The last part of the key is a monotonically increasing
+ * counter to keep the key unique in the case where we have multiple transactions committing at the
+ * same timestamp.
  * The value is the WT_UPDATE structure's:
+ * 	- stop timestamp
  * 	- durable timestamp
  * 	- update's prepare state
  *	- update type
