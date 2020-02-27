@@ -1103,18 +1103,15 @@ __wt_txn_update_check(
     ignore_prepare_set = F_ISSET(txn, WT_TXN_IGNORE_PREPARE);
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
-        if (upd->txnid != WT_TXN_ABORTED) {
-            if (ignore_prepare_set)
-                F_SET(txn, WT_TXN_IGNORE_PREPARE);
+        if (upd->txnid != WT_TXN_ABORTED)
             WT_ERR(__txn_rollback_required(session));
-        }
     }
 
     /* If there is no cursor, we don't need to check the on page value. */
     WT_ASSERT(session, cbt != NULL || !check_onpage_value);
 
     /* Check conflict against the on page value. */
-    if (check_onpage_value) {
+    if (upd == NULL && check_onpage_value) {
         WT_ERR(__wt_value_return_buf(cbt, cbt->ref, NULL, &start, &stop));
         if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
           !__wt_txn_visible(session, stop.txnid, stop.timestamp))
