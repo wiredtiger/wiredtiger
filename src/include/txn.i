@@ -1081,13 +1081,11 @@ static inline int
 __wt_txn_update_check(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool check_onpage_value)
 {
-    WT_ITEM *buf;
     WT_TIME_PAIR start, stop;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     bool ignore_prepare_set;
 
-    buf = NULL;
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
 
@@ -1116,7 +1114,7 @@ __wt_txn_update_check(
 
     /* Check conflict against the on page value if it exists. */
     if (check_onpage_value) {
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, buf, &start, &stop));
+        WT_RET(__wt_value_return_buf(cbt, cbt->ref, (WT_ITEM *)NULL, &start, &stop));
         if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
           !__wt_txn_visible(session, stop.txnid, stop.timestamp))
             return (__txn_rollback_required(session));
