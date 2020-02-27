@@ -443,7 +443,8 @@ __rollback_abort_row_reconciled_page(
     if ((mod = page->modify) == NULL)
         return (0);
 
-    if (mod->rec_result == WT_PM_REC_REPLACE) {
+    if (mod->rec_result == WT_PM_REC_REPLACE &&
+      mod->mod_replace.newest_durable_ts > rollback_timestamp) {
         WT_RET(__rollback_abort_row_reconciled_page_internal(session, mod->u1.r.disk_image,
           mod->u1.r.replace.addr, mod->u1.r.replace.size, rollback_timestamp));
 
@@ -456,8 +457,9 @@ __rollback_abort_row_reconciled_page(
     } else if (mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         for (multi = mod->mod_multi, multi_entry = 0; multi_entry < mod->mod_multi_entries;
              ++multi, ++multi_entry)
-            WT_RET(__rollback_abort_row_reconciled_page_internal(
-              session, multi->disk_image, multi->addr.addr, multi->addr.size, rollback_timestamp));
+            if (multi->addr.newest_durable_ts > rollback_timestamp)
+                WT_RET(__rollback_abort_row_reconciled_page_internal(session, multi->disk_image,
+                  multi->addr.addr, multi->addr.size, rollback_timestamp));
 
         /*
          * As this page has newer aborts that are aborted, make sure to mark the page as dirty to
@@ -645,7 +647,7 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
     while ((ret = __wt_tree_walk(
               session, &ref, WT_READ_CACHE_LEAF | WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL)
-        if (F_ISSET(ref, WT_REF_IS_INTERNAL)) {
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             WT_INTL_FOREACH_BEGIN (session, ref->page, child_ref) {
                 WT_RET(__rollback_abort_newer_updates(session, child_ref, rollback_timestamp));
             }

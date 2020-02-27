@@ -44,7 +44,6 @@ static void connection_ops(WT_CONNECTION *conn);
 static int cursor_ops(WT_SESSION *session);
 static void cursor_search_near(WT_CURSOR *cursor);
 static void cursor_statistics(WT_SESSION *session);
-static void named_snapshot_ops(WT_SESSION *session);
 static void pack_ops(WT_SESSION *session);
 static void session_ops(WT_SESSION *session);
 static void transaction_ops(WT_SESSION *session);
@@ -554,23 +553,6 @@ cursor_statistics(WT_SESSION *session)
 }
 
 static void
-named_snapshot_ops(WT_SESSION *session)
-{
-    /*! [Snapshot examples] */
-    /* Create a named snapshot */
-    error_check(session->snapshot(session, "name=June01"));
-
-    /* Open a transaction at a given snapshot */
-    error_check(session->begin_transaction(session, "snapshot=June01"));
-
-    /* Drop all named snapshots */
-    error_check(session->snapshot(session, "drop=(all)"));
-    /*! [Snapshot examples] */
-
-    error_check(session->rollback_transaction(session, NULL));
-}
-
-static void
 session_ops_create(WT_SESSION *session)
 {
     /*! [Create a table] */
@@ -791,7 +773,6 @@ session_ops(WT_SESSION *session)
         checkpoint_ops(session);
         error_check(cursor_ops(session));
         cursor_statistics(session);
-        named_snapshot_ops(session);
         pack_ops(session);
         transaction_ops(session);
 

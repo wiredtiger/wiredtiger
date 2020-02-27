@@ -1138,7 +1138,7 @@ __wt_ref_info_lock(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, siz
      */
     for (;; __wt_yield()) {
         previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED && previous_state != WT_REF_READING &&
+        if (previous_state != WT_REF_LOCKED &&
           WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;
     }
@@ -1432,7 +1432,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * One special case where we know this is safe is if the handle is locked exclusive (e.g., when
      * the whole tree is being evicted). In that case, no readers can be looking at an old index.
      */
-    if (F_ISSET(ref, WT_REF_IS_INTERNAL) && !F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
       __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen))
         return (false);
 
