@@ -110,17 +110,6 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
      */
     WT_ERR(__wt_hs_get_btree(tmp_setup_session, &btree));
 
-    /*
-     * Disable bulk loads into history store. We should set original to 0 the first time we
-     * configure history store. We do not need compare-and-swap because no one can race us the first
-     * time we are configuring.
-     */
-    if (btree->original) {
-        btree->original = 0;
-        btree->evict_disabled_open = false;
-        WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
-    }
-
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
         conn->cache->hs_fileid = btree->id;
@@ -147,55 +136,6 @@ err:
     if (tmp_setup_session != NULL)
         WT_TRET(__hs_release_internal_session(tmp_setup_session));
     return (ret);
-}
-
-/*
- * __wt_hs_stats_update --
- *     Update the history store table statistics for return to the application.
- */
-int
-__wt_hs_stats_update(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *hs_btree;
-    WT_CONNECTION_IMPL *conn;
-    WT_CONNECTION_STATS **cstats;
-    WT_DSRC_STATS **dstats;
-    int64_t v;
-
-    conn = S2C(session);
-
-    /*
-     * History store table statistics are copied from the underlying history store table data-source
-     * statistics. If there's no history store table, values remain 0.
-     */
-    if (!F_ISSET(conn, WT_CONN_HS_OPEN))
-        return (0);
-
-    /* Set the connection-wide statistics. */
-    cstats = conn->stats;
-
-    /*
-     * Get a history store cursor, we need the underlying data handle; we can get to it by way of
-     * the underlying btree handle, but it's a little ugly.
-     */
-    WT_RET(__wt_hs_get_btree(session, &hs_btree));
-
-    dstats = hs_btree->dhandle->stats;
-
-    v = WT_STAT_READ(dstats, cursor_update);
-    WT_STAT_SET(session, cstats, cache_hs_insert, v);
-
-    /*
-     * If we're clearing stats we need to clear the cursor values we just read. This does not clear
-     * the rest of the statistics in the history store data source stat cursor, but we own that
-     * namespace so we don't have to worry about users seeing inconsistent data source information.
-     */
-    if (FLD_ISSET(conn->stat_flags, WT_STAT_CLEAR)) {
-        WT_STAT_SET(session, dstats, cursor_update, 0);
-        WT_STAT_SET(session, dstats, cursor_remove, 0);
-    }
-
-    return (0);
 }
 
 /*
@@ -263,12 +203,8 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
 int
 __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags)
 {
-    /*
-     * We should never reach here if working in context of the default session. The only exception
-     * is when we are processing connection close requests.
-     */
-    WT_ASSERT(
-      session, S2C(session)->default_session != session || F_ISSET(S2C(session), WT_CONN_CLOSING));
+    /* We should never reach here if working in context of the default session. */
+    WT_ASSERT(session, S2C(session)->default_session != session);
 
     /*
      * We don't want to get tapped for eviction after we start using the history store cursor; save
@@ -388,6 +324,12 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const
     hs_upd = NULL;
 
     /*
+     * Disable bulk loads into history store. This would normally occur when updating a record with
+     * a cursor however the history store doesn't use cursor update, so we do it here.
+     */
+    __wt_cursor_disable_bulk(session);
+
+    /*
      * Only deltas or full updates should be written to the history store. More specifically, we
      * should NOT be writing tombstone records in the history store table.
      */
@@ -427,6 +369,12 @@ retry:
     WT_ERR(ret);
     WT_ERR(__wt_row_modify(cbt, &cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
 
+    /*
+     * Since the two updates (tombstone and the standard) will reconcile into a single entry, we are
+     * incrementing the history store insert statistic by one.
+     */
+    WT_STAT_CONN_INCR(session, cache_hs_insert);
+
 err:
     /*
      * If we inserted an update with no timestamp, we need to delete all history records for that
@@ -439,7 +387,7 @@ err:
     if (ret == 0 && upd->start_ts == WT_TS_NONE) {
 #ifdef HAVE_DIAGNOSTIC
         /*
-         * We need to initialise the last searched key so that we can do key comparisons when we
+         * We need to initialize the last searched key so that we can do key comparisons when we
          * begin iterating over the history store. This needs to be done otherwise the subsequent
          * "next" calls will blow up.
          */
@@ -623,12 +571,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
         for (; upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
-
-            /* Ignore consecutive tombstones. */
-            if (upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL &&
-              upd->next->type == WT_UPDATE_TOMBSTONE)
-                continue;
-
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
             /*
              * If we've reached a full update and its in the history store we don't need to continue
@@ -760,9 +702,14 @@ int
 __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   WT_ITEM *key, wt_timestamp_t timestamp)
 {
+    WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
-    WT_ITEM srch_key;
     int cmp, exact;
+    bool set_key;
+
+    set_key = false;
+
+    WT_RET(__wt_scr_alloc(session, 0, &srch_key));
 
     WT_CLEAR(srch_key);
 
@@ -770,29 +717,33 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      * Because of the special visibility rules for the history store, a new key can appear in
      * between our search and the set of updates that we're interested in. Keep trying until we find
      * it.
+     *
+     * There may be no history store entries for the given btree id and record key if they have been
+     * removed by WT_CONNECTION::rollback_to_stable.
+     *
+     * Note that we need to compare the raw key off the cursor to determine where we are in the
+     * history store as opposed to comparing the embedded data store key since the ordering is not
+     * guaranteed to be the same.
      */
     for (;;) {
         cursor->set_key(cursor, btree_id, key, timestamp, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
-        if (srch_key.data == NULL)
-            WT_ERR(__wt_buf_set(session, &srch_key, cursor->key.data, cursor->key.size));
+        /*
+         * We're going to be searching with the same key on every iteration, so only copy the buffer
+         * on the first loop.
+         */
+        if (!set_key) {
+            set_key = true;
+            WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
+        }
         WT_ERR(cursor->search_near(cursor, &exact));
         if (exact > 0)
             WT_ERR(cursor->prev(cursor));
-
-        /*
-         * Because of the special visibility rules for the history store, a new key can appear in
-         * between our search and the set of updates we're interested in. Keep trying while we have
-         * a key lower than we expect.
-         *
-         * There may be no history store entries for the given btree id and record key if they have
-         * been removed by WT_CONNECTION::rollback_to_stable.
-         */
-        WT_ERR(__wt_compare(session, NULL, &cursor->key, &srch_key, &cmp));
+        WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
         if (cmp <= 0)
             break;
     }
 err:
-    __wt_buf_free(session, &srch_key);
+    __wt_scr_free(session, &srch_key);
     return (ret);
 }
 

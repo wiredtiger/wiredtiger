@@ -172,7 +172,6 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
                 locked = true;
             break;
         case WT_REF_DISK:
-        case WT_REF_READING:
         default:
             return (__wt_illegal_value(session, current_state));
         }

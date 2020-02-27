@@ -286,6 +286,8 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page)
         ref->pindex_hint = hint++;
         ref->addr = unpack.cell;
         ref->ref_recno = unpack.v;
+
+        F_SET(ref, unpack.type == WT_CELL_ADDR_INT ? WT_REF_FLAG_INTERNAL : WT_REF_FLAG_LEAF);
     }
     WT_CELL_FOREACH_END;
 }
@@ -405,6 +407,17 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
         ref = *refp;
         ref->home = page;
         ref->pindex_hint = hint++;
+
+        switch (unpack.type) {
+        case WT_CELL_ADDR_INT:
+            F_SET(ref, WT_REF_FLAG_INTERNAL);
+            break;
+        case WT_CELL_ADDR_DEL:
+        case WT_CELL_ADDR_LEAF:
+        case WT_CELL_ADDR_LEAF_NO:
+            F_SET(ref, WT_REF_FLAG_LEAF);
+            break;
+        }
 
         switch (unpack.type) {
         case WT_CELL_KEY:

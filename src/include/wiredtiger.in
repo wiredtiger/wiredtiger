@@ -1693,7 +1693,8 @@ struct __wt_session {
 	 * @exclusive
 	 *
 	 * @param session the session handle
-	 * @param name the URI of the table or file to verify
+	 * @param name the URI of the table or file to verify, optional if verifying the history
+	 * store
 	 * @configstart{WT_SESSION.verify, see dist/api_data.py}
 	 * @config{dump_address, Display page addresses\, start and stop time pairs and page types
 	 * as pages are verified\, using the application's message handler\, intended for
@@ -1713,9 +1714,9 @@ struct __wt_session {
 	 * @config{dump_pages, Display the contents of in-memory pages as they are verified\, using
 	 * the application's message handler\, intended for debugging., a boolean flag; default \c
 	 * false.}
-	 * @config{hs_verify, Verify the history store., a boolean flag; default \c false.}
-	 * @config{stable_timestamp, Ensure that no valid timestamps after the stable timestamp
-	 * exist\, to be run after rollback_to_stable., a boolean flag; default \c false.}
+	 * @config{history_store, Verify the history store., a boolean flag; default \c false.}
+	 * @config{stable_timestamp, Ensure that no data has a start timestamp after the stable
+	 * timestamp\, to be run after rollback_to_stable., a boolean flag; default \c false.}
 	 * @config{strict, Treat any verification problem as an error; by default\, verify will
 	 * warn\, but not fail\, in the case of errors that won't affect future behavior (for
 	 * example\, a leaked block)., a boolean flag; default \c false.}
@@ -1782,8 +1783,6 @@ struct __wt_session {
 	 * oldest timestamp\, the read timestamp will be rounded up to the oldest timestamp., a
 	 * boolean flag; default \c false.}
 	 * @config{ ),,}
-	 * @config{snapshot, use a named\, in-memory snapshot\, see @ref
-	 * transaction_named_snapshots., a string; default empty.}
 	 * @config{sync, whether to sync log records when the transaction commits\, inherited from
 	 * ::wiredtiger_open \c transaction_sync., a boolean flag; default empty.}
 	 * @configend
@@ -1961,36 +1960,6 @@ struct __wt_session {
 	 * @errors
 	 */
 	int __F(checkpoint)(WT_SESSION *session, const char *config);
-
-	/*!
-	 * Manage named snapshot transactions. Use this API to create and drop
-	 * named snapshots. Named snapshot transactions can be accessed via
-	 * WT_CURSOR::open. See @ref transaction_named_snapshots.
-	 *
-	 * @snippet ex_all.c Snapshot examples
-	 *
-	 * @param session the session handle
-	 * @configstart{WT_SESSION.snapshot, see dist/api_data.py}
-	 * @config{drop = (, if non-empty\, specifies which snapshots to drop.  Where a group of
-	 * snapshots are being dropped\, the order is based on snapshot creation order not
-	 * alphanumeric name order., a set of related configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;all, drop all named snapshots., a boolean flag; default
-	 * \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;before, drop all snapshots up to but not
-	 * including the specified name., a string; default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * names, drop specific named snapshots., a list of strings; default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;to, drop all snapshots up to and including the specified
-	 * name., a string; default empty.}
-	 * @config{ ),,}
-	 * @config{include_updates, make updates from the current transaction visible to users of
-	 * the named snapshot.  Transactions started with such a named snapshot are restricted to
-	 * being read-only., a boolean flag; default \c false.}
-	 * @config{name, specify a name for the snapshot., a string; default empty.}
-	 * @configend
-	 * @errors
-	 */
-	int __F(snapshot)(WT_SESSION *session, const char *config);
 
 	/*!
 	 * Return the transaction ID range pinned by the session handle.
@@ -5702,131 +5671,132 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_DURABLE_QUEUE_INSERTS		1357
 /*! transaction: durable timestamp queue length */
 #define	WT_STAT_CONN_TXN_DURABLE_QUEUE_LEN		1358
-/*! transaction: number of named snapshots created */
-#define	WT_STAT_CONN_TXN_SNAPSHOTS_CREATED		1359
-/*! transaction: number of named snapshots dropped */
-#define	WT_STAT_CONN_TXN_SNAPSHOTS_DROPPED		1360
 /*! transaction: prepared transactions */
-#define	WT_STAT_CONN_TXN_PREPARE			1361
+#define	WT_STAT_CONN_TXN_PREPARE			1359
 /*! transaction: prepared transactions committed */
-#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1362
+#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1360
 /*! transaction: prepared transactions currently active */
-#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1363
+#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1361
 /*! transaction: prepared transactions rolled back */
-#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1364
+#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1362
 /*! transaction: query timestamp calls */
-#define	WT_STAT_CONN_TXN_QUERY_TS			1365
+#define	WT_STAT_CONN_TXN_QUERY_TS			1363
 /*! transaction: read timestamp queue entries walked */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_WALKED		1366
+#define	WT_STAT_CONN_TXN_READ_QUEUE_WALKED		1364
 /*! transaction: read timestamp queue insert to empty */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_EMPTY		1367
+#define	WT_STAT_CONN_TXN_READ_QUEUE_EMPTY		1365
 /*! transaction: read timestamp queue inserts to head */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_HEAD		1368
+#define	WT_STAT_CONN_TXN_READ_QUEUE_HEAD		1366
 /*! transaction: read timestamp queue inserts total */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_INSERTS		1369
+#define	WT_STAT_CONN_TXN_READ_QUEUE_INSERTS		1367
 /*! transaction: read timestamp queue length */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_LEN			1370
+#define	WT_STAT_CONN_TXN_READ_QUEUE_LEN			1368
 /*! transaction: rollback to stable calls */
-#define	WT_STAT_CONN_TXN_RTS				1371
+#define	WT_STAT_CONN_TXN_RTS				1369
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1372
+#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1370
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1373
+#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1371
 /*! transaction: rollback to stable pages visited */
-#define	WT_STAT_CONN_TXN_RTS_PAGES_VISITED		1374
+#define	WT_STAT_CONN_TXN_RTS_PAGES_VISITED		1372
 /*! transaction: rollback to stable updates aborted */
-#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED		1375
+#define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED		1373
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1376
+#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1374
 /*! transaction: set timestamp calls */
-#define	WT_STAT_CONN_TXN_SET_TS				1377
+#define	WT_STAT_CONN_TXN_SET_TS				1375
 /*! transaction: set timestamp durable calls */
-#define	WT_STAT_CONN_TXN_SET_TS_DURABLE			1378
+#define	WT_STAT_CONN_TXN_SET_TS_DURABLE			1376
 /*! transaction: set timestamp durable updates */
-#define	WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD		1379
+#define	WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD		1377
 /*! transaction: set timestamp oldest calls */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1380
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1378
 /*! transaction: set timestamp oldest updates */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1381
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1379
 /*! transaction: set timestamp stable calls */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE			1382
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE			1380
 /*! transaction: set timestamp stable updates */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1383
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1381
 /*! transaction: transaction begins */
-#define	WT_STAT_CONN_TXN_BEGIN				1384
+#define	WT_STAT_CONN_TXN_BEGIN				1382
 /*! transaction: transaction checkpoint currently running */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING		1385
+#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING		1383
 /*! transaction: transaction checkpoint generation */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_GENERATION		1386
+#define	WT_STAT_CONN_TXN_CHECKPOINT_GENERATION		1384
 /*!
  * transaction: transaction checkpoint history store file duration
  * (usecs)
  */
-#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1387
+#define	WT_STAT_CONN_TXN_HS_CKPT_DURATION		1385
 /*! transaction: transaction checkpoint max time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MAX		1388
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MAX		1386
 /*! transaction: transaction checkpoint min time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1389
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1387
 /*! transaction: transaction checkpoint most recent time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1390
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1388
+/*! transaction: transaction checkpoint prepare currently running */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RUNNING	1389
+/*! transaction: transaction checkpoint prepare max time (msecs) */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MAX		1390
+/*! transaction: transaction checkpoint prepare min time (msecs) */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MIN		1391
+/*! transaction: transaction checkpoint prepare most recent time (msecs) */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RECENT		1392
+/*! transaction: transaction checkpoint prepare total time (msecs) */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_TOTAL		1393
 /*! transaction: transaction checkpoint scrub dirty target */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1391
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1394
 /*! transaction: transaction checkpoint scrub time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1392
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1395
 /*! transaction: transaction checkpoint total time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1393
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1396
 /*! transaction: transaction checkpoints */
-#define	WT_STAT_CONN_TXN_CHECKPOINT			1394
+#define	WT_STAT_CONN_TXN_CHECKPOINT			1397
 /*!
  * transaction: transaction checkpoints skipped because database was
  * clean
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1395
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1398
 /*! transaction: transaction failures due to history store */
-#define	WT_STAT_CONN_TXN_FAIL_CACHE			1396
+#define	WT_STAT_CONN_TXN_FAIL_CACHE			1399
 /*!
  * transaction: transaction fsync calls for checkpoint after allocating
  * the transaction ID
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST		1397
+#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST		1400
 /*!
  * transaction: transaction fsync duration for checkpoint after
  * allocating the transaction ID (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST_DURATION	1398
+#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST_DURATION	1401
 /*! transaction: transaction range of IDs currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_RANGE			1399
+#define	WT_STAT_CONN_TXN_PINNED_RANGE			1402
 /*! transaction: transaction range of IDs currently pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1400
-/*!
- * transaction: transaction range of IDs currently pinned by named
- * snapshots
- */
-#define	WT_STAT_CONN_TXN_PINNED_SNAPSHOT_RANGE		1401
+#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1403
 /*! transaction: transaction range of timestamps currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1402
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1404
 /*! transaction: transaction range of timestamps pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1403
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1405
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * active read timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1404
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1406
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1405
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1407
 /*! transaction: transaction read timestamp of the oldest active reader */
-#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1406
+#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1408
 /*! transaction: transaction sync calls */
-#define	WT_STAT_CONN_TXN_SYNC				1407
+#define	WT_STAT_CONN_TXN_SYNC				1409
 /*! transaction: transactions committed */
-#define	WT_STAT_CONN_TXN_COMMIT				1408
+#define	WT_STAT_CONN_TXN_COMMIT				1410
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1409
+#define	WT_STAT_CONN_TXN_ROLLBACK			1411
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1410
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1412
 
 /*!
  * @}

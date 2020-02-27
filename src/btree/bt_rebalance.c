@@ -71,6 +71,7 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts, con
     WT_RET(__wt_calloc_one(session, &copy));
     rs->leaf[rs->leaf_next++] = copy;
 
+    F_SET(copy, WT_REF_FLAG_LEAF);
     copy->state = WT_REF_DISK;
 
     WT_RET(__wt_calloc_one(session, &copy_addr));

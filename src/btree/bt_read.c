@@ -23,7 +23,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
     page = ref->page;
 
     /* Leaf pages only. */
-    if (WT_PAGE_IS_INTERNAL(page))
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (false);
 
     /*
@@ -93,7 +93,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     size_t addr_size;
     uint64_t time_diff, time_start, time_stop;
     uint32_t page_flags;
-    uint8_t final_state, new_state, previous_state;
+    uint8_t previous_state;
     const uint8_t *addr;
     bool timer;
 
@@ -105,38 +105,34 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      */
     WT_CLEAR(tmp);
 
-    /*
-     * Attempt to set the state to WT_REF_READING for normal reads, or WT_REF_LOCKED, for deleted
-     * pages. The difference is that checkpoints can skip over clean pages that are being read into
-     * cache, but need to wait for deletes to be resolved (in order for checkpoint to write the
-     * correct version of the page).
-     *
-     * If successful, we've won the race, read the page.
-     */
+    /* Lock the WT_REF. */
     switch (previous_state = ref->state) {
     case WT_REF_DISK:
-        new_state = WT_REF_READING;
-        break;
     case WT_REF_DELETED:
-        new_state = WT_REF_LOCKED;
-        break;
+        if (WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+            break;
+        return (0);
     default:
         return (0);
     }
-    if (!WT_REF_CAS_STATE(session, ref, previous_state, new_state))
-        return (0);
 
-    final_state = WT_REF_MEM;
+    /*
+     * Set the WT_REF_FLAG_READING flag for normal reads. Checkpoints can skip over clean pages
+     * being read into cache, but need to wait for deletes to be resolved (in order for checkpoint
+     * to write the correct version of the page).
+     */
+    if (previous_state == WT_REF_DISK)
+        F_SET(ref, WT_REF_FLAG_READING);
 
     /*
      * Get the address: if there is no address, the page was deleted and a subsequent search or
      * insert is forcing re-creation of the name space.
      */
-    __wt_ref_info(session, ref, &addr, &addr_size, NULL);
+    __wt_ref_info(session, ref, &addr, &addr_size);
     if (addr == NULL) {
-        WT_ASSERT(session, previous_state != WT_REF_DISK);
+        WT_ASSERT(session, previous_state == WT_REF_DELETED);
 
-        WT_ERR(__wt_btree_new_leaf_page(session, &ref->page));
+        WT_ERR(__wt_btree_new_leaf_page(session, ref));
         goto skip_read;
     }
 
@@ -179,7 +175,8 @@ skip_read:
         break;
     }
 
-    WT_REF_SET_STATE(ref, final_state);
+    F_CLR(ref, WT_REF_FLAG_READING);
+    WT_REF_SET_STATE(ref, WT_REF_MEM);
 
     WT_ASSERT(session, ret == 0);
     return (0);
@@ -191,6 +188,8 @@ err:
      */
     if (ref->page != NULL)
         __wt_ref_out(session, ref);
+
+    F_CLR(ref, WT_REF_FLAG_READING);
     WT_REF_SET_STATE(ref, previous_state);
 
     __wt_buf_free(session, &tmp);
@@ -217,7 +216,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     uint64_t sleep_usecs, yield_cnt;
     uint8_t current_state;
     int force_attempts;
-    bool busy, cache_work, evict_skip, is_leaf_page, stalled, wont_need;
+    bool busy, cache_work, evict_skip, stalled, wont_need;
 
     btree = S2BT(session);
 
@@ -248,28 +247,13 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
-            /* Limit reads to cache-only. */
+            /* Optionally limit reads to cache-only. */
             if (LF_ISSET(WT_READ_CACHE))
                 return (WT_NOTFOUND);
 
-            /* Limit reads to internal pages only. */
-            if (LF_ISSET(WT_READ_CACHE_LEAF)) {
-                /*
-                 * Currently, the internal page read request is passed only in two scenarios.
-                 *  1. Garbage collection of history store
-                 *  2. Rollback to stable operation
-                 *
-                 * Lock the ref before we check the page type to avoid the ref getting changed
-                 * underneath. Retry the ref once again if failed to change the ref state
-                 * to WT_REF_LOCKED.
-                 */
-                if (!WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
-                    continue;
-                is_leaf_page = __wt_ref_is_leaf(session, ref);
-                WT_REF_SET_STATE(ref, WT_REF_DISK);
-                if (is_leaf_page)
-                    return (WT_NOTFOUND);
-            }
+            /* Optionally limit reads to internal pages only. */
+            if (LF_ISSET(WT_READ_CACHE_LEAF) && F_ISSET(ref, WT_REF_FLAG_LEAF))
+                return (WT_NOTFOUND);
 
 read:
             /*
@@ -294,22 +278,20 @@ read:
               F_ISSET(session, WT_SESSION_READ_WONT_NEED) ||
               F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_NOKEEP);
             continue;
-        case WT_REF_READING:
-            if (LF_ISSET(WT_READ_CACHE))
-                return (WT_NOTFOUND);
-            if (LF_ISSET(WT_READ_NO_WAIT))
-                return (WT_NOTFOUND);
-
-            /* Waiting on another thread's read, stall. */
-            WT_STAT_CONN_INCR(session, page_read_blocked);
-            stalled = true;
-            break;
         case WT_REF_LOCKED:
             if (LF_ISSET(WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
 
-            /* Waiting on eviction, stall. */
-            WT_STAT_CONN_INCR(session, page_locked_blocked);
+            if (F_ISSET(ref, WT_REF_FLAG_READING)) {
+                if (LF_ISSET(WT_READ_CACHE))
+                    return (WT_NOTFOUND);
+
+                /* Waiting on another thread's read, stall. */
+                WT_STAT_CONN_INCR(session, page_read_blocked);
+            } else
+                /* Waiting on eviction, stall. */
+                WT_STAT_CONN_INCR(session, page_locked_blocked);
+
             stalled = true;
             break;
         case WT_REF_SPLIT:

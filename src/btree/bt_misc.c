@@ -130,29 +130,3 @@ __wt_page_type_string(u_int type) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
     }
     /* NOTREACHED */
 }
-
-/*
- * __wt_ref_state_string --
- *     Return a string representing the WT_REF state.
- */
-const char *
-__wt_ref_state_string(u_int state)
-{
-    switch (state) {
-    case WT_REF_DISK:
-        return ("disk");
-    case WT_REF_DELETED:
-        return ("deleted");
-    case WT_REF_LOCKED:
-        return ("locked");
-    case WT_REF_MEM:
-        return ("memory");
-    case WT_REF_READING:
-        return ("reading");
-    case WT_REF_SPLIT:
-        return ("split");
-    default:
-        return ("INVALID");
-    }
-    /* NOTREACHED */
-}

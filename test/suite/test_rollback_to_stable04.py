@@ -28,6 +28,7 @@
 
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 def timestamp_str(t):
@@ -40,11 +41,35 @@ def mod_val(value, char, location, nbytes=1):
 # Test that rollback to stable always replaces the on-disk value with a full update
 # from the history store.
 class test_rollback_to_stable04(test_rollback_to_stable_base):
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
+    in_memory_values = [
+        ('no_inmem', dict(in_memory=False)),
+        ('inmem', dict(in_memory=True))
+    ]
+
+    prepare_values = [
+        ('no_prepare', dict(prepare=False)),
+        ('prepare', dict(prepare=True))
+    ]
+
+    scenarios = make_scenarios(in_memory_values, prepare_values)
+
+    def conn_config(self):
+        config = ''
+        # Temporarily solution to have good cache size until prepare updates are written to disk.
+        if self.prepare:
+            config += 'cache_size=2GB,statistics=(all)'
+        else:
+            config += 'cache_size=500MB,statistics=(all)'
+        if self.in_memory:
+            config += ',in_memory=true'
+        else:
+            config += ',log=(enabled),in_memory=false'
+        return config
+
     def test_rollback_to_stable(self):
-        nrows = 10000
+        nrows = 1000
 
         # Create a table without logging.
         uri = "table:rollback_to_stable04"
@@ -100,17 +125,21 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         self.check(value_modY, uri, nrows, 130)
         self.check(value_modZ, uri, nrows, 140)
 
-        # Set stable timestamp to 30.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(30))
+        # Pin stable to timestamp 40 if prepare otherwise 30.
+        if self.prepare:
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(40))
+        else:
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(30))
 
         # Checkpoint to ensure the data is flushed, then rollback to the stable timestamp.
-        self.session.checkpoint()
+        if not self.in_memory:
+            self.session.checkpoint()
         self.conn.rollback_to_stable()
 
         # Check that the correct data is seen at and after the stable timestamp.
         self.check(value_modQ, uri, nrows, 30)
-        self.check(value_modQ, uri, nrows, 70)
         self.check(value_modQ, uri, nrows, 150)
+        self.check(value_a, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -125,8 +154,12 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
         self.assertGreater(pages_visited, 0)
-        self.assertGreaterEqual(upd_aborted, 0)
-        self.assertGreaterEqual(hs_removed, nrows * 11)
+        if self.in_memory or self.prepare:
+            self.assertGreaterEqual(upd_aborted, nrows * 11)
+            self.assertGreaterEqual(hs_removed, 0)
+        else:
+            self.assertGreaterEqual(upd_aborted, 0)
+            self.assertGreaterEqual(hs_removed, nrows * 11)
 
 if __name__ == '__main__':
     wttest.run()

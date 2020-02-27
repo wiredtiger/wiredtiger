@@ -395,10 +395,10 @@ restart:
     /* Search the internal pages of the tree. */
     current = &btree->root;
     for (;;) {
-        page = current->page;
-        if (!WT_PAGE_IS_INTERNAL(page))
+        if (F_ISSET(current, WT_REF_FLAG_LEAF))
             break;
 
+        page = current->page;
         WT_INTL_INDEX_GET(session, page, pindex);
         entries = pindex->entries;
 

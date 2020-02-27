@@ -11,6 +11,10 @@ noinst_PROGRAMS=
 # Temporarily disabled
 # all_TESTS += import/smoke.sh
 
+test_incr_backup_SOURCES = incr_backup/main.c
+noinst_PROGRAMS += test_incr_backup
+all_TESTS += incr_backup/smoke.sh
+
 test_random_abort_SOURCES = random_abort/main.c
 noinst_PROGRAMS += test_random_abort
 # Temporarily disabled
@@ -57,7 +61,8 @@ all_TESTS += test_wt2246_col_append
 
 test_wt2323_join_visibility_SOURCES = wt2323_join_visibility/main.c
 noinst_PROGRAMS += test_wt2323_join_visibility
-all_TESTS += test_wt2323_join_visibility
+# Temporarily disabled
+# all_TESTS += test_wt2323_join_visibility
 
 test_wt2535_insert_race_SOURCES = wt2535_insert_race/main.c
 noinst_PROGRAMS += test_wt2535_insert_race

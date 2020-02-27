@@ -119,6 +119,10 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_REF *ref;
     uint32_t read_flags;
 
+    /*
+     * Ignore pages not in-memory (deleted, on-disk, being read), there's no in-memory structure to
+     * check.
+     */
     read_flags = WT_READ_CACHE | WT_READ_NO_EVICT;
 
     /* The split is complete and live, verify all of the pages involved. */
@@ -126,14 +130,8 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
         /*
-         * An eviction thread might be attempting to evict the page
-         * (the WT_REF may be WT_REF_LOCKED), or it may be a disk based
-         * page (the WT_REF may be WT_REF_READING), or it may be in
-         * some other state.  Acquire a hazard pointer for any
-         * in-memory pages so we know the state of the page.
-         *
-         * Ignore pages not in-memory (deleted, on-disk, being read),
-         * there's no in-memory structure to check.
+         * The page might be in transition, being read or evicted or something else. Acquire a
+         * hazard pointer for the page so we know its state.
          */
         if ((ret = __wt_page_in(session, ref, read_flags)) == WT_NOTFOUND)
             continue;
@@ -478,6 +476,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
             root_incr += sizeof(WT_IKEY) + size;
         } else
             ref->ref_recno = (*root_refp)->ref_recno;
+        F_SET(ref, WT_REF_FLAG_INTERNAL);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
         /*
@@ -846,18 +845,12 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
     __wt_cache_page_inmem_decr(session, parent, parent_decr);
 
     /*
-     * Swapping in the new page index released the page for eviction, we can no longer look inside
-     * the page, be careful logging the results.
+     * We've discarded the WT_REFs and swapping in a new page index released the page for eviction;
+     * we can no longer look inside the WT_REF or the page, be careful logging the results.
      */
-    if (ref->page == NULL)
-        __wt_verbose(session, WT_VERB_SPLIT,
-          "%p: reverse split into parent %p, %" PRIu32 " -> %" PRIu32 " (-%" PRIu32 ")",
-          (void *)ref->page, (void *)parent, parent_entries, result_entries,
-          parent_entries - result_entries);
-    else
-        __wt_verbose(session, WT_VERB_SPLIT,
-          "%p: split into parent %p, %" PRIu32 " -> %" PRIu32 " (+%" PRIu32 ")", (void *)ref->page,
-          (void *)parent, parent_entries, result_entries, result_entries - parent_entries);
+    __wt_verbose(session, WT_VERB_SPLIT,
+      "%p: split into parent, %" PRIu32 "->%" PRIu32 ", %" PRIu32 " deleted", (void *)ref,
+      parent_entries, result_entries, deleted_entries);
 
 err:
     __wt_scr_free(session, &scr);
@@ -1020,6 +1013,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
             parent_incr += sizeof(WT_IKEY) + size;
         } else
             ref->ref_recno = (*page_refp)->ref_recno;
+        F_SET(ref, WT_REF_FLAG_INTERNAL);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
 
         /*
@@ -1575,6 +1569,20 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     WT_IKEY *ikey;
     WT_REF *ref;
 
+    /* There can be an address or a disk image or both. */
+    WT_ASSERT(session, multi->addr.addr != NULL || multi->disk_image != NULL);
+
+    /* If closing the file, there better be an address. */
+    WT_ASSERT(session, !closing || multi->addr.addr != NULL);
+
+    /* If closing the file, there better not be any saved updates. */
+    WT_ASSERT(session, !closing || multi->supd == NULL);
+
+    /* Verify any disk image we have. */
+    WT_ASSERT(session, multi->disk_image == NULL ||
+        __wt_verify_dsk_image(
+          session, "[page instantiate]", multi->disk_image, 0, &multi->addr, true) == 0);
+
     /* Allocate an underlying WT_REF. */
     WT_RET(__wt_calloc_one(session, refp));
     ref = *refp;
@@ -1598,19 +1606,15 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         break;
     }
 
-    /* There can be an address or a disk image or both. */
-    WT_ASSERT(session, multi->addr.addr != NULL || multi->disk_image != NULL);
-
-    /* If closing the file, there better be an address. */
-    WT_ASSERT(session, !closing || multi->addr.addr != NULL);
-
-    /* If closing the file, there better not be any saved updates. */
-    WT_ASSERT(session, !closing || multi->supd == NULL);
-
-    /* Verify any disk image we have. */
-    WT_ASSERT(session, multi->disk_image == NULL ||
-        __wt_verify_dsk_image(
-          session, "[page instantiate]", multi->disk_image, 0, &multi->addr, true) == 0);
+    switch (page->type) {
+    case WT_PAGE_COL_INT:
+    case WT_PAGE_ROW_INT:
+        F_SET(ref, WT_REF_FLAG_INTERNAL);
+        break;
+    default:
+        F_SET(ref, WT_REF_FLAG_LEAF);
+        break;
+    }
 
     /*
      * If there's an address, the page was written, set it.
@@ -1708,8 +1712,9 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->page = ref->page;
     child->home = ref->home;
     child->pindex_hint = ref->pindex_hint;
-    child->state = WT_REF_MEM;
     child->addr = ref->addr;
+    F_SET(child, WT_REF_FLAG_LEAF);
+    child->state = WT_REF_MEM;
 
     WT_ERR_ASSERT(session, ref->page_del == NULL, WT_PANIC,
       "unexpected page-delete structure when splitting a page");
@@ -1771,6 +1776,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     parent_incr += sizeof(WT_REF);
     child = split_ref[1];
     child->page = right;
+    F_SET(child, WT_REF_FLAG_LEAF);
     child->state = WT_REF_MEM;
 
     if (type == WT_PAGE_ROW_LEAF) {

@@ -1065,8 +1065,7 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
  */
 static inline void
 __wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep,
-  bool *is_leafp, wt_timestamp_t *start_ts, wt_timestamp_t *stop_ts, uint64_t *start_txn,
-  uint64_t *stop_txn)
+  wt_timestamp_t *start_ts, wt_timestamp_t *stop_ts, uint64_t *start_txn, uint64_t *stop_txn)
 {
     WT_ADDR *addr;
     WT_CELL_UNPACK *unpack, _unpack;
@@ -1085,8 +1084,6 @@ __wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, 
     if (addr == NULL) {
         *addrp = NULL;
         *sizep = 0;
-        if (is_leafp != NULL)
-            *is_leafp = false;
         if (start_ts != NULL)
             *start_ts = 0;
         if (stop_ts != NULL)
@@ -1098,8 +1095,6 @@ __wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, 
     } else if (__wt_off_page(page, addr)) {
         *addrp = addr->addr;
         *sizep = addr->size;
-        if (is_leafp != NULL)
-            *is_leafp = addr->type != WT_ADDR_INT;
         if (start_ts != NULL)
             *start_ts = addr->oldest_start_ts;
         if (start_txn != NULL)
@@ -1112,8 +1107,6 @@ __wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, 
         __wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
         *addrp = unpack->data;
         *sizep = unpack->size;
-        if (is_leafp != NULL)
-            *is_leafp = unpack->type != WT_CELL_ADDR_INT;
         if (start_ts != NULL)
             *start_ts = unpack->oldest_start_ts;
         if (start_txn != NULL)
@@ -1130,13 +1123,11 @@ __wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, 
  *     Lock the WT_REF and return the addr/size and type triplet for a reference.
  */
 static inline void
-__wt_ref_info_lock(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, size_t *sizep, bool *is_leafp)
+__wt_ref_info_lock(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, size_t *sizep)
 {
     size_t size;
     uint8_t previous_state;
     const uint8_t *addr;
-    bool is_leaf;
 
     /*
      * The WT_REF address references either an on-page cell or in-memory structure, and eviction
@@ -1147,20 +1138,18 @@ __wt_ref_info_lock(
      */
     for (;; __wt_yield()) {
         previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED && previous_state != WT_REF_READING &&
+        if (previous_state != WT_REF_LOCKED &&
           WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;
     }
 
-    __wt_ref_info(session, ref, &addr, &size, &is_leaf);
+    __wt_ref_info(session, ref, &addr, &size);
 
     if (addr_buf != NULL) {
         if (addr != NULL)
             memcpy(addr_buf, addr, size);
         *sizep = size;
     }
-    if (is_leafp != NULL)
-        *is_leafp = is_leaf;
 
     WT_REF_SET_STATE(ref, previous_state);
 }
@@ -1170,29 +1159,9 @@ __wt_ref_info_lock(
  *     Return the address, size and type triplet for a reference.
  */
 static inline void
-__wt_ref_info(
-  WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep, bool *is_leafp)
+__wt_ref_info(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep)
 {
-    __wt_ref_info_all(session, ref, addrp, sizep, is_leafp, NULL, NULL, NULL, NULL);
-}
-
-/*
- * __wt_ref_is_leaf --
- *     Check if a reference is for a leaf page.
- */
-static inline bool
-__wt_ref_is_leaf(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    size_t addr_size;
-    const uint8_t *addr;
-    bool is_leaf;
-
-    /*
-     * If the page has a disk address, we can crack it to figure out if this page is a leaf page or
-     * not. If there's no address, the page isn't on disk and we don't know the page type.
-     */
-    __wt_ref_info(session, ref, &addr, &addr_size, &is_leaf);
-    return is_leaf;
+    __wt_ref_info_all(session, ref, addrp, sizep, NULL, NULL, NULL, NULL);
 }
 
 /*
@@ -1208,7 +1177,7 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
     if (ref->addr == NULL)
         return (0);
 
-    __wt_ref_info(session, ref, &addr, &addr_size, NULL);
+    __wt_ref_info(session, ref, &addr, &addr_size);
     WT_RET(__wt_btree_block_free(session, addr, addr_size));
 
     /* Clear the address (so we don't free it twice). */
@@ -1463,7 +1432,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * One special case where we know this is safe is if the handle is locked exclusive (e.g., when
      * the whole tree is being evicted). In that case, no readers can be looking at an old index.
      */
-    if (WT_PAGE_IS_INTERNAL(page) && !F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
       __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen))
         return (false);
 

@@ -259,34 +259,30 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
-    WT_TIME_PAIR prev_start, start, stop;
+    WT_TIME_PAIR newer_start, older_start, older_stop;
     uint32_t hs_btree_id, session_flags;
     int cmp, exact;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
-    /* Set the data store timestamp and transactions to initiate timestamp range verification */
-    prev_start.timestamp = unpack->start_ts;
     /*
-     * FIXME-PM-1694: Currently transaction IDs in Data store are wiped upon start up, thus we can't
-     * check data continuity from data store to history store.
+     * Set the data store timestamp and transactions to initiate timestamp range verification. Since
+     * transaction-ids are wiped out on start, we could possibly have a start txn-id of WT_TXN_NONE,
+     * in which case we initialize our newest with the max txn-id.
      */
-    prev_start.txnid = WT_TXN_MAX;
+    newer_start.timestamp = unpack->start_ts;
+    newer_start.txnid = unpack->start_txn == WT_TXN_NONE ? WT_TXN_MAX : unpack->start_txn;
     session_flags = 0;
-    stop.timestamp = 0;
-    stop.txnid = 0;
+    older_stop.timestamp = 0;
+    older_stop.txnid = 0;
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
 
     /*
      * Open a history store cursor positioned at the end of the data store key (the newest record)
-     * and iterate backwards until we reach a different key or btree. We need to do this whilst
-     * holding a snapshot to ensure that modifications done whilst iterating the history store don't
-     * cause false positives.
+     * and iterate backwards until we reach a different key or btree.
      */
-    __wt_txn_get_snapshot(session);
-
     WT_ERR(__wt_hs_cursor(session, &session_flags));
     hs_cursor = session->hs_cursor;
     hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
@@ -297,8 +293,8 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
         WT_ERR(hs_cursor->prev(hs_cursor));
 
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &start.timestamp, &start.txnid,
-          &stop.timestamp, &stop.txnid));
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &older_start.timestamp,
+          &older_start.txnid, &older_stop.timestamp, &older_stop.txnid));
 
         if (hs_btree_id != btree->id)
             break;
@@ -315,21 +311,22 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
         WT_UNUSED(vs);
 #endif
 
-        /*
-         * Verify that the current record's stop time pair doesn't overlap with the start time pair
-         * of its successor.
-         */
-        if (prev_start.timestamp < stop.timestamp) {
+        /* Verify that the newer record's start is later than the older record's stop. */
+        if (newer_start.timestamp < older_stop.timestamp) {
             WT_ERR_MSG(session, WT_ERROR,
               "In the Btree %" PRIu32
               ", Key %s has a overlap of "
               "timestamp ranges between history store stop timestamp %s being "
               "newer than a more recent timestamp range having start timestamp %s",
               hs_btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
-              __verify_timestamp_to_pretty_string(stop.timestamp, ts_string[0]),
-              __verify_timestamp_to_pretty_string(prev_start.timestamp, ts_string[1]));
+              __verify_timestamp_to_pretty_string(older_stop.timestamp, ts_string[0]),
+              __verify_timestamp_to_pretty_string(newer_start.timestamp, ts_string[1]));
         }
-        if (prev_start.txnid < stop.txnid) {
+        /*
+         * It is possible to have a start txn-id of WT_TXN_NONE for a record that was moved to
+         * history store from the data store after a restart, ignore comparing txn-id in that case.
+         */
+        if (newer_start.txnid != WT_TXN_NONE && newer_start.txnid < older_stop.txnid) {
             WT_ERR_MSG(session, WT_ERROR,
               "In the Btree %" PRIu32
               ", Key %s has a overlap of "
@@ -337,12 +334,17 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
               ") being "
               "newer than a more recent transaction range having start transaction (%" PRIu64 ")",
               hs_btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, vs->tmp1),
-              stop.txnid, prev_start.txnid);
+              older_stop.txnid, newer_start.txnid);
         }
-        prev_start.timestamp = start.timestamp;
-        prev_start.txnid = start.txnid;
+        /*
+         * Since we are iterating from newer to older, the current older record becomes the newer
+         * for the next round of verification.
+         */
+        newer_start.timestamp = older_start.timestamp;
+        newer_start.txnid = older_start.txnid;
 
-        WT_ERR(__verify_ts_stable_cmp(session, key, NULL, 0, start.timestamp, stop.timestamp, vs));
+        WT_ERR(__verify_ts_stable_cmp(
+          session, key, NULL, 0, older_start.timestamp, older_stop.timestamp, vs));
     }
     WT_ERR_NOTFOUND_OK(ret);
 
@@ -353,8 +355,6 @@ err:
 
     __wt_scr_free(session, &hs_key);
     WT_TRET(__wt_hs_cursor_close(session, session_flags));
-
-    __wt_txn_release_snapshot(session);
 
     return (ret);
 }
@@ -550,8 +550,7 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
         buf->size = strlen("[Root]");
         return (buf->data);
     }
-    __wt_ref_info_all(
-      session, ref, &addr, &addr_size, NULL, &start_ts, &stop_ts, &start_txn, &stop_txn);
+    __wt_ref_info_all(session, ref, &addr, &addr_size, &start_ts, &stop_ts, &start_txn, &stop_txn);
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_buf_fmt(session, buf, "%s %s,%s", __wt_addr_string(session, addr, addr_size, tmp),
       addr != NULL ? __wt_time_pair_to_string(start_ts, start_txn, tp_string[0]) : "-/-",
@@ -595,83 +594,93 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
 }
 
 /*
- * __verify_btree_id_with_meta --
- *     With a given btree id, iterate through the metafile table and check if the btree id exists in
- *     any table. If exists, we place the table URI into a variable otherwise should return
- *     WT_NOTFOUND.
- */
-static int
-__verify_btree_id_with_meta(WT_SESSION_IMPL *session, uint32_t btree_id, const char **uri)
-{
-    WT_CONFIG_ITEM id;
-    WT_CURSOR *meta_cursor;
-    WT_DECL_RET;
-    const char *meta_value;
-
-    meta_cursor = NULL;
-    WT_RET(__wt_metadata_cursor(session, &meta_cursor));
-    while ((ret = meta_cursor->next(meta_cursor)) == 0) {
-        WT_ERR(meta_cursor->get_value(meta_cursor, &meta_value));
-        if ((ret = __wt_config_getones(session, meta_value, "id", &id)) == 0 &&
-          btree_id == id.val) {
-            WT_ERR(meta_cursor->get_key(meta_cursor, uri));
-            break;
-        }
-        WT_ERR_NOTFOUND_OK(ret);
-    }
-err:
-    WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
-    return (ret);
-}
-
-/*
  * __wt_verify_history_store_tree --
- *     Verify the history store tree, by iterating and checking all the keys in the history and that
- *     it exists in both the meta file and the respective data store table. Skips duplicate keys by
- *     storing the previous key.
+ *     Verify the history store. There can't be an entry in the history store without having the
+ *     latest value for the respective key in the data store. If given a uri, limit the verification
+ *     to the corresponding btree.
  */
 int
-__wt_verify_history_store_tree(WT_SESSION_IMPL *session)
+__wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_CURSOR *cursor, *data_cursor;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_ITEM hs_key, prev_hs_key;
     WT_TIME_PAIR hs_start, hs_stop;
-    uint32_t btree_id, session_flags, prev_btree_id;
-    int cmp;
-    const char *uri;
+    uint32_t btree_id, btree_id_given_uri, session_flags, prev_btree_id;
+    int exact, cmp;
+    char *uri_itr;
 
     session_flags = 0;
-    prev_btree_id = 0; /* [-Wconditional-uninitialized] */
     data_cursor = NULL;
-    uri = NULL;
     WT_CLEAR(prev_hs_key);
     WT_CLEAR(hs_key);
+    btree_id_given_uri = 0; /* [-Wconditional-uninitialized] */
+    prev_btree_id = 0;      /* [-Wconditional-uninitialized] */
+    uri_itr = NULL;
 
-    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_hs_cursor(session, &session_flags));
     cursor = session->hs_cursor;
 
-    while ((ret = cursor->next(cursor)) == 0) {
+    /*
+     * If a uri has been provided, limit verification to the corresponding btree by jumping to the
+     * first record for that btree in the history store. Otherwise scan the whole history store.
+     */
+    if (uri != NULL) {
+        ret = __wt_metadata_uri_to_btree_id(session, uri, &btree_id_given_uri);
+        if (ret != 0)
+            WT_ERR_MSG(session, ret, "Unable to locate the URI %s in the metadata file", uri);
+
+        /*
+         * Position the cursor at the first record of the specified btree, or one after. It is
+         * possible there are no records in the history store for this btree.
+         */
+        cursor->set_key(cursor, btree_id_given_uri, &hs_key, 0, 0, 0, 0);
+        ret = cursor->search_near(cursor, &exact);
+        if (ret == 0 && exact < 0)
+            ret = cursor->next(cursor);
+    } else
+        ret = cursor->next(cursor);
+
+    /* We have the history store cursor positioned at the first record that we want to verify. */
+    for (; ret == 0; ret = cursor->next(cursor)) {
         WT_ERR(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start.timestamp, &hs_start.txnid,
           &hs_stop.timestamp, &hs_stop.txnid));
+
+        /* When limiting our verification to a uri, bail out if the btree-id doesn't match. */
+        if (uri != NULL && btree_id != btree_id_given_uri)
+            break;
+
         /*
          *  Keep track of the previous comparison. The history store is stored in order, so we can
          *  avoid redundant comparisons. Previous btree ID isn't set, until data cursor is open.
          */
         if (data_cursor == NULL || (prev_btree_id != btree_id)) {
             /*
-             * Find the URI from the metadata and validate the btree ID. Using this URI, verify the
-             * history store key with the data store.
+             * Check whether this btree-id exists in the metadata. We do that by finding what uri
+             * this btree belongs to. Using this URI, verify the history store key with the data
+             * store.
              */
             if (data_cursor != NULL) {
                 WT_ERR(data_cursor->close(data_cursor));
                 /* Setting data_cursor to null, to avoid double free */
                 data_cursor = NULL;
             }
-            WT_ERR(__verify_btree_id_with_meta(session, btree_id, &uri));
-            WT_ERR(__wt_open_cursor(session, uri, NULL, NULL, &data_cursor));
+            /*
+             * Using the btree-id find the metadata entry and extract the URI for this btree. Don't
+             * forget to free the copy of the URI returned.
+             */
+            __wt_free(session, uri_itr);
+            ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_itr);
+            if (ret != 0) {
+                WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+                WT_ERR_MSG(session, ret, "Unable to find btree-id %" PRIu32
+                                         " in the metadata file for the associated "
+                                         "history store key %s",
+                  btree_id, __wt_buf_set_printable(session, hs_key.data, hs_key.size, tmp));
+            }
+
+            WT_ERR(__wt_open_cursor(session, uri_itr, NULL, NULL, &data_cursor));
             F_SET(data_cursor, WT_CURSOR_RAW_OK);
         } else {
             WT_ERR(__wt_compare(session, NULL, &hs_key, &prev_hs_key, &cmp));
@@ -684,20 +693,21 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session)
         data_cursor->set_key(data_cursor, &hs_key);
         ret = data_cursor->search(data_cursor);
         if (ret == WT_NOTFOUND) {
+            WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR_MSG(session, WT_NOTFOUND,
               "In the URI %s, the associated history store key %s cannot be found in the data "
               "store",
-              uri, __wt_buf_set_printable(session, hs_key.data, hs_key.size, tmp));
+              uri_itr, __wt_buf_set_printable(session, hs_key.data, hs_key.size, tmp));
         }
-
         WT_ERR(ret);
     }
     WT_ERR_NOTFOUND_OK(ret);
 err:
     if (data_cursor != NULL)
-        data_cursor->close(data_cursor);
-    __wt_scr_free(session, &tmp);
+        WT_TRET(data_cursor->close(data_cursor));
     WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    __wt_scr_free(session, &tmp);
+    __wt_free(session, uri_itr);
     return (ret);
 }
 
@@ -734,7 +744,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
           __wt_page_type_string(page->type)));
 
     /* Track the shape of the tree. */
-    if (WT_PAGE_IS_INTERNAL(page))
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         ++vs->depth_internal[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];
     else
         ++vs->depth_leaf[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];

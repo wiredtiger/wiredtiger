@@ -1577,14 +1577,23 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
-    WT_ERR(__wt_config_gets(session, cfg, "hs_verify", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "history_store", &cval));
     if (cval.val == true) {
-        WT_WITH_CHECKPOINT_LOCK(
-          session, WT_WITH_SCHEMA_LOCK(session, ret = __wt_verify_history_store_tree(session)));
+        /* Can't give a URI with history store verification. */
+        if (uri != NULL)
+            WT_ERR_MSG(session, EINVAL, "URI not applicable when verifying the history store");
+
+        WT_WITH_CHECKPOINT_LOCK(session,
+          WT_WITH_SCHEMA_LOCK(session, ret = __wt_verify_history_store_tree(session, NULL)));
     } else {
         WT_WITH_CHECKPOINT_LOCK(session,
           WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_worker(session, uri, __wt_verify, NULL,
                                          cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_VERIFY)));
+        WT_ERR(ret);
+        /* TODO: WT-5643 Add history store verification for non file URI */
+        if (WT_PREFIX_MATCH(uri, "file:"))
+            WT_WITH_CHECKPOINT_LOCK(session,
+              WT_WITH_SCHEMA_LOCK(session, ret = __wt_verify_history_store_tree(session, uri)));
     }
 err:
     if (ret != 0)
@@ -1992,42 +2001,6 @@ err:
 }
 
 /*
- * __session_snapshot --
- *     WT_SESSION->snapshot method.
- */
-static int
-__session_snapshot(WT_SESSION *wt_session, const char *config)
-{
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    WT_TXN_GLOBAL *txn_global;
-    bool has_create, has_drop;
-
-    has_create = has_drop = false;
-    session = (WT_SESSION_IMPL *)wt_session;
-    txn_global = &S2C(session)->txn_global;
-
-    SESSION_API_CALL(session, snapshot, config, cfg);
-
-    WT_ERR(__wt_txn_named_snapshot_config(session, cfg, &has_create, &has_drop));
-
-    __wt_writelock(session, &txn_global->nsnap_rwlock);
-
-    /* Drop any snapshots to be removed first. */
-    if (has_drop)
-        WT_ERR(__wt_txn_named_snapshot_drop(session, cfg));
-
-    /* Start the named snapshot if requested. */
-    if (has_create)
-        WT_ERR(__wt_txn_named_snapshot_begin(session, cfg));
-
-err:
-    __wt_writeunlock(session, &txn_global->nsnap_rwlock);
-
-    API_END_RET_NOTFOUND_MAP(session, ret);
-}
-
-/*
  * __wt_session_strerror --
  *     WT_SESSION->strerror method.
  */
@@ -2069,8 +2042,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_salvage, __session_truncate, __session_upgrade, __session_verify,
         __session_begin_transaction, __session_commit_transaction, __session_prepare_transaction,
         __session_rollback_transaction, __session_timestamp_transaction, __session_query_timestamp,
-        __session_checkpoint, __session_snapshot, __session_transaction_pinned_range,
-        __session_transaction_sync, __wt_session_breakpoint},
+        __session_checkpoint, __session_transaction_pinned_range, __session_transaction_sync,
+        __wt_session_breakpoint},
       stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __wt_session_strerror,
         __session_open_cursor, __session_alter_readonly, __session_create_readonly,
         __session_import_readonly, __wt_session_compact_readonly, __session_drop_readonly,
@@ -2080,7 +2053,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_verify, __session_begin_transaction, __session_commit_transaction,
         __session_prepare_transaction_readonly, __session_rollback_transaction,
         __session_timestamp_transaction, __session_query_timestamp, __session_checkpoint_readonly,
-        __session_snapshot, __session_transaction_pinned_range, __session_transaction_sync_readonly,
+        __session_transaction_pinned_range, __session_transaction_sync_readonly,
         __wt_session_breakpoint};
     WT_DECL_RET;
     WT_SESSION_IMPL *session, *session_ret;

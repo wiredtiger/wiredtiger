@@ -249,7 +249,6 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
      */
     for (;; __wt_yield()) {
         previous_state = ref->state;
-        WT_ASSERT(session, previous_state != WT_REF_READING);
         if (previous_state != WT_REF_LOCKED &&
           WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;
@@ -300,7 +299,6 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      */
     for (;; __wt_yield()) {
         previous_state = ref->state;
-        WT_ASSERT(session, previous_state != WT_REF_READING);
         if (previous_state != WT_REF_LOCKED &&
           WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;
@@ -886,10 +884,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     if (cfg != NULL)
         WT_RET(__wt_txn_config(session, cfg));
 
-    /*
-     * Allocate a snapshot if required. Named snapshot transactions already have an ID setup.
-     */
-    if (txn->isolation == WT_ISO_SNAPSHOT && !F_ISSET(txn, WT_TXN_NAMED_SNAPSHOT)) {
+    /* Allocate a snapshot if required. */
+    if (txn->isolation == WT_ISO_SNAPSHOT) {
         if (session->ncursors > 0)
             WT_RET(__wt_session_copy_values(session));
 
