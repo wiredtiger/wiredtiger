@@ -374,7 +374,7 @@ table_changes(WT_SESSION *session, TABLE *table)
             case MODIFY:
                 item2.data = value2;
                 item2.size = table->max_value_size;
-                key_value(change_count - 10000, NULL, 0, &item2, &op_type);
+                key_value(change_count - KEYS_PER_TABLE, NULL, 0, &item2, &op_type);
                 modify_count = MAX_MODIFY_ENTRIES;
                 testutil_check(wiredtiger_calc_modify(
                   session, &item2, &item, MAX_MODIFY_DIFF, modify_entries, &modify_count));
@@ -633,21 +633,21 @@ check_table(WT_SESSION *session, TABLE *table)
 
     expect_records = 0;
     total_changes = table->change_count;
-    boundary = total_changes % 10000;
-    op_type = (OPERATION_TYPE)(total_changes % 40000) / 10000;
+    boundary = total_changes % KEYS_PER_TABLE;
+    op_type = (OPERATION_TYPE)(total_changes % CHANGES_PER_CYCLE) / KEYS_PER_TABLE;
     value = dcalloc(1, table->max_value_size);
 
     VERBOSE(3, "Checking: %s\n", table->name);
     switch (op_type) {
     case INSERT:
-        expect_records = total_changes % 10000;
+        expect_records = total_changes % KEYS_PER_TABLE;
         break;
     case MODIFY:
     case UPDATE:
-        expect_records = 10000;
+        expect_records = KEYS_PER_TABLE;
         break;
     case REMOVE:
-        expect_records = 10000 - (total_changes % 10000);
+        expect_records = KEYS_PER_TABLE - (total_changes % KEYS_PER_TABLE);
         break;
     case _OPERATION_TYPE_COUNT:
         testutil_assert(false);
@@ -672,7 +672,7 @@ check_table(WT_SESSION *session, TABLE *table)
         if (op_type == INSERT || (op_type == UPDATE && change_count < boundary))
             change_count += 0;
         else if (op_type == UPDATE || (op_type == MODIFY && change_count < boundary))
-            change_count += 10000;
+            change_count += KEYS_PER_TABLE;
         else if (op_type == MODIFY || (op_type == REMOVE && change_count < boundary))
             change_count += 20000;
         else
@@ -766,7 +766,7 @@ main(int argc, char *argv[])
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
     testutil_check(__wt_snprintf(backup_dir, sizeof(backup_dir), "%s.BACKUP", home));
     testutil_check(__wt_snprintf(backup_check, sizeof(backup_check), "%s.CHECK", home));
-    printf("Seed: %" PRIu64 "\n", seed);
+    fprintf(stderr, "Seed: %" PRIu64 "\n", seed);
 
     testutil_check(
       __wt_snprintf(command, sizeof(command), "rm -rf %s %s; mkdir %s", home, backup_dir, home));
@@ -800,7 +800,7 @@ main(int argc, char *argv[])
     testutil_check(wiredtiger_open(home, NULL, conf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    tinfo.table_count = __wt_random(&rnd) % MAX_NTABLES;
+    tinfo.table_count = __wt_random(&rnd) % MAX_NTABLES + 1;
     tinfo.table = dcalloc(tinfo.table_count, sizeof(tinfo.table[0]));
 
     /*
