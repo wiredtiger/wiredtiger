@@ -545,7 +545,7 @@ __wt_root_ref_init(WT_SESSION_IMPL *session, WT_REF *root_ref, WT_PAGE *root, bo
     memset(root_ref, 0, sizeof(*root_ref));
 
     root_ref->page = root;
-    F_SET(root_ref, WT_REF_IS_INTERNAL);
+    F_SET(root_ref, WT_REF_FLAG_INTERNAL);
     WT_REF_SET_STATE(root_ref, WT_REF_MEM);
 
     root_ref->ref_recno = is_recno ? 1 : WT_RECNO_OOB;
@@ -640,12 +640,12 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    WT_PAGE *leaf, *root;
+    WT_PAGE *root;
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
 
     btree = S2BT(session);
-    root = leaf = NULL;
+    root = NULL;
     ref = NULL;
 
     /*
@@ -675,7 +675,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         ref->home = root;
         ref->page = NULL;
         ref->addr = NULL;
-        F_SET(ref, WT_REF_IS_LEAF);
+        F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         ref->ref_recno = 1;
         break;
@@ -688,7 +688,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         ref->home = root;
         ref->page = NULL;
         ref->addr = NULL;
-        F_SET(ref, WT_REF_IS_LEAF);
+        F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         WT_ERR(__wt_row_ikey_incr(session, root, 0, "", 1, ref));
         break;
@@ -696,12 +696,11 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
 
     /* Bulk loads require a leaf page for reconciliation: create it now. */
     if (F_ISSET(btree, WT_BTREE_BULK)) {
-        WT_ERR(__wt_btree_new_leaf_page(session, &leaf));
-        ref->page = leaf;
-        F_SET(ref, WT_REF_IS_LEAF);
+        WT_ERR(__wt_btree_new_leaf_page(session, ref));
+        F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
-        WT_ERR(__wt_page_modify_init(session, leaf));
-        __wt_page_only_modify_set(session, leaf);
+        WT_ERR(__wt_page_modify_init(session, ref->page));
+        __wt_page_only_modify_set(session, ref->page);
     }
 
     /* Finish initializing the root, root reference links. */
@@ -710,8 +709,8 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
     return (0);
 
 err:
-    if (leaf != NULL)
-        __wt_page_out(session, &leaf);
+    if (ref->page != NULL)
+        __wt_page_out(session, &ref->page);
     if (root != NULL)
         __wt_page_out(session, &root);
     return (ret);
@@ -722,7 +721,7 @@ err:
  *     Create an empty leaf page.
  */
 int
-__wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_PAGE **pagep)
+__wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
 
@@ -730,15 +729,24 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 
     switch (btree->type) {
     case BTREE_COL_FIX:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_FIX, 0, false, pagep));
+        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_FIX, 0, false, &ref->page));
         break;
     case BTREE_COL_VAR:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_VAR, 0, false, pagep));
+        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_VAR, 0, false, &ref->page));
         break;
     case BTREE_ROW:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_LEAF, 0, false, pagep));
+        WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_LEAF, 0, false, &ref->page));
         break;
     }
+
+    /*
+     * When deleting a chunk of the name-space, we can delete internal pages. However, if we are
+     * ever forced to re-instantiate that piece of the namespace, it comes back as a leaf page.
+     * Reset the WT_REF type as it's possible that it has changed.
+     */
+    F_CLR(ref, WT_REF_FLAG_INTERNAL);
+    F_SET(ref, WT_REF_FLAG_LEAF);
+
     return (0);
 }
 

@@ -48,9 +48,13 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             cursor[ds.key(i)] = value
             if commit_ts == 0:
                 session.commit_transaction()
+            elif self.prepare:
+                session.prepare_transaction('prepare_timestamp=' + timestamp_str(commit_ts-1))
+                session.timestamp_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+                session.timestamp_transaction('durable_timestamp=' + timestamp_str(commit_ts+1))
+                session.commit_transaction()
             else:
                 session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-
         cursor.close()
 
     def large_modifies(self, uri, value, ds, location, nbytes, nrows, commit_ts):
@@ -65,6 +69,11 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
 
         if commit_ts == 0:
             session.commit_transaction()
+        elif self.prepare:
+            session.prepare_transaction('prepare_timestamp=' + timestamp_str(commit_ts-1))
+            session.timestamp_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+            session.timestamp_transaction('durable_timestamp=' + timestamp_str(commit_ts+1))
+            session.commit_transaction()
         else:
             session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
@@ -78,6 +87,11 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             cursor.set_key(i)
             cursor.remove()
             if commit_ts == 0:
+                session.commit_transaction()
+            elif self.prepare:
+                session.prepare_transaction('prepare_timestamp=' + timestamp_str(commit_ts-1))
+                session.timestamp_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+                session.timestamp_transaction('durable_timestamp=' + timestamp_str(commit_ts+1))
                 session.commit_transaction()
             else:
                 session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
@@ -106,14 +120,24 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         ('inmem', dict(in_memory=True))
     ]
 
-    scenarios = make_scenarios(in_memory_values)
+    prepare_values = [
+        ('no_prepare', dict(prepare=False)),
+        ('prepare', dict(prepare=True))
+    ]
+
+    scenarios = make_scenarios(in_memory_values, prepare_values)
 
     def conn_config(self):
         config = ''
-        if self.in_memory:
-            config += 'cache_size=50MB,statistics=(all),in_memory=true'
+        # Temporarily solution to have good cache size until prepare updates are written to disk.
+        if self.prepare:
+            config += 'cache_size=100MB,statistics=(all)'
         else:
-            config += 'cache_size=20MB,statistics=(all),log=(enabled),in_memory=false'
+            config += 'cache_size=50MB,statistics=(all)'
+        if self.in_memory:
+            config += ',in_memory=true'
+        else:
+            config += ',log=(enabled),in_memory=false'
         return config
 
     def test_rollback_to_stable(self):
@@ -139,8 +163,11 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         # Check that the no keys should be visible.
         self.check(valuea, uri, 0, 20)
 
-        # Pin stable to timestamp 10.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
+        # Pin stable to timestamp 20 if prepare otherwise 10.
+        if self.prepare:
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
+        else:
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
         # Checkpoint to ensure that all the updates are flushed to disk.
         if not self.in_memory:
             self.session.checkpoint()

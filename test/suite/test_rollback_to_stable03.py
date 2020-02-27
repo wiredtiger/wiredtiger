@@ -47,7 +47,12 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         ('inmem', dict(in_memory=True))
     ]
 
-    scenarios = make_scenarios(in_memory_values)
+    prepare_values = [
+        ('no_prepare', dict(prepare=False)),
+        ('prepare', dict(prepare=True))
+    ]
+
+    scenarios = make_scenarios(in_memory_values, prepare_values)
 
     def conn_config(self):
         config = 'cache_size=4GB,statistics=(all)'
@@ -72,6 +77,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
 
         valuea = "aaaaa" * 100
         valueb = "bbbbb" * 100
+        valuec = "ccccc" * 100
         self.large_updates(uri, valuea, ds, nrows, 10)
         # Check that all updates are seen.
         self.check(valuea, uri, nrows, 10)
@@ -80,15 +86,23 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         # Check that all updates are seen.
         self.check(valueb, uri, nrows, 20)
 
-        # Pin stable to timestamp 10.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
+        self.large_updates(uri, valuec, ds, nrows, 30)
+        # Check that all updates are seen.
+        self.check(valuec, uri, nrows, 30)
+
+        # Pin stable to timestamp 30 if prepare otherwise 20.
+        if self.prepare:
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(30))
+        else:
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
         # Checkpoint to ensure that all the updates are flushed to disk.
         if not self.in_memory:
             self.session.checkpoint()
 
         self.conn.rollback_to_stable()
         # Check that the old updates are only seen even with the update timestamp.
-        self.check(valuea, uri, nrows, 20)
+        self.check(valueb, uri, nrows, 20)
+        self.check(valuea, uri, nrows, 10)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -102,7 +116,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         self.assertEqual(calls, 1)
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
-        if self.in_memory:
+        if self.in_memory or self.prepare:
             self.assertEqual(hs_removed, 0)
         else:
             self.assertEqual(hs_removed, nrows)
