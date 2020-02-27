@@ -587,7 +587,6 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
 
                     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", backup_home, filename));
                     VERBOSE(5, "Reopen write file: %s\n", buf);
-                    // TODO: create flag added...
                     reopen_file(&wfd, wbuf, sizeof(wbuf), buf, O_WRONLY | O_CREAT);
                     /* Use the read size since we may have read less than the granularity. */
                     testutil_assert(pwrite(wfd, tmp, (size_t)rdsize, (wt_off_t)offset) == rdsize);
