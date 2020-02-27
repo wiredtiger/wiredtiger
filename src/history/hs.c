@@ -711,8 +711,6 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
 
     WT_RET(__wt_scr_alloc(session, 0, &srch_key));
 
-    WT_CLEAR(srch_key);
-
     /*
      * Because of the special visibility rules for the history store, a new key can appear in
      * between our search and the set of updates that we're interested in. Keep trying until we find
