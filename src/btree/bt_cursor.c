@@ -816,6 +816,8 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 
     /* It's no longer possible to bulk-load into the tree. */
     __wt_cursor_disable_bulk(session);
+    WT_ERR_ASSERT(
+      session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
 
     /*
      * Insert a new record if WT_CURSTD_APPEND configured, (ignoring any application set record
@@ -1220,6 +1222,8 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 
     /* It's no longer possible to bulk-load into the tree. */
     __wt_cursor_disable_bulk(session);
+    WT_ERR_ASSERT(
+      session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
