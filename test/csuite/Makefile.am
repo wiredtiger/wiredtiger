@@ -26,7 +26,8 @@ all_TESTS += test_rwlock
 
 test_schema_abort_SOURCES = schema_abort/main.c
 noinst_PROGRAMS += test_schema_abort
-all_TESTS += schema_abort/smoke.sh
+# Temporarily disabled
+# all_TESTS += schema_abort/smoke.sh
 
 test_scope_SOURCES = scope/main.c
 noinst_PROGRAMS += test_scope
