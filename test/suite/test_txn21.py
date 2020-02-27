@@ -30,8 +30,9 @@
 #   Transactions: smoke test the operation timeout API
 #
 
-import wiredtiger, wttest
+import wiredtiger, wttest, unittest
 
+@unittest.skip("Temporarily disabled, see WT-5702 for context")
 class test_txn21(wttest.WiredTigerTestCase):
 
     # Connection-level configuration.
