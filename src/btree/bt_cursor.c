@@ -803,6 +803,9 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
 
+    WT_RET_ASSERT(
+      session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
+
     /* It's no longer possible to bulk-load into the tree. */
     __wt_cursor_disable_bulk(session);
 
@@ -815,9 +818,6 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
-
-    WT_ERR_ASSERT(
-      session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
 
     /*
      * If inserting with overwrite configured, and positioned to an on-page key, the update doesn't
@@ -1210,14 +1210,14 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     session = (WT_SESSION_IMPL *)cursor->session;
     yield_count = sleep_usecs = 0;
 
+    WT_RET_ASSERT(
+      session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
+
     /* It's no longer possible to bulk-load into the tree. */
     __wt_cursor_disable_bulk(session);
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
-
-    WT_ERR_ASSERT(
-      session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
 
     /*
      * If update positioned to an on-page key, the update doesn't require another search. We don't
