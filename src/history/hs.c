@@ -323,6 +323,12 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const
     hs_upd = NULL;
 
     /*
+     * Disable bulk loads into history store. This would normally occur when updating a record with
+     * a cursor however the history store doesn't use cursor update, so we do it here.
+     */
+    __wt_cursor_disable_bulk(session);
+
+    /*
      * Only deltas or full updates should be written to the history store. More specifically, we
      * should NOT be writing tombstone records in the history store table.
      */
@@ -472,9 +478,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     insert_cnt = 0;
     btree_id = btree->id;
     __wt_modify_vector_init(session, &modifies);
-
-    /* Disable bulk loads into history store. */
-    WT_WITH_BTREE(session, ((WT_CURSOR_BTREE *)cursor)->btree, __wt_cursor_disable_bulk(session));
 
     if (!btree->hs_entries)
         btree->hs_entries = true;
