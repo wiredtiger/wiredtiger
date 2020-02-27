@@ -465,7 +465,7 @@ descend:
                 couple = NULL;
 
                 /* Return leaf pages to our caller. */
-                if (F_ISSET(ref, WT_REF_IS_LEAF)) {
+                if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
                     *refp = ref;
                     goto done;
                 }
@@ -572,7 +572,7 @@ __tree_walk_skip_count_callback(WT_SESSION_IMPL *session, WT_REF *ref, void *con
      */
     if (ref->state == WT_REF_DELETED && __wt_delete_page_skip(session, ref, false))
         *skipp = true;
-    else if (*skipleafcntp > 0 && F_ISSET(ref, WT_REF_IS_LEAF)) {
+    else if (*skipleafcntp > 0 && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
         --*skipleafcntp;
         *skipp = true;
     } else

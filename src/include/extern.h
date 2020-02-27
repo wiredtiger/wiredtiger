@@ -58,8 +58,6 @@ extern const char *__wt_key_string(WT_SESSION_IMPL *session, const void *data_ar
   const char *key_format, WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_page_type_string(u_int type) WT_GCC_FUNC_DECL_ATTRIBUTE(
   (visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern const char *__wt_ref_state_string(u_int state)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_session_strerror(WT_SESSION *wt_session, int error)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_strerror(WT_SESSION_IMPL *session, int error, char *errbuf, size_t errlen)
