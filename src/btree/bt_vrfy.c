@@ -444,7 +444,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
                   __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1),
                   __wt_page_type_string(btree->root.page->type)));
 
-            __wt_evict_file_exclusive_off(session);
+            __wt_evict_file_exclusive_off(session, btree);
 
             /*
              * Create a fake, unpacked parent cell for the tree based on the checkpoint information.
@@ -469,7 +469,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * because we are called with eviction locked out, so we release the lock at the top of
              * the loop and re-acquire it here.
              */
-            WT_TRET(__wt_evict_file_exclusive_on(session));
+            WT_TRET(__wt_evict_file_exclusive_on(session, btree));
             WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
         }
 

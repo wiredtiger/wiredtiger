@@ -336,7 +336,7 @@ __wt_cursor_disable_bulk(WT_SESSION_IMPL *session, WT_BTREE *btree)
      */
     if (__wt_atomic_cas8(&btree->original, 1, 0)) {
         btree->evict_disabled_open = false;
-        __wt_evict_file_exclusive_off(session);
+        __wt_evict_file_exclusive_off(session, btree);
     }
 }
 
