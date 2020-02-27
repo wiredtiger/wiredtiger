@@ -133,6 +133,13 @@ __rec_append_orig_value(
             tombstone->next = append;
             total_size += size;
         }
+        /*
+         * Assert that if we did have a tombstone as the original update that its start timestamp
+         * matches the previous updates stop timestamp. Note that the stop_ts on the previous update
+         * can be WT_TS_MAX so we should ignore this.
+         */
+        WT_ASSERT(session, upd->type != WT_UPDATE_TOMBSTONE || unpack->stop_ts == WT_TS_MAX ||
+            unpack->stop_ts == upd->start_ts);
     }
 
     if (tombstone != NULL)
