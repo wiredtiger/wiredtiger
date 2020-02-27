@@ -1104,7 +1104,7 @@ __wt_txn_update_check(
     /*
      * Check conflict against the on page value if there is no update on the update chain except
      * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
-     * uncommited update or determined that it's safe to write if we saw a committed update.
+     * uncommitted update or determined that it would be safe to write if we saw a committed update.
      */
     if (upd == NULL && check_onpage_value) {
         WT_ASSERT(session, !rollback);
