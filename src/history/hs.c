@@ -775,10 +775,10 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     WT_DECL_RET;
     WT_ITEM *key, _key;
     WT_MODIFY_VECTOR modifies;
-    WT_TIME_PAIR hs_start, hs_start_tmp, hs_stop, hs_stop_tmp;
     WT_TXN *txn;
     WT_UPDATE *mod_upd, *upd;
-    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, read_timestamp, saved_timestamp;
+    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, hs_start_ts, hs_start_ts_tmp;
+    wt_timestamp_t hs_stop_ts, hs_stop_ts_tmp, read_timestamp, saved_timestamp;
     size_t notused, size;
     uint64_t hs_counter, hs_counter_tmp, recno;
     uint32_t hs_btree_id, session_flags;
@@ -835,7 +835,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
         goto done;
     }
     WT_ERR(ret);
-    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start.timestamp, &hs_counter));
+    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
     /* Stop before crossing over to the next btree */
     if (hs_btree_id != S2BT(session)->id)
@@ -850,7 +850,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
         goto done;
 
     WT_ERR(hs_cursor->get_value(
-      hs_cursor, &hs_stop.timestamp, &durable_timestamp, &prepare_state, &upd_type, hs_value));
+      hs_cursor, &hs_stop_ts, &durable_timestamp, &prepare_state, &upd_type, hs_value));
 
     /* We do not have prepared updates in the history store anymore */
     WT_ASSERT(session, prepare_state != WT_PREPARE_INPROGRESS);
@@ -878,7 +878,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     if (upd_type == WT_UPDATE_MODIFY) {
         WT_NOT_READ(modify, true);
         /* Store this so that we don't have to make a special case for the first modify. */
-        hs_stop_tmp.timestamp = hs_stop.timestamp;
+        hs_stop_ts_tmp = hs_stop_ts;
         while (upd_type == WT_UPDATE_MODIFY) {
             WT_ERR(__wt_update_alloc(session, hs_value, &mod_upd, &notused, upd_type));
             WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
@@ -893,7 +893,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
              * timestamp should be equivalent to the stop timestamp of the record that we're
              * currently on.
              */
-            session->txn.read_timestamp = hs_stop_tmp.timestamp;
+            session->txn.read_timestamp = hs_stop_ts_tmp;
 
             /*
              * Find the base update to apply the reverse deltas. If our cursor next fails to find an
@@ -907,7 +907,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                 upd_type = WT_UPDATE_STANDARD;
                 goto done;
             }
-            hs_start_tmp.timestamp = WT_TS_NONE;
+            hs_start_ts_tmp = WT_TS_NONE;
             /*
              * Make sure we use the temporary variants of these variables. We need to retain the
              * timestamps of the original modify we saw.
@@ -916,7 +916,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
              * reverse deltas on top of.
              */
             WT_ERR(hs_cursor->get_key(
-              hs_cursor, &hs_btree_id, hs_key, &hs_start_tmp.timestamp, &hs_counter_tmp));
+              hs_cursor, &hs_btree_id, hs_key, &hs_start_ts_tmp, &hs_counter_tmp));
 
             WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
 
@@ -928,7 +928,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                 goto done;
             }
 
-            WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_tmp.timestamp, &durable_timestamp_tmp,
+            WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts_tmp, &durable_timestamp_tmp,
               &prepare_state_tmp, &upd_type, hs_value));
         }
 
@@ -946,9 +946,9 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
 
     /* Allocate an update structure for the record found. */
     WT_ERR(__wt_update_alloc(session, hs_value, &upd, &size, upd_type));
-    upd->txnid = hs_start.txnid;
+    upd->txnid = WT_TXN_NONE;
     upd->durable_ts = durable_timestamp;
-    upd->start_ts = hs_start.timestamp;
+    upd->start_ts = hs_start_ts;
     upd->prepare_state = prepare_state;
 
     /*
@@ -1038,8 +1038,8 @@ __hs_delete_key(
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_RET;
     WT_ITEM hs_key;
-    WT_TIME_PAIR hs_start;
     WT_UPDATE *upd;
+    wt_timestamp_t hs_start_ts;
     size_t size;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
@@ -1054,17 +1054,16 @@ __hs_delete_key(
      * a zero timestamp update into the history store. Assuming this, we can just keep iterating
      * until we hit the key boundary, inserting tombstones as we go.
      */
-    WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start.timestamp, &hs_counter));
+    WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
     WT_ASSERT(session, hs_btree_id == btree_id);
     WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
     WT_ASSERT(session, cmp == 0);
-    WT_ASSERT(session, hs_start.timestamp == 0);
+    WT_ASSERT(session, hs_start_ts == 0);
 #endif
     /* If there is nothing else in history store, we're done here. */
     ret = hs_cursor->next(hs_cursor);
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
-        WT_RET(
-          hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start.timestamp, &hs_counter));
+        WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
         /*
          * If the btree id or key isn't ours, that means that we've hit the end of the key range and
          * that there is no more history store content for this key.
