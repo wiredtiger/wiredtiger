@@ -1178,7 +1178,7 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
 
     /*
      * Default to true - callers shouldn't rely on this if an error is returned, but let's give them
-     * deterministic behaviour if they do.
+     * deterministic behavior if they do.
      */
     *txn_active = true;
 
