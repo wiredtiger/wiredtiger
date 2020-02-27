@@ -11,6 +11,10 @@ noinst_PROGRAMS=
 # Temporarily disabled
 # all_TESTS += import/smoke.sh
 
+test_incr_backup_SOURCES = incr_backup/main.c
+noinst_PROGRAMS += test_incr_backup
+all_TESTS += incr_backup/smoke.sh
+
 test_random_abort_SOURCES = random_abort/main.c
 noinst_PROGRAMS += test_random_abort
 # Temporarily disabled
