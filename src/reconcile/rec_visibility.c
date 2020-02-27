@@ -114,13 +114,14 @@ __rec_append_orig_value(
 
         /*
          * We need to append a TOMBSTONE before the onpage value if the onpage value has a valid
-         * stop pair.
+         * stop pair. Except when the onpage value is a tombstone.
          *
          * Imagine a case we insert and delete a value respectively at timestamp 0 and 10, and later
          * insert it again at 20. We need the TOMBSTONE to tell us there is no value between 10 and
          * 20.
          */
-        if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
+        if (upd->type != WT_UPDATE_TOMBSTONE &&
+          (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX)) {
             /* Timestamp should always be in descending order. */
             WT_ASSERT(session,
               last_committed_upd == NULL || last_committed_upd->start_ts >= unpack->stop_ts);
