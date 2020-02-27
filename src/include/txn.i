@@ -1062,18 +1062,6 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_rollback_required --
- *     Return write conflict.
- */
-static inline int
-__txn_rollback_required(WT_SESSION_IMPL *session)
-{
-    WT_STAT_CONN_INCR(session, txn_update_conflict);
-    WT_STAT_DATA_INCR(session, txn_update_conflict);
-    return (__wt_txn_rollback_required(session, "conflict between concurrent operations"));
-}
-
-/*
  * __wt_txn_update_check --
  *     Check if the current transaction can update an item.
  */
@@ -1085,8 +1073,9 @@ __wt_txn_update_check(
     WT_TIME_PAIR start, stop;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    bool ignore_prepare_set;
+    bool ignore_prepare_set, rollback;
 
+    rollback = false;
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
 
@@ -1103,8 +1092,10 @@ __wt_txn_update_check(
     ignore_prepare_set = F_ISSET(txn, WT_TXN_IGNORE_PREPARE);
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
-        if (upd->txnid != WT_TXN_ABORTED)
-            WT_ERR(__txn_rollback_required(session));
+        if (upd->txnid != WT_TXN_ABORTED) {
+            rollback = true;
+            break;
+        }
     }
 
     /* If there is no cursor, we don't need to check the on page value. */
@@ -1115,10 +1106,15 @@ __wt_txn_update_check(
         WT_ERR(__wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop));
         if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
           !__wt_txn_visible(session, stop.txnid, stop.timestamp))
-            WT_ERR(__txn_rollback_required(session));
+            rollback = true;
+        else if (!__wt_txn_visible(session, start.txnid, start.timestamp))
+            rollback = true;
+    }
 
-        if (!__wt_txn_visible(session, start.txnid, start.timestamp))
-            WT_ERR(__txn_rollback_required(session));
+    if (rollback) {
+        WT_STAT_CONN_INCR(session, txn_update_conflict);
+        WT_STAT_DATA_INCR(session, txn_update_conflict);
+        ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
     }
 
 err:
