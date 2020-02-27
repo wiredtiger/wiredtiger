@@ -218,7 +218,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
  */
 static inline int
 __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,
-  WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive, bool check_onpage_value)
+  WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive)
 {
     WT_DECL_RET;
     WT_UPDATE *obsolete, *upd;
@@ -237,8 +237,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      * Check if our update is still permitted.
      */
     while (!__wt_atomic_cas_ptr(srch_upd, upd->next, upd)) {
-        if ((ret = __wt_txn_update_check(
-               session, cbt, upd->next = *srch_upd, check_onpage_value)) != 0) {
+        if ((ret = __wt_txn_update_check(session, cbt, upd->next = *srch_upd,
+               cbt != NULL && page->type != WT_PAGE_COL_FIX && cbt->ins == NULL)) != 0) {
             /* Free unused memory on error. */
             __wt_free(session, upd);
             return (ret);

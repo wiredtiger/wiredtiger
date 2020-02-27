@@ -115,7 +115,7 @@ __rollback_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
      * Serialize the update. Rollback to stable doesn't need to check the visibility of the on page
      * value to detect conflict.
      */
-    WT_ERR(__wt_update_serial(session, NULL, page, upd_entry, &upd, upd_size, true, false));
+    WT_ERR(__wt_update_serial(session, NULL, page, upd_entry, &upd, upd_size, true));
 
 err:
     return (ret);
