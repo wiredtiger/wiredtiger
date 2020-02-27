@@ -220,6 +220,8 @@ __wt_rec_child_modify(
              */
             WT_RET_ASSERT(
               session, false, EBUSY, "unexpected WT_REF_SPLIT child state during reconciliation");
+	    /* NOTREACHED */
+	    return (EBUSY);
 
         default:
             return (__wt_illegal_value(session, r->tested_ref_state));
