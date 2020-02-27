@@ -122,9 +122,7 @@ __wt_value_return_buf(
             stop->txnid = unpack.stop_txn;
         }
 
-        if (buf != NULL)
-            return (__wt_page_cell_data_ref(session, page, &unpack, buf));
-        return (0);
+        return (buf == NULL ? 0 : __wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
     if (page->type == WT_PAGE_COL_VAR) {
@@ -138,9 +136,7 @@ __wt_value_return_buf(
             stop->txnid = unpack.stop_txn;
         }
 
-        if (buf != NULL)
-            return (__wt_page_cell_data_ref(session, page, &unpack, buf));
-        return (0);
+        return (buf == NULL ? 0 : __wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
     /*

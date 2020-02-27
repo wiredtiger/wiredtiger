@@ -1081,6 +1081,7 @@ static inline int
 __wt_txn_update_check(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool check_onpage_value)
 {
+    WT_DECL_RET;
     WT_TIME_PAIR start, stop;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
@@ -1105,27 +1106,28 @@ __wt_txn_update_check(
         if (upd->txnid != WT_TXN_ABORTED) {
             if (ignore_prepare_set)
                 F_SET(txn, WT_TXN_IGNORE_PREPARE);
-            return (__txn_rollback_required(session));
+            WT_ERR(__txn_rollback_required(session));
         }
     }
 
     /* If there is no cursor, we don't need to check the on page value. */
-    WT_ASSERT(session, cbt != NULL || (cbt == NULL && !check_onpage_value));
+    WT_ASSERT(session, cbt != NULL || !check_onpage_value);
 
     /* Check conflict against the on page value. */
     if (check_onpage_value) {
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, (WT_ITEM *)NULL, &start, &stop));
+        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, NULL, &start, &stop));
         if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
           !__wt_txn_visible(session, stop.txnid, stop.timestamp))
-            return (__txn_rollback_required(session));
+            WT_ERR(__txn_rollback_required(session));
 
         if (!__wt_txn_visible(session, start.txnid, start.timestamp))
-            return (__txn_rollback_required(session));
+            WT_ERR(__txn_rollback_required(session));
     }
 
+err:
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
-    return (0);
+    return (ret);
 }
 
 /*
