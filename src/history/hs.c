@@ -110,17 +110,6 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
      */
     WT_ERR(__wt_hs_get_btree(tmp_setup_session, &btree));
 
-    /*
-     * Disable bulk loads into history store. We should set original to 0 the first time we
-     * configure history store. We do not need compare-and-swap because no one can race us the first
-     * time we are configuring.
-     */
-    if (btree->original) {
-        btree->original = 0;
-        btree->evict_disabled_open = false;
-        WT_WITH_BTREE(session, btree, __wt_evict_file_exclusive_off(session));
-    }
-
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
         conn->cache->hs_fileid = btree->id;
@@ -332,6 +321,12 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = NULL;
+
+    /*
+     * Disable bulk loads into history store. This would normally occur when updating a record with
+     * a cursor however the history store doesn't use cursor update, so we do it here.
+     */
+    __wt_cursor_disable_bulk(session);
 
     /*
      * Only deltas or full updates should be written to the history store. More specifically, we

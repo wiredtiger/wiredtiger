@@ -49,7 +49,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (WT_IS_HS(S2BT(session)))
         return (false);
-    if (F_ISSET(ref, WT_REF_IS_INTERNAL))
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (false);
     if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (false);
@@ -199,7 +199,7 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
     /* Lock the ref to avoid any change during the obsolete checks.*/
     for (;; __wt_yield()) {
         previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED && previous_state != WT_REF_READING &&
+        if (previous_state != WT_REF_LOCKED &&
           WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;
     }
@@ -212,7 +212,7 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
     }
 
     /* Ignore internal pages, these are taken care of during reconciliation. */
-    if (F_ISSET(ref, WT_REF_IS_INTERNAL)) {
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         WT_REF_SET_STATE(ref, previous_state);
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping internal page with parent: %p",
           (void *)ref, (void *)ref->home);
@@ -480,7 +480,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
 
             /* Traverse through the internal page for obsolete child pages. */
-            if (is_hs && F_ISSET(walk, WT_REF_IS_INTERNAL)) {
+            if (is_hs && F_ISSET(walk, WT_REF_FLAG_INTERNAL)) {
                 WT_WITH_PAGE_INDEX(
                   session, ret = __sync_ref_int_obsolete_cleanup(session, walk, &ref_list));
                 WT_ERR(ret);
@@ -516,7 +516,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 continue;
             }
 
-            if (F_ISSET(walk, WT_REF_IS_INTERNAL)) {
+            if (F_ISSET(walk, WT_REF_FLAG_INTERNAL)) {
                 internal_bytes += page->memory_footprint;
                 ++internal_pages;
                 /* Slow down checkpoints. */
@@ -543,7 +543,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * Once the transaction has given up it's snapshot it is no longer safe to reconcile
              * pages. That happens prior to the final metadata checkpoint.
              */
-            if (F_ISSET(walk, WT_REF_IS_LEAF) && page->read_gen == WT_READGEN_WONT_NEED &&
+            if (F_ISSET(walk, WT_REF_FLAG_LEAF) && page->read_gen == WT_READGEN_WONT_NEED &&
               !tried_eviction && F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT)) {
                 ret = __wt_page_release_evict(session, walk, 0);
                 walk = NULL;

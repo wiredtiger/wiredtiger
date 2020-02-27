@@ -247,7 +247,7 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
      * We create WT_REFs in many places, assert a WT_REF has been configured as either an internal
      * page or a leaf page, to catch any we've missed.
      */
-    WT_ASSERT(session, F_ISSET(ref, WT_REF_IS_INTERNAL) || F_ISSET(ref, WT_REF_IS_LEAF));
+    WT_ASSERT(session, F_ISSET(ref, WT_REF_FLAG_INTERNAL) || F_ISSET(ref, WT_REF_FLAG_LEAF));
 
     /*
      * Optionally free the referenced pages. (The path to free referenced page is used for error

@@ -545,7 +545,7 @@ __wt_root_ref_init(WT_SESSION_IMPL *session, WT_REF *root_ref, WT_PAGE *root, bo
     memset(root_ref, 0, sizeof(*root_ref));
 
     root_ref->page = root;
-    F_SET(root_ref, WT_REF_IS_INTERNAL);
+    F_SET(root_ref, WT_REF_FLAG_INTERNAL);
     WT_REF_SET_STATE(root_ref, WT_REF_MEM);
 
     root_ref->ref_recno = is_recno ? 1 : WT_RECNO_OOB;
@@ -675,7 +675,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         ref->home = root;
         ref->page = NULL;
         ref->addr = NULL;
-        F_SET(ref, WT_REF_IS_LEAF);
+        F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         ref->ref_recno = 1;
         break;
@@ -688,7 +688,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         ref->home = root;
         ref->page = NULL;
         ref->addr = NULL;
-        F_SET(ref, WT_REF_IS_LEAF);
+        F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         WT_ERR(__wt_row_ikey_incr(session, root, 0, "", 1, ref));
         break;
@@ -697,7 +697,7 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
     /* Bulk loads require a leaf page for reconciliation: create it now. */
     if (F_ISSET(btree, WT_BTREE_BULK)) {
         WT_ERR(__wt_btree_new_leaf_page(session, ref));
-        F_SET(ref, WT_REF_IS_LEAF);
+        F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_MEM);
         WT_ERR(__wt_page_modify_init(session, ref->page));
         __wt_page_only_modify_set(session, ref->page);
@@ -744,8 +744,8 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
      * ever forced to re-instantiate that piece of the namespace, it comes back as a leaf page.
      * Reset the WT_REF type as it's possible that it has changed.
      */
-    F_CLR(ref, WT_REF_IS_INTERNAL);
-    F_SET(ref, WT_REF_IS_LEAF);
+    F_CLR(ref, WT_REF_FLAG_INTERNAL);
+    F_SET(ref, WT_REF_FLAG_LEAF);
 
     return (0);
 }

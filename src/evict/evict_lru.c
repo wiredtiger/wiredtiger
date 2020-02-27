@@ -96,7 +96,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
     read_gen += btree->evict_priority;
 
 #define WT_EVICT_INTL_SKEW 1000
-    if (F_ISSET(ref, WT_REF_IS_INTERNAL))
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         read_gen += WT_EVICT_INTL_SKEW;
 
     return (read_gen);
@@ -1854,13 +1854,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         page->evict_pass_gen = cache->evict_pass_gen;
 
         /* Count internal pages seen. */
-        if (F_ISSET(ref, WT_REF_IS_INTERNAL))
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             internal_pages_seen++;
 
         /* Use the EVICT_LRU flag to avoid putting pages onto the list multiple times. */
         if (F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU)) {
             pages_already_queued++;
-            if (F_ISSET(ref, WT_REF_IS_INTERNAL))
+            if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
                 internal_pages_already_queued++;
             continue;
         }
@@ -1903,7 +1903,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * assertion that we don't discard dirty pages from a clean tree.
          */
         if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD) && !F_ISSET(conn, WT_CONN_EVICTION_NO_HS) &&
-          F_ISSET(ref, WT_REF_IS_LEAF) && !modified && page->modify != NULL &&
+          F_ISSET(ref, WT_REF_FLAG_LEAF) && !modified && page->modify != NULL &&
           !__wt_txn_visible_all(
               session, page->modify->rec_max_txn, page->modify->rec_max_timestamp)) {
             __wt_page_modify_set(session, page);
@@ -1926,7 +1926,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * being skipped for walks), or we are in eviction debug mode. The goal here is that if
          * trees become completely idle, we eventually push them out of cache completely.
          */
-        if (!F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE) && F_ISSET(ref, WT_REF_IS_INTERNAL)) {
+        if (!F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE) && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
             if (page == last_parent)
                 continue;
             if (btree->evict_walk_period == 0 && !__wt_cache_aggressive(session))
@@ -1960,7 +1960,7 @@ fast:
         ++btree->evict_walk_progress;
 
         /* Count internal pages queued. */
-        if (F_ISSET(ref, WT_REF_IS_INTERNAL))
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
             internal_pages_queued++;
 
         __wt_verbose(session, WT_VERB_EVICTSERVER, "select: %p, size %" WT_SIZET_FMT, (void *)page,
@@ -2496,7 +2496,7 @@ __verbose_dump_cache_single(
         page = next_walk->page;
         size = page->memory_footprint;
 
-        if (F_ISSET(next_walk, WT_REF_IS_INTERNAL)) {
+        if (F_ISSET(next_walk, WT_REF_FLAG_INTERNAL)) {
             ++intl_pages;
             intl_bytes += size;
             intl_bytes_max = WT_MAX(intl_bytes_max, size);
