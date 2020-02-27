@@ -1112,7 +1112,7 @@ __wt_txn_update_check(
     /* If there is no cursor, we don't need to check the on page value. */
     WT_ASSERT(session, cbt != NULL || (cbt == NULL && !check_onpage_value));
 
-    /* Check conflict against the on page value if it exists. */
+    /* Check conflict against the on page value. */
     if (check_onpage_value) {
         WT_RET(__wt_value_return_buf(cbt, cbt->ref, (WT_ITEM *)NULL, &start, &stop));
         if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
