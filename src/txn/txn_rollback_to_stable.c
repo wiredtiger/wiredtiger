@@ -84,10 +84,7 @@ __rollback_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
     WT_UPDATE *old_upd, **upd_entry;
     size_t upd_size;
 
-    /*
-     * Rollback to stable don't need to check the visibility of the on page value to detect
-     * conflict.
-     */
+    /* Work around to pass NULL. */
     cbt = NULL;
 
     /* If we don't yet have a modify structure, we'll need one. */
@@ -118,7 +115,10 @@ __rollback_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
      */
     upd->next = old_upd;
 
-    /* Serialize the update. */
+    /*
+     * Serialize the update. Rollback to stable don't need to check the visibility of the on page
+     * value to detect conflict.
+     */
     WT_ERR(__wt_update_serial(session, cbt, page, upd_entry, &upd, upd_size, true, false));
 
 err:
