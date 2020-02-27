@@ -925,7 +925,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                 orig_hs_value_buf = hs_value;
                 hs_value = on_disk_buf;
                 upd_type = WT_UPDATE_STANDARD;
-                goto done;
+                break;
             }
 
             WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts_tmp, &durable_timestamp_tmp,
