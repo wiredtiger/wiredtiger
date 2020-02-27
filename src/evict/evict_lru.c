@@ -703,8 +703,8 @@ __evict_pass(WT_SESSION_IMPL *session)
             !__evict_queue_empty(cache->evict_urgent_queue, false))) {
             /*
              * Release the evict pass lock as the thread is going to evict the pages from the queue.
-             * Otherwise, it can lead to a dead lock while evicting the page the lead to clear the
-             * eviction walk.
+             * Otherwise, it can lead to a deadlock while evicting the page in the flow of clearing
+             * the eviction walk.
              *
              * As there is only one eviction thread that is active currently, there couldn't be any
              * race conditions that other threads can enter into the flow of evict server when there

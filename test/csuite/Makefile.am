@@ -34,7 +34,7 @@ all_TESTS += test_scope
 
 test_timestamp_abort_SOURCES = timestamp_abort/main.c
 noinst_PROGRAMS += test_timestamp_abort
--all_TESTS += timestamp_abort/smoke.sh
+all_TESTS += timestamp_abort/smoke.sh
 
 test_truncated_log_SOURCES = truncated_log/main.c
 noinst_PROGRAMS += test_truncated_log
