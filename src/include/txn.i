@@ -1112,7 +1112,7 @@ __wt_txn_update_check(
 
     /* Check conflict against the on page value. */
     if (upd == NULL && check_onpage_value) {
-        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, NULL, &start, &stop));
+        WT_ERR(__wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop));
         if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
           !__wt_txn_visible(session, stop.txnid, stop.timestamp))
             WT_ERR(__txn_rollback_required(session));

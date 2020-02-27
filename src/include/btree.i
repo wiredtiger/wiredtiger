@@ -1037,6 +1037,16 @@ __wt_row_leaf_value_cell(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
 }
 
 /*
+ * __wt_row_leaf_value_exists --
+ *     Check if the value for a row-store leaf page encoded key/value pair exists.
+ */
+static inline bool
+__wt_row_leaf_value_exists(WT_ROW *rip)
+{
+    return (((uintptr_t)WT_ROW_KEY_COPY(rip) & 0x03) == WT_KV_FLAG);
+}
+
+/*
  * __wt_row_leaf_value --
  *     Return the value for a row-store leaf page encoded key/value pair.
  */
@@ -1052,10 +1062,8 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
      * See the comment in __wt_row_leaf_key_info for an explanation of the magic.
      */
     if ((v & 0x03) == WT_KV_FLAG) {
-        if (value != NULL) {
-            value->data = WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_VALUE_OFFSET(v));
-            value->size = WT_KV_DECODE_VALUE_LEN(v);
-        }
+        value->data = WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_VALUE_OFFSET(v));
+        value->size = WT_KV_DECODE_VALUE_LEN(v);
         return (true);
     }
     return (false);
