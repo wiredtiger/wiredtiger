@@ -325,11 +325,13 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
   WT_TIME_PAIR stop_ts_pair)
 {
+    WT_CACHE *cache;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_UPDATE *hs_upd;
     size_t notused;
 
+    cache = S2C(session)->cache;
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = NULL;
 
@@ -344,8 +346,7 @@ retry:
      * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to
      * create an update chain for a direct insertion onto the history store page.
      */
-    cursor->set_key(
-      cursor, btree_id, key, upd->start_ts, __wt_atomic_add64(&S2C(session)->cache->hs_counter, 1));
+    cursor->set_key(cursor, btree_id, key, upd->start_ts, __wt_atomic_add64(&cache->hs_counter, 1));
     cursor->set_value(
       cursor, stop_ts_pair.timestamp, upd->durable_ts, upd->prepare_state, type, hs_value);
 
