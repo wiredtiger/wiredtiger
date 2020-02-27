@@ -1012,21 +1012,20 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt4117_checksum 2>&1
 
-  # Temporarily disabled
-  # - name: csuite-wt4156-metadata-salvage-test
-  #   tags: ["pull_request"]
-  #   depends_on:
-  #     - name: compile
-  #   commands:
-  #     - func: "fetch artifacts"
-  #     - command: shell.exec
-  #       params:
-  #         working_dir: "wiredtiger/build_posix"
-  #         script: |
-  #           set -o errexit
-  #           set -o verbose
+  - name: csuite-wt4156-metadata-salvage-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
 
-  #           ${test_env_vars|} $(pwd)/test/csuite/test_wt4156_metadata_salvage 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt4156_metadata_salvage 2>&1
 
   - name: csuite-wt4699-json-test
     tags: ["pull_request"]
