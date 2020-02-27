@@ -1101,8 +1101,13 @@ __wt_txn_update_check(
     /* If there is no cursor, we don't need to check the on page value. */
     WT_ASSERT(session, cbt != NULL || !check_onpage_value);
 
-    /* Check conflict against the on page value. */
+    /*
+     * Check conflict against the on page value if there is no update on the update chain except
+     * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
+     * uncommited update or determined that it's safe to write if we saw a committed update.
+     */
     if (upd == NULL && check_onpage_value) {
+        WT_ASSERT(session, !rollback);
         WT_ERR(__wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop));
         if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
           !__wt_txn_visible(session, stop.txnid, stop.timestamp))
