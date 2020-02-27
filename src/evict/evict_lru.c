@@ -820,13 +820,15 @@ __evict_clear_all_walks(WT_SESSION_IMPL *session)
  *     eviction.
  */
 int
-__wt_evict_file_exclusive_on(WT_SESSION_IMPL *session, WT_BTREE *btree)
+__wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
 {
+    WT_BTREE *btree;
     WT_CACHE *cache;
     WT_DECL_RET;
     WT_EVICT_ENTRY *evict;
     u_int i, elem, q;
 
+    btree = S2BT(session);
     cache = S2C(session)->cache;
 
     /* Hold the walk lock to turn off eviction. */
@@ -881,8 +883,12 @@ err:
  *     Release exclusive eviction access to a file.
  */
 void
-__wt_evict_file_exclusive_off(WT_SESSION_IMPL *session, WT_BTREE *btree)
+__wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 {
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
     /*
      * We have seen subtle bugs with multiple threads racing to turn eviction on/off. Make races
      * more likely in diagnostic builds.
@@ -905,8 +911,6 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session, WT_BTREE *btree)
         WT_ASSERT(session, v >= 0);
     }
 #else
-    WT_UNUSED(session);
-
     (void)__wt_atomic_subi32(&btree->evict_disabled, 1);
 #endif
 }

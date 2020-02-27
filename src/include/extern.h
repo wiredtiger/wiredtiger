@@ -640,7 +640,7 @@ extern int __wt_evict_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session, WT_BTREE *btree)
+extern int __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1649,7 +1649,7 @@ extern void __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line,
   ...) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 4, 5)))
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler);
-extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session, WT_BTREE *btree);
+extern void __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session);
 extern void __wt_evict_list_clear_page(WT_SESSION_IMPL *session, WT_REF *ref);
 extern void __wt_evict_priority_clear(WT_SESSION_IMPL *session);
 extern void __wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v);
@@ -2143,7 +2143,7 @@ static inline void __wt_cond_wait(
   WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs, bool (*run_func)(WT_SESSION_IMPL *));
 static inline void __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session);
 static inline void __wt_cursor_dhandle_incr_use(WT_SESSION_IMPL *session);
-static inline void __wt_cursor_disable_bulk(WT_SESSION_IMPL *session, WT_BTREE *btree);
+static inline void __wt_cursor_disable_bulk(WT_SESSION_IMPL *session);
 static inline void __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp);
 static inline void __wt_op_timer_start(WT_SESSION_IMPL *session);
 static inline void __wt_op_timer_stop(WT_SESSION_IMPL *session);

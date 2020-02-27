@@ -278,7 +278,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
 
     if (is_btree) {
         /* Turn off eviction. */
-        WT_RET(__wt_evict_file_exclusive_on(session, btree));
+        WT_RET(__wt_evict_file_exclusive_on(session));
 
         /* Reset the tree's eviction priority (if any). */
         __wt_evict_priority_clear(session);
@@ -405,7 +405,7 @@ err:
         F_CLR(session, WT_SESSION_NO_SCHEMA_LOCK);
 
     if (is_btree)
-        __wt_evict_file_exclusive_off(session, btree);
+        __wt_evict_file_exclusive_off(session);
 
     return (ret);
 }
@@ -430,7 +430,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
 
     /* Turn off eviction. */
     if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
-        WT_RET(__wt_evict_file_exclusive_on(session, btree));
+        WT_RET(__wt_evict_file_exclusive_on(session));
 
     /*
      * If the handle is already open, it has to be closed so it can be reopened with a new
@@ -494,7 +494,7 @@ err:
     }
 
     if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
-        __wt_evict_file_exclusive_off(session, btree);
+        __wt_evict_file_exclusive_off(session);
 
     if (ret == ENOENT && F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
         F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);

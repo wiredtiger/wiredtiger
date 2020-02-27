@@ -666,8 +666,8 @@ __rollback_eviction_drain(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_UNUSED(cfg);
 
-    WT_RET(__wt_evict_file_exclusive_on(session, S2BT(session)));
-    __wt_evict_file_exclusive_off(session, S2BT(session));
+    WT_RET(__wt_evict_file_exclusive_on(session));
+    __wt_evict_file_exclusive_off(session);
     return (0);
 }
 
@@ -713,9 +713,9 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
      * shouldn't be required, but it simplifies some of the reasoning about what state trees can be
      * in.
      */
-    WT_RET(__wt_evict_file_exclusive_on(session, btree));
+    WT_RET(__wt_evict_file_exclusive_on(session));
     WT_WITH_PAGE_INDEX(session, ret = __rollback_to_stable_btree_walk(session, rollback_timestamp));
-    __wt_evict_file_exclusive_off(session, btree);
+    __wt_evict_file_exclusive_off(session);
 
     return (ret);
 }

@@ -179,7 +179,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      */
     if (btree->original || F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_REBALANCE |
                                WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
-        WT_ERR(__wt_evict_file_exclusive_on(session, btree));
+        WT_ERR(__wt_evict_file_exclusive_on(session));
         btree->evict_disabled_open = true;
     }
 
@@ -231,7 +231,7 @@ __wt_btree_close(WT_SESSION_IMPL *session)
      */
     if (btree->evict_disabled_open) {
         btree->evict_disabled_open = false;
-        __wt_evict_file_exclusive_off(session, btree);
+        __wt_evict_file_exclusive_off(session);
     }
 
     /* Discard any underlying block manager resources. */

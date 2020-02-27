@@ -474,7 +474,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     __wt_modify_vector_init(session, &modifies);
 
     /* Disable bulk loads into history store. */
-    __wt_cursor_disable_bulk(session, ((WT_CURSOR_BTREE *)cursor)->btree);
+    WT_WITH_BTREE(session, ((WT_CURSOR_BTREE *)cursor)->btree, __wt_cursor_disable_bulk(session));
 
     if (!btree->hs_entries)
         btree->hs_entries = true;

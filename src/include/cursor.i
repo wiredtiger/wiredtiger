@@ -317,8 +317,12 @@ __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session)
  *     Disable bulk loads into a tree.
  */
 static inline void
-__wt_cursor_disable_bulk(WT_SESSION_IMPL *session, WT_BTREE *btree)
+__wt_cursor_disable_bulk(WT_SESSION_IMPL *session)
 {
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
     /*
      * Once a tree (other than the LSM primary) is no longer empty, eviction should pay attention to
      * it, and it's no longer possible to bulk-load into it.
@@ -336,7 +340,7 @@ __wt_cursor_disable_bulk(WT_SESSION_IMPL *session, WT_BTREE *btree)
      */
     if (__wt_atomic_cas8(&btree->original, 1, 0)) {
         btree->evict_disabled_open = false;
-        __wt_evict_file_exclusive_off(session, btree);
+        __wt_evict_file_exclusive_off(session);
     }
 }
 
