@@ -17,8 +17,7 @@ all_TESTS += incr_backup/smoke.sh
 
 test_random_abort_SOURCES = random_abort/main.c
 noinst_PROGRAMS += test_random_abort
-# Temporarily disabled
-# all_TESTS += random_abort/smoke.sh
+all_TESTS += random_abort/smoke.sh
 
 test_random_directio_SOURCES = random_directio/main.c random_directio/util.c
 noinst_PROGRAMS += test_random_directio
@@ -40,8 +39,7 @@ all_TESTS += test_scope
 
 test_timestamp_abort_SOURCES = timestamp_abort/main.c
 noinst_PROGRAMS += test_timestamp_abort
-# Temporarily disabled
-# all_TESTS += timestamp_abort/smoke.sh
+all_TESTS += timestamp_abort/smoke.sh
 
 test_truncated_log_SOURCES = truncated_log/main.c
 noinst_PROGRAMS += test_truncated_log
