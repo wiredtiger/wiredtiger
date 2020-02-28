@@ -32,10 +32,10 @@
 
 import wiredtiger, wttest, unittest
 
-@unittest.skip("Temporarily disabled, see WT-5702 for context")
 class test_txn21(wttest.WiredTigerTestCase):
 
     # Connection-level configuration.
+    @unittest.skip("Temporarily disabled, see WT-5702 for context")
     def test_operation_timeout_conn(self):
         # Close the automatically opened connection and open one with the timeout configuration.
         conn_config = 'operation_timeout_ms=2000'
@@ -43,6 +43,7 @@ class test_txn21(wttest.WiredTigerTestCase):
         self.conn = wiredtiger.wiredtiger_open(self.home, conn_config)
 
     # Transaction-level configuration.
+    @unittest.skip("Temporarily disabled, see WT-5702 for context")
     def test_operation_timeout_txn(self):
         self.session.begin_transaction('operation_timeout_ms=2000')
 
