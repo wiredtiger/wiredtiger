@@ -233,16 +233,19 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      * All structure setup must be flushed before the structure is entered into the list. We need a
      * write barrier here, our callers depend on it.
      *
-     * Swap the update into place. If that fails, a new update was added after our search, we raced.
-     * Check if our update is still permitted.
+     * Swap the update into place. We can't assume if there is nothing on the update chain, we can sucessfully write as we may conflict with the onpage value. Do a conflict check before each attempt.
      */
-    while (!__wt_atomic_cas_ptr(srch_upd, upd->next, upd)) {
-        if ((ret = __wt_txn_update_check(session, cbt, upd->next = *srch_upd,
-               cbt != NULL && page->type != WT_PAGE_COL_FIX && cbt->ins == NULL)) != 0) {
+    for (;;) {
+        ret = __wt_txn_update_check(session, cbt, upd->next = *srch_upd, cbt != NULL && page->type != WT_PAGE_COL_FIX && cbt->ins == NULL);
+
+        if (ret != 0) {
             /* Free unused memory on error. */
             __wt_free(session, upd);
             return (ret);
         }
+
+        if (__wt_atomic_cas_ptr(srch_upd, upd->next, upd))
+            break;
     }
 
     /*

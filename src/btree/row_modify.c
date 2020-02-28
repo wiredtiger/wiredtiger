@@ -95,7 +95,11 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             upd_entry = &cbt->ins->upd;
 
         if (upd_arg == NULL) {
-            /* Make sure the update can proceed. */
+            /*
+             * Make sure the update can proceed.
+             *
+             * Do an early conflict check if we don't need to check against the onpage value, which is expensive.
+             */
             WT_ERR(__wt_txn_update_check(session, cbt, old_upd = *upd_entry, cbt->ins == NULL));
 
             /* Allocate a WT_UPDATE structure and transaction ID. */
