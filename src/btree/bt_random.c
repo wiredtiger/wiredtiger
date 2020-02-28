@@ -395,7 +395,7 @@ restart:
     /* Search the internal pages of the tree. */
     current = &btree->root;
     for (;;) {
-        if (F_ISSET(current, WT_REF_IS_LEAF))
+        if (F_ISSET(current, WT_REF_FLAG_LEAF))
             break;
 
         page = current->page;

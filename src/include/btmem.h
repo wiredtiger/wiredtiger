@@ -749,11 +749,6 @@ struct __wt_page {
  *	Set by a reading thread once the page has been read from disk; the page
  *	is in the cache and the page reference is OK.
  *
- * WT_REF_READING:
- *	Set by a reading thread before reading an ordinary page from disk;
- *	other readers of the page wait until the read completes.  Sync can
- *	safely skip over such pages: they are clean by definition.
- *
  * WT_REF_SPLIT:
  *	Set when the page is split; the WT_REF is dead and can no longer be
  *	used.
@@ -829,16 +824,18 @@ struct __wt_ref {
  * miss one). If we run out of bits in the flags field, remove the internal flag and rewrite tests
  * depending on it to be "!leaf" instead.
  */
-#define WT_REF_IS_INTERNAL 0x01 /* Page is an internal page */
-#define WT_REF_IS_LEAF 0x02     /* Page is a leaf page */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
+#define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
+#define WT_REF_FLAG_READING 0x4u  /* Page is being read in */
+                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 
 #define WT_REF_DISK 0       /* Page is on disk */
 #define WT_REF_DELETED 1    /* Page is on disk, but deleted */
 #define WT_REF_LOCKED 2     /* Page locked for exclusive access */
 #define WT_REF_MEM 3        /* Page is in cache and valid */
-#define WT_REF_READING 4    /* Page being read */
-#define WT_REF_SPLIT 5      /* Parent page split (WT_REF dead) */
+#define WT_REF_SPLIT 4      /* Parent page split (WT_REF dead) */
     volatile uint8_t state; /* Page state */
 
     /*

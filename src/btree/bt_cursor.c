@@ -58,7 +58,6 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
 {
     WT_CURSOR *cursor;
     WT_SESSION_IMPL *session;
-    uint8_t current_state;
 
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cursor->session;
@@ -100,16 +99,6 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
     if (cbt->ref->page->read_gen == WT_READGEN_OLDEST)
         return (false);
 
-    /*
-     * We need a page with history: updates need complete update lists and a read might be based on
-     * a different timestamp than the one that brought the page into memory. Release the page and
-     * read it again with history if required. Eviction may be locking the page, wait until we see a
-     * "normal" state and then test against that state (eviction may have already locked the page
-     * again).
-     */
-    while ((current_state = cbt->ref->state) == WT_REF_LOCKED)
-        __wt_yield();
-    WT_ASSERT(session, current_state == WT_REF_MEM);
     return (true);
 }
 
@@ -156,34 +145,6 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
           session, ret, "item size of %" WT_SIZET_FMT " refused by block manager", kv->size);
 
     return (0);
-}
-
-/*
- * __cursor_disable_bulk --
- *     Disable bulk loads into a tree.
- */
-static inline void
-__cursor_disable_bulk(WT_SESSION_IMPL *session, WT_BTREE *btree)
-{
-    /*
-     * Once a tree (other than the LSM primary) is no longer empty, eviction should pay attention to
-     * it, and it's no longer possible to bulk-load into it.
-     */
-    if (!btree->original)
-        return;
-    if (btree->lsm_primary) {
-        btree->original = 0; /* Make the next test faster. */
-        return;
-    }
-
-    /*
-     * We use a compare-and-swap here to avoid races among the first inserts into a tree. Eviction
-     * is disabled when an empty tree is opened, and it must only be enabled once.
-     */
-    if (__wt_atomic_cas8(&btree->original, 1, 0)) {
-        btree->evict_disabled_open = false;
-        __wt_evict_file_exclusive_off(session);
-    }
 }
 
 /*
@@ -842,8 +803,11 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
 
+    WT_RET_ASSERT(
+      session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
+
     /* It's no longer possible to bulk-load into the tree. */
-    __cursor_disable_bulk(session, btree);
+    __wt_cursor_disable_bulk(session);
 
     /*
      * Insert a new record if WT_CURSTD_APPEND configured, (ignoring any application set record
@@ -1246,8 +1210,11 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     session = (WT_SESSION_IMPL *)cursor->session;
     yield_count = sleep_usecs = 0;
 
+    WT_RET_ASSERT(
+      session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
+
     /* It's no longer possible to bulk-load into the tree. */
-    __cursor_disable_bulk(session, btree);
+    __wt_cursor_disable_bulk(session);
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);

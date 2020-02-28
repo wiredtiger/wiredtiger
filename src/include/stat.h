@@ -654,8 +654,6 @@ struct __wt_connection_stats {
     int64_t txn_durable_queue_head;
     int64_t txn_durable_queue_inserts;
     int64_t txn_durable_queue_len;
-    int64_t txn_snapshots_created;
-    int64_t txn_snapshots_dropped;
     int64_t txn_prepare;
     int64_t txn_prepare_commit;
     int64_t txn_prepare_active;
@@ -701,7 +699,6 @@ struct __wt_connection_stats {
     int64_t txn_checkpoint_fsync_post_duration;
     int64_t txn_pinned_range;
     int64_t txn_pinned_checkpoint_range;
-    int64_t txn_pinned_snapshot_range;
     int64_t txn_pinned_timestamp;
     int64_t txn_pinned_timestamp_checkpoint;
     int64_t txn_pinned_timestamp_reader;
