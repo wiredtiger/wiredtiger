@@ -1066,14 +1066,13 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
  *     Check if the current transaction can update an item.
  */
 static inline int
-__wt_txn_update_check(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool check_onpage_value)
+__wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
     WT_DECL_RET;
     WT_TIME_PAIR start, stop;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    bool ignore_prepare_set, rollback;
+    bool ignore_prepare_set, rollback, check_onpage_value;
 
     rollback = false;
     txn = &session->txn;
@@ -1092,39 +1091,34 @@ __wt_txn_update_check(
     ignore_prepare_set = F_ISSET(txn, WT_TXN_IGNORE_PREPARE);
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
-        if (upd->txnid != WT_TXN_ABORTED)
-            goto rollback;
+        if (upd->txnid != WT_TXN_ABORTED) {
+            rollback = true;
+            break;
+        }
     }
 
-    if (upd != NULL)
-        goto done;
-
-    /* If there is no cursor, we don't need to check the on page value. */
-    WT_ASSERT(session, cbt != NULL || !check_onpage_value);
-
+    check_onpage_value = cbt != NULL && cbt->btree->type != BTREE_COL_FIX && cbt->ins == NULL;
     /*
      * Check conflict against the on page value if there is no update on the update chain except
      * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
      * uncommitted update or determined that it would be safe to write if we saw a committed update.
      */
-    if (check_onpage_value) {
+    if (upd == NULL && check_onpage_value) {
+        WT_ASSERT(session, !rollback);
         WT_ERR(__wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop));
-        if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX) {
-            if (!__wt_txn_visible(session, stop.txnid, stop.timestamp))
-                goto rollback;
-            goto done;
-        }
-
-        if (__wt_txn_visible(session, start.txnid, start.timestamp))
-            goto done;
+        if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX)
+            rollback = !__wt_txn_visible(session, stop.txnid, stop.timestamp);
+        else
+            rollback = !__wt_txn_visible(session, start.txnid, start.timestamp);
     }
 
-rollback:
-    WT_STAT_CONN_INCR(session, txn_update_conflict);
-    WT_STAT_DATA_INCR(session, txn_update_conflict);
-    ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
+    if (rollback) {
+        WT_STAT_CONN_INCR(session, txn_update_conflict);
+        WT_STAT_DATA_INCR(session, txn_update_conflict);
+        ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
+    }
 
-done:
+err:
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
     return (ret);

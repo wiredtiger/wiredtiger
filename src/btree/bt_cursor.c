@@ -981,10 +981,14 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt)
     if (cbt->compare != 0)
         return (0);
     if (cbt->ins != NULL)
-        return (__wt_txn_update_check(session, cbt, cbt->ins->upd, false));
+        return (__wt_txn_update_check(session, cbt, cbt->ins->upd));
 
     if (btree->type == BTREE_ROW && page->modify != NULL && page->modify->mod_row_update != NULL)
-        return (__wt_txn_update_check(session, cbt, page->modify->mod_row_update[cbt->slot], true));
+        return (__wt_txn_update_check(session, cbt, page->modify->mod_row_update[cbt->slot]));
+
+    if (btree->type == BTREE_COL_VAR)
+        return (__wt_txn_update_check(session, cbt, NULL));
+
     return (0);
 }
 
