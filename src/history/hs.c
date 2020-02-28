@@ -325,13 +325,11 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
   WT_TIME_PAIR stop_ts_pair)
 {
-    WT_CACHE *cache;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_UPDATE *hs_upd;
     size_t notused;
 
-    cache = S2C(session)->cache;
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = NULL;
 
@@ -475,7 +473,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     WT_TIME_PAIR stop_ts_pair;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size;
-    uint32_t btree_id, i;
+    uint32_t i;
     uint8_t *p;
     int nentries;
     bool squashed;
@@ -483,7 +481,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     prev_upd = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
     insert_cnt = 0;
-    btree_id = btree->id;
     __wt_modify_vector_init(session, &modifies);
 
     if (!btree->hs_entries)
