@@ -1092,11 +1092,12 @@ __wt_txn_update_check(
     ignore_prepare_set = F_ISSET(txn, WT_TXN_IGNORE_PREPARE);
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
-        if (upd->txnid != WT_TXN_ABORTED) {
-            rollback = true;
-            break;
-        }
+        if (upd->txnid != WT_TXN_ABORTED)
+            goto rollback;
     }
+
+    if (upd != NULL)
+        goto done;
 
     /* If there is no cursor, we don't need to check the on page value. */
     WT_ASSERT(session, cbt != NULL || !check_onpage_value);
@@ -1106,23 +1107,24 @@ __wt_txn_update_check(
      * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
      * uncommitted update or determined that it would be safe to write if we saw a committed update.
      */
-    if (upd == NULL && check_onpage_value) {
-        WT_ASSERT(session, !rollback);
+    if (check_onpage_value) {
         WT_ERR(__wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop));
-        if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
-          !__wt_txn_visible(session, stop.txnid, stop.timestamp))
-            rollback = true;
-        else if (!__wt_txn_visible(session, start.txnid, start.timestamp))
-            rollback = true;
+        if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX) {
+            if (!__wt_txn_visible(session, stop.txnid, stop.timestamp))
+                goto rollback;
+            goto done;
+        }
+
+        if (__wt_txn_visible(session, start.txnid, start.timestamp))
+            goto done;
     }
 
-    if (rollback) {
-        WT_STAT_CONN_INCR(session, txn_update_conflict);
-        WT_STAT_DATA_INCR(session, txn_update_conflict);
-        ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
-    }
+rollback:
+    WT_STAT_CONN_INCR(session, txn_update_conflict);
+    WT_STAT_DATA_INCR(session, txn_update_conflict);
+    ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
 
-err:
+done:
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
     return (ret);
