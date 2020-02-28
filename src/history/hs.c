@@ -321,7 +321,7 @@ __hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
  *     Should be called with session's btree switched to the history store.
  */
 static int
-__hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t btree_id,
+__hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
   WT_TIME_PAIR stop_ts_pair)
 {
@@ -346,7 +346,8 @@ retry:
      * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to
      * create an update chain for a direct insertion onto the history store page.
      */
-    cursor->set_key(cursor, btree_id, key, upd->start_ts, __wt_atomic_add64(&cache->hs_counter, 1));
+    cursor->set_key(
+      cursor, btree->id, key, upd->start_ts, __wt_atomic_add64(&btree->hs_counter, 1));
     cursor->set_value(
       cursor, stop_ts_pair.timestamp, upd->durable_ts, upd->prepare_state, type, hs_value);
 
@@ -399,7 +400,7 @@ err:
          */
         WT_TRET(__wt_cursor_key_order_init(cbt));
 #endif
-        WT_TRET(__hs_delete_key(session, cursor, btree_id, key));
+        WT_TRET(__hs_delete_key(session, cursor, btree->id, key));
     }
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
@@ -419,16 +420,15 @@ err:
  *     Temporarily switches to history store btree and calls the helper routine to insert records.
  */
 static int
-__hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t btree_id,
-  const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_TIME_PAIR stop_ts_pair)
+__hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, const WT_ITEM *key,
+  const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value, WT_TIME_PAIR stop_ts_pair)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    WT_WITH_BTREE(session, cbt->btree, ret = __hs_insert_record_with_btree(session, cursor,
-                                         btree_id, key, upd, type, hs_value, stop_ts_pair));
+    WT_WITH_BTREE(session, cbt->btree, ret = __hs_insert_record_with_btree(session, cursor, btree,
+                                         key, upd, type, hs_value, stop_ts_pair));
     return (ret);
 }
 
@@ -639,11 +639,11 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
                       __wt_calc_modify(session, prev_full_value, full_value,
                         prev_full_value->size / 10, entries, &nentries) == 0) {
                         WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
-                        WT_ERR(__hs_insert_record(session, cursor, btree_id, key, upd,
+                        WT_ERR(__hs_insert_record(session, cursor, btree, key, upd,
                           WT_UPDATE_MODIFY, modify_value, stop_ts_pair));
                         __wt_scr_free(session, &modify_value);
                     } else
-                        WT_ERR(__hs_insert_record(session, cursor, btree_id, key, upd,
+                        WT_ERR(__hs_insert_record(session, cursor, btree, key, upd,
                           WT_UPDATE_STANDARD, full_value, stop_ts_pair));
 
                     /* Flag the update as now in the history store. */
