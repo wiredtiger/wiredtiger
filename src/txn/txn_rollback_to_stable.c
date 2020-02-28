@@ -137,7 +137,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_ITEM full_value;
     WT_TIME_PAIR hs_start, hs_stop;
     WT_UPDATE *hs_upd, *upd;
-    wt_timestamp_t durable_ts;
+    wt_timestamp_t durable_ts, newer_hs_ts;
     size_t size;
     uint32_t hs_btree_id, session_flags;
     uint8_t prepare_state, type;
@@ -146,7 +146,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
     hs_cursor = NULL;
     hs_upd = upd = NULL;
-    durable_ts = WT_TS_NONE;
+    durable_ts = newer_hs_ts = WT_TS_NONE;
     hs_btree_id = S2BT(session)->id;
     session_flags = 0;
     valid_update_found = false;
@@ -214,12 +214,24 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             WT_ERR(__wt_buf_set(session, &full_value, hs_value->data, hs_value->size));
         }
 
-        /* Stop processing when we find the update that is less than the given update. */
+        /* Verify the history store timestamps are in order. */
+        WT_ASSERT(session, (newer_hs_ts == WT_TS_NONE || hs_stop.timestamp == newer_hs_ts));
+
+        /*
+         * Stop processing when we find the newer version value of this key is stable according to
+         * the current version stop timestamp. Also it confirms that history store doesn't contains
+         * any newer version than the current version for the key.
+         */
+        if (hs_stop.timestamp <= rollback_timestamp)
+            break;
+
+        /* Stop processing when we find a stable update according to the given timestamp. */
         if (durable_ts <= rollback_timestamp) {
             valid_update_found = true;
             break;
         }
 
+        newer_hs_ts = hs_start.timestamp;
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
 
         /*
@@ -457,16 +469,18 @@ __rollback_abort_row_reconciled_page(
     } else if (mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         for (multi = mod->mod_multi, multi_entry = 0; multi_entry < mod->mod_multi_entries;
              ++multi, ++multi_entry)
-            if (multi->addr.newest_durable_ts > rollback_timestamp)
+            if (multi->addr.newest_durable_ts > rollback_timestamp) {
                 WT_RET(__rollback_abort_row_reconciled_page_internal(session, multi->disk_image,
                   multi->addr.addr, multi->addr.size, rollback_timestamp));
 
-        /*
-         * As this page has newer aborts that are aborted, make sure to mark the page as dirty to
-         * let the reconciliation happens again on the page. Otherwise, the eviction may pick the
-         * already reconciled page to write to disk with newer updates.
-         */
-        __wt_page_only_modify_set(session, page);
+                /*
+                 * As this page has newer aborts that are aborted, make sure to mark the page as
+                 * dirty to let the reconciliation happens again on the page. Otherwise, the
+                 * eviction may pick the already reconciled page to write to disk with newer
+                 * updates.
+                 */
+                __wt_page_only_modify_set(session, page);
+            }
     }
 
     return (0);
