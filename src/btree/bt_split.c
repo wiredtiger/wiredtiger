@@ -619,6 +619,9 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
         }
     }
 
+    /* Check that we are not discarding active history. */
+    WT_ASSERT(session, !__wt_page_las_active(session, ref));
+
     /*
      * The page-delete and history store memory weren't added to the parent's footprint, ignore it
      * here.
@@ -627,6 +630,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
         __wt_free(session, ref->page_del->update_list);
         __wt_free(session, ref->page_del);
     }
+    __wt_free(session, ref->page_las);
 
     /* Free the backing block and address. */
     WT_TRET(__wt_ref_block_free(session, ref));
