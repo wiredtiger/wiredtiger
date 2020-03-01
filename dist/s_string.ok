@@ -434,6 +434,7 @@ WIREDTIGER
 WRLSN
 WRNOLOCK
 WTPERF
+WT_CALL_FALLOCATE_FUNCTION
 WaitForSingleObject
 WakeAllConditionVariable
 Wconditional

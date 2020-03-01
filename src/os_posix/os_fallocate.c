@@ -14,6 +14,37 @@
 #endif
 
 /*
+ * WT_CALL_FUNCTION --
+ *	Call the underlying fallocate function, wrapped in a macro so there's only a single copy of
+ * the mmap support code.
+ */
+#define WT_CALL_FUNCTION(op)                                             \
+    do {                                                                 \
+        WT_DECL_RET;                                                     \
+        WT_FILE_HANDLE_POSIX *pfh;                                       \
+        WT_SESSION_IMPL *session;                                        \
+                                                                         \
+        session = (WT_SESSION_IMPL *)wt_session;                         \
+        pfh = (WT_FILE_HANDLE_POSIX *)file_handle;                       \
+                                                                         \
+        if ((size_t)offset != pfh->mmap_size)                            \
+            __wt_prepare_remap_resize_file(file_handle, wt_session);     \
+                                                                         \
+        WT_SYSCALL_RETRY(op, ret);                                       \
+        if (ret != 0) {                                                  \
+            __wt_err(session, ret, "%s: fallocate:", file_handle->name); \
+            if ((size_t)offset != pfh->mmap_size)                        \
+                __wt_release_without_remap(file_handle);                 \
+            return (ret);                                                \
+        }                                                                \
+                                                                         \
+        if ((size_t)offset != pfh->mmap_size)                            \
+            __wt_remap_resize_file(file_handle, wt_session);             \
+                                                                         \
+        return (ret);                                                    \
+    } while (0)
+
+/*
  * __posix_std_fallocate --
  *     Linux fallocate call.
  */
@@ -21,28 +52,7 @@ static int
 __posix_std_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
 {
 #if defined(HAVE_FALLOCATE)
-    WT_DECL_RET;
-    WT_FILE_HANDLE_POSIX *pfh;
-    WT_SESSION_IMPL *session;
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
-
-    if ((size_t)offset != pfh->mmap_size)
-        __wt_prepare_remap_resize_file(file_handle, wt_session);
-
-    WT_SYSCALL_RETRY(fallocate(pfh->fd, 0, (wt_off_t)0, offset), ret);
-    if (ret != 0) {
-        __wt_err(session, ret, "%s: fallocate:", file_handle->name);
-        if ((size_t)offset != pfh->mmap_size)
-            __wt_release_without_remap(file_handle);
-        return (ret);
-    }
-
-    if ((size_t)offset != pfh->mmap_size)
-        __wt_remap_resize_file(file_handle, wt_session);
-
-    return (ret);
+    WT_CALL_FUNCTION(fallocate(pfh->fd, 0, (wt_off_t)0, offset));
 #else
     WT_UNUSED(file_handle);
     WT_UNUSED(offset);
@@ -59,33 +69,7 @@ static int
 __posix_sys_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
 {
 #if defined(__linux__) && defined(SYS_fallocate)
-    WT_DECL_RET;
-    WT_FILE_HANDLE_POSIX *pfh;
-    WT_SESSION_IMPL *session;
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
-
-    if ((size_t)offset != pfh->mmap_size)
-        __wt_prepare_remap_resize_file(file_handle, wt_session);
-
-    /*
-     * Try the system call for fallocate even if the C library wrapper was not found. The system
-     * call actually exists in the kernel for some Linux versions (RHEL 5.5), but not in the version
-     * of the C library. This allows it to work everywhere the kernel supports it.
-     */
-    WT_SYSCALL_RETRY(syscall(SYS_fallocate, pfh->fd, 0, (wt_off_t)0, offset), ret);
-    if (ret != 0) {
-        __wt_err(session, ret, "%s: fallocate:", file_handle->name);
-        if ((size_t)offset != pfh->mmap_size)
-            __wt_release_without_remap(file_handle);
-        return (ret);
-    }
-
-    if ((size_t)offset != pfh->mmap_size)
-        __wt_remap_resize_file(file_handle, wt_session);
-
-    return (ret);
+    WT_CALL_FUNCTION(syscall(SYS_fallocate, pfh->fd, 0, (wt_off_t)0, offset));
 #else
     WT_UNUSED(file_handle);
     WT_UNUSED(offset);
@@ -102,28 +86,7 @@ static int
 __posix_posix_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
 {
 #if defined(HAVE_POSIX_FALLOCATE)
-    WT_DECL_RET;
-    WT_FILE_HANDLE_POSIX *pfh;
-    WT_SESSION_IMPL *session;
-
-    pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
-    session = (WT_SESSION_IMPL *)wt_session;
-
-    if ((size_t)offset != pfh->mmap_size)
-        __wt_prepare_remap_resize_file(file_handle, wt_session);
-
-    WT_SYSCALL_RETRY(posix_fallocate(pfh->fd, (wt_off_t)0, offset), ret);
-    if (ret != 0) {
-        __wt_err(session, ret, "%s: fallocate:", file_handle->name);
-        if ((size_t)offset != pfh->mmap_size)
-            __wt_release_without_remap(file_handle);
-        return (ret);
-    }
-
-    if ((size_t)offset != pfh->mmap_size)
-        __wt_remap_resize_file(file_handle, wt_session);
-
-    return (ret);
+    WT_CALL_FUNCTION(posix_fallocate(pfh->fd, (wt_off_t)0, offset));
 #else
     WT_UNUSED(file_handle);
     WT_UNUSED(offset);
