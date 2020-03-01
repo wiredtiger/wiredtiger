@@ -215,14 +215,14 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         }
 
         /* Verify the history store timestamps are in order. */
-        WT_ASSERT(session, (newer_hs_ts == WT_TS_NONE || hs_stop.timestamp == newer_hs_ts));
+        WT_ASSERT(session, (newer_hs_ts == WT_TS_NONE || hs_stop_ts == newer_hs_ts));
 
         /*
          * Stop processing when we find the newer version value of this key is stable according to
          * the current version stop timestamp. Also it confirms that history store doesn't contains
          * any newer version than the current version for the key.
          */
-        if (hs_stop.timestamp <= rollback_timestamp)
+        if (hs_stop_ts <= rollback_timestamp)
             break;
 
         /* Stop processing when we find a stable update according to the given timestamp. */
@@ -231,7 +231,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             break;
         }
 
-        newer_hs_ts = hs_start.timestamp;
+        newer_hs_ts = hs_start_ts;
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
 
         /*
