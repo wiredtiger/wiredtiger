@@ -72,7 +72,7 @@ __compact_rewrite_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * page, so we're safe from eviction, no additional locking is required.
      */
     if (__wt_page_evict_clean(ref->page)) {
-        __wt_ref_info(session, ref, &addr, &addr_size, NULL);
+        __wt_ref_info(session, ref, &addr, &addr_size);
         if (addr == NULL)
             return (0);
         return (bm->compact_page_skip(bm, session, addr, addr_size, skipp));
@@ -230,7 +230,6 @@ __wt_compact_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, boo
     WT_BM *bm;
     size_t addr_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    bool is_leaf;
 
     WT_UNUSED(context);
 
@@ -249,9 +248,6 @@ __wt_compact_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, boo
      * If the page is in-memory, we want to look at it (it may have been modified and written, and
      * the current location is the interesting one in terms of compaction, not the original
      * location).
-     *
-     * This test could be combined with the next one, but this is a cheap test and the next one is
-     * expensive.
      */
     if (ref->state != WT_REF_DISK)
         return (0);
@@ -259,15 +255,11 @@ __wt_compact_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, boo
     /*
      * Internal pages must be read to walk the tree; ask the block-manager if it's useful to rewrite
      * leaf pages, don't do the I/O if a rewrite won't help.
-     *
-     * There can be NULL WT_REF.addr values, where the underlying call won't return a valid address.
-     * The "it's a leaf page" return is enough to confirm we have a valid address for a leaf page.
      */
-    __wt_ref_info_lock(session, ref, addr, &addr_size, &is_leaf);
-    if (is_leaf) {
-        bm = S2BT(session)->bm;
-        return (bm->compact_page_skip(bm, session, addr, addr_size, skipp));
-    }
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        return (0);
 
-    return (0);
+    __wt_ref_info_lock(session, ref, addr, &addr_size);
+    bm = S2BT(session)->bm;
+    return (bm->compact_page_skip(bm, session, addr, addr_size, skipp));
 }

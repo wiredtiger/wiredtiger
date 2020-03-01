@@ -71,6 +71,7 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts, con
     WT_RET(__wt_calloc_one(session, &copy));
     rs->leaf[rs->leaf_next++] = copy;
 
+    F_SET(copy, WT_REF_FLAG_LEAF);
     copy->state = WT_REF_DISK;
 
     WT_RET(__wt_calloc_one(session, &copy_addr));
@@ -251,7 +252,7 @@ __rebalance_row_leaf_key(WT_SESSION_IMPL *session, const uint8_t *addr, size_t a
      * we don't want page discard to free it.
      */
     WT_RET(__wt_bt_read(session, rs->tmp1, addr, addr_len));
-    WT_RET(__wt_page_inmem(session, NULL, rs->tmp1->data, 0, false, &page));
+    WT_RET(__wt_page_inmem(session, NULL, rs->tmp1->data, 0, &page));
     ret = __wt_row_leaf_key_copy(session, page, &page->pg_row[0], key);
     __wt_page_out(session, &page);
     return (ret);

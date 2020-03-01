@@ -17,6 +17,34 @@ __wt_ref_is_root(WT_REF *ref)
 }
 
 /*
+ * __wt_ref_cas_state_int --
+ *     Try to do a compare and swap, if successful update the ref history in diagnostic mode.
+ */
+static inline bool
+__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state, uint8_t new_state,
+  const char *func, int line)
+{
+    bool cas_result;
+
+    /* Parameters that are used in a macro for diagnostic builds */
+    WT_UNUSED(session);
+    WT_UNUSED(func);
+    WT_UNUSED(line);
+
+    cas_result = __wt_atomic_casv8(&ref->state, old_state, new_state);
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * The history update here has potential to race; if the state gets updated again after the CAS
+     * above but before the history has been updated.
+     */
+    if (cas_result)
+        WT_REF_SAVE_STATE(ref, new_state, func, line);
+#endif
+    return (cas_result);
+}
+
+/*
  * __wt_page_is_empty --
  *     Return if the page is empty.
  */
@@ -148,6 +176,9 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
     WT_ASSERT(session, size < WT_EXABYTE);
     btree = S2BT(session);
     cache = S2C(session)->cache;
+
+    if (size == 0)
+        return;
 
     (void)__wt_atomic_add64(&btree->bytes_inmem, size);
     (void)__wt_atomic_add64(&cache->bytes_inmem, size);
@@ -469,8 +500,6 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     uint64_t last_running;
 
-    WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
-
     last_running = 0;
     if (page->modify->page_state == WT_PAGE_CLEAN)
         last_running = S2C(session)->txn_global.last_running;
@@ -629,23 +658,6 @@ __wt_off_page(WT_PAGE *page, const void *p)
      */
     return (page->dsk == NULL || p < (void *)page->dsk ||
       p >= (void *)((uint8_t *)page->dsk + page->dsk->mem_size));
-}
-
-/*
- * __wt_ref_addr_free --
- *     Free the address in a reference, if necessary.
- */
-static inline void
-__wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    if (ref->addr == NULL)
-        return;
-
-    if (ref->home == NULL || __wt_off_page(ref->home, ref->addr)) {
-        __wt_free(session, ((WT_ADDR *)ref->addr)->addr);
-        __wt_free(session, ref->addr);
-    }
-    ref->addr = NULL;
 }
 
 /*
@@ -1048,12 +1060,12 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
 }
 
 /*
- * __wt_ref_info --
- *     Return the addr/size and type triplet for a reference.
+ * __wt_ref_info_all --
+ *     Return the addr/size, type and start/stop time pairs for a reference.
  */
 static inline void
-__wt_ref_info(
-  WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep, bool *is_leafp)
+__wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep,
+  wt_timestamp_t *start_ts, wt_timestamp_t *stop_ts, uint64_t *start_txn, uint64_t *stop_txn)
 {
     WT_ADDR *addr;
     WT_CELL_UNPACK *unpack, _unpack;
@@ -1072,20 +1084,37 @@ __wt_ref_info(
     if (addr == NULL) {
         *addrp = NULL;
         *sizep = 0;
-        if (is_leafp != NULL)
-            *is_leafp = false;
+        if (start_ts != NULL)
+            *start_ts = 0;
+        if (stop_ts != NULL)
+            *stop_ts = 0;
+        if (start_txn != NULL)
+            *start_txn = 0;
+        if (stop_txn != NULL)
+            *stop_txn = 0;
     } else if (__wt_off_page(page, addr)) {
         *addrp = addr->addr;
         *sizep = addr->size;
-        if (is_leafp != NULL)
-            *is_leafp = addr->type != WT_ADDR_INT;
+        if (start_ts != NULL)
+            *start_ts = addr->oldest_start_ts;
+        if (start_txn != NULL)
+            *start_txn = addr->oldest_start_txn;
+        if (stop_ts != NULL)
+            *stop_ts = addr->oldest_start_ts;
+        if (stop_txn != NULL)
+            *stop_txn = addr->oldest_start_txn;
     } else {
         __wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
         *addrp = unpack->data;
         *sizep = unpack->size;
-
-        if (is_leafp != NULL)
-            *is_leafp = unpack->type != WT_CELL_ADDR_INT;
+        if (start_ts != NULL)
+            *start_ts = unpack->oldest_start_ts;
+        if (start_txn != NULL)
+            *start_txn = unpack->oldest_start_txn;
+        if (stop_ts != NULL)
+            *stop_ts = unpack->newest_stop_ts;
+        if (stop_txn != NULL)
+            *stop_txn = unpack->newest_stop_txn;
     }
 }
 
@@ -1094,13 +1123,11 @@ __wt_ref_info(
  *     Lock the WT_REF and return the addr/size and type triplet for a reference.
  */
 static inline void
-__wt_ref_info_lock(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, size_t *sizep, bool *is_leafp)
+__wt_ref_info_lock(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, size_t *sizep)
 {
     size_t size;
-    uint32_t previous_state;
+    uint8_t previous_state;
     const uint8_t *addr;
-    bool is_leaf;
 
     /*
      * The WT_REF address references either an on-page cell or in-memory structure, and eviction
@@ -1111,22 +1138,30 @@ __wt_ref_info_lock(
      */
     for (;; __wt_yield()) {
         previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED && previous_state != WT_REF_READING &&
+        if (previous_state != WT_REF_LOCKED &&
           WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             break;
     }
 
-    __wt_ref_info(session, ref, &addr, &size, &is_leaf);
+    __wt_ref_info(session, ref, &addr, &size);
 
     if (addr_buf != NULL) {
         if (addr != NULL)
             memcpy(addr_buf, addr, size);
         *sizep = size;
     }
-    if (is_leafp != NULL)
-        *is_leafp = is_leaf;
 
     WT_REF_SET_STATE(ref, previous_state);
+}
+
+/*
+ * __wt_ref_info --
+ *     Return the address, size and type triplet for a reference.
+ */
+static inline void
+__wt_ref_info(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep)
+{
+    __wt_ref_info_all(session, ref, addrp, sizep, NULL, NULL, NULL, NULL);
 }
 
 /*
@@ -1142,7 +1177,7 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
     if (ref->addr == NULL)
         return (0);
 
-    __wt_ref_info(session, ref, &addr, &addr_size, NULL);
+    __wt_ref_info(session, ref, &addr, &addr_size);
     WT_RET(__wt_btree_block_free(session, addr, addr_size));
 
     /* Clear the address (so we don't free it twice). */
@@ -1169,25 +1204,6 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
         return (true);
     return (visible_all ? !__wt_txn_visible_all(session, page_del->txnid, page_del->timestamp) :
                           !__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
-}
-
-/*
- * __wt_page_las_active --
- *     Return if lookaside data for a page is still required.
- */
-static inline bool
-__wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_PAGE_LOOKASIDE *page_las;
-
-    if ((page_las = ref->page_las) == NULL)
-        return (false);
-    if (page_las->resolved)
-        return (false);
-    if (page_las->min_skipped_ts != WT_TS_MAX || page_las->has_prepares)
-        return (true);
-
-    return (!__wt_txn_visible_all(session, page_las->max_txn, page_las->max_ondisk_ts));
 }
 
 /*
@@ -1416,7 +1432,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * One special case where we know this is safe is if the handle is locked exclusive (e.g., when
      * the whole tree is being evicted). In that case, no readers can be looking at an old index.
      */
-    if (WT_PAGE_IS_INTERNAL(page) && !F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
       __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen))
         return (false);
 
@@ -1698,4 +1714,34 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
         WT_RET_MSG(session, EINVAL, "page-release WT_RESTART error mapped to EINVAL");
 
     return (ret);
+}
+
+/*
+ * __wt_bt_col_var_cursor_walk_txn_read --
+ *     transactionally read the onpage value and the history store for col var cursor walk.
+ */
+static inline int
+__wt_bt_col_var_cursor_walk_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,
+  WT_CELL_UNPACK *unpack, WT_COL *cip, WT_UPDATE **updp)
+{
+    WT_UPDATE *upd;
+
+    upd = NULL;
+    *updp = NULL;
+    cbt->slot = WT_COL_SLOT(page, cip);
+    WT_RET(__wt_txn_read(session, cbt, NULL, unpack, &upd));
+    if (upd == NULL)
+        return (0);
+    if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
+            __wt_free_update_list(session, &upd);
+        return (0);
+    }
+
+    *updp = upd;
+    WT_RET(__wt_value_return(cbt, upd));
+    cbt->tmp->data = cbt->iface.value.data;
+    cbt->tmp->size = cbt->iface.value.size;
+    cbt->cip_saved = cip;
+    return (0);
 }
