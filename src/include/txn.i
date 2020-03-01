@@ -1066,17 +1066,26 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
  *     Check if the current transaction can update an item.
  */
 static inline int
-__wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
+    WT_BTREE *btree;
     WT_DECL_RET;
+    WT_PAGE *page;
     WT_TIME_PAIR start, stop;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
+    WT_UPDATE *upd;
     bool ignore_prepare_set, rollback, check_onpage_value;
 
+    btree = cbt->btree;
+    page = cbt->ref->page;
     rollback = false;
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
+    upd = NULL;
+
+    if (cbt->compare != 0)
+        return (0);
 
     if (txn->isolation != WT_ISO_SNAPSHOT)
         return (0);
@@ -1084,6 +1093,18 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
     if (txn_global->debug_rollback != 0 &&
       ++txn_global->debug_ops % txn_global->debug_rollback == 0)
         return (__wt_txn_rollback_required(session, "debug mode simulated conflict"));
+
+    /* Update chain is in the insert list. */
+    if (cbt->ins != NULL)
+        upd = cbt->ins->upd;
+    /*
+     * Update chain for the key on the row store page. For column store, direct check the onpage
+     * value as there is no modify list.
+     */
+    else if (btree->type == BTREE_ROW && page->modify != NULL &&
+      page->modify->mod_row_update != NULL)
+        upd = page->modify->mod_row_update[cbt->slot];
+
     /*
      * Always include prepared transactions in this check: they are not supposed to affect
      * visibility for update operations.

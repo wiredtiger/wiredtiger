@@ -95,8 +95,9 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             upd_entry = &cbt->ins->upd;
 
         if (upd_arg == NULL) {
+            old_upd = *upd_entry;
             /* Make sure the update can proceed. */
-            WT_ERR(__wt_txn_update_check(session, cbt, old_upd = *upd_entry));
+            WT_ERR(__wt_txn_update_check(session, cbt));
 
             /* Allocate a WT_UPDATE structure and transaction ID. */
             WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
