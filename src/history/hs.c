@@ -341,8 +341,7 @@ retry:
      */
     cursor->set_key(
       cursor, btree->id, key, upd->start_ts, __wt_atomic_add64(&btree->hs_counter, 1));
-    cursor->set_value(
-      cursor, stop_ts_pair.timestamp, upd->durable_ts, upd->prepare_state, type, hs_value);
+    cursor->set_value(cursor, stop_ts_pair.timestamp, upd->durable_ts, type, hs_value);
 
     /* Only create the update chain the first time we try inserting into the history store. */
     if (hs_upd == NULL) {
@@ -773,10 +772,9 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, hs_start_ts, hs_start_ts_tmp;
     wt_timestamp_t hs_stop_ts, hs_stop_ts_tmp, read_timestamp, saved_timestamp;
     size_t notused, size;
-    uint64_t hs_counter, hs_counter_tmp, recno;
+    uint64_t hs_counter, hs_counter_tmp;
     uint32_t hs_btree_id, session_flags;
-    uint8_t prepare_state, prepare_state_tmp, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
-    const uint8_t *recnop;
+    uint8_t *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
     bool modify;
 
@@ -842,24 +840,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     if (cmp != 0)
         goto done;
 
-    WT_ERR(hs_cursor->get_value(
-      hs_cursor, &hs_stop_ts, &durable_timestamp, &prepare_state, &upd_type, hs_value));
-
-    /* We do not have prepared updates in the history store anymore */
-    WT_ASSERT(session, prepare_state != WT_PREPARE_INPROGRESS);
-
-    /*
-     * Found a visible record, return success unless it is prepared and we are not ignoring
-     * prepared.
-     *
-     * It's necessary to explicitly signal a prepare conflict so that the callers don't fallback to
-     * using something from the update list.
-     *
-     * FIXME-PM-1521: review the code in future
-     */
-    if (prepare_state == WT_PREPARE_INPROGRESS && !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) &&
-      !allow_prepare)
-        WT_ERR(WT_PREPARE_CONFLICT);
+    WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_timestamp, &upd_type, hs_value));
 
     /* We do not have tombstones in the history store anymore. */
     WT_ASSERT(session, upd_type != WT_UPDATE_TOMBSTONE);
@@ -921,8 +902,8 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
                 break;
             }
 
-            WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts_tmp, &durable_timestamp_tmp,
-              &prepare_state_tmp, &upd_type, hs_value));
+            WT_ERR(hs_cursor->get_value(
+              hs_cursor, &hs_stop_ts_tmp, &durable_timestamp_tmp, &upd_type, hs_value));
         }
 
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
@@ -942,44 +923,13 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     upd->txnid = WT_TXN_NONE;
     upd->durable_ts = durable_timestamp;
     upd->start_ts = hs_start_ts;
-    upd->prepare_state = prepare_state;
+    upd->prepare_state = upd->start_ts == upd->durable_ts ? WT_PREPARE_INIT : WT_PREPARE_RESOLVED;
 
     /*
-     * When we find a prepared update in the history store, we should add it to our update list and
-     * subsequently delete the corresponding history store entry. If it gets committed, the
-     * timestamp in the las key may differ so it's easier if we get rid of it now and rewrite the
-     * entry on eviction/commit/rollback.
-     *
-     * FIXME-PM-1521: review the code in future
+     * We're not keeping this in our update list as we want to get rid of it after the read has been
+     * dealt with. Mark this update as external and to be discarded when not needed.
      */
-    if (prepare_state == WT_PREPARE_INPROGRESS) {
-        WT_ASSERT(session, !modify);
-        switch (cbt->ref->page->type) {
-        case WT_PAGE_COL_FIX:
-        case WT_PAGE_COL_VAR:
-            recnop = hs_key->data;
-            WT_ERR(__wt_vunpack_uint(&recnop, 0, &recno));
-            WT_ERR(__wt_col_modify(cbt, recno, NULL, upd, WT_UPDATE_STANDARD, false));
-            break;
-        case WT_PAGE_ROW_LEAF:
-            WT_ERR(__wt_row_modify(cbt, hs_key, NULL, upd, WT_UPDATE_STANDARD, false));
-            break;
-        }
-
-        ret = hs_cursor->remove(hs_cursor);
-        if (ret != 0)
-            WT_PANIC_ERR(session, ret,
-              "initialized prepared update but was unable to remove the corresponding entry "
-              "from hs");
-
-        /* This is going in our update list so it should be accounted for in cache usage. */
-        __wt_cache_page_inmem_incr(session, cbt->ref->page, size);
-    } else
-        /*
-         * We're not keeping this in our update list as we want to get rid of it after the read has
-         * been dealt with. Mark this update as external and to be discarded when not needed.
-         */
-        F_SET(upd, WT_UPDATE_RESTORED_FROM_DISK);
+    F_SET(upd, WT_UPDATE_RESTORED_FROM_DISK);
     *updp = upd;
 
 done:

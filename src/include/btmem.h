@@ -197,7 +197,6 @@ struct __wt_ovfl_reuse {
  * The value is the WT_UPDATE structure's:
  * 	- stop timestamp
  * 	- durable timestamp
- * 	- update's prepare state
  *	- update type
  *	- value.
  *
@@ -215,9 +214,9 @@ struct __wt_ovfl_reuse {
 #endif
 #define WT_HS_CONFIG                                                              \
     "key_format=" WT_UNCHECKED_STRING(IuQQ) ",value_format=" WT_UNCHECKED_STRING( \
-      QQBBu) ",block_compressor=" WT_HS_COMPRESSOR                                \
-             ",leaf_value_max=64MB"                                               \
-             ",prefix_compression=true"
+      QQBu) ",block_compressor=" WT_HS_COMPRESSOR                                 \
+            ",leaf_value_max=64MB"                                                \
+            ",prefix_compression=true"
 
 /*
  * WT_PAGE_MODIFY --

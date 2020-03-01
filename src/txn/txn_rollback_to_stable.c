@@ -140,7 +140,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     size_t size;
     uint64_t hs_counter;
     uint32_t hs_btree_id, session_flags;
-    uint8_t prepare_state, type;
+    uint8_t type;
     int cmp;
     bool valid_update_found;
 
@@ -205,8 +205,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         cbt->compare = 0;
 
         /* Get current value and convert to full update if it is a modify. */
-        WT_ERR(hs_cursor->get_value(
-          hs_cursor, &hs_stop_ts, &durable_ts, &prepare_state, &type, hs_value));
+        WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type, hs_value));
         if (type == WT_UPDATE_MODIFY)
             WT_ERR(__wt_modify_apply_item(session, &full_value, hs_value->data, false));
         else {
