@@ -320,10 +320,6 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     if (WT_TXNID_LT(last_running, oldest_id))
         oldest_id = last_running;
 
-    /* The oldest ID can't move past any named snapshots. */
-    if ((id = txn_global->nsnap_oldest_id) != WT_TXN_NONE && WT_TXNID_LT(id, oldest_id))
-        oldest_id = id;
-
     /* The metadata pinned ID can't move past the oldest ID. */
     if (WT_TXNID_LT(oldest_id, metadata_pinned))
         metadata_pinned = oldest_id;
@@ -410,18 +406,6 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
      */
     __txn_oldest_scan(session, &oldest_id, &last_running, &metadata_pinned, &oldest_session);
 
-#ifdef HAVE_DIAGNOSTIC
-    {
-        /*
-         * Make sure the ID doesn't move past any named snapshots.
-         *
-         * Don't include the read/assignment in the assert statement. Coverity complains if there
-         * are assignments only done in diagnostic builds, and when the read is from a volatile.
-         */
-        uint64_t id = txn_global->nsnap_oldest_id;
-        WT_ASSERT(session, id == WT_TXN_NONE || !WT_TXNID_LT(id, oldest_id));
-    }
-#endif
     /* Update the public IDs. */
     if (WT_TXNID_LT(txn_global->metadata_pinned, metadata_pinned))
         txn_global->metadata_pinned = metadata_pinned;
@@ -491,15 +475,6 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (cval.val == 0)
         txn->txn_logsync = 0;
-
-    WT_RET(__wt_config_gets_def(session, cfg, "snapshot", 0, &cval));
-    if (cval.len > 0)
-        /*
-         * The layering here isn't ideal - the named snapshot get function does both validation and
-         * setup. Otherwise we'd need to walk the list of named snapshots twice during transaction
-         * open.
-         */
-        WT_RET(__wt_txn_named_snapshot_get(session, &cval));
 
     /* Check if prepared updates should be ignored during reads. */
     WT_RET(__wt_config_gets_def(session, cfg, "ignore_prepare", 0, &cval));
@@ -1450,13 +1425,12 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     wt_timestamp_t durable_timestamp;
     wt_timestamp_t oldest_active_read_timestamp;
     wt_timestamp_t pinned_timestamp;
-    uint64_t checkpoint_pinned, snapshot_pinned;
+    uint64_t checkpoint_pinned;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
     stats = conn->stats;
     checkpoint_pinned = txn_global->checkpoint_state.pinned_id;
-    snapshot_pinned = txn_global->nsnap_oldest_id;
 
     WT_STAT_SET(session, stats, txn_pinned_range, txn_global->current - txn_global->oldest_id);
 
@@ -1479,9 +1453,6 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
         WT_STAT_SET(session, stats, txn_timestamp_oldest_active_read, 0);
         WT_STAT_SET(session, stats, txn_pinned_timestamp_reader, 0);
     }
-
-    WT_STAT_SET(session, stats, txn_pinned_snapshot_range,
-      snapshot_pinned == WT_TXN_NONE ? 0 : txn_global->current - snapshot_pinned);
 
     WT_STAT_SET(session, stats, txn_pinned_checkpoint_range,
       checkpoint_pinned == WT_TXN_NONE ? 0 : txn_global->current - checkpoint_pinned);
@@ -1555,10 +1526,6 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RWLOCK_INIT_TRACKED(session, &txn_global->read_timestamp_rwlock, read_timestamp);
     TAILQ_INIT(&txn_global->read_timestamph);
 
-    WT_RET(__wt_rwlock_init(session, &txn_global->nsnap_rwlock));
-    txn_global->nsnap_oldest_id = WT_TXN_NONE;
-    TAILQ_INIT(&txn_global->nsnaph);
-
     WT_RET(__wt_calloc_def(session, conn->session_size, &txn_global->states));
 
     for (i = 0, s = txn_global->states; i < conn->session_size; i++, s++)
@@ -1587,7 +1554,6 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
     __wt_rwlock_destroy(session, &txn_global->rwlock);
     __wt_rwlock_destroy(session, &txn_global->durable_timestamp_rwlock);
     __wt_rwlock_destroy(session, &txn_global->read_timestamp_rwlock);
-    __wt_rwlock_destroy(session, &txn_global->nsnap_rwlock);
     __wt_rwlock_destroy(session, &txn_global->visibility_rwlock);
     __wt_free(session, txn_global->states);
 }
@@ -1820,8 +1786,6 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_RET(
       __wt_msg(session, "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_state.pinned_id));
     WT_RET(__wt_msg(session, "checkpoint txn ID: %" PRIu64, txn_global->checkpoint_state.id));
-
-    WT_RET(__wt_msg(session, "oldest named snapshot ID: %" PRIu64, txn_global->nsnap_oldest_id));
 
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
     WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt));

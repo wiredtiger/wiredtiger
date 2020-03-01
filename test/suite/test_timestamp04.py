@@ -53,8 +53,9 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Minimum cache_size requirement of lsm is 31MB.
     types = [
-        ('col_fix', dict(empty=1, cacheSize='cache_size=20MB', extra_config=',key_format=r,value_format=8t')),
-        ('col_var', dict(empty=0, cacheSize='cache_size=20MB', extra_config=',key_format=r')),
+    # The commented columnar tests needs to be enabled once rollback to stable for columnar is fixed in (WT-5548).
+    #    ('col_fix', dict(empty=1, cacheSize='cache_size=20MB', extra_config=',key_format=r,value_format=8t')),
+    #    ('col_var', dict(empty=0, cacheSize='cache_size=20MB', extra_config=',key_format=r')),
         ('lsm', dict(empty=0, cacheSize='cache_size=31MB', extra_config=',type=lsm')),
         ('row', dict(empty=0, cacheSize='cache_size=20MB', extra_config='',)),
         ('row-smallcache', dict(empty=0, cacheSize='cache_size=2MB', extra_config='',)),
@@ -109,7 +110,6 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             print("Failed conn at '%s' with config '%s'" % (dir, conn_params))
         self.session = wttest.WiredTigerTestCase.setUpSessionOpen(self, self.conn)
 
-    @unittest.skip("Temporarily disabled")
     def test_rollback_to_stable(self):
         self.ConnectionOpen(self.cacheSize)
         # Configure small page sizes to ensure eviction comes through and we
@@ -172,7 +172,8 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
         upd_aborted = (stat_cursor[stat.conn.txn_rts_upd_aborted][2] +
-            stat_cursor[stat.conn.txn_rts_hs_removed][2])
+            stat_cursor[stat.conn.txn_rts_hs_removed][2] +
+            stat_cursor[stat.conn.txn_rts_keys_removed][2])
         stat_cursor.close()
         self.assertEqual(calls, 1)
         self.assertTrue(upd_aborted >= key_range/2)
@@ -243,9 +244,11 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
         upd_aborted = (stat_cursor[stat.conn.txn_rts_upd_aborted][2] +
-            stat_cursor[stat.conn.txn_rts_hs_removed][2])
+            stat_cursor[stat.conn.txn_rts_hs_removed][2] +
+            stat_cursor[stat.conn.txn_rts_keys_removed][2])
         stat_cursor.close()
         self.assertEqual(calls, 2)
+
         #
         # We rolled back half on the earlier call and now three-quarters on
         # this call, which is one and one quarter of all keys rolled back.

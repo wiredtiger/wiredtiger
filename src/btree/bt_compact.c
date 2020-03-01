@@ -256,7 +256,7 @@ __wt_compact_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, boo
      * Internal pages must be read to walk the tree; ask the block-manager if it's useful to rewrite
      * leaf pages, don't do the I/O if a rewrite won't help.
      */
-    if (F_ISSET(ref, WT_REF_IS_INTERNAL))
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (0);
 
     __wt_ref_info_lock(session, ref, addr, &addr_size);
