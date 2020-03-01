@@ -925,6 +925,38 @@ done:
 }
 
 /*
+ * __curfile_update_check --
+ *     Check whether an update would conflict. This function expects the cursor to already be
+ *     positioned. It should be called before deciding whether to skip an update operation based on
+ *     existence of a visible update for a key --
+ *     even if there is no value visible to the transaction, an update could still conflict.
+ */
+static int
+__curfile_update_check(WT_CURSOR_BTREE *cbt)
+{
+    WT_BTREE *btree;
+    WT_PAGE *page;
+    WT_SESSION_IMPL *session;
+
+    btree = cbt->btree;
+    page = cbt->ref->page;
+    session = (WT_SESSION_IMPL *)cbt->iface.session;
+
+    if (cbt->compare != 0)
+        return (0);
+    if (cbt->ins != NULL)
+        return (__wt_txn_update_check(session, cbt, cbt->ins->upd));
+
+    if (btree->type == BTREE_ROW && page->modify != NULL && page->modify->mod_row_update != NULL)
+        return (__wt_txn_update_check(session, cbt, page->modify->mod_row_update[cbt->slot]));
+
+    if (btree->type == BTREE_COL_VAR)
+        return (__wt_txn_update_check(session, cbt, NULL));
+
+    return (0);
+}
+
+/*
  * __wt_btcur_insert_check --
  *     Check whether an update would conflict. This can replace WT_CURSOR::insert, so it only checks
  *     for conflicts without updating the tree. It is used to maintain snapshot isolation for
@@ -957,7 +989,7 @@ retry:
     WT_ERR(__cursor_row_search(cbt, true, NULL, NULL));
 
     /* Just check for conflicts. */
-    ret = __wt_txn_update_check(session, cbt);
+    ret = __curfile_update_check(cbt);
 
 err:
     if (ret == WT_RESTART) {
@@ -1057,7 +1089,7 @@ retry:
         WT_ERR(ret);
 
         /* Check whether an update would conflict. */
-        WT_ERR(__wt_txn_update_check(session, cbt));
+        WT_ERR(__curfile_update_check(cbt));
 
         if (cbt->compare != 0)
             goto search_notfound;
@@ -1076,7 +1108,7 @@ retry:
          * If we find a matching record, check whether an update would conflict. Do this before
          * checking if the update is visible in __wt_cursor_valid, or we can miss conflict.
          */
-        WT_ERR(__wt_txn_update_check(session, cbt));
+        WT_ERR(__curfile_update_check(cbt));
 
         /* Remove the record if it exists. */
         valid = false;
@@ -1261,7 +1293,7 @@ update_local:
          * If not overwriting, check for conflicts and fail if the key does not exist.
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
-            WT_ERR(__wt_txn_update_check(session, cbt));
+            WT_ERR(__curfile_update_check(cbt));
             if (cbt->compare != 0)
                 WT_ERR(WT_NOTFOUND);
             WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
@@ -1277,7 +1309,7 @@ update_local:
          * Update the record in that case, the record exists.
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
-            WT_ERR(__wt_txn_update_check(session, cbt));
+            WT_ERR(__curfile_update_check(cbt));
             valid = false;
             if (cbt->compare == 0)
                 WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
