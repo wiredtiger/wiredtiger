@@ -1317,7 +1317,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [defghijk] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [defg] ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket04
     tags: ["pull_request", "unit_test"]
@@ -1332,7 +1332,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [lmnopq] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [hijk] ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket05
     tags: ["pull_request", "unit_test"]
@@ -1347,9 +1347,24 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [rs] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [lmnopq] ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket06
+    tags: ["pull_request", "unit_test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [rs] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+
+  - name: unit-test-bucket07
     tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
@@ -1365,7 +1380,7 @@ tasks:
             # Reserve this bucket only for timestamp tests, which take a long time to run
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py timestamp ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
-  - name: unit-test-bucket07
+  - name: unit-test-bucket08
     tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
@@ -1381,6 +1396,20 @@ tasks:
             # Non-timestamp tests in the 't' family
             non_ts_tests=$(ls ../test/suite/test_t*.py | xargs -n1 basename | grep -v timestamp)
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py $non_ts_tests ${unit_test_args|-v 2} ${smp_command|} 2>&1
+
+  - name: unit-test-bucket09
+    tags: ["pull_request", "unit_test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [uvwxyz] ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   # End of Python unit test tasks
