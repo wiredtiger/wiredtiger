@@ -1085,7 +1085,7 @@ __wt_ref_info(
         *sizep = unpack->size;
 
         if (is_leafp != NULL)
-            *is_leafp = unpack->type != WT_CELL_ADDR_INT;
+            *is_leafp = unpack->type != WT_ADDR_INT;
     }
 }
 
