@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_bug022.py
-#       Testing whether we check the visibility of the onpage value when applying modifies.
+#       Testing that we don't allow modifies on top of tombstone updates.
 
 import wiredtiger, wttest
 
@@ -50,6 +50,7 @@ class test_bug022(wttest.WiredTigerTestCase):
             cursor[str(i)] = value
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
+        # Apply tombstones for every key.
         for i in range(1, 10000):
             self.session.begin_transaction()
             cursor.set_key(str(i))
@@ -58,12 +59,14 @@ class test_bug022(wttest.WiredTigerTestCase):
 
         self.session.checkpoint()
 
+        # Now try to apply a modify on top of the tombstone at timestamp 3.
         for i in range(1, 10000):
             self.session.begin_transaction()
             cursor.set_key(str(i))
             self.assertEqual(cursor.modify([wiredtiger.Modify('B', 0, 100)]), wiredtiger.WT_NOTFOUND)
             self.session.rollback_transaction()
 
+        # Check that the tombstone is visible.
         for i in range(1, 10000):
             cursor.set_key(str(i))
             self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
