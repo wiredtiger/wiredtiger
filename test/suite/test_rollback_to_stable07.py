@@ -138,9 +138,8 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         # Check that the correct data is seen at and after the stable timestamp.
         self.check(value_b, uri, nrows, 40)
         self.check(value_b, uri, nrows, 80)
-        # Enable the check for history store once we fixed not referring txnid.
-        #self.check(value_c, uri, nrows, 30)
-        #self.check(value_d, uri, nrows, 20)
+        self.check(value_c, uri, nrows, 30)
+        self.check(value_d, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -169,9 +168,8 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         # Check that the correct data is seen at and after the stable timestamp.
         self.check(value_b, uri, nrows, 40)
         self.check(value_b, uri, nrows, 80)
-        # Enable the check for history store once we fixed not referring txnid.
-        #self.check(value_c, uri, nrows, 30)
-        #self.check(value_d, uri, nrows, 20)
+        self.check(value_c, uri, nrows, 30)
+        self.check(value_d, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -188,9 +186,6 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         self.assertGreaterEqual(pages_visited, 0)
         self.assertEqual(upd_aborted, 0)
         self.assertEqual(hs_removed, 0)
-
-        # When this limitation is fixed we'll need to uncomment the calls to self.check
-        self.KNOWN_LIMITATION('Enable check history store records after reset history store txnids during restart.')
 
 if __name__ == '__main__':
     wttest.run()
