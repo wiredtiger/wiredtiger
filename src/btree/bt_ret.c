@@ -70,6 +70,77 @@ __key_return(WT_CURSOR_BTREE *cbt)
 }
 
 /*
+ * __time_pairs_init --
+ *     Initialize the time pairs to globally visible.
+ */
+static inline void
+__time_pairs_init(WT_TIME_PAIR *start, WT_TIME_PAIR *stop)
+{
+    start->txnid = WT_TXN_NONE;
+    start->timestamp = WT_TS_NONE;
+    stop->txnid = WT_TXN_MAX;
+    stop->timestamp = WT_TS_MAX;
+}
+
+/*
+ * __time_pairs_set --
+ *     Set the time pairs.
+ */
+static inline void
+__time_pairs_set(WT_TIME_PAIR *start, WT_TIME_PAIR *stop, WT_CELL_UNPACK *unpack)
+{
+    start->timestamp = unpack->start_ts;
+    start->txnid = unpack->start_txn;
+    stop->timestamp = unpack->stop_ts;
+    stop->txnid = unpack->stop_txn;
+}
+
+/*
+ * __wt_read_cell_time_pairs --
+ *     Read the time pairs from the cell.
+ */
+int
+__wt_read_cell_time_pairs(
+  WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_TIME_PAIR *start, WT_TIME_PAIR *stop)
+{
+    WT_CELL *cell;
+    WT_CELL_UNPACK unpack;
+    WT_PAGE *page;
+    WT_ROW *rip;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    page = ref->page;
+
+    WT_ASSERT(session, start != NULL && stop != NULL);
+
+    __time_pairs_init(start, stop);
+
+    if (page->type == WT_PAGE_ROW_LEAF) {
+        rip = &page->pg_row[cbt->slot];
+
+        /*
+         * If a value is simple and is globally visible at the time of reading a page into cache, we
+         * set the time pairs as globally visible.
+         */
+        if (__wt_row_leaf_value_exists(rip))
+            return (0);
+
+        /* Take the value from the original page cell. */
+        __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
+        __time_pairs_set(start, stop, &unpack);
+    } else if (page->type == WT_PAGE_COL_VAR) {
+        /* Take the value from the original page cell. */
+        cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
+        __wt_cell_unpack(session, page, cell, &unpack);
+        __time_pairs_set(start, stop, &unpack);
+    }
+
+    /* WT_PAGE_COL_FIX: return the default time pairs. */
+    return (0);
+}
+
+/*
  * __wt_value_return_buf --
  *     Change a buffer to reference an internal original-page return value.
  */
@@ -92,13 +163,8 @@ __wt_value_return_buf(
     page = ref->page;
     cursor = &cbt->iface;
 
-    /* Initialize to globally visible. */
-    if (start != NULL && stop != NULL) {
-        start->txnid = WT_TXN_NONE;
-        start->timestamp = WT_TS_NONE;
-        stop->txnid = WT_TXN_MAX;
-        stop->timestamp = WT_TS_MAX;
-    }
+    if (start != NULL && stop != NULL)
+        __time_pairs_init(start, stop);
 
     /* Must provide either both start and stop as output parameters or neither. */
     WT_ASSERT(session, (start != NULL && stop != NULL) || (start == NULL && stop == NULL));
@@ -115,12 +181,8 @@ __wt_value_return_buf(
 
         /* Take the value from the original page cell. */
         __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
-        if (start != NULL && stop != NULL) {
-            start->timestamp = unpack.start_ts;
-            start->txnid = unpack.start_txn;
-            stop->timestamp = unpack.stop_ts;
-            stop->txnid = unpack.stop_txn;
-        }
+        if (start != NULL && stop != NULL)
+            __time_pairs_set(start, stop, &unpack);
 
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
@@ -129,12 +191,8 @@ __wt_value_return_buf(
         /* Take the value from the original page cell. */
         cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
         __wt_cell_unpack(session, page, cell, &unpack);
-        if (start != NULL && stop != NULL) {
-            start->timestamp = unpack.start_ts;
-            start->txnid = unpack.start_txn;
-            stop->timestamp = unpack.stop_ts;
-            stop->txnid = unpack.stop_txn;
-        }
+        if (start != NULL && stop != NULL)
+            __time_pairs_set(start, stop, &unpack);
 
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
