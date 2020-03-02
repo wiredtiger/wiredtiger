@@ -1093,7 +1093,7 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
         }
     }
 
-    WT_ASSERT(session, rollback || upd == NULL || __wt_txn_upd_visible(session, upd));
+    WT_ASSERT(session, upd != NULL || !rollback);
 
     /*
      * Check conflict against the on page value if there is no update on the update chain except
