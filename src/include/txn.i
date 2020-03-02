@@ -1068,7 +1068,7 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
     WT_TIME_PAIR start, stop;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    bool ignore_prepare_set, rollback, check_onpage_value;
+    bool ignore_prepare_set, rollback;
 
     rollback = false;
     txn = &session->txn;
@@ -1093,13 +1093,12 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
         }
     }
 
-    check_onpage_value = cbt != NULL && cbt->btree->type != BTREE_COL_FIX && cbt->ins == NULL;
     /*
      * Check conflict against the on page value if there is no update on the update chain except
      * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
      * uncommitted update or determined that it would be safe to write if we saw a committed update.
      */
-    if (upd == NULL && check_onpage_value) {
+    if (upd == NULL && cbt != NULL && cbt->btree->type != BTREE_COL_FIX && cbt->ins == NULL) {
         WT_ASSERT(session, !rollback);
         WT_ERR(__wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop));
         if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX)
