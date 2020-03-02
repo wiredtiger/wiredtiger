@@ -942,6 +942,7 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt)
     btree = cbt->btree;
     page = cbt->ref->page;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
+    upd = NULL;
 
     if (cbt->compare != 0)
         return (0);
