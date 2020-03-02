@@ -268,8 +268,8 @@ take_full_backup(WT_SESSION *session, int i)
     } else
         hdir = home_incr;
     if (i == 0) {
-        (void)snprintf(
-          buf, sizeof(buf), "incremental=(granularity=1M,enabled=true,this_id=ID%d)", i);
+        (void)snprintf(buf, sizeof(buf),
+          "incremental=(granularity=1M,enabled=true,this_id=\"ID%d:%d.%d\")", i, i, i);
         error_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
     } else
         error_check(session->open_cursor(session, "backup:", NULL, NULL, &cursor));
@@ -333,7 +333,8 @@ take_incr_backup(WT_SESSION *session, int i)
     tmp = NULL;
     tmp_sz = 0;
     /* Open the backup data source for incremental backup. */
-    (void)snprintf(buf, sizeof(buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 1, i);
+    (void)snprintf(buf, sizeof(buf), "incremental=(src_id=\"ID%d:%d.%d\",this_id=\"ID%d:%d.%d\")",
+      i - 1, i - 1, i - 1, i, i, i);
     error_check(session->open_cursor(session, "backup:", NULL, buf, &backup_cur));
     rfd = wfd = -1;
     count = 0;
@@ -503,7 +504,8 @@ main(int argc, char *argv[])
     /*
      * We should have an entry for i-1 and i-2. Use the older one.
      */
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 2, i);
+    (void)snprintf(cmd_buf, sizeof(cmd_buf),
+      "incremental=(src_id=\"ID%d:%d.%d\",this_id=\"ID%d:%d.%d\")", i - 2, i - 2, i - 2, i, i, i);
     error_check(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur));
     error_check(backup_cur->close(backup_cur));
 
@@ -537,7 +539,8 @@ main(int argc, char *argv[])
     /*
      * We should not have any information.
      */
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 2, i);
+    (void)snprintf(cmd_buf, sizeof(cmd_buf),
+      "incremental=(src_id=\"ID%d:%d.%d\",this_id=\"ID%d:%d.%d\")", i - 2, i - 2, i - 2, i, i, i);
     testutil_assert(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur) == ENOENT);
     error_check(wt_conn->close(wt_conn, NULL));
 
