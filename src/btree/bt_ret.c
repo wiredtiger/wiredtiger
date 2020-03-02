@@ -169,6 +169,7 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
     WT_DECL_RET;
     WT_MODIFY_VECTOR modifies;
     WT_SESSION_IMPL *session;
+    WT_TIME_PAIR start, stop;
 
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -220,7 +221,13 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
          */
         WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
-        WT_ERR(__value_return(cbt));
+        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &cbt->iface.value, &start, &stop));
+        /*
+         * If the stop time pair is set, this implies a tombstone so make the base update an empty
+         * value.
+         */
+        if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX)
+            WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
     } else if (upd->type == WT_UPDATE_TOMBSTONE)
         /* If upd is a tombstone, the base value is the empty value. */
         WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
