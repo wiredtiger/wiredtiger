@@ -79,7 +79,7 @@ class test_backup12(wttest.WiredTigerTestCase, suite_subprocess):
         #
         # Note, this first backup is actually done before a checkpoint is taken.
         #
-        config = 'incremental=(enabled,granularity=1M,this_id="ID1")'
+        config = 'incremental=(enabled,granularity=1M,this_id="ID1:1.1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
 
         # Add more data while the backup cursor is open.
@@ -130,7 +130,7 @@ class test_backup12(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.drop(self.uri_rem)
 
         # Now do an incremental backup.
-        config = 'incremental=(src_id="ID1",this_id="ID2")'
+        config = 'incremental=(src_id="ID1:1.1",this_id="ID2:2.2")'
         bkup_c = self.session.open_cursor('backup:', None, config)
         self.pr('Open backup cursor ID1')
         bkup_files = []
