@@ -32,7 +32,6 @@ import wiredtiger, wttest
 
 # test_util11.py
 #    Utilities: wt list
-@unittest.skip("Temporarily disabled")
 class test_util11(wttest.WiredTigerTestCase, suite_subprocess):
     tablenamepfx = 'test_util11.'
     session_params = 'key_format=S,value_format=S'
