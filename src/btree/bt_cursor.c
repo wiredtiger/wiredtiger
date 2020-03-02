@@ -949,7 +949,8 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt)
 
     if (cbt->ins != NULL)
         upd = cbt->ins->upd;
-    else if (btree->type == BTREE_ROW && page->modify != NULL && page->modify->mod_row_update != NULL)
+    else if (btree->type == BTREE_ROW && page->modify != NULL &&
+      page->modify->mod_row_update != NULL)
         upd = page->modify->mod_row_update[cbt->slot];
     else if (btree->type != BTREE_COL_VAR)
         return (0);

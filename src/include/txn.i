@@ -1093,13 +1093,15 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
         }
     }
 
+    WT_ASSERT(session, rollback || upd == NULL);
+
     /*
      * Check conflict against the on page value if there is no update on the update chain except
      * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
      * uncommitted update or determined that it would be safe to write if we saw a committed update.
      */
-    if (upd == NULL && cbt != NULL && cbt->btree->type != BTREE_COL_FIX && cbt->ins == NULL) {
-        WT_ASSERT(session, !rollback);
+    if (!rollback && upd == NULL && cbt != NULL && cbt->btree->type != BTREE_COL_FIX &&
+      cbt->ins == NULL) {
         WT_ERR(__wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop));
         if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX)
             rollback = !__wt_txn_visible(session, stop.txnid, stop.timestamp);
