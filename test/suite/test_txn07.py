@@ -202,6 +202,13 @@ class test_txn07(wttest.WiredTigerTestCase, suite_subprocess):
             # Check the state after each commit/rollback.
             self.check_all(current, committed)
 
+        #
+        # Run printlog and make sure it exits with zero status. This should be
+        # run as soon as we can after the crash to try and conflict with the
+        # journal file read.
+        #
+        self.runWt(['-h', self.backup_dir, 'printlog'], outfilename='printlog.out')
+
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         clen = stat_cursor[stat.conn.log_compress_len][2]
         cmem = stat_cursor[stat.conn.log_compress_mem][2]
@@ -209,14 +216,6 @@ class test_txn07(wttest.WiredTigerTestCase, suite_subprocess):
         cfails = stat_cursor[stat.conn.log_compress_write_fails][2]
         csmall = stat_cursor[stat.conn.log_compress_small][2]
         stat_cursor.close()
-
-        #
-        # Run printlog and make sure it exits with zero status. This should be
-        # run as soon as we can after the crash to try and conflict with the
-        # journal file read.
-        #
-
-        self.runWt(['-h', self.backup_dir, 'printlog'], outfilename='printlog.out')
 
         if self.compress == '':
             self.assertEqual(clen, cmem)
