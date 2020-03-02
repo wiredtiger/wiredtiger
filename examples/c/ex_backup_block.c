@@ -269,7 +269,7 @@ take_full_backup(WT_SESSION *session, int i)
         hdir = home_incr;
     if (i == 0) {
         (void)snprintf(
-          buf, sizeof(buf), "incremental=(granularity=1M,enabled=true,this_id=\"ID%ds\")", i);
+          buf, sizeof(buf), "incremental=(granularity=1M,enabled=true,this_id=\"ID%d\")", i);
         error_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
     } else
         error_check(session->open_cursor(session, "backup:", NULL, NULL, &cursor));
