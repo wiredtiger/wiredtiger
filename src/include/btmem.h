@@ -216,7 +216,7 @@ struct __wt_ovfl_reuse {
     "key_format=" WT_UNCHECKED_STRING(IuQQ) ",value_format=" WT_UNCHECKED_STRING( \
       QQBu) ",block_compressor=" WT_HS_COMPRESSOR                                 \
             ",leaf_value_max=64MB"                                                \
-            ",prefix_compression=true"
+            ",prefix_compression=false"
 
 /*
  * WT_PAGE_MODIFY --

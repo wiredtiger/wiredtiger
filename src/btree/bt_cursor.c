@@ -935,20 +935,27 @@ static int
 __curfile_update_check(WT_CURSOR_BTREE *cbt)
 {
     WT_BTREE *btree;
+    WT_PAGE *page;
     WT_SESSION_IMPL *session;
+    WT_UPDATE *upd;
 
     btree = cbt->btree;
+    page = cbt->ref->page;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
+    upd = NULL;
 
     if (cbt->compare != 0)
         return (0);
-    if (cbt->ins != NULL)
-        return (__wt_txn_update_check(session, cbt->ins->upd));
 
-    if (btree->type == BTREE_ROW && cbt->ref->page->modify != NULL &&
-      cbt->ref->page->modify->mod_row_update != NULL)
-        return (__wt_txn_update_check(session, cbt->ref->page->modify->mod_row_update[cbt->slot]));
-    return (0);
+    if (cbt->ins != NULL)
+        upd = cbt->ins->upd;
+    else if (btree->type == BTREE_ROW && page->modify != NULL &&
+      page->modify->mod_row_update != NULL)
+        upd = page->modify->mod_row_update[cbt->slot];
+    else if (btree->type != BTREE_COL_VAR)
+        return (0);
+
+    return (__wt_txn_update_check(session, cbt, upd));
 }
 
 /*
