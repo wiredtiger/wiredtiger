@@ -223,16 +223,15 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 
         WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &cbt->iface.value, &start, &stop));
         /*
-         * If the stop time pair is set, this implies a tombstone so make the base update an empty
-         * value.
+         * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
+         * the stop time pair should be unset.
          */
-        if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX)
-            WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
-    } else if (upd->type == WT_UPDATE_TOMBSTONE)
-        /* If upd is a tombstone, the base value is the empty value. */
-        WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
-    else
+        WT_ASSERT(session, stop.txnid == WT_TXN_MAX && stop.timestamp == WT_TS_MAX);
+    } else {
+        /* The base update must not be a tombstone. */
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         WT_ERR(__wt_buf_set(session, &cursor->value, upd->data, upd->size));
+    }
 
     /*
      * Once we have a base item, roll forward through any visible modify updates.
