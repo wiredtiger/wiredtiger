@@ -184,7 +184,7 @@ __split_ovfl_key_cleanup(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref)
 
     cell = WT_PAGE_REF_OFFSET(page, cell_offset);
     __wt_cell_unpack(session, page, cell, &kpack);
-    if (kpack.ovfl && kpack.raw != WT_CELL_KEY_OVFL_RM)
+    if (FLD_ISSET(kpack.flags, WT_CELL_UNPACK_OVERFLOW) && kpack.raw != WT_CELL_KEY_OVFL_RM)
         WT_RET(__wt_ovfl_discard(session, page, cell));
 
     return (0);

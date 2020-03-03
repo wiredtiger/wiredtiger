@@ -416,8 +416,8 @@ check_original_value:
      * no longer needed
      */
     if (upd_select->upd != NULL &&
-      (upd_select->upd_saved ||
-          (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
+      (upd_select->upd_saved || (vpack != NULL && F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) &&
+                                  vpack->raw != WT_CELL_VALUE_OVFL_RM)))
         WT_RET(__rec_append_orig_value(session, page, first_upd, vpack));
 
     return (0);

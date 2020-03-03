@@ -144,9 +144,9 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_t
  *     Pack the validity window for an address.
  */
 static inline void
-__cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t newest_durable_ts,
-  wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn, wt_timestamp_t newest_stop_ts,
-  uint64_t newest_stop_txn)
+__cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t oldest_durable_ts,
+  wt_timestamp_t newest_durable_ts, wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
+  wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn, bool prepare)
 {
     uint8_t flags, *flagsp;
 
@@ -169,9 +169,15 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
         ++*pp;
 
         flags = 0;
+        if (prepare)
+            LF_SET(WT_CELL_PREPARE);
+        if (oldest_durable_ts != WT_TS_NONE) {
+            WT_IGNORE_RET(__wt_vpack_uint(pp, 0, oldest_durable_ts));
+            LF_SET(WT_CELL_TS_DURABLE_START);
+        }
         if (newest_durable_ts != WT_TS_NONE) {
             WT_IGNORE_RET(__wt_vpack_uint(pp, 0, newest_durable_ts));
-            LF_SET(WT_CELL_TS_DURABLE);
+            LF_SET(WT_CELL_TS_DURABLE_STOP);
         }
         if (oldest_start_ts != WT_TS_NONE) {
             WT_IGNORE_RET(__wt_vpack_uint(pp, 0, oldest_start_ts));
@@ -204,14 +210,23 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
   wt_timestamp_t newest_durable_ts, wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
   wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn, size_t size)
 {
+    wt_timestamp_t oldest_durable_ts;
     uint8_t *p;
+    bool prepare;
+
+    /*
+     * XXX These values should be passed in when support for prepared transactions with durable
+     * history is fully implemented.
+     */
+    oldest_durable_ts = WT_TS_NONE;
+    prepare = false;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_addr_validity(session, &p, newest_durable_ts, oldest_start_ts, oldest_start_txn,
-      newest_stop_ts, newest_stop_txn);
+    __cell_pack_addr_validity(session, &p, oldest_durable_ts, newest_durable_ts, oldest_start_ts,
+      oldest_start_txn, newest_stop_ts, newest_stop_txn, prepare);
 
     if (recno == WT_RECNO_OOB)
         cell->__chunk[0] |= (uint8_t)cell_type; /* Type */
@@ -700,6 +715,7 @@ restart:
     unpack->start_txn = WT_TXN_NONE;
     unpack->stop_ts = WT_TS_MAX;
     unpack->stop_txn = WT_TXN_MAX;
+    unpack->oldest_durable_ts = WT_TS_NONE;
     unpack->newest_durable_ts = WT_TS_NONE;
     unpack->oldest_start_ts = WT_TS_NONE;
     unpack->oldest_start_txn = WT_TXN_NONE;
@@ -707,7 +723,7 @@ restart:
     unpack->newest_stop_txn = WT_TXN_MAX;
     unpack->raw = (uint8_t)__wt_cell_type_raw(cell);
     unpack->type = (uint8_t)__wt_cell_type(cell);
-    unpack->ovfl = 0;
+    unpack->flags = 0;
 
     /*
      * Handle cells with none of RLE counts, validity window or data length: short key/data cells
@@ -756,7 +772,12 @@ restart:
             break;
         flags = *p++; /* skip second descriptor byte */
 
-        if (LF_ISSET(WT_CELL_TS_DURABLE))
+        if (LF_ISSET(WT_CELL_PREPARE))
+            F_SET(unpack, WT_CELL_UNPACK_PREPARE);
+        if (LF_ISSET(WT_CELL_TS_DURABLE_START))
+            WT_RET(__wt_vunpack_uint(
+              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->oldest_durable_ts));
+        if (LF_ISSET(WT_CELL_TS_DURABLE_STOP))
             WT_RET(__wt_vunpack_uint(
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->newest_durable_ts));
         if (LF_ISSET(WT_CELL_TS_START))
@@ -839,7 +860,7 @@ restart:
         /*
          * Set overflow flag.
          */
-        unpack->ovfl = 1;
+        F_SET(unpack, WT_CELL_UNPACK_OVERFLOW);
     /* FALLTHROUGH */
 
     case WT_CELL_ADDR_DEL:
@@ -916,6 +937,7 @@ __wt_cell_unpack_dsk(
         unpack->start_txn = WT_TXN_NONE;
         unpack->stop_ts = WT_TS_MAX;
         unpack->stop_txn = WT_TXN_MAX;
+        unpack->oldest_durable_ts = WT_TS_NONE;
         unpack->newest_durable_ts = WT_TS_NONE;
         unpack->oldest_start_ts = WT_TS_NONE;
         unpack->oldest_start_txn = WT_TXN_NONE;
@@ -926,7 +948,7 @@ __wt_cell_unpack_dsk(
         unpack->__len = 0;
         unpack->prefix = 0;
         unpack->raw = unpack->type = WT_CELL_VALUE;
-        unpack->ovfl = 0;
+        unpack->flags = 0;
         return;
     }
 

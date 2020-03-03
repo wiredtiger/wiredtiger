@@ -127,6 +127,7 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  */
 struct __wt_addr {
     /* Validity window */
+    wt_timestamp_t oldest_durable_ts;
     wt_timestamp_t newest_durable_ts;
     wt_timestamp_t oldest_start_ts;
     uint64_t oldest_start_txn;
