@@ -444,17 +444,22 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             if (state == WT_CHILD_PROXY) {
                 WT_ERR(__wt_buf_set(session, &val->buf, ref->addr, __wt_cell_total_len(vpack)));
                 __wt_cell_type_reset(session, val->buf.mem, 0, WT_CELL_ADDR_DEL);
-                val->cell_len = 0;
-                val->len = val->buf.size;
-            } else if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED))
-                __wt_rec_repack_cell_addr(session, val, ref->addr, vpack, WT_RECNO_OOB);
-            else {
+            } else if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED)) {
+                /*
+                 * The transaction ids are cleared after restart. Repack the cell with new validity
+                 * to flush the cleared transaction ids.
+                 */
+                WT_ERR(__wt_buf_set(session, &val->buf, ref->addr, __wt_cell_total_len(vpack)));
+                __wt_cell_repack_validity(session, val->buf.mem, vpack->newest_durable_ts,
+                  vpack->oldest_start_ts, vpack->oldest_start_txn, vpack->newest_stop_ts,
+                  vpack->newest_stop_txn);
+            } else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);
-                val->cell_len = 0;
-                val->len = val->buf.size;
             }
 
+            val->cell_len = 0;
+            val->len = val->buf.size;
             newest_durable_ts = vpack->newest_durable_ts;
             oldest_start_ts = vpack->oldest_start_ts;
             oldest_start_txn = vpack->oldest_start_txn;

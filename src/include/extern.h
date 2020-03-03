@@ -2123,6 +2123,9 @@ static inline void __wt_cache_read_gen_incr(WT_SESSION_IMPL *session);
 static inline void __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cache_update_hs_score(
   WT_SESSION_IMPL *session, u_int updates_seen, u_int updates_unstable);
+static inline void __wt_cell_repack_validity(WT_SESSION_IMPL *session, WT_CELL *cell,
+  wt_timestamp_t newest_durable_ts, wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
+  wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn);
 static inline void __wt_cell_type_reset(
   WT_SESSION_IMPL *session, WT_CELL *cell, u_int old_type, u_int new_type);
 static inline void __wt_cell_unpack(
@@ -2155,8 +2158,6 @@ static inline void __wt_rec_cell_build_addr(
 static inline void __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv);
 static inline void __wt_rec_incr(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size);
-static inline void __wt_rec_repack_cell_addr(
-  WT_SESSION_IMPL *session, WT_REC_KV *val, WT_ADDR *addr, WT_CELL_UNPACK *vpack, uint64_t recno);
 static inline void __wt_ref_info(
   WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep);
 static inline void __wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp,

@@ -181,6 +181,22 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
 }
 
 /*
+ * __wt_cell_repack_validity --
+ *     Repack a cell with new validity.
+ */
+static inline void
+__wt_cell_repack_validity(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t newest_durable_ts,
+  wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn, wt_timestamp_t newest_stop_ts,
+  uint64_t newest_stop_txn)
+{
+    uint8_t *p;
+
+    p = cell->__chunk;
+    __cell_pack_addr_validity(session, &p, newest_durable_ts, oldest_start_ts, oldest_start_txn,
+      newest_stop_ts, newest_stop_txn);
+}
+
+/*
  * __wt_cell_pack_addr --
  *     Pack an address cell.
  */
