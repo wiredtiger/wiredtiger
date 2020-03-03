@@ -132,7 +132,7 @@ struct __wt_cell {
      *  1: cell descriptor byte
      *  1: prefix compression count
      *  1: secondary descriptor byte
-     * 27: 3 timestamps		(uint64_t encoding, max 9 bytes)
+     * 36: 4 timestamps		(uint64_t encoding, max 9 bytes)
      * 18: 2 transaction IDs	(uint64_t encoding, max 9 bytes)
      *  9: associated 64-bit value	(uint64_t encoding, max 9 bytes)
      *  5: data length		(uint32_t encoding, max 5 bytes)
@@ -141,7 +141,7 @@ struct __wt_cell {
      * count and 64V value overlap, and the validity window, 64V value
      * and data length are all optional in some cases.
      */
-    uint8_t __chunk[1 + 1 + 1 + 6 * WT_INTPACK64_MAXSIZE + WT_INTPACK32_MAXSIZE];
+    uint8_t __chunk[1 + 1 + 1 + 7 * WT_INTPACK64_MAXSIZE + WT_INTPACK32_MAXSIZE];
 };
 
 /*
