@@ -191,15 +191,14 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./t ${thread_test_args|} 2>&1
-  # Temporarily disabled
-  # "random abort test":
-  #   command: shell.exec
-  #   params:
-  #     working_dir: "wiredtiger/build_posix/test/csuite"
-  #     script: |
-  #       set -o errexit
-  #       set -o verbose
-  #       ${test_env_vars|} ./test_random_abort ${random_abort_args|} 2>&1
+  "random abort test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/build_posix/test/csuite"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./test_random_abort ${random_abort_args|} 2>&1
   "timestamp abort test":
     command: shell.exec
     params:
@@ -731,21 +730,20 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_incr_backup 2>&1
 
-  # Temporarily disabled
-  # - name: csuite-random-abort-test
-  #   tags: ["pull_request"]
-  #   depends_on:
-  #     - name: compile
-  #   commands:
-  #     - func: "fetch artifacts"
-  #     - command: shell.exec
-  #       params:
-  #         working_dir: "wiredtiger/build_posix"
-  #         script: |
-  #           set -o errexit
-  #           set -o verbose
+  - name: csuite-random-abort-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
 
-  #           ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
+            ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
 
   # - name: csuite-random-directio-test
   #   tags: ["pull_request"]
@@ -778,21 +776,20 @@ tasks:
 
   #           ${test_env_vars|} $(pwd)/../test/csuite/schema_abort/smoke.sh 2>&1
 
-  # Temporarily disabled
-  # - name: csuite-timestamp-abort-test
-  #   tags: ["pull_request"]
-  #   depends_on:
-  #     - name: compile
-  #   commands:
-  #     - func: "fetch artifacts"
-  #     - command: shell.exec
-  #       params:
-  #         working_dir: "wiredtiger/build_posix"
-  #         script: |
-  #           set -o errexit
-  #           set -o verbose
+  - name: csuite-timestamp-abort-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
 
-  #           ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
+            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
 
   - name: csuite-scope-test
     tags: ["pull_request"]
@@ -1940,17 +1937,16 @@ tasks:
         vars:
           thread_test_args: -S -F -n 100000 -t v
 
-      # Temporarily disabled
-      # # random-abort - default (random time and number of threads)
-      # - func: "random abort test"
-      # # random-abort - minimum time, random number of threads
-      # - func: "random abort test"
-      #   vars:
-      #     random_abort_args: -t 10
-      # # random-abort - maximum time, random number of threads
-      # - func: "random abort test"
-      #   vars:
-      #     random_abort_args: -t 40
+      # random-abort - default (random time and number of threads)
+      - func: "random abort test"
+      # random-abort - minimum time, random number of threads
+      - func: "random abort test"
+        vars:
+          random_abort_args: -t 10
+      # random-abort - maximum time, random number of threads
+      - func: "random abort test"
+        vars:
+          random_abort_args: -t 40
 
       # truncated-log
       - func: "truncated log test"
@@ -2101,7 +2097,7 @@ tasks:
       - func: "checkpoint stress test"
         vars:
           # No of times to run the loop
-          times: 2
+          times: 1
           # No of processes to run in the background
           no_of_procs: 10
 

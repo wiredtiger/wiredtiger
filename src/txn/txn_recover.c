@@ -736,9 +736,7 @@ done:
 
         WT_ERR(__wt_rollback_to_stable(session, NULL));
 
-        /* Reset the stable and oldest timestamp. */
-        conn->txn_global.stable_timestamp = WT_TS_NONE;
-        conn->txn_global.has_stable_timestamp = false;
+        /* Reset the oldest timestamp. */
         conn->txn_global.oldest_timestamp = WT_TS_NONE;
         conn->txn_global.has_oldest_timestamp = false;
     } else if (do_checkpoint)

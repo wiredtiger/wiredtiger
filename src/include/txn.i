@@ -1062,12 +1062,15 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
  *     Check if the current transaction can update an item.
  */
 static inline int
-__wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
+    WT_DECL_RET;
+    WT_TIME_PAIR start, stop;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    bool ignore_prepare_set;
+    bool ignore_prepare_set, rollback;
 
+    rollback = false;
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
 
@@ -1085,17 +1088,37 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
         if (upd->txnid != WT_TXN_ABORTED) {
-            if (ignore_prepare_set)
-                F_SET(txn, WT_TXN_IGNORE_PREPARE);
-            WT_STAT_CONN_INCR(session, txn_update_conflict);
-            WT_STAT_DATA_INCR(session, txn_update_conflict);
-            return (__wt_txn_rollback_required(session, "conflict between concurrent operations"));
+            rollback = true;
+            break;
         }
     }
 
+    WT_ASSERT(session, upd != NULL || !rollback);
+
+    /*
+     * Check conflict against the on page value if there is no update on the update chain except
+     * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
+     * uncommitted update or determined that it would be safe to write if we saw a committed update.
+     */
+    if (!rollback && upd == NULL && cbt != NULL && cbt->btree->type != BTREE_COL_FIX &&
+      cbt->ins == NULL) {
+        WT_ERR(__wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop));
+        if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX)
+            rollback = !__wt_txn_visible(session, stop.txnid, stop.timestamp);
+        else
+            rollback = !__wt_txn_visible(session, start.txnid, start.timestamp);
+    }
+
+    if (rollback) {
+        WT_STAT_CONN_INCR(session, txn_update_conflict);
+        WT_STAT_DATA_INCR(session, txn_update_conflict);
+        ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
+    }
+
+err:
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
-    return (0);
+    return (ret);
 }
 
 /*
@@ -1174,7 +1197,7 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
 
     /*
      * Default to true - callers shouldn't rely on this if an error is returned, but let's give them
-     * deterministic behaviour if they do.
+     * deterministic behavior if they do.
      */
     *txn_active = true;
 

@@ -96,7 +96,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
 
         if (upd_arg == NULL) {
             /* Make sure the update can proceed. */
-            WT_ERR(__wt_txn_update_check(session, old_upd = *upd_entry));
+            WT_ERR(__wt_txn_update_check(session, cbt, old_upd = *upd_entry));
 
             /* Allocate a WT_UPDATE structure and transaction ID. */
             WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
@@ -127,7 +127,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
         upd->next = old_upd;
 
         /* Serialize the update. */
-        WT_ERR(__wt_update_serial(session, page, upd_entry, &upd, upd_size, exclusive));
+        WT_ERR(__wt_update_serial(session, cbt, page, upd_entry, &upd, upd_size, exclusive));
     } else {
         /*
          * Allocate the insert array as necessary.

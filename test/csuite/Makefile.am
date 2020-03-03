@@ -17,8 +17,7 @@ all_TESTS += incr_backup/smoke.sh
 
 test_random_abort_SOURCES = random_abort/main.c
 noinst_PROGRAMS += test_random_abort
-# Temporarily disabled
-# all_TESTS += random_abort/smoke.sh
+all_TESTS += random_abort/smoke.sh
 
 test_random_directio_SOURCES = random_directio/main.c random_directio/util.c
 noinst_PROGRAMS += test_random_directio
@@ -40,8 +39,7 @@ all_TESTS += test_scope
 
 test_timestamp_abort_SOURCES = timestamp_abort/main.c
 noinst_PROGRAMS += test_timestamp_abort
-# Temporarily disabled
-# all_TESTS += timestamp_abort/smoke.sh
+all_TESTS += timestamp_abort/smoke.sh
 
 test_truncated_log_SOURCES = truncated_log/main.c
 noinst_PROGRAMS += test_truncated_log
@@ -126,7 +124,8 @@ all_TESTS += test_wt3874_pad_byte_collator
 
 test_wt4105_large_doc_small_upd_SOURCES = wt4105_large_doc_small_upd/main.c
 noinst_PROGRAMS += test_wt4105_large_doc_small_upd
-all_TESTS += test_wt4105_large_doc_small_upd
+# Temporarily disabled (WT-5579)
+# all_TESTS += test_wt4105_large_doc_small_upd
 
 test_wt4117_checksum_SOURCES = wt4117_checksum/main.c
 noinst_PROGRAMS += test_wt4117_checksum
