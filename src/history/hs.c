@@ -994,7 +994,8 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
     WT_ITEM hs_key;
-    WT_TIME_PAIR hs_start, hs_stop;
+    wt_timestamp_t hs_start_ts;
+    uint64_t hs_counter;
     uint32_t hs_btree_id, session_flags;
     int cmp, exact;
     bool close_hs_cursor;
@@ -1038,8 +1039,7 @@ retry:
         goto done;
     WT_ERR(ret);
     /* Bailing out here also means we have no history store records for our key. */
-    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start.timestamp,
-      &hs_start.txnid, &hs_stop.timestamp, &hs_stop.txnid));
+    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
     if (hs_btree_id != btree_id)
         goto done;
     WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
