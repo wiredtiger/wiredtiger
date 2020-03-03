@@ -758,7 +758,7 @@ restart:
         flags = *p++; /* skip second descriptor byte */
 
         if (LF_ISSET(WT_CELL_PREPARE))
-            F_SET(unpack, WT_CELL_PREPARE);
+            F_SET(unpack, WT_CELL_UNPACK_PREPARE);
         if (LF_ISSET(WT_CELL_TS_DURABLE_START))
             WT_RET(__wt_vunpack_uint(
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->oldest_durable_ts));
