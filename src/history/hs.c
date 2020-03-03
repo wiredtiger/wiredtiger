@@ -606,7 +606,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
                 __wt_modify_vector_pop(&modifies, &prev_upd);
-                /* The base value of a modify newer than a tombstone is the empty value. */
                 WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
                 prev_full_value->data = prev_upd->data;
                 prev_full_value->size = prev_upd->size;
