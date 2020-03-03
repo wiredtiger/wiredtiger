@@ -585,7 +585,9 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
                 continue;
         }
 
-        WT_ERR(__hs_calculate_full_value(session, full_value, upd, "", 0));
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
+        full_value->data = upd->data;
+        full_value->size = upd->size;
 
         squashed = false;
 
@@ -608,7 +610,9 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
                 WT_ASSERT(session, modifies.size > 0);
                 __wt_modify_vector_pop(&modifies, &prev_upd);
                 /* The base value of a modify newer than a tombstone is the empty value. */
-                WT_ERR(__hs_calculate_full_value(session, prev_full_value, prev_upd, "", 0));
+                WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
+                prev_full_value->data = prev_upd->data;
+                prev_full_value->size = prev_upd->size;
             } else
                 WT_ERR(__hs_calculate_full_value(
                   session, prev_full_value, prev_upd, full_value->data, full_value->size));
