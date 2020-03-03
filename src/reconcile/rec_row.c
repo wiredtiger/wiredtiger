@@ -268,7 +268,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         r->cell_zero = false;
 
         addr = &multi->addr;
-        __wt_rec_cell_build_addr(session, r, addr, false, WT_RECNO_OOB);
+        __wt_rec_cell_build_addr(session, r, addr, NULL, false, WT_RECNO_OOB);
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, key->len + val->len))
@@ -433,7 +433,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * requiring a proxy cell, otherwise use the information from the addr or original cell.
          */
         if (__wt_off_page(page, addr)) {
-            __wt_rec_cell_build_addr(session, r, addr, state == WT_CHILD_PROXY, WT_RECNO_OOB);
+            __wt_rec_cell_build_addr(session, r, addr, NULL, state == WT_CHILD_PROXY, WT_RECNO_OOB);
             newest_durable_ts = addr->newest_durable_ts;
             oldest_start_ts = addr->oldest_start_ts;
             oldest_start_txn = addr->oldest_start_txn;
@@ -441,25 +441,24 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             newest_stop_txn = addr->newest_stop_txn;
         } else {
             __wt_cell_unpack(session, page, ref->addr, vpack);
-            if (state == WT_CHILD_PROXY) {
-                WT_ERR(__wt_buf_set(session, &val->buf, ref->addr, __wt_cell_total_len(vpack)));
-                __wt_cell_type_reset(session, val->buf.mem, 0, WT_CELL_ADDR_DEL);
-            } else if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED)) {
+            if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED)) {
                 /*
                  * The transaction ids are cleared after restart. Repack the cell with new validity
                  * to flush the cleared transaction ids.
                  */
+                __wt_rec_cell_build_addr(
+                  session, r, NULL, vpack, state == WT_CHILD_PROXY, WT_RECNO_OOB);
+            } else if (state == WT_CHILD_PROXY) {
                 WT_ERR(__wt_buf_set(session, &val->buf, ref->addr, __wt_cell_total_len(vpack)));
-                __wt_cell_repack_validity(session, val->buf.mem, vpack->newest_durable_ts,
-                  vpack->oldest_start_ts, vpack->oldest_start_txn, vpack->newest_stop_ts,
-                  vpack->newest_stop_txn);
+                __wt_cell_type_reset(session, val->buf.mem, 0, WT_CELL_ADDR_DEL);
+                val->cell_len = 0;
+                val->len = val->buf.size;
             } else {
                 val->buf.data = ref->addr;
                 val->buf.size = __wt_cell_total_len(vpack);
+                val->cell_len = 0;
+                val->len = val->buf.size;
             }
-
-            val->cell_len = 0;
-            val->len = val->buf.size;
             newest_durable_ts = vpack->newest_durable_ts;
             oldest_start_ts = vpack->oldest_start_ts;
             oldest_start_txn = vpack->oldest_start_txn;
