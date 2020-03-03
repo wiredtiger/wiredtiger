@@ -197,6 +197,26 @@ __wt_rec_cell_build_addr(
 }
 
 /*
+ * __wt_rec_repack_cell_addr --
+ *     Repack an address cell.
+ */
+static inline void
+__wt_rec_repack_cell_addr(
+  WT_SESSION_IMPL *session, WT_REC_KV *val, WT_ADDR *addr, WT_CELL_UNPACK *vpack, uint64_t recno)
+{
+    /*
+     * We don't copy the data into the buffer, it's not necessary; just re-point the buffer's
+     * data/length fields.
+     */
+    val->buf.data = addr->addr;
+    val->buf.size = addr->size;
+    val->cell_len = __wt_cell_pack_addr(session, &val->cell, vpack->type, recno,
+      vpack->newest_durable_ts, vpack->oldest_start_ts, vpack->oldest_start_txn,
+      vpack->newest_stop_ts, vpack->newest_stop_txn, val->buf.size);
+    val->len = val->cell_len + val->buf.size;
+}
+
+/*
  * __wt_rec_cell_build_val --
  *     Process a data item and return a WT_CELL structure and byte string to be stored on the page.
  */
