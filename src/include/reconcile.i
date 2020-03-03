@@ -144,11 +144,11 @@ __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
 
 /*
  * __wt_rec_cell_build_addr --
- *     Process an address reference and return a cell structure to be stored on the page.
+ *     Process an address or unpack reference and return a cell structure to be stored on the page.
  */
 static inline void
-__wt_rec_cell_build_addr(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *addr, bool proxy_cell, uint64_t recno)
+__wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *addr,
+  WT_CELL_UNPACK *vpack, bool proxy_cell, uint64_t recno)
 {
     WT_REC_KV *val;
     u_int cell_type;
@@ -161,6 +161,8 @@ __wt_rec_cell_build_addr(
      */
     if (proxy_cell)
         cell_type = WT_CELL_ADDR_DEL;
+    else if (vpack != NULL)
+        cell_type = vpack->type;
     else {
         switch (addr->type) {
         case WT_ADDR_INT:
@@ -188,11 +190,22 @@ __wt_rec_cell_build_addr(
      * We don't copy the data into the buffer, it's not necessary; just re-point the buffer's
      * data/length fields.
      */
-    val->buf.data = addr->addr;
-    val->buf.size = addr->size;
-    val->cell_len = __wt_cell_pack_addr(session, &val->cell, cell_type, recno,
-      addr->newest_durable_ts, addr->oldest_start_ts, addr->oldest_start_txn, addr->newest_stop_ts,
-      addr->newest_stop_txn, val->buf.size);
+    if (vpack == NULL) {
+        WT_ASSERT(session, addr != NULL);
+        val->buf.data = addr->addr;
+        val->buf.size = addr->size;
+        val->cell_len = __wt_cell_pack_addr(session, &val->cell, cell_type, recno,
+          addr->newest_durable_ts, addr->oldest_start_ts, addr->oldest_start_txn,
+          addr->newest_stop_ts, addr->newest_stop_txn, val->buf.size);
+    } else {
+        WT_ASSERT(session, addr == NULL);
+        val->buf.data = vpack->data;
+        val->buf.size = vpack->size;
+        val->cell_len = __wt_cell_pack_addr(session, &val->cell, cell_type, recno,
+          vpack->newest_durable_ts, vpack->oldest_start_ts, vpack->oldest_start_txn,
+          vpack->newest_stop_ts, vpack->newest_stop_txn, val->buf.size);
+    }
+
     val->len = val->cell_len + val->buf.size;
 }
 
