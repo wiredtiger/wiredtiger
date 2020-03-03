@@ -1008,6 +1008,13 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
      * layer logic will still be expecting it to be open.
      */
     if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
+        /*
+         * Some code paths such as schema removal involve deleting keys in metadata and assert that
+         * we shouldn't be opening new dhandles. We won't ever need to blow away history store
+         * content in these cases so let's just return early here.
+         */
+        if (F_ISSET(session, WT_SESSION_NO_DATA_HANDLES))
+            return (0);
         WT_RET(__wt_hs_cursor(session, &session_flags));
         close_hs_cursor = true;
     }
