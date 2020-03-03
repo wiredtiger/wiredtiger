@@ -116,10 +116,10 @@ __wt_schema_session_release(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_sessi
  *     after skipping the URI prefix.
  */
 static int
-__str_name_check(WT_SESSION_IMPL *session, const char *name)
+__str_name_check(WT_SESSION_IMPL *session, const char *name, bool skip_wt)
 {
 
-    if (WT_PREFIX_MATCH(name, "WiredTiger"))
+    if (!skip_wt && WT_PREFIX_MATCH(name, "WiredTiger"))
         WT_RET_MSG(session, EINVAL,
           "%s: the \"WiredTiger\" name space may not be "
           "used by applications",
@@ -146,6 +146,7 @@ __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
 {
     int skipped;
     const char *name, *sep;
+    bool skip;
 
     /*
      * Check if name is somewhere in the WiredTiger name space: it would be
@@ -153,13 +154,16 @@ __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
      * leading URI prefix if needed, check and then skip over a table name.
      */
     name = str;
+    skip = false;
     for (skipped = 0; skipped < 2; skipped++) {
-        if ((sep = strchr(name, ':')) == NULL)
+        if ((sep = strchr(name, ':')) == NULL) {
+	    skip = true;
             break;
+	}
 
         name = sep + 1;
     }
-    return (__str_name_check(session, name));
+    return (__str_name_check(session, name, skip));
 }
 
 /*
@@ -178,7 +182,7 @@ __wt_name_check(WT_SESSION_IMPL *session, const char *str, size_t len, bool chec
 
     /* If we want to skip the URI check call the internal function directly. */
     ret =
-      check_uri ? __wt_str_name_check(session, tmp->data) : __str_name_check(session, tmp->data);
+      check_uri ? __wt_str_name_check(session, tmp->data) : __str_name_check(session, tmp->data, false);
 
 err:
     __wt_scr_free(session, &tmp);
