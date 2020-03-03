@@ -788,8 +788,8 @@ static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_CELL_UNPACK *vpack,
   WT_UPDATE **updp)
 {
-    WT_ITEM buf;
     WT_DECL_RET;
+    WT_ITEM buf;
     WT_TIME_PAIR start, stop;
     size_t size;
 
@@ -811,12 +811,11 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     /* Check the ondisk value. */
     if (vpack == NULL) {
         ret = __wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop);
-        if(ret != 0) {
+        if (ret != 0) {
             __wt_buf_free(session, &buf);
             WT_RET(ret);
         }
-    }
-    else {
+    } else {
         start.timestamp = vpack->start_ts;
         start.txnid = vpack->start_txn;
         stop.timestamp = vpack->stop_ts;
