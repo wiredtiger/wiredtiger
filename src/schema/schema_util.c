@@ -157,9 +157,9 @@ __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
     skip = false;
     for (skipped = 0; skipped < 2; skipped++) {
         if ((sep = strchr(name, ':')) == NULL) {
-	    skip = true;
+            skip = true;
             break;
-	}
+        }
 
         name = sep + 1;
     }
@@ -181,8 +181,8 @@ __wt_name_check(WT_SESSION_IMPL *session, const char *str, size_t len, bool chec
     WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)len, str));
 
     /* If we want to skip the URI check call the internal function directly. */
-    ret =
-      check_uri ? __wt_str_name_check(session, tmp->data) : __str_name_check(session, tmp->data, false);
+    ret = check_uri ? __wt_str_name_check(session, tmp->data) :
+                      __str_name_check(session, tmp->data, false);
 
 err:
     __wt_scr_free(session, &tmp);
