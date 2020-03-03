@@ -144,7 +144,7 @@ __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
 
 /*
  * __wt_rec_cell_build_addr --
- *     Process an address reference and return a cell structure to be stored on the page.
+ *     Process an address or unpack reference and return a cell structure to be stored on the page.
  */
 static inline void
 __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *addr,
