@@ -553,9 +553,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
          * U (selected onpage value) -> U -> T -> M -> U.
          * We write the stop time pair of M with the start time pair of the tombstone and skip the
          * tombstone.
-         * 4) We have modifies newer than a tombstone, e.g., U (selected onpage value) -> M -> T ->
-         * M -> U. In this case, the base update for the modify newer than the tombstone is the
-         * empty value.
          * 4) We have a single tombstone on the chain, it is simply ignored.
          */
         for (; upd != NULL; upd = upd->next) {
