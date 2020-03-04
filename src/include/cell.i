@@ -18,8 +18,7 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t durable_sta
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (durable_start_ts != WT_TS_NONE && durable_stop_ts != WT_TS_NONE &&
-      durable_stop_ts > durable_start_ts) {
+    if (durable_start_ts > durable_stop_ts) {
         __wt_errx(session, "a durable start timestamp %s newer than its durable stop timestamp %s",
           __wt_timestamp_to_string(durable_start_ts, ts_string[0]),
           __wt_timestamp_to_string(durable_stop_ts, ts_string[1]));
@@ -536,7 +535,7 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, wt_ti
     wt_timestamp_t durable_start_ts, durable_stop_ts;
     uint8_t *p;
 
-    /* XXX The durable timestamps should be passed in. */
+    /* XXX The durable timestamps should be passed in. Should prepare flag be set? */
     durable_start_ts = WT_TS_NONE;
     durable_stop_ts = WT_TS_MAX;
 
@@ -761,7 +760,7 @@ restart:
     unpack->stop_ts = WT_TS_MAX;
     unpack->stop_txn = WT_TXN_MAX;
     unpack->oldest_durable_ts = WT_TS_NONE;
-    unpack->newest_durable_ts = WT_TS_NONE;
+    unpack->newest_durable_ts = WT_TS_MAX;
     unpack->oldest_start_ts = WT_TS_NONE;
     unpack->oldest_start_txn = WT_TXN_NONE;
     unpack->newest_stop_ts = WT_TS_MAX;
@@ -994,7 +993,7 @@ __wt_cell_unpack_dsk(
         unpack->stop_ts = WT_TS_MAX;
         unpack->stop_txn = WT_TXN_MAX;
         unpack->oldest_durable_ts = WT_TS_NONE;
-        unpack->newest_durable_ts = WT_TS_NONE;
+        unpack->newest_durable_ts = WT_TS_MAX;
         unpack->oldest_start_ts = WT_TS_NONE;
         unpack->oldest_start_txn = WT_TXN_NONE;
         unpack->newest_stop_ts = WT_TS_MAX;
