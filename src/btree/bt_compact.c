@@ -249,14 +249,9 @@ __wt_compact_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, boo
      * it's an on-disk page and we're holding the WT_REF locked, so nobody can read the page giving
      * either checkpoint or eviction a chance to modify the address.
      */
-    for (;; __wt_yield()) {
-        previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED &&
-          WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-            break;
-    }
+    WT_REF_LOCK(session, ref, &previous_state);
     diskaddr = previous_state == WT_REF_DISK && __wt_ref_addr_copy(session, ref, &addr);
-    WT_REF_SET_STATE(ref, previous_state);
+    WT_REF_UNLOCK(ref, previous_state);
     if (!diskaddr)
         return (0);
 

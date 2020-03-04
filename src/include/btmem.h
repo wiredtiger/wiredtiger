@@ -913,11 +913,8 @@ struct __wt_ref {
 #else
 #define WT_REF_SET_STATE(ref, s) WT_PUBLISH((ref)->state, s)
 #endif
-
-/* A macro wrapper allowing us to remember the callers code location */
-#define WT_REF_CAS_STATE(session, ref, old_state, new_state) \
-    __wt_ref_cas_state_int(session, ref, old_state, new_state, __func__, __LINE__)
 };
+
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
@@ -927,6 +924,24 @@ struct __wt_ref {
 #else
 #define WT_REF_SIZE 48
 #endif
+
+/* A macro wrapper allowing us to remember the callers code location */
+#define WT_REF_CAS_STATE(session, ref, old_state, new_state) \
+    __wt_ref_cas_state_int(session, ref, old_state, new_state, __func__, __LINE__)
+
+#define WT_REF_LOCK(session, ref, previous_statep)                             \
+    do {                                                                       \
+        uint8_t __previous_state;                                              \
+        for (;; __wt_yield()) {                                                \
+            __previous_state = (ref)->state;                                   \
+            if (__previous_state != WT_REF_LOCKED &&                           \
+              WT_REF_CAS_STATE(session, ref, __previous_state, WT_REF_LOCKED)) \
+                break;                                                         \
+        }                                                                      \
+        *(previous_statep) = __previous_state;                                 \
+    } while (0)
+
+#define WT_REF_UNLOCK(ref, state) WT_REF_SET_STATE(ref, state)
 
 /*
  * WT_ROW --

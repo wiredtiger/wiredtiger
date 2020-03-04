@@ -207,12 +207,7 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
     }
 
     /* Lock the WT_REF. */
-    for (;; __wt_yield()) {
-        previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED &&
-          WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-            break;
-    }
+    WT_REF_LOCK(session, ref, &previous_state);
 
     /*
      * If the page is on-disk and obsolete, mark the page as deleted and also set the parent page as
@@ -231,12 +226,12 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
         }
 
         if (obsolete) {
-            WT_REF_SET_STATE(ref, WT_REF_DELETED);
+            WT_REF_UNLOCK(ref, WT_REF_DELETED);
             WT_STAT_CONN_INCR(session, hs_gc_pages_removed);
 
             WT_RET(__wt_page_parent_modify_set(session, ref, true));
         } else
-            WT_REF_SET_STATE(ref, previous_state);
+            WT_REF_UNLOCK(ref, previous_state);
 
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
           "%p on-disk page obsolete check: %s"
@@ -245,17 +240,16 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
           __wt_time_pair_to_string(newest_stop_ts, newest_stop_txn, tp_string));
         return (0);
     }
+    WT_REF_UNLOCK(ref, previous_state);
 
     /*
      * Ignore pages that aren't in-memory for some reason other than they're on-disk, for example,
      * they might have split or been deleted while we were locking the WT_REF.
      */
     if (previous_state != WT_REF_MEM) {
-        WT_REF_SET_STATE(ref, previous_state);
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping page", (void *)ref);
         return (0);
     }
-    WT_REF_SET_STATE(ref, previous_state);
 
     /*
      * Reviewing in-memory pages requires looking at page reconciliation results and we must ensure
