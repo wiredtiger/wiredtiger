@@ -1026,7 +1026,7 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
      */
     F_SET(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
 retry:
-    hs_cursor->set_key(hs_cursor, btree_id, key, WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TXN_NONE);
+    hs_cursor->set_key(hs_cursor, btree_id, key, WT_TS_NONE, 0);
     ret = hs_cursor->search_near(hs_cursor, &exact);
     /* Empty history store is fine. */
     if (ret == WT_NOTFOUND)
