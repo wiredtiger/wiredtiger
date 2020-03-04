@@ -1114,7 +1114,7 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
      */
     if (!rollback && upd == NULL && cbt != NULL && cbt->btree->type != BTREE_COL_FIX &&
       cbt->ins == NULL) {
-        WT_ERR(__wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop));
+        __wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop);
         if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX)
             rollback = !__wt_txn_visible(session, stop.txnid, stop.timestamp);
         else
@@ -1127,7 +1127,6 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
         ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
     }
 
-err:
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
     return (ret);

@@ -121,6 +121,13 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         goto err;
 
     /*
+     * Additionally if the aggregated start time pair on the page is not visible to us then we
+     * cannot truncate the page.
+     */
+    if (!__wt_txn_visible(session, ref_addr->oldest_start_txn, ref_addr->oldest_start_ts))
+        goto err;
+
+    /*
      * This action dirties the parent page: mark it dirty now, there's no future reconciliation of
      * the child leaf page that will dirty it as we write the tree.
      */
@@ -294,6 +301,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page;
     WT_PAGE_DELETED *page_del;
     WT_ROW *rip;
+    WT_TIME_PAIR start, stop;
     WT_UPDATE **upd_array, *upd;
     size_t size;
     uint32_t count, i;
@@ -380,22 +388,29 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 page_del->update_list[count++] = upd;
         }
     WT_ROW_FOREACH (page, rip, i) {
-        WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
-        upd->next = upd_array[WT_ROW_SLOT(page, rip)];
-        upd_array[WT_ROW_SLOT(page, rip)] = upd;
+        /*
+         * Retrieve the stop time pair from the page's row. If we find an existing stop time pair we
+         * don't need to append a tombstone.
+         */
+        __wt_read_row_time_pairs(session, page, rip, &start, &stop);
+        if (stop.timestamp == WT_TS_MAX && stop.txnid == WT_TXN_MAX) {
+            WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
+            upd->next = upd_array[WT_ROW_SLOT(page, rip)];
+            upd_array[WT_ROW_SLOT(page, rip)] = upd;
 
-        if (page_del != NULL)
-            page_del->update_list[count++] = upd;
+            if (page_del != NULL)
+                page_del->update_list[count++] = upd;
 
-        if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
-            WT_SKIP_FOREACH (ins, insert) {
-                WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
-                upd->next = ins->upd;
-                ins->upd = upd;
+            if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
+                WT_SKIP_FOREACH (ins, insert) {
+                    WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
+                    upd->next = ins->upd;
+                    ins->upd = upd;
 
-                if (page_del != NULL)
-                    page_del->update_list[count++] = upd;
-            }
+                    if (page_del != NULL)
+                        page_del->update_list[count++] = upd;
+                }
+        }
     }
 
     __wt_cache_page_inmem_incr(session, page, size);

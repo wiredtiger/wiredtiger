@@ -96,17 +96,28 @@ __time_pairs_set(WT_TIME_PAIR *start, WT_TIME_PAIR *stop, WT_CELL_UNPACK *unpack
 }
 
 /*
+ * __wt_read_col_time_pairs --
+ *     Retrieve the time pairs from a column store cell.
+ */
+void
+__wt_read_col_time_pairs(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, WT_TIME_PAIR *start, WT_TIME_PAIR *stop)
+{
+    WT_CELL_UNPACK unpack;
+
+    __wt_cell_unpack(session, page, cell, &unpack);
+    __time_pairs_set(start, stop, &unpack);
+}
+
+/*
  * __wt_read_cell_time_pairs --
  *     Read the time pairs from the cell.
  */
-int
+void
 __wt_read_cell_time_pairs(
   WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_TIME_PAIR *start, WT_TIME_PAIR *stop)
 {
-    WT_CELL *cell;
-    WT_CELL_UNPACK unpack;
     WT_PAGE *page;
-    WT_ROW *rip;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -114,30 +125,38 @@ __wt_read_cell_time_pairs(
 
     WT_ASSERT(session, start != NULL && stop != NULL);
 
-    __time_pairs_init(start, stop);
-
+    /* Take the value from the original page cell. */
     if (page->type == WT_PAGE_ROW_LEAF) {
-        rip = &page->pg_row[cbt->slot];
-
-        /*
-         * If a value is simple and is globally visible at the time of reading a page into cache, we
-         * set the time pairs as globally visible.
-         */
-        if (__wt_row_leaf_value_exists(rip))
-            return (0);
-
-        /* Take the value from the original page cell. */
-        __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
-        __time_pairs_set(start, stop, &unpack);
+        __wt_read_row_time_pairs(session, page, &page->pg_row[cbt->slot], start, stop);
     } else if (page->type == WT_PAGE_COL_VAR) {
-        /* Take the value from the original page cell. */
-        cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
-        __wt_cell_unpack(session, page, cell, &unpack);
-        __time_pairs_set(start, stop, &unpack);
+        __wt_read_col_time_pairs(
+          session, page, WT_COL_PTR(page, &page->pg_var[cbt->slot]), start, stop);
+    } else {
+        /* WT_PAGE_COL_FIX: return the default time pairs. */
+        __time_pairs_init(start, stop);
     }
+}
 
-    /* WT_PAGE_COL_FIX: return the default time pairs. */
-    return (0);
+/*
+ * __wt_read_row_time_pairs --
+ *     Retrieve the time pairs from a row.
+ */
+void
+__wt_read_row_time_pairs(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_TIME_PAIR *start, WT_TIME_PAIR *stop)
+{
+    WT_CELL_UNPACK unpack;
+
+    __time_pairs_init(start, stop);
+    /*
+     * If a value is simple and is globally visible at the time of reading a page into cache, we set
+     * the time pairs as globally visible.
+     */
+    if (__wt_row_leaf_value_exists(rip))
+        return;
+
+    __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
+    __time_pairs_set(start, stop, &unpack);
 }
 
 /*
