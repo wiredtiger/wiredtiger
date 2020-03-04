@@ -114,10 +114,10 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_
  *     Check the address' validity window for sanity.
  */
 static inline void
-__wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_durable_start_ts,
-  wt_timestamp_t newest_durable_stop_ts, wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
-  wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
+__wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_ts,
+  uint64_t oldest_start_txn, wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
 {
+/* XXX accept durable timestamps as args, and do checks on them. */
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -140,18 +140,8 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_durable
           oldest_start_txn, newest_stop_txn);
         WT_ASSERT(session, oldest_start_txn <= newest_stop_txn);
     }
-    if (oldest_durable_start_ts != WT_TS_NONE && newest_durable_stop_ts != WT_TS_MAX &&
-      oldest_durable_stop_ts > newest_durable_start_ts) {
-        __wt_errx(session,
-          "an oldest durable start timestamp %s newer than its newest stop timestamp %s",
-          __wt_timestamp_to_string(oldest_durable_start_ts, ts_string[0]),
-          __wt_timestamp_to_string(newest_durable_stop_ts, ts_string[1]));
-        WT_ASSERT(session, oldest_durable_start_ts <= newest_durable_stop_ts);
-    }
 #else
     WT_UNUSED(session);
-    WT_UNUSED(oldest_durable_start_ts);
-    WT_UNUSED(newest_durable_stop_ts);
     WT_UNUSED(oldest_start_ts);
     WT_UNUSED(oldest_start_txn);
     WT_UNUSED(newest_stop_ts);
@@ -170,8 +160,9 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
 {
     uint8_t flags, *flagsp;
 
-    __wt_check_addr_validity(session, oldest_durable_ts, newest_durable_ts, oldest_start_ts,
-      oldest_start_txn, newest_stop_ts, newest_stop_txn);
+    /* XXX Check validity of durable timestamps. */
+    __wt_check_addr_validity(
+      session, oldest_start_ts, oldest_start_txn, newest_stop_ts, newest_stop_txn);
 
     /* Globally visible values have no associated validity window, set a flag bit and store them. */
     if (oldest_durable_ts == WT_TS_NONE && newest_durable_ts == WT_TS_MAX &&
@@ -539,11 +530,15 @@ __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
  *     Pack an overflow cell.
  */
 static inline size_t
-__wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type,
-  wt_timestamp_t durable_start_ts, wt_timestamp_t durable_stop_ts, wt_timestamp_t start_ts,
+__wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, wt_timestamp_t start_ts,
   uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, size_t size)
 {
+    wt_timestamp_t durable_start_ts, durable_stop_ts;
     uint8_t *p;
+
+    /* XXX The durable timestamps should be passed in. */
+    durable_start_ts = WT_TS_NONE;
+    durable_stop_ts = WT_TS_MAX;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
@@ -846,9 +841,9 @@ restart:
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->newest_stop_txn));
             unpack->newest_stop_txn += unpack->oldest_start_txn;
         }
-        __wt_check_addr_validity(session, unpack->oldest_durable_ts, unpack->newest_durable_ts,
-          unpack->oldest_start_ts, unpack->oldest_start_txn, unpack->newest_stop_ts,
-          unpack->newest_stop_txn);
+        /* XXX Check validity of durable timestamps. */
+        __wt_check_addr_validity(session, unpack->oldest_start_ts, unpack->oldest_start_txn,
+          unpack->newest_stop_ts, unpack->newest_stop_txn);
         break;
     case WT_CELL_DEL:
     case WT_CELL_VALUE:

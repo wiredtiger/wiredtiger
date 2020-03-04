@@ -587,10 +587,9 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ckpt->size = (uint64_t)a.val;
 
     /* Default to durability. */
-    /* XXX oldest_durable_ts needs to be written and read from the configuration. */
     ret = __wt_config_subgets(session, v, "newest_durable_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
-    ckpt->newest_durable_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_MAX : (uint64_t)a.val;
+    ckpt->newest_durable_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
     ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     ckpt->oldest_start_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
@@ -603,8 +602,8 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
     ckpt->newest_stop_txn = ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_MAX : (uint64_t)a.val;
-    __wt_check_addr_validity(session, WT_TS_NONE, ckpt->newest_durable_ts, ckpt->oldest_start_ts,
-      ckpt->oldest_start_txn, ckpt->newest_stop_ts, ckpt->newest_stop_txn);
+    __wt_check_addr_validity(session, ckpt->oldest_start_ts, ckpt->oldest_start_txn,
+      ckpt->newest_stop_ts, ckpt->newest_stop_txn);
 
     WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
     if (a.len == 0)
@@ -690,10 +689,8 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
                 WT_RET(__wt_raw_to_hex(session, ckpt->raw.data, ckpt->raw.size, &ckpt->addr));
         }
 
-        /* XXX Need two durable timestamps. */
-        __wt_check_addr_validity(session, WT_TS_NONE, ckpt->newest_durable_ts,
-          ckpt->oldest_start_ts, ckpt->oldest_start_txn, ckpt->newest_stop_ts,
-          ckpt->newest_stop_txn);
+        __wt_check_addr_validity(session, ckpt->oldest_start_ts, ckpt->oldest_start_txn,
+          ckpt->newest_stop_ts, ckpt->newest_stop_txn);
 
         WT_RET(__wt_buf_catfmt(session, buf, "%s%s", sep, ckpt->name));
         sep = ",";
@@ -704,7 +701,6 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         /*
          * Use PRId64 formats: WiredTiger's configuration code handles signed 8B values.
          */
-        /* XXX oldest_durable_ts needs to be written to the configuration. */
         WT_RET(__wt_buf_catfmt(session, buf,
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
           ",newest_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",oldest_start_txn=%" PRId64
