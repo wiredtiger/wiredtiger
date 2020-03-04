@@ -151,14 +151,14 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     uint32_t hs_btree_id, session_flags;
     uint8_t type;
     int cmp;
-    bool valid_update_found;
+    bool is_owner, valid_update_found;
 
     hs_cursor = NULL;
     hs_upd = upd = NULL;
     durable_ts = hs_start_ts = newer_hs_ts = WT_TS_NONE;
     hs_btree_id = S2BT(session)->id;
     session_flags = 0;
-    valid_update_found = false;
+    is_owner = valid_update_found = false;
 
     /* Allocate buffers for the data store and history store key. */
     WT_RET(__wt_scr_alloc(session, 0, &key));
@@ -177,7 +177,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_ERR(__wt_buf_set(session, &full_value, full_value.data, full_value.size));
 
     /* Open a history store table cursor. */
-    WT_ERR(__wt_hs_cursor(session, &session_flags));
+    WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
     hs_cursor = session->hs_cursor;
     cbt = (WT_CURSOR_BTREE *)hs_cursor;
 
@@ -301,7 +301,7 @@ err:
     __wt_buf_free(session, &full_value);
     __wt_free(session, hs_upd);
     __wt_free(session, upd);
-    if (hs_cursor != NULL)
+    if (hs_cursor != NULL && is_owner)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
 
     return (ret);
@@ -794,16 +794,18 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
     uint64_t hs_counter;
     uint32_t hs_btree_id, session_flags;
     int exact;
+    bool is_owner;
 
     hs_cursor = NULL;
     WT_CLEAR(key);
     hs_upd = NULL;
     session_flags = 0;
+    is_owner = false;
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
 
     /* Open a history store table cursor. */
-    WT_ERR(__wt_hs_cursor(session, &session_flags));
+    WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
     hs_cursor = session->hs_cursor;
     cbt = (WT_CURSOR_BTREE *)hs_cursor;
 
@@ -847,7 +849,7 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
 err:
     __wt_scr_free(session, &hs_key);
     __wt_free(session, hs_upd);
-    if (hs_cursor != NULL)
+    if (hs_cursor != NULL && is_owner)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
 
     return (ret);

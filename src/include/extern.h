@@ -745,7 +745,7 @@ extern int __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_create(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags)
+extern int __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags, bool *is_owner)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

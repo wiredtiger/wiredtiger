@@ -50,21 +50,17 @@ __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 {
     WT_DECL_RET;
     uint32_t session_flags;
-    bool close_hs_cursor;
+    bool is_owner;
 
     *hs_btreep = NULL;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
-    close_hs_cursor = false;
 
-    if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
-        WT_RET(__wt_hs_cursor(session, &session_flags));
-        close_hs_cursor = true;
-    }
+    WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
 
     *hs_btreep = ((WT_CURSOR_BTREE *)session->hs_cursor)->btree;
     WT_ASSERT(session, *hs_btreep != NULL);
 
-    if (close_hs_cursor)
+    if (is_owner)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
 
     return (ret);
@@ -201,7 +197,7 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
  *     Return a history store cursor, open one if not already open.
  */
 int
-__wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags)
+__wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags, bool *is_owner)
 {
     /* We should never reach here if working in context of the default session. */
     WT_ASSERT(session, S2C(session)->default_session != session);
@@ -214,10 +210,14 @@ __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags)
      * reason to believe history store pages will be useful more than once.
      */
     *session_flags = F_MASK(session, WT_HS_SESSION_FLAGS);
+    *is_owner = false;
 
     /* Open a cursor if this session doesn't already have one. */
-    if (!F_ISSET(session, WT_SESSION_HS_CURSOR))
+    if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
+        /* The caller is responsible for closing this cursor. */
+        *is_owner = true;
         WT_RET(__wt_hs_cursor_open(session));
+    }
 
     WT_ASSERT(session, session->hs_cursor != NULL);
 
@@ -790,7 +790,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     uint32_t hs_btree_id, session_flags;
     uint8_t *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
-    bool modify;
+    bool is_owner, modify;
 
     *updp = NULL;
     hs_cursor = NULL;
@@ -804,6 +804,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     hs_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     WT_NOT_READ(modify, false);
+    is_owner = false;
 
     /* Row-store has the key available, create the column-store key on demand. */
     switch (cbt->btree->type) {
@@ -825,7 +826,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     /* Open a history store table cursor. */
-    WT_ERR(__wt_hs_cursor(session, &session_flags));
+    WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
     hs_cursor = session->hs_cursor;
 
     /*
@@ -959,7 +960,8 @@ err:
      * harm in doing this multiple times.
      */
     __hs_restore_read_timestamp(session, saved_timestamp);
-    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    if (is_owner)
+        WT_TRET(__wt_hs_cursor_close(session, session_flags));
 
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
@@ -998,27 +1000,19 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
     uint64_t hs_counter;
     uint32_t hs_btree_id, session_flags;
     int cmp, exact;
-    bool close_hs_cursor;
+    bool is_owner;
 
     session_flags = session->flags;
-    close_hs_cursor = false;
 
     /*
-     * If we already have a history store cursor then don't open a new one. We do this while writing
-     * updates to the history store so it's important that we don't close the cursor since the upper
-     * layer logic will still be expecting it to be open.
+     * Some code paths such as schema removal involve deleting keys in metadata and assert that we
+     * shouldn't be opening new dhandles. We won't ever need to blow away history store content in
+     * these cases so let's just return early here.
      */
-    if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
-        /*
-         * Some code paths such as schema removal involve deleting keys in metadata and assert that
-         * we shouldn't be opening new dhandles. We won't ever need to blow away history store
-         * content in these cases so let's just return early here.
-         */
-        if (F_ISSET(session, WT_SESSION_NO_DATA_HANDLES))
-            return (0);
-        WT_RET(__wt_hs_cursor(session, &session_flags));
-        close_hs_cursor = true;
-    }
+    if (F_ISSET(session, WT_SESSION_NO_DATA_HANDLES))
+        return (0);
+
+    WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
     hs_cursor = session->hs_cursor;
     /*
      * In order to delete a key range, we need to be able to inspect all history store records
@@ -1054,7 +1048,7 @@ done:
 err:
     if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
         F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
-    if (close_hs_cursor)
+    if (is_owner)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
     else
         /* If the cursor isn't ours to close then at least release the page we're pointing at. */
