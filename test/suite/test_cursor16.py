@@ -30,7 +30,7 @@
 #   Cursors: final close of cached cursors
 #
 
-import unittest, wttest
+import wttest
 from wiredtiger import stat
 
 class test_cursor16(wttest.WiredTigerTestCase):
@@ -48,7 +48,6 @@ class test_cursor16(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return cache
 
-    @unittest.skip("Temporarily disabled")
     def test_cursor16(self):
         uris = []
         cursors = []
