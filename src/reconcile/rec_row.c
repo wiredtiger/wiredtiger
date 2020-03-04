@@ -794,7 +794,20 @@ __wt_rec_row_leaf(
             stop_ts = upd_select.stop_ts;
             stop_txn = upd_select.stop_txn;
         } else {
-            durable_ts = newest_durable_ts;
+            /*
+             * FIXME: Temporary fix until the value cell has the durable timestamp. Currently, value
+             * cell doesn't store the information of durable timestamp, so we lose the information
+             * of aggregated durable timestamp information when the page is reconciled without
+             * writing to the disk (in-memory page re-instantiate). As part of page re-instantiate
+             * scenarios, the calculated aggregated durable timestamp gets lost and when the same
+             * page gets reconciled again, we don't have any durable timestamp from the cell. Use
+             * commit timestamp from the cell also as the durable timestamp instead of setting it to
+             * zero until we store the durable timestamp in the cell.
+             */
+            if (newest_durable_ts != WT_TS_NONE)
+                durable_ts = newest_durable_ts;
+            else
+                durable_ts = vpack->start_ts;
             start_ts = vpack->start_ts;
             start_txn = vpack->start_txn;
             stop_ts = vpack->stop_ts;
