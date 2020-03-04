@@ -96,20 +96,6 @@ __time_pairs_set(WT_TIME_PAIR *start, WT_TIME_PAIR *stop, WT_CELL_UNPACK *unpack
 }
 
 /*
- * __wt_read_col_time_pairs --
- *     Retrieve the time pairs from a column store cell.
- */
-void
-__wt_read_col_time_pairs(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, WT_TIME_PAIR *start, WT_TIME_PAIR *stop)
-{
-    WT_CELL_UNPACK unpack;
-
-    __wt_cell_unpack(session, page, cell, &unpack);
-    __time_pairs_set(start, stop, &unpack);
-}
-
-/*
  * __wt_read_cell_time_pairs --
  *     Read the time pairs from the cell.
  */
@@ -135,6 +121,20 @@ __wt_read_cell_time_pairs(
         /* WT_PAGE_COL_FIX: return the default time pairs. */
         __time_pairs_init(start, stop);
     }
+}
+
+/*
+ * __wt_read_col_time_pairs --
+ *     Retrieve the time pairs from a column store cell.
+ */
+void
+__wt_read_col_time_pairs(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, WT_TIME_PAIR *start, WT_TIME_PAIR *stop)
+{
+    WT_CELL_UNPACK unpack;
+
+    __wt_cell_unpack(session, page, cell, &unpack);
+    __time_pairs_set(start, stop, &unpack);
 }
 
 /*
