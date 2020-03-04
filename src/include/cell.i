@@ -60,7 +60,7 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t durable_sta
 static inline void
 __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t durable_start_ts,
   wt_timestamp_t durable_stop_ts, wt_timestamp_t start_ts, uint64_t start_txn,
-  wt_timestamp_t stop_ts, uint64_t stop_txn)
+  wt_timestamp_t stop_ts, uint64_t stop_txn, bool prepare)
 {
     uint8_t flags, *flagsp;
 
@@ -104,6 +104,8 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_
             WT_IGNORE_RET(__wt_vpack_uint(pp, 0, stop_txn - start_txn));
             LF_SET(WT_CELL_TXN_STOP);
         }
+        if (prepare)
+            LF_SET(WT_CELL_PREPARE);
         *flagsp = flags;
     }
 }
@@ -270,8 +272,8 @@ __wt_cell_pack_value(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t sta
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_value_validity(
-      session, &p, durable_start_ts, durable_stop_ts, start_ts, start_txn, stop_ts, stop_txn);
+    __cell_pack_value_validity(session, &p, durable_start_ts, durable_stop_ts, start_ts, start_txn,
+      stop_ts, stop_txn, prepare);
 
     /*
      * Short data cells without a validity window or run-length encoding have 6 bits of data length
@@ -412,8 +414,8 @@ __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t star
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_value_validity(
-      session, &p, durable_start_ts, durable_stop_ts, start_ts, start_txn, stop_ts, stop_txn);
+    __cell_pack_value_validity(session, &p, durable_start_ts, durable_stop_ts, start_ts, start_txn,
+      stop_ts, stop_txn, prepare);
 
     if (rle < 2)
         cell->__chunk[0] |= WT_CELL_VALUE_COPY; /* Type */
@@ -443,7 +445,7 @@ __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t start
     *p = '\0';
 
     __cell_pack_value_validity(
-      session, &p, WT_TS_NONE, WT_TS_NONE, start_ts, start_txn, stop_ts, stop_txn);
+      session, &p, WT_TS_NONE, WT_TS_NONE, start_ts, start_txn, stop_ts, stop_txn, false);
 
     if (rle < 2)
         cell->__chunk[0] |= WT_CELL_DEL; /* Type */
@@ -534,10 +536,12 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, wt_ti
 {
     wt_timestamp_t durable_start_ts, durable_stop_ts;
     uint8_t *p;
+    bool prepare;
 
-    /* XXX The durable timestamps should be passed in. Should prepare flag be set? */
+    /* XXX The durable timestamps should be passed in. */
     durable_start_ts = WT_TS_NONE;
     durable_stop_ts = WT_TS_MAX;
+    prepare = false;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
@@ -550,8 +554,8 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, wt_ti
         break;
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
-        __cell_pack_value_validity(
-          session, &p, durable_start_ts, durable_stop_ts, start_ts, start_txn, stop_ts, stop_txn);
+        __cell_pack_value_validity(session, &p, durable_start_ts, durable_stop_ts, start_ts,
+          start_txn, stop_ts, stop_txn, prepare);
         break;
     }
 
