@@ -115,9 +115,13 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * version of it we read, as long as we don't read it twice.
      */
     WT_ORDERED_READ(ref_addr, ref->addr);
-    if (ref_addr != NULL && (__wt_off_page(ref->home, ref_addr) ?
-                                ref_addr->type != WT_ADDR_LEAF_NO :
-                                __wt_cell_type_raw((WT_CELL *)ref_addr) != WT_CELL_ADDR_LEAF_NO))
+    /* The address shouldn't be NULL here. */
+    if (ref_addr == NULL)
+        goto err;
+
+    if (__wt_off_page(ref->home, ref_addr) ?
+        ref_addr->type != WT_ADDR_LEAF_NO :
+        __wt_cell_type_raw((WT_CELL *)ref_addr) != WT_CELL_ADDR_LEAF_NO)
         goto err;
 
     /*
