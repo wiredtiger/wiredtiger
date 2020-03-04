@@ -1095,9 +1095,17 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     WT_CELL_UNPACK *unpack, _unpack;
     WT_PAGE *page;
 
-    addr = ref->addr;
     unpack = &_unpack;
     page = ref->home;
+
+    /*
+     * To look at an on-page cell, we need to look at the parent page's disk image, and that can be
+     * dangerous. The problem is if the parent page splits, deepening the tree. As part of that
+     * process, the WT_REF WT_ADDRs pointing into the parent's disk image are copied into off-page
+     * WT_ADDRs and swapped into place. The content of the two WT_ADDRs are identical, and we don't
+     * care which version we get as long as we don't mix-and-match the two.
+     */
+    WT_ORDERED_READ(addr, ref->addr);
 
     /* If NULL, there is no information. */
     if (addr == NULL)
@@ -1110,6 +1118,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
         copy->oldest_start_txn = addr->oldest_start_txn;
         copy->newest_stop_ts = addr->newest_stop_ts;
         copy->newest_stop_txn = addr->newest_stop_txn;
+        copy->type = addr->type;
         memcpy(copy->addr, addr->addr, copy->size = addr->size);
         return (true);
     }
@@ -1121,6 +1130,17 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     copy->oldest_start_txn = unpack->oldest_start_txn;
     copy->newest_stop_ts = unpack->newest_stop_ts;
     copy->newest_stop_txn = unpack->newest_stop_txn;
+    switch (unpack->raw) {
+    case WT_CELL_ADDR_INT:
+        copy->type = WT_ADDR_INT;
+        break;
+    case WT_CELL_ADDR_LEAF:
+        copy->type = WT_ADDR_LEAF;
+        break;
+    case WT_CELL_ADDR_LEAF_NO:
+        copy->type = WT_ADDR_LEAF_NO;
+        break;
+    }
     memcpy(copy->addr, unpack->data, copy->size = (uint8_t)unpack->size);
     return (true);
 }
