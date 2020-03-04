@@ -290,7 +290,8 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
         newest_stop_txn = addr.newest_stop_txn;
         newest_stop_ts = addr.newest_stop_ts;
         obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_ts);
-    }
+    } else
+        tag = "unexpected page state";
 
     /* If the page is obsolete, add it to the list of pages to be evicted. */
     if (obsolete) {
