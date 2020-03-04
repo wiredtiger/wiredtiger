@@ -191,6 +191,7 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
     ckptbase->oldest_start_txn = WT_TXN_NONE;
     ckptbase->newest_stop_ts = WT_TS_MAX;
     ckptbase->newest_stop_txn = WT_TXN_MAX;
+    ckptbase->write_gen = btree->write_gen;
     F_SET(ckptbase, WT_CKPT_ADD);
 
     /*
@@ -344,15 +345,22 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * !!! (Don't format the comment.)
      * Step 7:
+     * Track the maximum write gen of the leaf pages and set that as the btree write gen.
      * Build an internal page that references all of the leaf pages, and write it, as well as any
      * merged pages, to the file.
+     *
+     * In the case of metadata, we will bump the connection base write gen to the metadata write gen
+     * after metadata salvage completes.
      *
      * Count how many leaf pages we have (we could track this during the array shuffling/splitting,
      * but that's a lot harder).
      */
     for (leaf_cnt = i = 0; i < ss->pages_next; ++i)
-        if (ss->pages[i] != NULL)
+        if (ss->pages[i] != NULL) {
             ++leaf_cnt;
+            btree->write_gen = WT_MAX(btree->write_gen, ss->pages[i]->shared->gen);
+        }
+
     if (leaf_cnt != 0)
         switch (ss->page_type) {
         case WT_PAGE_COL_FIX:

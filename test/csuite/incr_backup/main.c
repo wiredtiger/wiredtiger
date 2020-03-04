@@ -175,9 +175,9 @@ key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPER
     if (op_type == REMOVE)
         return; /* remove needs no key */
 
-    /* The value sizes vary "predictably" between 10 and the max value size for this table. */
-    value_size = 10 + (change_count * 103) % (item->size - 20);
-    testutil_assert(item->size > value_size);
+    /* The value sizes vary "predictably" up to the max value size for this table. */
+    value_size = 1 + (change_count * 103) % item->size;
+    testutil_assert(value_size <= item->size);
 
     /*
      * For a given key, a value is first inserted, then later updated, then modified. When a value
