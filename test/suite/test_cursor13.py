@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest, time
+import wiredtiger, wttest, time, unittest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 import test_cursor01, test_cursor02, test_cursor03
@@ -119,6 +119,7 @@ class test_cursor13_ckpt2(test_checkpoint02.test_checkpoint02,
                           test_cursor13_base):
     pass
 
+@unittest.skip("Temporarily disabled")
 class test_cursor13_reopens(test_cursor13_base):
     # The SimpleDataSet uses simple tables, that have no column groups or
     # indices. Thus, these tables will be cached. The more complex data sets
@@ -420,6 +421,7 @@ class test_cursor13_big_base(test_cursor13_base):
             cursors.pop(i).close()
             self.closecount += 1
 
+@unittest.skip("Temporarily disabled")
 class test_cursor13_big(test_cursor13_big_base):
     scenarios = make_scenarios([
         ('file', dict(uri='file:cursor13_sweep_a')),
