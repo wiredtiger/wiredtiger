@@ -1160,8 +1160,6 @@ extern int __wt_raw_to_esc_hex(WT_SESSION_IMPL *session, const uint8_t *from, si
   WT_ITEM *to) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_raw_to_hex(WT_SESSION_IMPL *session, const uint8_t *from, size_t size, WT_ITEM *to)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_read_cell_time_pairs(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_TIME_PAIR *start,
-  WT_TIME_PAIR *stop) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_realloc(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret,
   size_t bytes_to_allocate, void *retp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_realloc_aligned(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret,
@@ -1702,6 +1700,12 @@ extern void __wt_random_init(WT_RAND_STATE volatile *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_read_cell_time_pairs(
+  WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_TIME_PAIR *start, WT_TIME_PAIR *stop);
+extern void __wt_read_col_time_pairs(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, WT_TIME_PAIR *start, WT_TIME_PAIR *stop);
+extern void __wt_read_row_time_pairs(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_TIME_PAIR *start, WT_TIME_PAIR *stop);
 extern void __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_rec_dictionary_free(WT_SESSION_IMPL *session, WT_RECONCILE *r);
