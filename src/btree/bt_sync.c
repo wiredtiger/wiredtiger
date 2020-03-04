@@ -79,28 +79,22 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
  *     Get a duplicate hazard pointer.
  */
 static inline int
-__sync_dup_hazard_pointer(WT_SESSION_IMPL *session, WT_REF *walk, WT_REF **dupp)
+__sync_dup_hazard_pointer(WT_SESSION_IMPL *session, WT_REF *walk)
 {
     bool busy;
 
     /* Get a duplicate hazard pointer. */
     for (;;) {
-#ifdef HAVE_DIAGNOSTIC
-        WT_RET(__wt_hazard_set(session, walk, &busy, __func__, __LINE__));
-#else
-        WT_RET(__wt_hazard_set(session, walk, &busy));
-#endif
         /*
          * We already have a hazard pointer, we should generally be able to get another one. We can
-         * get spurious busy errors (e.g., if eviction is attempting to lock the page. Keep trying:
+         * get spurious busy errors (e.g., if eviction is attempting to lock the page). Keep trying:
          * we have one hazard pointer so we should be able to get another one.
          */
+        WT_RET(__wt_hazard_set(session, walk, &busy));
         if (!busy)
             break;
         __wt_yield();
     }
-
-    *dupp = walk;
     return (0);
 }
 
@@ -124,7 +118,9 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
         return (0);
     }
 
-    return (__sync_dup_hazard_pointer(session, walk, dupp));
+    WT_RET(__sync_dup_hazard_pointer(session, walk));
+    *dupp = walk;
+    return (0);
 }
 
 /*
@@ -179,16 +175,17 @@ __sync_ref_list_pop(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, uint32_t flags)
 static int
 __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rlp)
 {
-    WT_ADDR *addr;
-    WT_CELL_UNPACK vpack;
+    WT_ADDR_COPY addr;
+    WT_DECL_RET;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
-    WT_REF *dup;
-    wt_timestamp_t multi_newest_stop_ts;
-    uint64_t multi_newest_stop_txn;
+    wt_timestamp_t newest_stop_ts;
+    uint64_t newest_stop_txn;
     uint32_t i;
     uint8_t previous_state;
-    bool obsolete;
+    char tp_string[WT_TP_STRING_SIZE];
+    const char *tag;
+    bool busy, hazard, obsolete;
 
     /* Ignore root pages as they can never be deleted. */
     if (__wt_ref_is_root(ref)) {
@@ -196,7 +193,20 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
         return (0);
     }
 
-    /* Lock the ref to avoid any change during the obsolete checks.*/
+    /* Ignore internal pages, these are taken care of during reconciliation. */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping internal page with parent: %p",
+          (void *)ref, (void *)ref->home);
+        return (0);
+    }
+
+    /* Fast-check, ignore deleted pages. */
+    if (ref->state == WT_REF_DELETED) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping deleted page", (void *)ref);
+        return (0);
+    }
+
+    /* Lock the WT_REF. */
     for (;; __wt_yield()) {
         previous_state = ref->state;
         if (previous_state != WT_REF_LOCKED &&
@@ -204,90 +214,106 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
             break;
     }
 
-    /* Ignore deleted pages. */
-    if (previous_state == WT_REF_DELETED) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping deleted page", (void *)ref);
-        WT_REF_SET_STATE(ref, WT_REF_DELETED);
-        return (0);
-    }
-
-    /* Ignore internal pages, these are taken care of during reconciliation. */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-        WT_REF_SET_STATE(ref, previous_state);
-        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping internal page with parent: %p",
-          (void *)ref, (void *)ref->home);
-        return (0);
-    }
-
-    WT_STAT_CONN_INCR(session, hs_gc_pages_visited);
-    multi_newest_stop_ts = WT_TS_NONE;
-    multi_newest_stop_txn = WT_TXN_NONE;
-    addr = ref->addr;
-    mod = ref->page == NULL ? NULL : ref->page->modify;
+    /*
+     * If the page is on-disk and obsolete, mark the page as deleted and also set the parent page as
+     * dirty. This is to ensure the parent is written during the checkpoint and the child page
+     * discarded.
+     */
+    newest_stop_ts = WT_TS_NONE;
+    newest_stop_txn = WT_TXN_NONE;
     obsolete = false;
-
-    /* Check for the page obsolete, if the page is modified and reconciled. */
-    if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
-          "%p: page obsolete check with reconciled replace block stop time pair txn "
-          "and timestamp: %" PRIu64 ", %" PRIu64,
-          (void *)ref, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts);
-        obsolete = __wt_txn_visible_all(
-          session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts);
-    } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
-        /* Calculate the max stop time pair by traversing all multi addresses. */
-        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            multi_newest_stop_ts = WT_MAX(multi_newest_stop_ts, multi->addr.newest_stop_ts);
-            multi_newest_stop_txn = WT_MAX(multi_newest_stop_txn, multi->addr.newest_stop_txn);
+    if (previous_state == WT_REF_DISK) {
+        /* There should be an address, but simply skip any page where we don't find one. */
+        if (__wt_ref_addr_copy(session, ref, &addr)) {
+            newest_stop_ts = addr.newest_stop_ts;
+            newest_stop_txn = addr.newest_stop_txn;
+            obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_ts);
         }
-        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
-          "%p: page obsolete check with reconciled multi block stop time pair txn "
-          "and timestamp: %" PRIu64 ", %" PRIu64,
-          (void *)ref, multi_newest_stop_txn, multi_newest_stop_ts);
-        obsolete = __wt_txn_visible_all(session, multi_newest_stop_txn, multi_newest_stop_ts);
-    } else if (!__wt_off_page(ref->home, addr)) {
-        /* Check if the page is obsolete using the page disk address. */
-        __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
-        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
-          "%p: page obsolete check with unpacked address stop time pair txn "
-          "and timestamp: %" PRIu64 ", %" PRIu64,
-          (void *)ref, vpack.newest_stop_txn, vpack.newest_stop_ts);
-        obsolete = __wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts);
-    } else if (addr != NULL) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
-          "%p: page obsolete check with off page address stop time pair txn "
-          "and timestamp: %" PRIu64 ", %" PRIu64,
-          (void *)ref, addr->newest_stop_txn, addr->newest_stop_ts);
-        obsolete = __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts);
-    }
 
-    if (obsolete) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: page is found as obsolete", (void *)ref);
-
-        /*
-         * Mark the page as deleted and also set the parent page as dirty. This is to ensure the
-         * parent page must be written during checkpoint and the child page discarded.
-         */
-        if (previous_state == WT_REF_DISK) {
+        if (obsolete) {
             WT_REF_SET_STATE(ref, WT_REF_DELETED);
             WT_STAT_CONN_INCR(session, hs_gc_pages_removed);
-            __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
-              "%p: page is marked for deletion with parent page: %p", (void *)ref,
-              (void *)ref->home);
-            return (__wt_page_parent_modify_set(session, ref, true));
-        }
 
-        /* Add the in-memory obsolete history store page into the list of pages to be evicted. */
-        WT_REF_SET_STATE(ref, previous_state);
-        WT_RET(__sync_dup_hazard_pointer(session, ref, &dup));
-        WT_RET(__sync_ref_list_add(session, rlp, dup));
+            WT_RET(__wt_page_parent_modify_set(session, ref, true));
+        } else
+            WT_REF_SET_STATE(ref, previous_state);
+
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
-          "%p: is an in-memory obsolete page, stored for eviction.", (void *)dup);
+          "%p on-disk page obsolete check: %s"
+          "obsolete, stop ts/txn %s",
+          (void *)ref, obsolete ? "" : "not ",
+          __wt_time_pair_to_string(newest_stop_ts, newest_stop_txn, tp_string));
         return (0);
     }
 
+    /*
+     * Ignore pages that aren't in-memory for some reason other than they're on-disk, for example,
+     * they might have split or been deleted while we were locking the WT_REF.
+     */
+    if (previous_state != WT_REF_MEM) {
+        WT_REF_SET_STATE(ref, previous_state);
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping page", (void *)ref);
+        return (0);
+    }
     WT_REF_SET_STATE(ref, previous_state);
-    return (0);
+
+    /*
+     * Reviewing in-memory pages requires looking at page reconciliation results and we must ensure
+     * we don't race with page reconciliation as it's writing the page modify information. There are
+     * two ways we call reconciliation: checkpoints and eviction. We are the checkpoint thread so
+     * that's not a problem, acquire a hazard pointer to prevent page eviction. If the page is in
+     * transition or switches state (we've already released our lock), just walk away, we'll deal
+     * with it next time.
+     */
+    WT_RET(__wt_hazard_set(session, ref, &busy));
+    if (busy)
+        return (0);
+    hazard = true;
+
+    mod = ref->page == NULL ? NULL : ref->page->modify;
+    if (mod != NULL && mod->rec_result == WT_PM_REC_EMPTY) {
+        tag = "reconciled empty";
+
+        obsolete = true;
+    } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
+        tag = "reconciled multi-block";
+
+        /* Calculate the max stop time pair by traversing all multi addresses. */
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
+            newest_stop_txn = WT_MAX(newest_stop_txn, multi->addr.newest_stop_txn);
+            newest_stop_ts = WT_MAX(newest_stop_ts, multi->addr.newest_stop_ts);
+        }
+        obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_ts);
+    } else if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
+        tag = "reconciled replacement block";
+
+        newest_stop_txn = mod->mod_replace.newest_stop_txn;
+        newest_stop_ts = mod->mod_replace.newest_stop_ts;
+        obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_ts);
+    } else if (__wt_ref_addr_copy(session, ref, &addr)) {
+        tag = "WT_REF address";
+
+        newest_stop_txn = addr.newest_stop_txn;
+        newest_stop_ts = addr.newest_stop_ts;
+        obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_ts);
+    }
+
+    /* If the page is obsolete, add it to the list of pages to be evicted. */
+    if (obsolete) {
+        WT_ERR(__sync_ref_list_add(session, rlp, ref));
+        hazard = false;
+    }
+
+    __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+      "%p in-memory page obsolete check: %s %s"
+      "obsolete, stop ts/txn %s",
+      (void *)ref, tag, obsolete ? "" : "not ",
+      __wt_time_pair_to_string(newest_stop_ts, newest_stop_txn, tp_string));
+
+err:
+    if (hazard)
+        WT_TRET(__wt_hazard_clear(session, ref));
+    return (ret);
 }
 
 /*
@@ -302,16 +328,18 @@ __sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent, WT_REF
     WT_REF *ref;
     uint32_t slot;
 
-    WT_INTL_INDEX_GET(session, parent->page, pindex);
     __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
       "%p: traversing the internal page %p for obsolete child pages", (void *)parent,
       (void *)parent->page);
 
+    WT_INTL_INDEX_GET(session, parent->page, pindex);
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
         WT_RET(__sync_ref_obsolete_check(session, ref, rlp));
     }
+
+    WT_STAT_CONN_INCRV(session, hs_gc_pages_visited, pindex->entries);
 
     return (0);
 }

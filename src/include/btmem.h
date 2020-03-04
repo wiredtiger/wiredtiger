@@ -146,6 +146,25 @@ struct __wt_addr {
 };
 
 /*
+ * WT_ADDR_COPY --
+ *	We have to lock the WT_REF to look at a WT_ADDR: a structure we can use to quickly get a
+ * copy of the WT_REF address information.
+ */
+struct __wt_addr_copy {
+    /* Validity window */
+    wt_timestamp_t newest_durable_ts;
+    wt_timestamp_t oldest_start_ts;
+    uint64_t oldest_start_txn;
+    wt_timestamp_t newest_stop_ts;
+    uint64_t newest_stop_txn;
+
+    uint8_t type;
+
+    uint8_t addr[255 /* WT_BTREE_MAX_ADDR_COOKIE */];
+    uint8_t size;
+};
+
+/*
  * Overflow tracking for reuse: When a page is reconciled, we write new K/V overflow items. If pages
  * are reconciled multiple times, we need to know if we've already written a particular overflow
  * record (so we don't write it again), as well as if we've modified an overflow record previously
