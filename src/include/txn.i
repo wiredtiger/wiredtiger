@@ -811,10 +811,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     /* Check the ondisk value. */
     if (vpack == NULL) {
         ret = __wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop);
-        if (ret != 0) {
-            __wt_buf_free(session, &buf);
-            WT_RET(ret);
-        }
+        __wt_buf_free(session, &buf);
+        WT_RET(ret);
     } else {
         start.timestamp = vpack->start_ts;
         start.txnid = vpack->start_txn;
