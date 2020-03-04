@@ -849,8 +849,9 @@ __wt_rec_row_leaf(
                     val->buf.size = vpack->size;
 
                     /* Rebuild the cell. */
-                    val->cell_len = __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, start_ts,
-                      start_txn, stop_ts, stop_txn, 0, val->buf.size);
+                    /* XXX Need two durable timestamps. */
+                    val->cell_len = __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, WT_TS_NONE,
+                      durable_ts, start_ts, start_txn, stop_ts, stop_txn, 0, val->buf.size);
                     val->len = val->cell_len + val->buf.size;
                 } else
                     WT_ERR(__rec_cell_repack(

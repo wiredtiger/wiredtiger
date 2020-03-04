@@ -128,7 +128,7 @@
  */
 struct __wt_cell {
     /*
-     * Maximum of 62 bytes:
+     * Maximum of 71 bytes:
      *  1: cell descriptor byte
      *  1: prefix compression count
      *  1: secondary descriptor byte
@@ -153,7 +153,10 @@ struct __wt_cell_unpack {
 
     uint64_t v; /* RLE count or recno */
 
-    wt_timestamp_t start_ts; /* Value validity window */
+    /* Value validity window */
+    wt_timestamp_t durable_start_ts;
+    wt_timestamp_t durable_stop_ts;
+    wt_timestamp_t start_ts;
     uint64_t start_txn;
     wt_timestamp_t stop_ts;
     uint64_t stop_txn;
