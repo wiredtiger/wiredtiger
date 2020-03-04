@@ -1130,6 +1130,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     copy->oldest_start_txn = unpack->oldest_start_txn;
     copy->newest_stop_ts = unpack->newest_stop_ts;
     copy->newest_stop_txn = unpack->newest_stop_txn;
+    copy->type = 0; /* Avoid static analyzer uninitialized value complaints. */
     switch (unpack->raw) {
     case WT_CELL_ADDR_INT:
         copy->type = WT_ADDR_INT;
