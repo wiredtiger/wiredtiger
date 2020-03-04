@@ -373,19 +373,15 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
         /*
          * 1-for-1 page swap: Update the parent to reference the replacement page.
          *
-         * A page evicted with history store entries may not have an address, if no updates were
-         * visible to reconciliation.
-         *
          * Publish: a barrier to ensure the structure fields are set before the state change makes
          * the page available to readers.
          */
-        if (mod->mod_replace.addr != NULL) {
-            WT_RET(__wt_calloc_one(session, &addr));
-            *addr = mod->mod_replace;
-            mod->mod_replace.addr = NULL;
-            mod->mod_replace.size = 0;
-            ref->addr = addr;
-        }
+        WT_ASSERT(session, mod->mod_replace.addr != NULL);
+        WT_RET(__wt_calloc_one(session, &addr));
+        *addr = mod->mod_replace;
+        mod->mod_replace.addr = NULL;
+        mod->mod_replace.size = 0;
+        ref->addr = addr;
 
         /*
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
