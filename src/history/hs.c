@@ -551,9 +551,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
          * U (selected onpage value) -> U -> T -> M -> U.
          * We write the stop time pair of M with the start time pair of the tombstone and skip the
          * tombstone.
-         * 4) We have modifies newer than a tombstone, e.g., U (selected onpage value) -> M -> T ->
-         * M -> U. In this case, the base update for the modify newer than the tombstone is the
-         * empty value.
          * 4) We have a single tombstone on the chain, it is simply ignored.
          */
         for (; upd != NULL; upd = upd->next) {
@@ -583,7 +580,9 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
                 continue;
         }
 
-        WT_ERR(__hs_calculate_full_value(session, full_value, upd, "", 0));
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
+        full_value->data = upd->data;
+        full_value->size = upd->size;
 
         squashed = false;
 
@@ -605,8 +604,9 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
                 __wt_modify_vector_pop(&modifies, &prev_upd);
-                /* The base value of a modify newer than a tombstone is the empty value. */
-                WT_ERR(__hs_calculate_full_value(session, prev_full_value, prev_upd, "", 0));
+                WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
+                prev_full_value->data = prev_upd->data;
+                prev_full_value->size = prev_upd->size;
             } else
                 WT_ERR(__hs_calculate_full_value(
                   session, prev_full_value, prev_upd, full_value->data, full_value->size));

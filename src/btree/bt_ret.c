@@ -246,6 +246,7 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
     WT_DECL_RET;
     WT_MODIFY_VECTOR modifies;
     WT_SESSION_IMPL *session;
+    WT_TIME_PAIR start, stop;
 
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -297,12 +298,17 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
          */
         WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
-        WT_ERR(__value_return(cbt));
-    } else if (upd->type == WT_UPDATE_TOMBSTONE)
-        /* If upd is a tombstone, the base value is the empty value. */
-        WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
-    else
+        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &cbt->iface.value, &start, &stop));
+        /*
+         * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
+         * the stop time pair should be unset.
+         */
+        WT_ASSERT(session, stop.txnid == WT_TXN_MAX && stop.timestamp == WT_TS_MAX);
+    } else {
+        /* The base update must not be a tombstone. */
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         WT_ERR(__wt_buf_set(session, &cursor->value, upd->data, upd->size));
+    }
 
     /*
      * Once we have a base item, roll forward through any visible modify updates.
