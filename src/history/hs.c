@@ -334,6 +334,20 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      */
     WT_ASSERT(session, type == WT_UPDATE_STANDARD || type == WT_UPDATE_MODIFY);
 
+    /*
+     * If the time pairs are out of order (which can happen if the application performs updates with
+     * out-of-order timestamps), so this value can never be seen, don't bother inserting it.
+     */
+    if (stop_ts_pair.timestamp < upd->start_ts ||
+      (stop_ts_pair.timestamp == upd->start_ts && stop_ts_pair.txnid <= upd->txnid)) {
+        char ts_string[2][WT_TS_INT_STRING_SIZE];
+        __wt_verbose(session, WT_VERB_TIMESTAMP,
+          "Warning: fixing out-of-order timestamps %s earlier than previous update %s",
+          __wt_timestamp_to_string(stop_ts_pair.timestamp, ts_string[0]),
+          __wt_timestamp_to_string(upd->start_ts, ts_string[1]));
+        return (0);
+    }
+
 retry:
     /*
      * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to

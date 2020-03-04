@@ -355,16 +355,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * indicate that the value is visible to any timestamp/transaction id ahead of it.
          */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
-            if (upd->start_ts != WT_TS_NONE)
-                upd_select->stop_ts = upd->start_ts;
-            if (upd->txnid != WT_TXN_NONE) {
-                upd_select->stop_txn = upd->txnid;
-                if (upd->start_ts == WT_TS_NONE)
-                    upd_select->stop_ts = WT_TS_NONE;
-            }
+            upd_select->stop_ts = upd->start_ts;
+            upd_select->stop_txn = upd->txnid;
             if (upd->durable_ts != WT_TS_NONE)
                 tombstone_durable_ts = upd->durable_ts;
-            /* Ignore all the aborted transactions. */
+
+            /* Find the update this tombstone applies to. */
             if (!__wt_txn_visible_all(session, upd->txnid, upd->start_ts)) {
                 while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED)
                     upd = upd->next;
@@ -375,18 +371,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             }
         }
         if (upd != NULL) {
-            /*
-             * If we're seeing a non-timestamped tombstone being applied on top of a timestamped
-             * update, force the tombstone to be globally visible so that we destroy the key. This
-             * isn't technically correct but when we mix timestamps, we're not guaranteeing that
-             * that older readers will be able to continue reading content that has been made
-             * invisible by a non-timestamped update.
-             */
-            if (upd_select->stop_ts == WT_TS_NONE && upd->start_ts != WT_TS_NONE)
-                upd_select->stop_txn = WT_TXN_NONE;
-            else
-                WT_ASSERT(session,
-                  upd->start_ts <= upd_select->stop_ts && upd->txnid <= upd_select->stop_txn);
             /* The beginning of the validity window is the selected update's time pair. */
             upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
             /* If durable timestamp is provided, use it. */
@@ -397,7 +381,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             /* Use the tombstone durable timestamp as the overall durable timestamp if it exists. */
             if (tombstone_durable_ts != WT_TS_MAX)
                 upd_select->durable_ts = tombstone_durable_ts;
-        } else {
+        } else if (upd_select->stop_ts != WT_TS_NONE || upd_select->stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL);
             /*
@@ -410,8 +394,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * keep the same on-disk value but set the stop time pair to indicate that the validity
              * window ends when this tombstone started.
              */
-            WT_ASSERT(session,
-              vpack->start_ts <= upd_select->stop_ts && vpack->start_txn <= upd_select->stop_txn);
             upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
             upd_select->start_txn = vpack->start_txn;
 
@@ -434,6 +416,25 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             __wt_cache_page_inmem_incr(session, page, size);
             upd_select->upd = upd;
         }
+    }
+
+    /*
+     * If we found a tombstone with a time pair earlier than the update it applies to, which can
+     * happen if the application performs operations with timestamps out-of-order, make it invisible
+     * by making the start time pair match the stop time pair of the tombstone. We don't guarantee
+     * that older readers will be able to continue reading content that has been made invisible by
+     * out-of-order updates.
+     */
+    if (upd_select->stop_ts < upd_select->start_ts ||
+      (upd_select->stop_ts == upd_select->start_ts &&
+          upd_select->stop_txn < upd_select->start_txn)) {
+        char ts_string[2][WT_TS_INT_STRING_SIZE];
+        __wt_verbose(session, WT_VERB_TIMESTAMP,
+          "Warning: fixing out-of-order timestamps remove at %s earlier than value at %s",
+          __wt_timestamp_to_string(upd_select->stop_ts, ts_string[0]),
+          __wt_timestamp_to_string(upd_select->start_ts, ts_string[1]));
+        upd_select->start_ts = upd_select->stop_ts;
+        upd_select->start_txn = upd_select->stop_txn;
     }
 
     /*
