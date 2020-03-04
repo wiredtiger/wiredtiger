@@ -267,6 +267,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
     bool is_owner;
 
     btree = S2BT(session);
+    hs_cursor = NULL;
     hs_btree_id = btree->id;
     /*
      * Set the data store timestamp and transactions to initiate timestamp range verification. Since
@@ -340,6 +341,8 @@ err:
     __wt_scr_free(session, &hs_key);
     if (is_owner)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    else if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->reset(hs_cursor));
 
     return (ret);
 }
@@ -606,7 +609,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri)
     prev_btree_id = 0;      /* [-Wconditional-uninitialized] */
     uri_itr = NULL;
 
-    WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
+    WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
     cursor = session->hs_cursor;
 
     /*
@@ -693,6 +696,8 @@ err:
         WT_TRET(data_cursor->close(data_cursor));
     if (is_owner)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    else
+        WT_TRET(cursor->reset(cursor));
     __wt_scr_free(session, &tmp);
     __wt_free(session, uri_itr);
     return (ret);

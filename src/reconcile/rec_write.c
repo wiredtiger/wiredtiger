@@ -2320,6 +2320,8 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 err:
     if (is_owner)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    else
+        WT_TRET(session->hs_cursor->reset(session->hs_cursor));
     return (ret);
 }
 

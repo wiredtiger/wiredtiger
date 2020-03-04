@@ -301,8 +301,10 @@ err:
     __wt_buf_free(session, &full_value);
     __wt_free(session, hs_upd);
     __wt_free(session, upd);
-    if (hs_cursor != NULL && is_owner)
+    if (is_owner)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    else if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->reset(hs_cursor));
 
     return (ret);
 }
@@ -849,8 +851,10 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
 err:
     __wt_scr_free(session, &hs_key);
     __wt_free(session, hs_upd);
-    if (hs_cursor != NULL && is_owner)
+    if (is_owner)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    else if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->reset(hs_cursor));
 
     return (ret);
 }

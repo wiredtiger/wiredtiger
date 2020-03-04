@@ -962,6 +962,8 @@ err:
     __hs_restore_read_timestamp(session, saved_timestamp);
     if (is_owner)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    else if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->reset(hs_cursor));
 
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
