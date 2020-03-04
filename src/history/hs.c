@@ -1042,7 +1042,6 @@ retry:
     if (cmp != 0)
         goto done;
     ret = __hs_delete_key_from_pos(session, hs_cursor, btree_id, key);
-    hs_cursor->reset(hs_cursor);
     if (ret == WT_RESTART)
         goto retry;
     WT_ERR(ret);
@@ -1053,6 +1052,9 @@ err:
         F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
     if (is_owner)
         WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    else
+        /* If the cursor isn't ours to close then at least release the page we're pointing at. */
+        WT_TRET(hs_cursor->reset(hs_cursor));
     return (ret);
 }
 
