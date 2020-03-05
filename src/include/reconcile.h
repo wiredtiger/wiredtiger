@@ -246,9 +246,6 @@ typedef struct {
     uint64_t start_txn;
     wt_timestamp_t stop_ts;
     uint64_t stop_txn;
-
-    bool upd_saved; /* Updates saved to list */
-
 } WT_UPDATE_SELECT;
 
 /*

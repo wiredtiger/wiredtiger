@@ -564,7 +564,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
     WT_UPDATE_SELECT upd_select;
     wt_timestamp_t durable_ts, start_ts, stop_ts;
     uint64_t start_txn, stop_txn;
-    bool ovfl_key, upd_saved;
+    bool ovfl_key;
 
     btree = S2BT(session);
 
@@ -578,33 +578,14 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
         WT_RET(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
-        upd = upd_select.upd;
+        if ((upd = upd_select.upd) == NULL)
+            continue;
+
         durable_ts = upd_select.durable_ts;
         start_ts = upd_select.start_ts;
         start_txn = upd_select.start_txn;
         stop_ts = upd_select.stop_ts;
         stop_txn = upd_select.stop_txn;
-        upd_saved = upd_select.upd_saved;
-
-        if (upd == NULL) {
-            /*
-             * If no update is visible but some were saved, check for splits.
-             */
-            if (!upd_saved)
-                continue;
-            if (!__wt_rec_need_split(r, WT_INSERT_KEY_SIZE(ins)))
-                continue;
-
-            /* Copy the current key into place and then split. */
-            WT_RET(__wt_buf_set(session, r->cur, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
-            WT_RET(__wt_rec_split_crossing_bnd(session, r, WT_INSERT_KEY_SIZE(ins), false));
-
-            /*
-             * Turn off prefix and suffix compression until a full key is written into the new page.
-             */
-            r->key_pfx_compress = r->key_sfx_compress = false;
-            continue;
-        }
 
         switch (upd->type) {
         case WT_UPDATE_MODIFY:
