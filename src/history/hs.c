@@ -1013,12 +1013,16 @@ __hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *
     if (ret == WT_NOTFOUND)
         return (0);
     WT_RET(ret);
-    if (exact < 0)
+    if (exact < 0) {
         ret = hs_cursor->next(hs_cursor);
-    /* That means there is only one record in the history store and it doesn't belong to our key. */
-    if (ret == WT_NOTFOUND)
-        return (0);
-    WT_RET(ret);
+        /*
+         * That means there is only one record in the history store and it doesn't belong to our
+         * key.
+         */
+        if (ret == WT_NOTFOUND)
+            return (0);
+        WT_RET(ret);
+    }
     /* Bailing out here also means we have no history store records for our key. */
     WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
     if (hs_btree_id != btree_id)
