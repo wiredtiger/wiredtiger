@@ -96,7 +96,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
 
         if (upd_arg == NULL) {
             /* Make sure the update can proceed. */
-            WT_ERR(__wt_txn_update_check(session, old_upd = *upd_entry));
+            WT_ERR(__wt_txn_update_check(session, cbt, old_upd = *upd_entry));
 
             /* Allocate a WT_UPDATE structure and transaction ID. */
             WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
@@ -127,7 +127,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
         upd->next = old_upd;
 
         /* Serialize the update. */
-        WT_ERR(__wt_update_serial(session, page, upd_entry, &upd, upd_size, exclusive));
+        WT_ERR(__wt_update_serial(session, cbt, page, upd_entry, &upd, upd_size, exclusive));
     } else {
         /*
          * Allocate the insert array as necessary.
@@ -265,6 +265,9 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, WT_UPDATE **up
      * structure if only intending to insert one we already have.
      */
     WT_ASSERT(session, modify_type != WT_UPDATE_INVALID);
+
+    if (modify_type == WT_UPDATE_TOMBSTONE)
+        value = NULL;
 
     /* Allocate the WT_UPDATE structure and room for the value, then copy any value into place. */
     WT_RET(__wt_calloc(session, 1, WT_UPDATE_SIZE + (value == NULL ? 0 : value->size), &upd));

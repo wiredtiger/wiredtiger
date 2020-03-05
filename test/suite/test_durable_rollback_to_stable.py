@@ -65,7 +65,6 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase, suite_subproces
             (self.ds.is_lsm() or self.uri == 'lsm')
 
     # Test durable timestamp.
-    @unittest.skip("Temporarily disabled")
     def test_durable_rollback_to_stable(self):
         if self.skip():
             return
@@ -170,8 +169,8 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase, suite_subproces
 
         # Use util to verify that second updates values have been flushed.
         errfilename = "verifyrollbackerr.out"
-        self.runWt(["verify", "-S", uri],
-            errfilename=errfilename, failure=True)
+        self.runWt(["verify", "-s", uri],
+            errfilename=errfilename, failure=False)
         self.check_empty_file(errfilename)
 
 if __name__ == '__main__':

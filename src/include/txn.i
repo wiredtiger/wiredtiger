@@ -788,6 +788,7 @@ static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_CELL_UNPACK *vpack,
   WT_UPDATE **updp)
 {
+    WT_DECL_RET;
     WT_ITEM buf;
     WT_TIME_PAIR start, stop;
     size_t size;
@@ -808,9 +809,13 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     buf.flags = 0;
 
     /* Check the ondisk value. */
-    if (vpack == NULL)
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop));
-    else {
+    if (vpack == NULL) {
+        ret = __wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop);
+        if (ret != 0) {
+            __wt_buf_free(session, &buf);
+            return (ret);
+        }
+    } else {
         start.timestamp = vpack->start_ts;
         start.txnid = vpack->start_txn;
         stop.timestamp = vpack->stop_ts;
@@ -827,6 +832,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
       (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE)) &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
+        __wt_buf_free(session, &buf);
         WT_RET(__wt_upd_alloc_tombstone(session, updp));
         (*updp)->txnid = stop.txnid;
         /* FIXME: Reevaluate this as part of PM-1524. */
@@ -843,7 +849,9 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
      * the current system.
      */
     if (__wt_txn_visible(session, start.txnid, start.timestamp)) {
-        WT_RET(__wt_update_alloc(session, &buf, updp, &size, WT_UPDATE_STANDARD));
+        ret = __wt_update_alloc(session, &buf, updp, &size, WT_UPDATE_STANDARD);
+        __wt_buf_free(session, &buf);
+        WT_RET(ret);
         (*updp)->txnid = start.txnid;
         (*updp)->start_ts = start.timestamp;
         F_SET((*updp), WT_UPDATE_RESTORED_FROM_DISK);
@@ -851,9 +859,13 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
-        WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, cbt, updp, false, &buf));
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS)) {
+        ret = __wt_find_hs_upd(session, cbt, updp, false, &buf);
+        __wt_buf_free(session, &buf);
+        WT_RET_NOTFOUND_OK(ret);
+    }
 
+    __wt_buf_free(session, &buf);
     /*
      * Return null not tombstone if nothing is found in history store.
      */
@@ -1062,12 +1074,15 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
  *     Check if the current transaction can update an item.
  */
 static inline int
-__wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
+    WT_DECL_RET;
+    WT_TIME_PAIR start, stop;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    bool ignore_prepare_set;
+    bool ignore_prepare_set, rollback;
 
+    rollback = false;
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
 
@@ -1085,17 +1100,36 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
         if (upd->txnid != WT_TXN_ABORTED) {
-            if (ignore_prepare_set)
-                F_SET(txn, WT_TXN_IGNORE_PREPARE);
-            WT_STAT_CONN_INCR(session, txn_update_conflict);
-            WT_STAT_DATA_INCR(session, txn_update_conflict);
-            return (__wt_txn_rollback_required(session, "conflict between concurrent operations"));
+            rollback = true;
+            break;
         }
+    }
+
+    WT_ASSERT(session, upd != NULL || !rollback);
+
+    /*
+     * Check conflict against the on page value if there is no update on the update chain except
+     * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
+     * uncommitted update or determined that it would be safe to write if we saw a committed update.
+     */
+    if (!rollback && upd == NULL && cbt != NULL && cbt->btree->type != BTREE_COL_FIX &&
+      cbt->ins == NULL) {
+        __wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop);
+        if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX)
+            rollback = !__wt_txn_visible(session, stop.txnid, stop.timestamp);
+        else
+            rollback = !__wt_txn_visible(session, start.txnid, start.timestamp);
+    }
+
+    if (rollback) {
+        WT_STAT_CONN_INCR(session, txn_update_conflict);
+        WT_STAT_DATA_INCR(session, txn_update_conflict);
+        ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
     }
 
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
-    return (0);
+    return (ret);
 }
 
 /*
