@@ -225,7 +225,6 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
 {
     wt_timestamp_t oldest_durable_ts;
     uint8_t *p;
-    bool prepare;
 
     /*
      * FIXME: This value should be passed in when support for prepared transactions with durable
@@ -1061,8 +1060,8 @@ __wt_cell_unpack_dsk(
             F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
             if (unpack->newest_stop_ts == WT_TS_MAX)
                 unpack->newest_stop_ts = WT_TS_NONE;
-            if (unpack->durable_newest_ts == WT_TS_MAX)
-                unpack->durable_newest_ts = WT_TS_NONE;
+            if (unpack->newest_durable_ts == WT_TS_MAX)
+                unpack->newest_durable_ts = WT_TS_NONE;
         } else
             WT_ASSERT(session, unpack->newest_stop_ts == WT_TS_MAX);
     }
