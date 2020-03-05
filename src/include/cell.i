@@ -163,7 +163,7 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_t
 static inline void
 __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t oldest_durable_ts,
   wt_timestamp_t newest_durable_ts, wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
-  wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn, bool prepare)
+  wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
 {
     uint8_t flags, *flagsp;
 
@@ -183,8 +183,6 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
         ++*pp;
 
         flags = 0;
-        if (prepare)
-            LF_SET(WT_CELL_PREPARE);
         if (oldest_durable_ts != WT_TS_NONE) {
             WT_IGNORE_RET(__wt_vpack_uint(pp, 0, oldest_durable_ts));
             LF_SET(WT_CELL_TS_DURABLE_START);
@@ -230,18 +228,17 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
     bool prepare;
 
     /*
-     * FIXME: These values should be passed in when support for prepared transactions with durable
+     * FIXME: This value should be passed in when support for prepared transactions with durable
      * history is fully implemented.
      */
     oldest_durable_ts = WT_TS_NONE;
-    prepare = false;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
     *p = '\0';
 
     __cell_pack_addr_validity(session, &p, oldest_durable_ts, newest_durable_ts, oldest_start_ts,
-      oldest_start_txn, newest_stop_ts, newest_stop_txn, prepare);
+      oldest_start_txn, newest_stop_ts, newest_stop_txn);
 
     if (recno == WT_RECNO_OOB)
         cell->__chunk[0] |= (uint8_t)cell_type; /* Type */
@@ -451,6 +448,7 @@ __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t start
     p = cell->__chunk;
     *p = '\0';
 
+    /* FIXME: we should pass durable start and stop values. */
     __cell_pack_value_validity(
       session, &p, WT_TS_NONE, WT_TS_NONE, start_ts, start_txn, stop_ts, stop_txn, false);
 
@@ -1040,7 +1038,6 @@ __wt_cell_unpack_dsk(
      * Previous startup txnid=0, ts=y       txnid=0, ts=WT_TS_NONE           txnid=MAX, ts=MAX
      */
     if (dsk->write_gen > 0 && dsk->write_gen <= S2C(session)->base_write_gen) {
-        /* FIXME: reset durable timestamps? */
         /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
         if (unpack->start_txn != WT_TXN_NONE) {
             unpack->start_txn = WT_TXN_NONE;
@@ -1051,6 +1048,8 @@ __wt_cell_unpack_dsk(
             F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
             if (unpack->stop_ts == WT_TS_MAX)
                 unpack->stop_ts = WT_TS_NONE;
+            if (unpack->durable_stop_ts == WT_TS_MAX)
+                unpack->durable_stop_ts = WT_TS_NONE;
         } else
             WT_ASSERT(session, unpack->stop_ts == WT_TS_MAX);
         if (unpack->oldest_start_txn != WT_TXN_NONE) {
@@ -1062,6 +1061,8 @@ __wt_cell_unpack_dsk(
             F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
             if (unpack->newest_stop_ts == WT_TS_MAX)
                 unpack->newest_stop_ts = WT_TS_NONE;
+            if (unpack->durable_newest_ts == WT_TS_MAX)
+                unpack->durable_newest_ts = WT_TS_NONE;
         } else
             WT_ASSERT(session, unpack->newest_stop_ts == WT_TS_MAX);
     }
