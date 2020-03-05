@@ -152,31 +152,26 @@ err:
  *     Return if we need to save the update chain
  */
 static bool
-__rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE_SELECT *upd_select, bool has_newer_updates,
-  uint64_t flags, WT_PAGE *page)
+__rec_need_save_upd(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select, bool has_newer_updates)
 {
+    if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
+        return (true);
+
     /*
      * Save updates for any reconciliation that doesn't involve history store (in-memory database
      * and fixed length column store), except when the maximum timestamp and txnid are globally
      * visible.
      */
-    if (LF_ISSET(WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX)
-        return (!__wt_txn_visible_all(session, upd_select->start_txn, upd_select->start_ts));
-
-    if (!LF_ISSET(WT_REC_HS))
-        return false;
-
-    if (LF_ISSET(WT_REC_EVICT) && has_newer_updates)
-        return true;
+    if (!F_ISSET(r, WT_REC_HS) && !F_ISSET(r, WT_REC_IN_MEMORY) && r->page->type != WT_PAGE_COL_FIX)
+        return (false);
 
     /* When in checkpoint, no need to save update if no onpage value is selected. */
-    if (LF_ISSET(WT_REC_CHECKPOINT) && upd_select->upd == NULL)
-        return false;
+    if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
+        return (false);
 
-    if (__wt_txn_visible_all(session, upd_select->stop_txn, upd_select->stop_ts))
-        return false;
-
-    return (!__wt_txn_visible_all(session, upd_select->start_txn, upd_select->start_ts));
+    return (!__wt_txn_visible_all(session, upd_select->stop_txn, upd_select->stop_ts) &&
+      !__wt_txn_visible_all(session, upd_select->start_txn, upd_select->start_ts));
 }
 
 /*
@@ -465,7 +460,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      *
      * Additionally history store reconciliation is not set skip saving an update.
      */
-    if (__rec_need_save_upd(session, upd_select, has_newer_updates, r->flags, page)) {
+    if (__rec_need_save_upd(session, r, upd_select, has_newer_updates)) {
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
         upd_saved = true;
     }
