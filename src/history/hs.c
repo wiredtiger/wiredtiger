@@ -992,19 +992,54 @@ err:
 }
 
 /*
- * __wt_hs_delete_key --
- *     Delete an entire key's worth of data in the history store.
+ * __hs_delete_key_int --
+ *     Internal helper for deleting history store content for a given key.
  */
-int
-__wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key)
+static int
+__hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
     WT_ITEM hs_key;
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
-    uint32_t hs_btree_id, session_flags;
+    uint32_t hs_btree_id;
     int cmp, exact;
+
+    hs_cursor = session->hs_cursor;
+    hs_cursor->set_key(hs_cursor, btree_id, key, WT_TS_NONE, 0);
+    ret = hs_cursor->search_near(hs_cursor, &exact);
+    /* Empty history store is fine. */
+    if (ret == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
+    if (exact < 0)
+        ret = hs_cursor->next(hs_cursor);
+    /* That means there is only one record in the history store and it doesn't belong to our key. */
+    if (ret == WT_NOTFOUND)
+        return (0);
+    WT_RET(ret);
+    /* Bailing out here also means we have no history store records for our key. */
+    WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
+    if (hs_btree_id != btree_id)
+        return (0);
+    WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
+    if (cmp != 0)
+        return (0);
+    WT_RET_NOTFOUND_OK(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key));
+
+    return (0);
+}
+
+/*
+ * __wt_hs_delete_key --
+ *     Delete an entire key's worth of data in the history store.
+ */
+int
+__wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key)
+{
+    WT_DECL_RET;
+    uint32_t session_flags;
     bool is_owner;
 
     session_flags = session->flags;
@@ -1018,39 +1053,15 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
         return (0);
 
     WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
-    hs_cursor = session->hs_cursor;
     /*
      * In order to delete a key range, we need to be able to inspect all history store records
      * regardless of their stop time pairs.
      */
     F_SET(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
-retry:
-    hs_cursor->set_key(hs_cursor, btree_id, key, WT_TS_NONE, 0);
-    ret = hs_cursor->search_near(hs_cursor, &exact);
-    /* Empty history store is fine. */
-    if (ret == WT_NOTFOUND)
-        goto done;
-    WT_ERR(ret);
-    if (exact < 0)
-        ret = hs_cursor->next(hs_cursor);
-    /* That means there is only one record in the history store and it doesn't belong to our key. */
-    if (ret == WT_NOTFOUND)
-        goto done;
-    WT_ERR(ret);
-    /* Bailing out here also means we have no history store records for our key. */
-    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
-    if (hs_btree_id != btree_id)
-        goto done;
-    WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
-    if (cmp != 0)
-        goto done;
-    ret = __hs_delete_key_from_pos(session, hs_cursor, btree_id, key);
-    if (ret == WT_RESTART)
-        goto retry;
-    WT_ERR(ret);
-done:
-    ret = 0;
-err:
+    /* The tree structure can change while we try to insert the mod list, retry if that happens. */
+    while ((ret = __hs_delete_key_int(session, btree_id, key)) == WT_RESTART)
+        ;
+
     if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
         F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
