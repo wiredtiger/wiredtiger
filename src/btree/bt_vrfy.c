@@ -339,10 +339,7 @@ err:
         ret = 0;
 
     __wt_scr_free(session, &hs_key);
-    if (is_owner)
-        WT_TRET(__wt_hs_cursor_close(session, session_flags));
-    else if (hs_cursor != NULL)
-        WT_TRET(hs_cursor->reset(hs_cursor));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     return (ret);
 }
@@ -694,10 +691,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri)
 err:
     if (data_cursor != NULL)
         WT_TRET(data_cursor->close(data_cursor));
-    if (is_owner)
-        WT_TRET(__wt_hs_cursor_close(session, session_flags));
-    else
-        WT_TRET(cursor->reset(cursor));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
     __wt_scr_free(session, &tmp);
     __wt_free(session, uri_itr);
     return (ret);

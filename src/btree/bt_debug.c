@@ -725,10 +725,7 @@ __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
     WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
     cbt = (WT_CURSOR_BTREE *)session->hs_cursor;
     ret = __wt_debug_tree_all(session, cbt->btree, NULL, ofile);
-    if (is_owner)
-        WT_TRET(__wt_hs_cursor_close(session, session_flags));
-    else
-        WT_TRET(session->hs_cursor->reset(session->hs_cursor));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     return (ret);
 }

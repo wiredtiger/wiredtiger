@@ -60,8 +60,7 @@ __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
     *hs_btreep = ((WT_CURSOR_BTREE *)session->hs_cursor)->btree;
     WT_ASSERT(session, *hs_btreep != NULL);
 
-    if (is_owner)
-        WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     return (ret);
 }
@@ -232,7 +231,7 @@ __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags, bool *is_owner
  *     Discard a history store cursor.
  */
 int
-__wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags)
+__wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags, bool is_owner)
 {
     /* Nothing to do if the session doesn't have a HS cursor opened. */
     if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
@@ -240,6 +239,13 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags)
         return (0);
     }
     WT_ASSERT(session, session->hs_cursor != NULL);
+
+    /*
+     * If we're not the owner, we're not responsible for closing this cursor. Reset the cursor to
+     * avoid pinning the page in cache.
+     */
+    if (!is_owner)
+        return (session->hs_cursor->reset(session->hs_cursor));
 
     /*
      * We turned off caching and eviction while the history store cursor was in use, restore the
@@ -960,10 +966,7 @@ err:
      * harm in doing this multiple times.
      */
     __hs_restore_read_timestamp(session, saved_timestamp);
-    if (is_owner)
-        WT_TRET(__wt_hs_cursor_close(session, session_flags));
-    else if (hs_cursor != NULL)
-        WT_TRET(hs_cursor->reset(hs_cursor));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
@@ -1050,11 +1053,7 @@ done:
 err:
     if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
         F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
-    if (is_owner)
-        WT_TRET(__wt_hs_cursor_close(session, session_flags));
-    else
-        /* If the cursor isn't ours to close then at least release the page we're pointing at. */
-        WT_TRET(hs_cursor->reset(hs_cursor));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
     return (ret);
 }
 
