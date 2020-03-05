@@ -201,8 +201,8 @@ struct __wt_ovfl_reuse {
  *	- value
  * In order to cope with future requirements whilst avoiding a data format change, we've added a
  * flags byte and 8 bytes of data at the end of the value. If we decide to use this flags byte, it's
- *important that we DO NOT use auto generated flags since the values need to remain consistent
- *across versions.
+ * important that we DO NOT use auto generated flags since the values need to remain consistent
+ * across versions.
  *
  * As the key for the history store table is different for row- and column-store, we store both key
  * types in a WT_ITEM, building/parsing them in the code, because otherwise we'd need two
