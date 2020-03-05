@@ -417,6 +417,15 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
     WT_DECL_RET;
 
     /*
+     * The session should be pointing at the history store btree since this is the one that we'll be
+     * inserting into. The btree parameter that we're passing in should is the btree that the
+     * history store content is associated with (this is where the btree id part of the history
+     * store key comes from).
+     */
+    WT_ASSERT(session, WT_IS_HS(S2BT(session)));
+    WT_ASSERT(session, !WT_IS_HS(btree));
+
+    /*
      * Disable bulk loads into history store. This would normally occur when updating a record with
      * a cursor however the history store doesn't use cursor update, so we do it here.
      */
