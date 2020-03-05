@@ -740,6 +740,9 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      * Note that we need to compare the raw key off the cursor to determine where we are in the
      * history store as opposed to comparing the embedded data store key since the ordering is not
      * guaranteed to be the same.
+     *
+     * FIXME: We should be repeatedly moving the cursor backwards within the loop instead of doing a
+     * search near operation each time as it is cheaper.
      */
     for (;;) {
         cursor->set_key(cursor, btree_id, key, timestamp, UINT64_MAX);
@@ -1022,6 +1025,10 @@ __hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *
 
     hs_cursor = session->hs_cursor;
     hs_cursor->set_key(hs_cursor, btree_id, key, WT_TS_NONE, 0);
+    /*
+     * FIXME: This should be done in a loop in order to deal with the possibility of racing with
+     * other inserts. Perhaps further generalize the cursor positioning function.
+     */
     ret = hs_cursor->search_near(hs_cursor, &exact);
     /* Empty history store is fine. */
     if (ret == WT_NOTFOUND)
@@ -1120,6 +1127,10 @@ __hs_delete_key_from_pos(
         WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
         if (cmp != 0)
             break;
+        /*
+         * Since we're using internal functions to modify the row structure, we need to manually set
+         * the comparison to an exact match.
+         */
         hs_cbt->compare = 0;
         /*
          * Append a globally visible tombstone to the update list. This will effectively make the
