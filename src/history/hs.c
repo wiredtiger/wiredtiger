@@ -383,11 +383,8 @@ err:
      * all timestamped updates should get removed. In the case of non-timestamped tables, that means
      * that all updates with higher transaction ids will get removed (which could happen at some
      * more relaxed isolation levels).
-     *
-     * If the stop pair is non-timestamped then that means that we've applied a non-timestamped
-     * tombstone which should also trigger a deletion of history store content for that key.
      */
-    if (ret == 0 && (upd->start_ts == WT_TS_NONE || stop_ts_pair.timestamp == WT_TS_NONE)) {
+    if (ret == 0 && upd->start_ts == WT_TS_NONE) {
 #ifdef HAVE_DIAGNOSTIC
         /*
          * We need to initialize the last searched key so that we can do key comparisons when we
@@ -590,9 +587,11 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
         /* Skip TOMBSTONE at the end of the update chain. */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
-            if (modifies.size > 0)
+            if (modifies.size > 0) {
+                if (upd->start_ts == WT_TS_NONE)
+                    WT_ERR(__wt_hs_delete_key(session, btree->id, key));
                 __wt_modify_vector_pop(&modifies, &upd);
-            else
+            } else
                 continue;
         }
 
@@ -617,6 +616,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
 
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
+                if (prev_upd->start_ts == WT_TS_NONE)
+                    WT_ERR(__wt_hs_delete_key(session, btree->id, key));
                 __wt_modify_vector_pop(&modifies, &prev_upd);
                 /* The base value of a modify newer than a tombstone is the empty value. */
                 WT_ERR(__hs_calculate_full_value(session, prev_full_value, prev_upd, "", 0));
