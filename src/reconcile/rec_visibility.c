@@ -424,6 +424,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * by making the start time pair match the stop time pair of the tombstone. We don't guarantee
      * that older readers will be able to continue reading content that has been made invisible by
      * out-of-order updates.
+     *
+     * Note that we carefully don't take this path when the stop time pair is equal to the start
+     * time pair. While unusual, it is permitted for a single transaction to insert and then remove
+     * a record. We don't want to generate a warning in that case.
      */
     if (upd_select->stop_ts < upd_select->start_ts ||
       (upd_select->stop_ts == upd_select->start_ts &&
