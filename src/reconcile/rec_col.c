@@ -170,7 +170,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Build the value cell. */
         addr = &multi->addr;
-        __wt_rec_cell_build_addr(session, r, addr, false, r->recno);
+        __wt_rec_cell_build_addr(session, r, addr, NULL, false, r->recno);
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
@@ -287,7 +287,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             newest_stop_ts = vpack->newest_stop_ts;
             newest_stop_txn = vpack->newest_stop_txn;
         } else {
-            __wt_rec_cell_build_addr(session, r, addr, false, ref->ref_recno);
+            __wt_rec_cell_build_addr(session, r, addr, NULL, false, ref->ref_recno);
             newest_durable_ts = addr->newest_durable_ts;
             oldest_start_ts = addr->oldest_start_ts;
             oldest_start_txn = addr->oldest_start_txn;

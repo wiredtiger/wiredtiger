@@ -119,14 +119,13 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         # Run the wt command some number of times to get some runs in that do
         # not use timestamps. Make sure the recovery checkpoint is maintained.
         for i in range(0, self.run_wt):
-            self.runWt(['-h', '.', '-R', 'list', '-v'], outfilename="list.out")
+            self.runWt(['-C', 'config_base=false,create,log=(enabled)', '-h', '.', '-R', 'list', '-v'], outfilename="list.out")
 
         self.open_conn()
         q = self.conn.query_timestamp('get=recovery')
         self.pr("query recovery ts: " + q)
         self.assertTimestampsEqual(q, timestamp_str(expected_rec_ts))
 
-    @unittest.skip("Temporarily disabled")
     def test_timestamp_recovery(self):
         # Add some data and checkpoint at a stable timestamp.
         last_stable = self.data_and_checkpoint()
