@@ -311,12 +311,11 @@ __hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
 }
 
 /*
- * __hs_insert_record_with_btree --
- *     A helper function to insert the record into the history store including stop time pair.
- *     Should be called with session's btree switched to the history store.
+ * __hs_insert_record_with_btree_int --
+ *     Internal helper for inserting history store records.
  */
 static int
-__hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
+__hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
   WT_TIME_PAIR stop_ts_pair)
 {
@@ -329,33 +328,6 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = NULL;
 
-    /*
-     * Disable bulk loads into history store. This would normally occur when updating a record with
-     * a cursor however the history store doesn't use cursor update, so we do it here.
-     */
-    __wt_cursor_disable_bulk(session);
-
-    /*
-     * Only deltas or full updates should be written to the history store. More specifically, we
-     * should NOT be writing tombstone records in the history store table.
-     */
-    WT_ASSERT(session, type == WT_UPDATE_STANDARD || type == WT_UPDATE_MODIFY);
-
-    /*
-     * If the time pairs are out of order (which can happen if the application performs updates with
-     * out-of-order timestamps), so this value can never be seen, don't bother inserting it.
-     */
-    if (stop_ts_pair.timestamp < upd->start_ts ||
-      (stop_ts_pair.timestamp == upd->start_ts && stop_ts_pair.txnid <= upd->txnid)) {
-        char ts_string[2][WT_TS_INT_STRING_SIZE];
-        __wt_verbose(session, WT_VERB_TIMESTAMP,
-          "Warning: fixing out-of-order timestamps %s earlier than previous update %s",
-          __wt_timestamp_to_string(stop_ts_pair.timestamp, ts_string[0]),
-          __wt_timestamp_to_string(upd->start_ts, ts_string[1]));
-        return (0);
-    }
-
-retry:
     /*
      * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to
      * create an update chain for a direct insertion onto the history store page.
@@ -396,6 +368,8 @@ retry:
     WT_STAT_CONN_INCR(session, cache_hs_insert);
 
 err:
+    if (ret != 0)
+        __wt_free_update_list(session, &hs_upd);
     /*
      * If we inserted an update with no timestamp, we need to delete all history records for that
      * key that are further in the history table than us (the key is lexicographically greater). For
@@ -427,12 +401,51 @@ err:
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
 
-    /* The tree structure can change while we try to insert the mod list, retry if that happens. */
-    if (ret == WT_RESTART)
-        goto retry;
+    return (ret);
+}
 
-    if (ret != 0)
-        __wt_free_update_list(session, &hs_upd);
+/*
+ * __hs_insert_record_with_btree --
+ *     A helper function to insert the record into the history store including stop time pair.
+ *     Should be called with session's btree switched to the history store.
+ */
+static int
+__hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
+  const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
+  WT_TIME_PAIR stop_ts_pair)
+{
+    WT_DECL_RET;
+
+    /*
+     * Disable bulk loads into history store. This would normally occur when updating a record with
+     * a cursor however the history store doesn't use cursor update, so we do it here.
+     */
+    __wt_cursor_disable_bulk(session);
+
+    /*
+     * Only deltas or full updates should be written to the history store. More specifically, we
+     * should NOT be writing tombstone records in the history store table.
+     */
+    WT_ASSERT(session, type == WT_UPDATE_STANDARD || type == WT_UPDATE_MODIFY);
+
+    /*
+     * If the time pairs are out of order (which can happen if the application performs updates with
+     * out-of-order timestamps), so this value can never be seen, don't bother inserting it.
+     */
+    if (stop_ts_pair.timestamp < upd->start_ts ||
+      (stop_ts_pair.timestamp == upd->start_ts && stop_ts_pair.txnid <= upd->txnid)) {
+        char ts_string[2][WT_TS_INT_STRING_SIZE];
+        __wt_verbose(session, WT_VERB_TIMESTAMP,
+          "Warning: fixing out-of-order timestamps %s earlier than previous update %s",
+          __wt_timestamp_to_string(stop_ts_pair.timestamp, ts_string[0]),
+          __wt_timestamp_to_string(upd->start_ts, ts_string[1]));
+        return (0);
+    }
+
+    /* The tree structure can change while we try to insert the mod list, retry if that happens. */
+    while ((ret = __hs_insert_record_with_btree_int(
+              session, cursor, btree, key, upd, type, hs_value, stop_ts_pair)) == WT_RESTART)
+        ;
 
     return (ret);
 }
@@ -1051,7 +1064,7 @@ __hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *
     WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
     if (cmp != 0)
         return (0);
-    WT_RET_NOTFOUND_OK(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key));
+    WT_RET(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key));
 
     return (0);
 }
