@@ -744,8 +744,9 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_UPDATE *upd;
     wt_timestamp_t hs_durable_ts;
     size_t notused;
+    uint64_t hs_extra;
     uint32_t hs_btree_id;
-    uint8_t hs_prep_state, hs_upd_type;
+    uint8_t hs_flags, hs_prep_state, hs_upd_type;
 
     ds = &_ds;
     notused = 0;
@@ -759,7 +760,10 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
 
     WT_ERR(__debug_time_pairs(ds, "T", start.timestamp, start.txnid, stop.timestamp, stop.txnid));
 
-    WT_ERR(hs_cursor->get_value(hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type, hs_value));
+    WT_ERR(hs_cursor->get_value(
+      hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type, hs_value, &hs_flags, &hs_extra));
+    WT_ASSERT(session, hs_flags == 0);
+    WT_ASSERT(session, hs_extra == 0);
     switch (hs_upd_type) {
     case WT_UPDATE_MODIFY:
         WT_ERR(__wt_update_alloc(session, hs_value, &upd, &notused, hs_upd_type));

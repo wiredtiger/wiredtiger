@@ -198,7 +198,11 @@ struct __wt_ovfl_reuse {
  * 	- stop timestamp
  * 	- durable timestamp
  *	- update type
- *	- value.
+ *	- value
+ * In order to cope with future requirements whilst avoiding a data format change, we've added a
+ * flags byte and 8 bytes of data at the end of the value. If we decide to use this flags byte, it's
+ *important that we DO NOT use auto generated flags since the values need to remain consistent
+ *across versions.
  *
  * As the key for the history store table is different for row- and column-store, we store both key
  * types in a WT_ITEM, building/parsing them in the code, because otherwise we'd need two
@@ -214,9 +218,9 @@ struct __wt_ovfl_reuse {
 #endif
 #define WT_HS_CONFIG                                                              \
     "key_format=" WT_UNCHECKED_STRING(IuQQ) ",value_format=" WT_UNCHECKED_STRING( \
-      QQBu) ",block_compressor=" WT_HS_COMPRESSOR                                 \
-            ",leaf_value_max=64MB"                                                \
-            ",prefix_compression=false"
+      QQBuBQ) ",block_compressor=" WT_HS_COMPRESSOR                               \
+              ",leaf_value_max=64MB"                                              \
+              ",prefix_compression=false"
 
 /*
  * WT_PAGE_MODIFY --
