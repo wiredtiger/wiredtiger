@@ -152,29 +152,26 @@ err:
  *     Return if we need to save the update chain
  */
 static bool
-__rec_need_save_upd(WT_SESSION_IMPL *session, WT_UPDATE *selected_upd, uint64_t max_txn,
-  wt_timestamp_t max_ts, bool has_newer_updates, uint64_t flags, WT_PAGE *page)
+__rec_need_save_upd(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select, bool has_newer_updates)
 {
+    if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
+        return (true);
+
     /*
      * Save updates for any reconciliation that doesn't involve history store (in-memory database
      * and fixed length column store), except when the maximum timestamp and txnid are globally
      * visible.
      */
-    if (LF_ISSET(WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX)
-        return (!__wt_txn_visible_all(session, max_txn, max_ts));
-
-    if (!LF_ISSET(WT_REC_HS))
-        return false;
-
-    if (LF_ISSET(WT_REC_EVICT) && has_newer_updates)
-        return true;
+    if (!F_ISSET(r, WT_REC_HS) && !F_ISSET(r, WT_REC_IN_MEMORY) && r->page->type != WT_PAGE_COL_FIX)
+        return (false);
 
     /* When in checkpoint, no need to save update if no onpage value is selected. */
-    if (LF_ISSET(WT_REC_CHECKPOINT) && selected_upd == NULL)
-        return false;
+    if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
+        return (false);
 
-    /* No need to save updates if everything is globally visible. */
-    return (!__wt_txn_visible_all(session, max_txn, max_ts));
+    return (!__wt_txn_visible_all(session, upd_select->stop_txn, upd_select->stop_ts) &&
+      !__wt_txn_visible_all(session, upd_select->start_txn, upd_select->start_ts));
 }
 
 /*
@@ -192,15 +189,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     wt_timestamp_t checkpoint_timestamp, max_ts, tombstone_durable_ts;
     size_t size, upd_memsize;
     uint64_t max_txn, txnid;
-    bool has_newer_updates;
-    bool is_hs_page;
+    bool has_newer_updates, is_hs_page, upd_saved;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
      * both must be initialized.
      */
     upd_select->upd = NULL;
-    upd_select->upd_saved = false;
 
     page = r->page;
     first_txn_upd = upd = last_upd = NULL;
@@ -209,7 +204,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     max_ts = WT_TS_NONE;
     tombstone_durable_ts = WT_TS_MAX;
     max_txn = WT_TXN_NONE;
-    has_newer_updates = false;
+    has_newer_updates = upd_saved = false;
     is_hs_page = F_ISSET(S2BT(session), WT_BTREE_HS);
 
     /*
@@ -470,10 +465,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      *
      * Additionally history store reconciliation is not set skip saving an update.
      */
-    if (__rec_need_save_upd(
-          session, upd_select->upd, max_txn, max_ts, has_newer_updates, r->flags, page)) {
+    if (__rec_need_save_upd(session, r, upd_select, has_newer_updates)) {
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
-        upd_select->upd_saved = true;
+        upd_saved = true;
     }
 
     /*
@@ -488,8 +482,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * be physically removed once it's no longer needed.
      */
     if (upd_select->upd != NULL &&
-      (upd_select->upd_saved || (vpack != NULL && F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) &&
-                                  vpack->raw != WT_CELL_VALUE_OVFL_RM)))
+      (upd_saved || (vpack != NULL && F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) &&
+                      vpack->raw != WT_CELL_VALUE_OVFL_RM)))
         WT_ERR(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
 err:
