@@ -722,7 +722,7 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      * guaranteed to be the same.
      */
     for (;;) {
-        cursor->set_key(cursor, btree_id, key, timestamp, UINT64_MAX);
+        cursor->set_key(cursor, btree_id, key, timestamp != WT_TS_NONE ? timestamp : WT_TS_MAX, UINT64_MAX);
         /*
          * We're going to be searching with the same key on every iteration, so only copy the buffer
          * on the first loop.
