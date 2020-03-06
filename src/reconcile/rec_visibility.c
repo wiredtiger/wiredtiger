@@ -55,14 +55,10 @@ __rec_append_orig_value(
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_UPDATE *append, *tombstone;
-#ifdef HAVE_DIAGNOSTIC
     WT_UPDATE *last_committed_upd;
-#endif
     size_t size, total_size;
 
-#ifdef HAVE_DIAGNOSTIC
     last_committed_upd = NULL;
-#endif
 
     for (;; upd = upd->next) {
         /* Done if at least one self-contained update is globally visible. */
@@ -80,10 +76,8 @@ __rec_append_orig_value(
         if (unpack != NULL && unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid)
             return (0);
 
-#ifdef HAVE_DIAGNOSTIC
         if (upd->txnid != WT_TXN_ABORTED)
             last_committed_upd = upd;
-#endif
 
         /* Leave reference at the last item in the chain. */
         if (upd->next == NULL)
