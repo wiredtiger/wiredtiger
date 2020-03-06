@@ -56,7 +56,7 @@
 int
 __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
-    WT_ADDR *ref_addr;
+    WT_ADDR_COPY addr;
     WT_DECL_RET;
     uint8_t previous_state;
 
@@ -108,27 +108,14 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * discarded. The way we figure that out is to check the page's cell type, cells for leaf pages
      * without overflow items are special.
      *
-     * To look at an on-page cell, we need to look at the parent page, and that's dangerous, our
-     * parent page could change without warning if the parent page were to split, deepening the
-     * tree. We can look at the parent page itself because the page can't change underneath us.
-     * However, if the parent page splits, our reference address can change; we don't care what
-     * version of it we read, as long as we don't read it twice.
-     */
-    WT_ORDERED_READ(ref_addr, ref->addr);
-    /* The address shouldn't be NULL here. */
-    if (ref_addr == NULL)
-        goto err;
-
-    if (__wt_off_page(ref->home, ref_addr) ?
-        ref_addr->type != WT_ADDR_LEAF_NO :
-        __wt_cell_type_raw((WT_CELL *)ref_addr) != WT_CELL_ADDR_LEAF_NO)
-        goto err;
-
-    /*
-     * Additionally if the aggregated start time pair on the page is not visible to us then we
+     * Additionally, if the aggregated start time pair on the page is not visible to us then we
      * cannot truncate the page.
      */
-    if (!__wt_txn_visible(session, ref_addr->oldest_start_txn, ref_addr->oldest_start_ts))
+    if (!__wt_ref_addr_copy(session, ref, &addr))
+        goto err;
+    if (addr.type != WT_ADDR_LEAF_NO)
+        goto err;
+    if (!__wt_txn_visible(session, addr.oldest_start_txn, addr.oldest_start_ts))
         goto err;
 
     /*

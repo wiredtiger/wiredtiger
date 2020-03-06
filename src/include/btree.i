@@ -51,6 +51,11 @@ __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state,
 static inline bool
 __wt_page_is_empty(WT_PAGE *page)
 {
+    /*
+     * Be cautious modifying this function: it's reading fields set by checkpoint reconciliation,
+     * and we're not blocking checkpoints (although we must block eviction as it might clear and
+     * free these structures).
+     */
     return (page->modify != NULL && page->modify->rec_result == WT_PM_REC_EMPTY);
 }
 
@@ -61,6 +66,11 @@ __wt_page_is_empty(WT_PAGE *page)
 static inline bool
 __wt_page_evict_clean(WT_PAGE *page)
 {
+    /*
+     * Be cautious modifying this function: it's reading fields set by checkpoint reconciliation,
+     * and we're not blocking checkpoints (although we must block eviction as it might clear and
+     * free these structures).
+     */
     return (page->modify == NULL ||
       (page->modify->page_state == WT_PAGE_CLEAN && page->modify->rec_result == 0));
 }
@@ -72,6 +82,11 @@ __wt_page_evict_clean(WT_PAGE *page)
 static inline bool
 __wt_page_is_modified(WT_PAGE *page)
 {
+    /*
+     * Be cautious modifying this function: it's reading fields set by checkpoint reconciliation,
+     * and we're not blocking checkpoints (although we must block eviction as it might clear and
+     * free these structures).
+     */
     return (page->modify != NULL && page->modify->page_state != WT_PAGE_CLEAN);
 }
 
@@ -1070,108 +1085,65 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
 }
 
 /*
- * __wt_ref_info_all --
- *     Return the addr/size, type and start/stop time pairs for a reference.
+ * __wt_ref_addr_copy --
+ *     Return a copy of the WT_REF address information.
  */
-static inline void
-__wt_ref_info_all(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep,
-  wt_timestamp_t *start_ts, wt_timestamp_t *stop_ts, uint64_t *start_txn, uint64_t *stop_txn)
+static inline bool
+__wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
 {
     WT_ADDR *addr;
     WT_CELL_UNPACK *unpack, _unpack;
     WT_PAGE *page;
 
-    addr = ref->addr;
     unpack = &_unpack;
     page = ref->home;
 
     /*
-     * If NULL, there is no location. If off-page, the pointer references a WT_ADDR structure. If
-     * on-page, the pointer references a cell.
-     *
-     * The type is of a limited set: internal, leaf or no-overflow leaf.
+     * To look at an on-page cell, we need to look at the parent page's disk image, and that can be
+     * dangerous. The problem is if the parent page splits, deepening the tree. As part of that
+     * process, the WT_REF WT_ADDRs pointing into the parent's disk image are copied into off-page
+     * WT_ADDRs and swapped into place. The content of the two WT_ADDRs are identical, and we don't
+     * care which version we get as long as we don't mix-and-match the two.
      */
-    if (addr == NULL) {
-        *addrp = NULL;
-        *sizep = 0;
-        if (start_ts != NULL)
-            *start_ts = 0;
-        if (stop_ts != NULL)
-            *stop_ts = 0;
-        if (start_txn != NULL)
-            *start_txn = 0;
-        if (stop_txn != NULL)
-            *stop_txn = 0;
-    } else if (__wt_off_page(page, addr)) {
-        *addrp = addr->addr;
-        *sizep = addr->size;
-        if (start_ts != NULL)
-            *start_ts = addr->oldest_start_ts;
-        if (start_txn != NULL)
-            *start_txn = addr->oldest_start_txn;
-        if (stop_ts != NULL)
-            *stop_ts = addr->oldest_start_ts;
-        if (stop_txn != NULL)
-            *stop_txn = addr->oldest_start_txn;
-    } else {
-        __wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
-        *addrp = unpack->data;
-        *sizep = unpack->size;
-        if (start_ts != NULL)
-            *start_ts = unpack->oldest_start_ts;
-        if (start_txn != NULL)
-            *start_txn = unpack->oldest_start_txn;
-        if (stop_ts != NULL)
-            *stop_ts = unpack->newest_stop_ts;
-        if (stop_txn != NULL)
-            *stop_txn = unpack->newest_stop_txn;
-    }
-}
+    WT_ORDERED_READ(addr, ref->addr);
 
-/*
- * __wt_ref_info_lock --
- *     Lock the WT_REF and return the addr/size and type triplet for a reference.
- */
-static inline void
-__wt_ref_info_lock(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t *addr_buf, size_t *sizep)
-{
-    size_t size;
-    uint8_t previous_state;
-    const uint8_t *addr;
+    /* If NULL, there is no information. */
+    if (addr == NULL)
+        return (false);
 
-    /*
-     * The WT_REF address references either an on-page cell or in-memory structure, and eviction
-     * frees both. If our caller is already blocking eviction (either because the WT_REF is locked
-     * or there's a hazard pointer on the page), no locking is required, and the caller should call
-     * the underlying function directly. Otherwise, our caller is not blocking eviction and we lock
-     * here, and copy out the address instead of returning a reference.
-     */
-    for (;; __wt_yield()) {
-        previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED &&
-          WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-            break;
+    /* If off-page, the pointer references a WT_ADDR structure. */
+    if (__wt_off_page(page, addr)) {
+        copy->newest_durable_ts = addr->newest_durable_ts;
+        copy->oldest_start_ts = addr->oldest_start_ts;
+        copy->oldest_start_txn = addr->oldest_start_txn;
+        copy->newest_stop_ts = addr->newest_stop_ts;
+        copy->newest_stop_txn = addr->newest_stop_txn;
+        copy->type = addr->type;
+        memcpy(copy->addr, addr->addr, copy->size = addr->size);
+        return (true);
     }
 
-    __wt_ref_info(session, ref, &addr, &size);
-
-    if (addr_buf != NULL) {
-        if (addr != NULL)
-            memcpy(addr_buf, addr, size);
-        *sizep = size;
+    /* If on-page, the pointer references a cell. */
+    __wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
+    copy->newest_durable_ts = unpack->newest_durable_ts;
+    copy->oldest_start_ts = unpack->oldest_start_ts;
+    copy->oldest_start_txn = unpack->oldest_start_txn;
+    copy->newest_stop_ts = unpack->newest_stop_ts;
+    copy->newest_stop_txn = unpack->newest_stop_txn;
+    copy->type = 0; /* Avoid static analyzer uninitialized value complaints. */
+    switch (unpack->raw) {
+    case WT_CELL_ADDR_INT:
+        copy->type = WT_ADDR_INT;
+        break;
+    case WT_CELL_ADDR_LEAF:
+        copy->type = WT_ADDR_LEAF;
+        break;
+    case WT_CELL_ADDR_LEAF_NO:
+        copy->type = WT_ADDR_LEAF_NO;
+        break;
     }
-
-    WT_REF_SET_STATE(ref, previous_state);
-}
-
-/*
- * __wt_ref_info --
- *     Return the address, size and type triplet for a reference.
- */
-static inline void
-__wt_ref_info(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep)
-{
-    __wt_ref_info_all(session, ref, addrp, sizep, NULL, NULL, NULL, NULL);
+    memcpy(copy->addr, unpack->data, copy->size = (uint8_t)unpack->size);
+    return (true);
 }
 
 /*
@@ -1181,14 +1153,12 @@ __wt_ref_info(WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size
 static inline int
 __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    size_t addr_size;
-    const uint8_t *addr;
+    WT_ADDR_COPY addr;
 
-    if (ref->addr == NULL)
+    if (!__wt_ref_addr_copy(session, ref, &addr))
         return (0);
 
-    __wt_ref_info(session, ref, &addr, &addr_size);
-    WT_RET(__wt_btree_block_free(session, addr, addr_size));
+    WT_RET(__wt_btree_block_free(session, addr.addr, addr.size));
 
     /* Clear the address (so we don't free it twice). */
     __wt_ref_addr_free(session, ref);

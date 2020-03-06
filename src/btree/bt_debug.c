@@ -887,16 +887,13 @@ __debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
 static int
 __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
 {
-    WT_ADDR *addr;
     WT_PAGE *page;
     WT_PAGE_INDEX *pindex;
     WT_PAGE_MODIFY *mod;
     WT_SESSION_IMPL *session;
     uint64_t split_gen;
     uint32_t entries;
-    char tp_string[2][WT_TP_STRING_SIZE];
 
-    addr = ref->addr;
     page = ref->page;
     session = ds->session;
     mod = page->modify;
@@ -932,6 +929,8 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
     }
 
     WT_RET(ds->f(ds, ": %s\n", __wt_page_type_string(page->type)));
+    WT_RET(__debug_ref(ds, ref));
+
     WT_RET(ds->f(ds,
       "\t"
       "disk %p",
@@ -976,14 +975,8 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
         WT_RET(ds->f(ds, ", split-gen=%" PRIu64, split_gen));
     if (mod != NULL)
         WT_RET(ds->f(ds, ", page-state=%" PRIu32, mod->page_state));
-    if (addr != NULL)
-        WT_RET(ds->f(ds, ", start stop ts/txn %s,%s",
-          __wt_time_pair_to_string(addr->oldest_start_ts, addr->oldest_start_txn, tp_string[0]),
-          __wt_time_pair_to_string(addr->newest_stop_ts, addr->newest_stop_txn, tp_string[1])));
     WT_RET(ds->f(ds, ", memory-size %" WT_SIZET_FMT, page->memory_footprint));
-    WT_RET(ds->f(ds, "\n"));
-
-    return (0);
+    return (ds->f(ds, "\n"));
 }
 
 /*
@@ -1353,30 +1346,29 @@ __debug_ref_state(u_int state)
 static int
 __debug_ref(WT_DBG *ds, WT_REF *ref)
 {
+    WT_ADDR_COPY addr;
     WT_SESSION_IMPL *session;
-    size_t addr_size;
-    const uint8_t *addr;
-    const char *flagsep;
+    char tp_string[2][WT_TP_STRING_SIZE];
+    char ts_string[WT_TS_INT_STRING_SIZE];
 
     session = ds->session;
 
-    WT_RET(ds->f(ds,
-      "\t"
-      "%p %s (",
-      (void *)ref, __debug_ref_state(ref->state)));
-    flagsep = "";
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-        WT_RET(ds->f(ds, "%s%s", flagsep, "internal"));
-        flagsep = ", ";
-    }
-    if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
-        WT_RET(ds->f(ds, "%s%s", flagsep, "leaf"));
-        flagsep = ", ";
-    }
+    WT_RET(ds->f(ds, "\t%p, ", (void *)ref));
+    WT_RET(ds->f(ds, "%s", __debug_ref_state(ref->state)));
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        WT_RET(ds->f(ds, ", %s", "internal"));
+    if (F_ISSET(ref, WT_REF_FLAG_LEAF))
+        WT_RET(ds->f(ds, ", %s", "leaf"));
     if (F_ISSET(ref, WT_REF_FLAG_READING))
-        WT_RET(ds->f(ds, "%s%s", flagsep, "reading"));
-    __wt_ref_info(session, ref, &addr, &addr_size);
-    return (ds->f(ds, ") %s\n", __wt_addr_string(session, addr, addr_size, ds->t1)));
+        WT_RET(ds->f(ds, ", %s", "reading"));
+
+    if (__wt_ref_addr_copy(session, ref, &addr))
+        WT_RET(ds->f(ds, ", newest-durable ts %s, start/stop ts/txn %s,%s, %s",
+          __wt_timestamp_to_string(addr.newest_durable_ts, ts_string),
+          __wt_time_pair_to_string(addr.oldest_start_ts, addr.oldest_start_txn, tp_string[0]),
+          __wt_time_pair_to_string(addr.newest_stop_ts, addr.newest_stop_txn, tp_string[1]),
+          __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
+    return (ds->f(ds, "\n"));
 }
 
 /*
