@@ -196,6 +196,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * both must be initialized.
      */
     upd_select->upd = NULL;
+    upd_select->durable_ts = WT_TS_NONE;
+    upd_select->start_ts = WT_TS_NONE;
+    upd_select->start_txn = WT_TXN_NONE;
+    upd_select->stop_ts = WT_TS_MAX;
+    upd_select->stop_txn = WT_TXN_MAX;
 
     page = r->page;
     first_txn_upd = upd = last_upd = NULL;
@@ -336,11 +341,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * stable.
      */
     if (upd != NULL) {
-        upd_select->durable_ts = WT_TS_NONE;
-        upd_select->start_ts = WT_TS_NONE;
-        upd_select->start_txn = WT_TXN_NONE;
-        upd_select->stop_ts = WT_TS_MAX;
-        upd_select->stop_txn = WT_TXN_MAX;
         /*
          * If the newest is a tombstone then select the update before it and set the end of the
          * visibility window to its time pair as appropriate to indicate that we should return "not
