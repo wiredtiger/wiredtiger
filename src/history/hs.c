@@ -335,7 +335,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
      */
     cursor->set_key(
       cursor, btree->id, key, upd->start_ts, __wt_atomic_add64(&btree->hs_counter, 1));
-    cursor->set_value(cursor, stop_ts_pair.timestamp, upd->durable_ts, type, hs_value);
+    cursor->set_value(cursor, stop_ts_pair.timestamp, upd->durable_ts, (uint64_t)type, hs_value);
 
     /* Only create the update chain the first time we try inserting into the history store. */
     if (hs_upd == NULL) {
@@ -757,9 +757,6 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
     int cmp, exact;
-    bool set_key;
-
-    set_key = false;
 
     WT_RET(__wt_scr_alloc(session, 0, &srch_key));
 
@@ -778,23 +775,29 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      * FIXME: We should be repeatedly moving the cursor backwards within the loop instead of doing a
      * search near operation each time as it is cheaper.
      */
-    for (;;) {
-        cursor->set_key(cursor, btree_id, key, timestamp, UINT64_MAX);
+    cursor->set_key(
+      cursor, btree_id, key, timestamp != WT_TS_NONE ? timestamp : WT_TS_MAX, UINT64_MAX);
+    /* Copy the raw key before searching as a basis for comparison. */
+    WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
+    WT_ERR(cursor->search_near(cursor, &exact));
+    if (exact > 0) {
         /*
-         * We're going to be searching with the same key on every iteration, so only copy the buffer
-         * on the first loop.
+         * It's possible that we may race with a history store insert for another key. So we may be
+         * more than one record away the end of our target key/timestamp range. Keep iterating
+         * backwards until we land on our key.
          */
-        if (!set_key) {
-            set_key = true;
-            WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
+        while ((ret = cursor->prev(cursor)) == 0) {
+            WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
+            if (cmp <= 0)
+                break;
         }
-        WT_ERR(cursor->search_near(cursor, &exact));
-        if (exact > 0)
-            WT_ERR(cursor->prev(cursor));
-        WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
-        if (cmp <= 0)
-            break;
     }
+#ifdef HAVE_DIAGNOSTIC
+    if (ret == 0) {
+        WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
+        WT_ASSERT(session, cmp <= 0);
+    }
+#endif
 err:
     __wt_scr_free(session, &srch_key);
     return (ret);
@@ -843,7 +846,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, hs_start_ts, hs_start_ts_tmp;
     wt_timestamp_t hs_stop_ts, hs_stop_ts_tmp, read_timestamp, saved_timestamp;
     size_t notused, size;
-    uint64_t hs_counter, hs_counter_tmp;
+    uint64_t hs_counter, hs_counter_tmp, upd_type_full;
     uint32_t hs_btree_id, session_flags;
     uint8_t *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
@@ -912,7 +915,9 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     if (cmp != 0)
         goto done;
 
-    WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_timestamp, &upd_type, hs_value));
+    WT_ERR(
+      hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_timestamp, &upd_type_full, hs_value));
+    upd_type = (uint8_t)upd_type_full;
 
     /* We do not have tombstones in the history store anymore. */
     WT_ASSERT(session, upd_type != WT_UPDATE_TOMBSTONE);
@@ -975,7 +980,8 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
             }
 
             WT_ERR(hs_cursor->get_value(
-              hs_cursor, &hs_stop_ts_tmp, &durable_timestamp_tmp, &upd_type, hs_value));
+              hs_cursor, &hs_stop_ts_tmp, &durable_timestamp_tmp, &upd_type_full, hs_value));
+            upd_type = (uint8_t)upd_type_full;
         }
 
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
@@ -1050,6 +1056,7 @@ static int
 __hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key)
 {
     WT_CURSOR *hs_cursor;
+    WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
     WT_ITEM hs_key;
     wt_timestamp_t hs_start_ts;
@@ -1058,36 +1065,47 @@ __hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *
     int cmp, exact;
 
     hs_cursor = session->hs_cursor;
-    hs_cursor->set_key(hs_cursor, btree_id, key, WT_TS_NONE, 0);
-    /*
-     * FIXME: This should be done in a loop in order to deal with the possibility of racing with
-     * other inserts. Perhaps further generalize the cursor positioning function.
-     */
+    WT_RET(__wt_scr_alloc(session, 0, &srch_key));
+
+    hs_cursor->set_key(hs_cursor, btree_id, key, WT_TS_NONE, (uint64_t)0);
+    WT_ERR(__wt_buf_set(session, srch_key, hs_cursor->key.data, hs_cursor->key.size));
     ret = hs_cursor->search_near(hs_cursor, &exact);
     /* Empty history store is fine. */
     if (ret == WT_NOTFOUND)
-        return (0);
-    WT_RET(ret);
+        goto done;
+    WT_ERR(ret);
+    /*
+     * If we raced with a history store insert, we may be two or more records away from our target.
+     * Keep iterating forwards until we are on or past our target key.
+     *
+     * We can't use the cursor positioning helper that we use for regular reads since that will
+     * place us at the end of a particular key/timestamp range whereas we want to be placed at the
+     * beginning.
+     */
     if (exact < 0) {
-        ret = hs_cursor->next(hs_cursor);
-        /*
-         * That means there is only one record in the history store and it doesn't belong to our
-         * key.
-         */
+        while ((ret = hs_cursor->next(hs_cursor)) == 0) {
+            WT_ERR(__wt_compare(session, NULL, &hs_cursor->key, srch_key, &cmp));
+            if (cmp >= 0)
+                break;
+        }
+        /* No entries greater than or equal to the key we searched for. */
         if (ret == WT_NOTFOUND)
-            return (0);
-        WT_RET(ret);
+            goto done;
+        WT_ERR(ret);
     }
     /* Bailing out here also means we have no history store records for our key. */
-    WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
+    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
     if (hs_btree_id != btree_id)
-        return (0);
-    WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
+        goto done;
+    WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
     if (cmp != 0)
-        return (0);
-    WT_RET(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key));
-
-    return (0);
+        goto done;
+    WT_ERR(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key));
+done:
+    ret = 0;
+err:
+    __wt_scr_free(session, &srch_key);
+    return (ret);
 }
 
 /*

@@ -225,6 +225,12 @@ struct __wt_ovfl_reuse {
  * standard by moving the source key into the history store table value, but that doesn't make the
  * coding any simpler, and it makes the history store table's value more likely to overflow the page
  * size when the row-store key is relatively large.
+ *
+ * Note that we deliberately store the update type as larger than necessary (8 bytes vs 1 byte).
+ * We've done this to leave room in case we need to store extra bit flags in this value at a later
+ * point. If we need to store more information, we can potentially tack extra information at the end
+ * of the "value" buffer and then use bit flags within the update type to determine how to interpret
+ * it.
  */
 #ifdef HAVE_BUILTIN_EXTENSION_SNAPPY
 #define WT_HS_COMPRESSOR "snappy"
@@ -233,7 +239,7 @@ struct __wt_ovfl_reuse {
 #endif
 #define WT_HS_CONFIG                                                              \
     "key_format=" WT_UNCHECKED_STRING(IuQQ) ",value_format=" WT_UNCHECKED_STRING( \
-      QQBu) ",block_compressor=" WT_HS_COMPRESSOR                                 \
+      QQQu) ",block_compressor=" WT_HS_COMPRESSOR                                 \
             ",leaf_value_max=64MB"                                                \
             ",prefix_compression=false"
 
