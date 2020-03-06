@@ -763,7 +763,8 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      * FIXME: We should be repeatedly moving the cursor backwards within the loop instead of doing a
      * search near operation each time as it is cheaper.
      */
-    cursor->set_key(cursor, btree_id, key, timestamp != WT_TS_NONE ? timestamp : WT_TS_MAX, UINT64_MAX);
+    cursor->set_key(
+      cursor, btree_id, key, timestamp != WT_TS_NONE ? timestamp : WT_TS_MAX, UINT64_MAX);
     /* Copy the raw key before searching as a basis for comparison. */
     WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
     WT_ERR(cursor->search_near(cursor, &exact));
