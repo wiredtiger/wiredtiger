@@ -321,6 +321,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
+    WT_PAGE_MODIFY *mod;
     WT_UPDATE *hs_upd;
     size_t notused;
     uint32_t session_flags;
@@ -359,6 +360,9 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
     /* Search the page and insert the mod list. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &cursor->key, true, NULL, false, NULL));
     WT_ERR(ret);
+    WT_ASSERT(session, cbt->ins == NULL || (mod = cbt->ref->page->modify) == NULL ||
+        mod->mod_row_update == NULL || mod->mod_row_update[cbt->slot]);
+    WT_UNUSED(mod);
     WT_ERR(__wt_row_modify(cbt, &cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
 
     /*
@@ -1127,6 +1131,7 @@ __hs_delete_key_from_pos(
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_RET;
     WT_ITEM hs_key;
+    WT_PAGE_MODIFY *mod;
     WT_UPDATE *upd;
     wt_timestamp_t hs_start_ts;
     size_t size;
@@ -1161,6 +1166,10 @@ __hs_delete_key_from_pos(
         WT_RET(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
         upd->txnid = WT_TXN_NONE;
         upd->start_ts = upd->durable_ts = WT_TS_NONE;
+        if (hs_cbt->ins != NULL)
+            upd->next = hs_cbt->ins->upd;
+        else if ((mod = hs_cbt->ref->page->modify) != NULL && mod->mod_row_update != NULL)
+            upd->next = mod->mod_row_update[hs_cbt->slot];
         WT_WITH_BTREE(session, hs_cbt->btree,
           ret = __wt_row_modify(hs_cbt, &hs_cursor->key, NULL, upd, WT_UPDATE_INVALID, true));
         WT_ERR(ret);
