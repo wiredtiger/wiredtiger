@@ -721,23 +721,28 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      * history store as opposed to comparing the embedded data store key since the ordering is not
      * guaranteed to be the same.
      */
-    for (;;) {
-        cursor->set_key(cursor, btree_id, key, timestamp, UINT64_MAX);
+    cursor->set_key(cursor, btree_id, key, timestamp, UINT64_MAX);
+    /* Copy the raw key before searching as a basis for comparison. */
+    WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
+    WT_ERR(cursor->search_near(cursor, &exact));
+    if (exact > 0) {
         /*
-         * We're going to be searching with the same key on every iteration, so only copy the buffer
-         * on the first loop.
+         * It's possible that we may race with a history store insert for another key. So we may be
+         * more than one record away the end of our target key/timestamp range. Keep iterating
+         * backwards until we land on our key.
          */
-        if (!set_key) {
-            set_key = true;
-            WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
+        while ((ret = cursor->prev(cursor)) == 0) {
+            WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
+            if (cmp <= 0)
+                break;
         }
-        WT_ERR(cursor->search_near(cursor, &exact));
-        if (exact > 0)
-            WT_ERR(cursor->prev(cursor));
-        WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
-        if (cmp <= 0)
-            break;
     }
+#ifdef HAVE_DIAGNOSTIC
+    if (ret == 0) {
+        WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
+        WT_ASSERT(session, cmp <= 0);
+    }
+#endif
 err:
     __wt_scr_free(session, &srch_key);
     return (ret);
