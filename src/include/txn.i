@@ -247,12 +247,7 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
      * Lock the ref to ensure we don't race with eviction freeing the page deleted update list or
      * with a page instantiate.
      */
-    for (;; __wt_yield()) {
-        previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED &&
-          WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-            break;
-    }
+    WT_REF_LOCK(session, ref, &previous_state);
 
     if (commit) {
         ts = txn->commit_timestamp;
@@ -276,8 +271,7 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
         ref->page_del->durable_timestamp = txn->durable_timestamp;
     WT_PUBLISH(ref->page_del->prepare_state, prepare_state);
 
-    /* Unlock the page by setting it back to it's previous state */
-    WT_REF_SET_STATE(ref, previous_state);
+    WT_REF_UNLOCK(ref, previous_state);
 }
 
 /*
@@ -297,20 +291,14 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      * Lock the ref to ensure we don't race with eviction freeing the page deleted update list or
      * with a page instantiate.
      */
-    for (;; __wt_yield()) {
-        previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED &&
-          WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-            break;
-    }
+    WT_REF_LOCK(session, ref, &previous_state);
 
     for (updp = ref->page_del->update_list; updp != NULL && *updp != NULL; ++updp) {
         (*updp)->start_ts = txn->commit_timestamp;
         (*updp)->durable_ts = txn->durable_timestamp;
     }
 
-    /* Unlock the page by setting it back to it's previous state */
-    WT_REF_SET_STATE(ref, previous_state);
+    WT_REF_UNLOCK(ref, previous_state);
 }
 
 /*
@@ -766,7 +754,7 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
         if (upd_visible == WT_VISIBLE_TRUE) {
             /* Don't consider tombstone updates for the history store during rollback to stable. */
             if (type == WT_UPDATE_TOMBSTONE && WT_IS_HS(S2BT(session)) &&
-              F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+              F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE))
                 continue;
             *updp = upd;
             return (0);
@@ -830,7 +818,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
      * "not found", except for history store scan during rollback to stable.
      */
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
-      (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE)) &&
+      (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE)) &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
         __wt_buf_free(session, &buf);
         WT_RET(__wt_upd_alloc_tombstone(session, updp));

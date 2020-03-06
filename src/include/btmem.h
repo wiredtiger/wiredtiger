@@ -146,6 +146,25 @@ struct __wt_addr {
 };
 
 /*
+ * WT_ADDR_COPY --
+ *	We have to lock the WT_REF to look at a WT_ADDR: a structure we can use to quickly get a
+ * copy of the WT_REF address information.
+ */
+struct __wt_addr_copy {
+    /* Validity window */
+    wt_timestamp_t newest_durable_ts;
+    wt_timestamp_t oldest_start_ts;
+    uint64_t oldest_start_txn;
+    wt_timestamp_t newest_stop_ts;
+    uint64_t newest_stop_txn;
+
+    uint8_t type;
+
+    uint8_t addr[255 /* WT_BTREE_MAX_ADDR_COOKIE */];
+    uint8_t size;
+};
+
+/*
  * Overflow tracking for reuse: When a page is reconciled, we write new K/V overflow items. If pages
  * are reconciled multiple times, we need to know if we've already written a particular overflow
  * record (so we don't write it again), as well as if we've modified an overflow record previously
@@ -894,11 +913,8 @@ struct __wt_ref {
 #else
 #define WT_REF_SET_STATE(ref, s) WT_PUBLISH((ref)->state, s)
 #endif
-
-/* A macro wrapper allowing us to remember the callers code location */
-#define WT_REF_CAS_STATE(session, ref, old_state, new_state) \
-    __wt_ref_cas_state_int(session, ref, old_state, new_state, __func__, __LINE__)
 };
+
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't
  * inserted padding which would break the world.
@@ -908,6 +924,24 @@ struct __wt_ref {
 #else
 #define WT_REF_SIZE 48
 #endif
+
+/* A macro wrapper allowing us to remember the callers code location */
+#define WT_REF_CAS_STATE(session, ref, old_state, new_state) \
+    __wt_ref_cas_state_int(session, ref, old_state, new_state, __func__, __LINE__)
+
+#define WT_REF_LOCK(session, ref, previous_statep)                             \
+    do {                                                                       \
+        uint8_t __previous_state;                                              \
+        for (;; __wt_yield()) {                                                \
+            __previous_state = (ref)->state;                                   \
+            if (__previous_state != WT_REF_LOCKED &&                           \
+              WT_REF_CAS_STATE(session, ref, __previous_state, WT_REF_LOCKED)) \
+                break;                                                         \
+        }                                                                      \
+        *(previous_statep) = __previous_state;                                 \
+    } while (0)
+
+#define WT_REF_UNLOCK(ref, state) WT_REF_SET_STATE(ref, state)
 
 /*
  * WT_ROW --

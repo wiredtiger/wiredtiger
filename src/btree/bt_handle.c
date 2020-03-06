@@ -757,21 +757,18 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __btree_preload(WT_SESSION_IMPL *session)
 {
+    WT_ADDR_COPY addr;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_REF *ref;
-    size_t addr_size;
-    const uint8_t *addr;
 
     btree = S2BT(session);
     bm = btree->bm;
 
     /* Pre-load the second-level internal pages. */
-    WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref) {
-        __wt_ref_info(session, ref, &addr, &addr_size);
-        if (addr != NULL)
-            WT_RET(bm->preload(bm, session, addr, addr_size));
-    }
+    WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
+        if (__wt_ref_addr_copy(session, ref, &addr))
+            WT_RET(bm->preload(bm, session, addr.addr, addr.size));
     WT_INTL_FOREACH_END;
     return (0);
 }

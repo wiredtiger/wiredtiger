@@ -266,7 +266,7 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, WT_UPDATE **up
      */
     WT_ASSERT(session, modify_type != WT_UPDATE_INVALID);
 
-    if (modify_type == WT_UPDATE_TOMBSTONE)
+    if (modify_type == WT_UPDATE_TOMBSTONE || modify_type == WT_UPDATE_RESERVE)
         value = NULL;
 
     /* Allocate the WT_UPDATE structure and room for the value, then copy any value into place. */
