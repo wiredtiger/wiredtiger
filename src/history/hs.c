@@ -1163,6 +1163,7 @@ __hs_delete_key_from_pos(
         upd->start_ts = upd->durable_ts = WT_TS_NONE;
         WT_WITH_BTREE(session, hs_cbt->btree,
           ret = __wt_row_modify(hs_cbt, &hs_cursor->key, NULL, upd, WT_UPDATE_INVALID, true));
+        WT_STAT_CONN_INCR(session, cache_hs_remove_key_deletion);
         WT_ERR(ret);
         upd = NULL;
     }
