@@ -360,8 +360,10 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
     /* Search the page and insert the mod list. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &cursor->key, true, NULL, false, NULL));
     WT_ERR(ret);
-    /* We expect this to be a new insert into the history store, but cope if we find existing
-     * updates. */
+    /*
+     * We expect this to be a new insert into the history store, but cope if we find existing
+     * updates.
+     */
     if (cbt->compare == 0) {
         if (cbt->ins != NULL)
             hs_upd->next->next = cbt->ins->upd;
