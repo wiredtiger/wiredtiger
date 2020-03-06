@@ -703,9 +703,6 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
     int cmp, exact;
-    bool set_key;
-
-    set_key = false;
 
     WT_RET(__wt_scr_alloc(session, 0, &srch_key));
 
