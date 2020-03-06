@@ -264,8 +264,10 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
     uint32_t hs_btree_id, session_flags;
     int cmp, exact;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool is_owner;
 
     btree = S2BT(session);
+    hs_cursor = NULL;
     hs_btree_id = btree->id;
     /*
      * Set the data store timestamp and transactions to initiate timestamp range verification. Since
@@ -275,6 +277,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
     newer_start_ts = unpack->start_ts;
     session_flags = 0;
     older_stop_ts = 0;
+    is_owner = false;
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
 
@@ -282,7 +285,7 @@ __verify_key_hs(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *unpack, 
      * Open a history store cursor positioned at the end of the data store key (the newest record)
      * and iterate backwards until we reach a different key or btree.
      */
-    WT_ERR(__wt_hs_cursor(session, &session_flags));
+    WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
     hs_cursor = session->hs_cursor;
     hs_cursor->set_key(hs_cursor, hs_btree_id, key, WT_TS_MAX, UINT64_MAX);
     WT_ERR(hs_cursor->search_near(hs_cursor, &exact));
@@ -336,7 +339,7 @@ err:
         ret = 0;
 
     __wt_scr_free(session, &hs_key);
-    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     return (ret);
 }
@@ -588,6 +591,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri)
     uint32_t btree_id, btree_id_given_uri, session_flags, prev_btree_id;
     int exact, cmp;
     char *uri_itr;
+    bool is_owner;
 
     session_flags = 0;
     data_cursor = NULL;
@@ -597,7 +601,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri)
     prev_btree_id = 0;      /* [-Wconditional-uninitialized] */
     uri_itr = NULL;
 
-    WT_ERR(__wt_hs_cursor(session, &session_flags));
+    WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
     cursor = session->hs_cursor;
 
     /*
@@ -682,7 +686,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri)
 err:
     if (data_cursor != NULL)
         WT_TRET(data_cursor->close(data_cursor));
-    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
     __wt_scr_free(session, &tmp);
     __wt_free(session, uri_itr);
     return (ret);

@@ -716,15 +716,16 @@ __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint32_t session_flags;
+    bool is_owner;
 
     cursor = cursor_arg;
     session = (WT_SESSION_IMPL *)cursor->session;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
 
-    WT_RET(__wt_hs_cursor(session, &session_flags));
+    WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
     cbt = (WT_CURSOR_BTREE *)session->hs_cursor;
     ret = __wt_debug_tree_all(session, cbt->btree, NULL, ofile);
-    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     return (ret);
 }
