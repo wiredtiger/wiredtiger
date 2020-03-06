@@ -2058,12 +2058,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 {
     WT_BM *bm;
     WT_BTREE *btree;
-    WT_DECL_RET;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REF *ref;
     uint32_t i;
-    uint8_t previous_state;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -2088,23 +2086,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         if (__wt_ref_is_root(ref))
             break;
 
-        /*
-         * We're about to discard the WT_REF.addr field, and that can race with the cursor walk code
-         * examining tree WT_REFs for leaf pages. Lock the WT_REF unless we know we have exclusive
-         * access.
-         */
-        previous_state = WT_REF_LOCKED; /* -Wuninitialized */
-        if (!F_ISSET(r, WT_REC_EVICT))
-            for (;; __wt_yield()) {
-                previous_state = ref->state;
-                if (previous_state != WT_REF_LOCKED &&
-                  WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-                    break;
-            }
-        ret = __wt_ref_block_free(session, ref);
-        if (!F_ISSET(r, WT_REC_EVICT))
-            WT_REF_SET_STATE(ref, previous_state);
-        WT_RET(ret);
+        WT_RET(__wt_ref_block_free(session, ref));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -2296,6 +2278,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     WT_DECL_RET;
     WT_MULTI *multi;
     uint32_t i, session_flags;
+    bool is_owner;
 
     /* Check if there's work to do. */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
@@ -2304,7 +2287,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     if (i == r->multi_next)
         return (0);
 
-    WT_RET(__wt_hs_cursor(session, &session_flags));
+    WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
@@ -2317,7 +2300,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         }
 
 err:
-    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
     return (ret);
 }
 

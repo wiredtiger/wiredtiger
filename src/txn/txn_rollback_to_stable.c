@@ -9,6 +9,12 @@
 #include "wt_internal.h"
 
 /*
+ * Rollback to stable should ignore tombstones in the history store since it needs to scan the
+ * entire table sequentially.
+ */
+#define WT_SESSION_ROLLBACK_TO_STABLE_FLAGS (WT_SESSION_IGNORE_HS_TOMBSTONE)
+
+/*
  * __rollback_abort_newer_update --
  *     Abort updates in an update change with timestamps newer than the rollback timestamp. Also,
  *     clear the history store flag for the first stable update in the update.
@@ -145,14 +151,14 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     uint32_t hs_btree_id, session_flags;
     uint8_t type;
     int cmp;
-    bool valid_update_found;
+    bool is_owner, valid_update_found;
 
     hs_cursor = NULL;
     hs_upd = upd = NULL;
     durable_ts = hs_start_ts = newer_hs_ts = WT_TS_NONE;
     hs_btree_id = S2BT(session)->id;
     session_flags = 0;
-    valid_update_found = false;
+    is_owner = valid_update_found = false;
 
     /* Allocate buffers for the data store and history store key. */
     WT_RET(__wt_scr_alloc(session, 0, &key));
@@ -171,7 +177,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_ERR(__wt_buf_set(session, &full_value, full_value.data, full_value.size));
 
     /* Open a history store table cursor. */
-    WT_ERR(__wt_hs_cursor(session, &session_flags));
+    WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
     hs_cursor = session->hs_cursor;
     cbt = (WT_CURSOR_BTREE *)hs_cursor;
 
@@ -295,8 +301,7 @@ err:
     __wt_buf_free(session, &full_value);
     __wt_free(session, hs_upd);
     __wt_free(session, upd);
-    if (hs_cursor != NULL)
-        WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     return (ret);
 }
@@ -788,16 +793,18 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
     uint64_t hs_counter;
     uint32_t hs_btree_id, session_flags;
     int exact;
+    bool is_owner;
 
     hs_cursor = NULL;
     WT_CLEAR(key);
     hs_upd = NULL;
     session_flags = 0;
+    is_owner = false;
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
 
     /* Open a history store table cursor. */
-    WT_ERR(__wt_hs_cursor(session, &session_flags));
+    WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
     hs_cursor = session->hs_cursor;
     cbt = (WT_CURSOR_BTREE *)hs_cursor;
 
@@ -841,8 +848,7 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
 err:
     __wt_scr_free(session, &hs_key);
     __wt_free(session, hs_upd);
-    if (hs_cursor != NULL)
-        WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     return (ret);
 }
@@ -998,9 +1004,9 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, &session));
 
-    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
+    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS);
     ret = __rollback_to_stable(session, cfg);
-    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
+    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS);
 
     /*
      * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to
