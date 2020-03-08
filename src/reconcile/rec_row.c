@@ -696,6 +696,7 @@ int
 __wt_rec_row_leaf(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
+    static WT_UPDATE upd_tombstone = {.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE};
     WT_ADDR *addr;
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -768,6 +769,7 @@ __wt_rec_row_leaf(
             --slvg_skip;
             continue;
         }
+        dictionary = false;
         remove_key = false;
 
         /*
@@ -802,18 +804,16 @@ __wt_rec_row_leaf(
             stop_txn = vpack->stop_txn;
         }
 
-        /* Build value cell. */
-        dictionary = false;
-        if (upd == NULL) {
-            /*
-             * If we reconcile an on disk key with a globally visible stop time pair and there are
-             * no new updates for that key, skip writing that key.
-             */
-            if ((vpack->stop_txn != WT_TXN_MAX || vpack->stop_ts != WT_TS_MAX) &&
-              WT_ROW_UPDATE(page, rip) == NULL && WT_ROW_INSERT(page, rip) == NULL &&
-              __wt_txn_visible_all(session, vpack->stop_txn, vpack->stop_ts))
-                goto remove_key;
+        /*
+         * If we reconcile an on disk key with a globally visible stop time pair and there are no
+         * new updates for that key, skip writing that key.
+         */
+        if (upd == NULL && (vpack->stop_txn != WT_TXN_MAX || vpack->stop_ts != WT_TS_MAX) &&
+          __wt_txn_visible_all(session, vpack->stop_txn, vpack->stop_ts))
+            upd = &upd_tombstone;
 
+        /* Build value cell. */
+        if (upd == NULL) {
             /*
              * When the page was read into memory, there may not have been a value item.
              *
@@ -859,10 +859,7 @@ __wt_rec_row_leaf(
                     r->ovfl_items = true;
             }
         } else {
-            /*
-             * The first time we find an overflow record we're not going to use, discard the
-             * underlying blocks.
-             */
+            /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)
                 WT_ERR(__wt_ovfl_remove(session, page, vpack, F_ISSET(r, WT_REC_EVICT)));
 
@@ -881,7 +878,6 @@ __wt_rec_row_leaf(
                 dictionary = true;
                 break;
             case WT_UPDATE_TOMBSTONE:
-remove_key:
                 remove_key = true;
                 /*
                  * If this key/value pair was deleted, we're done.
