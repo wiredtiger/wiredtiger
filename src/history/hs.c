@@ -334,7 +334,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
      */
     cursor->set_key(
       cursor, btree->id, key, upd->start_ts, __wt_atomic_add64(&btree->hs_counter, 1));
-    cursor->set_value(cursor, stop_ts_pair.timestamp, upd->durable_ts, type, hs_value);
+    cursor->set_value(cursor, stop_ts_pair.timestamp, upd->durable_ts, (uint64_t)type, hs_value);
 
     /* Only create the update chain the first time we try inserting into the history store. */
     if (hs_upd == NULL) {
@@ -834,7 +834,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, hs_start_ts, hs_start_ts_tmp;
     wt_timestamp_t hs_stop_ts, hs_stop_ts_tmp, read_timestamp, saved_timestamp;
     size_t notused, size;
-    uint64_t hs_counter, hs_counter_tmp;
+    uint64_t hs_counter, hs_counter_tmp, upd_type_full;
     uint32_t hs_btree_id, session_flags;
     uint8_t *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
@@ -903,7 +903,9 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
     if (cmp != 0)
         goto done;
 
-    WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_timestamp, &upd_type, hs_value));
+    WT_ERR(
+      hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_timestamp, &upd_type_full, hs_value));
+    upd_type = (uint8_t)upd_type_full;
 
     /* We do not have tombstones in the history store anymore. */
     WT_ASSERT(session, upd_type != WT_UPDATE_TOMBSTONE);
@@ -966,7 +968,8 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **upd
             }
 
             WT_ERR(hs_cursor->get_value(
-              hs_cursor, &hs_stop_ts_tmp, &durable_timestamp_tmp, &upd_type, hs_value));
+              hs_cursor, &hs_stop_ts_tmp, &durable_timestamp_tmp, &upd_type_full, hs_value));
+            upd_type = (uint8_t)upd_type_full;
         }
 
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);

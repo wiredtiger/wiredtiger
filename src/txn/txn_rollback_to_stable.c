@@ -147,7 +147,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_UPDATE *hs_upd, *upd;
     wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts, newer_hs_ts;
     size_t size;
-    uint64_t hs_counter;
+    uint64_t hs_counter, type_full;
     uint32_t hs_btree_id, session_flags;
     uint8_t type;
     int cmp;
@@ -214,7 +214,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         cbt->compare = 0;
 
         /* Get current value and convert to full update if it is a modify. */
-        WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type, hs_value));
+        WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type_full, hs_value));
+        type = (uint8_t)type_full;
         if (type == WT_UPDATE_MODIFY)
             WT_ERR(__wt_modify_apply_item(session, &full_value, hs_value->data, false));
         else {
@@ -583,6 +584,31 @@ __rollback_page_needs_abort(
     return (false);
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __rollback_verify_ondisk_page --
+ *     Verify the on-disk page that it doesn't have updates newer than the timestamp.
+ */
+static void
+__rollback_verify_ondisk_page(
+  WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
+{
+    WT_CELL_UNPACK *vpack, _vpack;
+    WT_ROW *rip;
+    uint32_t i;
+
+    vpack = &_vpack;
+
+    /* Review updates that belong to keys that are on the disk image. */
+    WT_ROW_FOREACH (page, rip, i) {
+        __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
+        WT_ASSERT(session, vpack->start_ts <= rollback_timestamp);
+        if (vpack->stop_ts != WT_TS_MAX)
+            WT_ASSERT(session, vpack->stop_ts <= rollback_timestamp);
+    }
+}
+#endif
+
 /*
  * __rollback_abort_newer_updates --
  *     Abort updates on this page newer than the timestamp.
@@ -612,6 +638,13 @@ __rollback_abort_newer_updates(
     if ((page = ref->page) == NULL || !__wt_page_is_modified(page)) {
         if (!__rollback_page_needs_abort(session, ref, rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RTS, "%p: page skipped", (void *)ref);
+#ifdef HAVE_DIAGNOSTIC
+            if (ref->page == NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+                WT_RET(__wt_page_in(session, ref, 0));
+                __rollback_verify_ondisk_page(session, ref->page, rollback_timestamp);
+                WT_TRET(__wt_page_release(session, ref, 0));
+            }
+#endif
             return (0);
         }
 
