@@ -714,7 +714,7 @@ __wt_rec_row_leaf(
     wt_timestamp_t durable_ts, newest_durable_ts, start_ts, stop_ts;
     uint64_t slvg_skip, start_txn, stop_txn;
     uint32_t i;
-    bool dictionary, key_onpage_ovfl, ovfl_key, remove_key;
+    bool dictionary, key_onpage_ovfl, ovfl_key;
     void *copy;
 
     btree = S2BT(session);
@@ -770,7 +770,6 @@ __wt_rec_row_leaf(
             continue;
         }
         dictionary = false;
-        remove_key = false;
 
         /*
          * Figure out the key: set any cell reference (and unpack it), set any instantiated key
@@ -878,7 +877,6 @@ __wt_rec_row_leaf(
                 dictionary = true;
                 break;
             case WT_UPDATE_TOMBSTONE:
-                remove_key = true;
                 /*
                  * If this key/value pair was deleted, we're done.
                  *
@@ -900,8 +898,19 @@ __wt_rec_row_leaf(
                 }
 
                 /*
-                 * We aren't actually creating the key so we can't use bytes from this key to
-                 * provide prefix information for a subsequent key.
+                 * If we're removing a key, also remove the history store contents associated with
+                 * that key. Even if we fail reconciliation after this point, we're safe to do this.
+                 * The history store content must be obsolete in order for us to consider removing
+                 * the key.
+                 */
+                if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !WT_IS_HS(btree)) {
+                    WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
+                    WT_ERR(__wt_hs_delete_key(session, btree->id, tmpkey));
+                }
+
+                /*
+                 * We aren't creating a key so we can't use bytes from this key to provide prefix
+                 * information for a subsequent key.
                  */
                 tmpkey->size = 0;
 
@@ -1010,16 +1019,6 @@ leaf_insert:
         /* Write any K/V pairs inserted into the page after this key. */
         if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip))) != NULL)
             WT_ERR(__rec_row_leaf_insert(session, r, ins));
-        /*
-         * If we're removing a key, we should also remove the history store contents associated with
-         * that key. Even if we fail reconciliation after this point, we're safe to do this. In
-         * order for us to consider removing the key, a globally visible tombstone must exist
-         * meaning that the history store content is obsolete in any case.
-         */
-        if (remove_key && F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !WT_IS_HS(btree)) {
-            WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
-            WT_ERR(__wt_hs_delete_key(session, btree->id, tmpkey));
-        }
     }
 
     /* Write the remnant page. */
