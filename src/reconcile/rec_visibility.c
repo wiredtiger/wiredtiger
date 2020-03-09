@@ -455,12 +455,19 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /* Mark the page dirty after reconciliation. */
     if (has_newer_updates)
         r->leave_dirty = true;
+
+    if (has_newer_updates && F_ISSET(r, WT_REC_EXPECT_CLEAN))
+        return (__wt_set_return(session, EBUSY));
+
     /*
      * We should restore the update chains to the new disk image if there are newer updates in
      * eviction.
      */
     if (has_newer_updates && F_ISSET(r, WT_REC_EVICT))
         r->cache_write_restore = true;
+
+    if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
+        WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
 
     /*
      * The update doesn't have any further updates that need to be written to the history store,
