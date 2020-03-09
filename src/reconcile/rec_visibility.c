@@ -55,14 +55,10 @@ __rec_append_orig_value(
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_UPDATE *append, *tombstone;
-#ifdef HAVE_DIAGNOSTIC
     WT_UPDATE *last_committed_upd;
-#endif
     size_t size, total_size;
 
-#ifdef HAVE_DIAGNOSTIC
     last_committed_upd = NULL;
-#endif
 
     for (;; upd = upd->next) {
         /* Done if at least one self-contained update is globally visible. */
@@ -80,10 +76,8 @@ __rec_append_orig_value(
         if (unpack != NULL && unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid)
             return (0);
 
-#ifdef HAVE_DIAGNOSTIC
         if (upd->txnid != WT_TXN_ABORTED)
             last_committed_upd = upd;
-#endif
 
         /* Leave reference at the last item in the chain. */
         if (upd->next == NULL)
@@ -96,15 +90,16 @@ __rec_append_orig_value(
      *
      * If we don't have a value cell, it's an insert/append list key/value pair which simply doesn't
      * exist for some reader; place a deleted record at the end of the update list.
+     *
+     * If the an update is out of order so it masks the value in the cell, don't append.
      */
     append = tombstone = NULL; /* -Wconditional-uninitialized */
     total_size = size = 0;     /* -Wconditional-uninitialized */
     if (unpack == NULL || unpack->type == WT_CELL_DEL)
         WT_RET(__wt_update_alloc(session, NULL, &append, &size, WT_UPDATE_TOMBSTONE));
+    else if (last_committed_upd != NULL && last_committed_upd->start_ts < unpack->start_ts)
+        return (0);
     else {
-        /* Timestamp should always be in descending order. */
-        WT_ASSERT(
-          session, last_committed_upd == NULL || last_committed_upd->start_ts >= unpack->start_ts);
         WT_RET(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
         WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
