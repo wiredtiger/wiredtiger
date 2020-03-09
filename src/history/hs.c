@@ -266,8 +266,8 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags, bool is_o
  *     Make an update to the history store.
  *
  * History store updates don't use transactions as those updates should be immediately visible and
- *     don't follow normal transaction semantics. For this reason, history store updates are
- *     directly modified using the low level api instead of the ordinary cursor api.
+ * don't follow normal transaction semantics. For this reason, history store updates are directly
+ * modified using the low level api instead of the ordinary cursor api.
  */
 int
 __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
