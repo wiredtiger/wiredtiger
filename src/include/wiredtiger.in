@@ -5105,7 +5105,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_MIX_TS	1092
 /*!
  * cache: history store key truncation due to the key being removed from
- * the page
+ * the data page
  */
 #define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL	1093
 /*! cache: history store score */

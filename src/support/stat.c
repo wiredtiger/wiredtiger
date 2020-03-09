@@ -686,7 +686,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: hazard pointer blocked page eviction", "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked", "cache: hazard pointer maximum array length",
   "cache: history store key truncation due to mixed timestamps",
-  "cache: history store key truncation due to the key being removed from the page",
+  "cache: history store key truncation due to the key being removed from the data page",
   "cache: history store score", "cache: history store table insert calls",
   "cache: history store table max on-disk size", "cache: history store table on-disk size",
   "cache: history store table reads", "cache: history store table reads missed",
