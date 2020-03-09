@@ -242,15 +242,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
         newer_hs_ts = hs_start_ts;
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
-
-        /*
-         * Any history store updates don't use transactions as those updates should be immediately
-         * visible and doesn't follow the transaction semantics. Due to this reason, the history
-         * store updates are directly modified using the low level api instead of cursor api.
-         */
-        WT_WITH_BTREE(session, cbt->btree,
-          ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
-        WT_ERR(ret);
+        WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
     }
@@ -288,9 +280,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     /* Finally remove that update from history store. */
     if (valid_update_found) {
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
-        WT_WITH_BTREE(session, cbt->btree,
-          ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
-        WT_ERR(ret);
+        WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
     }
@@ -864,15 +854,7 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
         cbt->compare = 0;
 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
-
-        /*
-         * Any history store updates don't use transactions as those updates should be immediately
-         * visible and doesn't follow the transaction semantics. Due to this reason, the history
-         * store updates are directly modified using the low level api instead of cursor api.
-         */
-        WT_WITH_BTREE(session, cbt->btree,
-          ret = __wt_row_modify(cbt, &hs_cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
-        WT_ERR(ret);
+        WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
     }

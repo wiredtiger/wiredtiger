@@ -262,6 +262,39 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags, bool is_o
 }
 
 /*
+ * __wt_hs_modify --
+ *     Make an update to the history store.
+ *
+ * History store updates don't use transactions as those updates should be immediately visible and
+ *     don't follow normal transaction semantics. For this reason, history store updates are
+ *     directly modified using the low level api instead of the ordinary cursor api.
+ */
+int
+__wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
+{
+    WT_DECL_RET;
+    WT_PAGE_MODIFY *mod;
+    WT_SESSION_IMPL *session;
+    WT_UPDATE *last_upd;
+
+    session = (WT_SESSION_IMPL *)hs_cbt->iface.session;
+
+    /* If there are existing updates, append them after the new updates. */
+    if (hs_cbt->compare == 0) {
+        for (last_upd = hs_upd; last_upd->next != NULL; last_upd = last_upd->next)
+            ;
+        if (hs_cbt->ins != NULL)
+            last_upd->next = hs_cbt->ins->upd;
+        else if ((mod = hs_cbt->ref->page->modify) != NULL && mod->mod_row_update != NULL)
+            last_upd->next = mod->mod_row_update[hs_cbt->slot];
+    }
+
+    WT_WITH_BTREE(session, hs_cbt->btree,
+      ret = __wt_row_modify(hs_cbt, &hs_cbt->iface.key, NULL, hs_upd, WT_UPDATE_INVALID, true));
+    return (ret);
+}
+
+/*
  * __hs_insert_updates_verbose --
  *     Display a verbose message once per checkpoint with details about the cache state when
  *     performing a history store table write.
@@ -336,30 +369,30 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
       cursor, btree->id, key, upd->start_ts, __wt_atomic_add64(&btree->hs_counter, 1));
     cursor->set_value(cursor, stop_ts_pair.timestamp, upd->durable_ts, (uint64_t)type, hs_value);
 
-    /* Only create the update chain the first time we try inserting into the history store. */
-    if (hs_upd == NULL) {
-        /*
-         * Insert a delete record to represent stop time pair for the actual record to be inserted.
-         * Set the stop time pair as the commit time pair of the history store delete record.
-         */
-        WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &notused, WT_UPDATE_TOMBSTONE));
-        hs_upd->start_ts = stop_ts_pair.timestamp;
-        hs_upd->txnid = stop_ts_pair.txnid;
+    /*
+     * Insert a delete record to represent stop time pair for the actual record to be inserted. Set
+     * the stop time pair as the commit time pair of the history store delete record.
+     */
+    WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &notused, WT_UPDATE_TOMBSTONE));
+    hs_upd->start_ts = stop_ts_pair.timestamp;
+    hs_upd->txnid = stop_ts_pair.txnid;
 
-        /*
-         * Append to the delete record, the actual record to be inserted into the history store. Set
-         * the current update start time pair as the commit time pair to the history store record.
-         */
-        WT_ERR(
-          __wt_update_alloc(session, &cursor->value, &hs_upd->next, &notused, WT_UPDATE_STANDARD));
-        hs_upd->next->start_ts = upd->start_ts;
-        hs_upd->next->txnid = upd->txnid;
-    }
+    /*
+     * Append to the delete record, the actual record to be inserted into the history store. Set the
+     * current update start time pair as the commit time pair to the history store record.
+     */
+    WT_ERR(__wt_update_alloc(session, &cursor->value, &hs_upd->next, &notused, WT_UPDATE_STANDARD));
+    hs_upd->next->start_ts = upd->start_ts;
+    hs_upd->next->txnid = upd->txnid;
 
-    /* Search the page and insert the mod list. */
+    /*
+     * Search the page and insert the updates. We expect there will be no existing data: assert that
+     * we don't find a matching key.
+     */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &cursor->key, true, NULL, false, NULL));
+    WT_ASSERT(session, cbt->compare != 0);
     WT_ERR(ret);
-    WT_ERR(__wt_row_modify(cbt, &cursor->key, NULL, hs_upd, WT_UPDATE_INVALID, true));
+    WT_ERR(__wt_hs_modify(cbt, hs_upd));
 
     /*
      * Since the two updates (tombstone and the standard) will reconcile into a single entry, we are
@@ -1179,9 +1212,7 @@ __hs_delete_key_from_pos(
         WT_RET(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
         upd->txnid = WT_TXN_NONE;
         upd->start_ts = upd->durable_ts = WT_TS_NONE;
-        WT_WITH_BTREE(session, hs_cbt->btree,
-          ret = __wt_row_modify(hs_cbt, &hs_cursor->key, NULL, upd, WT_UPDATE_INVALID, true));
-        WT_ERR(ret);
+        WT_ERR(__wt_hs_modify(hs_cbt, upd));
         upd = NULL;
     }
     if (ret == WT_NOTFOUND)
