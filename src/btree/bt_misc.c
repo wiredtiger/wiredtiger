@@ -90,6 +90,7 @@ __wt_key_string(
      * If the format is 'S', it's a string and our version of it may not yet be nul-terminated.
      */
     if (WT_STREQ(key_format, "S") && ((char *)data_arg)[size - 1] != '\0') {
+        WT_CLEAR(tmp);
         if (__wt_buf_fmt(session, &tmp, "%.*s", (int)size, (char *)data_arg) == 0) {
             data_arg = tmp.data;
             size = tmp.size + 1;
