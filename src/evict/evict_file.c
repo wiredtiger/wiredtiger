@@ -59,9 +59,8 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * reconciliation of other page types changes, and there's no advantage to doing so.
          *
          * Eviction can also fail because an update cannot be written. If sessions have disjoint
-         * sets of files open, updates in a no-longer-referenced file may not yet be globally
-         * visible, and the write will fail with EBUSY. Our caller handles that error, retrying
-         * later.
+         * sets of files open, updates in a no-longer-referenced file may not yet be visible, and
+         * the write will fail with EBUSY. Our caller handles that error, retrying later.
          */
         if (syncop == WT_SYNC_CLOSE && __wt_page_is_modified(page))
             WT_ERR(__wt_reconcile(session, ref, NULL,
