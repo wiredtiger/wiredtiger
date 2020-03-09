@@ -475,7 +475,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      * out-of-order timestamps), so this value can never be seen, don't bother inserting it.
      */
     if (stop_ts_pair.timestamp < upd->start_ts ||
-      (stop_ts_pair.timestamp == upd->start_ts && stop_ts_pair.txnid <= upd->txnid)) {
+      (stop_ts_pair.timestamp != WT_TS_NONE && stop_ts_pair.timestamp == upd->start_ts)) {
         char ts_string[2][WT_TS_INT_STRING_SIZE];
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "Warning: fixing out-of-order timestamps %s earlier than previous update %s",
@@ -685,7 +685,12 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
             __wt_modify_vector_pop(&modifies, &prev_upd);
-            stop_ts_pair.timestamp = prev_upd->start_ts;
+
+            /* Set the stop timestamp from durable or commit timestamp. */
+            if (prev_upd->durable_ts != WT_TS_NONE)
+                stop_ts_pair.timestamp = prev_upd->durable_ts;
+            else
+                stop_ts_pair.timestamp = prev_upd->start_ts;
             stop_ts_pair.txnid = prev_upd->txnid;
 
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
