@@ -14,8 +14,8 @@
  */
 #define WT_HS_SESSION_FLAGS (WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_NO_RECONCILE)
 
-static int __hs_delete_key_from_pos(
-  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key);
+static int __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
+  uint32_t btree_id, const WT_ITEM *key, bool mixed_ts);
 
 /*
  * __hs_start_internal_session --
@@ -427,7 +427,7 @@ err:
         if (ret == WT_NOTFOUND)
             ret = 0;
         else if (ret == 0)
-            WT_TRET(__hs_delete_key_from_pos(session, cursor, btree->id, key));
+            WT_TRET(__hs_delete_key_from_pos(session, cursor, btree->id, key, true));
         if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
             F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
     }
@@ -661,7 +661,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
                 if (upd->start_ts == WT_TS_NONE)
-                    WT_ERR(__wt_hs_delete_key(session, btree->id, key));
+                    WT_ERR(__wt_hs_delete_key(session, btree->id, key, true));
                 __wt_modify_vector_pop(&modifies, &upd);
             } else
                 continue;
@@ -691,7 +691,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
                 if (prev_upd->start_ts == WT_TS_NONE)
-                    WT_ERR(__wt_hs_delete_key(session, btree->id, key));
+                    WT_ERR(__wt_hs_delete_key(session, btree->id, key, true));
                 __wt_modify_vector_pop(&modifies, &prev_upd);
                 WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
                 prev_full_value->data = prev_upd->data;
@@ -1074,7 +1074,7 @@ err:
  *     Internal helper for deleting history store content for a given key.
  */
 static int
-__hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key)
+__hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, bool mixed_ts)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(srch_key);
@@ -1121,7 +1121,7 @@ __hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *
     WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
     if (cmp != 0)
         goto done;
-    WT_ERR(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key));
+    WT_ERR(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key, mixed_ts));
 done:
     ret = 0;
 err:
@@ -1134,7 +1134,7 @@ err:
  *     Delete an entire key's worth of data in the history store.
  */
 int
-__wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key)
+__wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, bool mixed_ts)
 {
     WT_DECL_RET;
     uint32_t session_flags;
@@ -1157,7 +1157,7 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
      */
     F_SET(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
-    while ((ret = __hs_delete_key_int(session, btree_id, key)) == WT_RESTART)
+    while ((ret = __hs_delete_key_int(session, btree_id, key, mixed_ts)) == WT_RESTART)
         ;
 
     if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
@@ -1172,8 +1172,8 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
  *     positioned at the beginning of the key range.
  */
 static int
-__hs_delete_key_from_pos(
-  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key)
+__hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
+  const WT_ITEM *key, bool mixed_ts)
 {
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_RET;
@@ -1214,11 +1214,15 @@ __hs_delete_key_from_pos(
         upd->start_ts = upd->durable_ts = WT_TS_NONE;
         WT_ERR(__wt_hs_modify(hs_cbt, upd));
         upd = NULL;
-        WT_STAT_CONN_INCR(session, cache_hs_remove_key_deletion);
+        WT_STAT_CONN_INCR(session, cache_hs_remove_key_truncate);
     }
     if (ret == WT_NOTFOUND)
-        return (0);
+        ret = 0;
 err:
+    if (mixed_ts)
+        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+    else
+        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
     __wt_free(session, upd);
     return (ret);
 }
