@@ -39,13 +39,13 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     WT_SESSION_IMPL *session_impl;
     int ch, i;
     char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
-    bool hex, is_hs, json, reverse;
+    bool hex, json, reverse;
 
     session_impl = (WT_SESSION_IMPL *)session;
 
     cursor = NULL;
     checkpoint = ofile = simpleuri = uri = timestamp = NULL;
-    hex = is_hs = json = reverse = false;
+    hex = json = reverse = false;
     while ((ch = __wt_getopt(progname, argc, argv, "c:f:t:jrx")) != EOF)
         switch (ch) {
         case 'c':
@@ -137,10 +137,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
          * nothing will be visible. The only exception is if we've supplied a timestamp in which
          * case, we're specifically interested in what is visible at a given read timestamp.
          */
-        if (WT_STREQ(simpleuri, WT_HS_URI) && timestamp != NULL) {
-            is_hs = true;
+        if (WT_STREQ(simpleuri, WT_HS_URI) && timestamp == NULL)
             F_SET(session_impl, WT_SESSION_IGNORE_HS_TOMBSTONE);
-        }
         if (dump_config(session, simpleuri, cursor, hex, json) != 0)
             goto err;
 
@@ -164,8 +162,7 @@ err:
         ret = 1;
     }
 
-    if (is_hs)
-        F_CLR(session_impl, WT_SESSION_IGNORE_HS_TOMBSTONE);
+    F_CLR(session_impl, WT_SESSION_IGNORE_HS_TOMBSTONE);
     if (cursor != NULL && (ret = cursor->close(cursor)) != 0)
         ret = util_err(session, ret, NULL);
     if (ofile != NULL && (ret = fclose(fp)) != 0)
