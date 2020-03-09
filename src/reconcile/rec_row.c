@@ -696,6 +696,7 @@ int
 __wt_rec_row_leaf(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
+    static WT_UPDATE upd_tombstone = {.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE};
     WT_ADDR *addr;
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -713,7 +714,7 @@ __wt_rec_row_leaf(
     wt_timestamp_t durable_ts, newest_durable_ts, start_ts, stop_ts;
     uint64_t slvg_skip, start_txn, stop_txn;
     uint32_t i;
-    bool dictionary, key_onpage_ovfl, ovfl_key, remove_key;
+    bool dictionary, key_onpage_ovfl, ovfl_key;
     void *copy;
 
     btree = S2BT(session);
@@ -768,7 +769,7 @@ __wt_rec_row_leaf(
             --slvg_skip;
             continue;
         }
-        remove_key = false;
+        dictionary = false;
 
         /*
          * Figure out the key: set any cell reference (and unpack it), set any instantiated key
@@ -795,25 +796,36 @@ __wt_rec_row_leaf(
             stop_ts = upd_select.stop_ts;
             stop_txn = upd_select.stop_txn;
         } else {
-            durable_ts = newest_durable_ts;
+            /*
+             * FIXME: Temporary fix until the value cell has the durable timestamp. Currently, value
+             * cell doesn't store the information of durable timestamp, so we lose the information
+             * of aggregated durable timestamp information when the page is reconciled without
+             * writing to the disk (in-memory page re-instantiate). As part of page re-instantiate
+             * scenarios, the calculated aggregated durable timestamp gets lost and when the same
+             * page gets reconciled again, we don't have any durable timestamp from the cell. Use
+             * commit timestamp from the cell also as the durable timestamp instead of setting it to
+             * zero until we store the durable timestamp in the cell.
+             */
+            if (newest_durable_ts != WT_TS_NONE)
+                durable_ts = newest_durable_ts;
+            else
+                durable_ts = vpack->start_ts;
             start_ts = vpack->start_ts;
             start_txn = vpack->start_txn;
             stop_ts = vpack->stop_ts;
             stop_txn = vpack->stop_txn;
         }
 
-        /* Build value cell. */
-        dictionary = false;
-        if (upd == NULL) {
-            /*
-             * If we reconcile an on disk key with a globally visible stop time pair and there are
-             * no new updates for that key, skip writing that key.
-             */
-            if ((vpack->stop_txn != WT_TXN_MAX || vpack->stop_ts != WT_TS_MAX) &&
-              WT_ROW_UPDATE(page, rip) == NULL && WT_ROW_INSERT(page, rip) == NULL &&
-              __wt_txn_visible_all(session, vpack->stop_txn, vpack->stop_ts))
-                goto remove_key;
+        /*
+         * If we reconcile an on disk key with a globally visible stop time pair and there are no
+         * new updates for that key, skip writing that key.
+         */
+        if (upd == NULL && (vpack->stop_txn != WT_TXN_MAX || vpack->stop_ts != WT_TS_MAX) &&
+          __wt_txn_visible_all(session, vpack->stop_txn, vpack->stop_ts))
+            upd = &upd_tombstone;
 
+        /* Build value cell. */
+        if (upd == NULL) {
             /*
              * When the page was read into memory, there may not have been a value item.
              *
@@ -859,10 +871,7 @@ __wt_rec_row_leaf(
                     r->ovfl_items = true;
             }
         } else {
-            /*
-             * The first time we find an overflow record we're not going to use, discard the
-             * underlying blocks.
-             */
+            /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)
                 WT_ERR(__wt_ovfl_remove(session, page, vpack, F_ISSET(r, WT_REC_EVICT)));
 
@@ -881,8 +890,6 @@ __wt_rec_row_leaf(
                 dictionary = true;
                 break;
             case WT_UPDATE_TOMBSTONE:
-remove_key:
-                remove_key = true;
                 /*
                  * If this key/value pair was deleted, we're done.
                  *
@@ -904,8 +911,19 @@ remove_key:
                 }
 
                 /*
-                 * We aren't actually creating the key so we can't use bytes from this key to
-                 * provide prefix information for a subsequent key.
+                 * If we're removing a key, also remove the history store contents associated with
+                 * that key. Even if we fail reconciliation after this point, we're safe to do this.
+                 * The history store content must be obsolete in order for us to consider removing
+                 * the key.
+                 */
+                if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !WT_IS_HS(btree)) {
+                    WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
+                    WT_ERR(__wt_hs_delete_key(session, btree->id, tmpkey));
+                }
+
+                /*
+                 * We aren't creating a key so we can't use bytes from this key to provide prefix
+                 * information for a subsequent key.
                  */
                 tmpkey->size = 0;
 
@@ -1014,16 +1032,6 @@ leaf_insert:
         /* Write any K/V pairs inserted into the page after this key. */
         if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip))) != NULL)
             WT_ERR(__rec_row_leaf_insert(session, r, ins));
-        /*
-         * If we're removing a key, we should also remove the history store contents associated with
-         * that key. Even if we fail reconciliation after this point, we're safe to do this. In
-         * order for us to consider removing the key, a globally visible tombstone must exist
-         * meaning that the history store content is obsolete in any case.
-         */
-        if (remove_key && F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !WT_IS_HS(btree)) {
-            WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
-            WT_ERR(__wt_hs_delete_key(session, btree->id, tmpkey));
-        }
     }
 
     /* Write the remnant page. */
