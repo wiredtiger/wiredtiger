@@ -1184,9 +1184,11 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
     uint64_t hs_counter;
     uint32_t hs_btree_id;
     int cmp;
+    bool removed;
 
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     upd = NULL;
+    removed = false;
 
     /* If there is nothing else in history store, we're done here. */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
@@ -1200,6 +1202,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
         WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
         if (cmp != 0)
             break;
+        removed = true;
         /*
          * Since we're using internal functions to modify the row structure, we need to manually set
          * the comparison to an exact match.
@@ -1219,10 +1222,12 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
     if (ret == WT_NOTFOUND)
         ret = 0;
 err:
-    if (mixed_ts)
-        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
-    else
-        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
+    if (removed) {
+        if (mixed_ts)
+            WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+        else
+            WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
+    }
     __wt_free(session, upd);
     return (ret);
 }
