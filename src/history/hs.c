@@ -391,6 +391,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
 
     /* Search the page and insert the mod list. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &cursor->key, true, NULL, false, NULL));
+    WT_ERR(ret);
     WT_ERR(__wt_hs_modify(cbt, hs_upd));
 
     /*
