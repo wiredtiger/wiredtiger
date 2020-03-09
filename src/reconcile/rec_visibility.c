@@ -322,15 +322,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         return (0);
     }
 
-    if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-        WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
-
     /*
      * We expect the page to be clean after reconciliation when closing a tree. If there are newer
      * updates, abort eviction and retry.
      */
-    if (has_newer_updates && F_ISSET(r, WT_REC_EXPECT_CLEAN))
+    if (has_newer_updates && F_ISSET(r, WT_REC_EXPECT_CLEAN | WT_REC_VISIBILITY_ERR)) {
+        if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
+            WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
         return (__wt_set_return(session, EBUSY));
+    }
 
     if (upd != NULL && upd->start_ts > r->max_ondisk_ts)
         r->max_ondisk_ts = upd->start_ts;
