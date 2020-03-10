@@ -710,9 +710,13 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
     WT_REF *child_ref;
     uint64_t recno;
     uint32_t entry, i;
+    bool enable_hs_verify;
 
     bm = S2BT(session)->bm;
     page = ref->page;
+
+    /* Temporarily disable as MongoDB tests are timing out. Re-enable with WT-5796. */
+    enable_hs_verify = false;
 
     unpack = &_unpack;
 
@@ -814,7 +818,7 @@ recno_chk:
      *
      * Temporarily disable as MongoDB tests are timing out. Re-enable with WT-5796.
      */
-    if (0) {
+    if (enable_hs_verify) {
         switch (page->type) {
         case WT_PAGE_ROW_LEAF:
             WT_RET(__verify_row_leaf_page_hs(session, ref, vs));
