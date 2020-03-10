@@ -122,12 +122,12 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  */
 struct __wt_addr {
     /* Validity window */
-    wt_timestamp_t oldest_durable_ts;
     wt_timestamp_t oldest_start_ts;
     uint64_t oldest_start_txn;
-    wt_timestamp_t newest_durable_ts;
+    wt_timestamp_t start_durable_ts;
     wt_timestamp_t newest_stop_ts;
     uint64_t newest_stop_txn;
+    wt_timestamp_t stop_durable_ts;
 
     uint8_t *addr; /* Block-manager's cookie */
     uint8_t size;  /* Block-manager's cookie length */
@@ -154,11 +154,12 @@ struct __wt_addr {
  */
 struct __wt_addr_copy {
     /* Validity window */
-    wt_timestamp_t newest_durable_ts;
     wt_timestamp_t oldest_start_ts;
     uint64_t oldest_start_txn;
+    wt_timestamp_t start_durable_ts;
     wt_timestamp_t newest_stop_ts;
     uint64_t newest_stop_txn;
+    wt_timestamp_t stop_durable_ts;
 
     uint8_t type;
 

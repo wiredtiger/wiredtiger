@@ -277,7 +277,11 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Copy the key and value onto the page. */
         __wt_rec_image_copy(session, r, key);
         __wt_rec_image_copy(session, r, val);
-        __wt_rec_addr_ts_update(r, addr->newest_durable_ts, addr->oldest_start_ts,
+        /*
+         * FIXME-prepare-support: audit the use of durable timestamps in this file, use both durable
+         * timestamps.
+         */
+        __wt_rec_addr_ts_update(r, addr->stop_durable_ts, addr->oldest_start_ts,
           addr->oldest_start_txn, addr->newest_stop_ts, addr->newest_stop_txn);
 
         /* Update compression state. */
@@ -434,7 +438,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          */
         if (__wt_off_page(page, addr)) {
             __wt_rec_cell_build_addr(session, r, addr, NULL, state == WT_CHILD_PROXY, WT_RECNO_OOB);
-            newest_durable_ts = addr->newest_durable_ts;
+            newest_durable_ts = addr->stop_durable_ts;
             oldest_start_ts = addr->oldest_start_ts;
             oldest_start_txn = addr->oldest_start_txn;
             newest_stop_ts = addr->newest_stop_ts;
@@ -459,7 +463,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 val->cell_len = 0;
                 val->len = val->buf.size;
             }
-            newest_durable_ts = vpack->newest_durable_ts;
+            newest_durable_ts = vpack->newest_stop_durable_ts;
             oldest_start_ts = vpack->oldest_start_ts;
             oldest_start_txn = vpack->oldest_start_txn;
             newest_stop_ts = vpack->newest_stop_ts;
@@ -737,10 +741,10 @@ __wt_rec_row_leaf(
     if ((addr = pageref->addr) == NULL)
         newest_durable_ts = WT_TS_NONE;
     else if (__wt_off_page(pageref->home, addr))
-        newest_durable_ts = addr->newest_durable_ts;
+        newest_durable_ts = addr->stop_durable_ts;
     else {
         __wt_cell_unpack(session, pageref->home, pageref->addr, vpack);
-        newest_durable_ts = vpack->newest_durable_ts;
+        newest_durable_ts = vpack->newest_stop_durable_ts;
     }
 
     WT_RET(__wt_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp));

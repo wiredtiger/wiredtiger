@@ -79,8 +79,8 @@
 #define WT_CELL_SECOND_DESC 0x08 /* Second descriptor byte */
 
 #define WT_CELL_PREPARE 0x01          /* Part of prepared transaction */
-#define WT_CELL_TS_DURABLE_START 0x02 /* Newest-durable timestamp */
-#define WT_CELL_TS_DURABLE_STOP 0x04  /* Newest-durable timestamp */
+#define WT_CELL_TS_DURABLE_START 0x02 /* Start durable timestamp */
+#define WT_CELL_TS_DURABLE_STOP 0x04  /* Stop durable timestamp */
 #define WT_CELL_TS_START 0x08         /* Oldest-start timestamp */
 #define WT_CELL_TS_STOP 0x10          /* Newest-stop timestamp */
 #define WT_CELL_TXN_START 0x20        /* Oldest-start txn ID */
@@ -154,20 +154,20 @@ struct __wt_cell_unpack {
     uint64_t v; /* RLE count or recno */
 
     /* Value validity window */
-    wt_timestamp_t durable_start_ts; /* default value - WT_TS_NONE */
-    wt_timestamp_t durable_stop_ts;  /* default value - WT_TS_NONE */
-    wt_timestamp_t start_ts;         /* default value - WT_TS_NONE */
-    uint64_t start_txn;              /* default value - WT_TXN_NONE */
-    wt_timestamp_t stop_ts;          /* default value - WT_TS_MAX */
-    uint64_t stop_txn;               /* default value - WT_TXN_MAX */
+    wt_timestamp_t start_ts;         /* default value: WT_TS_NONE */
+    uint64_t start_txn;              /* default value: WT_TXN_NONE */
+    wt_timestamp_t durable_start_ts; /* default value: WT_TS_NONE */
+    wt_timestamp_t stop_ts;          /* default value: WT_TS_MAX */
+    uint64_t stop_txn;               /* default value: WT_TXN_MAX */
+    wt_timestamp_t durable_stop_ts;  /* default value: WT_TS_NONE */
 
     /* Address validity window */
-    wt_timestamp_t oldest_durable_ts; /* default value - WT_TS_NONE */
-    wt_timestamp_t newest_durable_ts; /* default value - WT_TS_NONE */
-    wt_timestamp_t oldest_start_ts;   /* default value - WT_TS_NONE */
-    uint64_t oldest_start_txn;        /* default value - WT_TXN_NONE */
-    wt_timestamp_t newest_stop_ts;    /* default value - WT_TS_MAX */
-    uint64_t newest_stop_txn;         /* default value - WT_TXN_MAX */
+    wt_timestamp_t oldest_start_ts;         /* default value: WT_TS_NONE */
+    uint64_t oldest_start_txn;              /* default value: WT_TXN_NONE */
+    wt_timestamp_t newest_start_durable_ts; /* default value: WT_TS_NONE */
+    wt_timestamp_t newest_stop_ts;          /* default value: WT_TS_MAX */
+    uint64_t newest_stop_txn;               /* default value: WT_TXN_MAX */
+    wt_timestamp_t newest_stop_durable_ts;  /* default value: WT_TS_NONE */
 
     /*
      * !!!
