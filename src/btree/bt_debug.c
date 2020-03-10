@@ -1353,7 +1353,7 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     WT_ADDR_COPY addr;
     WT_SESSION_IMPL *session;
     char tp_string[2][WT_TP_STRING_SIZE];
-    char ts_string[WT_TS_INT_STRING_SIZE];
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     session = ds->session;
 
@@ -1367,8 +1367,9 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
         WT_RET(ds->f(ds, ", %s", "reading"));
 
     if (__wt_ref_addr_copy(session, ref, &addr))
-        WT_RET(ds->f(ds, ", newest-durable ts %s, start/stop ts/txn %s,%s, %s",
-          __wt_timestamp_to_string(addr.newest_durable_ts, ts_string),
+        WT_RET(ds->f(ds, ", start/stop durable ts %s,%s, start/stop ts/txn %s,%s, %s",
+          __wt_timestamp_to_string(addr.start_durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(addr.stop_durable_ts, ts_string[1]),
           __wt_time_pair_to_string(addr.oldest_start_ts, addr.oldest_start_txn, tp_string[0]),
           __wt_time_pair_to_string(addr.newest_stop_ts, addr.newest_stop_txn, tp_string[1]),
           __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
@@ -1386,7 +1387,7 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     char tp_string[2][WT_TP_STRING_SIZE];
-    char ts_string[WT_TS_INT_STRING_SIZE];
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     session = ds->session;
 
@@ -1428,8 +1429,9 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        WT_RET(ds->f(ds, ", ts/txn %s,%s,%s",
-          __wt_timestamp_to_string(unpack->newest_durable_ts, ts_string),
+        WT_RET(ds->f(ds, ", ts/txn %s,%s,%s,%s",
+          __wt_timestamp_to_string(unpack->newest_start_durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(unpack->newest_stop_durable_ts, ts_string[1]),
           __wt_time_pair_to_string(unpack->oldest_start_ts, unpack->oldest_start_txn, tp_string[0]),
           __wt_time_pair_to_string(unpack->newest_stop_ts, unpack->newest_stop_txn, tp_string[1])));
         break;
