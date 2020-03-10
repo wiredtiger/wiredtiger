@@ -811,14 +811,18 @@ recno_chk:
     /*
      * History store checks. Ensure continuity between the data store and history store based on
      * keys in leaf/var pages.
+     *
+     * Temporarily disable as MongoDB tests are timing out. Re-enable with WT-5796.
      */
-    switch (page->type) {
-    case WT_PAGE_ROW_LEAF:
-        WT_RET(__verify_row_leaf_page_hs(session, ref, vs));
-        break;
-    case WT_PAGE_COL_VAR:
-        WT_RET(__verify_col_var_page_hs(session, ref, vs));
-        break;
+    if (0) {
+        switch (page->type) {
+        case WT_PAGE_ROW_LEAF:
+            WT_RET(__verify_row_leaf_page_hs(session, ref, vs));
+            break;
+        case WT_PAGE_COL_VAR:
+            WT_RET(__verify_col_var_page_hs(session, ref, vs));
+            break;
+        }
     }
 
     /* Compare the address type against the page type. */
