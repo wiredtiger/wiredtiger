@@ -466,7 +466,7 @@ tables_free(TABLE_INFO *tinfo)
             tinfo->table[slot].name = NULL;
         }
     }
-    free(tinfo->table); 
+    free(tinfo->table);
     tinfo->table = NULL;
 }
 
