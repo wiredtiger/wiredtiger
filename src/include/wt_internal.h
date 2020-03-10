@@ -67,6 +67,8 @@ extern "C" {
  */
 struct __wt_addr;
 typedef struct __wt_addr WT_ADDR;
+struct __wt_addr_copy;
+typedef struct __wt_addr_copy WT_ADDR_COPY;
 struct __wt_async;
 typedef struct __wt_async WT_ASYNC;
 struct __wt_async_cursor;

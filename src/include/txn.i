@@ -247,12 +247,7 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
      * Lock the ref to ensure we don't race with eviction freeing the page deleted update list or
      * with a page instantiate.
      */
-    for (;; __wt_yield()) {
-        previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED &&
-          WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-            break;
-    }
+    WT_REF_LOCK(session, ref, &previous_state);
 
     if (commit) {
         ts = txn->commit_timestamp;
@@ -276,8 +271,7 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
         ref->page_del->durable_timestamp = txn->durable_timestamp;
     WT_PUBLISH(ref->page_del->prepare_state, prepare_state);
 
-    /* Unlock the page by setting it back to it's previous state */
-    WT_REF_SET_STATE(ref, previous_state);
+    WT_REF_UNLOCK(ref, previous_state);
 }
 
 /*
@@ -297,20 +291,14 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      * Lock the ref to ensure we don't race with eviction freeing the page deleted update list or
      * with a page instantiate.
      */
-    for (;; __wt_yield()) {
-        previous_state = ref->state;
-        if (previous_state != WT_REF_LOCKED &&
-          WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-            break;
-    }
+    WT_REF_LOCK(session, ref, &previous_state);
 
     for (updp = ref->page_del->update_list; updp != NULL && *updp != NULL; ++updp) {
         (*updp)->start_ts = txn->commit_timestamp;
         (*updp)->durable_ts = txn->durable_timestamp;
     }
 
-    /* Unlock the page by setting it back to it's previous state */
-    WT_REF_SET_STATE(ref, previous_state);
+    WT_REF_UNLOCK(ref, previous_state);
 }
 
 /*
@@ -766,7 +754,7 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
         if (upd_visible == WT_VISIBLE_TRUE) {
             /* Don't consider tombstone updates for the history store during rollback to stable. */
             if (type == WT_UPDATE_TOMBSTONE && WT_IS_HS(S2BT(session)) &&
-              F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+              F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE))
                 continue;
             *updp = upd;
             return (0);
@@ -788,6 +776,7 @@ static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_CELL_UNPACK *vpack,
   WT_UPDATE **updp)
 {
+    WT_DECL_RET;
     WT_ITEM buf;
     WT_TIME_PAIR start, stop;
     size_t size;
@@ -808,9 +797,13 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     buf.flags = 0;
 
     /* Check the ondisk value. */
-    if (vpack == NULL)
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop));
-    else {
+    if (vpack == NULL) {
+        ret = __wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop);
+        if (ret != 0) {
+            __wt_buf_free(session, &buf);
+            return (ret);
+        }
+    } else {
         start.timestamp = vpack->start_ts;
         start.txnid = vpack->start_txn;
         stop.timestamp = vpack->stop_ts;
@@ -825,8 +818,9 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
      * "not found", except for history store scan during rollback to stable.
      */
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
-      (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE)) &&
+      (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE)) &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
+        __wt_buf_free(session, &buf);
         WT_RET(__wt_upd_alloc_tombstone(session, updp));
         (*updp)->txnid = stop.txnid;
         /* FIXME: Reevaluate this as part of PM-1524. */
@@ -843,7 +837,9 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
      * the current system.
      */
     if (__wt_txn_visible(session, start.txnid, start.timestamp)) {
-        WT_RET(__wt_update_alloc(session, &buf, updp, &size, WT_UPDATE_STANDARD));
+        ret = __wt_update_alloc(session, &buf, updp, &size, WT_UPDATE_STANDARD);
+        __wt_buf_free(session, &buf);
+        WT_RET(ret);
         (*updp)->txnid = start.txnid;
         (*updp)->start_ts = start.timestamp;
         F_SET((*updp), WT_UPDATE_RESTORED_FROM_DISK);
@@ -851,9 +847,13 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
-        WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, cbt, updp, false, &buf));
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS)) {
+        ret = __wt_find_hs_upd(session, cbt, updp, false, &buf);
+        __wt_buf_free(session, &buf);
+        WT_RET_NOTFOUND_OK(ret);
+    }
 
+    __wt_buf_free(session, &buf);
     /*
      * Return null not tombstone if nothing is found in history store.
      */
@@ -1102,7 +1102,7 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
      */
     if (!rollback && upd == NULL && cbt != NULL && cbt->btree->type != BTREE_COL_FIX &&
       cbt->ins == NULL) {
-        WT_ERR(__wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop));
+        __wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop);
         if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX)
             rollback = !__wt_txn_visible(session, stop.txnid, stop.timestamp);
         else
@@ -1115,7 +1115,6 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
         ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
     }
 
-err:
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
     return (ret);

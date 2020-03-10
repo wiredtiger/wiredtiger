@@ -1317,8 +1317,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [defghijk] ${unit_test_args|-v 2} ${smp_command|} 2>&1
-
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [defg] ${unit_test_args|-v 2} ${smp_command|} 2>&1
   - name: unit-test-bucket04
     tags: ["pull_request", "unit_test"]
     depends_on:
@@ -1332,7 +1331,9 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [lmnopq] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            # Reserve this bucket only for history store tests, which take a long time to run
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py hs ${unit_test_args|-v 2} ${smp_command|} 2>&1
+
 
   - name: unit-test-bucket05
     tags: ["pull_request", "unit_test"]
@@ -1347,9 +1348,42 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [rs] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            # Non-history store tests in the 'h' family
+            non_ts_tests=$(ls ../test/suite/test_h*.py | xargs -n1 basename | grep -v _hs)
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py $non_ts_tests ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [ijk] ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket06
+    tags: ["pull_request", "unit_test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [lmnopq] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+
+  - name: unit-test-bucket07
+    tags: ["pull_request", "unit_test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [rs] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+
+  - name: unit-test-bucket08
     tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
@@ -1365,7 +1399,7 @@ tasks:
             # Reserve this bucket only for timestamp tests, which take a long time to run
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py timestamp ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
-  - name: unit-test-bucket07
+  - name: unit-test-bucket09
     tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
@@ -1381,6 +1415,20 @@ tasks:
             # Non-timestamp tests in the 't' family
             non_ts_tests=$(ls ../test/suite/test_t*.py | xargs -n1 basename | grep -v timestamp)
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py $non_ts_tests ${unit_test_args|-v 2} ${smp_command|} 2>&1
+
+  - name: unit-test-bucket10
+    tags: ["pull_request", "unit_test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [uvwxyz] ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   # End of Python unit test tasks
@@ -2211,7 +2259,7 @@ buildvariants:
   - ubuntu1804-test
   expansions:
     test_env_vars: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
   tasks:
@@ -2237,15 +2285,6 @@ buildvariants:
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
-    - name: recovery-stress-test
-    - name: format-stress-sanitizer-test
-    - name: format-stress-sanitizer-smoke-test
-    - name: format-stress-sanitizer-lsm-test
-    - name: split-stress-test
-    - name: format-stress-test
-    - name: format-stress-smoke-test
-    - name: race-condition-stress-sanitizer-test
-    - name: checkpoint-stress-test
     - name: static-wt-build-test
 
 - name: ubuntu1804-compilers
@@ -2274,6 +2313,26 @@ buildvariants:
     - name: compile
     - name: ".unit_test"
     - name: conf-dump-test
+
+- name: ubuntu1804-stress-tests
+  display_name: Ubuntu 18.04 Stress tests
+  run_on:
+  - ubuntu1804-test
+  expansions:
+    test_env_vars: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+  tasks:
+    - name: recovery-stress-test
+    - name: format-stress-sanitizer-test
+    - name: format-stress-sanitizer-smoke-test
+    - name: format-stress-sanitizer-lsm-test
+    - name: split-stress-test
+    - name: format-stress-test
+    - name: format-stress-smoke-test
+    - name: race-condition-stress-sanitizer-test
+    - name: checkpoint-stress-test
 
 - name: package
   display_name: Package
@@ -2338,8 +2397,8 @@ buildvariants:
     # Temporarily disabled
     # - name: coverage-report
 
-- name: large-scale-test
-  display_name: Large scale testing
+- name: large-scale-tests
+  display_name: Large scale tests
   batchtime: 1440 # 1 day
   run_on:
   - rhel80-build

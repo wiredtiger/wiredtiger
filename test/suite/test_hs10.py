@@ -1,7 +1,6 @@
-
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -83,10 +82,8 @@ class test_hs10(wttest.WiredTigerTestCase):
 
         # Insert a whole bunch of data into the other table to force wiredtiger to evict data
         # from the previous table.
-        session2.begin_transaction()
         for i in range(1, 10000):
             cursor2[i] = value2
-        session2.commit_transaction()
 
         # Validate that we see the correct value at each of the timestamps.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
