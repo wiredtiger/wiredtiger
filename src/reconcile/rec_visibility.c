@@ -322,6 +322,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         return (0);
     }
 
+    /*
+     * We expect the page to be clean after reconciliation. If there are invisible updates, abort
+     * eviction.
+     */
+    if (has_newer_updates && F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBILITY_ERR)) {
+        if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
+            WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
+        return (__wt_set_return(session, EBUSY));
+    }
+
     if (upd != NULL && upd->start_ts > r->max_ondisk_ts)
         r->max_ondisk_ts = upd->start_ts;
 
@@ -454,6 +464,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /* Mark the page dirty after reconciliation. */
     if (has_newer_updates)
         r->leave_dirty = true;
+
     /*
      * We should restore the update chains to the new disk image if there are newer updates in
      * eviction.

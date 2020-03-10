@@ -33,9 +33,12 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
      * A visible update to be in READY state (i.e. not in LOCKED or PREPARED state), for truly
      * visible to others.
      */
-    if (F_ISSET(r, WT_REC_VISIBILITY_ERR) && page_del != NULL &&
-      __wt_page_del_active(session, ref, false))
-        WT_PANIC_RET(session, EINVAL, "reconciliation illegally skipped an update");
+    if (F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBILITY_ERR) && page_del != NULL &&
+      __wt_page_del_active(session, ref, false)) {
+        if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
+            WT_PANIC_RET(session, EINVAL, "reconciliation illegally skipped an update");
+        return (__wt_set_return(session, EBUSY));
+    }
 
     /*
      * Deal with any underlying disk blocks.
