@@ -56,7 +56,7 @@
 int
 __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
-    WT_ADDR *ref_addr;
+    WT_ADDR_COPY addr;
     WT_DECL_RET;
     uint8_t previous_state;
 
@@ -108,16 +108,14 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * discarded. The way we figure that out is to check the page's cell type, cells for leaf pages
      * without overflow items are special.
      *
-     * To look at an on-page cell, we need to look at the parent page, and that's dangerous, our
-     * parent page could change without warning if the parent page were to split, deepening the
-     * tree. We can look at the parent page itself because the page can't change underneath us.
-     * However, if the parent page splits, our reference address can change; we don't care what
-     * version of it we read, as long as we don't read it twice.
+     * Additionally, if the aggregated start time pair on the page is not visible to us then we
+     * cannot truncate the page.
      */
-    WT_ORDERED_READ(ref_addr, ref->addr);
-    if (ref_addr != NULL && (__wt_off_page(ref->home, ref_addr) ?
-                                ref_addr->type != WT_ADDR_LEAF_NO :
-                                __wt_cell_type_raw((WT_CELL *)ref_addr) != WT_CELL_ADDR_LEAF_NO))
+    if (!__wt_ref_addr_copy(session, ref, &addr))
+        goto err;
+    if (addr.type != WT_ADDR_LEAF_NO)
+        goto err;
+    if (!__wt_txn_visible(session, addr.oldest_start_txn, addr.oldest_start_ts))
         goto err;
 
     /*
@@ -294,6 +292,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page;
     WT_PAGE_DELETED *page_del;
     WT_ROW *rip;
+    WT_TIME_PAIR start, stop;
     WT_UPDATE **upd_array, *upd;
     size_t size;
     uint32_t count, i;
@@ -380,22 +379,29 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 page_del->update_list[count++] = upd;
         }
     WT_ROW_FOREACH (page, rip, i) {
-        WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
-        upd->next = upd_array[WT_ROW_SLOT(page, rip)];
-        upd_array[WT_ROW_SLOT(page, rip)] = upd;
+        /*
+         * Retrieve the stop time pair from the page's row. If we find an existing stop time pair we
+         * don't need to append a tombstone.
+         */
+        __wt_read_row_time_pairs(session, page, rip, &start, &stop);
+        if (stop.timestamp == WT_TS_MAX && stop.txnid == WT_TXN_MAX) {
+            WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
+            upd->next = upd_array[WT_ROW_SLOT(page, rip)];
+            upd_array[WT_ROW_SLOT(page, rip)] = upd;
 
-        if (page_del != NULL)
-            page_del->update_list[count++] = upd;
+            if (page_del != NULL)
+                page_del->update_list[count++] = upd;
 
-        if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
-            WT_SKIP_FOREACH (ins, insert) {
-                WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
-                upd->next = ins->upd;
-                ins->upd = upd;
+            if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
+                WT_SKIP_FOREACH (ins, insert) {
+                    WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
+                    upd->next = ins->upd;
+                    ins->upd = upd;
 
-                if (page_del != NULL)
-                    page_del->update_list[count++] = upd;
-            }
+                    if (page_del != NULL)
+                        page_del->update_list[count++] = upd;
+                }
+        }
     }
 
     __wt_cache_page_inmem_incr(session, page, size);

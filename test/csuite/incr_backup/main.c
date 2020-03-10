@@ -176,7 +176,7 @@ key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPER
         return; /* remove needs no key */
 
     /* The value sizes vary "predictably" up to the max value size for this table. */
-    value_size = 1 + (change_count * 103) % item->size;
+    value_size = (change_count * 103) % (item->size + 1);
     testutil_assert(value_size <= item->size);
 
     /*
@@ -810,7 +810,7 @@ main(int argc, char *argv[])
     for (slot = 0; slot < tinfo.table_count; slot++) {
         tinfo.table[slot].rand.v = seed + slot;
         testutil_assert(!TABLE_VALID(&tinfo.table[slot]));
-        tinfo.table[slot].max_value_size = __wt_random(&rnd) % max_value_size;
+        tinfo.table[slot].max_value_size = __wt_random(&rnd) % (max_value_size + 1);
     }
 
     /* How many files should we update until next checkpoint. */

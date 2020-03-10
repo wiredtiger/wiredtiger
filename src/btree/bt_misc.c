@@ -20,7 +20,7 @@ __wt_addr_string(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size
 
     btree = S2BT_SAFE(session);
 
-    if (addr == NULL) {
+    if (addr == NULL || addr_size == 0) {
         buf->data = WT_NO_ADDR_STRING;
         buf->size = strlen(WT_NO_ADDR_STRING);
     } else if (btree == NULL || (bm = btree->bm) == NULL ||
@@ -90,6 +90,7 @@ __wt_key_string(
      * If the format is 'S', it's a string and our version of it may not yet be nul-terminated.
      */
     if (WT_STREQ(key_format, "S") && ((char *)data_arg)[size - 1] != '\0') {
+        WT_CLEAR(tmp);
         if (__wt_buf_fmt(session, &tmp, "%.*s", (int)size, (char *)data_arg) == 0) {
             data_arg = tmp.data;
             size = tmp.size + 1;
