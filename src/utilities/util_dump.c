@@ -131,6 +131,14 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         }
         if ((p = strchr(simpleuri, '(')) != NULL)
             *p = '\0';
+        /*
+         * If we're dumping the history store, we need to set this flag to ignore tombstones. Every
+         * record in the history store is succeeded by a tombstone so we need to do this otherwise
+         * nothing will be visible. The only exception is if we've supplied a timestamp in which
+         * case, we're specifically interested in what is visible at a given read timestamp.
+         */
+        if (WT_STREQ(simpleuri, WT_HS_URI) && timestamp == NULL)
+            F_SET(session_impl, WT_SESSION_IGNORE_HS_TOMBSTONE);
         if (dump_config(session, simpleuri, cursor, hex, json) != 0)
             goto err;
 
@@ -154,6 +162,7 @@ err:
         ret = 1;
     }
 
+    F_CLR(session_impl, WT_SESSION_IGNORE_HS_TOMBSTONE);
     if (cursor != NULL && (ret = cursor->close(cursor)) != 0)
         ret = util_err(session, ret, NULL);
     if (ofile != NULL && (ret = fclose(fp)) != 0)
