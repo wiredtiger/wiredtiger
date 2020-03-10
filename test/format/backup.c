@@ -28,6 +28,19 @@
 
 #include "format.h"
 
+#if 0
+/*
+ * The set of all tables in play, and other information used for this run.
+ */
+typedef struct {
+    TABLE *table;           /* set of potential tables */
+    uint32_t table_count;   /* size of table array */
+    uint32_t tables_in_use; /* count of tables that exist */
+    uint32_t full_backup_number;
+    uint32_t incr_backup_number;
+} TABLE_INFO;
+#endif
+
 /*
  * check_copy --
  *     Confirm the backup worked.
@@ -53,6 +66,212 @@ check_copy(void)
     testutil_checkfmt(conn->close(conn, NULL), "%s", g.home_backup);
 }
 
+/*
+ * The set of active files in a backup. This is our "memory" of files that are used in each backup,
+ * so we can remove any that are not mentioned in the next backup.
+ */
+typedef struct {
+    char **names;
+    uint32_t count;
+} ACTIVE_FILES;
+
+/*
+ * active_files_init --
+ *     Initialize (clear) the active file struct.
+ */
+static void
+active_files_init(ACTIVE_FILES *active)
+{
+    WT_CLEAR(*active);
+}
+
+/*
+ * active_files_print --
+ *     Print the set of active files for debugging.
+ */
+static void
+active_files_print(ACTIVE_FILES *active, const char *msg)
+{
+    uint32_t i;
+
+    fprintf(stderr, "Active files: %s, %d entries\n", msg, (int)active->count);
+    for (i = 0; i < active->count; i++)
+        fprintf(stderr, "  %s\n", active->names[i]);
+}
+
+/*
+ * active_files_add --
+ *     Add a new name to the active file list.
+ */
+static void
+active_files_add(ACTIVE_FILES *active, const char *name)
+{
+    uint32_t pos;
+
+    pos = active->count++;
+    active->names = drealloc(active->names, sizeof(char *) * active->count);
+    active->names[pos] = strdup(name);
+}
+
+/*
+ * active_files_sort_function --
+ *     Sort function for qsort.
+ */
+static int
+active_files_sort_function(const void *left, const void *right)
+{
+    return (strcmp(*(const char **)left, *(const char **)right));
+}
+
+/*
+ * active_files_sort --
+ *     Sort the list of names in the active file list.
+ */
+static void
+active_files_sort(ACTIVE_FILES *active)
+{
+    __wt_qsort(active->names, active->count, sizeof(char *), active_files_sort_function);
+}
+
+/*
+ * active_files_remove_missing --
+ *     Files in the previous list that are missing from the current list are removed.
+ */
+static void
+active_files_remove_missing(ACTIVE_FILES *prev, ACTIVE_FILES *cur)
+{
+    uint32_t curpos, prevpos;
+    int cmp;
+    char filename[1024];
+
+    active_files_print(prev, "computing removals: previous list of active files");
+    active_files_print(cur, "computing removals: current list of active files");
+    curpos = 0;
+
+    /*
+     * Walk through the two lists looking for non-matches.
+     */
+    for (prevpos = 0; prevpos < prev->count; prevpos++) {
+again:
+        if (curpos >= cur->count)
+            cmp = -1; /* There are extra entries at the end of the prev list */
+        else
+            cmp = strcmp(prev->names[prevpos], cur->names[curpos]);
+
+        if (cmp == 0)
+            curpos++;
+        else if (cmp < 0) {
+            /*
+             * There is something in the prev list not in the current list. Remove it, and continue
+             * - don't advance the current list.
+             */
+            testutil_check(
+              __wt_snprintf(filename, sizeof(filename), "BACKUP/%s", prev->names[prevpos]));
+#if 0
+            VERBOSE(3, "Removing file from backup: %s\n", filename);
+#endif
+            remove(filename);
+            testutil_check(
+              __wt_snprintf(filename, sizeof(filename), "BACKUP_COPY/%s", prev->names[prevpos]));
+            remove(filename);
+        } else {
+            /*
+             * There is something in the current list not in the prev list. Walk past it in the
+             * current list and try again.
+             */
+            curpos++;
+            goto again;
+        }
+    }
+}
+
+/*
+ * active_files_free --
+ *     Free the list of active files.
+ */
+static void
+active_files_free(ACTIVE_FILES *active)
+{
+    uint32_t i;
+
+    for (i = 0; i < active->count; i++)
+        free(active->names[i]);
+    free(active->names);
+    active_files_init(active);
+}
+
+/*
+ * copy_blocks --
+ *     Perform a single block-based incremental backup of the given file.
+ */
+static void
+copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
+{
+    WT_CURSOR *incr_cur;
+    size_t len, rdsize, tmp_sz;
+    uint64_t offset, size, type;
+    int ret, rfd, wfd1, wfd2;
+    char buf[512], config[512], *first, *second, *tmp;
+    bool first_pass;
+
+    len = strlen("BACKUP") + strlen(name) + 10;
+    first = dmalloc(len);
+    testutil_check(__wt_snprintf(first, len, "BACKUP/%s", name));
+
+    /*
+     * Save another copy of the original file to make debugging recovery errors easier.
+     */
+    len = strlen("BACKUP_COPY") + strlen(name) + 10;
+    second = dmalloc(len);
+    testutil_check(__wt_snprintf(second, len, "BACKUP_COPY/%s", name));
+    testutil_check(__wt_snprintf(config, sizeof(config), "incremental=(file=%s)", name));
+
+    /* Open the duplicate incremental backup cursor with the file name given. */
+    tmp_sz = 0;
+    tmp = NULL;
+    first_pass = true;
+    rfd = wfd1 = wfd2 = -1;
+    testutil_check(session->open_cursor(session, NULL, bkup_c, config, &incr_cur));
+    while ((ret = incr_cur->next(incr_cur)) == 0) {
+        testutil_check(incr_cur->get_key(incr_cur, &offset, &size, &type));
+        if (type == WT_BACKUP_RANGE) {
+            if (tmp_sz < size) {
+                tmp = realloc(tmp, size);
+                testutil_assert(tmp != NULL);
+                tmp_sz = size;
+            }
+            if (first_pass) {
+                testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", g.home, name));
+                error_sys_check(rfd = open(buf, O_RDONLY, 0));
+                error_sys_check(wfd1 = open(first, O_WRONLY | O_CREAT, 0));
+                error_sys_check(wfd2 = open(second, O_WRONLY | O_CREAT, 0));
+                first_pass = false;
+            }
+            error_sys_check(lseek(rfd, (wt_off_t)offset, SEEK_SET));
+            error_sys_check(rdsize = (size_t)read(rfd, tmp, (size_t)size));
+            error_sys_check(lseek(wfd1, (wt_off_t)offset, SEEK_SET));
+            error_sys_check(lseek(wfd2, (wt_off_t)offset, SEEK_SET));
+            /* Use the read size since we may have read less than the granularity. */
+            error_sys_check(write(wfd1, tmp, rdsize));
+            error_sys_check(write(wfd2, tmp, rdsize));
+        } else {
+            testutil_assert(type == WT_BACKUP_FILE);
+            testutil_assert(rfd == -1);
+            testutil_assert(first_pass == true);
+            testutil_check(__wt_copy_and_sync(session, name, first));
+        }
+        testutil_check(__wt_copy_and_sync(session, first, second));
+    }
+    testutil_check(incr_cur->close(incr_cur));
+    if (rfd != -1) {
+        error_sys_check(close(rfd));
+        error_sys_check(close(wfd1));
+        error_sys_check(close(wfd2));
+    }
+    free(first);
+    free(second);
+    free(tmp);
+}
 /*
  * copy_file --
  *     Copy a single file into the backup directories.
@@ -87,13 +306,15 @@ copy_file(WT_SESSION *session, const char *name)
 WT_THREAD_RET
 backup(void *arg)
 {
+    ACTIVE_FILES active[2], *active_now, *active_prev;
     WT_CONNECTION *conn;
     WT_CURSOR *backup_cursor;
     WT_DECL_RET;
     WT_SESSION *session;
-    u_int incremental, period;
+    u_int blk_id, incremental, period, src_id, src_prev;
     const char *config, *key;
-    bool full;
+    char cfg[512];
+    bool block_full, full;
 
     (void)(arg);
 
@@ -106,7 +327,11 @@ backup(void *arg)
      * Perform a full backup at somewhere under 10 seconds (that way there's at least one), then at
      * larger intervals, optionally do incremental backups between full backups.
      */
-    incremental = 0;
+    block_full = true;
+    blk_id = incremental = 0;
+    active_files_init(&active[0]);
+    active_files_init(&active[1]);
+    active_now = active_prev = NULL;
     for (period = mmrand(NULL, 1, 10);; period = mmrand(NULL, 20, 45)) {
         /* Sleep for short periods so we don't make the run wait. */
         while (period > 0 && !g.workers_finished) {
@@ -125,13 +350,57 @@ backup(void *arg)
             break;
         }
 
-        if (incremental) {
-            config = "target=(\"log:\")";
+        if (g.c_backup_incr_flag == INCREMENTAL_BLOCK) {
+            /*
+             * If we're doing a full backup as the start of the incremental backup, only send in an
+             * identifier for this one.
+             */
+            if (block_full) {
+                active_files_free(&active[0]);
+                active_files_free(&active[1]);
+                active_now = &active[blk_id % 2];
+                active_prev = NULL;
+                testutil_check(
+                  __wt_snprintf(cfg, sizeof(cfg), "incremental=(enabled,this_id=ID%u)", blk_id++));
+                block_full = false;
+                full = true;
+            } else {
+                /*
+                 * 75% of the time, use the most recent source id. 25% of the time, use the id
+                 * that is from two incremental backups prior. The handling of the active files for
+                 * the source one or two incrementals prior is unpleasant but necessary.
+                 */
+                src_prev = mmrand(NULL, 1, 4) == 2 && blk_id >= 2 ? 2 : 1;
+                if (src_prev == 2) {
+                    /*
+                     * If we're going back two incrementals ago, set active_prev to the other list
+                     * of active files (i.e. the active list that is not the immediate previous
+                     * list) and overwrite active_prev with the current one.
+                     */
+                    active_now = active_prev;
+                    if (active_prev == &active[0])
+                        active_prev = &active[1];
+                    else
+                        active_prev = &active[0];
+                } else if (active_prev == &active[0])
+                    active_now = &active[1];
+                else
+                    active_now = &active[0];
+                src_id = blk_id - src_prev;
+                testutil_check(__wt_snprintf(cfg, sizeof(cfg),
+                  "incremental=(enabled,src_id=ID%u,this_id=ID%u)", src_id, blk_id++));
+                /* Restart a full incremental every once in a while. */
+                block_full = mmrand(NULL, 1, 8) == 1;
+                full = false;
+            }
+            config = cfg;
+        } else if (g.c_backup_incr_flag == INCREMENTAL_LOG) {
+            testutil_check(__wt_snprintf(cfg, sizeof(cfg), "target=(\"log:\")"));
+            config = cfg;
             full = false;
         } else {
             /* Re-create the backup directory. */
             testutil_checkfmt(system(g.home_backup_init), "%s", "backup directory creation failed");
-
             config = NULL;
             full = true;
         }
@@ -147,17 +416,28 @@ backup(void *arg)
 
         while ((ret = backup_cursor->next(backup_cursor)) == 0) {
             testutil_check(backup_cursor->get_key(backup_cursor, &key));
-            copy_file(session, key);
+            if (g.c_backup_incr_flag == INCREMENTAL_BLOCK) {
+                if (full)
+                    copy_file(session, key);
+                else
+                    copy_blocks(session, backup_cursor, key);
+
+            } else
+                copy_file(session, key);
+            active_files_add(active_now, key);
         }
         if (ret != WT_NOTFOUND)
             testutil_die(ret, "backup-cursor");
 
-        /* After an incremental backup, truncate the log files. */
-        if (incremental)
+        /* After a log-based incremental backup, truncate the log files. */
+        if (g.c_backup_incr_flag == INCREMENTAL_LOG)
             testutil_check(session->truncate(session, "log:", backup_cursor, NULL, NULL));
 
         testutil_check(backup_cursor->close(backup_cursor));
         testutil_check(pthread_rwlock_unlock(&g.backup_lock));
+        active_files_sort(active_now);
+        active_files_remove_missing(active_prev, active_now);
+        active_prev = active_now;
 
         /*
          * If automatic log archival isn't configured, optionally do incremental backups after each
