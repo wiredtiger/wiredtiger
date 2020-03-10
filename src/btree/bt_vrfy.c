@@ -435,9 +435,10 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * Create a fake, unpacked parent cell for the tree based on the checkpoint information.
              */
             memset(&addr_unpack, 0, sizeof(addr_unpack));
-            addr_unpack.newest_stop_durable_ts = ckpt->newest_durable_ts;
+            addr_unpack.newest_start_durable_ts = ckpt->start_durable_ts;
             addr_unpack.oldest_start_ts = ckpt->oldest_start_ts;
             addr_unpack.oldest_start_txn = ckpt->oldest_start_txn;
+            addr_unpack.newest_stop_durable_ts = ckpt->stop_durable_ts;
             addr_unpack.newest_stop_ts = ckpt->newest_stop_ts;
             addr_unpack.newest_stop_txn = ckpt->newest_stop_txn;
             addr_unpack.raw = WT_CELL_ADDR_INT;
@@ -1261,15 +1262,17 @@ __verify_page_cell(
                   unpack.oldest_start_txn, unpack.newest_stop_txn);
             }
 
-            /* FIXME-prepare-support: check newest start durable timestamp as well. */
-            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "newest durable",
-              unpack.newest_stop_durable_ts, "newest durable", addr_unpack->newest_stop_durable_ts,
+            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start durable",
+              unpack.newest_start_durable_ts, "start durable", addr_unpack->newest_start_durable_ts,
               false, vs));
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "oldest start",
               unpack.oldest_start_ts, "oldest start", addr_unpack->oldest_start_ts, true, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "oldest start",
               unpack.oldest_start_txn, "oldest start", addr_unpack->oldest_start_txn, true, dsk,
               vs));
+            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "stop durable",
+              unpack.newest_stop_durable_ts, "stop durable", addr_unpack->newest_stop_durable_ts,
+              false, vs));
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "newest stop",
               unpack.newest_stop_ts, "newest stop", addr_unpack->newest_stop_ts, false, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "newest stop",
@@ -1304,10 +1307,15 @@ __verify_page_cell(
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1), unpack.start_txn,
                   unpack.stop_txn);
 
+            WT_RET(
+              __verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.durable_start_ts,
+                "durable start", addr_unpack->newest_start_durable_ts, true, vs));
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_ts,
               "oldest start", addr_unpack->oldest_start_ts, true, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_txn,
               "oldest start", addr_unpack->oldest_start_txn, true, dsk, vs));
+            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.durable_stop_ts,
+              "durable stop", addr_unpack->newest_stop_durable_ts, true, vs));
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_ts,
               "newest stop", addr_unpack->newest_stop_ts, false, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_txn,
