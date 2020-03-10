@@ -452,11 +452,11 @@ drop_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
 }
 
 /*
- * free_tables --
- *     Free the list of active files.
+ * tables_free --
+ *     Free the list of tables.
  */
 static void
-free_tables(TABLE_INFO *tinfo)
+tables_free(TABLE_INFO *tinfo)
 {
     uint32_t slot;
 
@@ -884,7 +884,7 @@ main(int argc, char *argv[])
     testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, NULL));
     active_files_free(&active);
-    free_tables(&tinfo);
+    tables_free(&tinfo);
 
     printf("Success.\n");
     return (0);
