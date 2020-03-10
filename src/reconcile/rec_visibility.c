@@ -323,10 +323,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
 
     /*
-     * We expect the page to be clean after reconciliation when closing a tree. If there are newer
-     * updates, abort eviction and retry.
+     * We expect the page to be clean after reconciliation. If there are invisible updates, abort
+     * eviction.
      */
-    if (has_newer_updates && F_ISSET(r, WT_REC_EXPECT_CLEAN | WT_REC_VISIBILITY_ERR)) {
+    if (has_newer_updates && F_ISSET(r, WT_REC_NO_CACHE_RESTORE | WT_REC_VISIBILITY_ERR)) {
         if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
             WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
         return (__wt_set_return(session, EBUSY));
