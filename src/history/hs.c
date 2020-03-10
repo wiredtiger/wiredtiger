@@ -425,8 +425,10 @@ err:
         ret = cursor->next(cursor);
         if (ret == WT_NOTFOUND)
             ret = 0;
-        else if (ret == 0)
+        else if (ret == 0) {
             WT_TRET(__hs_delete_key_from_pos(session, cursor, btree->id, key));
+            WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+        }
         if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
             F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
     }
@@ -659,8 +661,10 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
         /* Skip TOMBSTONE at the end of the update chain. */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
-                if (upd->start_ts == WT_TS_NONE)
+                if (upd->start_ts == WT_TS_NONE) {
                     WT_ERR(__wt_hs_delete_key(session, btree->id, key));
+                    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+                }
                 __wt_modify_vector_pop(&modifies, &upd);
             } else
                 continue;
@@ -689,8 +693,10 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
 
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
-                if (prev_upd->start_ts == WT_TS_NONE)
+                if (prev_upd->start_ts == WT_TS_NONE) {
                     WT_ERR(__wt_hs_delete_key(session, btree->id, key));
+                    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+                }
                 __wt_modify_vector_pop(&modifies, &prev_upd);
                 WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
                 prev_full_value->data = prev_upd->data;
@@ -1213,6 +1219,7 @@ __hs_delete_key_from_pos(
         upd->start_ts = upd->durable_ts = WT_TS_NONE;
         WT_ERR(__wt_hs_modify(hs_cbt, upd));
         upd = NULL;
+        WT_STAT_CONN_INCR(session, cache_hs_remove_key_truncate);
     }
     if (ret == WT_NOTFOUND)
         return (0);
