@@ -209,7 +209,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
         }
         if (stop_durable_ts != WT_TS_NONE) {
             /* Store differences, not absolutes. */
-            WT_ASSERT(session, newest_stop_ts != WT_TS_MAX && newest_stop_ts <= stop_durable__ts);
+            WT_ASSERT(session, newest_stop_ts != WT_TS_MAX && newest_stop_ts <= stop_durable_ts);
             WT_IGNORE_RET(__wt_vpack_uint(pp, 0, stop_durable_ts - newest_stop_ts));
             LF_SET(WT_CELL_TS_DURABLE_STOP);
         }
