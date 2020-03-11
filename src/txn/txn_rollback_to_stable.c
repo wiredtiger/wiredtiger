@@ -974,22 +974,10 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
 
-    /*
-     * Mark that a rollback operation is in progress and wait for eviction to drain. This is
-     * necessary because history store eviction uses transactions and causes the check for a
-     * quiescent system to fail.
-     *
-     * Configuring history store eviction off isn't atomic, safe because the flag is only otherwise
-     * set when closing down the database. Assert to avoid confusion in the future.
-     */
-    WT_ASSERT(session, !F_ISSET(conn, WT_CONN_EVICTION_NO_HS));
-    F_SET(conn, WT_CONN_EVICTION_NO_HS);
+    /* Mark that a rollback operation is in progress and wait for eviction to drain. */
+    WT_RET(__wt_conn_btree_apply(session, NULL, __rollback_eviction_drain, NULL, cfg));
 
-    WT_ERR(__wt_conn_btree_apply(session, NULL, __rollback_eviction_drain, NULL, cfg));
-
-    WT_ERR(__rollback_to_stable_check(session));
-
-    F_CLR(conn, WT_CONN_EVICTION_NO_HS);
+    WT_RET(__rollback_to_stable_check(session));
 
     /*
      * Allocate a non-durable btree bitstring. We increment the global value before using it, so the
@@ -998,8 +986,6 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
     conn->stable_rollback_maxfile = conn->next_file_id + 1;
     WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_btree_apply(session));
 
-err:
-    F_CLR(conn, WT_CONN_EVICTION_NO_HS);
     return (ret);
 }
 
@@ -1008,7 +994,7 @@ err:
  *     Rollback all modifications with timestamps more recent than the passed in timestamp.
  */
 int
-__wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 {
     WT_DECL_RET;
 
@@ -1025,9 +1011,10 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to
-     * ensure that both in-memory and on-disk versions are the same.
+     * ensure that both in-memory and on-disk versions are the same unless caller requested for no
+     * checkpoint.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && no_ckpt)
         WT_TRET(session->iface.checkpoint(&session->iface, "force=1"));
     WT_TRET(session->iface.close(&session->iface, NULL));
 
