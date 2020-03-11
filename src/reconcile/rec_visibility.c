@@ -439,7 +439,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * a record. We don't want to generate a warning in that case.
      */
     if (upd_select->stop_ts < upd_select->start_ts ||
-      (upd_select->stop_ts != WT_TS_NONE && upd_select->stop_ts == upd_select->start_ts)) {
+      (upd_select->stop_ts == upd_select->start_ts &&
+          upd_select->stop_txn < upd_select->start_txn)) {
         char ts_string[2][WT_TS_INT_STRING_SIZE];
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "Warning: fixing out-of-order timestamps remove at %s earlier than value at %s",
