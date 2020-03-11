@@ -222,8 +222,8 @@ static void
 copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
 {
     WT_CURSOR *incr_cur;
-    size_t len, rdsize, tmp_sz;
-    uint64_t offset, size, type;
+    size_t len, rdsize, size, tmp_sz;
+    uint64_t offset, type;
     int ret, rfd, wfd1, wfd2;
     char buf[512], config[512], *first, *second, *tmp;
     bool first_pass;
@@ -249,7 +249,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
     rfd = wfd1 = wfd2 = -1;
     testutil_check(session->open_cursor(session, NULL, bkup_c, config, &incr_cur));
     while ((ret = incr_cur->next(incr_cur)) == 0) {
-        testutil_check(incr_cur->get_key(incr_cur, &offset, &size, &type));
+        testutil_check(incr_cur->get_key(incr_cur, &offset, (uint64_t *)&size, &type));
         if (type == WT_BACKUP_RANGE) {
             testutil_check(__wt_snprintf(first, len, "%s/BACKUP/%s", g.home, name));
             testutil_check(__wt_snprintf(second, len, "%s/BACKUP_COPY/%s", g.home, name));
@@ -266,7 +266,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
                 first_pass = false;
             }
             error_sys_check(lseek(rfd, (wt_off_t)offset, SEEK_SET));
-            error_sys_check(rdsize = (size_t)read(rfd, tmp, (size_t)size));
+            error_sys_check(rdsize = (size_t)read(rfd, tmp, size));
             error_sys_check(lseek(wfd1, (wt_off_t)offset, SEEK_SET));
             error_sys_check(lseek(wfd2, (wt_off_t)offset, SEEK_SET));
             /* Use the read size since we may have read less than the granularity. */
