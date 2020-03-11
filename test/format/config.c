@@ -29,6 +29,7 @@
 #include "format.h"
 #include "config.h"
 
+static void config_backup(void);
 static void config_cache(void);
 static void config_checkpoint(void);
 static void config_checksum(void);
@@ -177,6 +178,7 @@ config_setup(void)
     config_transaction();
 
     /* Simple selection. */
+    config_backup();
     config_checkpoint();
     config_checksum();
     config_compression("compression");
@@ -237,6 +239,41 @@ config_setup(void)
     g.key_cnt = 0;
 }
 
+/*
+ * config_backup --
+ *     Backup configuration.
+ */
+static void
+config_backup(void)
+{
+    const char *cstr;
+
+    /*
+     * Choose a type of incremental backup.
+     */
+    if (!config_is_perm("backup_incremental")) {
+        cstr = "backup_incremental=off";
+        switch (mmrand(NULL, 1, 10)) {
+        case 1: /* 30% full backup only */
+        case 2:
+        case 3:
+            break;
+        case 4: /* 40% block based incremental */
+        case 5:
+        case 6:
+        case 7:
+            cstr = "backup_incremental=block";
+            break;
+        case 8:
+        case 9:
+        case 10: /* 30% log based incremental */
+            cstr = "backup_incremental=log";
+            break;
+        }
+
+        config_single(cstr, false);
+    }
+}
 /*
  * config_cache --
  *     Cache configuration.

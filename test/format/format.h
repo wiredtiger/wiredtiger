@@ -90,6 +90,7 @@ typedef struct {
     bool workers_finished; /* Operations completed */
 
     pthread_rwlock_t backup_lock; /* Backup running */
+    uint32_t backup_id;           /* Block incremental id */
 
     WT_RAND_STATE rnd; /* Global RNG state */
 
