@@ -1614,6 +1614,13 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
             F_SET(conn, WT_CONN_CLOSING_TIMESTAMP);
     }
     if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
+        /*
+         * Perform rollback to stable to ensure that the stable version is written to disk on a
+         * clean shutdown.
+         */
+        if (F_ISSET(conn, WT_CONN_CLOSING_TIMESTAMP))
+            WT_TRET(__wt_rollback_to_stable(session, cfg, true));
+
         s = NULL;
         WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, &s));
         if (s != NULL) {
