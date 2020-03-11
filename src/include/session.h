@@ -279,3 +279,9 @@ struct __wt_session_impl {
 
     WT_SESSION_STATS stats;
 };
+
+/*
+ * Rollback to stable should ignore tombstones in the history store since it needs to scan the
+ * entire table sequentially.
+ */
+#define WT_SESSION_ROLLBACK_TO_STABLE_FLAGS (WT_SESSION_IGNORE_HS_TOMBSTONE)

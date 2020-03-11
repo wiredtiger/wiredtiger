@@ -1618,7 +1618,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.
          */
-        if (conn->txn_global.has_stable_timestamp)
+        if (F_ISSET(conn, WT_CONN_CLOSING_TIMESTAMP))
             WT_TRET(__wt_rollback_to_stable(session, cfg, true));
 
         s = NULL;

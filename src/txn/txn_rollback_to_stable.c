@@ -9,12 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * Rollback to stable should ignore tombstones in the history store since it needs to scan the
- * entire table sequentially.
- */
-#define WT_SESSION_ROLLBACK_TO_STABLE_FLAGS (WT_SESSION_IGNORE_HS_TOMBSTONE)
-
-/*
  * __rollback_abort_newer_update --
  *     Abort updates in an update change with timestamps newer than the rollback timestamp. Also,
  *     clear the history store flag for the first stable update in the update.
