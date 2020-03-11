@@ -224,7 +224,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         }
 
         /* Verify the history store timestamps are in order. */
-        // WT_ASSERT(session, (newer_hs_ts == WT_TS_NONE || hs_stop_ts == newer_hs_ts));
+        WT_ASSERT(session, (newer_hs_ts == WT_TS_NONE || hs_stop_ts <= newer_hs_ts));
 
         /*
          * Stop processing when we find the newer version value of this key is stable according to

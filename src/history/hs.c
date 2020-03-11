@@ -688,7 +688,14 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
             __wt_modify_vector_pop(&modifies, &prev_upd);
-            stop_ts_pair.timestamp = prev_upd->start_ts;
+
+            /*
+             * Set the stop timestamp from durable timestamp instead of commit timestamp. The
+             * Garbage collection of history store removes the history values once the stop
+             * timestamp is globally visible. i.e. durable timestamp of data store version.
+             */
+            WT_ASSERT(session, prev_upd->start_ts <= prev_upd->durable_ts);
+            stop_ts_pair.timestamp = prev_upd->durable_ts;
             stop_ts_pair.txnid = prev_upd->txnid;
 
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
