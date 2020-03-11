@@ -1014,7 +1014,7 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
      * ensure that both in-memory and on-disk versions are the same unless caller requested for no
      * checkpoint.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && no_ckpt)
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !no_ckpt)
         WT_TRET(session->iface.checkpoint(&session->iface, "force=1"));
     WT_TRET(session->iface.close(&session->iface, NULL));
 
