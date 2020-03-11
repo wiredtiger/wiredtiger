@@ -435,7 +435,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * Create a fake, unpacked parent cell for the tree based on the checkpoint information.
              */
             memset(&addr_unpack, 0, sizeof(addr_unpack));
-            addr_unpack.newest_start_durable_ts = ckpt->newest_durable_ts;
+            addr_unpack.newest_stop_durable_ts = ckpt->newest_durable_ts;
             addr_unpack.oldest_start_ts = ckpt->oldest_start_ts;
             addr_unpack.oldest_start_txn = ckpt->oldest_start_txn;
             addr_unpack.newest_stop_ts = ckpt->newest_stop_ts;
@@ -1263,8 +1263,8 @@ __verify_page_cell(
 
             /* FIXME-prepare-support: check newest start durable timestamp as well. */
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "newest durable",
-              unpack.newest_start_durable_ts, "newest durable",
-              addr_unpack->newest_start_durable_ts, false, vs));
+              unpack.newest_stop_durable_ts, "newest durable", addr_unpack->newest_stop_durable_ts,
+              false, vs));
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "oldest start",
               unpack.oldest_start_ts, "oldest start", addr_unpack->oldest_start_ts, true, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "oldest start",

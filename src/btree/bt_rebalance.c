@@ -77,7 +77,7 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts, con
     WT_RET(__wt_calloc_one(session, &copy_addr));
     copy->addr = copy_addr;
     /* FIXME-prepare-support: use durable timestamps from unpack struct */
-    copy_addr->start_durable_ts = durable_ts;
+    copy_addr->stop_durable_ts = durable_ts;
     copy_addr->oldest_start_ts = unpack->oldest_start_ts;
     copy_addr->oldest_start_txn = unpack->oldest_start_txn;
     copy_addr->newest_stop_ts = unpack->newest_stop_ts;
@@ -213,7 +213,7 @@ __rebalance_col_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts, const 
         case WT_CELL_ADDR_INT:
             /* An internal page: read it and recursively walk it. */
             WT_ERR(__wt_bt_read(session, buf, unpack.data, unpack.size));
-            WT_ERR(__rebalance_col_walk(session, unpack.newest_start_durable_ts, buf->data, rs));
+            WT_ERR(__rebalance_col_walk(session, unpack.newest_stop_durable_ts, buf->data, rs));
             __wt_verbose(session, WT_VERB_REBALANCE, "free-list append internal page: %s",
               __wt_addr_string(session, unpack.data, unpack.size, rs->tmp1));
             WT_ERR(__rebalance_fl_append(session, unpack.data, unpack.size, rs));
@@ -327,7 +327,7 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts, const 
 
             /* Read and recursively walk the page. */
             WT_ERR(__wt_bt_read(session, buf, unpack.data, unpack.size));
-            WT_ERR(__rebalance_row_walk(session, unpack.newest_start_durable_ts, buf->data, rs));
+            WT_ERR(__rebalance_row_walk(session, unpack.newest_stop_durable_ts, buf->data, rs));
             break;
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:

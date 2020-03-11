@@ -458,7 +458,7 @@ __rollback_abort_row_reconciled_page(
      * timestamps.
      */
     if (mod->rec_result == WT_PM_REC_REPLACE &&
-      mod->mod_replace.start_durable_ts > rollback_timestamp) {
+      mod->mod_replace.stop_durable_ts > rollback_timestamp) {
         WT_RET(__rollback_abort_row_reconciled_page_internal(session, mod->u1.r.disk_image,
           mod->u1.r.replace.addr, mod->u1.r.replace.size, rollback_timestamp));
 
@@ -471,7 +471,7 @@ __rollback_abort_row_reconciled_page(
     } else if (mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         for (multi = mod->mod_multi, multi_entry = 0; multi_entry < mod->mod_multi_entries;
              ++multi, ++multi_entry)
-            if (multi->addr.start_durable_ts > rollback_timestamp) {
+            if (multi->addr.stop_durable_ts > rollback_timestamp) {
                 WT_RET(__rollback_abort_row_reconciled_page_internal(session, multi->disk_image,
                   multi->addr.addr, multi->addr.size, rollback_timestamp));
 
@@ -560,7 +560,7 @@ __rollback_page_needs_abort(
      * 4. The off page address max durable timestamp.
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE)
-        return (mod->mod_replace.start_durable_ts > rollback_timestamp);
+        return (mod->mod_replace.stop_durable_ts > rollback_timestamp);
     else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         multi_newest_durable_ts = WT_TS_NONE;
         /* Calculate the max durable timestamp by traversing all multi addresses. */
@@ -570,9 +570,9 @@ __rollback_page_needs_abort(
     } else if (!__wt_off_page(ref->home, addr)) {
         /* Check if the page is obsolete using the page disk address. */
         __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
-        return (vpack.newest_start_durable_ts > rollback_timestamp);
+        return (vpack.newest_stop_durable_ts > rollback_timestamp);
     } else if (addr != NULL)
-        return (addr->start_durable_ts > rollback_timestamp);
+        return (addr->stop_durable_ts > rollback_timestamp);
 
     return (false);
 }

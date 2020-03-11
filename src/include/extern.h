@@ -2041,7 +2041,7 @@ static inline int __wt_vunpack_uint(const uint8_t **pp, size_t maxlen, uint64_t 
 static inline int __wt_write(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len,
   const void *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline size_t __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type,
-  uint64_t recno, wt_timestamp_t start_durable_ts, wt_timestamp_t oldest_start_ts,
+  uint64_t recno, wt_timestamp_t stop_durable_ts, wt_timestamp_t oldest_start_ts,
   uint64_t oldest_start_txn, wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn, size_t size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline size_t __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell,
