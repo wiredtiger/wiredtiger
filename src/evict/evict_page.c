@@ -95,12 +95,15 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_DECL_RET;
     WT_PAGE *page;
     uint64_t time_start, time_stop;
-    bool clean_page, closing, inmem_split, local_gen, tree_dead;
+    uint32_t session_flags;
+    bool clean_page, closing, inmem_split, local_gen, tree_dead, opened_hs_cursor;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     local_gen = false;
+    opened_hs_cursor = false;
+    session_flags = 0;
     time_start = time_stop = 0; /* [-Werror=maybe-uninitialized] */
 
     __wt_verbose(
@@ -112,10 +115,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
 
     /*
      * Enter the eviction generation. If we re-enter eviction, leave the previous eviction
-     * generation (which must be as low as the current generation), untouched.
+     * generation (which must be as low as the current generation), untouched. Also try getting
+     * history store cursor now if we are not re-entering the eviction.
      */
     if (__wt_session_gen(session, WT_GEN_EVICT) == 0) {
         local_gen = true;
+        if (session != conn->default_session)
+            WT_RET(__wt_hs_cursor(session, &session_flags, &opened_hs_cursor));
         __wt_session_gen_enter(session, WT_GEN_EVICT);
     }
 
@@ -232,6 +238,9 @@ done:
     /* Leave any local eviction generation. */
     if (local_gen)
         __wt_session_gen_leave(session, WT_GEN_EVICT);
+
+    if (opened_hs_cursor)
+        WT_TRET(__wt_hs_cursor_close(session, session_flags, opened_hs_cursor));
 
     return (ret);
 }
