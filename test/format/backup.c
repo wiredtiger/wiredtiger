@@ -222,7 +222,8 @@ static void
 copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
 {
     WT_CURSOR *incr_cur;
-    size_t len, rdsize, size, tmp_sz;
+    size_t len, size, tmp_sz;
+    ssize_t rdsize;
     uint64_t offset, type;
     int ret, rfd, wfd1, wfd2;
     char buf[512], config[512], *first, *second, *tmp;
@@ -266,12 +267,12 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
                 first_pass = false;
             }
             error_sys_check(lseek(rfd, (wt_off_t)offset, SEEK_SET));
-            error_sys_check(rdsize = (size_t)read(rfd, tmp, size));
+            error_sys_check(rdsize = (ssize_t)read(rfd, tmp, size));
             error_sys_check(lseek(wfd1, (wt_off_t)offset, SEEK_SET));
             error_sys_check(lseek(wfd2, (wt_off_t)offset, SEEK_SET));
             /* Use the read size since we may have read less than the granularity. */
-            error_sys_check(write(wfd1, tmp, rdsize));
-            error_sys_check(write(wfd2, tmp, rdsize));
+            error_sys_check(write(wfd1, tmp, (size_t)rdsize));
+            error_sys_check(write(wfd2, tmp, (size_t)rdsize));
         } else {
             testutil_check(__wt_snprintf(first, len, "BACKUP/%s", name));
             testutil_check(__wt_snprintf(second, len, "BACKUP_COPY/%s", name));
