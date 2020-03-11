@@ -323,7 +323,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
      */
     if (block->size < allocsize)
         WT_RET_MSG(session, ENOENT,
-          "File %s is smaller than allocation size; file size=%" PRIu64 ", alloc size=%" PRIu32,
+          "File %s is smaller than allocation size; file size=%" PRId64 ", alloc size=%" PRIu32,
           block->name, block->size, allocsize);
 
     /* Use a scratch buffer to get correct alignment for direct I/O. */
