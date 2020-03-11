@@ -192,8 +192,10 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
         }
         if (start_durable_ts != WT_TS_NONE) {
             /* Store differences, not absolutes. */
-            WT_ASSERT(
-              session, oldest_start_ts != WT_TS_NONE && oldest_start_ts <= start_durable_ts);
+            /*
+             * FIXME: WT_ASSERT( session, oldest_start_ts != WT_TS_NONE && oldest_start_ts <=
+             * start_durable_ts);
+             */
             WT_IGNORE_RET(__wt_vpack_uint(pp, 0, start_durable_ts - oldest_start_ts));
             LF_SET(WT_CELL_TS_DURABLE_START);
         }
@@ -227,17 +229,17 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
  */
 static inline size_t
 __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, uint64_t recno,
-  wt_timestamp_t stop_durable_ts, wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
+  wt_timestamp_t start_durable_ts, wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
   wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn, size_t size)
 {
-    wt_timestamp_t start_durable_ts;
+    wt_timestamp_t stop_durable_ts;
     uint8_t *p;
 
     /*
      * FIXME: This value should be passed in when support for prepared transactions with durable
      * history is fully implemented.
      */
-    start_durable_ts = WT_TS_NONE;
+    stop_durable_ts = WT_TS_NONE;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;

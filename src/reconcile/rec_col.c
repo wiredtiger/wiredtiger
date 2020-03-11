@@ -285,14 +285,14 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             val->buf.size = __wt_cell_total_len(vpack);
             val->cell_len = 0;
             val->len = val->buf.size;
-            newest_durable_ts = vpack->newest_stop_durable_ts;
+            newest_durable_ts = vpack->newest_start_durable_ts;
             oldest_start_ts = vpack->oldest_start_ts;
             oldest_start_txn = vpack->oldest_start_txn;
             newest_stop_ts = vpack->newest_stop_ts;
             newest_stop_txn = vpack->newest_stop_txn;
         } else {
             __wt_rec_cell_build_addr(session, r, addr, NULL, false, ref->ref_recno);
-            newest_durable_ts = addr->stop_durable_ts;
+            newest_durable_ts = addr->start_durable_ts;
             oldest_start_ts = addr->oldest_start_ts;
             oldest_start_txn = addr->oldest_start_txn;
             newest_stop_ts = addr->newest_stop_ts;
@@ -639,10 +639,10 @@ __wt_rec_col_var(
     if ((addr = pageref->addr) == NULL)
         newest_durable_ts = WT_TS_NONE;
     else if (__wt_off_page(pageref->home, addr))
-        newest_durable_ts = addr->stop_durable_ts;
+        newest_durable_ts = addr->start_durable_ts;
     else {
         __wt_cell_unpack(session, pageref->home, pageref->addr, vpack);
-        newest_durable_ts = vpack->newest_stop_durable_ts;
+        newest_durable_ts = vpack->newest_start_durable_ts;
     }
 
     /* Set the "last" values to cause failure if they're not set. */

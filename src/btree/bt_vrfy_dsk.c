@@ -298,7 +298,7 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
 
         /* FIXME-prepare-support: check newest start durable timestamp as well. */
         WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "newest durable",
-          unpack->newest_stop_durable_ts, "newest durable", addr->stop_durable_ts, false, tag));
+          unpack->newest_start_durable_ts, "newest durable", addr->start_durable_ts, false, tag));
         WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "oldest start",
           unpack->oldest_start_ts, "oldest start", addr->oldest_start_ts, true, tag));
         WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1, "oldest start",
