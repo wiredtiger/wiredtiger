@@ -96,7 +96,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_PAGE *page;
     uint64_t time_start, time_stop;
     uint32_t session_flags;
-    bool clean_page, closing, inmem_split, local_gen, tree_dead;
+    bool clean_page, closing, inmem_split, local_gen, tree_dead, is_owner;
 
     conn = S2C(session);
     page = ref->page;
@@ -126,8 +126,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
          * opening/closing a history store cursor. This should not be expensive as cursors are
          * cached.
          */
-        WT_RET(__wt_hs_cursor(session, &session_flags, &opened_hs_cursor));
-        WT_TRET(__wt_hs_cursor_close(session, session_flags, opened_hs_cursor));
+        WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
+        WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
         local_gen = true;
         __wt_session_gen_enter(session, WT_GEN_EVICT);
