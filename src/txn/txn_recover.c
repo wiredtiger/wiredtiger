@@ -529,8 +529,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
-    do_checkpoint = true;
-    eviction_started = hs_exists = true;
+    do_checkpoint = hs_exists = true;
+    eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
     /* We need a real session for recovery. */
