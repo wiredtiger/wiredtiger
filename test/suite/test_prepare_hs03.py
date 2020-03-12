@@ -143,7 +143,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen("RESTART")
         self.session = self.setUpSessionOpen(self.conn)
         cursor = self.session.open_cursor(self.uri)
-        
+
         # Search the keys inserted with commit timestamp after crash
         self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
         for i in range(1, nkeys):
