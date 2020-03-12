@@ -111,16 +111,24 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (tree_dead)
         LF_SET(WT_EVICT_CALL_NO_SPLIT);
 
-    if (session != conn->default_session) {
-        /*
-         * Before we enter the eviction generation we want to make sure that this session has put
-         * the history store dhandle in its session cache. If we do not do this, we might end up in
-         * a deadlock waiting to obtain read lock on the dhandle list while another thread waits to
-         * drain generation while holding the write lock on dhandle list. The simplest way to make
-         * sure that this session's dhandle cache has a reference into history store dhandle is
-         * opening/closing a history store cursor. This should not be expensive as cursors are
-         * cached.
-         */
+    /*
+     * Before we enter the eviction generation, make sure this session has a cached history store
+     * cursor, otherwise we can deadlock with a session wanting exclusive access to a handle: that
+     * session will have a handle list write lock and will be waiting on eviction to drain, we'll be
+     * inside eviction waiting on a handle list read lock to open a history store cursor.
+     *
+     * The test for the no-reconciliation flag is necessary because the session may already be doing
+     * history store operations and if we open/close the existing history store cursor, we can
+     * affect those already-running history store operations by changing the cursor state. When
+     * doing history store operations, we set the no-reconciliation flag, use it as short-hand to
+     * avoid that problem. This doesn't open up the window for the deadlock because setting the
+     * no-reconciliation flag limits eviction to in-memory splits. FIXME: This isn't reasonable and
+     * needs a better fix.
+     *
+     * The test for the connection's default session is because there are known problems with using
+     * cached cursors from the default session. FIXME: This isn't reasonable and needs a better fix.
+     */
+    if (!F_ISSET(session, WT_SESSION_NO_RECONCILE) && session != conn->default_session) {
         session_flags = 0; /* [-Werror=maybe-uninitialized] */
         WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
         WT_RET(__wt_hs_cursor_close(session, session_flags, is_owner));
