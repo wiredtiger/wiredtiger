@@ -321,7 +321,7 @@ resolve()
 		}
 
 		# Check for Evergreen running out of disk space, and forcibly quit.
-		grep -E 'no space left on device' $log > /dev/null && {
+		grep -E -i 'no space left on device' $log > /dev/null && {
 			rm -rf $dir $log
 			force_quit=1
 			echo "$name: job in $dir ran out of disk space"
