@@ -99,7 +99,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
                 self.assertEquals(cursors[j].insert(), 0)
             sessions[j].prepare_transaction('prepare_timestamp=' + timestamp_str(4))
 
-        # Testing if we can read prepared updates from the history store.
+        # Test if we can read prepared updates from the history store.
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
         for i in range(1, nsessions * nkeys):
@@ -144,6 +144,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         self.session = self.setUpSessionOpen(self.conn)
         cursor = self.session.open_cursor(self.uri)
         
+        # Search the keys inserted with commit timestamp after crash
         self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
         for i in range(1, nkeys):
             tkey = 'C' + ds.key(nrows + i)
@@ -172,7 +173,6 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         cursor.close()
         self.session.checkpoint()
 
-        # Check if the history store is working properly with prepare transactions.
         # We put prepared updates in multiple sessions so that we do not hang
         # because of cache being full with uncommitted updates.
         nsessions = 3
