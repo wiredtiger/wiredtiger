@@ -123,7 +123,7 @@ static inline void
 __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_ts,
   uint64_t oldest_start_txn, wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
 {
-/* FIXME: accept durable timestamps as args, and do checks on them. */
+/* FIXME-prepare-support: accept durable timestamps as args, and do checks on them. */
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -166,7 +166,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
 {
     uint8_t flags, *flagsp;
 
-    /* FIXME: Check validity of durable timestamps. */
+    /* FIXME-prepare-support: Check validity of durable timestamps. */
     __wt_check_addr_validity(
       session, oldest_start_ts, oldest_start_txn, newest_stop_ts, newest_stop_txn);
 
@@ -210,7 +210,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
         if (stop_durable_ts != WT_TS_NONE) {
             /* Store differences, not absolutes. */
             /*
-             * FIXME:
+             * FIXME-prepare-support:
              * WT_ASSERT(session,
              *   newest_stop_ts != WT_TS_MAX && newest_stop_ts <= stop_durable__ts);
             */
@@ -234,8 +234,8 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
     uint8_t *p;
 
     /*
-     * FIXME: This value should be passed in when support for prepared transactions with durable
-     * history is fully implemented.
+     * FIXME-prepare-support: This value should be passed in when support for prepared transactions
+     * with durable history is fully implemented.
      */
     start_durable_ts = WT_TS_NONE;
 
@@ -271,8 +271,8 @@ __wt_cell_pack_value(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t sta
     bool prepare, validity;
 
     /*
-     * FIXME: These values should be passed in when support for prepared transactions with durable
-     * history is fully implemented.
+     * FIXME-prepare-support: These values should be passed in when support for prepared
+     * transactions with durable history is fully implemented.
      */
     durable_start_ts = WT_TS_NONE;
     durable_stop_ts = WT_TS_NONE;
@@ -413,8 +413,8 @@ __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t star
     bool prepare;
 
     /*
-     * FIXME: These values should be passed in when support for prepared transactions with durable
-     * history is fully implemented.
+     * FIXME-prepare-support: These values should be passed in when support for prepared
+     * transactions with durable history is fully implemented.
      */
     durable_start_ts = WT_TS_NONE;
     durable_stop_ts = WT_TS_NONE;
@@ -454,7 +454,7 @@ __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t start
     p = cell->__chunk;
     *p = '\0';
 
-    /* FIXME: we should pass durable start and stop values. */
+    /* FIXME-prepare-support: we should pass durable start and stop values. */
     __cell_pack_value_validity(
       session, &p, WT_TS_NONE, WT_TS_NONE, start_ts, start_txn, stop_ts, stop_txn, false);
 
@@ -549,7 +549,7 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, wt_ti
     uint8_t *p;
     bool prepare;
 
-    /* FIXME: The durable timestamps should be passed in. */
+    /* FIXME-prepare-support: The durable timestamps should be passed in. */
     durable_start_ts = WT_TS_NONE;
     durable_stop_ts = WT_TS_NONE;
     prepare = false;
@@ -860,7 +860,7 @@ restart:
             unpack->newest_stop_durable_ts += unpack->newest_stop_ts;
         }
 
-        /* FIXME: Check validity of durable timestamps. */
+        /* FIXME-prepare-support: Check validity of durable timestamps. */
         __wt_check_addr_validity(session, unpack->oldest_start_ts, unpack->oldest_start_txn,
           unpack->newest_stop_ts, unpack->newest_stop_txn);
         break;
@@ -1049,6 +1049,7 @@ __wt_cell_unpack_dsk(
      * Previous startup txnid=0, ts=y       txnid=0, ts=WT_TS_NONE           txnid=MAX, ts=MAX
      */
     if (dsk->write_gen > 0 && dsk->write_gen <= S2C(session)->base_write_gen) {
+        /* FIXME-prepare-support: deal with durable timestamps. */
         /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
         if (unpack->start_txn != WT_TXN_NONE) {
             unpack->start_txn = WT_TXN_NONE;
