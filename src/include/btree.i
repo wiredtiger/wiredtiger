@@ -1113,11 +1113,12 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
 
     /* If off-page, the pointer references a WT_ADDR structure. */
     if (__wt_off_page(page, addr)) {
-        copy->newest_durable_ts = addr->newest_durable_ts;
         copy->oldest_start_ts = addr->oldest_start_ts;
         copy->oldest_start_txn = addr->oldest_start_txn;
+        copy->start_durable_ts = addr->start_durable_ts;
         copy->newest_stop_ts = addr->newest_stop_ts;
         copy->newest_stop_txn = addr->newest_stop_txn;
+        copy->stop_durable_ts = addr->stop_durable_ts;
         copy->type = addr->type;
         memcpy(copy->addr, addr->addr, copy->size = addr->size);
         return (true);
@@ -1125,11 +1126,12 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
 
     /* If on-page, the pointer references a cell. */
     __wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
-    copy->newest_durable_ts = unpack->newest_durable_ts;
     copy->oldest_start_ts = unpack->oldest_start_ts;
     copy->oldest_start_txn = unpack->oldest_start_txn;
+    copy->start_durable_ts = unpack->newest_start_durable_ts;
     copy->newest_stop_ts = unpack->newest_stop_ts;
     copy->newest_stop_txn = unpack->newest_stop_txn;
+    copy->stop_durable_ts = unpack->newest_stop_durable_ts;
     copy->type = 0; /* Avoid static analyzer uninitialized value complaints. */
     switch (unpack->raw) {
     case WT_CELL_ADDR_INT:

@@ -1748,8 +1748,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_RET(__wt_realloc_def(session, &r->multi_allocated, r->multi_next + 1, &r->multi));
     multi = &r->multi[r->multi_next++];
 
+    /*
+     * FIXME-prepare-support: audit the use of durable timestamps in this file, use both durable
+     * timestamps.
+     */
     /* Initialize the address (set the addr type for the parent). */
-    multi->addr.newest_durable_ts = chunk->newest_durable_ts;
+    multi->addr.stop_durable_ts = chunk->newest_durable_ts;
     multi->addr.oldest_start_ts = chunk->oldest_start_ts;
     multi->addr.oldest_start_txn = chunk->oldest_start_txn;
     multi->addr.newest_stop_ts = chunk->newest_stop_ts;
@@ -2187,7 +2191,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             mod->mod_disk_image = r->multi->disk_image;
             r->multi->disk_image = NULL;
         } else {
-            __wt_checkpoint_tree_reconcile_update(session, r->multi->addr.newest_durable_ts,
+            __wt_checkpoint_tree_reconcile_update(session, r->multi->addr.stop_durable_ts,
               r->multi->addr.oldest_start_ts, r->multi->addr.oldest_start_txn,
               r->multi->addr.newest_stop_ts, r->multi->addr.newest_stop_txn);
             WT_RET(__wt_bt_write(session, r->wrapup_checkpoint, NULL, NULL, NULL, true,

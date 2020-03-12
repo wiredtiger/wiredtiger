@@ -195,14 +195,14 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
         val->buf.data = addr->addr;
         val->buf.size = addr->size;
         val->cell_len = __wt_cell_pack_addr(session, &val->cell, cell_type, recno,
-          addr->newest_durable_ts, addr->oldest_start_ts, addr->oldest_start_txn,
+          addr->stop_durable_ts, addr->oldest_start_ts, addr->oldest_start_txn,
           addr->newest_stop_ts, addr->newest_stop_txn, val->buf.size);
     } else {
         WT_ASSERT(session, addr == NULL);
         val->buf.data = vpack->data;
         val->buf.size = vpack->size;
         val->cell_len = __wt_cell_pack_addr(session, &val->cell, cell_type, recno,
-          vpack->newest_durable_ts, vpack->oldest_start_ts, vpack->oldest_start_txn,
+          vpack->newest_stop_durable_ts, vpack->oldest_start_ts, vpack->oldest_start_txn,
           vpack->newest_stop_ts, vpack->newest_stop_txn, val->buf.size);
     }
 
