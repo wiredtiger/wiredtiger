@@ -25,10 +25,8 @@ static inline int
 __cursor_copy_release(WT_CURSOR *cursor)
 {
     if (F_ISSET(S2C((WT_SESSION_IMPL *)cursor->session), WT_CONN_DEBUG_CURSOR_COPY)) {
-        if (cursor->key.data != NULL)
-            WT_RET(__wt_cursor_copy_release_item(cursor, &cursor->key));
-        if (cursor->value.data != NULL)
-            WT_RET(__wt_cursor_copy_release_item(cursor, &cursor->value));
+        WT_RET(__wt_cursor_copy_release_item(cursor, &cursor->key));
+        WT_RET(__wt_cursor_copy_release_item(cursor, &cursor->value));
     }
     return (0);
 }
