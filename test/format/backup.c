@@ -28,19 +28,6 @@
 
 #include "format.h"
 
-#if 0
-/*
- * The set of all tables in play, and other information used for this run.
- */
-typedef struct {
-    TABLE *table;           /* set of potential tables */
-    uint32_t table_count;   /* size of table array */
-    uint32_t tables_in_use; /* count of tables that exist */
-    uint32_t full_backup_number;
-    uint32_t incr_backup_number;
-} TABLE_INFO;
-#endif
-
 /*
  * check_copy --
  *     Confirm the backup worked.
@@ -253,11 +240,14 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
     while ((ret = incr_cur->next(incr_cur)) == 0) {
         testutil_check(incr_cur->get_key(incr_cur, &offset, (uint64_t *)&size, &type));
         if (type == WT_BACKUP_RANGE) {
+            /*
+             * Since we are using system calls below instead of a WiredTiger function, we have to
+             * prepend the home directory to the file names ourselves.
+             */
             testutil_check(__wt_snprintf(first, len, "%s/BACKUP/%s", g.home, name));
             testutil_check(__wt_snprintf(second, len, "%s/BACKUP_COPY/%s", g.home, name));
             if (tmp_sz < size) {
-                tmp = realloc(tmp, size);
-                testutil_assert(tmp != NULL);
+                tmp = drealloc(tmp, size);
                 tmp_sz = size;
             }
             if (first_pass) {
@@ -275,6 +265,10 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
             error_sys_check(write(wfd1, tmp, (size_t)rdsize));
             error_sys_check(write(wfd2, tmp, (size_t)rdsize));
         } else {
+            /*
+             * These operations are using a WiredTiger function so it will prepend the home
+             * directory to the name for us.
+             */
             testutil_check(__wt_snprintf(first, len, "BACKUP/%s", name));
             testutil_check(__wt_snprintf(second, len, "BACKUP_COPY/%s", name));
             testutil_assert(type == WT_BACKUP_FILE);
@@ -475,13 +469,18 @@ backup(void *arg)
          */
         if (full)
             incremental = g.c_logging_archive ? 1 : mmrand(NULL, 1, 5);
-        if (--incremental == 0)
+        if (--incremental == 0) {
             check_copy();
+            /* We ran recovery in the backup directory, so next time it must be a full backup. */
+            block_full = full = true;
+        }
     }
 
     if (incremental != 0)
         check_copy();
 
+    active_files_free(&active[0]);
+    active_files_free(&active[1]);
     testutil_check(session->close(session, NULL));
 
     return (WT_THREAD_RET_VALUE);
