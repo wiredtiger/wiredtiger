@@ -96,13 +96,12 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_PAGE *page;
     uint64_t time_start, time_stop;
     uint32_t session_flags;
-    bool clean_page, closing, inmem_split, local_gen, tree_dead, is_owner;
+    bool clean_page, closing, inmem_split, is_owner, local_gen, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     local_gen = false;
-    session_flags = 0;
     time_start = time_stop = 0; /* [-Werror=maybe-uninitialized] */
 
     __wt_verbose(
@@ -112,11 +111,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (tree_dead)
         LF_SET(WT_EVICT_CALL_NO_SPLIT);
 
-    /*
-     * Enter the eviction generation. If we re-enter eviction, leave the previous eviction
-     * generation (which must be as low as the current generation), untouched.
-     */
-    if (__wt_session_gen(session, WT_GEN_EVICT) == 0) {
+    if (session != conn->default_session) {
         /*
          * Before we enter the eviction generation we want to make sure that this session has put
          * the history store dhandle in its session cache. If we do not do this, we might end up in
@@ -126,9 +121,16 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
          * opening/closing a history store cursor. This should not be expensive as cursors are
          * cached.
          */
+        session_flags = 0; /* [-Werror=maybe-uninitialized] */
         WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
-        WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
+        WT_RET(__wt_hs_cursor_close(session, session_flags, is_owner));
+    }
 
+    /*
+     * Enter the eviction generation. If we re-enter eviction, leave the previous eviction
+     * generation (which must be as low as the current generation), untouched.
+     */
+    if (__wt_session_gen(session, WT_GEN_EVICT) == 0) {
         local_gen = true;
         __wt_session_gen_enter(session, WT_GEN_EVICT);
     }
