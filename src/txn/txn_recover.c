@@ -522,15 +522,17 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
+    uint32_t session_flags;
     char *config;
-    bool do_checkpoint, eviction_started, needs_rec, was_backup;
+    bool do_checkpoint, eviction_started, hs_does_not_exist, is_owner, needs_rec, was_backup;
 
     conn = S2C(session);
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
+    session_flags = 0;
     do_checkpoint = true;
-    eviction_started = false;
+    eviction_started = hs_does_not_exist = is_owner = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
     /* We need a real session for recovery. */
@@ -689,6 +691,18 @@ done:
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
 
     /*
+     * Check whether the history store file exists or not. If it does not, then we should not apply
+     * rollback to stable to each table and we should not perform a checkpoint. This might happen if
+     * we're upgrading from an older version.
+     */
+    ret = __wt_hs_cursor(session, &session_flags, &is_owner);
+    if (ret == ENOENT) {
+        ret = 0;
+        hs_does_not_exist = true;
+    }
+    WT_ERR(ret);
+
+    /*
      * Perform rollback to stable only when the following conditions met.
      * 1. The connection is not read-only. A read-only connection expects that there shouldn't be
      *    any changes that need to be done on the database other than reading.
@@ -696,7 +710,11 @@ done:
      *    from the metadata checkpoint information to indicate the stable timestamp when the
      *    checkpoint happened. Anything updates newer than this timestamp must rollback.
      */
-    if (!F_ISSET(conn, WT_CONN_READONLY) && conn->txn_global.recovery_timestamp != WT_TS_NONE) {
+    if (hs_does_not_exist)
+        WT_ERR(__wt_msg(session,
+          "Could not find history store during recovery phase. Skipping rollback to stable."));
+    else if (!F_ISSET(conn, WT_CONN_READONLY) &&
+      conn->txn_global.recovery_timestamp != WT_TS_NONE) {
         /* Start the eviction threads for rollback to stable if not already started. */
         if (!eviction_started) {
             WT_ERR(__wt_evict_create(session));
@@ -755,6 +773,7 @@ done:
     FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 
 err:
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
     WT_TRET(__recovery_free(&r));
     __wt_free(session, config);
     FLD_CLR(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
