@@ -21,8 +21,7 @@ all_TESTS += random_abort/smoke.sh
 
 test_random_directio_SOURCES = random_directio/main.c random_directio/util.c
 noinst_PROGRAMS += test_random_directio
-# Temporarily disabled
-# all_TESTS += random_directio/smoke.sh
+all_TESTS += random_directio/smoke.sh
 
 test_rwlock_SOURCES = rwlock/main.c
 noinst_PROGRAMS += test_rwlock
@@ -59,8 +58,7 @@ all_TESTS += test_wt2246_col_append
 
 test_wt2323_join_visibility_SOURCES = wt2323_join_visibility/main.c
 noinst_PROGRAMS += test_wt2323_join_visibility
-# Temporarily disabled
-# all_TESTS += test_wt2323_join_visibility
+all_TESTS += test_wt2323_join_visibility
 
 test_wt2535_insert_race_SOURCES = wt2535_insert_race/main.c
 noinst_PROGRAMS += test_wt2535_insert_race
