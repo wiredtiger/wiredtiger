@@ -9,12 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * Rollback to stable should ignore tombstones in the history store since it needs to scan the
- * entire table sequentially.
- */
-#define WT_SESSION_ROLLBACK_TO_STABLE_FLAGS (WT_SESSION_IGNORE_HS_TOMBSTONE)
-
-/*
  * __rollback_abort_newer_update --
  *     Abort updates in an update change with timestamps newer than the rollback timestamp. Also,
  *     clear the history store flag for the first stable update in the update.
@@ -223,8 +217,12 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             WT_ERR(__wt_buf_set(session, &full_value, hs_value->data, hs_value->size));
         }
 
-        /* Verify the history store timestamps are in order. */
-        WT_ASSERT(session, (newer_hs_ts == WT_TS_NONE || hs_stop_ts == newer_hs_ts));
+        /*
+         * Verify the history store timestamps are in order. The start timestamp may be equal to the
+         * stop timestamp if the original update's commit timestamp is out of order.
+         */
+        WT_ASSERT(session,
+          (newer_hs_ts == WT_TS_NONE || hs_stop_ts <= newer_hs_ts || hs_start_ts == hs_stop_ts));
 
         /*
          * Stop processing when we find the newer version value of this key is stable according to
@@ -974,22 +972,10 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
 
-    /*
-     * Mark that a rollback operation is in progress and wait for eviction to drain. This is
-     * necessary because history store eviction uses transactions and causes the check for a
-     * quiescent system to fail.
-     *
-     * Configuring history store eviction off isn't atomic, safe because the flag is only otherwise
-     * set when closing down the database. Assert to avoid confusion in the future.
-     */
-    WT_ASSERT(session, !F_ISSET(conn, WT_CONN_EVICTION_NO_HS));
-    F_SET(conn, WT_CONN_EVICTION_NO_HS);
+    /* Mark that a rollback operation is in progress and wait for eviction to drain. */
+    WT_RET(__wt_conn_btree_apply(session, NULL, __rollback_eviction_drain, NULL, cfg));
 
-    WT_ERR(__wt_conn_btree_apply(session, NULL, __rollback_eviction_drain, NULL, cfg));
-
-    WT_ERR(__rollback_to_stable_check(session));
-
-    F_CLR(conn, WT_CONN_EVICTION_NO_HS);
+    WT_RET(__rollback_to_stable_check(session));
 
     /*
      * Allocate a non-durable btree bitstring. We increment the global value before using it, so the
@@ -998,8 +984,6 @@ __rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
     conn->stable_rollback_maxfile = conn->next_file_id + 1;
     WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_btree_apply(session));
 
-err:
-    F_CLR(conn, WT_CONN_EVICTION_NO_HS);
     return (ret);
 }
 
@@ -1008,7 +992,7 @@ err:
  *     Rollback all modifications with timestamps more recent than the passed in timestamp.
  */
 int
-__wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 {
     WT_DECL_RET;
 
@@ -1025,9 +1009,10 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to
-     * ensure that both in-memory and on-disk versions are the same.
+     * ensure that both in-memory and on-disk versions are the same unless caller requested for no
+     * checkpoint.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !no_ckpt)
         WT_TRET(session->iface.checkpoint(&session->iface, "force=1"));
     WT_TRET(session->iface.close(&session->iface, NULL));
 

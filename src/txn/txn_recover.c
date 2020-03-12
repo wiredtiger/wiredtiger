@@ -734,7 +734,7 @@ done:
         conn->txn_global.oldest_timestamp = WT_TS_NONE;
         conn->txn_global.has_oldest_timestamp = true;
 
-        WT_ERR(__wt_rollback_to_stable(session, NULL));
+        WT_ERR(__wt_rollback_to_stable(session, NULL, false));
 
         /* Reset the oldest timestamp. */
         conn->txn_global.oldest_timestamp = WT_TS_NONE;
