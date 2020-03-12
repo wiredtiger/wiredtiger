@@ -523,14 +523,14 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
     char *config;
-    bool do_checkpoint, eviction_started, hs_does_not_exist, needs_rec, was_backup;
+    bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
 
     conn = S2C(session);
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
     do_checkpoint = true;
-    eviction_started = hs_does_not_exist = false;
+    eviction_started = hs_exists = true;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
     /* We need a real session for recovery. */
@@ -637,7 +637,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     metac->set_key(metac, WT_HS_URI);
     ret = metac->search(metac);
     if (ret == WT_NOTFOUND)
-        hs_does_not_exist = true;
+        hs_exists = false;
     WT_ERR_NOTFOUND_OK(ret);
 
     /*
@@ -708,9 +708,7 @@ done:
      *    checkpoint happened. Anything updates newer than this timestamp must rollback.
      * 3. The history store file was found in the metadata.
      */
-    if (hs_does_not_exist)
-        ;
-    else if (!F_ISSET(conn, WT_CONN_READONLY) &&
+    if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY) &&
       conn->txn_global.recovery_timestamp != WT_TS_NONE) {
         /* Start the eviction threads for rollback to stable if not already started. */
         if (!eviction_started) {
