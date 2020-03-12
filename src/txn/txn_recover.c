@@ -631,8 +631,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
     /*
      * While we have the metadata cursor open, we should check whether the history store file exists
-     * or not. If it does not, then we should not apply rollback to stable to each table and we
-     * should not perform a checkpoint. This might happen if we're upgrading from an older version.
+     * or not. If it does not, then we should not apply rollback to stable to each table. This might
+     * happen if we're upgrading from an older version.
      */
     metac->set_key(metac, WT_HS_URI);
     ret = metac->search(metac);
