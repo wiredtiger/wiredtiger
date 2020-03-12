@@ -1173,7 +1173,7 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
          * regardless of a value's timestamps or transaction IDs.
          */
         WT_ERR(__wt_calloc_one(session, &addr));
-        addr->newest_durable_ts = addr->oldest_start_ts = WT_TS_NONE;
+        addr->start_durable_ts = addr->stop_durable_ts = addr->oldest_start_ts = WT_TS_NONE;
         addr->oldest_start_txn = WT_TXN_NONE;
         addr->newest_stop_ts = WT_TS_MAX;
         addr->newest_stop_txn = WT_TXN_MAX;
@@ -1781,7 +1781,7 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
          * regardless of a value's timestamps or transaction IDs.
          */
         WT_ERR(__wt_calloc_one(session, &addr));
-        addr->newest_durable_ts = addr->oldest_start_ts = WT_TS_NONE;
+        addr->start_durable_ts = addr->stop_durable_ts = addr->oldest_start_ts = WT_TS_NONE;
         addr->oldest_start_txn = WT_TXN_NONE;
         addr->newest_stop_ts = WT_TS_MAX;
         addr->newest_stop_txn = WT_TXN_MAX;
