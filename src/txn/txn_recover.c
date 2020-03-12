@@ -711,8 +711,7 @@ done:
      *    checkpoint happened. Anything updates newer than this timestamp must rollback.
      */
     if (hs_does_not_exist)
-        WT_ERR(__wt_msg(session,
-          "Could not find history store during recovery phase. Skipping rollback to stable."));
+        ;
     else if (!F_ISSET(conn, WT_CONN_READONLY) &&
       conn->txn_global.recovery_timestamp != WT_TS_NONE) {
         /* Start the eviction threads for rollback to stable if not already started. */
