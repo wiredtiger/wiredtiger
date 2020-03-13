@@ -30,6 +30,7 @@ from helper import copy_wiredtiger_home
 import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 import os, shutil
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
@@ -43,16 +44,22 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
     # Create a small table.
     uri = "table:test_prepare_hs03"
 
-    def corrupt_file(self):
-        filename="test_prepare_hs03.wt"
-        self.assertEquals(os.path.exists(filename), True)
+    scenarios = make_scenarios([
+        ('corrupt_table', dict(corrupt=True)),
+        ('dont_corrupt_table', dict(corrupt=False))
+    ])
 
-        with open(filename, 'r+') as log:
-            log.seek(1024)
-            log.write('Bad!' * 1024)
+    def corrupt_table(self):
+        tablename="test_prepare_hs03.wt"
+        self.assertEquals(os.path.exists(tablename), True)
+
+        with open(tablename, 'r+') as tablepointer:
+            tablepointer.seek(1024)
+            tablepointer.write('Bad!' * 1024)
 
     def corrupt_salvage_verify(self):
-        self.corrupt_file()
+        if self.corrupt == True:
+            self.corrupt_table()
         self.session.salvage(self.uri, "force")
         self.session.verify(self.uri, None)
 
@@ -60,13 +67,12 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # Insert some records with commit timestamp, corrupt file and call salvage, verify before checkpoint.
 
         # Commit some updates to get eviction and history store fired up
-        bigvalue1 = b"bbbbb" * 2
+        commit_value = b"bbbbb" * 2
         cursor = self.session.open_cursor(self.uri)
-        for i in range(1, nkeys):
+        for i in range(1, nsessions * nkeys):
             self.session.begin_transaction('isolation=snapshot')
-            tkey = 'C' + ds.key(nrows + i)
-            cursor.set_key(tkey)
-            cursor.set_value(bigvalue1)
+            cursor.set_key(ds.key(nrows + i))
+            cursor.set_value(commit_value)
             self.assertEquals(cursor.insert(), 0)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(1))
         cursor.close()
@@ -77,14 +83,11 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # Call checkpoint
         self.session.checkpoint()
 
-        # Corrupt the table, Call salvage to recover data from the corrupted table and call verify
-        self.corrupt_salvage_verify()
-
         # Have prepared updates in multiple sessions. This should ensure writing
         # prepared updates to the history store
         sessions = [0] * nsessions
         cursors = [0] * nsessions
-        bigvalue2 = b"ccccc" * 2
+        prepare_value = b"ccccc" * 2
         for j in range (0, nsessions):
             sessions[j] = self.conn.open_session()
             sessions[j].begin_transaction('isolation=snapshot')
@@ -93,20 +96,22 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             start = (j * nkeys)
             end = start + nkeys
             for i in range(start, end):
-                tkey = 'P' + ds.key(nrows + i)
-                cursors[j].set_key(tkey)
-                cursors[j].set_value(bigvalue2)
+                cursors[j].set_key(ds.key(nrows + i))
+                cursors[j].set_value(prepare_value)
                 self.assertEquals(cursors[j].insert(), 0)
             sessions[j].prepare_transaction('prepare_timestamp=' + timestamp_str(4))
 
         # Test if we can read prepared updates from the history store.
         cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
         for i in range(1, nsessions * nkeys):
-            tkey = 'P' + ds.key(nrows + i)
-            cursor.set_key(tkey)
-            # The search should fail i.e, WT_NOTFOUND
-            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+            cursor.set_key(ds.key(nrows + i))
+            # The search should pass.
+            self.assertEqual(cursor.search(), 0)
+            # Correctness Test - commit_value should be visible
+            self.assertEquals(cursor.get_value(), commit_value)
+            # Correctness Test - prepare_value should NOT be visible
+            self.assertNotEquals(cursor.get_value(), prepare_value)
         cursor.close()
 
         # Close all cursors and sessions, this will cause prepared updates to be
@@ -115,11 +120,13 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             cursors[j].close()
             sessions[j].close()
 
+        # Corrupt the table, Call salvage to recover data from the corrupted table and call verify
         self.corrupt_salvage_verify()
 
         self.session.commit_transaction()
         self.session.checkpoint()
 
+        # Corrupt the table, Call salvage to recover data from the corrupted table and call verify
         self.corrupt_salvage_verify()
 
         # Finally, search for the keys inserted with commit timestamp
@@ -127,10 +134,13 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         self.pr('Read Keys')
         self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
         for i in range(1, nkeys):
-            tkey = 'C' + ds.key(nrows + i)
-            cursor.set_key(tkey)
+            cursor.set_key(ds.key(nrows + i))
             # The search should pass
             self.assertEqual(cursor.search(), 0)
+            # Correctness Test - commit_value should be visible
+            self.assertEquals(cursor.get_value(), commit_value)
+            # Correctness Test - prepare_value should NOT be visible
+            self.assertNotEquals(cursor.get_value(), prepare_value)
         cursor.close()
 
         self.session.commit_transaction()
@@ -147,10 +157,13 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # Search the keys inserted with commit timestamp after crash
         self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
         for i in range(1, nkeys):
-            tkey = 'C' + ds.key(nrows + i)
-            cursor.set_key(tkey)
+            cursor.set_key(ds.key(nrows + i))
             # The search should pass
             self.assertEqual(cursor.search(), 0)
+            # Correctness Test - commit_value should be visible
+            self.assertEquals(cursor.get_value(), commit_value)
+            # Correctness Test - prepare_value should NOT be visible
+            self.assertNotEquals(cursor.get_value(), prepare_value)
         cursor.close()
         self.session.commit_transaction()
 
@@ -176,7 +189,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # We put prepared updates in multiple sessions so that we do not hang
         # because of cache being full with uncommitted updates.
         nsessions = 3
-        nkeys = 4000
+        nkeys = 4
         self.prepare_updates(ds, nrows, nsessions, nkeys)
 
 if __name__ == '__main__':
