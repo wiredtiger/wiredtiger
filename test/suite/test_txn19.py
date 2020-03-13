@@ -487,7 +487,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
                 if self.kind == 'removal':
                     errmsg = 'handle-open: open: No such file or directory'
                 elif self.kind == 'truncate':
-                    errmsg = 'pread: failed to read 4096 bytes at offset 0'
+                    errmsg = 'failed to read 4096 bytes at offset 0'
             self.check_file_contains_one_of(errfile, [errmsg])
 
     def test_corrupt_meta(self):
