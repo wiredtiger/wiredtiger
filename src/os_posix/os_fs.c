@@ -449,13 +449,13 @@ __posix_file_read_mmap(
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    if (!pfh->mmap_file_mappable)
+    if (!pfh->mmap_file_mappable || pfh->mmap_resizing)
         return (__posix_file_read(file_handle, wt_session, offset, len, buf));
 
     __wt_verbose(session, WT_VERB_READ,
       "read-mmap: %s, fd=%d, offset=%" PRId64
       ","
-      "len=%" WT_SIZET_FMT ", mapped buffer: %p, mapped size = %" WT_SIZET_FMT "\n",
+      "len=%" WT_SIZET_FMT ", mapped buffer: %p, mapped size = %" PRId64 "\n",
       file_handle->name, pfh->fd, offset, len, (void *)pfh->mmap_buf, pfh->mmap_size);
 
     /* Indicate that we might be using the mapped area */
@@ -466,7 +466,7 @@ __posix_file_read_mmap(
      * the mapped buffer.
      */
     mmap_success = false;
-    if (pfh->mmap_buf != NULL && pfh->mmap_size >= (size_t)offset + len && !pfh->mmap_resizing) {
+    if (pfh->mmap_buf != NULL && pfh->mmap_size >= offset + (wt_off_t) len && !pfh->mmap_resizing) {
         memcpy(buf, (void *)(pfh->mmap_buf + offset), len);
         mmap_success = true;
         WT_STAT_CONN_INCRV(session, block_byte_read_mmap, len);
@@ -556,30 +556,30 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
+    bool remap;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
     __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: size=%" PRId64
                                            ","
-                                           "mapped size=%" WT_SIZET_FMT "\n",
+                                           "mapped size=%" PRId64 "\n",
       file_handle->name, len, pfh->mmap_size);
 
-    if ((size_t)len != pfh->mmap_size)
+    remap = (len != pfh->mmap_size);
+    if (remap)
         __wt_prepare_remap_resize_file(file_handle, wt_session);
 
     WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
-    if (ret != 0) {
-        __wt_err(session, ret, "%s: handle-truncate: ftruncate", file_handle->name);
-        if ((size_t)len != pfh->mmap_size)
-            __wt_release_without_remap(file_handle);
-        return (ret);
+    if (remap) {
+	if (ret == 0)
+	    __wt_remap_resize_file(file_handle, wt_session);
+	else {
+	    __wt_release_without_remap(file_handle);
+	    WT_RET_MSG(session, ret, "%s: handle-truncate: ftruncate", file_handle->name);
+	}
     }
-
-    if ((size_t)len != pfh->mmap_size)
-        __wt_remap_resize_file(file_handle, wt_session);
-
-    return (ret);
+    return (0);
 }
 #endif
 
@@ -644,7 +644,7 @@ __posix_file_write_mmap(
     __wt_verbose(session, WT_VERB_WRITE,
       "write-mmap: %s, fd=%d, offset=%" PRId64
       ","
-      "len=%" WT_SIZET_FMT ", mapped buffer: %p, mapped size = %" WT_SIZET_FMT ".\n",
+      "len=%" WT_SIZET_FMT ", mapped buffer: %p, mapped size = %" PRId64 ".\n",
       file_handle->name, pfh->fd, offset, len, (void *)pfh->mmap_buf, pfh->mmap_size);
 
     if (!pfh->mmap_file_mappable)
@@ -658,7 +658,7 @@ __posix_file_write_mmap(
      * the mapped buffer.
      */
     mmap_success = false;
-    if (pfh->mmap_buf != NULL && pfh->mmap_size >= (size_t)offset + len && !pfh->mmap_resizing) {
+    if (pfh->mmap_buf != NULL && pfh->mmap_size >= offset + (wt_off_t)len && !pfh->mmap_resizing) {
         memcpy((void *)(pfh->mmap_buf + offset), buf, len);
         mmap_success = true;
         WT_STAT_CONN_INCRV(session, block_byte_write_mmap, len);
@@ -680,7 +680,7 @@ __posix_file_write_mmap(
  * to avoid overhead.
  */
 #define WT_REMAP_SKIP 10
-    if (pfh->mmap_file_mappable && pfh->mmap_size < (size_t)offset + len)
+    if (pfh->mmap_file_mappable && pfh->mmap_size < offset + (wt_off_t)len)
         /* If we are actively extending the file, don't remap it on every write. */
         if ((remap_opportunities++) % WT_REMAP_SKIP == 0) {
             __wt_prepare_remap_resize_file(file_handle, wt_session);
@@ -886,7 +886,7 @@ directory_open:
     file_handle->fh_unmap = __wt_posix_unmap;
 #endif
 
-    if (conn->mmap)
+    if (pfh->mmap_file_mappable)
         file_handle->fh_read = __posix_file_read_mmap;
     else
         file_handle->fh_read = __posix_file_read;
@@ -900,7 +900,7 @@ directory_open:
     file_handle->fh_truncate = __posix_file_truncate;
 #endif
 
-    if (conn->mmap)
+    if (pfh->mmap_file_mappable)
         file_handle->fh_write = __posix_file_write_mmap;
     else
         file_handle->fh_write = __posix_file_write;
@@ -1014,7 +1014,7 @@ __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     /* If the buffer was previously mapped, try to remap it to the same address */
     previous_address = pfh->mmap_buf;
-    if ((pfh->mmap_buf = (char *)mmap(previous_address, (size_t)file_size, pfh->mmap_prot,
+    if ((pfh->mmap_buf = (uint8_t *)mmap(previous_address, (size_t)file_size, pfh->mmap_prot,
            MAP_SHARED | MAP_FILE, pfh->fd, 0)) == MAP_FAILED) {
         pfh->mmap_size = 0;
         pfh->mmap_buf = NULL;
@@ -1024,9 +1024,9 @@ __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
         return;
     }
 
-    pfh->mmap_size = (size_t)file_size;
+    pfh->mmap_size = file_size;
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-mmap: fd=%d, size=%" WT_SIZET_FMT
+    __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-mmap: fd=%d, size=%" PRId64
                                            ", "
                                            "mapped buffer=%p\n",
       file_handle->name, pfh->fd, pfh->mmap_size, (void *)pfh->mmap_buf);
@@ -1147,16 +1147,16 @@ __wt_unmap_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-unmap: buffer=%p, size=%" WT_SIZET_FMT "\n",
+    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-unmap: buffer=%p, size=%" PRId64 "\n",
       file_handle->name, (void *)pfh->mmap_buf, pfh->mmap_size);
 
     WT_ASSERT(session, pfh->mmap_file_mappable);
 
-    ret = munmap(pfh->mmap_buf, pfh->mmap_size);
+    ret = munmap(pfh->mmap_buf, (size_t)pfh->mmap_size);
+    pfh->mmap_buf = NULL;
+    pfh->mmap_size = 0;
+
     if (ret != 0)
-        __wt_err(session, ret, "Could not unmap file %s.", file_handle->name);
-    else {
-        pfh->mmap_buf = NULL;
-        pfh->mmap_size = 0;
-    }
+        __wt_err(session, ret, "could not unmap file %s", file_handle->name);
+
 }

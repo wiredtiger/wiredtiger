@@ -451,6 +451,25 @@ drop_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
     tinfo->tables_in_use--;
 }
 
+/*
+ * tables_free --
+ *     Free the list of tables.
+ */
+static void
+tables_free(TABLE_INFO *tinfo)
+{
+    uint32_t slot;
+
+    for (slot = 0; slot < tinfo->table_count; slot++) {
+        if (tinfo->table[slot].name != NULL) {
+            free(tinfo->table[slot].name);
+            tinfo->table[slot].name = NULL;
+        }
+    }
+    free(tinfo->table);
+    tinfo->table = NULL;
+}
+
 static void
 base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, const char *backup_home,
   TABLE_INFO *tinfo, ACTIVE_FILES *active)
@@ -865,6 +884,7 @@ main(int argc, char *argv[])
     testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, NULL));
     active_files_free(&active);
+    tables_free(&tinfo);
 
     printf("Success.\n");
     return (0);

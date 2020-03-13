@@ -141,11 +141,11 @@ struct __wt_file_handle_posix {
     bool direct_io; /* O_DIRECT configured */
 
     /* The memory buffer and variables if we use mmap for I/O */
-    char *mmap_buf;
+    uint8_t *mmap_buf;
     bool mmap_file_mappable;
     int mmap_prot;
     volatile uint32_t mmap_resizing;
-    size_t mmap_size;
+    off_t mmap_size;
     volatile uint32_t mmap_usecount;
 };
 #endif

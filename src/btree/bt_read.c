@@ -87,14 +87,13 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
+    WT_ADDR_COPY addr;
     WT_DECL_RET;
     WT_ITEM tmp;
     WT_PAGE *notused;
-    size_t addr_size;
     uint64_t time_diff, time_start, time_stop;
     uint32_t page_flags;
     uint8_t previous_state;
-    const uint8_t *addr;
     bool timer;
 
     time_start = time_stop = 0;
@@ -128,22 +127,18 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * Get the address: if there is no address, the page was deleted and a subsequent search or
      * insert is forcing re-creation of the name space.
      */
-    __wt_ref_info(session, ref, &addr, &addr_size);
-    if (addr == NULL) {
+    if (!__wt_ref_addr_copy(session, ref, &addr)) {
         WT_ASSERT(session, previous_state == WT_REF_DELETED);
 
         WT_ERR(__wt_btree_new_leaf_page(session, ref));
         goto skip_read;
     }
 
-    /*
-     * There's an address, read or map the backing disk page and build an in-memory version of the
-     * page.
-     */
+    /* There's an address, read the backing disk page and build an in-memory version of the page. */
     timer = !F_ISSET(session, WT_SESSION_INTERNAL);
     if (timer)
         time_start = __wt_clock(session);
-    WT_ERR(__wt_bt_read(session, &tmp, addr, addr_size));
+    WT_ERR(__wt_bt_read(session, &tmp, addr.addr, addr.size));
     if (timer) {
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
@@ -311,9 +306,9 @@ read:
  * try again.
  */
 #ifdef HAVE_DIAGNOSTIC
-            WT_RET(__wt_hazard_set(session, ref, &busy, func, line));
+            WT_RET(__wt_hazard_set_func(session, ref, &busy, func, line));
 #else
-            WT_RET(__wt_hazard_set(session, ref, &busy));
+            WT_RET(__wt_hazard_set_func(session, ref, &busy));
 #endif
             if (busy) {
                 WT_STAT_CONN_INCR(session, page_busy_blocked);

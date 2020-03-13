@@ -1055,12 +1055,6 @@ err:
     WT_TRET(__wt_txn_activity_drain(session));
 
     /*
-     * Disable history store eviction: it doesn't help us shut down and can lead to pages being
-     * marked dirty, causing spurious assertions to fire.
-     */
-    F_SET(conn, WT_CONN_EVICTION_NO_HS);
-
-    /*
      * Clear any pending async operations and shut down the async worker threads and system before
      * closing LSM.
      */
@@ -1244,7 +1238,7 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
 
     CONNECTION_API_CALL(conn, session, rollback_to_stable, config, cfg);
     WT_STAT_CONN_INCR(session, txn_rts);
-    WT_TRET(__wt_rollback_to_stable(session, cfg));
+    WT_TRET(__wt_rollback_to_stable(session, cfg, false));
 err:
     API_END_RET(session, ret);
 }

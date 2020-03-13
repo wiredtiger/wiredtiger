@@ -1902,8 +1902,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * dirty so we can do history store eviction. We also mark the tree dirty to avoid an
          * assertion that we don't discard dirty pages from a clean tree.
          */
-        if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD) && !F_ISSET(conn, WT_CONN_EVICTION_NO_HS) &&
-          F_ISSET(ref, WT_REF_FLAG_LEAF) && !modified && page->modify != NULL &&
+        if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD) && F_ISSET(ref, WT_REF_FLAG_LEAF) &&
+          !modified && page->modify != NULL &&
           !__wt_txn_visible_all(
               session, page->modify->rec_max_txn, page->modify->rec_max_timestamp)) {
             __wt_page_modify_set(session, page);

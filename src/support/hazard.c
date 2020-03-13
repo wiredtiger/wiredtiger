@@ -57,11 +57,11 @@ hazard_grow(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_hazard_set --
+ * __wt_hazard_set_func --
  *     Set a hazard pointer.
  */
 int
-__wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
+__wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 #ifdef HAVE_DIAGNOSTIC
   ,
   const char *func, int line
