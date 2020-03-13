@@ -485,7 +485,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
             errmsg = 'WT_TRY_SALVAGE: database corruption detected'
             if self.filename == 'WiredTigerHS.wt':
                 if self.kind == 'removal':
-                    errmsg = 'handle-open: open: No such file or directory'
+                    errmsg = 'handle-open'
                 elif self.kind == 'truncate':
                     errmsg = 'failed to read 4096 bytes at offset 0'
             self.check_file_contains_one_of(errfile, [errmsg])
