@@ -80,8 +80,8 @@ __rec_cell_build_int_key(
         WT_STAT_DATA_INCR(session, rec_overflow_key_internal);
 
         *is_ovflp = true;
-        return (__wt_rec_cell_build_ovfl(
-          session, r, key, WT_CELL_KEY_OVFL, WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TXN_NONE, 0));
+        return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, WT_TS_NONE, WT_TS_NONE,
+          WT_TXN_NONE, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, 0));
     }
 
     key->cell_len = __wt_cell_pack_int_key(&key->cell, key->buf.size);
@@ -173,7 +173,7 @@ __rec_cell_build_leaf_key(
 
             *is_ovflp = true;
             return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, WT_TS_NONE,
-              WT_TXN_NONE, WT_TS_NONE, WT_TXN_NONE, 0));
+              WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, 0));
         }
         return (__rec_cell_build_leaf_key(session, r, NULL, 0, is_ovflp));
     }
@@ -206,7 +206,8 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WT_RET(__rec_cell_build_leaf_key(session, r, /* Build key cell */
       cursor->key.data, cursor->key.size, &ovfl_key));
     WT_RET(__wt_rec_cell_build_val(session, r, cursor->value.data, /* Build value cell */
-      cursor->value.size, WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX, 0));
+      cursor->value.size, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX,
+      0));
 
     /* Boundary: split or write the page. */
     if (WT_CROSSING_SPLIT_BND(r, key->len + val->len)) {
@@ -229,8 +230,8 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     else {
         r->all_empty_value = false;
         if (btree->dictionary)
-            WT_RET(__wt_rec_dict_replace(
-              session, r, WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX, 0, val));
+            WT_RET(__wt_rec_dict_replace(session, r, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE,
+              WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX, 0, val));
         __wt_rec_image_copy(session, r, val);
     }
     __wt_rec_addr_ts_update(
@@ -600,12 +601,12 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             cbt->slot = UINT32_MAX;
             WT_RET(__wt_value_return_upd(cbt, upd));
             WT_RET(__wt_rec_cell_build_val(session, r, cbt->iface.value.data, cbt->iface.value.size,
-              start_ts, start_txn, stop_ts, stop_txn, 0));
+              start_durable_ts, start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, 0));
             break;
         case WT_UPDATE_STANDARD:
             /* Take the value from the update. */
-            WT_ERR(__wt_rec_cell_build_val(
-              session, r, upd->data, upd->size, start_ts, start_txn, stop_ts, stop_txn, 0));
+            WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, start_durable_ts,
+              start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, 0));
             break;
         case WT_UPDATE_TOMBSTONE:
             continue;
@@ -643,8 +644,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         else {
             r->all_empty_value = false;
             if (btree->dictionary)
-                WT_ERR(__wt_rec_dict_replace(
-                  session, r, start_ts, start_txn, stop_ts, stop_txn, 0, val));
+                WT_ERR(__wt_rec_dict_replace(session, r, start_durable_ts, start_ts, start_txn,
+                  stop_durable_ts, stop_ts, stop_txn, 0, val));
             __wt_rec_image_copy(session, r, val);
         }
         __wt_rec_addr_ts_update(
@@ -668,7 +669,8 @@ err:
  */
 static inline int
 __rec_cell_repack(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r, WT_CELL_UNPACK *vpack,
-  uint64_t start_txn, wt_timestamp_t start_ts, uint64_t stop_txn, wt_timestamp_t stop_ts)
+  wt_timestamp_t start_durable_ts, uint64_t start_txn, wt_timestamp_t start_ts,
+  wt_timestamp_t stop_durable_ts, uint64_t stop_txn, wt_timestamp_t stop_ts)
 {
     WT_DECL_ITEM(tmpval);
     WT_DECL_RET;
@@ -687,7 +689,8 @@ __rec_cell_repack(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r, WT
         p = tmpval->data;
         size = tmpval->size;
     }
-    WT_ERR(__wt_rec_cell_build_val(session, r, p, size, start_ts, start_txn, stop_ts, stop_txn, 0));
+    WT_ERR(__wt_rec_cell_build_val(session, r, p, size, start_durable_ts, start_ts, start_txn,
+      stop_durable_ts, stop_ts, stop_txn, 0));
 
 err:
     __wt_scr_free(session, &tmpval);
@@ -817,8 +820,8 @@ __wt_rec_row_leaf(
              * Repack the cell if we clear the transaction ids in the cell.
              */
             if (vpack->raw == WT_CELL_VALUE_COPY) {
-                WT_ERR(__rec_cell_repack(
-                  session, btree, r, vpack, start_txn, start_ts, stop_txn, stop_ts));
+                WT_ERR(__rec_cell_repack(session, btree, r, vpack, start_durable_ts, start_txn,
+                  start_ts, stop_durable_ts, stop_txn, stop_ts));
 
                 dictionary = true;
             } else if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED)) {
@@ -833,12 +836,13 @@ __wt_rec_row_leaf(
                     val->buf.size = vpack->size;
 
                     /* Rebuild the cell. */
-                    val->cell_len = __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, start_ts,
-                      start_txn, stop_ts, stop_txn, 0, val->buf.size);
+                    val->cell_len =
+                      __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, start_durable_ts,
+                        start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, 0, val->buf.size);
                     val->len = val->cell_len + val->buf.size;
                 } else
-                    WT_ERR(__rec_cell_repack(
-                      session, btree, r, vpack, start_txn, start_ts, stop_txn, stop_ts));
+                    WT_ERR(__rec_cell_repack(session, btree, r, vpack, start_durable_ts, start_txn,
+                      start_ts, stop_durable_ts, stop_txn, stop_ts));
 
                 dictionary = true;
             } else {
@@ -860,14 +864,15 @@ __wt_rec_row_leaf(
             case WT_UPDATE_MODIFY:
                 cbt->slot = WT_ROW_SLOT(page, rip);
                 WT_ERR(__wt_value_return_upd(cbt, upd));
-                WT_ERR(__wt_rec_cell_build_val(session, r, cbt->iface.value.data,
-                  cbt->iface.value.size, start_ts, start_txn, stop_ts, stop_txn, 0));
+                WT_ERR(
+                  __wt_rec_cell_build_val(session, r, cbt->iface.value.data, cbt->iface.value.size,
+                    start_durable_ts, start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, 0));
                 dictionary = true;
                 break;
             case WT_UPDATE_STANDARD:
                 /* Take the value from the update. */
-                WT_ERR(__wt_rec_cell_build_val(
-                  session, r, upd->data, upd->size, start_ts, start_txn, stop_ts, stop_txn, 0));
+                WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, start_durable_ts,
+                  start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, 0));
                 dictionary = true;
                 break;
             case WT_UPDATE_TOMBSTONE:
@@ -1001,8 +1006,8 @@ build:
         else {
             r->all_empty_value = false;
             if (dictionary && btree->dictionary)
-                WT_ERR(__wt_rec_dict_replace(
-                  session, r, start_ts, start_txn, stop_ts, stop_txn, 0, val));
+                WT_ERR(__wt_rec_dict_replace(session, r, start_durable_ts, start_ts, start_txn,
+                  stop_durable_ts, stop_ts, stop_txn, 0, val));
             __wt_rec_image_copy(session, r, val);
         }
         __wt_rec_addr_ts_update(

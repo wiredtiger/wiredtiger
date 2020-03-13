@@ -914,7 +914,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         WT_ERR(cursor->get_value(cursor, &config));
 
         /* Find out the max durable timestamp of the object from checkpoint. */
-        max_durable_ts = start_durable_ts = stop_durable_ts = WT_TS_NONE;
+        start_durable_ts = stop_durable_ts = WT_TS_NONE;
         durable_ts_found = false;
         WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
         __wt_config_subinit(session, &ckptconf, &cval);
@@ -945,7 +945,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         /*
          * The rollback operation should be performed on this file based on the following:
          * 1. The tree is modified.
-         * 2. The checkpoint durable timestamp is greater than the rollback timestamp.
+         * 2. The checkpoint durable start/stop timestamp is greater than the rollback timestamp.
          * 3. There is no durable timestamp in any checkpoint.
          */
         if (S2BT(session)->modified || max_durable_ts > rollback_timestamp || !durable_ts_found) {

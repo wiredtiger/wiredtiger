@@ -12,17 +12,17 @@
  */
 static inline void
 __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t durable_start_ts,
-  wt_timestamp_t durable_stop_ts, wt_timestamp_t start_ts, uint64_t start_txn,
+  wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t durable_stop_ts,
   wt_timestamp_t stop_ts, uint64_t stop_txn)
 {
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (durable_start_ts > durable_stop_ts) {
-        __wt_errx(session, "a durable start timestamp %s newer than its durable stop timestamp %s",
-          __wt_timestamp_to_string(durable_start_ts, ts_string[0]),
-          __wt_timestamp_to_string(durable_stop_ts, ts_string[1]));
-        WT_ASSERT(session, durable_start_ts <= durable_stop_ts);
+    if (start_ts > durable_start_ts) {
+        __wt_errx(session, "a start timestamp %s newer than its durable start timestamp %s",
+          __wt_timestamp_to_string(start_ts, ts_string[0]),
+          __wt_timestamp_to_string(durable_start_ts, ts_string[1]));
+        WT_ASSERT(session, start_ts <= durable_start_ts);
     }
 
     if (start_ts != WT_TS_NONE && stop_ts == WT_TS_NONE) {
@@ -43,6 +43,15 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t durable_sta
           start_txn, stop_txn);
         WT_ASSERT(session, start_txn <= stop_txn);
     }
+
+    if (stop_ts != WT_TS_MAX && stop_ts > durable_stop_ts) {
+        __wt_errx(session,
+          "a stop timestamp %s newer than its durable "
+          "stop timestamp %s",
+          __wt_timestamp_to_string(stop_ts, ts_string[0]),
+          __wt_timestamp_to_string(durable_stop_ts, ts_string[1]));
+        WT_ASSERT(session, stop_ts <= durable_stop_ts);
+    }
 #else
     WT_UNUSED(session);
     WT_UNUSED(durable_start_ts);
@@ -60,17 +69,17 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t durable_sta
  */
 static inline void
 __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t durable_start_ts,
-  wt_timestamp_t durable_stop_ts, wt_timestamp_t start_ts, uint64_t start_txn,
+  wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t durable_stop_ts,
   wt_timestamp_t stop_ts, uint64_t stop_txn, bool prepare)
 {
     uint8_t flags, *flagsp;
 
     __cell_check_value_validity(
-      session, durable_start_ts, durable_stop_ts, start_ts, start_txn, stop_ts, stop_txn);
+      session, durable_start_ts, start_ts, start_txn, durable_stop_ts, stop_ts, stop_txn);
 
     /* Globally visible values have no associated validity window, set a flag bit and store them. */
-    if (start_ts == WT_TS_NONE && start_txn == WT_TXN_NONE && stop_ts == WT_TS_MAX &&
-      stop_txn == WT_TXN_MAX)
+    if (durable_start_ts == WT_TS_NONE && start_ts == WT_TS_NONE && start_txn == WT_TXN_NONE &&
+      durable_stop_ts == WT_TS_NONE && stop_ts == WT_TS_MAX && stop_txn == WT_TXN_MAX)
         ++*pp;
     else {
         **pp |= WT_CELL_SECOND_DESC;
@@ -277,26 +286,21 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
  *     Set a value item's WT_CELL contents.
  */
 static inline size_t
-__wt_cell_pack_value(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t start_ts,
-  uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, size_t size)
+__wt_cell_pack_value(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t durable_start_ts,
+  wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t durable_stop_ts,
+  wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, size_t size)
 {
-    wt_timestamp_t durable_start_ts, durable_stop_ts;
     uint8_t byte, *p;
     bool prepare, validity;
 
-    /*
-     * FIXME-prepare-support: These values should be passed in when support for prepared
-     * transactions with durable history is fully implemented.
-     */
-    durable_start_ts = WT_TS_NONE;
-    durable_stop_ts = WT_TS_NONE;
+    /* FIXME-prepare-support: The prepare flag should be passed in. */
     prepare = false;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_value_validity(session, &p, durable_start_ts, durable_stop_ts, start_ts, start_txn,
+    __cell_pack_value_validity(session, &p, durable_start_ts, start_ts, start_txn, durable_stop_ts,
       stop_ts, stop_txn, prepare);
 
     /*
@@ -419,10 +423,10 @@ __wt_cell_pack_value_match(
  *     Write a copy value cell.
  */
 static inline size_t
-__wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t start_ts,
-  uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, uint64_t v)
+__wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t start_durable_ts,
+  wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t stop_durable_ts,
+  wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, uint64_t v)
 {
-    wt_timestamp_t durable_start_ts, durable_stop_ts;
     uint8_t *p;
     bool prepare;
 
@@ -430,15 +434,13 @@ __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t star
      * FIXME-prepare-support: These values should be passed in when support for prepared
      * transactions with durable history is fully implemented.
      */
-    durable_start_ts = WT_TS_NONE;
-    durable_stop_ts = WT_TS_NONE;
     prepare = false;
 
     /* Start building a cell: the descriptor byte starts zero. */
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_value_validity(session, &p, durable_start_ts, durable_stop_ts, start_ts, start_txn,
+    __cell_pack_value_validity(session, &p, start_durable_ts, start_ts, start_txn, stop_durable_ts,
       stop_ts, stop_txn, prepare);
 
     if (rle < 2)
@@ -459,8 +461,9 @@ __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t star
  *     Write a deleted value cell.
  */
 static inline size_t
-__wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t start_ts,
-  uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
+__wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t start_durable_ts,
+  wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t stop_durable_ts,
+  wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
 {
     uint8_t *p;
 
@@ -468,9 +471,9 @@ __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t start
     p = cell->__chunk;
     *p = '\0';
 
-    /* FIXME-prepare-support: we should pass durable start and stop values. */
-    __cell_pack_value_validity(
-      session, &p, WT_TS_NONE, WT_TS_NONE, start_ts, start_txn, stop_ts, stop_txn, false);
+    /* FIXME-prepare-support: we should pass prepare value. */
+    __cell_pack_value_validity(session, &p, start_durable_ts, start_ts, start_txn, stop_durable_ts,
+      stop_ts, stop_txn, false);
 
     if (rle < 2)
         cell->__chunk[0] |= WT_CELL_DEL; /* Type */
@@ -556,16 +559,15 @@ __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
  *     Pack an overflow cell.
  */
 static inline size_t
-__wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, wt_timestamp_t start_ts,
-  uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, size_t size)
+__wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type,
+  wt_timestamp_t durable_start_ts, wt_timestamp_t start_ts, uint64_t start_txn,
+  wt_timestamp_t durable_stop_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle,
+  size_t size)
 {
-    wt_timestamp_t durable_start_ts, durable_stop_ts;
     uint8_t *p;
     bool prepare;
 
-    /* FIXME-prepare-support: The durable timestamps should be passed in. */
-    durable_start_ts = WT_TS_NONE;
-    durable_stop_ts = WT_TS_NONE;
+    /* FIXME-prepare-support: The prepare flag should be passed in. */
     prepare = false;
 
     /* Start building a cell: the descriptor byte starts zero. */
@@ -579,8 +581,8 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, wt_ti
         break;
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
-        __cell_pack_value_validity(session, &p, durable_start_ts, durable_stop_ts, start_ts,
-          start_txn, stop_ts, stop_txn, prepare);
+        __cell_pack_value_validity(session, &p, durable_start_ts, start_ts, start_txn,
+          durable_stop_ts, stop_ts, stop_txn, prepare);
         break;
     }
 
@@ -911,8 +913,8 @@ restart:
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->durable_stop_ts));
             unpack->durable_stop_ts += unpack->stop_ts;
         }
-        __cell_check_value_validity(session, unpack->durable_start_ts, unpack->durable_stop_ts,
-          unpack->start_ts, unpack->start_txn, unpack->stop_ts, unpack->stop_txn);
+        __cell_check_value_validity(session, unpack->durable_start_ts, unpack->start_ts,
+          unpack->start_txn, unpack->durable_stop_ts, unpack->stop_ts, unpack->stop_txn);
         break;
     }
 

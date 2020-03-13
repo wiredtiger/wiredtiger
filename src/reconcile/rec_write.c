@@ -2328,8 +2328,8 @@ err:
  */
 int
 __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
-  wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn,
-  uint64_t rle)
+  wt_timestamp_t start_durbale_ts, wt_timestamp_t start_ts, uint64_t start_txn,
+  wt_timestamp_t stop_durbale_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -2384,8 +2384,8 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
     WT_ERR(__wt_buf_set(session, &kv->buf, addr, size));
 
     /* Build the cell and return. */
-    kv->cell_len = __wt_cell_pack_ovfl(
-      session, &kv->cell, type, start_ts, start_txn, stop_ts, stop_txn, rle, kv->buf.size);
+    kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, start_durbale_ts, start_ts,
+      start_txn, stop_durbale_ts, stop_ts, stop_txn, rle, kv->buf.size);
     kv->len = kv->cell_len + kv->buf.size;
 
 err:

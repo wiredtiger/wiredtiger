@@ -116,8 +116,8 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 
     val = &r->v;
     if (deleted) {
-        val->cell_len = __wt_cell_pack_del(
-          session, &val->cell, WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX, cbulk->rle);
+        val->cell_len = __wt_cell_pack_del(session, &val->cell, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE,
+          WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX, cbulk->rle);
         val->buf.data = NULL;
         val->buf.size = 0;
         val->len = val->cell_len;
@@ -127,7 +127,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
          * which means we want the previous value seen, not the current value.
          */
         WT_RET(__wt_rec_cell_build_val(session, r, cbulk->last.data, cbulk->last.size, WT_TS_NONE,
-          WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX, cbulk->rle));
+          WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX, cbulk->rle));
 
     /* Boundary: split or write the page. */
     if (WT_CROSSING_SPLIT_BND(r, val->len))
@@ -135,8 +135,8 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 
     /* Copy the value onto the page. */
     if (btree->dictionary)
-        WT_RET(__wt_rec_dict_replace(
-          session, r, WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX, cbulk->rle, val));
+        WT_RET(__wt_rec_dict_replace(session, r, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE,
+          WT_TS_MAX, WT_TXN_MAX, cbulk->rle, val));
     __wt_rec_image_copy(session, r, val);
     __wt_rec_addr_ts_update(
       r, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX);
@@ -556,20 +556,21 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
     }
 
     if (deleted) {
-        val->cell_len =
-          __wt_cell_pack_del(session, &val->cell, start_ts, start_txn, stop_ts, stop_txn, rle);
+        val->cell_len = __wt_cell_pack_del(session, &val->cell, start_durable_ts, start_ts,
+          start_txn, stop_durable_ts, stop_ts, stop_txn, rle);
         val->buf.data = NULL;
         val->buf.size = 0;
         val->len = val->cell_len;
     } else if (overflow_type) {
-        val->cell_len = __wt_cell_pack_ovfl(session, &val->cell, WT_CELL_VALUE_OVFL, start_ts,
-          start_txn, stop_ts, stop_txn, rle, value->size);
+        val->cell_len =
+          __wt_cell_pack_ovfl(session, &val->cell, WT_CELL_VALUE_OVFL, start_durable_ts, start_ts,
+            start_txn, stop_durable_ts, stop_ts, stop_txn, rle, value->size);
         val->buf.data = value->data;
         val->buf.size = value->size;
         val->len = val->cell_len + value->size;
     } else
-        WT_RET(__wt_rec_cell_build_val(
-          session, r, value->data, value->size, start_ts, start_txn, stop_ts, stop_txn, rle));
+        WT_RET(__wt_rec_cell_build_val(session, r, value->data, value->size, start_durable_ts,
+          start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, rle));
 
     /* Boundary: split or write the page. */
     if (__wt_rec_need_split(r, val->len))
@@ -577,7 +578,8 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
 
     /* Copy the value onto the page. */
     if (!deleted && !overflow_type && btree->dictionary)
-        WT_RET(__wt_rec_dict_replace(session, r, start_ts, start_txn, stop_ts, stop_txn, rle, val));
+        WT_RET(__wt_rec_dict_replace(session, r, start_durable_ts, start_ts, start_txn,
+          stop_durable_ts, stop_ts, stop_txn, rle, val));
     __wt_rec_image_copy(session, r, val);
     __wt_rec_addr_ts_update(
       r, start_durable_ts, start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn);

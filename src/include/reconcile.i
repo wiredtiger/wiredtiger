@@ -219,8 +219,8 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
  */
 static inline int
 __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *data, size_t size,
-  wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn,
-  uint64_t rle)
+  wt_timestamp_t durable_start_ts, wt_timestamp_t start_ts, uint64_t start_txn,
+  wt_timestamp_t durable_stop_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
 {
     WT_BTREE *btree;
     WT_REC_KV *val;
@@ -246,13 +246,13 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
         if (val->buf.size > btree->maxleafvalue) {
             WT_STAT_DATA_INCR(session, rec_overflow_value);
 
-            return (__wt_rec_cell_build_ovfl(
-              session, r, val, WT_CELL_VALUE_OVFL, start_ts, start_txn, stop_ts, stop_txn, rle));
+            return (__wt_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, durable_start_ts,
+              start_ts, start_txn, durable_stop_ts, stop_ts, stop_txn, rle));
         }
     }
 
-    val->cell_len = __wt_cell_pack_value(
-      session, &val->cell, start_ts, start_txn, stop_ts, stop_txn, rle, val->buf.size);
+    val->cell_len = __wt_cell_pack_value(session, &val->cell, durable_start_ts, start_ts, start_txn,
+      durable_stop_ts, stop_ts, stop_txn, rle, val->buf.size);
     val->len = val->cell_len + val->buf.size;
 
     return (0);
@@ -263,8 +263,9 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
  *     Check for a dictionary match.
  */
 static inline int
-__wt_rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r, wt_timestamp_t start_ts,
-  uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, WT_REC_KV *val)
+__wt_rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r, wt_timestamp_t start_durable_ts,
+  wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t stop_durable_ts,
+  wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, WT_REC_KV *val)
 {
     WT_REC_DICTIONARY *dp;
     uint64_t offset;
@@ -300,8 +301,8 @@ __wt_rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r, wt_timestamp_t 
          * offset from the beginning of the page.
          */
         offset = (uint64_t)WT_PTRDIFF(r->first_free, (uint8_t *)r->cur_ptr->image.mem + dp->offset);
-        val->len = val->cell_len = __wt_cell_pack_copy(
-          session, &val->cell, start_ts, start_txn, stop_ts, stop_txn, rle, offset);
+        val->len = val->cell_len = __wt_cell_pack_copy(session, &val->cell, start_durable_ts,
+          start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, rle, offset);
         val->buf.data = NULL;
         val->buf.size = 0;
     }
