@@ -532,7 +532,7 @@ reopen_file(int *fdp, char *buf, size_t buflen, const char *filename, int oflag)
     if (strcmp(buf, filename) == 0 && *fdp != -1)
         return;
     if (*fdp != -1)
-        close(*fdp);
+        testutil_check(close(*fdp));
     *fdp = open(filename, oflag, 0666);
     strncpy(buf, filename, buflen);
     testutil_assert(*fdp >= 0);
