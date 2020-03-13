@@ -366,6 +366,7 @@ table_changes(WT_SESSION *session, TABLE *table)
             item.size = table->max_value_size;
             key_value(change_count, key, sizeof(key), &item, &op_type);
             cur->set_key(cur, key);
+            testutil_assert(op_type < _OPERATION_TYPE_COUNT);
             switch (op_type) {
             case INSERT:
                 cur->set_value(cur, &item);
@@ -388,7 +389,6 @@ table_changes(WT_SESSION *session, TABLE *table)
                 testutil_check(cur->update(cur));
                 break;
             case _OPERATION_TYPE_COUNT:
-                testutil_assert(false);
                 break;
             }
         }
@@ -657,6 +657,7 @@ check_table(WT_SESSION *session, TABLE *table)
     value = dcalloc(1, table->max_value_size);
 
     VERBOSE(3, "Checking: %s\n", table->name);
+    testutil_assert(op_type < _OPERATION_TYPE_COUNT);
     switch (op_type) {
     case INSERT:
         expect_records = total_changes % KEYS_PER_TABLE;
@@ -669,7 +670,6 @@ check_table(WT_SESSION *session, TABLE *table)
         expect_records = KEYS_PER_TABLE - (total_changes % KEYS_PER_TABLE);
         break;
     case _OPERATION_TYPE_COUNT:
-        testutil_assert(false);
         break;
     }
 
