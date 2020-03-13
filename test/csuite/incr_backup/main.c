@@ -653,7 +653,7 @@ check_table(WT_SESSION *session, TABLE *table)
     expect_records = 0;
     total_changes = table->change_count;
     boundary = total_changes % KEYS_PER_TABLE;
-    op_type = (OPERATION_TYPE)(total_changes % CHANGES_PER_CYCLE) / KEYS_PER_TABLE;
+    op_type = (OPERATION_TYPE)((total_changes % CHANGES_PER_CYCLE) / KEYS_PER_TABLE);
     value = dcalloc(1, table->max_value_size);
 
     VERBOSE(3, "Checking: %s\n", table->name);
