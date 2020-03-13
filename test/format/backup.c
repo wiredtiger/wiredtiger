@@ -297,6 +297,241 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
     free(tmp);
 }
 /*
+ * The set of active files in a backup. This is our "memory" of files that are used in each backup,
+ * so we can remove any that are not mentioned in the next backup.
+ */
+typedef struct {
+    char **names;
+    uint32_t count;
+} ACTIVE_FILES;
+
+/*
+ * active_files_init --
+ *     Initialize (clear) the active file struct.
+ */
+static void
+active_files_init(ACTIVE_FILES *active)
+{
+    WT_CLEAR(*active);
+}
+
+#if 0
+/*
+ * active_files_print --
+ *     Print the set of active files for debugging.
+ */
+static void
+active_files_print(ACTIVE_FILES *active, const char *msg)
+{
+    uint32_t i;
+
+    if (active == NULL)
+        return;
+    fprintf(stderr, "Active files: %s, %d entries\n", msg, (int)active->count);
+    for (i = 0; i < active->count; i++)
+        fprintf(stderr, "  %s\n", active->names[i]);
+}
+#endif
+
+/*
+ * active_files_add --
+ *     Add a new name to the active file list.
+ */
+static void
+active_files_add(ACTIVE_FILES *active, const char *name)
+{
+    uint32_t pos;
+
+    if (active == NULL)
+        return;
+    pos = active->count++;
+    active->names = drealloc(active->names, sizeof(char *) * active->count);
+    active->names[pos] = strdup(name);
+}
+
+/*
+ * active_files_sort_function --
+ *     Sort function for qsort.
+ */
+static int
+active_files_sort_function(const void *left, const void *right)
+{
+    return (strcmp(*(const char **)left, *(const char **)right));
+}
+
+/*
+ * active_files_sort --
+ *     Sort the list of names in the active file list.
+ */
+static void
+active_files_sort(ACTIVE_FILES *active)
+{
+    if (active == NULL)
+        return;
+    __wt_qsort(active->names, active->count, sizeof(char *), active_files_sort_function);
+}
+
+/*
+ * active_files_remove_missing --
+ *     Files in the previous list that are missing from the current list are removed.
+ */
+static void
+active_files_remove_missing(ACTIVE_FILES *prev, ACTIVE_FILES *cur)
+{
+    uint32_t curpos, prevpos;
+    int cmp;
+    char filename[1024];
+
+    if (prev == NULL)
+        return;
+#if 0
+    active_files_print(prev, "computing removals: previous list of active files");
+    active_files_print(cur, "computing removals: current list of active files");
+#endif
+    curpos = 0;
+
+    /*
+     * Walk through the two lists looking for non-matches.
+     */
+    for (prevpos = 0; prevpos < prev->count; prevpos++) {
+again:
+        if (curpos >= cur->count)
+            cmp = -1; /* There are extra entries at the end of the prev list */
+        else
+            cmp = strcmp(prev->names[prevpos], cur->names[curpos]);
+
+        if (cmp == 0)
+            curpos++;
+        else if (cmp < 0) {
+            /*
+             * There is something in the prev list not in the current list. Remove it, and continue
+             * - don't advance the current list.
+             */
+            testutil_check(
+              __wt_snprintf(filename, sizeof(filename), "BACKUP/%s", prev->names[prevpos]));
+#if 0
+            fprintf(stderr, "Removing file from backup: %s\n", filename);
+#endif
+            remove(filename);
+            testutil_check(
+              __wt_snprintf(filename, sizeof(filename), "BACKUP_COPY/%s", prev->names[prevpos]));
+            remove(filename);
+        } else {
+            /*
+             * There is something in the current list not in the prev list. Walk past it in the
+             * current list and try again.
+             */
+            curpos++;
+            goto again;
+        }
+    }
+}
+
+/*
+ * active_files_free --
+ *     Free the list of active files.
+ */
+static void
+active_files_free(ACTIVE_FILES *active)
+{
+    uint32_t i;
+
+    if (active == NULL)
+        return;
+    for (i = 0; i < active->count; i++)
+        free(active->names[i]);
+    free(active->names);
+    active_files_init(active);
+}
+
+/*
+ * copy_blocks --
+ *     Perform a single block-based incremental backup of the given file.
+ */
+static void
+copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
+{
+    WT_CURSOR *incr_cur;
+    size_t len, tmp_sz;
+    ssize_t rdsize;
+    uint64_t offset, type;
+    u_int size;
+    int ret, rfd, wfd1, wfd2;
+    char buf[512], config[512], *first, *second, *tmp;
+    bool first_pass;
+
+    /*
+     * We need to prepend the home directory name here because we are not using the WiredTiger
+     * internal functions that would prepend it for us.
+     */
+    len = strlen(g.home) + strlen("BACKUP") + strlen(name) + 10;
+    first = dmalloc(len);
+
+    /*
+     * Save another copy of the original file to make debugging recovery errors easier.
+     */
+    len = strlen(g.home) + strlen("BACKUP_COPY") + strlen(name) + 10;
+    second = dmalloc(len);
+    testutil_check(__wt_snprintf(config, sizeof(config), "incremental=(file=%s)", name));
+
+    /* Open the duplicate incremental backup cursor with the file name given. */
+    tmp_sz = 0;
+    tmp = NULL;
+    first_pass = true;
+    rfd = wfd1 = wfd2 = -1;
+    testutil_check(session->open_cursor(session, NULL, bkup_c, config, &incr_cur));
+    while ((ret = incr_cur->next(incr_cur)) == 0) {
+        testutil_check(incr_cur->get_key(incr_cur, &offset, (uint64_t *)&size, &type));
+        if (type == WT_BACKUP_RANGE) {
+            /*
+             * Since we are using system calls below instead of a WiredTiger function, we have to
+             * prepend the home directory to the file names ourselves.
+             */
+            testutil_check(__wt_snprintf(first, len, "%s/BACKUP/%s", g.home, name));
+            testutil_check(__wt_snprintf(second, len, "%s/BACKUP_COPY/%s", g.home, name));
+            if (tmp_sz < size) {
+                tmp = drealloc(tmp, size);
+                tmp_sz = size;
+            }
+            if (first_pass) {
+                testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", g.home, name));
+                error_sys_check(rfd = open(buf, O_RDONLY, 0));
+                error_sys_check(wfd1 = open(first, O_WRONLY | O_CREAT, 0));
+                error_sys_check(wfd2 = open(second, O_WRONLY | O_CREAT, 0));
+                first_pass = false;
+            }
+            error_sys_check(lseek(rfd, (wt_off_t)offset, SEEK_SET));
+            error_sys_check(rdsize = read(rfd, tmp, size));
+            error_sys_check(lseek(wfd1, (wt_off_t)offset, SEEK_SET));
+            error_sys_check(lseek(wfd2, (wt_off_t)offset, SEEK_SET));
+            /* Use the read size since we may have read less than the granularity. */
+            error_sys_check(write(wfd1, tmp, (size_t)rdsize));
+            error_sys_check(write(wfd2, tmp, (size_t)rdsize));
+        } else {
+            /*
+             * These operations are using a WiredTiger function so it will prepend the home
+             * directory to the name for us.
+             */
+            testutil_check(__wt_snprintf(first, len, "BACKUP/%s", name));
+            testutil_check(__wt_snprintf(second, len, "BACKUP_COPY/%s", name));
+            testutil_assert(type == WT_BACKUP_FILE);
+            testutil_assert(rfd == -1);
+            testutil_assert(first_pass == true);
+            testutil_check(__wt_copy_and_sync(session, name, first));
+            testutil_check(__wt_copy_and_sync(session, first, second));
+        }
+    }
+    testutil_check(incr_cur->close(incr_cur));
+    if (rfd != -1) {
+        error_sys_check(close(rfd));
+        error_sys_check(close(wfd1));
+        error_sys_check(close(wfd2));
+    }
+    free(first);
+    free(second);
+    free(tmp);
+}
+/*
  * copy_file --
  *     Copy a single file into the backup directories.
  */
