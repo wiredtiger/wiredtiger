@@ -578,3 +578,29 @@ err:
     session->dhandle = saved_dhandle;
     return (ret);
 }
+
+/*
+ * __wt_session_cache_hs_dhandle --
+ *     Put the history store dhandle into the session cache.
+ */
+int
+__wt_session_cache_hs_dhandle(WT_SESSION_IMPL *session)
+{
+    WT_DATA_HANDLE_CACHE *dhandle_cache;
+    WT_DECL_RET;
+
+    if (F_ISSET(session, WT_SESSION_NO_DATA_HANDLES)) {
+        return (0);
+    }
+
+    /* Fast path if already in the session cache. */
+    __session_find_dhandle(session, WT_HS_URI, NULL, &dhandle_cache);
+    if (dhandle_cache != NULL) {
+        return (0);
+    }
+
+    if ((ret = __wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0)) == 0)
+        ret = __wt_session_release_dhandle(session);
+
+    return (ret);
+}
