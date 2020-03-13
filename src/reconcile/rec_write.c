@@ -455,6 +455,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     WT_PAGE *page;
     WT_RECONCILE *r;
     WT_TXN_GLOBAL *txn_global;
+    uint64_t ckpt_txn;
 
     btree = S2BT(session);
     page = ref->page;
@@ -510,6 +511,17 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     txn_global = &S2C(session)->txn_global;
     WT_ORDERED_READ(r->last_running, txn_global->last_running);
+
+    /*
+     * The checkpoint transaction doesn't pin the oldest txn id, therefore the global last_running
+     * can move beyond the checkpoint transaction id. When reconciling the metadata, we have to take
+     * checkpoints into account.
+     */
+    if (WT_IS_METADATA(session->dhandle)) {
+        WT_ORDERED_READ(ckpt_txn, txn_global->checkpoint_id);
+        if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
+            r->last_running = ckpt_txn;
+    }
 
     /*
      * Decide whether to skew on-page values towards newer or older versions. This is a heuristic
