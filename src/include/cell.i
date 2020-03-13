@@ -217,9 +217,8 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
     bool prepare;
 
     /*
-     * These values is set to default when packing, they are only set in future releases.
-     * We explicitly include them in APIs in this file to facilitate code comparison between
-     * versions.
+     * These values is set to default when packing, they are only set in future releases. We
+     * explicitly include them in APIs in this file to facilitate code comparison between versions.
      */
     start_durable_ts = WT_TS_NONE;
     prepare = false;
