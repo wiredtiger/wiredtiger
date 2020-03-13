@@ -295,7 +295,7 @@ again:
             testutil_check(
               __wt_snprintf(filename, sizeof(filename), "%s/%s", dirname, prev->names[prevpos]));
             VERBOSE(3, "Removing file from backup: %s\n", filename);
-            remove(filename);
+            testutil_check(remove(filename));
         } else {
             /*
              * There is something in the current list not in the prev list. Walk past it in the
