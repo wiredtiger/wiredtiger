@@ -1064,6 +1064,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         }
 
         __wt_txn_op_free(session, op);
+        /* If we used the cursor to resolve prepared updates, the key now has been freed. */
+        if (cursor != NULL)
+            WT_CLEAR(cursor->key);
     }
     txn->mod_count = 0;
 
@@ -1349,6 +1352,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         }
 
         __wt_txn_op_free(session, op);
+        /* If we used the cursor to resolve prepared updates, the key now has been freed. */
+        if (cursor != NULL)
+            WT_CLEAR(cursor->key);
     }
     txn->mod_count = 0;
 
