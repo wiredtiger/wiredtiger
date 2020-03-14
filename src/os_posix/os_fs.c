@@ -466,7 +466,7 @@ __posix_file_read_mmap(
      * the mapped buffer.
      */
     mmap_success = false;
-    if (pfh->mmap_buf != NULL && pfh->mmap_size >= offset + (wt_off_t) len && !pfh->mmap_resizing) {
+    if (pfh->mmap_buf != NULL && pfh->mmap_size >= offset + (wt_off_t)len && !pfh->mmap_resizing) {
         memcpy(buf, (void *)(pfh->mmap_buf + offset), len);
         mmap_success = true;
         WT_STAT_CONN_INCRV(session, block_byte_read_mmap, len);
@@ -572,12 +572,12 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
 
     WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
     if (remap) {
-	if (ret == 0)
-	    __wt_remap_resize_file(file_handle, wt_session);
-	else {
-	    __wt_release_without_remap(file_handle);
-	    WT_RET_MSG(session, ret, "%s: handle-truncate: ftruncate", file_handle->name);
-	}
+        if (ret == 0)
+            __wt_remap_resize_file(file_handle, wt_session);
+        else {
+            __wt_release_without_remap(file_handle);
+            WT_RET_MSG(session, ret, "%s: handle-truncate: ftruncate", file_handle->name);
+        }
     }
     return (0);
 }
@@ -1158,5 +1158,4 @@ __wt_unmap_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     if (ret != 0)
         __wt_err(session, ret, "could not unmap file %s", file_handle->name);
-
 }

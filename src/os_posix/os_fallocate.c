@@ -18,30 +18,30 @@
  *	Call the underlying fallocate function, wrapped in a macro so there's only a single copy of
  * the mmap support code.
  */
-#define WT_CALL_FUNCTION(op)                                             \
-    do {                                                                 \
-        WT_DECL_RET;							\
-        WT_FILE_HANDLE_POSIX *pfh;					\
-        WT_SESSION_IMPL *session;					\
-	bool remap;							\
-									\
-        session = (WT_SESSION_IMPL *)wt_session;			\
-        pfh = (WT_FILE_HANDLE_POSIX *)file_handle;			\
-									\
-	remap = (offset != pfh->mmap_size);				\
-        if (remap)							\
-            __wt_prepare_remap_resize_file(file_handle, wt_session);	\
-									\
-        WT_SYSCALL_RETRY(op, ret);					\
-        if (remap) {							\
-	    if (ret == 0)						\
-		__wt_remap_resize_file(file_handle, wt_session);	\
-	    else {							\
-                __wt_release_without_remap(file_handle);		\
-		WT_RET_MSG(session, ret, "%s: fallocate:", file_handle->name);\
-	    }								\
-	}								\
-	return (0);							\
+#define WT_CALL_FUNCTION(op)                                                   \
+    do {                                                                       \
+        WT_DECL_RET;                                                           \
+        WT_FILE_HANDLE_POSIX *pfh;                                             \
+        WT_SESSION_IMPL *session;                                              \
+        bool remap;                                                            \
+                                                                               \
+        session = (WT_SESSION_IMPL *)wt_session;                               \
+        pfh = (WT_FILE_HANDLE_POSIX *)file_handle;                             \
+                                                                               \
+        remap = (offset != pfh->mmap_size);                                    \
+        if (remap)                                                             \
+            __wt_prepare_remap_resize_file(file_handle, wt_session);           \
+                                                                               \
+        WT_SYSCALL_RETRY(op, ret);                                             \
+        if (remap) {                                                           \
+            if (ret == 0)                                                      \
+                __wt_remap_resize_file(file_handle, wt_session);               \
+            else {                                                             \
+                __wt_release_without_remap(file_handle);                       \
+                WT_RET_MSG(session, ret, "%s: fallocate:", file_handle->name); \
+            }                                                                  \
+        }                                                                      \
+        return (0);                                                            \
     } while (0)
 
 /*

@@ -145,7 +145,7 @@ struct __wt_file_handle_posix {
     bool mmap_file_mappable;
     int mmap_prot;
     volatile uint32_t mmap_resizing;
-    off_t mmap_size;
+    wt_off_t mmap_size;
     volatile uint32_t mmap_usecount;
 };
 #endif
