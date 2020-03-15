@@ -1,4 +1,4 @@
-/*! @page xray Instrumentation and introspection with XRay
+/*! @page devdoc-xray Instrumentation and introspection with XRay
 
 XRay is a tool, originally developed at Google and now integrated in LLVM, that
 instruments the program such that when it runs it produces a trace of executed
