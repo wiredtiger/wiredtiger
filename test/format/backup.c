@@ -414,7 +414,7 @@ backup(void *arg)
             config = cfg;
             /* Free up the old active file list we're going to overwrite. */
             active_files_free(active_now);
-        } else if (g.c_backup_incr_flag == INCREMENTAL_LOG) {
+        } else if (g.c_logging && g.c_backup_incr_flag == INCREMENTAL_LOG) {
             if (incr_full) {
                 config = NULL;
                 full = true;
