@@ -729,7 +729,11 @@ __wt_rec_row_leaf(
     WT_ROW *rip;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
+<<<<<<< HEAD
     wt_timestamp_t start_durable_ts, start_ts, stop_durable_ts, stop_ts;
+=======
+    wt_timestamp_t start_durable_ts, stop_durable_ts, start_ts, stop_ts;
+>>>>>>> Remove unused code.
     uint64_t slvg_skip, start_txn, stop_txn;
     uint32_t i;
     bool dictionary, key_onpage_ovfl, ovfl_key, prepare;
@@ -749,6 +753,26 @@ __wt_rec_row_leaf(
 
     upd = NULL;
 
+<<<<<<< HEAD
+=======
+#if 0
+    /* FIXME-prepare-support: evaluate the previous use of newest_durable_ts in this function. */
+    /* WT_ADDR *addr; wt_timestamp_t newest_durable_ts; */
+    /*
+     * Acquire the newest-durable timestamp for this page so we can roll it forward. If it exists,
+     * it's in the WT_REF structure or the parent's disk image.
+     */
+    if ((addr = pageref->addr) == NULL)
+        newest_durable_ts = WT_TS_NONE;
+    else if (__wt_off_page(pageref->home, addr))
+        newest_durable_ts = addr->newest_stop_durable_ts;
+    else {
+        __wt_cell_unpack(session, pageref->home, pageref->addr, vpack);
+        newest_durable_ts = vpack->newest_stop_durable_ts;
+    }
+#endif
+
+>>>>>>> Remove unused code.
     WT_RET(__wt_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp));
 
     /*

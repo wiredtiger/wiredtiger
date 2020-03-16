@@ -630,7 +630,11 @@ __wt_rec_col_var(
     WT_PAGE *page;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
+<<<<<<< HEAD
     wt_timestamp_t start_durable_ts, start_ts, stop_durable_ts, stop_ts;
+=======
+    wt_timestamp_t start_durable_ts, stop_durable_ts, start_ts, stop_ts;
+>>>>>>> Remove unused code.
     uint64_t n, nrepeat, repeat_count, rle, skip, src_recno;
     uint64_t start_txn, stop_txn;
     uint32_t i, size;
@@ -647,6 +651,26 @@ __wt_rec_col_var(
     cbt = &r->update_modify_cbt;
     cbt->iface.session = (WT_SESSION *)session;
 
+<<<<<<< HEAD
+=======
+#if 0
+    /* FIXME-prepare-support: evaluate the previous use of newest_durable_ts in this function. */
+    /* WT_ADDR *addr; wt_timestamp_t newest_durable_ts; */
+    /*
+     * Acquire the newest-durable timestamp for this page so we can roll it forward. If it exists,
+     * it's in the WT_REF structure or the parent's disk image.
+     */
+    if ((addr = pageref->addr) == NULL)
+        newest_durable_ts = WT_TS_NONE;
+    else if (__wt_off_page(pageref->home, addr))
+        newest_durable_ts = addr->newest_stop_durable_ts;
+    else {
+        __wt_cell_unpack(session, pageref->home, pageref->addr, vpack);
+        newest_durable_ts = vpack->newest_stop_durable_ts;
+    }
+#endif
+
+>>>>>>> Remove unused code.
     /* Set the "last" values to cause failure if they're not set. */
     last.value = r->last;
     last.durable_start_ts = WT_TS_MAX;
