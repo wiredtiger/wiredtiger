@@ -446,7 +446,6 @@ backup(void *arg)
 
         while ((ret = backup_cursor->next(backup_cursor)) == 0) {
             testutil_check(backup_cursor->get_key(backup_cursor, &key));
-            fprintf(stderr, "Backup: Got file %s\n", key);
             if (g.c_backup_incr_flag == INCREMENTAL_BLOCK) {
                 if (full)
                     copy_file(session, key);
