@@ -523,6 +523,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
     char *config;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
 
     conn = S2C(session);
@@ -746,6 +747,11 @@ done:
          */
         conn->txn_global.oldest_timestamp = WT_TS_NONE;
         conn->txn_global.has_oldest_timestamp = true;
+        __wt_verbose(session, WT_VERB_RTS,
+          "Performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
+          "%s",
+          __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
 
         WT_ERR(__wt_rollback_to_stable(session, NULL, false));
 
