@@ -120,6 +120,8 @@ struct __wt_reconcile {
         wt_timestamp_t stop_durable_ts;
         wt_timestamp_t newest_stop_ts;
         uint64_t newest_stop_txn;
+        wt_timestamp_t newest_stop_durable_ts;
+        bool prepare;
 
         /* Saved minimum split-size boundary information. */
         uint32_t min_entries;
@@ -131,6 +133,7 @@ struct __wt_reconcile {
         wt_timestamp_t min_stop_durable_ts;
         wt_timestamp_t min_newest_stop_ts;
         uint64_t min_newest_stop_txn;
+        wt_timestamp_t min_newest_stop_durable_ts;
 
         size_t min_offset; /* byte offset */
 
@@ -249,6 +252,8 @@ typedef struct {
     wt_timestamp_t stop_durable_ts;
     wt_timestamp_t stop_ts;
     uint64_t stop_txn;
+    wt_timestamp_t stop_durable_ts;
+    bool prepare;
 } WT_UPDATE_SELECT;
 
 /*

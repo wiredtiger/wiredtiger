@@ -127,7 +127,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
          * which means we want the previous value seen, not the current value.
          */
         WT_RET(__wt_rec_cell_build_val(session, r, cbulk->last.data, cbulk->last.size, WT_TS_NONE,
-          WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX, cbulk->rle));
+          WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX, false, cbulk->rle));
 
     /* Boundary: split or write the page. */
     if (WT_CROSSING_SPLIT_BND(r, val->len))
@@ -136,10 +136,10 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     /* Copy the value onto the page. */
     if (btree->dictionary)
         WT_RET(__wt_rec_dict_replace(session, r, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE,
-          WT_TS_MAX, WT_TXN_MAX, cbulk->rle, val));
+          WT_TS_MAX, WT_TXN_MAX, false, cbulk->rle, val));
     __wt_rec_image_copy(session, r, val);
     __wt_rec_addr_ts_update(
-      r, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX);
+      r, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX, false)
 
     /* Update the starting record number in case we split. */
     r->recno += cbulk->rle;
@@ -179,9 +179,13 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Copy the value onto the page. */
         __wt_rec_image_copy(session, r, val);
+        /*
+         * FIXME-prepare-support: audit the use of durable timestamps in this file, use both durable
+         * timestamps.
+         */
         __wt_rec_addr_ts_update(r, addr->start_durable_ts, addr->oldest_start_ts,
           addr->oldest_start_txn, addr->stop_durable_ts, addr->newest_stop_ts,
-          addr->newest_stop_txn);
+          addr->newest_stop_txn, addr->prepare);
     }
     return (0);
 }
@@ -203,7 +207,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_REF *ref;
     wt_timestamp_t newest_stop_ts, oldest_start_ts, start_durable_ts, stop_durable_ts;
     uint64_t newest_stop_txn, oldest_start_txn;
-    bool hazard;
+    bool hazard, prepare;
 
     btree = S2BT(session);
     page = pageref->page;
@@ -289,6 +293,8 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             stop_durable_ts = vpack->newest_stop_durable_ts;
             newest_stop_ts = vpack->newest_stop_ts;
             newest_stop_txn = vpack->newest_stop_txn;
+            newest_stop_durable_ts = vpack->newest_stop_durable_ts;
+            prepare = F_ISSET(vpack, WT_CELL_UNPACK_PREPARE);
         } else {
             __wt_rec_cell_build_addr(session, r, addr, NULL, false, ref->ref_recno);
             start_durable_ts = addr->start_durable_ts;
@@ -297,6 +303,8 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             stop_durable_ts = addr->stop_durable_ts;
             newest_stop_ts = addr->newest_stop_ts;
             newest_stop_txn = addr->newest_stop_txn;
+            newest_stop_durable_ts = addr->newest_stop_durable_ts;
+            prepare = addr->prepare;
         }
         WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
@@ -307,7 +315,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         /* Copy the value onto the page. */
         __wt_rec_image_copy(session, r, val);
         __wt_rec_addr_ts_update(r, start_durable_ts, oldest_start_ts, oldest_start_txn,
-          stop_durable_ts, newest_stop_ts, newest_stop_txn);
+          stop_durable_ts, newest_stop_ts, newest_stop_txn, prepare);
     }
     WT_INTL_FOREACH_END;
 
@@ -516,7 +524,7 @@ __wt_rec_col_fix_slvg(
 static int
 __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKIE *salvage,
   WT_ITEM *value, wt_timestamp_t start_durable_ts, wt_timestamp_t start_ts, uint64_t start_txn,
-  wt_timestamp_t stop_durable_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle,
+  wt_timestamp_t stop_durable_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, bool prepare, uint64_t rle,
   bool deleted, bool overflow_type)
 {
     WT_BTREE *btree;
@@ -564,13 +572,13 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
     } else if (overflow_type) {
         val->cell_len =
           __wt_cell_pack_ovfl(session, &val->cell, WT_CELL_VALUE_OVFL, start_durable_ts, start_ts,
-            start_txn, stop_durable_ts, stop_ts, stop_txn, rle, value->size);
+            start_txn, stop_durable_ts, stop_ts, stop_txn, prepare, rle, value->size);
         val->buf.data = value->data;
         val->buf.size = value->size;
         val->len = val->cell_len + value->size;
     } else
         WT_RET(__wt_rec_cell_build_val(session, r, value->data, value->size, start_durable_ts,
-          start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, rle));
+          start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, prepare, rle));
 
     /* Boundary: split or write the page. */
     if (__wt_rec_need_split(r, val->len))
@@ -579,10 +587,10 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
     /* Copy the value onto the page. */
     if (!deleted && !overflow_type && btree->dictionary)
         WT_RET(__wt_rec_dict_replace(session, r, start_durable_ts, start_ts, start_txn,
-          stop_durable_ts, stop_ts, stop_txn, rle, val));
+          stop_durable_ts, stop_ts, stop_txn, prepare, rle, val));
     __wt_rec_image_copy(session, r, val);
     __wt_rec_addr_ts_update(
-      r, start_durable_ts, start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn);
+      r, start_durable_ts, start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, prepare);
 
     /* Update the starting record number in case we split. */
     r->recno += rle;
@@ -607,7 +615,9 @@ __wt_rec_col_var(
         wt_timestamp_t durable_stop_ts;
         wt_timestamp_t stop_ts;
         uint64_t stop_txn;
+        wt_timestamp_t stop_durable_ts;
         bool deleted; /* If deleted */
+        bool prepare;
     } last;
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -624,7 +634,7 @@ __wt_rec_col_var(
     uint64_t n, nrepeat, repeat_count, rle, skip, src_recno;
     uint64_t start_txn, stop_txn;
     uint32_t i, size;
-    bool deleted, orig_deleted, update_no_copy;
+    bool deleted, orig_deleted, prepare, update_no_copy;
     const void *data;
 
     btree = S2BT(session);
@@ -645,7 +655,9 @@ __wt_rec_col_var(
     last.durable_stop_ts = WT_TS_MAX;
     last.stop_ts = WT_TS_NONE;
     last.stop_txn = WT_TXN_NONE;
+    last.stop_durable_ts = WT_TS_NONE;
     last.deleted = false;
+    last.prepare = false;
 
     /*
      * Set the start/stop values to cause failure if they're not set.
@@ -658,6 +670,7 @@ __wt_rec_col_var(
     stop_durable_ts = WT_TS_NONE;
     stop_ts = WT_TS_NONE;
     stop_txn = WT_TS_NONE;
+    prepare = false;
 
     WT_RET(__wt_rec_split_init(session, r, page, pageref->ref_recno, btree->maxleafpage_precomp));
 
@@ -682,7 +695,9 @@ __wt_rec_col_var(
             last.durable_stop_ts = WT_TS_NONE;
             last.stop_ts = WT_TS_MAX;
             last.stop_txn = WT_TXN_MAX;
+            last.stop_durable_ts = WT_TS_NONE;
             last.deleted = true;
+            last.prepare = false;
 
             /*
              * Correct the number of records we're going to "take", pretending the missing records
@@ -691,7 +706,7 @@ __wt_rec_col_var(
             salvage->take += salvage->missing;
         } else
             WT_ERR(__rec_col_var_helper(session, r, NULL, NULL, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE,
-              WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX, salvage->missing, true, false));
+              WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX, false, salvage->missing, true, false));
     }
 
     /*
@@ -762,7 +777,6 @@ record_loop:
             update_no_copy =
               upd == NULL || !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK); /* No data copy */
             repeat_count = 1;                                             /* Single record */
-            deleted = false;
 
             if (upd == NULL) {
                 update_no_copy = false; /* Maybe data copy */
@@ -782,12 +796,14 @@ record_loop:
                  */
                 deleted = orig_deleted;
                 if (deleted || salvage) {
+                    /* Set time pairs for the deleted key. */
                     start_durable_ts = WT_TS_NONE;
                     start_ts = WT_TS_NONE;
                     start_txn = WT_TXN_NONE;
                     stop_durable_ts = WT_TS_NONE;
                     stop_ts = WT_TS_MAX;
                     stop_txn = WT_TXN_MAX;
+                    prepare = false;
 
                     if (deleted)
                         goto compare;
@@ -798,6 +814,7 @@ record_loop:
                     stop_durable_ts = vpack->durable_stop_ts;
                     stop_ts = vpack->stop_ts;
                     stop_txn = vpack->stop_txn;
+                    prepare = F_ISSET(vpack, WT_CELL_UNPACK_PREPARE);
                 }
 
                 /*
@@ -815,7 +832,7 @@ record_loop:
                     if (rle != 0) {
                         WT_ERR(__rec_col_var_helper(session, r, salvage, last.value,
                           last.durable_start_ts, last.start_ts, last.start_txn,
-                          last.durable_stop_ts, last.stop_ts, last.stop_txn, rle, last.deleted,
+                          last.durable_stop_ts, last.stop_ts, last.stop_txn, last.prepare, rle, last.deleted,
                           false));
                         rle = 0;
                     }
@@ -823,7 +840,7 @@ record_loop:
                     last.value->data = vpack->data;
                     last.value->size = vpack->size;
                     WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, start_durable_ts,
-                      start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, repeat_count, false,
+                      start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, prepare, repeat_count, false,
                       true));
 
                     /* Track if page has overflow items. */
@@ -913,7 +930,7 @@ compare:
                 }
                 WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, last.durable_start_ts,
                   last.start_ts, last.start_txn, last.durable_stop_ts, last.stop_ts, last.stop_txn,
-                  rle, last.deleted, false));
+                  last.prepare, rle, last.deleted, false));
             }
 
             /*
@@ -1030,6 +1047,8 @@ compare:
                     stop_durable_ts = WT_TS_NONE;
                     stop_ts = WT_TS_MAX;
                     stop_txn = WT_TXN_MAX;
+                    stop_durable_ts = WT_TS_NONE;
+                    prepare = false;
                 }
             } else if (upd == NULL) {
                 /* The updates on the key are all uncommitted so we write a deleted key to disk. */
@@ -1039,6 +1058,8 @@ compare:
                 stop_durable_ts = WT_TS_NONE;
                 stop_ts = WT_TS_MAX;
                 stop_txn = WT_TXN_MAX;
+                stop_durable_ts = WT_TS_NONE;
+                prepare = false;
 
                 deleted = true;
             } else {
@@ -1049,6 +1070,8 @@ compare:
                 stop_durable_ts = upd_select.stop_durable_ts;
                 stop_ts = upd_select.stop_ts;
                 stop_txn = upd_select.stop_txn;
+                stop_durable_ts = upd_select.stop_durable_ts;
+                prepare = upd_select.prepare;
 
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
@@ -1072,6 +1095,8 @@ compare:
                     stop_durable_ts = WT_TS_NONE;
                     stop_ts = WT_TS_MAX;
                     stop_txn = WT_TXN_MAX;
+                    stop_durable_ts = WT_TS_NONE;
+                    prepare = false;
                     deleted = true;
                     break;
                 default:
@@ -1109,7 +1134,7 @@ compare:
                 }
                 WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, last.durable_start_ts,
                   last.start_ts, last.start_txn, last.durable_stop_ts, last.stop_ts, last.stop_txn,
-                  rle, last.deleted, false));
+                  last.prepare, rle, last.deleted, false));
             }
 
             /*
@@ -1162,7 +1187,7 @@ next:
     /* If we were tracking a record, write it. */
     if (rle != 0)
         WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, last.durable_start_ts,
-          last.start_ts, last.start_txn, last.durable_stop_ts, last.stop_ts, last.stop_txn, rle,
+          last.start_ts, last.start_txn, last.durable_stop_ts, last.stop_ts, last.stop_txn, last.prepare, rle,
           last.deleted, false));
 
     /* Write the remnant page. */

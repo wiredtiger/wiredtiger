@@ -72,6 +72,7 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
         cursors = [0] * nsessions
         bigvalue2 = b"ccccc" * 100
         for j in range (0, nsessions):
+            self.tty('prepares for session: ' + str(j))
             sessions[j] = self.conn.open_session()
             sessions[j].begin_transaction('isolation=snapshot')
             cursors[j] = sessions[j].open_cursor(uri)
@@ -84,12 +85,14 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
                 self.assertEquals(cursors[j].insert(), 0)
             sessions[j].prepare_transaction('prepare_timestamp=' + timestamp_str(2))
 
+        self.tty('done with prepares, rereading')
         # Re-read the original versions of all the data.  To do this, the pages
         # that were just evicted need to be read back. This ensures reading
         # prepared updates from the history store
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
         for i in range(1, nsessions * nkeys):
+            self.tty('reading ' + str(nrows + i))
             cursor.set_key(ds.key(nrows + i))
             self.assertEquals(cursor.search(), 0)
         cursor.close()
@@ -101,7 +104,6 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
             cursors[j].close()
             sessions[j].close()
 
-    @unittest.skip("Temporarily disabled")
     def test_prepare_hs(self):
         # Create a small table.
         uri = "table:test_prepare_hs01"
@@ -124,6 +126,7 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
         # because of cache being full with uncommitted updates.
         nsessions = 3
         nkeys = 4000
+        self.tty('PREPARE UPDATES')
         self.prepare_updates(uri, ds, nrows, nsessions, nkeys)
 
 if __name__ == '__main__':

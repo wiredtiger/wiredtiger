@@ -62,6 +62,9 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session, const uint8_t *key, size_t key
     WT_ADDR *copy_addr;
     WT_REF *copy;
 
+    /* FIXME-prepare-support: do not need durable timestamp arg */
+    (void)durable_ts;
+
     __wt_verbose(session, WT_VERB_REBALANCE, "rebalance leaf-list append %s, %s",
       __wt_buf_set_printable(session, key, key_len, rs->tmp2),
       __wt_addr_string(session, unpack->data, unpack->size, rs->tmp1));
@@ -82,6 +85,8 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session, const uint8_t *key, size_t key
     copy_addr->stop_durable_ts = unpack->newest_stop_durable_ts;
     copy_addr->newest_stop_ts = unpack->newest_stop_ts;
     copy_addr->newest_stop_txn = unpack->newest_stop_txn;
+    copy_addr->newest_stop_durable_ts = unpack->newest_stop_durable_ts;
+    copy_addr->prepare = F_ISSET(unpack, WT_CELL_UNPACK_PREPARE);
     WT_RET(__wt_memdup(session, unpack->data, unpack->size, &copy_addr->addr));
     copy_addr->size = (uint8_t)unpack->size;
     copy_addr->type = unpack->type == WT_CELL_ADDR_LEAF ? WT_ADDR_LEAF : WT_ADDR_LEAF_NO;

@@ -846,15 +846,16 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
     chunk->entries = 0;
     __wt_rec_addr_ts_init(r, &chunk->start_durable_ts, &chunk->oldest_start_ts,
       &chunk->oldest_start_txn, &chunk->stop_durable_ts, &chunk->newest_stop_ts,
-      &chunk->newest_stop_txn);
+      &chunk->newest_stop_txn, &chunk->prepare);
 
     chunk->min_recno = WT_RECNO_OOB;
     /* Don't touch the key item memory, that memory is reused. */
     chunk->min_key.size = 0;
     chunk->min_entries = 0;
+    /* FIXME-prepare-support: chunk->prepare should be some sort of aggregated prepare? */
     __wt_rec_addr_ts_init(r, &chunk->min_start_durable_ts, &chunk->min_oldest_start_ts,
       &chunk->min_oldest_start_txn, &chunk->min_stop_durable_ts, &chunk->min_newest_stop_ts,
-      &chunk->min_newest_stop_txn);
+      &chunk->min_newest_stop_txn, &chunk->prepare);
     chunk->min_offset = 0;
 
     /*
@@ -1278,6 +1279,7 @@ __wt_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t ne
         r->cur_ptr->min_stop_durable_ts = r->cur_ptr->stop_durable_ts;
         r->cur_ptr->min_newest_stop_ts = r->cur_ptr->newest_stop_ts;
         r->cur_ptr->min_newest_stop_txn = r->cur_ptr->newest_stop_txn;
+        r->cur_ptr->min_newest_stop_durable_ts = r->cur_ptr->newest_stop_durable_ts;
 
         /* Assert we're not re-entering this code. */
         WT_ASSERT(session, r->cur_ptr->min_offset == 0);
@@ -1334,6 +1336,10 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         prev_ptr->stop_durable_ts = WT_MAX(prev_ptr->stop_durable_ts, cur_ptr->stop_durable_ts);
         prev_ptr->newest_stop_ts = WT_MAX(prev_ptr->newest_stop_ts, cur_ptr->newest_stop_ts);
         prev_ptr->newest_stop_txn = WT_MAX(prev_ptr->newest_stop_txn, cur_ptr->newest_stop_txn);
+        prev_ptr->newest_stop_durable_ts =
+          WT_MAX(prev_ptr->newest_stop_durable_ts, cur_ptr->newest_stop_durable_ts);
+        if (cur_ptr->prepare)
+            prev_ptr->prepare = true;
         dsk = r->cur_ptr->image.mem;
         memcpy((uint8_t *)r->prev_ptr->image.mem + prev_ptr->image.size,
           WT_PAGE_HEADER_BYTE(btree, dsk), cur_ptr->image.size - WT_PAGE_HEADER_BYTE_SIZE(btree));
@@ -1382,6 +1388,10 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         cur_ptr->stop_durable_ts = WT_MAX(prev_ptr->stop_durable_ts, cur_ptr->stop_durable_ts);
         cur_ptr->newest_stop_ts = WT_MAX(prev_ptr->newest_stop_ts, cur_ptr->newest_stop_ts);
         cur_ptr->newest_stop_txn = WT_MAX(prev_ptr->newest_stop_txn, cur_ptr->newest_stop_txn);
+        cur_ptr->newest_stop_durable_ts =
+          WT_MAX(prev_ptr->newest_stop_durable_ts, cur_ptr->newest_stop_durable_ts);
+        if (prev_ptr->prepare)
+            cur_ptr->prepare = true;
         cur_ptr->image.size += len_to_move;
 
         prev_ptr->entries = prev_ptr->min_entries;
@@ -2335,7 +2345,7 @@ err:
 int
 __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
   wt_timestamp_t start_durable_ts, wt_timestamp_t start_ts, uint64_t start_txn,
-  wt_timestamp_t stop_durable_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
+  wt_timestamp_t stop_durable_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, bool prepare, uint64_t rle)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -2391,7 +2401,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
 
     /* Build the cell and return. */
     kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, start_durable_ts, start_ts,
-      start_txn, stop_durable_ts, stop_ts, stop_txn, rle, kv->buf.size);
+      start_txn, stop_durable_ts, stop_ts, stop_txn, prepare, rle, kv->buf.size);
     kv->len = kv->cell_len + kv->buf.size;
 
 err:

@@ -605,6 +605,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
     ckpt->newest_stop_txn = ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_MAX : (uint64_t)a.val;
+    /* FIXME-prepare-support: do we need both durable timestamps stored? */
     __wt_check_addr_validity(session, ckpt->start_durable_ts, ckpt->oldest_start_ts,
       ckpt->oldest_start_txn, ckpt->stop_durable_ts, ckpt->newest_stop_ts, ckpt->newest_stop_txn);
 
@@ -692,6 +693,7 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
                 WT_RET(__wt_raw_to_hex(session, ckpt->raw.data, ckpt->raw.size, &ckpt->addr));
         }
 
+        /* FIXME-prepare-support: do we need both durable timestamps? */
         __wt_check_addr_validity(session, ckpt->start_durable_ts, ckpt->oldest_start_ts,
           ckpt->oldest_start_txn, ckpt->stop_durable_ts, ckpt->newest_stop_ts,
           ckpt->newest_stop_txn);

@@ -198,6 +198,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_select->stop_durable_ts = WT_TS_NONE;
     upd_select->stop_ts = WT_TS_MAX;
     upd_select->stop_txn = WT_TXN_MAX;
+    upd_select->stop_durable_ts = WT_TS_NONE;
+    upd_select->prepare = false;
 
     page = r->page;
     first_txn_upd = upd = last_upd = NULL;
@@ -264,18 +266,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         /* Track the first update with non-zero timestamp. */
         if (upd->start_ts > max_ts)
             max_ts = upd->start_ts;
-
-        /*
-         * FIXME-prepare-support: A temporary solution for not storing durable timestamp in the
-         * cell. Properly fix this problem in PM-1524. It is currently not OK to write prepared
-         * updates with durable timestamp larger than checkpoint timestamp to data store as we don't
-         * store durable timestamp in the cell. However, it is OK to write them to the history store
-         * as we store the durable timestamp in the history store value.
-         */
-        if (upd->durable_ts != upd->start_ts && upd->durable_ts > checkpoint_timestamp) {
-            has_newer_updates = true;
-            continue;
-        }
 
         /* Always select the newest committed update to write to disk */
         if (upd_select->upd == NULL)
