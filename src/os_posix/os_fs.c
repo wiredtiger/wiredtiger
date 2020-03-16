@@ -633,7 +633,6 @@ __posix_file_write_mmap(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, const void *buf)
 {
     static int remap_opportunities;
-    WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
     bool mmap_success;
@@ -647,7 +646,7 @@ __posix_file_write_mmap(
       "len=%" WT_SIZET_FMT ", mapped buffer: %p, mapped size = %" PRId64 ".\n",
       file_handle->name, pfh->fd, offset, len, (void *)pfh->mmap_buf, pfh->mmap_size);
 
-    if (!pfh->mmap_file_mappable)
+    if (!pfh->mmap_file_mappable || pfh->mmap_resizing)
         return (__posix_file_write(file_handle, wt_session, offset, len, buf));
 
     /* Indicate that we might be using the mapped area */
@@ -671,8 +670,7 @@ __posix_file_write_mmap(
         return (0);
 
     /* We couldn't use mmap for some reason, so use the system call. */
-    ret = __posix_file_write(file_handle, wt_session, offset, len, buf);
-    WT_RET(ret);
+    WT_RET(__posix_file_write(file_handle, wt_session, offset, len, buf));
 
 /*
  * If we wrote the file via a system call, we might have extended its size. If the file is mapped,
@@ -680,14 +678,14 @@ __posix_file_write_mmap(
  * to avoid overhead.
  */
 #define WT_REMAP_SKIP 10
-    if (pfh->mmap_file_mappable && pfh->mmap_size < offset + (wt_off_t)len)
+    if (pfh->mmap_file_mappable && !pfh->mmap_resizing && pfh->mmap_size < offset + (wt_off_t)len)
         /* If we are actively extending the file, don't remap it on every write. */
         if ((remap_opportunities++) % WT_REMAP_SKIP == 0) {
             __wt_prepare_remap_resize_file(file_handle, wt_session);
             __wt_remap_resize_file(file_handle, wt_session);
             WT_STAT_CONN_INCRV(session, block_remap_file_write, 1);
         }
-    return (ret);
+    return (0);
 }
 
 /*
