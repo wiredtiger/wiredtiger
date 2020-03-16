@@ -331,7 +331,7 @@ backup(void *arg)
     u_int incremental, period;
     const char *config, *key;
     char cfg[512];
-    bool block_full, full;
+    bool full, incr_full;
 
     (void)(arg);
 
@@ -344,7 +344,7 @@ backup(void *arg)
      * Perform a full backup at somewhere under 10 seconds (that way there's at least one), then at
      * larger intervals, optionally do incremental backups between full backups.
      */
-    block_full = full = true;
+    full = incr_full = true;
     incremental = 0;
     active_files_init(&active[0]);
     active_files_init(&active[1]);
@@ -372,15 +372,15 @@ backup(void *arg)
              * If we're doing a full backup as the start of the incremental backup, only send in an
              * identifier for this one.
              */
-            if (block_full) {
+            if (incr_full) {
                 active_files_free(&active[0]);
                 active_files_free(&active[1]);
                 active_now = &active[g.backup_id % 2];
                 active_prev = NULL;
                 testutil_check(__wt_snprintf(
                   cfg, sizeof(cfg), "incremental=(enabled,this_id=ID%" PRIu32 ")", g.backup_id++));
-                block_full = false;
                 full = true;
+                incr_full = false;
             } else {
                 /*
                  * 75% of the time, use the most recent source id. 25% of the time, use the id
@@ -408,23 +408,31 @@ backup(void *arg)
                   "incremental=(enabled,src_id=ID%u,this_id=ID%" PRIu32 ")", src_id,
                   g.backup_id++));
                 /* Restart a full incremental every once in a while. */
-                block_full = mmrand(NULL, 1, 8) == 1;
                 full = false;
+                incr_full = mmrand(NULL, 1, 8) == 1;
             }
             config = cfg;
             /* Free up the old active file list we're going to overwrite. */
             active_files_free(active_now);
         } else if (g.c_backup_incr_flag == INCREMENTAL_LOG) {
-            testutil_check(__wt_snprintf(cfg, sizeof(cfg), "target=(\"log:\")"));
-            config = cfg;
-            full = false;
+            if (incr_full) {
+                config = NULL;
+                full = true;
+                incr_full = false;
+            } else {
+                testutil_check(__wt_snprintf(cfg, sizeof(cfg), "target=(\"log:\")"));
+                config = cfg;
+                full = false;
+                /* Restart a full incremental every once in a while. */
+                incr_full = mmrand(NULL, 1, 8) == 1;
+            }
         } else {
             config = NULL;
             full = true;
         }
 
         /* If we're taking a full backup, create the backup directories. */
-        if (full)
+        if (full || incremental == 0)
             testutil_checkfmt(system(g.home_backup_init), "%s", "backup directory creation failed");
 
         /*
@@ -438,6 +446,7 @@ backup(void *arg)
 
         while ((ret = backup_cursor->next(backup_cursor)) == 0) {
             testutil_check(backup_cursor->get_key(backup_cursor, &key));
+            fprintf(stderr, "Backup: Got file %s\n", key);
             if (g.c_backup_incr_flag == INCREMENTAL_BLOCK) {
                 if (full)
                     copy_file(session, key);
@@ -472,7 +481,7 @@ backup(void *arg)
         if (--incremental == 0) {
             check_copy();
             /* We ran recovery in the backup directory, so next time it must be a full backup. */
-            block_full = full = true;
+            incr_full = full = true;
         }
     }
 
