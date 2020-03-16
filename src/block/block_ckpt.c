@@ -670,6 +670,12 @@ __ckpt_add_blkmod_entry(
     WT_ASSERT(session, end < UINT32_MAX);
     end_rdup_bytes = WT_MAX(__wt_rduppo2((uint32_t)end, 8), WT_BLOCK_MODS_LIST_MIN);
     end_buf_bytes = (uint32_t)blk_mod->nbits >> 3;
+    /*
+     * We are doing a lot of shifting. Make sure that the number of bytes we end up with is a
+     * multiple of eight. We guarantee that in the rounding up call, but also make sure that the
+     * constant stays a multiple of eight.
+     */
+    WT_ASSERT(session, end_rdup_bytes % 8 == 0);
     if (end_rdup_bytes > end_buf_bytes) {
         /* If we don't have enough, extend the buffer. */
         if (blk_mod->nbits == 0) {
