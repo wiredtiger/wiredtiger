@@ -139,6 +139,33 @@ err:
 }
 
 /*
+ * __turtle_validate_version --
+ *     Retrieve version numbers from the turtle file and validate them against our WiredTiger
+ *     version.
+ */
+static int
+__turtle_validate_version(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    uint32_t major, minor;
+    char *version_string;
+
+    WT_WITH_TURTLE_LOCK(
+      session, ret = __wt_turtle_read(session, WT_METADATA_VERSION, &version_string));
+
+    WT_RET(ret);
+
+    if ((ret = sscanf(version_string, "major=%u,minor=%u", &major, &minor)) != 2)
+        return (ret);
+
+    if (major < WT_MIN_COMPAT_VERSION_MAJOR ||
+      (major == WT_MIN_COMPAT_VERSION_MAJOR && minor < WT_MIN_COMPAT_VERSION_MINOR)) {
+        return (WT_ERROR);
+    }
+    return (0);
+}
+
+/*
  * __wt_turtle_exists --
  *     Return if the turtle file exists on startup.
  */
@@ -227,6 +254,12 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
             WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             loadTurtle = true;
         }
+
+        /*
+         * Check the version in the turtle file to validate whether we can start up on the turtle
+         * file version seen. Return an error if we can't.
+         */
+        WT_RET(__turtle_validate_version(session));
 
         /*
          * We need to detect the difference between a source database that may have crashed with an

@@ -46,6 +46,9 @@
 #define WT_METADATA_VERSION "WiredTiger version" /* Version keys */
 #define WT_METADATA_VERSION_STR "WiredTiger version string"
 
+#define WT_MIN_COMPAT_VERSION_MAJOR 3 /* Minimum version we can start on. */
+#define WT_MIN_COMPAT_VERSION_MINOR 2
+
 /*
  * WT_WITH_TURTLE_LOCK --
  *	Acquire the turtle file lock, perform an operation, drop the lock.
