@@ -6,7 +6,6 @@ functions and their timestamps. This article explains how to instrument
 WiredTiger, collect the XRay traces, and analyze them.  As an example, we will
 show how to trace \c wtperf.
 
-
 Step 1. Install LLVM.
 
 @code
@@ -19,9 +18,9 @@ LLVM needs to be version 8 or higher. Check the version like this:
 $ llvm-config –version
 @endcode
 
-If the distro's default \c llvm-config isn't from the 8 series, you'll need to
-move one with a major version of 8 into the \c $PATH such that it gets invoked
-instead.
+If your distribution's default \c llvm-config isn't from the 8 series, you'll
+need to move one with a major version of 8 into the \c $PATH such that it gets
+invoked instead.
 
 Step 2. Configure the WiredTiger build with LLVM flags.
 
@@ -43,14 +42,14 @@ containing the \c wtperf binary. The first argument to the script must be the
 benchmark configuration file. For example:
 
 @code
-$ cd bench/wtperf 
+$ cd bench/wtperf
 $ ../../../bench/wtperf/runners/wtperf_xray.sh  ../../../bench/wtperf/runners/small-btree.wtperf
 @endcode
 
 In general the usage is:  
 
 @code
-wtperf_xray.sh <wtperf-config-file> [-h output-directory] [wtperf other args]
+wtperf_xray.sh <wtperf-config-file> [-h output-directory] [wtperf other arguments]
 @endcode
 
 The run of the program will produce an xray log -- the name of the log file will
@@ -74,4 +73,4 @@ our case, and \c xray_log is the log file.
 The script will produce one or more files with a prefix \c optrack. You can view
 these files with optrack tools, described in the optrack documentation.
 
-
+*/
