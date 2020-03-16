@@ -600,9 +600,11 @@ __wt_rec_col_var(
 {
     enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
     struct {
-        WT_ITEM *value;          /* Value */
-        wt_timestamp_t start_ts; /* Timestamps/TxnID */
+        WT_ITEM *value;                  /* Value */
+        wt_timestamp_t durable_start_ts; /* Timestamps/TxnID */
+        wt_timestamp_t start_ts;
         uint64_t start_txn;
+        wt_timestamp_t durable_stop_ts;
         wt_timestamp_t stop_ts;
         uint64_t stop_txn;
         bool deleted; /* If deleted */
@@ -637,8 +639,10 @@ __wt_rec_col_var(
 
     /* Set the "last" values to cause failure if they're not set. */
     last.value = r->last;
+    last.durable_start_ts = WT_TS_MAX;
     last.start_ts = WT_TS_MAX;
     last.start_txn = WT_TXN_MAX;
+    last.durable_stop_ts = WT_TS_MAX;
     last.stop_ts = WT_TS_NONE;
     last.stop_txn = WT_TXN_NONE;
     last.deleted = false;
@@ -672,8 +676,10 @@ __wt_rec_col_var(
     if (salvage != NULL && salvage->missing != 0) {
         if (salvage->skip == 0) {
             rle = salvage->missing;
+            last.durable_start_ts = WT_TS_NONE;
             last.start_ts = WT_TS_NONE;
             last.start_txn = WT_TXN_NONE;
+            last.durable_stop_ts = WT_TS_NONE;
             last.stop_ts = WT_TS_MAX;
             last.stop_txn = WT_TXN_MAX;
             last.deleted = true;
@@ -842,8 +848,9 @@ record_loop:
                      */
                     if (rle != 0) {
                         WT_ERR(__rec_col_var_helper(session, r, salvage, last.value,
-                          start_durable_ts, last.start_ts, last.start_txn, stop_durable_ts,
-                          last.stop_ts, last.stop_txn, rle, last.deleted, false));
+                          last.durable_start_ts, last.start_ts, last.start_txn,
+                          last.durable_stop_ts, last.stop_ts, last.stop_txn, rle, last.deleted,
+                          false));
                         rle = 0;
                     }
 
@@ -886,7 +893,8 @@ compare:
              * record number, we've been doing that all along.
              */
             if (rle != 0) {
-                if ((last.start_ts == start_ts && last.start_txn == start_txn &&
+                if ((last.durable_start_ts == start_durable_ts && last.start_ts == start_ts &&
+                      last.start_txn == start_txn && last.durable_stop_ts == stop_durable_ts &&
                       last.stop_ts == stop_ts && last.stop_txn == stop_txn) &&
                   ((deleted && last.deleted) ||
                       (!deleted && !last.deleted && last.value->size == size &&
@@ -897,15 +905,17 @@ compare:
                      * tombstone to write to disk and the deletion of the keys must be globally
                      * visible.
                      */
-                    WT_ASSERT(session, (!deleted && !last.deleted) ||
-                        (last.start_ts == WT_TS_NONE && last.start_txn == WT_TXN_NONE &&
-                                         last.stop_ts == WT_TS_MAX && last.stop_txn == WT_TXN_MAX));
+                    WT_ASSERT(session,
+                      (!deleted && !last.deleted) ||
+                        (last.durable_start_ts == WT_TS_NONE && last.start_ts == WT_TS_NONE &&
+                          last.start_txn == WT_TXN_NONE && last.durable_stop_ts == WT_TS_NONE &&
+                          last.stop_ts == WT_TS_MAX && last.stop_txn == WT_TXN_MAX));
                     rle += repeat_count;
                     continue;
                 }
-                WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, start_durable_ts,
-                  last.start_ts, last.start_txn, stop_durable_ts, last.stop_ts, last.stop_txn, rle,
-                  last.deleted, false));
+                WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, last.durable_start_ts,
+                  last.start_ts, last.start_txn, last.durable_stop_ts, last.stop_ts, last.stop_txn,
+                  rle, last.deleted, false));
             }
 
             /*
@@ -933,8 +943,10 @@ compare:
             if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                 __wt_free_update_list(session, &upd);
 
+            last.durable_start_ts = start_durable_ts;
             last.start_ts = start_ts;
             last.start_txn = start_txn;
+            last.durable_stop_ts = stop_durable_ts;
             last.stop_ts = stop_ts;
             last.stop_txn = stop_txn;
             last.deleted = deleted;
@@ -1000,8 +1012,9 @@ compare:
                      * tombstone to write to disk and the deletion of the keys must be globally
                      * visible.
                      */
-                    WT_ASSERT(session, last.start_ts == WT_TS_NONE &&
-                        last.start_txn == WT_TXN_NONE && last.stop_ts == WT_TS_MAX &&
+                    WT_ASSERT(session, last.durable_start_ts == WT_TS_NONE &&
+                        last.start_ts == WT_TS_NONE && last.start_txn == WT_TXN_NONE &&
+                        last.durable_stop_ts == WT_TS_NONE && last.stop_ts == WT_TS_MAX &&
                         last.stop_txn == WT_TXN_MAX);
                     /*
                      * The record adjustment is decremented by one so we can naturally fall into the
@@ -1076,7 +1089,8 @@ compare:
                 /*
                  * FIXME-PM-1521: Follow up issue with clang in WT-5341.
                  */
-                if ((last.start_ts == start_ts && last.start_txn == start_txn &&
+                if ((last.durable_start_ts == start_durable_ts && last.start_ts == start_ts &&
+                      last.start_txn == start_txn && last.durable_stop_ts == stop_durable_ts &&
                       last.stop_ts == stop_ts && last.stop_txn == stop_txn) &&
                   ((deleted && last.deleted) ||
                       (!deleted && !last.deleted && last.value->size == size &&
@@ -1088,14 +1102,16 @@ compare:
                      * visible.
                      */
                     WT_ASSERT(session, (!deleted && !last.deleted) ||
-                        (last.start_ts == WT_TS_NONE && last.start_txn == WT_TXN_NONE &&
+                        (last.durable_start_ts == start_durable_ts && last.start_ts == WT_TS_NONE &&
+                                         last.start_txn == WT_TXN_NONE &&
+                                         last.durable_stop_ts == stop_durable_ts &&
                                          last.stop_ts == WT_TS_MAX && last.stop_txn == WT_TXN_MAX));
                     ++rle;
                     goto next;
                 }
-                WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, start_durable_ts,
-                  last.start_ts, last.start_txn, stop_durable_ts, last.stop_ts, last.stop_txn, rle,
-                  last.deleted, false));
+                WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, last.durable_start_ts,
+                  last.start_ts, last.start_txn, last.durable_stop_ts, last.stop_ts, last.stop_txn,
+                  rle, last.deleted, false));
             }
 
             /*
@@ -1118,8 +1134,10 @@ compare:
                 __wt_free_update_list(session, &upd);
 
             /* Ready for the next loop, reset the RLE counter. */
+            last.durable_start_ts = start_durable_ts;
             last.start_ts = start_ts;
             last.start_txn = start_txn;
+            last.durable_stop_ts = stop_durable_ts;
             last.stop_ts = stop_ts;
             last.stop_txn = stop_txn;
             last.deleted = deleted;
@@ -1145,8 +1163,8 @@ next:
 
     /* If we were tracking a record, write it. */
     if (rle != 0)
-        WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, start_durable_ts,
-          last.start_ts, last.start_txn, stop_durable_ts, last.stop_ts, last.stop_txn, rle,
+        WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, last.durable_start_ts,
+          last.start_ts, last.start_txn, last.durable_stop_ts, last.stop_ts, last.stop_txn, rle,
           last.deleted, false));
 
     /* Write the remnant page. */

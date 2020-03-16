@@ -1262,17 +1262,26 @@ __verify_page_cell(
                   unpack.oldest_start_txn, unpack.newest_stop_txn);
             }
 
-            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start durable",
-              unpack.newest_start_durable_ts, "start durable", addr_unpack->newest_start_durable_ts,
-              false, vs));
+            /*
+             * FIXME-prepare-support: Enable verification once all durable is finished.
+             *
+             * WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start durable",
+             * unpack.newest_start_durable_ts, "start durable",
+             * addr_unpack->newest_start_durable_ts, false, vs));
+             */
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "oldest start",
               unpack.oldest_start_ts, "oldest start", addr_unpack->oldest_start_ts, true, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "oldest start",
               unpack.oldest_start_txn, "oldest start", addr_unpack->oldest_start_txn, true, dsk,
               vs));
-            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "stop durable",
-              unpack.newest_stop_durable_ts, "stop durable", addr_unpack->newest_stop_durable_ts,
-              false, vs));
+
+            /*
+             * FIXME-prepare-support: Enable verification once all durable is finished.
+             *
+             * WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "stop durable",
+             * unpack.newest_stop_durable_ts, "stop durable", addr_unpack->newest_stop_durable_ts,
+             * false, vs));
+             */
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "newest stop",
               unpack.newest_stop_ts, "newest stop", addr_unpack->newest_stop_ts, false, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "newest stop",
@@ -1307,15 +1316,24 @@ __verify_page_cell(
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1), unpack.start_txn,
                   unpack.stop_txn);
 
-            WT_RET(
-              __verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.durable_start_ts,
-                "durable start", addr_unpack->newest_start_durable_ts, true, vs));
+            /*
+             * FIXME-prepare-support: Enable verification once all durable is finished.
+             *
+             * WT_RET(
+             * __verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.durable_start_ts,
+             *   "durable start", addr_unpack->newest_start_durable_ts, true, vs));
+             */
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_ts,
               "oldest start", addr_unpack->oldest_start_ts, true, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_txn,
               "oldest start", addr_unpack->oldest_start_txn, true, dsk, vs));
-            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.durable_stop_ts,
-              "durable stop", addr_unpack->newest_stop_durable_ts, true, vs));
+            /*
+             * FIXME-prepare-support: Enable verification once all durable is finished.
+             *
+             * WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start",
+             * unpack.durable_stop_ts,
+             *  "durable stop", addr_unpack->newest_stop_durable_ts, true, vs));
+             */
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_ts,
               "newest stop", addr_unpack->newest_stop_ts, false, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_txn,
