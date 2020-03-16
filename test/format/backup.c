@@ -164,15 +164,15 @@ again:
              * There is something in the prev list not in the current list. Remove it, and continue
              * - don't advance the current list.
              */
-            testutil_check(
-              __wt_snprintf(filename, sizeof(filename), "BACKUP/%s", prev->names[prevpos]));
+            testutil_check(__wt_snprintf(
+              filename, sizeof(filename), "%s/BACKUP/%s", g.home, prev->names[prevpos]));
 #if 0
             fprintf(stderr, "Removing file from backup: %s\n", filename);
 #endif
-            remove(filename);
-            testutil_check(
-              __wt_snprintf(filename, sizeof(filename), "BACKUP_COPY/%s", prev->names[prevpos]));
-            remove(filename);
+            error_sys_check(unlink(filename));
+            testutil_check(__wt_snprintf(
+              filename, sizeof(filename), "%s/BACKUP_COPY/%s", g.home, prev->names[prevpos]));
+            error_sys_check(unlink(filename));
         } else {
             /*
              * There is something in the current list not in the prev list. Walk past it in the
