@@ -253,17 +253,18 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
             WT_WITH_TURTLE_LOCK(
               session, ret = __wt_turtle_read(session, WT_METAFILE_URI, &unused_value));
             __wt_free(session, unused_value);
-        } else {
-            /*
-             * Check the version in the turtle file to validate whether we can start up on the
-             * turtle file version seen. Return an error if we can't.
-             */
-            WT_RET(__turtle_validate_version(session));
         }
 
         if (ret != 0) {
             WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             loadTurtle = true;
+        } else {
+            /*
+             * Check the version in the turtle file to validate whether we can start up on the
+             * turtle file version seen. Return an error if we can't. Only check if we either didn't
+             * run salvage or if salvage didn't fail to read it.
+             */
+            WT_RET(__turtle_validate_version(session));
         }
 
         /*
