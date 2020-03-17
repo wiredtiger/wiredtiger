@@ -487,7 +487,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
                 if self.kind == 'removal':
                     errmsg = 'handle-open'
                 elif self.kind == 'truncate':
-                    errmsg = 'failed to read 4096 bytes at offset 0'
+                    errmsg = 'file size=0, alloc size=4096'
             self.check_file_contains_one_of(errfile, [errmsg])
 
     def test_corrupt_meta(self):
