@@ -153,16 +153,21 @@ __turtle_validate_version(WT_SESSION_IMPL *session)
     WT_WITH_TURTLE_LOCK(
       session, ret = __wt_turtle_read(session, WT_METADATA_VERSION, &version_string));
 
-    WT_RET(ret);
+    WT_ERR(ret);
 
     if ((ret = sscanf(version_string, "major=%u,minor=%u", &major, &minor)) != 2)
-        return (ret);
+        WT_ERR(ret);
+
+    ret = 0;
 
     if (major < WT_MIN_COMPAT_VERSION_MAJOR ||
       (major == WT_MIN_COMPAT_VERSION_MAJOR && minor < WT_MIN_COMPAT_VERSION_MINOR)) {
-        return (WT_ERROR);
+        WT_ERR(WT_ERROR);
     }
-    return (0);
+
+err:
+    __wt_free(session, version_string);
+    return (ret);
 }
 
 /*
@@ -248,18 +253,18 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
             WT_WITH_TURTLE_LOCK(
               session, ret = __wt_turtle_read(session, WT_METAFILE_URI, &unused_value));
             __wt_free(session, unused_value);
+        } else {
+            /*
+             * Check the version in the turtle file to validate whether we can start up on the
+             * turtle file version seen. Return an error if we can't.
+             */
+            WT_RET(__turtle_validate_version(session));
         }
 
         if (ret != 0) {
             WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             loadTurtle = true;
         }
-
-        /*
-         * Check the version in the turtle file to validate whether we can start up on the turtle
-         * file version seen. Return an error if we can't.
-         */
-        WT_RET(__turtle_validate_version(session));
 
         /*
          * We need to detect the difference between a source database that may have crashed with an
