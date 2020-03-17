@@ -2328,8 +2328,8 @@ err:
  */
 int
 __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
-  wt_timestamp_t start_durbale_ts, wt_timestamp_t start_ts, uint64_t start_txn,
-  wt_timestamp_t stop_durbale_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
+  wt_timestamp_t start_durable_ts, wt_timestamp_t start_ts, uint64_t start_txn,
+  wt_timestamp_t stop_durable_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
 {
     WT_BM *bm;
     WT_BTREE *btree;
