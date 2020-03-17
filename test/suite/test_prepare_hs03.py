@@ -31,6 +31,7 @@ import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 import os, shutil
 from wtscenario import make_scenarios
+from wiredtiger import stat
 
 def timestamp_str(t):
     return '%x' % t
@@ -39,7 +40,7 @@ def timestamp_str(t):
 # test to ensure salvage, verify & simulating crash are working for prepared transactions.
 class test_prepare_hs03(wttest.WiredTigerTestCase):
     # Force a small cache.
-    conn_config = 'cache_size=50MB'
+    conn_config = 'cache_size=50MB,statistics=(fast)'
 
     # Create a small table.
     uri = "table:test_prepare_hs03"
@@ -63,11 +64,17 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         self.session.salvage(self.uri, "force")
         self.session.verify(self.uri, None)
 
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
+
     def prepare_updates(self, ds, nrows, nsessions, nkeys):
         # Insert some records with commit timestamp, corrupt file and call salvage, verify before checkpoint.
 
         # Commit some updates to get eviction and history store fired up
-        commit_value = b"bbbbb" * 2
+        commit_value = b"bbbbb" * 100
         cursor = self.session.open_cursor(self.uri)
         for i in range(1, nsessions * nkeys):
             self.session.begin_transaction('isolation=snapshot')
@@ -83,11 +90,13 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # Call checkpoint
         self.session.checkpoint()
 
+        hs_writes_start = self.get_stat(stat.conn.cache_write_hs)
+
         # Have prepared updates in multiple sessions. This should ensure writing
         # prepared updates to the history store
         sessions = [0] * nsessions
         cursors = [0] * nsessions
-        prepare_value = b"ccccc" * 2
+        prepare_value = b"ccccc" * 100
         for j in range (0, nsessions):
             sessions[j] = self.conn.open_session()
             sessions[j].begin_transaction('isolation=snapshot')
@@ -100,6 +109,11 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
                 cursors[j].set_value(prepare_value)
                 self.assertEquals(cursors[j].insert(), 0)
             sessions[j].prepare_transaction('prepare_timestamp=' + timestamp_str(4))
+
+        hs_writes = self.get_stat(stat.conn.cache_write_hs) - hs_writes_start
+
+        # Assert if we not writing anything to the history store.
+        self.assertGreaterEqual(hs_writes, 0)
 
         # Test if we can read prepared updates from the history store.
         cursor = self.session.open_cursor(self.uri)
@@ -171,6 +185,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # and call verify
         self.corrupt_salvage_verify()
 
+    @unittest.skip("Temporarily disabled")
     def test_prepare_hs(self):
         nrows = 100
         ds = SimpleDataSet(self, self.uri, nrows, key_format="S", value_format='u')
@@ -189,7 +204,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # We put prepared updates in multiple sessions so that we do not hang
         # because of cache being full with uncommitted updates.
         nsessions = 3
-        nkeys = 4
+        nkeys = 4000
         self.prepare_updates(ds, nrows, nsessions, nkeys)
 
 if __name__ == '__main__':
