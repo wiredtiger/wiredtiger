@@ -48,11 +48,11 @@
 
 /*
  * As a result of a data format change WiredTiger is not able to start on versions below 3.2.0, as
- * it will right out a data format that is not readable by those versions. These version numbers
+ * it will write out a data format that is not readable by those versions. These version numbers
  * provide such mechanism.
  */
-#define WT_MIN_DOWNGRADE_VERSION_MAJOR 3 /* Minimum version we can start on. */
-#define WT_MIN_DOWNGRADE_VERSION_MINOR 2
+#define WT_MIN_STARTUP_VERSION_MAJOR 3 /* Minimum version we can start on. */
+#define WT_MIN_STARTUP_VERSION_MINOR 2
 
 /*
  * WT_WITH_TURTLE_LOCK --

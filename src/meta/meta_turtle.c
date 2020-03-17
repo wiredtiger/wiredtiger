@@ -153,16 +153,16 @@ __turtle_validate_version(WT_SESSION_IMPL *session)
     WT_WITH_TURTLE_LOCK(
       session, ret = __wt_turtle_read(session, WT_METADATA_VERSION, &version_string));
 
-    WT_ERR(ret);
+    WT_ERR_MSG(session, ret, "Unable to read version string from turtle file");
 
     if ((ret = sscanf(version_string, "major=%u,minor=%u", &major, &minor)) != 2)
-        WT_ERR(ret);
+        WT_ERR_MSG(session, ret, "Unable to read version string from turtle file");
 
     ret = 0;
 
-    if (major < WT_MIN_DOWNGRADE_VERSION_MAJOR ||
-      (major == WT_MIN_DOWNGRADE_VERSION_MAJOR && minor < WT_MIN_DOWNGRADE_VERSION_MINOR)) {
-        WT_ERR(WT_ERROR);
+    if (major < WT_MIN_STARTUP_VERSION_MAJOR ||
+      (major == WT_MIN_STARTUP_VERSION_MAJOR && minor < WT_MIN_STARTUP_VERSION_MINOR)) {
+        WT_ERR_MSG(session, WT_ERROR, "WiredTiger version incompatible with current binary");
     }
 
 err:
@@ -218,9 +218,9 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     char *metaconf, *unused_value;
     bool exist_backup, exist_incr, exist_isrc, exist_turtle;
-    bool load, loadTurtle;
+    bool load, loadTurtle, validate_turtle;
 
-    load = loadTurtle = false;
+    load = loadTurtle = validate_turtle = false;
 
     /*
      * Discard any turtle setup file left-over from previous runs. This doesn't matter for
@@ -258,14 +258,13 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
         if (ret != 0) {
             WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             loadTurtle = true;
-        } else {
+        } else
             /*
-             * Check the version in the turtle file to validate whether we can start up on the
-             * turtle file version seen. Return an error if we can't. Only check if we either didn't
-             * run salvage or if salvage didn't fail to read it.
+             * Set a flag to specify that we should validate whether we can start up on the turtle
+             * file version seen. Return an error if we can't. Only check if we either didn't run
+             * salvage or if salvage didn't fail to read it.
              */
-            WT_RET(__turtle_validate_version(session));
-        }
+            validate_turtle = true;
 
         /*
          * We need to detect the difference between a source database that may have crashed with an
@@ -287,7 +286,8 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
             WT_RET(__wt_remove_if_exists(session, WT_METAFILE, false));
             WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             load = true;
-        }
+        } else if (validate_turtle)
+            __turtle_validate_version(session);
     } else
         load = true;
     if (load) {
