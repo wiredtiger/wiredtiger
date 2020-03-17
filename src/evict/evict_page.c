@@ -127,8 +127,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * The test for the connection's default session is because there are known problems with using
      * cached cursors from the default session. FIXME: This isn't reasonable and needs a better fix.
      */
-    WT_WITHOUT_DHANDLE(session, ret = __wt_session_cache_hs_dhandle(session));
-    WT_RET(ret);
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+        WT_WITHOUT_DHANDLE(session, ret = __wt_session_cache_hs_dhandle(session));
+        WT_RET(ret);
+    }
 
     /*
      * Enter the eviction generation. If we re-enter eviction, leave the previous eviction
