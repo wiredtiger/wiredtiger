@@ -137,7 +137,6 @@ tracked operations across time and across threads, like this:
 
 ![Perf output visualized with t2](optrack-t2-slow-lsm-worker-thread.png)
 
-
 To produce a CSV file that can be loaded directly into `t2`, run the following
 command:
 
