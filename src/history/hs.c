@@ -643,7 +643,10 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
-            /* Ignore consecutive tombstones. */
+            /*
+             * We may end up with multiple consecutive tombstones on the update chain if running in
+             * lower isolation levels. Squash the tombstones.
+             */
             if (upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL &&
               upd->next->type == WT_UPDATE_TOMBSTONE)
                 continue;
