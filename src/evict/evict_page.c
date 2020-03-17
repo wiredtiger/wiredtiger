@@ -128,8 +128,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * The test for the connection's default session is because there are known problems with using
      * cached cursors from the default session. FIXME: This isn't reasonable and needs a better fix.
      */
-    if (session->hs_cursor == NULL && !F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
-      session != conn->default_session) {
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && session->hs_cursor == NULL &&
+      !F_ISSET(session, WT_SESSION_NO_RECONCILE) && session != conn->default_session) {
         session_flags = 0; /* [-Werror=maybe-uninitialized] */
         WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
         WT_RET(__wt_hs_cursor_close(session, session_flags, is_owner));
