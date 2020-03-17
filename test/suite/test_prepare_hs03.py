@@ -112,7 +112,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
 
         hs_writes = self.get_stat(stat.conn.cache_write_hs) - hs_writes_start
 
-        # Assert if we not writing anything to the history store.
+        # Assert if not writing anything to the history store.
         self.assertGreaterEqual(hs_writes, 0)
 
         # Test if we can read prepared updates from the history store.
