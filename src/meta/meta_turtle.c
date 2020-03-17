@@ -160,8 +160,8 @@ __turtle_validate_version(WT_SESSION_IMPL *session)
 
     ret = 0;
 
-    if (major < WT_MIN_COMPAT_VERSION_MAJOR ||
-      (major == WT_MIN_COMPAT_VERSION_MAJOR && minor < WT_MIN_COMPAT_VERSION_MINOR)) {
+    if (major < WT_MIN_DOWNGRADE_VERSION_MAJOR ||
+      (major == WT_MIN_DOWNGRADE_VERSION_MAJOR && minor < WT_MIN_DOWNGRADE_VERSION_MINOR)) {
         WT_ERR(WT_ERROR);
     }
 
