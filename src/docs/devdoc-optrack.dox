@@ -135,12 +135,13 @@ through the log files. The quickest way is to generate CSV files viewable with
 `t2` -- MongoDB's internal tool. With `t2`, you can view the frequency of
 tracked operations across time and across threads, like this:
 
-![Perf output visualized with t2](https://github.com/wiredtiger/wiredtiger/wiki/images/optrack-t2-slow-lsm-worker-thread.png)
+![Perf output visualized with t2](optrack-t2-slow-lsm-worker-thread.png)
+
 
 To produce a CSV file that can be loaded directly into `t2`, run the following
 command:
 
-   % WT/tools/optrack/optrack_to_t2.py optrack.0000025660.00000000*.txt
+    % WT/tools/optrack/optrack_to_t2.py optrack.0000025660.00000000*.txt
 
 The second option is to use a script that will help you locate latency spikes --
 invocations of operations that took an unusually long time -- and visually
@@ -200,7 +201,7 @@ x-axis shows the execution timeline (in nanoseconds). The y-axis shows how many
 abnormally long executions of the function occurred during very period of the
 execution.
 
-![](http://www.ece.ubc.ca/~sasha/TUTORIAL-DEMO-CONFIG/IMG/outlier_histograms.png)
+![](outlier_histograms.png)
 
 You can click on outlier bars and look at the detailed visualization of the
 period during which the abnormally long function invocations occurred. But
@@ -300,7 +301,7 @@ Now you can see the outlier charts complying with the configuration parameters
 we supplied. For example, on the chart for the `__wt_cache_eviction_worker`, we
 see only the intervals where that function took longer than 15 ms to complete.
 
-![](http://www.ece.ubc.ca/~sasha/TUTORIAL-DEMO-CONFIG/IMG/wt_cache_eviction_worker_outliers.png)
+![](wt_cache_eviction_worker_outliers.png)
 
 Let's click on one of those intervals to examine what happened there. I am
 going to click on the tallest bar in the chart, which will take me to a
@@ -315,12 +316,12 @@ within the bar you can navigate to other intervals. For example, if you wanted
 to look at the execution interval located after the current one, you will just
 click on the white bar following the current, red-highlighted, bar.
 
-![](http://www.ece.ubc.ca/~sasha/TUTORIAL-DEMO-CONFIG/IMG/interval_137_nav_bar.png)
+![](interval_137_nav_bar.png)
 
 Next you see a legend that shows all functions that were called during this
 execution interval and their corresponding colours.
 
-![](http://www.ece.ubc.ca/~sasha/TUTORIAL-DEMO-CONFIG/IMG/interval_137_lgnd.png)
+![](interval_137_lgnd.png)
 
 Then you will see the most interesting information: function calls across
 threads that occurred during this period. Durations and hierarchy of function
@@ -337,7 +338,7 @@ In our example visualization, if we scroll down to the function sequences for
 external threads, we will quickly see a few instances where
 __wt_cache_eviction_worker took longer than 15 ms, for example here:
 
-![](http://www.ece.ubc.ca/~sasha/TUTORIAL-DEMO-CONFIG/IMG/wt_cache_eviction_worker_over_15ms.png)
+![](wt_cache_eviction_worker_over_15ms.png)
 
 As we can see, the threads are simply waiting on the condition variable inside
 the eviction worker. To try and understand why, we might want to scroll up and
@@ -345,11 +346,11 @@ look at the activity of internal threads during this period. Interestingly
 enough, most of the internal threads are also waiting on the condition variable
 during this period.
 
-![](http://www.ece.ubc.ca/~sasha/TUTORIAL-DEMO-CONFIG/IMG/interval_137_threads_waiting.png)
+![](interval_137_threads_waiting.png)
 
 Looking at the internal thread with session id 1 shows something suspicious.
 
-![](http://www.ece.ubc.ca/~sasha/TUTORIAL-DEMO-CONFIG/IMG/session_1_dead_period.png)
+![](session_1_dead_period.png)
 
 During this period where all threads are waiting, this thread shows no activity
 at all, whereas prior and after that "dead" period it was making regular calls
