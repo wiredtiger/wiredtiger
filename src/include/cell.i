@@ -140,6 +140,16 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_t
 }
 
 /*
+ * __cell_unexpected_prepare --
+ *     Issue a standard error message when an item marked as prepared is found in a cell.
+ */
+static inline int
+__cell_unexpected_prepare(WT_SESSION_IMPL *session)
+{
+    WT_RET_MSG(session, EINVAL, "prepared item in data file");
+}
+
+/*
  * __cell_pack_addr_validity --
  *     Pack the validity window for an address.
  */
@@ -158,9 +168,9 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
      * set a flag bit and store them.
      */
     if (!__wt_process.page_version_ts ||
-      (start_durable_ts == WT_TS_NONE && oldest_start_ts == WT_TS_NONE &&
-        oldest_start_txn == WT_TXN_NONE && newest_stop_ts == WT_TS_MAX &&
-        newest_stop_txn == WT_TXN_MAX))
+      (start_durable_ts == WT_TS_NONE && stop_durable_ts == WT_TS_NONE &&
+        oldest_start_ts == WT_TS_NONE && oldest_start_txn == WT_TXN_NONE &&
+        newest_stop_ts == WT_TS_MAX && newest_stop_txn == WT_TXN_MAX))
         ++*pp;
     else {
         **pp |= WT_CELL_SECOND_DESC;
@@ -217,7 +227,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
     bool prepare;
 
     /*
-     * These values is set to default when packing, they are only set in future releases. We
+     * These values are set to default when packing, they are only set in future releases. We
      * explicitly include them in APIs in this file to facilitate code comparison between versions.
      */
     start_durable_ts = WT_TS_NONE;
@@ -730,7 +740,7 @@ restart:
     unpack->newest_start_durable_ts = WT_TS_NONE;
     unpack->newest_stop_ts = WT_TS_MAX;
     unpack->newest_stop_txn = WT_TXN_MAX;
-    unpack->newest_durable_ts = WT_TS_NONE;
+    unpack->newest_stop_durable_ts = WT_TS_NONE;
     unpack->raw = (uint8_t)__wt_cell_type_raw(cell);
     unpack->type = (uint8_t)__wt_cell_type(cell);
     unpack->flags = 0;
@@ -783,7 +793,7 @@ restart:
         flags = *p++; /* skip second descriptor byte */
 
         if (LF_ISSET(WT_CELL_PREPARE))
-            F_SET(unpack, WT_CELL_UNPACK_PREPARE);
+            WT_RET(__cell_unexpected_prepare(session));
         if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(__wt_vunpack_uint(
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->oldest_start_ts));
@@ -807,8 +817,8 @@ restart:
         }
         if (LF_ISSET(WT_CELL_TS_DURABLE_STOP)) {
             WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->newest_durable_ts));
-            unpack->newest_durable_ts += unpack->newest_stop_ts;
+              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->newest_stop_durable_ts));
+            unpack->newest_stop_durable_ts += unpack->newest_stop_ts;
         }
         __wt_check_addr_validity(session, unpack->oldest_start_ts, unpack->oldest_start_txn,
           unpack->newest_stop_ts, unpack->newest_stop_txn);
@@ -822,6 +832,8 @@ restart:
             break;
         flags = *p++; /* skip second descriptor byte */
 
+        if (LF_ISSET(WT_CELL_PREPARE))
+            WT_RET(__cell_unexpected_prepare(session));
         if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->start_ts));
         if (LF_ISSET(WT_CELL_TXN_START))
@@ -962,7 +974,7 @@ __wt_cell_unpack_dsk(
         unpack->stop_ts = WT_TS_MAX;
         unpack->stop_txn = WT_TXN_MAX;
         unpack->newest_start_durable_ts = WT_TS_NONE;
-        unpack->newest_durable_ts = WT_TS_NONE;
+        unpack->newest_stop_durable_ts = WT_TS_NONE;
         unpack->oldest_start_ts = WT_TS_NONE;
         unpack->oldest_start_txn = WT_TXN_NONE;
         unpack->newest_stop_ts = WT_TS_MAX;

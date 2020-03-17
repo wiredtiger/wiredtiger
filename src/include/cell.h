@@ -167,7 +167,7 @@ struct __wt_cell_unpack {
     wt_timestamp_t newest_start_durable_ts; /* default value: WT_TS_NONE */
     wt_timestamp_t newest_stop_ts;          /* default value: WT_TS_MAX */
     uint64_t newest_stop_txn;               /* default value: WT_TXN_MAX */
-    wt_timestamp_t newest_durable_ts;       /* default value: WT_TS_NONE */
+    wt_timestamp_t newest_stop_durable_ts;  /* default value: WT_TS_NONE */
 
     /*
      * !!!
