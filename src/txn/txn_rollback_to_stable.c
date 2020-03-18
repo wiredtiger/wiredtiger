@@ -601,6 +601,7 @@ __rollback_page_needs_abort(
     addr = ref->addr;
     mod = ref->page == NULL ? NULL : ref->page->modify;
     durable_ts = WT_TS_NONE;
+    tag = "undefined state";
     result = false;
 
     /*
