@@ -153,7 +153,8 @@ __turtle_validate_version(WT_SESSION_IMPL *session)
     WT_WITH_TURTLE_LOCK(
       session, ret = __wt_turtle_read(session, WT_METADATA_VERSION, &version_string));
 
-    WT_ERR_MSG(session, ret, "Unable to read version string from turtle file");
+    if (ret != 0)
+        WT_ERR_MSG(session, ret, "Unable to read version string from turtle file");
 
     if ((ret = sscanf(version_string, "major=%u,minor=%u", &major, &minor)) != 2)
         WT_ERR_MSG(session, ret, "Unable to read version string from turtle file");
@@ -161,9 +162,8 @@ __turtle_validate_version(WT_SESSION_IMPL *session)
     ret = 0;
 
     if (major < WT_MIN_STARTUP_VERSION_MAJOR ||
-      (major == WT_MIN_STARTUP_VERSION_MAJOR && minor < WT_MIN_STARTUP_VERSION_MINOR)) {
+      (major == WT_MIN_STARTUP_VERSION_MAJOR && minor < WT_MIN_STARTUP_VERSION_MINOR))
         WT_ERR_MSG(session, WT_ERROR, "WiredTiger version incompatible with current binary");
-    }
 
 err:
     __wt_free(session, version_string);
@@ -287,7 +287,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
             WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             load = true;
         } else if (validate_turtle)
-            __turtle_validate_version(session);
+            WT_RET(__turtle_validate_version(session));
     } else
         load = true;
     if (load) {
