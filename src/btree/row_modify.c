@@ -50,7 +50,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *old_upd, *upd, **upd_entry;
+    WT_UPDATE *old_upd, *upd, **upd_entry, *first_upd;
     size_t ins_size, upd_size;
     uint32_t ins_slot;
     u_int i, skipdepth;
@@ -118,6 +118,22 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             if (upd->next != NULL)
                 *upd_entry = upd->next;
             old_upd = *upd_entry;
+        }
+
+        /*
+         * If run in lower isolation levels, we may race with another session that tries to delete
+         * the same key. Double check the validity of the key again before proceed.
+         */
+        if (session->txn.isolation < WT_ISO_SNAPSHOT) {
+            for (first_upd = old_upd; first_upd != NULL && first_upd->txnid != WT_TXN_ABORTED;
+                 first_upd = first_upd->next)
+                ;
+
+            if (first_upd != NULL && first_upd->type == WT_UPDATE_MODIFY &&
+              upd->type == WT_UPDATE_TOMBSTONE && __wt_txn_upd_visible(session, first_upd)) {
+                __wt_free_update_list(session, &upd);
+                return WT_NOTFOUND;
+            }
         }
 
         /*
