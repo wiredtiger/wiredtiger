@@ -50,7 +50,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *old_upd, *upd, **upd_entry, *first_upd;
+    WT_UPDATE *first_upd, *old_upd, *upd, **upd_entry;
     size_t ins_size, upd_size;
     uint32_t ins_slot;
     u_int i, skipdepth;
