@@ -18,6 +18,8 @@
  *	Call the underlying fallocate function, wrapped in a macro so there's only a single copy of
  * the mmap support code.
  */
+#if defined(HAVE_FALLOCATE) || (defined(__linux__) && defined(SYS_fallocate)) || \
+  defined(HAVE_POSIX_FALLOCATE)
 #define WT_CALL_FUNCTION(op)                                                   \
     do {                                                                       \
         WT_DECL_RET;                                                           \
@@ -43,6 +45,7 @@
         }                                                                      \
         return (0);                                                            \
     } while (0)
+#endif
 
 /*
  * __posix_std_fallocate --
