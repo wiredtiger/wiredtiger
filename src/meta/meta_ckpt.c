@@ -588,6 +588,9 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 
     /* Default to durability. */
     ret = __wt_config_subgets(session, v, "newest_durable_ts", &a);
+    if (ret == WT_NOTFOUND)
+        /* Check the parameter as it known in 4.4.  We may see this when a system is downgraded. */
+        ret = __wt_config_subgets(session, v, "stop_durable_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     ckpt->newest_durable_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
     ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
