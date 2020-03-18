@@ -122,7 +122,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
 
         /*
          * If run with lower isolation levels, we may race with other sessions that try to delete
-         * the same key. Double check the validity of the key before proceed.
+         * the same key. Double check the validity of the key.
          */
         if (session->txn.isolation < WT_ISO_SNAPSHOT) {
             for (first_upd = old_upd; first_upd != NULL && first_upd->txnid != WT_TXN_ABORTED;
