@@ -129,11 +129,8 @@ __rec_append_orig_value(
         }
     }
 
-    if (tombstone != NULL) {
-        /* Free append before overwriting it with tombstone */
-        __wt_free_update_list(session, &append);
+    if (tombstone != NULL)
         append = tombstone;
-    }
 
     /* Append the new entry into the update list. */
     WT_PUBLISH(upd->next, append);
@@ -142,6 +139,10 @@ __rec_append_orig_value(
 
 err:
     __wt_scr_free(session, &tmp);
+    /* Free append when tombstone allocation fails */
+    if (ret != 0) {
+        __wt_free_update_list(session, &append);
+    }
     return (ret);
 }
 
