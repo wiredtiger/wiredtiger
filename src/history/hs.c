@@ -146,14 +146,14 @@ __wt_hs_create(WT_SESSION_IMPL *session, const char **cfg)
 
     conn = S2C(session);
 
+    /* Read-only and in-memory configurations don't need the history store table. */
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
+        return (0);
+
     /* The LAS table may exist on upgrade. Discard it. */
     WT_WITH_SCHEMA_LOCK(
       session, ret = __wt_schema_drop(session, "file:WiredTigerLAS.wt", drop_cfg));
     WT_RET(ret);
-
-    /* Read-only and in-memory configurations don't need the history store table. */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
-        return (0);
 
     /* Re-create the table. */
     WT_RET(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
