@@ -279,9 +279,9 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             upd->durable_ts = durable_ts;
             upd->start_ts = hs_start_ts;
             __wt_verbose(session, WT_VERB_RTS, "Update restored from history store (txnid: %" PRIu64
-                                               ", start_ts: %s, durable_ts: %s"),
+                                               ", start_ts: %s, durable_ts: %s",
               upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
-              __wt_timestamp_to_string(upd->durable_ts, ts_string[1]);
+              __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
 
             /*
              * Set the flag to indicate that this update has been restored from history store for
@@ -366,8 +366,8 @@ __rollback_abort_row_ondisk_kv(
         upd->start_ts = vpack->start_ts;
         WT_STAT_CONN_INCR(session, txn_rts_keys_restored);
         __wt_verbose(session, WT_VERB_RTS,
-          "Key restored (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s"),
-          upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
+          "Key restored (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s", upd->txnid,
+          __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
           __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
     } else
         /* Stable version according to the timestamp. */
