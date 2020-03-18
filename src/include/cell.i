@@ -723,8 +723,10 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     struct {
         uint64_t v;
         wt_timestamp_t start_ts;
+        wt_timestamp_t durable_start_ts;
         uint64_t start_txn;
         wt_timestamp_t stop_ts;
+        wt_timestamp_t durable_stop_ts;
         uint64_t stop_txn;
         uint32_t len;
     } copy;
@@ -734,8 +736,10 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
 
     copy.v = 0; /* -Werror=maybe-uninitialized */
     copy.start_ts = WT_TS_NONE;
+    copy.durable_start_ts = WT_TS_NONE;
     copy.start_txn = WT_TXN_NONE;
     copy.stop_ts = WT_TS_MAX;
+    copy.durable_stop_ts = WT_TS_NONE;
     copy.stop_txn = WT_TXN_MAX;
     copy.len = 0;
 
@@ -844,6 +848,7 @@ restart:
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->newest_start_durable_ts));
             unpack->newest_start_durable_ts += unpack->oldest_start_ts;
         }
+
         if (LF_ISSET(WT_CELL_TS_STOP)) {
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->newest_stop_ts));
@@ -923,8 +928,10 @@ restart:
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
         copy.v = unpack->v;
         copy.start_ts = unpack->start_ts;
+        copy.durable_start_ts = unpack->durable_start_ts;
         copy.start_txn = unpack->start_txn;
         copy.stop_ts = unpack->stop_ts;
+        copy.durable_stop_ts = unpack->durable_stop_ts;
         copy.stop_txn = unpack->stop_txn;
         copy.len = WT_PTRDIFF32(p, cell);
         cell = (WT_CELL *)((uint8_t *)cell - v);
@@ -983,8 +990,10 @@ done:
         unpack->raw = WT_CELL_VALUE_COPY;
         unpack->v = copy.v;
         unpack->start_ts = copy.start_ts;
+        unpack->durable_start_ts = copy.durable_start_ts;
         unpack->start_txn = copy.start_txn;
         unpack->stop_ts = copy.stop_ts;
+        unpack->durable_stop_ts = copy.durable_stop_ts;
         unpack->stop_txn = copy.stop_txn;
         unpack->__len = copy.len;
     }

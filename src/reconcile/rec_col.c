@@ -821,13 +821,8 @@ record_loop:
                     goto compare;
                 }
 
-                /*
-                 * The key on the old disk image is unchanged. Use time pairs from the cell.
-                 *
-                 * FIXME-prepare-support: Currently, we don't store durable_ts in cell, which is a
-                 * problem we need to solve for prepared transactions.
-                 */
-                durable_ts = newest_durable_ts;
+                /* The key on the old disk image is unchanged. Use time pairs from the cell. */
+                durable_ts = vpack->durable_start_ts;
                 start_ts = vpack->start_ts;
                 start_txn = vpack->start_txn;
                 stop_ts = vpack->stop_ts;
