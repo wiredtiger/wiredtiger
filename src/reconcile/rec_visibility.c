@@ -129,8 +129,11 @@ __rec_append_orig_value(
         }
     }
 
-    if (tombstone != NULL)
+    if (tombstone != NULL) {
+        /* Free append before overwriting it with tombstone */
+        __wt_free_update_list(session, &append);
         append = tombstone;
+    }
 
     /* Append the new entry into the update list. */
     WT_PUBLISH(upd->next, append);
