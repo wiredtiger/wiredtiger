@@ -60,10 +60,8 @@ __wt_rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *start_durable_ts,
     *newest_stop_tsp = WT_TS_NONE;
     *newest_stop_txnp = WT_TXN_NONE;
     if (r->page->type == WT_PAGE_COL_FIX) {
-        *start_durable_ts = WT_TS_NONE;
         *oldest_start_tsp = WT_TS_NONE;
         *oldest_start_txnp = WT_TXN_NONE;
-        *stop_durable_ts = WT_TS_NONE;
         *newest_stop_tsp = WT_TS_MAX;
         *newest_stop_txnp = WT_TXN_MAX;
     }
