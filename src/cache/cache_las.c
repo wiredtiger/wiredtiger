@@ -168,8 +168,7 @@ __wt_las_create(WT_SESSION_IMPL *session, const char **cfg)
         return (0);
 
     /* The history store file may exist on a downgrade. Discard it. */
-    WT_WITH_SCHEMA_LOCK(
-      session, ret = __wt_schema_drop(session, "file:WiredTigerHS.wt", drop_cfg));
+    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_drop(session, "file:WiredTigerHS.wt", drop_cfg));
     WT_RET(ret);
 
     /*
