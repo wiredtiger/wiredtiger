@@ -1283,7 +1283,7 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    char ts_string[3][WT_TS_INT_STRING_SIZE];
+    char ts_string[4][WT_TS_INT_STRING_SIZE];
 
     session = ds->session;
 
@@ -1325,10 +1325,11 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        WT_RET(ds->f(ds, ", ts/txn %s,%s/%" PRIu64 ",%s/%" PRIu64,
-          __wt_timestamp_to_string(unpack->newest_durable_ts, ts_string[0]),
-          __wt_timestamp_to_string(unpack->oldest_start_ts, ts_string[1]), unpack->oldest_start_txn,
-          __wt_timestamp_to_string(unpack->newest_stop_ts, ts_string[2]), unpack->newest_stop_txn));
+        WT_RET(ds->f(ds, ", ts/txn %s,%s,%s/%" PRIu64 ",%s/%" PRIu64,
+          __wt_timestamp_to_string(unpack->newest_start_durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(unpack->newest_stop_durable_ts, ts_string[1]),
+          __wt_timestamp_to_string(unpack->oldest_start_ts, ts_string[2]), unpack->oldest_start_txn,
+          __wt_timestamp_to_string(unpack->newest_stop_ts, ts_string[3]), unpack->newest_stop_txn));
         break;
     case WT_CELL_DEL:
     case WT_CELL_VALUE:
