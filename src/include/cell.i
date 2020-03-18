@@ -793,7 +793,7 @@ restart:
         flags = *p++; /* skip second descriptor byte */
 
         if (LF_ISSET(WT_CELL_PREPARE))
-            WT_RET(__cell_unexpected_prepare(session));
+            F_SET(unpack, WT_CELL_UNPACK_PREPARE);
         if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(__wt_vunpack_uint(
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->oldest_start_ts));
@@ -833,7 +833,7 @@ restart:
         flags = *p++; /* skip second descriptor byte */
 
         if (LF_ISSET(WT_CELL_PREPARE))
-            WT_RET(__cell_unexpected_prepare(session));
+            F_SET(unpack, WT_CELL_UNPACK_PREPARE);
         if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->start_ts));
         if (LF_ISSET(WT_CELL_TXN_START))
@@ -860,6 +860,8 @@ restart:
           session, unpack->start_ts, unpack->start_txn, unpack->stop_ts, unpack->stop_txn);
         break;
     }
+    if (F_ISSET(unpack, WT_CELL_UNPACK_PREPARE))
+        WT_RET(__cell_unexpected_prepare(session));
 
     /*
      * Check for an RLE count or record number that optionally follows the cell descriptor byte on
