@@ -153,8 +153,6 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.search(), 0)
             # Correctness Test - commit_value should be visible
             self.assertEquals(cursor.get_value(), commit_value)
-            # Correctness Test - prepare_value should NOT be visible
-            self.assertNotEquals(cursor.get_value(), prepare_value)
         cursor.close()
 
         self.session.commit_transaction()
