@@ -1025,12 +1025,12 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             __wt_verbose(session, WT_VERB_RTS,
               "%s: file rolled back with durable timestamp: %s, or when tree is modified: %s or "
               "when durable time is not found: %s",
-              uri, __wt_timestamp_to_string(newest_durable_ts, ts_string),
+              uri, __wt_timestamp_to_string(max_durable_ts, ts_string),
               S2BT(session)->modified ? "true" : "false", !durable_ts_found ? "true" : "false");
             WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp));
         } else
             __wt_verbose(session, WT_VERB_RTS, "%s: file skipped with durable timestamp: %s", uri,
-              __wt_timestamp_to_string(newest_durable_ts, ts_string));
+              __wt_timestamp_to_string(max_durable_ts, ts_string));
 
         /* Cleanup any history store entries for this non-timestamped table. */
         if (max_durable_ts == WT_TS_NONE && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
