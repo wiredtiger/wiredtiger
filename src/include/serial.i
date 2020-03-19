@@ -214,8 +214,8 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
 
 /*
  * __check_valid_remove --
- *     If run with lower isolation levels, we may race with other sessions that try to delete the
- *     same key. Double check the validity of the key.
+ *     If running with lower isolation levels, we may race with other sessions that try to delete
+ *     the same key. Double check the validity of the key.
  */
 static inline int
 __check_valid_remove(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *old_upd)
