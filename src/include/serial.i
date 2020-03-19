@@ -214,7 +214,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
 
 /*
  * __wt_check_removed --
- *     Check if a key is removed when running with lower isolation levels.
+ *     Check if a key is removed when trying to delete the key with lower isolation levels.
  */
 static inline int
 __wt_check_removed(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *old_upd)
@@ -225,13 +225,13 @@ __wt_check_removed(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *old_upd)
      * If run with lower isolation levels, we may race with other sessions that try to delete the
      * same key. Double check the validity of the key.
      */
-    if (session->txn.isolation < WT_ISO_SNAPSHOT) {
+    if (session->txn.isolation < WT_ISO_SNAPSHOT && upd->type == WT_UPDATE_TOMBSTONE) {
         for (first_upd = old_upd; first_upd != NULL && first_upd->txnid != WT_TXN_ABORTED;
              first_upd = first_upd->next)
             ;
 
         if (first_upd != NULL && first_upd->type == WT_UPDATE_MODIFY &&
-          upd->type == WT_UPDATE_TOMBSTONE && __wt_txn_upd_visible(session, first_upd))
+          __wt_txn_upd_visible(session, first_upd))
             return (WT_NOTFOUND);
     }
 
