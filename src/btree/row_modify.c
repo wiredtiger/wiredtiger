@@ -132,7 +132,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             if (first_upd != NULL && first_upd->type == WT_UPDATE_MODIFY &&
               upd->type == WT_UPDATE_TOMBSTONE && __wt_txn_upd_visible(session, first_upd)) {
                 __wt_free_update_list(session, &upd);
-                return WT_NOTFOUND;
+                return (WT_NOTFOUND);
             }
         }
 
