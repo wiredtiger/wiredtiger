@@ -48,6 +48,16 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t durable_sta
 }
 
 /*
+ * __cell_unexpected_prepare --
+ *     Issue a standard error message when an item marked as prepared is found in a cell.
+ */
+static inline int
+__cell_unexpected_prepare(WT_SESSION_IMPL *session)
+{
+    WT_RET_MSG(session, EINVAL, "prepared item in data file");
+}
+
+/*
  * __cell_pack_value_validity --
  *     Pack the validity window for a value.
  */
@@ -833,8 +843,10 @@ restart:
         if (LF_ISSET(WT_CELL_TXN_START))
             WT_RET(__wt_vunpack_uint(
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->oldest_start_txn));
-        if (LF_ISSET(WT_CELL_TS_DURABLE_START))
+        if (LF_ISSET(WT_CELL_TS_DURABLE_START)) {
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &durable_ts_compat));
+            durable_ts_compat += unpack->oldest_start_txn;
+        }
         if (LF_ISSET(WT_CELL_TS_STOP)) {
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->newest_stop_ts));
@@ -870,8 +882,10 @@ restart:
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->start_ts));
         if (LF_ISSET(WT_CELL_TXN_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->start_txn));
-        if (LF_ISSET(WT_CELL_TS_DURABLE_START))
+        if (LF_ISSET(WT_CELL_TS_DURABLE_START)) {
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &durable_ts_compat));
+            durable_ts_compat += unpack->start_ts;
+        }
         if (LF_ISSET(WT_CELL_TS_STOP)) {
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->stop_ts));
             unpack->stop_ts += unpack->start_ts;
@@ -886,6 +900,8 @@ restart:
           unpack->start_txn, unpack->stop_ts, unpack->stop_txn);
         break;
     }
+    if (F_ISSET(unpack, WT_CELL_UNPACK_PREPARE))
+        WT_RET(__cell_unexpected_prepare(session));
 
     /*
      * Check for an RLE count or record number that optionally follows the cell descriptor byte on
