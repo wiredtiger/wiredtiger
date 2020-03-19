@@ -50,7 +50,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *first_upd, *old_upd, *upd, **upd_entry;
+    WT_UPDATE *old_upd, *upd, **upd_entry;
     size_t ins_size, upd_size;
     uint32_t ins_slot;
     u_int i, skipdepth;
@@ -121,20 +121,10 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
         }
 
         /*
-         * If run with lower isolation levels, we may race with other sessions that try to delete
-         * the same key. Double check the validity of the key.
+         * Check if the key is removed concurrently by another session if running with lower
+         * isolation levels.
          */
-        if (session->txn.isolation < WT_ISO_SNAPSHOT) {
-            for (first_upd = old_upd; first_upd != NULL && first_upd->txnid != WT_TXN_ABORTED;
-                 first_upd = first_upd->next)
-                ;
-
-            if (first_upd != NULL && first_upd->type == WT_UPDATE_MODIFY &&
-              upd->type == WT_UPDATE_TOMBSTONE && __wt_txn_upd_visible(session, first_upd)) {
-                __wt_free_update_list(session, &upd);
-                return (WT_NOTFOUND);
-            }
-        }
+        WT_ERR(__wt_check_removed(session, upd, old_upd));
 
         /*
          * Point the new WT_UPDATE item to the next element in the list. If we get it right, the

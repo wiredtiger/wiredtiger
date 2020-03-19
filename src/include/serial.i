@@ -213,6 +213,32 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
 }
 
 /*
+ * __wt_check_removed --
+ *     Check if a key is removed when running with lower isolation levels.
+ */
+static inline int
+__wt_check_removed(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *old_upd)
+{
+    WT_UPDATE *first_upd;
+
+    /*
+     * If run with lower isolation levels, we may race with other sessions that try to delete the
+     * same key. Double check the validity of the key.
+     */
+    if (session->txn.isolation < WT_ISO_SNAPSHOT) {
+        for (first_upd = old_upd; first_upd != NULL && first_upd->txnid != WT_TXN_ABORTED;
+             first_upd = first_upd->next)
+            ;
+
+        if (first_upd != NULL && first_upd->type == WT_UPDATE_MODIFY &&
+          upd->type == WT_UPDATE_TOMBSTONE && __wt_txn_upd_visible(session, first_upd))
+            return (WT_NOTFOUND);
+    }
+
+    return (0);
+}
+
+/*
  * __wt_update_serial --
  *     Update a row or column-store entry.
  */
@@ -221,7 +247,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
   WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive)
 {
     WT_DECL_RET;
-    WT_UPDATE *obsolete, *upd;
+    WT_UPDATE *first_upd, *obsolete, *upd;
     wt_timestamp_t obsolete_timestamp;
     uint64_t txn;
 
@@ -237,7 +263,13 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      * Check if our update is still permitted.
      */
     while (!__wt_atomic_cas_ptr(srch_upd, upd->next, upd)) {
-        if ((ret = __wt_txn_update_check(session, cbt, upd->next = *srch_upd)) != 0) {
+        first_upd = *srch_upd;
+        /*
+         * Check if the key is removed concurrently by another session if running with lower
+         * isolation levels.
+         */
+        WT_RET(__wt_check_removed(session, upd, first_upd));
+        if ((ret = __wt_txn_update_check(session, cbt, upd->next = first_upd)) != 0) {
             /* Free unused memory on error. */
             __wt_free(session, upd);
             return (ret);
