@@ -369,7 +369,9 @@ struct __wt_log_desc {
 #define WT_LOG_V2_MAJOR 3
 #define WT_LOG_V2_MINOR 0
 #define WT_LOG_V3_MAJOR 3
-#define WT_LOG_V3_MINOR 2
+#define WT_LOG_V3_MINOR 1
+#define WT_LOG_V4_MAJOR 10
+#define WT_LOG_V4_MINOR 0
 
 /*
  * __wt_log_desc_byteswap --

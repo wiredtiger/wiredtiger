@@ -65,7 +65,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
     ]
     restart_compat = [
         ('def2', dict(compat2='none', logv2=4)),
-        ('100_0', dict(compat2='10.0', logv2=4)),
+        ('100_2', dict(compat2='10.0', logv2=4)),
         ('32_2', dict(compat2='3.2', logv2=3)),
         ('31_2', dict(compat2="3.1", logv2=3)),
         ('30_2', dict(compat2="3.0", logv2=2)),
