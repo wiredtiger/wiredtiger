@@ -276,8 +276,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
          * Check if the key is removed concurrently by another session if running with lower
          * isolation levels.
          */
-        ret = __check_valid_remove(session, upd, upd->next);
-        if (ret != 0 || (ret = __wt_txn_update_check(session, cbt, upd->next)) != 0) {
+        if ((ret = __check_valid_remove(session, upd, upd->next)) != 0 ||
+          (ret = __wt_txn_update_check(session, cbt, upd->next)) != 0) {
             /* Free unused memory on error. */
             __wt_free(session, upd);
             return (ret);
