@@ -244,7 +244,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
   WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive)
 {
     WT_DECL_RET;
-    WT_UPDATE *first_upd, *obsolete, *upd;
+    WT_UPDATE *obsolete, *upd;
     wt_timestamp_t obsolete_timestamp;
     uint64_t txn;
 
@@ -256,7 +256,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      * Check if the key is removed concurrently by another session if running with lower isolation
      * levels.
      */
-    WT_RET(__check_valid_remove(session, upd, first_upd));
+    WT_RET(__check_valid_remove(session, upd, upd->next));
 
     /*
      * All structure setup must be flushed before the structure is entered into the list. We need a
@@ -266,13 +266,13 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      * Check if our update is still permitted.
      */
     while (!__wt_atomic_cas_ptr(srch_upd, upd->next, upd)) {
-        first_upd = *srch_upd;
+        upd->next = *srch_upd;
         /*
          * Check if the key is removed concurrently by another session if running with lower
          * isolation levels.
          */
-        WT_RET(__check_valid_remove(session, upd, first_upd));
-        if ((ret = __wt_txn_update_check(session, cbt, upd->next = first_upd)) != 0) {
+        WT_RET(__check_valid_remove(session, upd, upd->next));
+        if ((ret = __wt_txn_update_check(session, cbt, upd->next)) != 0) {
             /* Free unused memory on error. */
             __wt_free(session, upd);
             return (ret);
