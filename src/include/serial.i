@@ -213,13 +213,12 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
 }
 
 /*
- * __wt_check_removed --
- *     Check if a key is removed when trying to delete the key. If run with lower isolation levels,
- *     we may race with other sessions that try to delete the same key. Double check the validity of
- *     the key.
+ * __check_valid_remove --
+ *     If run with lower isolation levels, we may race with other sessions that try to delete the
+ *     same key. Double check the validity of the key.
  */
 static inline int
-__wt_check_removed(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *old_upd)
+__check_valid_remove(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *old_upd)
 {
     WT_UPDATE *first_upd;
 
@@ -254,6 +253,12 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     *updp = NULL;
 
     /*
+     * Check if the key is removed concurrently by another session if running with lower isolation
+     * levels.
+     */
+    WT_RET(__check_valid_remove(session, upd, first_upd));
+
+    /*
      * All structure setup must be flushed before the structure is entered into the list. We need a
      * write barrier here, our callers depend on it.
      *
@@ -266,7 +271,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
          * Check if the key is removed concurrently by another session if running with lower
          * isolation levels.
          */
-        WT_RET(__wt_check_removed(session, upd, first_upd));
+        WT_RET(__check_valid_remove(session, upd, first_upd));
         if ((ret = __wt_txn_update_check(session, cbt, upd->next = first_upd)) != 0) {
             /* Free unused memory on error. */
             __wt_free(session, upd);

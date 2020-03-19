@@ -121,12 +121,6 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
         }
 
         /*
-         * Check if the key is removed concurrently by another session if running with lower
-         * isolation levels.
-         */
-        WT_ERR(__wt_check_removed(session, upd, old_upd));
-
-        /*
          * Point the new WT_UPDATE item to the next element in the list. If we get it right, the
          * serialization function lock acts as our memory barrier to flush this write.
          */
