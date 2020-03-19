@@ -338,14 +338,15 @@ __rollback_abort_row_ondisk_kv(
     __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
     if (vpack->durable_start_ts > rollback_timestamp) {
         __wt_verbose(session, WT_VERB_RTS,
-          "%s: On-disk update aborted with start durable timestamp: %s, commit timestamp: %s and stable "
-          "timestamp: %s",
+          "%s: On-disk update aborted with start durable timestamp: %s, commit timestamp: %s and "
+          "stable timestamp: %s",
           S2BT(session)->dhandle->name,
           __wt_timestamp_to_string(vpack->durable_start_ts, ts_string[0]),
           __wt_timestamp_to_string(vpack->start_ts, ts_string[1]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
         return (__rollback_row_ondisk_fixup_key(session, page, rip, rollback_timestamp, true));
-    } else if (vpack->durable_stop_ts != WT_TS_NONE && vpack->durable_stop_ts > rollback_timestamp) {
+    } else if (vpack->durable_stop_ts != WT_TS_NONE &&
+      vpack->durable_stop_ts > rollback_timestamp) {
         /*
          * Clear the remove operation from the key by inserting the original on-disk value as a
          * standard update.
@@ -488,9 +489,8 @@ __rollback_abort_row_reconciled_page(
       (mod->mod_replace.start_durable_ts > rollback_timestamp ||
           mod->mod_replace.stop_durable_ts > rollback_timestamp)) {
         __wt_verbose(session, WT_VERB_RTS,
-          "%s: Reconciled replace block page history store update removal On-disk with start durable "
-          "timestamp: %s, stop durable timestamp: %s and stable "
-          "timestamp: %s",
+          "%s: Reconciled replace block page history store update removal On-disk with start "
+          "durable timestamp: %s, stop durable timestamp: %s and stable timestamp: %s",
           S2BT(session)->dhandle->name,
           __wt_timestamp_to_string(mod->mod_replace.start_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(mod->mod_replace.stop_durable_ts, ts_string[1]),
@@ -622,7 +622,7 @@ __rollback_page_needs_abort(
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
             durable_ts = WT_MAX(durable_ts, multi->addr.start_durable_ts);
             durable_ts = WT_MAX(durable_ts, multi->addr.stop_durable_ts);
-	}
+        }
         result = (durable_ts > rollback_timestamp);
     } else if (!__wt_off_page(ref->home, addr)) {
         tag = "on page cell";
