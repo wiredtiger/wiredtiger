@@ -89,10 +89,12 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_
             LF_SET(WT_CELL_TXN_START);
         }
         if (durable_start_ts != WT_TS_NONE) {
-            /* Store differences, not absolutes. */
             WT_ASSERT(session, start_ts != WT_TS_NONE && start_ts <= durable_start_ts);
-            WT_IGNORE_RET(__wt_vpack_uint(pp, 0, durable_start_ts - start_ts));
-            LF_SET(WT_CELL_TS_DURABLE_START);
+            /* Store differences if any, not absolutes. */
+            if (durable_start_ts - start_ts > 0) {
+                WT_IGNORE_RET(__wt_vpack_uint(pp, 0, durable_start_ts - start_ts));
+                LF_SET(WT_CELL_TS_DURABLE_START);
+            }
         }
         if (stop_ts != WT_TS_MAX) {
             /* Store differences, not absolutes. */
@@ -105,10 +107,12 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_
             LF_SET(WT_CELL_TXN_STOP);
         }
         if (durable_stop_ts != WT_TS_NONE) {
-            /* Store differences, not absolutes. */
             WT_ASSERT(session, stop_ts != WT_TS_MAX && stop_ts <= durable_stop_ts);
-            WT_IGNORE_RET(__wt_vpack_uint(pp, 0, durable_stop_ts - stop_ts));
-            LF_SET(WT_CELL_TS_DURABLE_STOP);
+            /* Store differences if any, not absolutes. */
+            if (durable_stop_ts - stop_ts > 0) {
+                WT_IGNORE_RET(__wt_vpack_uint(pp, 0, durable_stop_ts - stop_ts));
+                LF_SET(WT_CELL_TS_DURABLE_STOP);
+            }
         }
         if (prepare)
             LF_SET(WT_CELL_PREPARE);
@@ -887,7 +891,9 @@ restart:
             WT_RET(__wt_vunpack_uint(
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->durable_start_ts));
             unpack->durable_start_ts += unpack->start_ts;
-        }
+        } else
+            unpack->durable_start_ts = unpack->start_ts;
+
         if (LF_ISSET(WT_CELL_TS_STOP)) {
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->stop_ts));
             unpack->stop_ts += unpack->start_ts;
@@ -900,7 +906,9 @@ restart:
             WT_RET(__wt_vunpack_uint(
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->durable_stop_ts));
             unpack->durable_stop_ts += unpack->stop_ts;
-        }
+        } else
+            unpack->durable_stop_ts = unpack->stop_ts;
+
         __cell_check_value_validity(session, unpack->durable_start_ts, unpack->start_ts,
           unpack->start_txn, unpack->durable_stop_ts, unpack->stop_ts, unpack->stop_txn);
         break;
