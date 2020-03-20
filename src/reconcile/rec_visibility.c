@@ -231,8 +231,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * check is not required for history store updates as they are implicitly committed. As
          * prepared transaction IDs are globally visible, need to check the update state as well.
          */
-        if (!is_hs_page && (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
-                                                             !__txn_visible_id(session, txnid))) {
+        if (!is_hs_page &&
+          ((F_ISSET(r, WT_REC_VISIBLE_ALL) || session->txn.isolation == WT_ISO_READ_UNCOMMITTED) ?
+              WT_TXNID_LE(r->last_running, txnid) :
+              !__txn_visible_id(session, txnid))) {
             has_newer_updates = true;
             continue;
         }
@@ -289,6 +291,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
     /* Keep track of the selected update. */
     upd = upd_select->upd;
+
+#ifdef HAVE_DIAGNOSTIC
+    /* Double check the update is visible if running with read uncommitted. */
+    if (!is_hs_page && !WT_IS_METADATA(session->dhandle) &&
+      session->txn.isolation == WT_ISO_READ_UNCOMMITTED) {
+        session->txn.isolation = WT_ISO_READ_COMMITTED;
+        WT_ASSERT(session, __wt_txn_upd_visible(session, upd));
+        session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
+    }
+#endif
 
     /* Reconciliation should never see an aborted or reserved update. */
     WT_ASSERT(
