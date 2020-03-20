@@ -48,16 +48,6 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t durable_sta
 }
 
 /*
- * __cell_unexpected_prepare --
- *     Issue a standard error message when an item marked as prepared is found in a cell.
- */
-static inline int
-__cell_unexpected_prepare(WT_SESSION_IMPL *session)
-{
-    WT_RET_MSG(session, EINVAL, "prepared item in data file");
-}
-
-/*
  * __cell_pack_value_validity --
  *     Pack the validity window for a value.
  */
@@ -900,8 +890,6 @@ restart:
           unpack->start_txn, unpack->stop_ts, unpack->stop_txn);
         break;
     }
-    if (F_ISSET(unpack, WT_CELL_UNPACK_PREPARE))
-        WT_RET(__cell_unexpected_prepare(session));
 
     /*
      * Check for an RLE count or record number that optionally follows the cell descriptor byte on
