@@ -70,7 +70,7 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_
     if (durable_start_ts == WT_TS_NONE && start_ts == WT_TS_NONE && start_txn == WT_TXN_NONE &&
       durable_stop_ts == WT_TS_NONE && stop_ts == WT_TS_MAX && stop_txn == WT_TXN_MAX) {
         ++*pp;
-	return;
+        return;
     }
 
     __cell_check_value_validity(
@@ -83,37 +83,37 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_
 
     flags = 0;
     if (start_ts != WT_TS_NONE) {
-	WT_IGNORE_RET(__wt_vpack_uint(pp, 0, start_ts));
-	LF_SET(WT_CELL_TS_START);
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, start_ts));
+        LF_SET(WT_CELL_TS_START);
     }
     if (start_txn != WT_TXN_NONE) {
-	WT_IGNORE_RET(__wt_vpack_uint(pp, 0, start_txn));
-	LF_SET(WT_CELL_TXN_START);
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, start_txn));
+        LF_SET(WT_CELL_TXN_START);
     }
     if (durable_start_ts != WT_TS_NONE) {
-	/* Store differences, not absolutes. */
-	WT_ASSERT(session, start_ts != WT_TS_NONE && start_ts <= durable_start_ts);
-	WT_IGNORE_RET(__wt_vpack_uint(pp, 0, durable_start_ts - start_ts));
-	LF_SET(WT_CELL_TS_DURABLE_START);
+        /* Store differences, not absolutes. */
+        WT_ASSERT(session, start_ts != WT_TS_NONE && start_ts <= durable_start_ts);
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, durable_start_ts - start_ts));
+        LF_SET(WT_CELL_TS_DURABLE_START);
     }
     if (stop_ts != WT_TS_MAX) {
-	/* Store differences, not absolutes. */
-	WT_IGNORE_RET(__wt_vpack_uint(pp, 0, stop_ts - start_ts));
-	LF_SET(WT_CELL_TS_STOP);
+        /* Store differences, not absolutes. */
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, stop_ts - start_ts));
+        LF_SET(WT_CELL_TS_STOP);
     }
     if (stop_txn != WT_TXN_MAX) {
-	/* Store differences, not absolutes. */
-	WT_IGNORE_RET(__wt_vpack_uint(pp, 0, stop_txn - start_txn));
-	LF_SET(WT_CELL_TXN_STOP);
+        /* Store differences, not absolutes. */
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, stop_txn - start_txn));
+        LF_SET(WT_CELL_TXN_STOP);
     }
     if (durable_stop_ts != WT_TS_NONE) {
-	/* Store differences, not absolutes. */
-	WT_ASSERT(session, stop_ts != WT_TS_MAX && stop_ts <= durable_stop_ts);
-	WT_IGNORE_RET(__wt_vpack_uint(pp, 0, durable_stop_ts - stop_ts));
-	LF_SET(WT_CELL_TS_DURABLE_STOP);
+        /* Store differences, not absolutes. */
+        WT_ASSERT(session, stop_ts != WT_TS_MAX && stop_ts <= durable_stop_ts);
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, durable_stop_ts - stop_ts));
+        LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
     if (prepare)
-	LF_SET(WT_CELL_PREPARE);
+        LF_SET(WT_CELL_PREPARE);
     *flagsp = flags;
 }
 
@@ -182,7 +182,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
       oldest_start_ts == WT_TS_NONE && oldest_start_txn == WT_TXN_NONE &&
       newest_stop_ts == WT_TS_MAX && newest_stop_txn == WT_TXN_MAX) {
         ++*pp;
-	return;
+        return;
     }
 
     __wt_check_addr_validity(session, start_durable_ts, oldest_start_ts, oldest_start_txn,
@@ -195,42 +195,42 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
 
     flags = 0;
     if (oldest_start_ts != WT_TS_NONE) {
-	WT_IGNORE_RET(__wt_vpack_uint(pp, 0, oldest_start_ts));
-	LF_SET(WT_CELL_TS_START);
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, oldest_start_ts));
+        LF_SET(WT_CELL_TS_START);
     }
     if (oldest_start_txn != WT_TXN_NONE) {
-	WT_IGNORE_RET(__wt_vpack_uint(pp, 0, oldest_start_txn));
-	LF_SET(WT_CELL_TXN_START);
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, oldest_start_txn));
+        LF_SET(WT_CELL_TXN_START);
     }
     if (start_durable_ts != WT_TS_NONE) {
-	/* Store differences, not absolutes. */
-	/*
-	 * FIXME-prepare-support:
-	 * WT_ASSERT(
-	 *  session, oldest_start_ts != WT_TS_NONE && oldest_start_ts <= start_durable_ts);
-	 */
-	WT_IGNORE_RET(__wt_vpack_uint(pp, 0, start_durable_ts - oldest_start_ts));
-	LF_SET(WT_CELL_TS_DURABLE_START);
+        /* Store differences, not absolutes. */
+        /*
+         * FIXME-prepare-support:
+         * WT_ASSERT(
+         *  session, oldest_start_ts != WT_TS_NONE && oldest_start_ts <= start_durable_ts);
+         */
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, start_durable_ts - oldest_start_ts));
+        LF_SET(WT_CELL_TS_DURABLE_START);
     }
     if (newest_stop_ts != WT_TS_MAX) {
-	/* Store differences, not absolutes. */
-	WT_IGNORE_RET(__wt_vpack_uint(pp, 0, newest_stop_ts - oldest_start_ts));
-	LF_SET(WT_CELL_TS_STOP);
+        /* Store differences, not absolutes. */
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, newest_stop_ts - oldest_start_ts));
+        LF_SET(WT_CELL_TS_STOP);
     }
     if (newest_stop_txn != WT_TXN_MAX) {
-	/* Store differences, not absolutes. */
-	WT_IGNORE_RET(__wt_vpack_uint(pp, 0, newest_stop_txn - oldest_start_txn));
-	LF_SET(WT_CELL_TXN_STOP);
+        /* Store differences, not absolutes. */
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, newest_stop_txn - oldest_start_txn));
+        LF_SET(WT_CELL_TXN_STOP);
     }
     if (stop_durable_ts != WT_TS_NONE) {
-	/* Store differences, not absolutes. */
-	/*
-	 * FIXME-prepare-support:
-	 * WT_ASSERT(session,
-	 *   newest_stop_ts != WT_TS_MAX && newest_stop_ts <= stop_durable__ts);
-	*/
-	WT_IGNORE_RET(__wt_vpack_uint(pp, 0, stop_durable_ts - newest_stop_ts));
-	LF_SET(WT_CELL_TS_DURABLE_STOP);
+        /* Store differences, not absolutes. */
+        /*
+         * FIXME-prepare-support:
+         * WT_ASSERT(session,
+         *   newest_stop_ts != WT_TS_MAX && newest_stop_ts <= stop_durable__ts);
+        */
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, stop_durable_ts - newest_stop_ts));
+        LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
     *flagsp = flags;
 }
