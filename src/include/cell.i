@@ -1040,6 +1040,7 @@ __wt_cell_unpack_dsk(
         unpack->prefix = 0;
         unpack->raw = unpack->type = WT_CELL_VALUE;
         unpack->flags = 0;
+        unpack->newest_durable_ts = WT_TS_NONE;
         unpack->ovfl = 0;
         return;
     }
