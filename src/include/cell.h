@@ -154,17 +154,20 @@ struct __wt_cell_unpack {
     uint64_t v; /* RLE count or recno */
 
     /* Value validity window */
-    wt_timestamp_t start_ts; /* default value: WT_TS_NONE */
-    uint64_t start_txn;      /* default value: WT_TXN_NONE */
-    wt_timestamp_t stop_ts;  /* default value: WT_TS_MAX */
-    uint64_t stop_txn;       /* default value: WT_TXN_MAX */
+    wt_timestamp_t start_ts;         /* default value: WT_TS_NONE */
+    uint64_t start_txn;              /* default value: WT_TXN_NONE */
+    wt_timestamp_t durable_start_ts; /* default value: WT_TS_NONE */
+    wt_timestamp_t stop_ts;          /* default value: WT_TS_MAX */
+    uint64_t stop_txn;               /* default value: WT_TXN_MAX */
+    wt_timestamp_t durable_stop_ts;  /* default value: WT_TS_NONE */
 
     /* Address validity window */
-    wt_timestamp_t oldest_start_ts;   /* default value: WT_TS_NONE */
-    uint64_t oldest_start_txn;        /* default value: WT_TXN_NONE */
-    wt_timestamp_t newest_durable_ts; /* default value: WT_TS_NONE */
-    wt_timestamp_t newest_stop_ts;    /* default value: WT_TS_MAX */
-    uint64_t newest_stop_txn;         /* default value: WT_TXN_MAX */
+    wt_timestamp_t oldest_start_ts;         /* default value: WT_TS_NONE */
+    uint64_t oldest_start_txn;              /* default value: WT_TXN_NONE */
+    wt_timestamp_t newest_start_durable_ts; /* default value: WT_TS_NONE */
+    wt_timestamp_t newest_stop_ts;          /* default value: WT_TS_MAX */
+    uint64_t newest_stop_txn;               /* default value: WT_TXN_MAX */
+    wt_timestamp_t newest_stop_durable_ts;  /* default value: WT_TS_NONE */
 
     /*
      * !!!
@@ -187,5 +190,7 @@ struct __wt_cell_unpack {
 #define WT_CELL_UNPACK_TIME_PAIRS_CLEARED 0x4u /* time pairs are cleared because of restart */
                                                /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
+
+    wt_timestamp_t newest_durable_ts; /* 4.2, 4.4 compatibility */
     uint8_t ovfl;
 };
