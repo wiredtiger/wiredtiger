@@ -117,7 +117,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
 
         # Test if we can read prepared updates from the history store.
         cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
         for i in range(1, nsessions * nkeys):
             cursor.set_key(ds.key(nrows + i))
             # The search should pass.
@@ -146,7 +146,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # Finally, search for the keys inserted with commit timestamp
         cursor = self.session.open_cursor(self.uri)
         self.pr('Read Keys')
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
         for i in range(1, nkeys):
             cursor.set_key(ds.key(nrows + i))
             # The search should pass
@@ -167,7 +167,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
 
         # Search the keys inserted with commit timestamp after crash
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
         for i in range(1, nkeys):
             cursor.set_key(ds.key(nrows + i))
             # The search should pass
