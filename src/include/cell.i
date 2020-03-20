@@ -906,8 +906,10 @@ restart:
             WT_RET(__wt_vunpack_uint(
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->durable_stop_ts));
             unpack->durable_stop_ts += unpack->stop_ts;
-        } else
+        } else if (unpack->stop_ts != WT_TS_MAX)
             unpack->durable_stop_ts = unpack->stop_ts;
+        else
+            unpack->durable_stop_ts = WT_TS_NONE;
 
         __cell_check_value_validity(session, unpack->durable_start_ts, unpack->start_ts,
           unpack->start_txn, unpack->durable_stop_ts, unpack->stop_ts, unpack->stop_txn);
