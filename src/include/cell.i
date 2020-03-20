@@ -66,7 +66,7 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_
 {
     uint8_t flags, *flagsp;
 
-    /* Globally visible values have no associated validity window, set a flag bit and store them. */
+    /* Globally visible values have no associated validity window. */
     if (durable_start_ts == WT_TS_NONE && start_ts == WT_TS_NONE && start_txn == WT_TXN_NONE &&
       durable_stop_ts == WT_TS_NONE && stop_ts == WT_TS_MAX && stop_txn == WT_TXN_MAX) {
         ++*pp;
@@ -177,7 +177,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
 {
     uint8_t flags, *flagsp;
 
-    /* Globally visible values have no associated validity window, set a flag bit and store them. */
+    /* Globally visible values have no associated validity window. */
     if (start_durable_ts == WT_TS_NONE && stop_durable_ts == WT_TS_NONE &&
       oldest_start_ts == WT_TS_NONE && oldest_start_txn == WT_TXN_NONE &&
       newest_stop_ts == WT_TS_MAX && newest_stop_txn == WT_TXN_MAX) {
