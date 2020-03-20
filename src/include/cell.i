@@ -786,6 +786,7 @@ restart:
     unpack->raw = (uint8_t)__wt_cell_type_raw(cell);
     unpack->type = (uint8_t)__wt_cell_type(cell);
     unpack->flags = 0;
+    unpack->newest_durable_ts = WT_TS_NONE;
     unpack->ovfl = 0;
 
     /*
