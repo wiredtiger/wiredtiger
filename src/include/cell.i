@@ -18,40 +18,32 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t durable_sta
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (start_ts > durable_start_ts) {
-        __wt_errx(session, "a start timestamp %s newer than its durable start timestamp %s",
+    if (start_ts > durable_start_ts)
+        WT_ERR_ASSERT(session, start_ts <= durable_start_ts, WT_PANIC,
+          "a start timestamp %s newer than its durable start timestamp %s",
           __wt_timestamp_to_string(start_ts, ts_string[0]),
           __wt_timestamp_to_string(durable_start_ts, ts_string[1]));
-        WT_ASSERT(session, start_ts <= durable_start_ts);
-    }
 
-    if (start_ts != WT_TS_NONE && stop_ts == WT_TS_NONE) {
-        __wt_errx(session, "stop timestamp of 0");
-        WT_ASSERT(session, stop_ts != WT_TS_NONE);
-    }
-    if (start_ts > stop_ts) {
-        __wt_errx(session, "a start timestamp %s newer than its stop timestamp %s",
+    if (start_ts != WT_TS_NONE && stop_ts == WT_TS_NONE)
+        WT_ERR_ASSERT(session, stop_ts != WT_TS_NONE, WT_PANIC, "stop timestamp of 0");
+
+    if (start_ts > stop_ts)
+        WT_ERR_ASSERT(session, start_ts <= stop_ts, WT_PANIC,
+          "a start timestamp %s newer than its stop timestamp %s",
           __wt_timestamp_to_string(start_ts, ts_string[0]),
           __wt_timestamp_to_string(stop_ts, ts_string[1]));
-        WT_ASSERT(session, start_ts <= stop_ts);
-    }
 
-    if (start_txn > stop_txn) {
-        __wt_errx(session, "a start transaction ID %" PRIu64
-                           " newer than its stop "
-                           "transaction ID %" PRIu64,
+    if (start_txn > stop_txn)
+        WT_ERR_ASSERT(session, start_txn <= stop_txn, WT_PANIC,
+          "a start transaction ID %" PRIu64 " newer than its stop transaction ID %" PRIu64,
           start_txn, stop_txn);
-        WT_ASSERT(session, start_txn <= stop_txn);
-    }
 
-    if (stop_ts != WT_TS_MAX && stop_ts > durable_stop_ts) {
-        __wt_errx(session,
-          "a stop timestamp %s newer than its durable "
-          "stop timestamp %s",
+    if (stop_ts != WT_TS_MAX && stop_ts > durable_stop_ts)
+        WT_ERR_ASSERT(session, stop_ts <= durable_stop_ts, WT_PANIC,
+          "a stop timestamp %s newer than its durable stop timestamp %s",
           __wt_timestamp_to_string(stop_ts, ts_string[0]),
           __wt_timestamp_to_string(durable_stop_ts, ts_string[1]));
-        WT_ASSERT(session, stop_ts <= durable_stop_ts);
-    }
+
 #else
     WT_UNUSED(session);
     WT_UNUSED(durable_start_ts);
@@ -136,41 +128,32 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_durable_
 #ifdef HAVE_DIAGNOSTIC
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (oldest_start_ts != WT_TS_NONE && newest_stop_ts == WT_TS_NONE) {
-        __wt_errx(session, "newest stop timestamp of 0");
-        WT_ASSERT(session, newest_stop_ts != WT_TS_NONE);
-    }
-    if (oldest_start_ts > newest_stop_ts) {
-        __wt_errx(session,
-          "an oldest start timestamp %s newer than its newest "
-          "stop timestamp %s",
+    if (oldest_start_ts != WT_TS_NONE && newest_stop_ts == WT_TS_NONE)
+        WT_ERR_ASSERT(
+          session, newest_stop_ts != WT_TS_NONE, WT_PANIC, "newest stop timestamp of 0");
+
+    if (oldest_start_ts > newest_stop_ts)
+        WT_ERR_ASSERT(session, oldest_start_ts <= newest_stop_ts, WT_PANIC,
+          "an oldest start timestamp %s newer than its newest stop timestamp %s",
           __wt_timestamp_to_string(oldest_start_ts, ts_string[0]),
           __wt_timestamp_to_string(newest_stop_ts, ts_string[1]));
-        WT_ASSERT(session, oldest_start_ts <= newest_stop_ts);
-    }
-    if (oldest_start_txn > newest_stop_txn) {
-        __wt_errx(session, "an oldest start transaction %" PRIu64
-                           " newer than its "
-                           "newest stop transaction %" PRIu64,
+
+    if (oldest_start_txn > newest_stop_txn)
+        WT_ERR_ASSERT(session, oldest_start_txn <= newest_stop_txn, WT_PANIC,
+          "an oldest start transaction %" PRIu64 " newer than its newest stop transaction %" PRIu64,
           oldest_start_txn, newest_stop_txn);
-        WT_ASSERT(session, oldest_start_txn <= newest_stop_txn);
-    }
-    if (oldest_start_ts > start_durable_ts) {
-        __wt_errx(session,
-          "an oldest start timestamp %s newer than its durable "
-          "start timestamp %s",
+
+    if (oldest_start_ts > start_durable_ts)
+        WT_ERR_ASSERT(session, oldest_start_ts <= start_durable_ts, WT_PANIC,
+          "an oldest start timestamp %s newer than its durable start timestamp %s",
           __wt_timestamp_to_string(oldest_start_ts, ts_string[0]),
           __wt_timestamp_to_string(start_durable_ts, ts_string[1]));
-        WT_ASSERT(session, oldest_start_ts <= start_durable_ts);
-    }
-    if (newest_stop_ts != WT_TS_MAX && newest_stop_ts > stop_durable_ts) {
-        __wt_errx(session,
-          "a newest stop timestamp %s newer than its durable "
-          "stop timestamp %s",
+
+    if (newest_stop_ts != WT_TS_MAX && newest_stop_ts > stop_durable_ts)
+        WT_ERR_ASSERT(session, newest_stop_ts <= stop_durable_ts, WT_PANIC,
+          "a newest stop timestamp %s newer than its durable stop timestamp %s",
           __wt_timestamp_to_string(newest_stop_ts, ts_string[0]),
           __wt_timestamp_to_string(stop_durable_ts, ts_string[1]));
-        WT_ASSERT(session, newest_stop_ts <= stop_durable_ts);
-    }
 #else
     WT_UNUSED(session);
     WT_UNUSED(start_durable_ts);
