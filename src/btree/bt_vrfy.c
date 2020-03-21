@@ -690,6 +690,8 @@ err:
         WT_TRET(data_cursor->close(data_cursor));
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
     __wt_scr_free(session, &tmp);
+    __wt_buf_free(session, &hs_key);
+    __wt_buf_free(session, &prev_hs_key);
     __wt_free(session, uri_itr);
     return (ret);
 }
