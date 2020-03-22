@@ -37,6 +37,7 @@ build_release()
 #############################################################
 # run_format:
 #       arg1: release
+#       arg2: access methods list
 #############################################################
 run_format()
 {
@@ -60,8 +61,9 @@ run_format()
         args+="timer=4 "
         args+="verify=0 "                       # Faster runs
 
-        for am in fix row var; do
+        for am in $2; do
             dir="RUNDIR.$am"
+            echo "./t running $am access method..."
             ./t -1q -h $dir "file_type=$am" $args
         done
 }
@@ -76,6 +78,7 @@ EXT+="]"
 # verify_backward:
 #       arg1: release #1
 #       arg2: release #2
+#       arg3: access methods list
 #############################################################
 verify_backward()
 {
@@ -84,9 +87,9 @@ verify_backward()
         echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
         
         cd "$1"
-        for am in fix row var; do
+        for am in $3; do
             dir="$2/test/format/RUNDIR.$am"
-            echo "$1/wt verifying $2..."
+            echo "$1/wt verifying $2 access method $am..."
 
             WIREDTIGER_CONFIG="$EXT" ./wt -h "../$dir" verify table:wt
         done
@@ -115,17 +118,17 @@ cd ..
 (build_release "$rel40")
 (build_release "$rel42")
 
-# Run format in each release for each access method type.
-(run_format "$rel34")
-(run_format "$rel36")
-(run_format "$rel40")
-(run_format "$rel42")
-(run_format "develop")
+# Run format in each release for supported access methods.
+(run_format "$rel34" "fix row var")
+(run_format "$rel36" "fix row var")
+(run_format "$rel40" "fix row var")
+(run_format "$rel42" "fix row var")
+(run_format "develop" "row")
 
-# Verify backward compatibility.
-(verify_backward $rel36 "$rel34")
-(verify_backward $rel40 "$rel36")
-(verify_backward $rel42 "$rel40")
-(verify_backward "develop" "$rel42")
+# Verify backward compatibility for supported access methods.
+(verify_backward $rel36 "$rel34" "fix row var")
+(verify_backward $rel40 "$rel36" "fix row var")
+(verify_backward $rel42 "$rel40" "fix row var")
+(verify_backward "develop" "$rel42" "row")
 
 exit 0
