@@ -558,6 +558,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     if (ret == WT_NOTFOUND)
         hs_exists = false;
     WT_ERR_NOTFOUND_OK(ret);
+    /* Unpin the page from cache. */
+    WT_ERR(metac->reset(metac));
 
     /*
      * If no log was found (including if logging is disabled), or if the last checkpoint was done
