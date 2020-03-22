@@ -109,15 +109,14 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
         downgrade = true;
     } else {
         first_record = WT_LOG_END_HEADER + log->allocsize;
+        new_version = WT_LOG_VERSION;
+        downgrade = false;
         if (conn->compat_minor == WT_LOG_V2_MINOR) {
             new_version = 2;
             downgrade = true;
         } else if (conn->compat_minor < WT_LOG_V4_MINOR) {
             new_version = 3;
             downgrade = true;
-        } else {
-            new_version = WT_LOG_VERSION;
-            downgrade = false;
         }
     }
 
