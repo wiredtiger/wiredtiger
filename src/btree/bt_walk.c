@@ -515,7 +515,8 @@ descend:
 done:
 err:
     WT_TRET(__wt_page_release(session, couple, flags));
-    WT_TRET(__wt_page_release(session, ref_orig, flags));
+    if (ret != 0 || *refp != ref_orig)
+        WT_TRET(__wt_page_release(session, ref_orig, flags));
     WT_LEAVE_PAGE_INDEX(session);
     return (ret);
 }
