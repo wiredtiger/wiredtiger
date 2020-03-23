@@ -523,13 +523,14 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
     char *config;
-    bool do_checkpoint, eviction_started, needs_rec, was_backup;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
 
     conn = S2C(session);
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
-    do_checkpoint = true;
+    do_checkpoint = hs_exists = true;
     eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
@@ -630,6 +631,17 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     WT_NOT_READ(metafile, NULL);
 
     /*
+     * While we have the metadata cursor open, we should check whether the history store file exists
+     * or not. If it does not, then we should not apply rollback to stable to each table. This might
+     * happen if we're upgrading from an older version.
+     */
+    metac->set_key(metac, WT_HS_URI);
+    ret = metac->search(metac);
+    if (ret == WT_NOTFOUND)
+        hs_exists = false;
+    WT_ERR_NOTFOUND_OK(ret);
+
+    /*
      * We no longer need the metadata cursor: close it to avoid pinning any resources that could
      * block eviction during recovery.
      */
@@ -695,8 +707,10 @@ done:
      * 2. A valid recovery timestamp. The recovery timestamp is the stable timestamp retrieved
      *    from the metadata checkpoint information to indicate the stable timestamp when the
      *    checkpoint happened. Anything updates newer than this timestamp must rollback.
+     * 3. The history store file was found in the metadata.
      */
-    if (!F_ISSET(conn, WT_CONN_READONLY) && conn->txn_global.recovery_timestamp != WT_TS_NONE) {
+    if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY) &&
+      conn->txn_global.recovery_timestamp != WT_TS_NONE) {
         /* Start the eviction threads for rollback to stable if not already started. */
         if (!eviction_started) {
             WT_ERR(__wt_evict_create(session));
@@ -733,8 +747,13 @@ done:
          */
         conn->txn_global.oldest_timestamp = WT_TS_NONE;
         conn->txn_global.has_oldest_timestamp = true;
+        __wt_verbose(session, WT_VERB_RTS,
+          "Performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
+          "%s",
+          __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
 
-        WT_ERR(__wt_rollback_to_stable(session, NULL));
+        WT_ERR(__wt_rollback_to_stable(session, NULL, false));
 
         /* Reset the oldest timestamp. */
         conn->txn_global.oldest_timestamp = WT_TS_NONE;

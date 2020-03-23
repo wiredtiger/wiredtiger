@@ -21,8 +21,7 @@ all_TESTS += random_abort/smoke.sh
 
 test_random_directio_SOURCES = random_directio/main.c random_directio/util.c
 noinst_PROGRAMS += test_random_directio
-# Temporarily disabled
-# all_TESTS += random_directio/smoke.sh
+all_TESTS += random_directio/smoke.sh
 
 test_rwlock_SOURCES = rwlock/main.c
 noinst_PROGRAMS += test_rwlock
@@ -30,8 +29,7 @@ all_TESTS += test_rwlock
 
 test_schema_abort_SOURCES = schema_abort/main.c
 noinst_PROGRAMS += test_schema_abort
-# Temporarily disabled
-# all_TESTS += schema_abort/smoke.sh
+all_TESTS += schema_abort/smoke.sh
 
 test_scope_SOURCES = scope/main.c
 noinst_PROGRAMS += test_scope
@@ -137,8 +135,7 @@ all_TESTS += test_wt4156_metadata_salvage
 
 test_wt4333_handle_locks_SOURCES = wt4333_handle_locks/main.c
 noinst_PROGRAMS += test_wt4333_handle_locks
-# Temporarily disabled
-# all_TESTS += test_wt4333_handle_locks
+all_TESTS += test_wt4333_handle_locks
 
 test_wt4699_json_SOURCES = wt4699_json/main.c
 noinst_PROGRAMS += test_wt4699_json

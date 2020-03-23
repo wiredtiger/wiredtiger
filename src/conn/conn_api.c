@@ -1055,12 +1055,6 @@ err:
     WT_TRET(__wt_txn_activity_drain(session));
 
     /*
-     * Disable history store eviction: it doesn't help us shut down and can lead to pages being
-     * marked dirty, causing spurious assertions to fire.
-     */
-    F_SET(conn, WT_CONN_EVICTION_NO_HS);
-
-    /*
      * Clear any pending async operations and shut down the async worker threads and system before
      * closing LSM.
      */
@@ -1244,7 +1238,7 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
 
     CONNECTION_API_CALL(conn, session, rollback_to_stable, config, cfg);
     WT_STAT_CONN_INCR(session, txn_rts);
-    WT_TRET(__wt_rollback_to_stable(session, cfg));
+    WT_TRET(__wt_rollback_to_stable(session, cfg, false));
 err:
     API_END_RET(session, ret);
 }
@@ -1304,8 +1298,9 @@ __conn_config_check_version(WT_SESSION_IMPL *session, const char *config)
     if (vmajor.val > WIREDTIGER_VERSION_MAJOR ||
       (vmajor.val == WIREDTIGER_VERSION_MAJOR && vminor.val > WIREDTIGER_VERSION_MINOR))
         WT_RET_MSG(session, ENOTSUP,
-          "WiredTiger configuration is from an incompatible release "
-          "of the WiredTiger engine");
+          "WiredTiger configuration is from an incompatible release of the WiredTiger engine, "
+          "configuration major, minor of (%" PRId64 ", %" PRId64 "), with build (%d, %d)",
+          vmajor.val, vminor.val, WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR);
 
     return (0);
 }
@@ -2577,6 +2572,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));
     conn->mmap = cval.val != 0;
+
+    WT_ERR(__wt_config_gets(session, cfg, "mmap_all", &cval));
+    conn->mmap_all = cval.val != 0;
 
     WT_ERR(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
     conn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);

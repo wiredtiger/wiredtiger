@@ -249,7 +249,8 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
     if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
         __wt_cell_unpack(session, from_home, (WT_CELL *)ref_addr, &unpack);
         WT_RET(__wt_calloc_one(session, &addr));
-        addr->newest_durable_ts = unpack.newest_durable_ts;
+        addr->start_durable_ts = unpack.newest_start_durable_ts;
+        addr->stop_durable_ts = unpack.newest_stop_durable_ts;
         addr->oldest_start_ts = unpack.oldest_start_ts;
         addr->oldest_start_txn = unpack.oldest_start_txn;
         addr->newest_stop_ts = unpack.newest_stop_ts;
@@ -853,7 +854,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
       parent_entries, result_entries, deleted_entries);
 
 err:
-    __wt_scr_free(session, &scr);
     /*
      * A note on error handling: if we completed the split, return success, nothing really bad can
      * have happened, and our caller has to proceed with the split.
@@ -889,6 +889,7 @@ err:
         }
         break;
     }
+    __wt_scr_free(session, &scr);
     return (ret);
 }
 
@@ -1626,7 +1627,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     if (multi->addr.addr != NULL) {
         WT_RET(__wt_calloc_one(session, &addr));
         ref->addr = addr;
-        addr->newest_durable_ts = multi->addr.newest_durable_ts;
+        addr->start_durable_ts = multi->addr.start_durable_ts;
+        addr->stop_durable_ts = multi->addr.stop_durable_ts;
         addr->oldest_start_ts = multi->addr.oldest_start_ts;
         addr->oldest_start_txn = multi->addr.oldest_start_txn;
         addr->newest_stop_ts = multi->addr.newest_stop_ts;

@@ -1576,6 +1576,13 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
+    /*
+     * Even if we're not verifying the history store, we need to be able to iterate over the history
+     * store content for another table. In order to do this, we must ignore tombstones in the
+     * history store since every history store record is succeeded with a tombstone.
+     */
+    F_SET(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
+
     /* Block out checkpoints to avoid spurious EBUSY errors. */
     WT_ERR(__wt_config_gets(session, cfg, "history_store", &cval));
     if (cval.val == true) {
@@ -1596,6 +1603,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
               WT_WITH_SCHEMA_LOCK(session, ret = __wt_verify_history_store_tree(session, uri)));
     }
 err:
+    F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
     if (ret != 0)
         WT_STAT_CONN_INCR(session, session_table_verify_fail);
     else

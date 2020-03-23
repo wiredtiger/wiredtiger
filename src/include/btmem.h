@@ -27,12 +27,13 @@
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_REC_CHECKPOINT 0x01u
-#define WT_REC_EVICT 0x02u
-#define WT_REC_HS 0x04u
-#define WT_REC_IN_MEMORY 0x08u
-#define WT_REC_SCRUB 0x10u
-#define WT_REC_VISIBILITY_ERR 0x20u
-#define WT_REC_VISIBLE_ALL 0x40u
+#define WT_REC_CLEAN_AFTER_REC 0x02u
+#define WT_REC_EVICT 0x04u
+#define WT_REC_HS 0x08u
+#define WT_REC_IN_MEMORY 0x10u
+#define WT_REC_SCRUB 0x20u
+#define WT_REC_VISIBILITY_ERR 0x40u
+#define WT_REC_VISIBLE_ALL 0x80u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
@@ -73,6 +74,7 @@ struct __wt_page_header {
 #define WT_PAGE_EMPTY_V_ALL 0x02u  /* Page has all zero-length values */
 #define WT_PAGE_EMPTY_V_NONE 0x04u /* Page has no zero-length values */
 #define WT_PAGE_ENCRYPTED 0x08u    /* Page is encrypted on disk */
+#define WT_PAGE_UNUSED 0x10u       /* Historic lookaside store page updates, no longer used */
     uint8_t flags;                 /* 25: flags */
 
     /* A byte of padding, positioned to be added to the flags. */
@@ -121,11 +123,12 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  */
 struct __wt_addr {
     /* Validity window */
-    wt_timestamp_t newest_durable_ts;
     wt_timestamp_t oldest_start_ts;
     uint64_t oldest_start_txn;
+    wt_timestamp_t start_durable_ts;
     wt_timestamp_t newest_stop_ts;
     uint64_t newest_stop_txn;
+    wt_timestamp_t stop_durable_ts;
 
     uint8_t *addr; /* Block-manager's cookie */
     uint8_t size;  /* Block-manager's cookie length */
@@ -152,11 +155,12 @@ struct __wt_addr {
  */
 struct __wt_addr_copy {
     /* Validity window */
-    wt_timestamp_t newest_durable_ts;
     wt_timestamp_t oldest_start_ts;
     uint64_t oldest_start_txn;
+    wt_timestamp_t start_durable_ts;
     wt_timestamp_t newest_stop_ts;
     uint64_t newest_stop_txn;
+    wt_timestamp_t stop_durable_ts;
 
     uint8_t type;
 

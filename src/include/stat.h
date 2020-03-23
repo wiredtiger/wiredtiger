@@ -322,10 +322,16 @@ struct __wt_connection_stats {
     int64_t block_read;
     int64_t block_write;
     int64_t block_byte_read;
+    int64_t block_byte_read_mmap;
+    int64_t block_byte_read_syscall;
     int64_t block_byte_write;
     int64_t block_byte_write_checkpoint;
+    int64_t block_byte_write_mmap;
+    int64_t block_byte_write_syscall;
     int64_t block_map_read;
     int64_t block_byte_map_read;
+    int64_t block_remap_file_resize;
+    int64_t block_remap_file_write;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
@@ -387,6 +393,8 @@ struct __wt_connection_stats {
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
     int64_t cache_hazard_max;
+    int64_t cache_hs_key_truncate_mix_ts;
+    int64_t cache_hs_key_truncate_onpage_removal;
     int64_t cache_hs_score;
     int64_t cache_hs_insert;
     int64_t cache_hs_ondisk_max;
@@ -394,6 +402,7 @@ struct __wt_connection_stats {
     int64_t cache_hs_read;
     int64_t cache_hs_read_miss;
     int64_t cache_hs_read_squash;
+    int64_t cache_hs_remove_key_truncate;
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
     int64_t cache_inmem_split;

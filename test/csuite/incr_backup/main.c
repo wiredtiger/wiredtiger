@@ -295,7 +295,7 @@ again:
             testutil_check(
               __wt_snprintf(filename, sizeof(filename), "%s/%s", dirname, prev->names[prevpos]));
             VERBOSE(3, "Removing file from backup: %s\n", filename);
-            remove(filename);
+            testutil_check(remove(filename));
         } else {
             /*
              * There is something in the current list not in the prev list. Walk past it in the
@@ -366,6 +366,7 @@ table_changes(WT_SESSION *session, TABLE *table)
             item.size = table->max_value_size;
             key_value(change_count, key, sizeof(key), &item, &op_type);
             cur->set_key(cur, key);
+            testutil_assert(op_type < _OPERATION_TYPE_COUNT);
             switch (op_type) {
             case INSERT:
                 cur->set_value(cur, &item);
@@ -388,7 +389,6 @@ table_changes(WT_SESSION *session, TABLE *table)
                 testutil_check(cur->update(cur));
                 break;
             case _OPERATION_TYPE_COUNT:
-                testutil_assert(false);
                 break;
             }
         }
@@ -449,6 +449,25 @@ drop_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
     tinfo->table[slot].name = NULL;
     tinfo->table[slot].change_count = 0;
     tinfo->tables_in_use--;
+}
+
+/*
+ * tables_free --
+ *     Free the list of tables.
+ */
+static void
+tables_free(TABLE_INFO *tinfo)
+{
+    uint32_t slot;
+
+    for (slot = 0; slot < tinfo->table_count; slot++) {
+        if (tinfo->table[slot].name != NULL) {
+            free(tinfo->table[slot].name);
+            tinfo->table[slot].name = NULL;
+        }
+    }
+    free(tinfo->table);
+    tinfo->table = NULL;
 }
 
 static void
@@ -513,7 +532,7 @@ reopen_file(int *fdp, char *buf, size_t buflen, const char *filename, int oflag)
     if (strcmp(buf, filename) == 0 && *fdp != -1)
         return;
     if (*fdp != -1)
-        close(*fdp);
+        testutil_check(close(*fdp));
     *fdp = open(filename, oflag, 0666);
     strncpy(buf, filename, buflen);
     testutil_assert(*fdp >= 0);
@@ -634,10 +653,11 @@ check_table(WT_SESSION *session, TABLE *table)
     expect_records = 0;
     total_changes = table->change_count;
     boundary = total_changes % KEYS_PER_TABLE;
-    op_type = (OPERATION_TYPE)(total_changes % CHANGES_PER_CYCLE) / KEYS_PER_TABLE;
+    op_type = (OPERATION_TYPE)((total_changes % CHANGES_PER_CYCLE) / KEYS_PER_TABLE);
     value = dcalloc(1, table->max_value_size);
 
     VERBOSE(3, "Checking: %s\n", table->name);
+    testutil_assert(op_type < _OPERATION_TYPE_COUNT);
     switch (op_type) {
     case INSERT:
         expect_records = total_changes % KEYS_PER_TABLE;
@@ -650,7 +670,6 @@ check_table(WT_SESSION *session, TABLE *table)
         expect_records = KEYS_PER_TABLE - (total_changes % KEYS_PER_TABLE);
         break;
     case _OPERATION_TYPE_COUNT:
-        testutil_assert(false);
         break;
     }
 
@@ -865,6 +884,7 @@ main(int argc, char *argv[])
     testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, NULL));
     active_files_free(&active);
+    tables_free(&tinfo);
 
     printf("Success.\n");
     return (0);

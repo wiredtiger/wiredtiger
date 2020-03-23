@@ -635,8 +635,14 @@ static const char *const __stats_connection_desc[] = {
   "async: total compact calls", "async: total insert calls", "async: total remove calls",
   "async: total search calls", "async: total update calls", "block-manager: blocks pre-loaded",
   "block-manager: blocks read", "block-manager: blocks written", "block-manager: bytes read",
+  "block-manager: bytes read via memory map API", "block-manager: bytes read via system call API",
   "block-manager: bytes written", "block-manager: bytes written for checkpoint",
-  "block-manager: mapped blocks read", "block-manager: mapped bytes read",
+  "block-manager: bytes written via memory map API",
+  "block-manager: bytes written via system call API", "block-manager: mapped blocks read",
+  "block-manager: mapped bytes read",
+  "block-manager: number of times the file was remapped because it changed size via fallocate or "
+  "truncate",
+  "block-manager: number of times the region was remapped via write",
   "cache: application threads page read from disk to cache count",
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
@@ -685,10 +691,13 @@ static const char *const __stats_connection_desc[] = {
   "cache: forced eviction - pages selected unable to be evicted time",
   "cache: hazard pointer blocked page eviction", "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked", "cache: hazard pointer maximum array length",
+  "cache: history store key truncation due to mixed timestamps",
+  "cache: history store key truncation due to the key being removed from the data page",
   "cache: history store score", "cache: history store table insert calls",
   "cache: history store table max on-disk size", "cache: history store table on-disk size",
   "cache: history store table reads", "cache: history store table reads missed",
   "cache: history store table reads requiring squashed modifies",
+  "cache: history store table remove calls due to key truncation",
   "cache: history store table writes requiring squashed modifies",
   "cache: in-memory page passed criteria to be split", "cache: in-memory page splits",
   "cache: internal pages evicted", "cache: internal pages queued for eviction",
@@ -970,10 +979,16 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_read = 0;
     stats->block_write = 0;
     stats->block_byte_read = 0;
+    stats->block_byte_read_mmap = 0;
+    stats->block_byte_read_syscall = 0;
     stats->block_byte_write = 0;
     stats->block_byte_write_checkpoint = 0;
+    stats->block_byte_write_mmap = 0;
+    stats->block_byte_write_syscall = 0;
     stats->block_map_read = 0;
     stats->block_byte_map_read = 0;
+    stats->block_remap_file_resize = 0;
+    stats->block_remap_file_write = 0;
     stats->cache_read_app_count = 0;
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
@@ -1035,6 +1050,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hazard_checks = 0;
     stats->cache_hazard_walks = 0;
     stats->cache_hazard_max = 0;
+    stats->cache_hs_key_truncate_mix_ts = 0;
+    stats->cache_hs_key_truncate_onpage_removal = 0;
     /* not clearing cache_hs_score */
     stats->cache_hs_insert = 0;
     /* not clearing cache_hs_ondisk_max */
@@ -1042,6 +1059,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hs_read = 0;
     stats->cache_hs_read_miss = 0;
     stats->cache_hs_read_squash = 0;
+    stats->cache_hs_remove_key_truncate = 0;
     stats->cache_hs_write_squash = 0;
     stats->cache_inmem_splittable = 0;
     stats->cache_inmem_split = 0;
@@ -1399,10 +1417,16 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_read += WT_STAT_READ(from, block_read);
     to->block_write += WT_STAT_READ(from, block_write);
     to->block_byte_read += WT_STAT_READ(from, block_byte_read);
+    to->block_byte_read_mmap += WT_STAT_READ(from, block_byte_read_mmap);
+    to->block_byte_read_syscall += WT_STAT_READ(from, block_byte_read_syscall);
     to->block_byte_write += WT_STAT_READ(from, block_byte_write);
     to->block_byte_write_checkpoint += WT_STAT_READ(from, block_byte_write_checkpoint);
+    to->block_byte_write_mmap += WT_STAT_READ(from, block_byte_write_mmap);
+    to->block_byte_write_syscall += WT_STAT_READ(from, block_byte_write_syscall);
     to->block_map_read += WT_STAT_READ(from, block_map_read);
     to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
+    to->block_remap_file_resize += WT_STAT_READ(from, block_remap_file_resize);
+    to->block_remap_file_write += WT_STAT_READ(from, block_remap_file_write);
     to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
     to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_READ(from, cache_write_app_count);
@@ -1471,6 +1495,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hazard_walks += WT_STAT_READ(from, cache_hazard_walks);
     if ((v = WT_STAT_READ(from, cache_hazard_max)) > to->cache_hazard_max)
         to->cache_hazard_max = v;
+    to->cache_hs_key_truncate_mix_ts += WT_STAT_READ(from, cache_hs_key_truncate_mix_ts);
+    to->cache_hs_key_truncate_onpage_removal +=
+      WT_STAT_READ(from, cache_hs_key_truncate_onpage_removal);
     to->cache_hs_score += WT_STAT_READ(from, cache_hs_score);
     to->cache_hs_insert += WT_STAT_READ(from, cache_hs_insert);
     to->cache_hs_ondisk_max += WT_STAT_READ(from, cache_hs_ondisk_max);
@@ -1478,6 +1505,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hs_read += WT_STAT_READ(from, cache_hs_read);
     to->cache_hs_read_miss += WT_STAT_READ(from, cache_hs_read_miss);
     to->cache_hs_read_squash += WT_STAT_READ(from, cache_hs_read_squash);
+    to->cache_hs_remove_key_truncate += WT_STAT_READ(from, cache_hs_remove_key_truncate);
     to->cache_hs_write_squash += WT_STAT_READ(from, cache_hs_write_squash);
     to->cache_inmem_splittable += WT_STAT_READ(from, cache_inmem_splittable);
     to->cache_inmem_split += WT_STAT_READ(from, cache_inmem_split);

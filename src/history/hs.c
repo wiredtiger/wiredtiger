@@ -141,12 +141,19 @@ int
 __wt_hs_create(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
 
     conn = S2C(session);
 
     /* Read-only and in-memory configurations don't need the history store table. */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
+
+    /* The LAS table may exist on upgrade. Discard it. */
+    WT_WITH_SCHEMA_LOCK(
+      session, ret = __wt_schema_drop(session, "file:WiredTigerLAS.wt", drop_cfg));
+    WT_RET(ret);
 
     /* Re-create the table. */
     WT_RET(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
@@ -375,6 +382,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
      */
     WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &notused, WT_UPDATE_TOMBSTONE));
     hs_upd->start_ts = stop_ts_pair.timestamp;
+    hs_upd->durable_ts = stop_ts_pair.timestamp;
     hs_upd->txnid = stop_ts_pair.txnid;
 
     /*
@@ -390,7 +398,6 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
      * we don't find a matching key.
      */
     WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &cursor->key, true, NULL, false, NULL));
-    WT_ASSERT(session, cbt->compare != 0);
     WT_ERR(ret);
     WT_ERR(__wt_hs_modify(cbt, hs_upd));
 
@@ -426,8 +433,10 @@ err:
         ret = cursor->next(cursor);
         if (ret == WT_NOTFOUND)
             ret = 0;
-        else if (ret == 0)
+        else if (ret == 0) {
             WT_TRET(__hs_delete_key_from_pos(session, cursor, btree->id, key));
+            WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+        }
         if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
             F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
     }
@@ -660,8 +669,10 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
         /* Skip TOMBSTONE at the end of the update chain. */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
-                if (upd->start_ts == WT_TS_NONE)
+                if (upd->start_ts == WT_TS_NONE) {
                     WT_ERR(__wt_hs_delete_key(session, btree->id, key));
+                    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+                }
                 __wt_modify_vector_pop(&modifies, &upd);
             } else
                 continue;
@@ -685,13 +696,22 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
             __wt_modify_vector_pop(&modifies, &prev_upd);
-            stop_ts_pair.timestamp = prev_upd->start_ts;
+
+            /*
+             * Set the stop timestamp from durable timestamp instead of commit timestamp. The
+             * Garbage collection of history store removes the history values once the stop
+             * timestamp is globally visible. i.e. durable timestamp of data store version.
+             */
+            WT_ASSERT(session, prev_upd->start_ts <= prev_upd->durable_ts);
+            stop_ts_pair.timestamp = prev_upd->durable_ts;
             stop_ts_pair.txnid = prev_upd->txnid;
 
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
-                if (prev_upd->start_ts == WT_TS_NONE)
+                if (prev_upd->start_ts == WT_TS_NONE) {
                     WT_ERR(__wt_hs_delete_key(session, btree->id, key));
+                    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+                }
                 __wt_modify_vector_pop(&modifies, &prev_upd);
                 WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
                 prev_full_value->data = prev_upd->data;
@@ -1214,6 +1234,7 @@ __hs_delete_key_from_pos(
         upd->start_ts = upd->durable_ts = WT_TS_NONE;
         WT_ERR(__wt_hs_modify(hs_cbt, upd));
         upd = NULL;
+        WT_STAT_CONN_INCR(session, cache_hs_remove_key_truncate);
     }
     if (ret == WT_NOTFOUND)
         return (0);

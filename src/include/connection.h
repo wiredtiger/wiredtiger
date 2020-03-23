@@ -35,7 +35,7 @@ extern WT_PROCESS __wt_process;
 
 /*
  * WT_KEYED_ENCRYPTOR --
- *	An list entry for an encryptor with a unique (name, keyid).
+ *	A list entry for an encryptor with a unique (name, keyid).
  */
 struct __wt_keyed_encryptor {
     const char *keyid;       /* Key id of encryptor */
@@ -150,8 +150,7 @@ struct __wt_named_extractor {
 
 /*
  * WT_CONN_HOTBACKUP_START --
- *	Macro to set connection data appropriately for when we commence hot
- *	backup.
+ *	Macro to set connection data appropriately for when we commence hot backup.
  */
 #define WT_CONN_HOTBACKUP_START(conn)   \
     do {                                \
@@ -443,7 +442,8 @@ struct __wt_connection_impl {
     uint64_t direct_io;              /* O_DIRECT, FILE_FLAG_NO_BUFFERING */
     uint64_t write_through;          /* FILE_FLAG_WRITE_THROUGH */
 
-    bool mmap;     /* mmap configuration */
+    bool mmap;     /* use mmap when reading checkpoints */
+    bool mmap_all; /* use mmap for all I/O on data files */
     int page_size; /* OS page size for mmap alignment */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
@@ -527,27 +527,26 @@ struct __wt_connection_impl {
 #define WT_CONN_DEBUG_CURSOR_COPY 0x00000100u
 #define WT_CONN_DEBUG_REALLOC_EXACT 0x00000200u
 #define WT_CONN_DEBUG_SLOW_CKPT 0x00000400u
-#define WT_CONN_EVICTION_NO_HS 0x00000800u
-#define WT_CONN_EVICTION_RUN 0x00001000u
-#define WT_CONN_HS_OPEN 0x00002000u
-#define WT_CONN_INCR_BACKUP 0x00004000u
-#define WT_CONN_IN_MEMORY 0x00008000u
-#define WT_CONN_LEAK_MEMORY 0x00010000u
-#define WT_CONN_LSM_MERGE 0x00020000u
-#define WT_CONN_OPTRACK 0x00040000u
-#define WT_CONN_PANIC 0x00080000u
-#define WT_CONN_READONLY 0x00100000u
-#define WT_CONN_RECONFIGURING 0x00200000u
-#define WT_CONN_RECOVERING 0x00400000u
-#define WT_CONN_SALVAGE 0x00800000u
-#define WT_CONN_SERVER_ASYNC 0x01000000u
-#define WT_CONN_SERVER_CAPACITY 0x02000000u
-#define WT_CONN_SERVER_CHECKPOINT 0x04000000u
-#define WT_CONN_SERVER_LOG 0x08000000u
-#define WT_CONN_SERVER_LSM 0x10000000u
-#define WT_CONN_SERVER_STATISTICS 0x20000000u
-#define WT_CONN_SERVER_SWEEP 0x40000000u
-#define WT_CONN_WAS_BACKUP 0x80000000u
+#define WT_CONN_EVICTION_RUN 0x00000800u
+#define WT_CONN_HS_OPEN 0x00001000u
+#define WT_CONN_INCR_BACKUP 0x00002000u
+#define WT_CONN_IN_MEMORY 0x00004000u
+#define WT_CONN_LEAK_MEMORY 0x00008000u
+#define WT_CONN_LSM_MERGE 0x00010000u
+#define WT_CONN_OPTRACK 0x00020000u
+#define WT_CONN_PANIC 0x00040000u
+#define WT_CONN_READONLY 0x00080000u
+#define WT_CONN_RECONFIGURING 0x00100000u
+#define WT_CONN_RECOVERING 0x00200000u
+#define WT_CONN_SALVAGE 0x00400000u
+#define WT_CONN_SERVER_ASYNC 0x00800000u
+#define WT_CONN_SERVER_CAPACITY 0x01000000u
+#define WT_CONN_SERVER_CHECKPOINT 0x02000000u
+#define WT_CONN_SERVER_LOG 0x04000000u
+#define WT_CONN_SERVER_LSM 0x08000000u
+#define WT_CONN_SERVER_STATISTICS 0x10000000u
+#define WT_CONN_SERVER_SWEEP 0x20000000u
+#define WT_CONN_WAS_BACKUP 0x40000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };

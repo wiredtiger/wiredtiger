@@ -55,10 +55,7 @@ __rec_append_orig_value(
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_UPDATE *append, *tombstone;
-    WT_UPDATE *last_committed_upd;
     size_t size, total_size;
-
-    last_committed_upd = NULL;
 
     for (;; upd = upd->next) {
         /* Done if at least one self-contained update is globally visible. */
@@ -75,9 +72,6 @@ __rec_append_orig_value(
         /* On page value already on chain */
         if (unpack != NULL && unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid)
             return (0);
-
-        if (upd->txnid != WT_TXN_ABORTED)
-            last_committed_upd = upd;
 
         /* Leave reference at the last item in the chain. */
         if (upd->next == NULL)
@@ -97,8 +91,6 @@ __rec_append_orig_value(
     total_size = size = 0;     /* -Wconditional-uninitialized */
     if (unpack == NULL || unpack->type == WT_CELL_DEL)
         WT_RET(__wt_update_alloc(session, NULL, &append, &size, WT_UPDATE_TOMBSTONE));
-    else if (last_committed_upd != NULL && last_committed_upd->start_ts < unpack->start_ts)
-        return (0);
     else {
         WT_RET(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
@@ -116,10 +108,6 @@ __rec_append_orig_value(
          * 20.
          */
         if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
-            /* Timestamp should always be in descending order. */
-            WT_ASSERT(session,
-              last_committed_upd == NULL || last_committed_upd->start_ts >= unpack->stop_ts);
-
             WT_ERR(__wt_update_alloc(session, NULL, &tombstone, &size, WT_UPDATE_TOMBSTONE));
             tombstone->txnid = unpack->stop_txn;
             tombstone->start_ts = unpack->stop_ts;
@@ -139,6 +127,10 @@ __rec_append_orig_value(
 
 err:
     __wt_scr_free(session, &tmp);
+    /* Free append when tombstone allocation fails */
+    if (ret != 0) {
+        __wt_free_update_list(session, &append);
+    }
     return (ret);
 }
 
@@ -191,9 +183,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * both must be initialized.
      */
     upd_select->upd = NULL;
-    upd_select->durable_ts = WT_TS_NONE;
+    upd_select->start_durable_ts = WT_TS_NONE;
     upd_select->start_ts = WT_TS_NONE;
     upd_select->start_txn = WT_TXN_NONE;
+    upd_select->stop_durable_ts = WT_TS_NONE;
     upd_select->stop_ts = WT_TS_MAX;
     upd_select->stop_txn = WT_TXN_MAX;
 
@@ -202,7 +195,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_memsize = 0;
     checkpoint_timestamp = S2C(session)->txn_global.checkpoint_timestamp;
     max_ts = WT_TS_NONE;
-    tombstone_durable_ts = WT_TS_MAX;
+    tombstone_durable_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     has_newer_updates = upd_saved = false;
     is_hs_page = F_ISSET(S2BT(session), WT_BTREE_HS);
@@ -238,15 +231,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * a concurrent transaction commits or rolls back while we are examining its updates. This
          * check is not required for history store updates as they are implicitly committed. As
          * prepared transaction IDs are globally visible, need to check the update state as well.
-         *
-         * The checkpoint transaction doesn't pin the oldest txn id, therefore the r->last_running
-         * can move beyond the checkpoint transaction id. Need to do a proper visibility check for
-         * metadata pages. Otherwise, eviction may select uncommitted metadata updates to write to
-         * disk.
          */
-        if (!is_hs_page && (F_ISSET(r, WT_REC_VISIBLE_ALL) && !WT_IS_METADATA(session->dhandle) ?
-                               WT_TXNID_LE(r->last_running, txnid) :
-                               !__txn_visible_id(session, txnid))) {
+        if (!is_hs_page && (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
+                                                             !__txn_visible_id(session, txnid))) {
             has_newer_updates = true;
             continue;
         }
@@ -322,6 +309,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         return (0);
     }
 
+    /*
+     * We expect the page to be clean after reconciliation. If there are invisible updates, abort
+     * eviction.
+     */
+    if (has_newer_updates && F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBILITY_ERR)) {
+        if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
+            WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
+        return (__wt_set_return(session, EBUSY));
+    }
+
     if (upd != NULL && upd->start_ts > r->max_ondisk_ts)
         r->max_ondisk_ts = upd->start_ts;
 
@@ -363,15 +360,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
         if (upd != NULL) {
             /* The beginning of the validity window is the selected update's time pair. */
-            upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
+            upd_select->start_durable_ts = upd_select->start_ts = upd->start_ts;
             /* If durable timestamp is provided, use it. */
             if (upd->durable_ts != WT_TS_NONE)
-                upd_select->durable_ts = upd->durable_ts;
+                upd_select->start_durable_ts = upd->durable_ts;
             upd_select->start_txn = upd->txnid;
 
             /* Use the tombstone durable timestamp as the overall durable timestamp if it exists. */
-            if (tombstone_durable_ts != WT_TS_MAX)
-                upd_select->durable_ts = tombstone_durable_ts;
+            if (tombstone_durable_ts != WT_TS_NONE)
+                upd_select->stop_durable_ts = tombstone_durable_ts;
         } else if (upd_select->stop_ts != WT_TS_NONE || upd_select->stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL);
@@ -385,12 +382,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * keep the same on-disk value but set the stop time pair to indicate that the validity
              * window ends when this tombstone started.
              */
-            upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
+            upd_select->start_durable_ts = upd_select->start_ts = vpack->start_ts;
             upd_select->start_txn = vpack->start_txn;
 
             /* Use the tombstone durable timestamp as the overall durable timestamp if it exists. */
-            if (tombstone_durable_ts != WT_TS_MAX)
-                upd_select->durable_ts = tombstone_durable_ts;
+            if (tombstone_durable_ts != WT_TS_NONE)
+                upd_select->stop_durable_ts = tombstone_durable_ts;
 
             /*
              * Leaving the update unset means that we can skip reconciling. If we've set the stop
@@ -455,6 +452,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /* Mark the page dirty after reconciliation. */
     if (has_newer_updates)
         r->leave_dirty = true;
+
     /*
      * We should restore the update chains to the new disk image if there are newer updates in
      * eviction.
