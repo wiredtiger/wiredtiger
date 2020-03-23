@@ -30,7 +30,7 @@ __wt_btree_page_version_config(WT_SESSION_IMPL *session)
  *
  * The minimum WiredTiger version where the timestamp page format is written.
  */
-#define WT_VERSION_TS_MAJOR 10 
+#define WT_VERSION_TS_MAJOR 10
 #define WT_VERSION_TS_MINOR 0
     __wt_process.page_version_ts =
       conn->compat_major >= WT_VERSION_TS_MAJOR && conn->compat_minor >= WT_VERSION_TS_MINOR;
