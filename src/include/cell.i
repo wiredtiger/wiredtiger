@@ -213,6 +213,13 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
          * WT_ASSERT(
          *  session, oldest_start_ts != WT_TS_NONE && oldest_start_ts <= start_durable_ts);
          */
+        /*
+         * Unlike value cell, we store the durable start timestamp even the difference is zero
+         * compared to oldest commit timestamp. The difference can only be zero when the page
+         * contains all the key/value pairs with the same timestamp. But this scenario is rare and
+         * having that check to find out whether it is zero or not will unnecessarily add overhead
+         * than benefit.
+         */
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, start_durable_ts - oldest_start_ts));
         LF_SET(WT_CELL_TS_DURABLE_START);
     }
@@ -232,7 +239,14 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
          * FIXME-prepare-support:
          * WT_ASSERT(session,
          *   newest_stop_ts != WT_TS_MAX && newest_stop_ts <= stop_durable__ts);
-        */
+         */
+        /*
+         * Unlike value cell, we store the durable stop timestamp even the difference is zero
+         * compared to newest commit timestamp. The difference can only be zero when the page
+         * contains all the key/value pairs with the same timestamp. But this scenario is rare and
+         * having that check to find out whether it is zero or not will unnecessarily add overhead
+         * than benefit.
+         */
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, stop_durable_ts - newest_stop_ts));
         LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
