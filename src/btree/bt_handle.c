@@ -32,7 +32,7 @@ __wt_btree_page_version_config(WT_SESSION_IMPL *session)
  * values may require update when the release is named.
  */
 #define WT_VERSION_TS_MAJOR 3
-#define WT_VERSION_TS_MINOR 3
+#define WT_VERSION_TS_MINOR 4
     __wt_process.page_version_ts =
       conn->compat_major >= WT_VERSION_TS_MAJOR && conn->compat_minor >= WT_VERSION_TS_MINOR;
 #if defined(HAVE_PAGE_VERSION_TS)
