@@ -45,7 +45,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
     # Declare the log versions that do and do not have prevlsn.
     # Log version 1 does not have the prevlsn record.
     # Log version 2 introduced that record.
-    # Log versions 3-5 continue to have that record.
+    # Log versions 3 and higher continue to have that record.
     min_logv = 2
     latest_logv = 5
 
