@@ -549,6 +549,19 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     metafile->c = metac;
 
     /*
+     * We should check whether the history store file exists or not. or not. If it does not, then we
+     * should not apply rollback to stable to each table. This might happen if we're upgrading from
+     * an older version.
+     */
+    metac->set_key(metac, WT_HS_URI);
+    ret = metac->search(metac);
+    if (ret == WT_NOTFOUND)
+        hs_exists = false;
+    WT_ERR_NOTFOUND_OK(ret);
+    /* Unpin the page from cache. */
+    WT_ERR(metac->reset(metac));
+
+    /*
      * If no log was found (including if logging is disabled), or if the last checkpoint was done
      * with logging disabled, recovery should not run. Scan the metadata to figure out the largest
      * file ID.
@@ -629,17 +642,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
      * files.
      */
     WT_NOT_READ(metafile, NULL);
-
-    /*
-     * While we have the metadata cursor open, we should check whether the history store file exists
-     * or not. If it does not, then we should not apply rollback to stable to each table. This might
-     * happen if we're upgrading from an older version.
-     */
-    metac->set_key(metac, WT_HS_URI);
-    ret = metac->search(metac);
-    if (ret == WT_NOTFOUND)
-        hs_exists = false;
-    WT_ERR_NOTFOUND_OK(ret);
 
     /*
      * We no longer need the metadata cursor: close it to avoid pinning any resources that could
