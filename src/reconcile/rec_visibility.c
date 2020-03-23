@@ -433,6 +433,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
           "Warning: fixing out-of-order timestamps remove at %s earlier than value at %s",
           __wt_timestamp_to_string(upd_select->stop_ts, ts_string[0]),
           __wt_timestamp_to_string(upd_select->start_ts, ts_string[1]));
+        upd_select->start_durable_ts = upd_select->stop_durable_ts;
         upd_select->start_ts = upd_select->stop_ts;
         upd_select->start_txn = upd_select->stop_txn;
     }
