@@ -267,7 +267,8 @@ config_backup(void)
         case 8:
         case 9:
         case 10: /* 30% log based incremental */
-            cstr = "backup_incremental=log";
+            if (!g.c_logging_archive)
+                cstr = "backup_incremental=log";
             break;
         }
 
