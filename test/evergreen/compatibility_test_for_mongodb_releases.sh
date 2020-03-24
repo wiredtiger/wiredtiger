@@ -97,7 +97,7 @@ cd "$top"
 (build_release mongodb-3.6)
 (build_release mongodb-4.0)
 (build_release mongodb-4.2)
-(build_release mongodb-4.4)
+#(build_release mongodb-4.4)
 (build_release "develop")
 
 # Run format in each release for supported access methods.
@@ -105,14 +105,15 @@ cd "$top"
 (run_format mongodb-3.6 "fix row var")
 (run_format mongodb-4.0 "fix row var")
 (run_format mongodb-4.2 "fix row var")
-(run_format mongodb-4.4 "row")
+#(run_format mongodb-4.4 "row")
 (run_format "develop" "row")
 
 # Verify backward compatibility for supported access methods.
 (verify_backward mongodb-3.6 mongodb-3.4 "fix row var")
 (verify_backward mongodb-4.0 mongodb-3.6 "fix row var")
 (verify_backward mongodb-4.2 mongodb-4.0 "fix row var")
-(verify_backward mongodb-4.4 mongodb-4.2 "fix row var")
-(verify_backward develop mongodb-4.4 "row")
+#(verify_backward mongodb-4.4 mongodb-4.2 "fix row var")
+#(verify_backward develop mongodb-4.4 "row")
+ (verify_backward develop mongodb-4.2 "fix row var")
 
 exit 0
