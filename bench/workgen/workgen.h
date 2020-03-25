@@ -388,9 +388,12 @@ struct Transaction {
     bool _rollback;
     std::string _begin_config;
     std::string _commit_config;
+    bool prepare;
+    double read_timestamp_lag;
+    bool commit_with_timestamp;
 
     Transaction(const char *_config = NULL) : _rollback(false),
-       _begin_config(_config == NULL ? "" : _config), _commit_config() {}
+       _begin_config(_config == NULL ? "" : _config), _commit_config(), prepare(false), read_timestamp_lag(0), commit_with_timestamp(false) {}
 
     void describe(std::ostream &os) const {
 	os << "Transaction: ";
@@ -399,6 +402,10 @@ struct Transaction {
 	os << "begin_config: " << _begin_config;
 	if (!_commit_config.empty())
 	    os << ", commit_config: " << _commit_config;
+    if (prepare)
+	    os << "(prepare) ";
+    if (read_timestamp_lag)
+        os << "(read_timestamp_lag)";
     }
 };
 
@@ -414,6 +421,8 @@ struct WorkloadOptions {
     int sample_rate;
     std::string sample_file;
     int warmup;
+    int oldest_timestamp_lag;
+    int stable_timestamp_lag;
 
     WorkloadOptions();
     WorkloadOptions(const WorkloadOptions &other);
@@ -422,6 +431,8 @@ struct WorkloadOptions {
     void describe(std::ostream &os) const {
 	os << "run_time " << run_time;
 	os << ", report_interval " << report_interval;
+    os << ", oldest_timestamp_lag " << oldest_timestamp_lag;
+    os << ", stable_timestamp_lag " << stable_timestamp_lag;
     }
 
     std::string help() const { return _options.help(); }
