@@ -883,13 +883,15 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(hs_key);
+    WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
     WT_ITEM key;
     WT_UPDATE *hs_upd;
-    wt_timestamp_t hs_start_ts;
-    uint64_t hs_counter;
+    wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts;
+    uint64_t hs_counter, type_full;
     uint32_t hs_btree_id, session_flags;
     int exact;
+    char ts_string[3][WT_TS_INT_STRING_SIZE];
     bool is_owner;
 
     hs_cursor = NULL;
@@ -926,6 +928,14 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
 
         /* Set this comparison as exact match of the search for later use. */
         cbt->compare = 0;
+        WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type_full, hs_value));
+
+        __wt_verbose(session, WT_VERB_RTS,
+          "%s: Rollback to stable history cleanup update with start timestamp: %s, stop timestamp: "
+          "%s and durable timestamp: %s",
+          S2BT(session)->dhandle->name, __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
+          __wt_timestamp_to_string(hs_stop_ts, ts_string[1]),
+          __wt_timestamp_to_string(durable_ts, ts_string[2]));
 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
@@ -1033,7 +1043,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
               __wt_timestamp_to_string(max_durable_ts, ts_string));
 
         /* Cleanup any history store entries for this non-timestamped table. */
-        if (max_durable_ts == WT_TS_NONE && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+        if (!S2BT(session)->modified && durable_ts_found && max_durable_ts == WT_TS_NONE &&
+          !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
             __wt_verbose(
               session, WT_VERB_RTS, "%s: non-timestamped file history store cleanup", uri);
             WT_TRET(__rollback_to_stable_btree_hs_cleanup(session, S2BT(session)->id));
