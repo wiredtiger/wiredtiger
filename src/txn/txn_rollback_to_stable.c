@@ -146,7 +146,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_DECL_RET;
     WT_ITEM full_value;
     WT_UPDATE *hs_upd, *upd;
-    wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts, newer_hs_ts;
+    wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts;
     size_t size;
     uint64_t hs_counter, type_full;
     uint32_t hs_btree_id, session_flags;
@@ -157,7 +157,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
     hs_cursor = NULL;
     hs_upd = upd = NULL;
-    durable_ts = hs_start_ts = newer_hs_ts = WT_TS_NONE;
+    durable_ts = hs_start_ts = WT_TS_NONE;
     hs_btree_id = S2BT(session)->id;
     session_flags = 0;
     is_owner = valid_update_found = false;
@@ -226,13 +226,6 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         }
 
         /*
-         * Verify the history store timestamps are in order. The start timestamp may be equal to the
-         * stop timestamp if the original update's commit timestamp is out of order.
-         */
-        WT_ASSERT(session,
-          (newer_hs_ts == WT_TS_NONE || hs_stop_ts <= newer_hs_ts || hs_start_ts == hs_stop_ts));
-
-        /*
          * Stop processing when we find the newer version value of this key is stable according to
          * the current version stop timestamp. Also it confirms that history store doesn't contains
          * any newer version than the current version for the key.
@@ -260,7 +253,6 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
           S2BT(session)->dhandle->name, __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
 
-        newer_hs_ts = hs_start_ts;
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
@@ -1045,7 +1037,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
               __wt_timestamp_to_string(max_durable_ts, ts_string));
 
         /* Cleanup any history store entries for this non-timestamped table. */
-        if (!S2BT(session)->modified && durable_ts_found && max_durable_ts == WT_TS_NONE &&
+        if (!S2BT(session)->modified && max_durable_ts == WT_TS_NONE &&
           !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
             __wt_verbose(
               session, WT_VERB_RTS, "%s: non-timestamped file history store cleanup", uri);
