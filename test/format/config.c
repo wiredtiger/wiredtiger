@@ -79,19 +79,19 @@ config_setup(void)
      * Choose a file format and a data source: they're interrelated (LSM is only compatible with
      * row-store) and other items depend on them.
      */
-    if (!config_is_perm("file_type")) {
-        if (config_is_perm("data_source") && DATASOURCE("lsm"))
-            config_single("file_type=row", false);
+    if (!config_is_perm("runs.type")) {
+        if (config_is_perm("runs.source") && DATASOURCE("lsm"))
+            config_single("runs.type=row", false);
         else
             switch (mmrand(NULL, 1, 10)) {
             case 1:
             case 2:
             case 3: /* 30% */
-                config_single("file_type=var", false);
+                config_single("runs.type=var", false);
                 break;
             case 4: /* 10% */
                 if (config_fix()) {
-                    config_single("file_type=fix", false);
+                    config_single("runs.type=fix", false);
                     break;
                 }
                 /* FALLTHROUGH */ /* 60% */
@@ -101,17 +101,17 @@ config_setup(void)
             case 8:
             case 9:
             case 10:
-                config_single("file_type=row", false);
+                config_single("runs.type=row", false);
                 break;
             }
     }
     config_map_file_type(g.c_file_type, &g.type);
 
-    if (!config_is_perm("data_source")) {
-        config_single("data_source=table", false);
+    if (!config_is_perm("runs.source")) {
+        config_single("runs.source=table", false);
         switch (mmrand(NULL, 1, 5)) {
         case 1: /* 20% */
-            config_single("data_source=file", false);
+            config_single("runs.source=file", false);
             break;
         case 2: /* 20% */
 #if !defined(DISABLE_RANDOM_LSM_TESTING)
@@ -129,7 +129,7 @@ config_setup(void)
                 break;
             if (config_is_perm("ops.truncate") && g.c_truncate)
                 break;
-            config_single("data_source=lsm", false);
+            config_single("runs.source=lsm", false);
 #endif
             break;
         case 3:
@@ -561,7 +561,7 @@ config_in_memory(void)
         return;
     if (config_is_perm("btree.compression"))
         return;
-    if (config_is_perm("data_source") && DATASOURCE("lsm"))
+    if (config_is_perm("runs.source") && DATASOURCE("lsm"))
         return;
     if (config_is_perm("logging"))
         return;
@@ -572,7 +572,7 @@ config_in_memory(void)
     if (config_is_perm("ops.verify"))
         return;
 
-    if (!config_is_perm("in_memory") && mmrand(NULL, 1, 20) == 1)
+    if (!config_is_perm("runs.in_memory") && mmrand(NULL, 1, 20) == 1)
         g.c_in_memory = 1;
 }
 
@@ -1045,7 +1045,7 @@ config_single(const char *s, bool perm)
         } else if (strncmp(s, "btree.compression", strlen("btree.compression")) == 0) {
             config_map_compression(equalp, &g.c_compression_flag);
             *cp->vstr = dstrdup(equalp);
-        } else if (strncmp(s, "data_source", strlen("data_source")) == 0 &&
+        } else if (strncmp(s, "runs.source", strlen("runs.source")) == 0 &&
           strncmp("file", equalp, strlen("file")) != 0 &&
           strncmp("lsm", equalp, strlen("lsm")) != 0 &&
           strncmp("table", equalp, strlen("table")) != 0) {
@@ -1053,7 +1053,7 @@ config_single(const char *s, bool perm)
         } else if (strncmp(s, "disk.encryption", strlen("disk.encryption")) == 0) {
             config_map_encryption(equalp, &g.c_encryption_flag);
             *cp->vstr = dstrdup(equalp);
-        } else if (strncmp(s, "file_type", strlen("file_type")) == 0) {
+        } else if (strncmp(s, "runs.type", strlen("runs.type")) == 0) {
             config_map_file_type(equalp, &g.type);
             *cp->vstr = dstrdup(config_file_type(g.type));
         } else if (strncmp(s, "transaction.isolation", strlen("transaction.isolation")) == 0) {

@@ -133,6 +133,9 @@ static CONFIG c[] = {
 
   {"cache", "size of the cache in MB", 0x0, 1, 100, 100 * 1024, &g.c_cache, NULL},
 
+  {"cache.evict_max", "the maximum number of eviction workers", 0x0, 0, 5, 100, &g.c_evict_max,
+    NULL},
+
   {"cache.minimum", "minimum size of the cache in MB", C_IGNORE, 0, 0, 100 * 1024,
     &g.c_cache_minimum, NULL},
 
@@ -144,9 +147,6 @@ static CONFIG c[] = {
 
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600,
     &g.c_checkpoint_wait, NULL},
-
-  {"data_source", "data source (file | lsm | table)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
-    &g.c_data_source},
 
   {"disk.checksum", "type of checksums (on | off | uncompressed)", C_IGNORE | C_STRING, 0, 0, 0,
     NULL, &g.c_checksum},
@@ -171,12 +171,15 @@ static CONFIG c[] = {
   {"disk.mmap_all", "configure for mmap operations (read and write)", C_BOOL, 5, 0, 0,
     &g.c_mmap_all, NULL},
 
-  {"evict_max", "the maximum number of eviction workers", 0x0, 0, 5, 100, &g.c_evict_max, NULL},
+  /* 0% */
+  {"format.abort", "if timed run should drop core", C_BOOL, 0, 0, 0, &g.c_abort, NULL},
 
-  {"file_type", "type of store to create (fix | var | row)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
-    &g.c_file_type},
+  /* 75% */
+  {"format.independent_thread_rng", "if thread RNG space is independent", C_BOOL, 75, 0, 0,
+    &g.c_independent_thread_rng, NULL},
 
-  {"in_memory", "if in-memory configured", C_IGNORE | C_BOOL, 0, 0, 1, &g.c_in_memory, NULL},
+  {"format.major_timeout", "timeout for long-running operations (minutes)", C_IGNORE, 0, 0, 1000,
+    &g.c_major_timeout, NULL},
 
   /* 50% */
   {"logging", "if logging configured", C_BOOL, 50, 0, 0, &g.c_logging, NULL},
@@ -217,9 +220,6 @@ static CONFIG c[] = {
 
   {"lsm.worker_threads", "the number of LSM worker threads", 0x0, 3, 4, 20, &g.c_lsm_worker_threads,
     NULL},
-
-  {"major_timeout", "timeout for long-running operations (minutes)", C_IGNORE, 0, 0, 1000,
-    &g.c_major_timeout, NULL},
 
   /* 10% */
   {"ops.alter", "if altering the table is enabled", C_BOOL, 10, 0, 0, &g.c_alter, NULL},
@@ -264,20 +264,21 @@ static CONFIG c[] = {
 
   {"runs", "the number of runs", C_IGNORE, 0, 0, UINT_MAX, &g.c_runs, NULL},
 
-  /* 0% */
-  {"runs.abort", "if timed run should drop core", C_BOOL, 0, 0, 0, &g.c_abort, NULL},
-
-  /* 75% */
-  {"runs.independent_thread_rng", "if thread RNG space is independent", C_BOOL, 75, 0, 0,
-    &g.c_independent_thread_rng, NULL},
+  {"runs.in_memory", "if in-memory configured", C_IGNORE | C_BOOL, 0, 0, 1, &g.c_in_memory, NULL},
 
   {"runs.ops", "the number of operations done per run", 0x0, 0, M(2), M(100), &g.c_ops, NULL},
 
   {"runs.rows", "the number of rows to create", 0x0, 10, M(1), M(100), &g.c_rows, NULL},
 
+  {"runs.source", "data source (file | lsm | table)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
+    &g.c_data_source},
+
   {"runs.threads", "the number of worker threads", 0x0, 1, 32, 128, &g.c_threads, NULL},
 
   {"runs.timer", "maximum time to run in minutes", C_IGNORE, 0, 0, UINT_MAX, &g.c_timer, NULL},
+
+  {"runs.type", "type of store to create (fix | var | row)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
+    &g.c_file_type},
 
   /* 20% */
   {"statistics", "maintain statistics", C_BOOL, 20, 0, 0, &g.c_statistics, NULL},
