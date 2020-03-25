@@ -1700,7 +1700,7 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
 
 /*
  * __wt_bt_col_var_cursor_walk_txn_read --
- *     transactionally read the onpage value and the history store for col var cursor walk.
+ *     Transactionally read the onpage value and the history store for col var cursor walk.
  */
 static inline int
 __wt_bt_col_var_cursor_walk_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,
@@ -1711,7 +1711,7 @@ __wt_bt_col_var_cursor_walk_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *
     upd = NULL;
     *updp = NULL;
     cbt->slot = WT_COL_SLOT(page, cip);
-    WT_RET(__wt_txn_read(session, cbt, NULL, unpack, &upd));
+    WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, NULL, unpack, &upd));
     if (upd == NULL)
         return (0);
     if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
