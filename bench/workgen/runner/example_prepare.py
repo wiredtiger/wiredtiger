@@ -43,30 +43,29 @@ table.options.value_size = 10
 
 context = Context()
 op = Operation(Operation.OP_INSERT, table)
-thread = Thread(op * 50)
+thread = Thread(op * 500)
 pop_workload = Workload(context, thread)
 print('populate:')
 pop_workload.run(conn)
 
 opread = Operation(Operation.OP_SEARCH, table)
-read_ops = txn(opread * 10)
-read_ops._transaction.read_timestamp_lag = 20
-treader = Thread(read_ops)
+read_txn = txn(opread * 10)
+read_txn._transaction.read_timestamp_lag = 20
+treader = Thread(read_txn)
 
 opwrite = Operation(Operation.OP_INSERT, table)
-write_ops = txn(opwrite * 10)
-write_ops._transaction.prepare=True
-twriter = Thread(write_ops)
+write_txn = txn(opwrite * 10)
+write_txn._transaction.use_prepare=True
+twriter = Thread(write_txn)
 
-opupdate = Operation(Operation.OP_UPDATE, table)
-txn_update = txn(opupdate * 10)
-txn_update._transaction.commit_with_timestamp = True
-tupdate = Thread(txn_update)
+opupdate = Operation(Operation.OP_INSERT, table)
+update_txn = txn(opupdate * 10)
+update_txn._transaction.commit_with_timestamp = True
+tupdate = Thread(update_txn)
 
-
-workload = Workload(context, 5 * tupdate + 5 * treader + 5 * twriter)
-workload.options.run_time = 1000
+workload = Workload(context, 10 * twriter + 10 * tupdate + 10 * treader)
+workload.options.run_time = 5
 workload.options.report_interval=500
-workload.options.max_latency=50000
+#workload.options.max_latency=50000
 print('transactional write workload:')
 workload.run(conn)

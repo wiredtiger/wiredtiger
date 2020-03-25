@@ -718,7 +718,7 @@ int ThreadRunner::op_run(Operation *op) {
     bool measure_latency, own_cursor, retry_op;
     timespec start_time;
     uint64_t _time_us;
-    char time_buf[64];
+    char time_buf[100];
 
     track = NULL;
     cursor = NULL;
@@ -821,23 +821,18 @@ int ThreadRunner::op_run(Operation *op) {
         if (op->_transaction != NULL) {
             if (_in_transaction)
                 THROW("nested transactions not supported");
-            if(op->_transaction->read_timestamp_lag > 0)
-            {
-                //std::cout << " READ_TIMESTAMP " << std::endl;
+            // begin-transaction with read_timestamp if read_timestamp_lag is set.
+            if(op->_transaction->read_timestamp_lag > 0) {
                 workgen_epoch(&start_time);
                 uint64_t read = ts_us(start_time) - secs_us(op->_transaction->read_timestamp_lag);
                 sprintf(time_buf, "read_timestamp=%" PRIu64, read);
                 WT_ERR(_session->begin_transaction(_session, time_buf));
-                //sleep(1);
             }
-            else if(op->_transaction->commit_with_timestamp || op->_transaction->prepare)
-            {
-                //std::cout << "Isolation" << std::endl;
+            // begin-transaction with isolation=snapshot if either commit_with_timestamp is set or use_prepare is set.
+            else if(op->_transaction->commit_with_timestamp || op->_transaction->use_prepare) {
                 WT_ERR(_session->begin_transaction(_session, "isolation=snapshot"));
             }
-            else
-            {   
-                //std::cout << " NO READ_TIMESTAMP " << std::endl;
+            else {
                 WT_ERR(_session->begin_transaction(_session,
                 op->_transaction->_begin_config.c_str()));
             }
@@ -925,31 +920,27 @@ err:
         if (ret != 0 || op->_transaction->_rollback)
             WT_TRET(_session->rollback_transaction(_session, NULL));
         else if (_in_transaction) {
-            if(op->_transaction->prepare) {
-                //std::cout << "**** Prepare ****" << std::endl;
+            // Set prepare, commit and durable timestamp if prepare is set.
+            if(op->_transaction->use_prepare) {
                 workgen_epoch(&start_time);
                 _time_us = ts_us(start_time);
                 sprintf(time_buf, "prepare_timestamp=%" PRIu64, _time_us);
-                //std::cout << "Time : " << time_buf << std::endl;
                 ret = _session->prepare_transaction(_session, time_buf);
                 sleep(1);
                 _time_us = _time_us + secs_us(1);
-                sprintf(time_buf, "commit_timestamp=%" PRIu64 "durable_timestamp=%" PRIu64, _time_us, _time_us);
+                sprintf(time_buf, "commit_timestamp=%" PRIu64 ",durable_timestamp=%" PRIu64, _time_us, _time_us);
                 ret = _session->commit_transaction(_session, time_buf);
             }
-            else if (op->_transaction->commit_with_timestamp)
-            {
+            else if (op->_transaction->commit_with_timestamp) {
                 workgen_epoch(&start_time);
                 uint64_t commit_time_us = ts_us(start_time);
                 sprintf(time_buf, "commit_timestamp=%" PRIu64, commit_time_us);
-                //std::cout << "Time : " << time_buf << std::endl;
                 ret = _session->commit_transaction(_session, time_buf);
                 sleep(1);                
             }
             else {
-                //std::cout << "**** Commit ****" << std::endl;
-            ret = _session->commit_transaction(_session,
-              op->_transaction->_commit_config.c_str());
+                ret = _session->commit_transaction(_session,
+                    op->_transaction->_commit_config.c_str());
             }
         }
         _in_transaction = false;
