@@ -900,7 +900,8 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
     session_flags = 0;
     is_owner = false;
 
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+    WT_RET(__wt_scr_alloc(session, 0, &hs_key));
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     /* Open a history store table cursor. */
     WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
@@ -946,6 +947,7 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
 
 err:
     __wt_scr_free(session, &hs_key);
+    __wt_scr_free(session, &hs_value);
     __wt_free(session, hs_upd);
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
