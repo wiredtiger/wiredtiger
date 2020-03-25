@@ -909,7 +909,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
 
     /* Row-store key is as passed to us, create the column-store key as needed. */
     WT_ASSERT(
-      session, key == NULL && recno != WT_RECNO_OOB || key != NULL && recno == WT_RECNO_OOB);
+      session, (key == NULL && recno != WT_RECNO_OOB) || (key != NULL && recno == WT_RECNO_OOB));
     if (key == NULL) {
         p = recno_key_buf;
         WT_RET(__wt_vpack_uint(&p, 0, recno));
