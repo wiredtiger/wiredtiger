@@ -115,7 +115,7 @@ Supply the \c --enable-llvm flag to your configuration to build anything with a
 dependency to LLVM.
 
 @code
-../configure --enable-llvm
+$ ../configure --enable-llvm
 @endcode
 
 Take care NOT to customise \c CC or \c CXX. Customising either of these
