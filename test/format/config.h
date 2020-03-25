@@ -176,6 +176,8 @@ static CONFIG c[] = {
   {"file_type", "type of store to create (fix | var | row)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
     &g.c_file_type},
 
+  {"in_memory", "if in-memory configured", C_IGNORE | C_BOOL, 0, 0, 1, &g.c_in_memory, NULL},
+
   /* 50% */
   {"logging", "if logging configured", C_BOOL, 50, 0, 0, &g.c_logging, NULL},
 
@@ -332,9 +334,6 @@ static CONFIG c[] = {
 
   {"wiredtiger.config", "configuration string used to wiredtiger_open", C_IGNORE | C_STRING, 0, 0,
     0, NULL, &g.c_config_open},
-
-  {"wiredtiger.in_memory", "if in-memory configured", C_IGNORE | C_BOOL, 0, 0, 1, &g.c_in_memory,
-    NULL},
 
   {"wiredtiger.leak_memory", "if memory should be leaked on close", C_BOOL, 0, 0, 0,
     &g.c_leak_memory, NULL},
