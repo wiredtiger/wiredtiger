@@ -924,7 +924,7 @@ err:
     if (op->_transaction != NULL) {
         if (ret != 0 || op->_transaction->_rollback)
             WT_TRET(_session->rollback_transaction(_session, NULL));
-        else if (_in_transaction)
+        else if (_in_transaction) {
             if(op->_transaction->prepare) {
                 //std::cout << "**** Prepare ****" << std::endl;
                 workgen_epoch(&start_time);
@@ -951,6 +951,7 @@ err:
             ret = _session->commit_transaction(_session,
               op->_transaction->_commit_config.c_str());
             }
+        }
         _in_transaction = false;
     }
     return (ret);
