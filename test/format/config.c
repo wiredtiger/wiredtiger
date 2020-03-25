@@ -572,7 +572,7 @@ config_in_memory(void)
     if (config_is_perm("ops.verify"))
         return;
 
-    if (!config_is_perm("in_memory") && mmrand(NULL, 1, 20) == 1)
+    if (!config_is_perm("wiredtiger.in_memory") && mmrand(NULL, 1, 20) == 1)
         g.c_in_memory = 1;
 }
 
