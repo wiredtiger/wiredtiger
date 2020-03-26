@@ -764,39 +764,7 @@ record_loop:
             repeat_count = 1;                                             /* Single record */
             deleted = false;
 
-            if (upd != NULL) {
-                start_durable_ts = upd_select.start_durable_ts;
-                start_ts = upd_select.start_ts;
-                start_txn = upd_select.start_txn;
-                stop_durable_ts = upd_select.stop_durable_ts;
-                stop_ts = upd_select.stop_ts;
-                stop_txn = upd_select.stop_txn;
-
-                switch (upd->type) {
-                case WT_UPDATE_MODIFY:
-                    cbt->slot = WT_COL_SLOT(page, cip);
-                    WT_ERR(__wt_value_return_upd(cbt, upd));
-                    data = cbt->iface.value.data;
-                    size = (uint32_t)cbt->iface.value.size;
-                    update_no_copy = false;
-                    break;
-                case WT_UPDATE_STANDARD:
-                    data = upd->data;
-                    size = upd->size;
-                    break;
-                case WT_UPDATE_TOMBSTONE:
-                    start_durable_ts = WT_TS_NONE;
-                    start_ts = WT_TS_NONE;
-                    start_txn = WT_TXN_NONE;
-                    stop_durable_ts = WT_TS_NONE;
-                    stop_ts = WT_TS_MAX;
-                    stop_txn = WT_TXN_MAX;
-                    deleted = true;
-                    break;
-                default:
-                    WT_ERR(__wt_illegal_value(session, upd->type));
-                }
-            } else {
+            if (upd == NULL) {
                 update_no_copy = false; /* Maybe data copy */
 
                 /*
@@ -877,6 +845,38 @@ record_loop:
                     data = orig->data;
                     size = (uint32_t)orig->size;
                     break;
+                }
+            } else {
+                start_durable_ts = upd_select.start_durable_ts;
+                start_ts = upd_select.start_ts;
+                start_txn = upd_select.start_txn;
+                stop_durable_ts = upd_select.stop_durable_ts;
+                stop_ts = upd_select.stop_ts;
+                stop_txn = upd_select.stop_txn;
+
+                switch (upd->type) {
+                case WT_UPDATE_MODIFY:
+                    cbt->slot = WT_COL_SLOT(page, cip);
+                    WT_ERR(__wt_value_return_upd(cbt, upd));
+                    data = cbt->iface.value.data;
+                    size = (uint32_t)cbt->iface.value.size;
+                    update_no_copy = false;
+                    break;
+                case WT_UPDATE_STANDARD:
+                    data = upd->data;
+                    size = upd->size;
+                    break;
+                case WT_UPDATE_TOMBSTONE:
+                    start_durable_ts = WT_TS_NONE;
+                    start_ts = WT_TS_NONE;
+                    start_txn = WT_TXN_NONE;
+                    stop_durable_ts = WT_TS_NONE;
+                    stop_ts = WT_TS_MAX;
+                    stop_txn = WT_TXN_MAX;
+                    deleted = true;
+                    break;
+                default:
+                    WT_ERR(__wt_illegal_value(session, upd->type));
                 }
             }
 
