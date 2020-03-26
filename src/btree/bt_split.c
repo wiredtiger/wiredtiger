@@ -1435,6 +1435,9 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
 
     /* Re-create each modification we couldn't write. */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        /* Only need to restore update chain that has updates newer than the on page value. */
+        if (!supd->has_newer_updates)
+            continue;
         switch (orig->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
@@ -1519,7 +1522,10 @@ __split_multi_inmem_final(WT_PAGE *orig, WT_MULTI *multi)
      * update chains referenced by both the original and new pages. We're ready to discard the
      * original page, terminate the original page's reference to any update list we moved.
      */
-    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd)
+    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        /* Only need to restore update chain that has updates newer than the on page value. */
+        if (!supd->has_newer_updates)
+            continue;
         switch (orig->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
@@ -1533,6 +1539,7 @@ __split_multi_inmem_final(WT_PAGE *orig, WT_MULTI *multi)
                 supd->ins->upd = NULL;
             break;
         }
+    }
 }
 
 /*
