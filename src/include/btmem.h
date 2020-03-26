@@ -351,6 +351,8 @@ struct __wt_page_modify {
                 WT_ADDR addr;
                 uint32_t size;
                 uint32_t checksum;
+
+                bool restored;
             } * multi;
             uint32_t multi_entries; /* Multiple blocks element count */
         } m;

@@ -1496,6 +1496,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     mod->restore_state = orig->modify->restore_state;
     FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
+    multi->restored = true;
+
 err:
     /* Free any resources that may have been cached in the cursor. */
     WT_TRET(__wt_btcur_close(&cbt, true));
@@ -1513,6 +1515,10 @@ __split_multi_inmem_final(WT_PAGE *orig, WT_MULTI *multi)
 {
     WT_SAVE_UPD *supd;
     uint32_t i, slot;
+
+    /* If updates weren't restored, leave them on the original page to be discarded with it. */
+    if (!multi->restored)
+        return;
 
     /*
      * We successfully created new in-memory pages. For error-handling reasons, we've left the
