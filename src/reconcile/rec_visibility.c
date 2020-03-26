@@ -57,7 +57,7 @@ __rec_append_orig_value(
     WT_UPDATE *append, *tombstone;
     size_t size, total_size;
 
-    WT_ASSERT(session, unpack != NULL && unpack->type != WT_CELL_DEL);
+    WT_ASSERT(session, upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL);
 
     for (;; upd = upd->next) {
         /* Done if at least one self-contained update is globally visible. */
@@ -114,9 +114,9 @@ __rec_append_orig_value(
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
     WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
-    append->durable_ts = unpack->durable_start_ts;
-    append->start_ts = unpack->start_ts;
     append->txnid = unpack->start_txn;
+    append->start_ts = unpack->start_ts;
+    append->durable_ts = unpack->durable_start_ts;
     total_size += size;
 
     if (tombstone != NULL) {
