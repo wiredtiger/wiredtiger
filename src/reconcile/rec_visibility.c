@@ -101,6 +101,9 @@ __rec_append_orig_value(
      * 20.
      */
     if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
+        /* No need to append anything if the stop time pair is globally visible. */
+        if (__wt_txn_visible_all(session, unpack->stop_txn, unpack->stop_ts))
+            return (0);
         WT_ERR(__wt_update_alloc(session, NULL, &tombstone, &size, WT_UPDATE_TOMBSTONE));
         tombstone->txnid = unpack->stop_txn;
         tombstone->start_ts = unpack->stop_ts;
@@ -108,21 +111,13 @@ __rec_append_orig_value(
         total_size = size;
     }
 
-    /*
-     * No need to append the onpage value as the deletion is globally visible. However, we still
-     * append the tombstone to the update chain in this case to prevent the search from
-     * unnecessarily searching the history store.
-     */
-    if ((unpack->stop_ts == WT_TS_MAX && unpack->stop_txn == WT_TXN_MAX) &&
-      !__wt_txn_visible_all(session, unpack->stop_txn, unpack->stop_ts)) {
-        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-        WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
-        WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
-        append->durable_ts = unpack->durable_start_ts;
-        append->start_ts = unpack->start_ts;
-        append->txnid = unpack->start_txn;
-        total_size += size;
-    }
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+    WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
+    WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
+    append->durable_ts = unpack->durable_start_ts;
+    append->start_ts = unpack->start_ts;
+    append->txnid = unpack->start_txn;
+    total_size += size;
 
     if (tombstone != NULL) {
         tombstone->next = append;
