@@ -874,11 +874,11 @@ __rollback_to_stable_check(WT_SESSION_IMPL *session)
 }
 
 /*
- * __rollback_to_stable_btree_hs_cleanup --
+ * __rollback_to_stable_btree_hs_truncate --
  *     Wipe all history store updates for the btree (non-timestamped tables)
  */
 static int
-__rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_id)
+__rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
@@ -890,6 +890,7 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
     uint64_t hs_counter;
     uint32_t hs_btree_id, session_flags;
     int exact;
+    char ts_string[WT_TS_INT_STRING_SIZE];
     bool is_owner;
 
     hs_cursor = NULL;
@@ -898,7 +899,7 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
     session_flags = 0;
     is_owner = false;
 
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+    WT_RET(__wt_scr_alloc(session, 0, &hs_key));
 
     /* Open a history store table cursor. */
     WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
@@ -926,6 +927,9 @@ __rollback_to_stable_btree_hs_cleanup(WT_SESSION_IMPL *session, uint32_t btree_i
 
         /* Set this comparison as exact match of the search for later use. */
         cbt->compare = 0;
+        __wt_verbose(session, WT_VERB_RTS,
+          "%s: Rollback to stable history cleanup update with start timestamp: %s",
+          S2BT(session)->dhandle->name, __wt_timestamp_to_string(hs_start_ts, ts_string));
 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
@@ -1032,11 +1036,20 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             __wt_verbose(session, WT_VERB_RTS, "%s: file skipped with durable timestamp: %s", uri,
               __wt_timestamp_to_string(max_durable_ts, ts_string));
 
-        /* Cleanup any history store entries for this non-timestamped table. */
-        if (max_durable_ts == WT_TS_NONE && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+        /*
+         * Truncate history store entries for the non-timestamped table.
+         * Exceptions:
+         * 1. Modified tree - Scenarios where the tree is never checkpointed lead to zero
+         * durable timestamp even they are timestamped tables. Until we have a special indication
+         * of letting to know the table type other than checking checkpointed durable timestamp
+         * to WT_TS_NONE, We need this exception.
+         * 2. In-memory database - In this scenario, there is no history store to truncate.
+         */
+        if (!S2BT(session)->modified && max_durable_ts == WT_TS_NONE &&
+          !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
             __wt_verbose(
               session, WT_VERB_RTS, "%s: non-timestamped file history store cleanup", uri);
-            WT_TRET(__rollback_to_stable_btree_hs_cleanup(session, S2BT(session)->id));
+            WT_TRET(__rollback_to_stable_btree_hs_truncate(session, S2BT(session)->id));
         }
 
         WT_TRET(__wt_session_release_dhandle(session));
