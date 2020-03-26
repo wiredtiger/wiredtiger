@@ -101,7 +101,6 @@ __rec_append_orig_value(
      * 20.
      */
     if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
-        /* No need to append anything if the deletion is globally visible. */
         WT_ERR(__wt_update_alloc(session, NULL, &tombstone, &size, WT_UPDATE_TOMBSTONE));
         tombstone->txnid = unpack->stop_txn;
         tombstone->start_ts = unpack->stop_ts;
