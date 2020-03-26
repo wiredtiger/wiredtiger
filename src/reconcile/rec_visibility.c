@@ -27,7 +27,7 @@ __rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
  */
 static int
 __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
-  WT_UPDATE *onpage_upd, size_t upd_memsize)
+  WT_UPDATE *onpage_upd, bool has_newer_updates, size_t upd_memsize)
 {
     WT_SAVE_UPD *supd;
 
@@ -35,6 +35,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
     supd = &r->supd[r->supd_next];
     supd->ins = ins;
     supd->ripcip = ripcip;
+    supd->has_newer_updates = has_newer_updates;
     WT_CLEAR(supd->onpage_upd);
     if (onpage_upd != NULL &&
       (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY))
@@ -455,13 +456,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         r->leave_dirty = true;
 
     /*
-     * We should restore the update chains to the new disk image if there are newer updates in
-     * eviction.
-     */
-    if (has_newer_updates && F_ISSET(r, WT_REC_EVICT))
-        r->cache_write_restore = true;
-
-    /*
      * The update doesn't have any further updates that need to be written to the history store,
      * skip saving the update as saving the update will cause reconciliation to think there is work
      * that needs to be done when there might not be.
@@ -469,7 +463,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Additionally history store reconciliation is not set skip saving an update.
      */
     if (__rec_need_save_upd(session, r, upd_select, has_newer_updates)) {
-        WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
+        WT_ERR(__rec_update_save(
+          session, r, ins, ripcip, upd_select->upd, has_newer_updates, upd_memsize));
         upd_saved = true;
     }
 
