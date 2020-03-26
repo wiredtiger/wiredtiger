@@ -776,9 +776,12 @@ record_loop:
                 else
                     repeat_count = WT_INSERT_RECNO(ins) - src_recno;
 
+                /*
+                 * The key on the old disk image is unchanged. If a deleted record or salvaging the
+                 * file, clear the time pair information, else take the time pairs from the cell.
+                 */
                 deleted = orig_deleted;
-                if (deleted) {
-                    /* Set time pairs for the deleted key. */
+                if (deleted || salvage) {
                     start_durable_ts = WT_TS_NONE;
                     start_ts = WT_TS_NONE;
                     start_txn = WT_TXN_NONE;
@@ -786,16 +789,16 @@ record_loop:
                     stop_ts = WT_TS_MAX;
                     stop_txn = WT_TXN_MAX;
 
-                    goto compare;
+                    if (deleted)
+                        goto compare;
+                } else {
+                    start_durable_ts = vpack->durable_start_ts;
+                    start_ts = vpack->start_ts;
+                    start_txn = vpack->start_txn;
+                    stop_durable_ts = vpack->durable_stop_ts;
+                    stop_ts = vpack->stop_ts;
+                    stop_txn = vpack->stop_txn;
                 }
-
-                /* The key on the old disk image is unchanged. Use time pairs from the cell. */
-                start_durable_ts = vpack->durable_start_ts;
-                start_ts = vpack->start_ts;
-                start_txn = vpack->start_txn;
-                stop_durable_ts = vpack->durable_stop_ts;
-                stop_ts = vpack->stop_ts;
-                stop_txn = vpack->stop_txn;
 
                 /*
                  * If we are handling overflow items, use the overflow item itself exactly once,
