@@ -352,7 +352,7 @@ struct __wt_page_modify {
                 uint32_t size;
                 uint32_t checksum;
 
-                bool restored;
+                bool restore;
             } * multi;
             uint32_t multi_entries; /* Multiple blocks element count */
         } m;
