@@ -1436,8 +1436,9 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     /* Re-create each modification we couldn't write. */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         /* Only need to restore update chain that has updates newer than the on page value. */
-        if (!supd->has_newer_updates)
+        if (!supd->restore)
             continue;
+
         switch (orig->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
@@ -1512,9 +1513,10 @@ err:
  *     Discard moved update lists from the original page.
  */
 static void
-__split_multi_inmem_final(WT_PAGE *orig, WT_MULTI *multi)
+__split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi)
 {
     WT_SAVE_UPD *supd;
+    WT_UPDATE *upd;
     uint32_t i, slot;
 
     /*
@@ -1524,20 +1526,40 @@ __split_multi_inmem_final(WT_PAGE *orig, WT_MULTI *multi)
      */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         /* Only need to restore update chain that has updates newer than the on page value. */
-        if (!supd->has_newer_updates)
+        if (!supd->restore)
             continue;
+
         switch (orig->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
+            upd = supd->ins->upd;
             supd->ins->upd = NULL;
             break;
         case WT_PAGE_ROW_LEAF:
             if (supd->ins == NULL) {
                 slot = WT_ROW_SLOT(orig, supd->ripcip);
+                upd = orig->modify->mod_row_update[slot];
                 orig->modify->mod_row_update[slot] = NULL;
-            } else
+            } else {
+                upd = supd->ins->upd;
                 supd->ins->upd = NULL;
+            }
+
             break;
+        }
+
+        /*
+         * Free the onpage value and the older versions moved to the history store. However, we
+         * can't free the updates for in memory database and fixed length column store as they don't
+         * support the history store.
+         */
+        if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
+          orig->type != WT_PAGE_COL_FIX) {
+            WT_ASSERT(session, upd != NULL && upd != supd->onpage_upd);
+            for (; upd->next != NULL && upd->next != supd->onpage_upd; upd = upd->next)
+                ;
+            WT_ASSERT(session, upd->next == supd->onpage_upd);
+            __wt_free_update_list(session, &upd->next);
         }
     }
 }
@@ -2071,7 +2093,7 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      * Finalize the move, discarding moved update lists from the original page.
      */
     for (i = 0; i < new_entries; ++i)
-        __split_multi_inmem_final(page, &mod->mod_multi[i]);
+        __split_multi_inmem_final(session, page, &mod->mod_multi[i]);
 
     /*
      * Pages with unresolved changes are not marked clean in reconciliation, do it now, then discard
@@ -2206,7 +2228,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
      *
      * Finalize the move, discarding moved update lists from the original page.
      */
-    __split_multi_inmem_final(page, multi);
+    __split_multi_inmem_final(session, page, multi);
 
     /*
      * Discard the original page.

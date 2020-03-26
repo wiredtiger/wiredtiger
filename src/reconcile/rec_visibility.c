@@ -35,7 +35,8 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
     supd = &r->supd[r->supd_next];
     supd->ins = ins;
     supd->ripcip = ripcip;
-    supd->has_newer_updates = has_newer_updates;
+    supd->restore = has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
+      r->page->type == WT_PAGE_COL_FIX;
     WT_CLEAR(supd->onpage_upd);
     if (onpage_upd != NULL &&
       (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY))
