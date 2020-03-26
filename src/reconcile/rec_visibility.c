@@ -57,7 +57,7 @@ __rec_append_orig_value(
     WT_UPDATE *append, *tombstone;
     size_t size, total_size;
 
-    WT_ASSERT(session, unpack != NULL);
+    WT_ASSERT(session, unpack != NULL && unpack->type != WT_CELL_DEL);
 
     for (;; upd = upd->next) {
         /* Done if at least one self-contained update is globally visible. */
@@ -490,7 +490,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * time there are saved updates and during reconciliation of a backing overflow record that will
      * be physically removed once it's no longer needed.
      */
-    if (vpack != NULL && upd_select->upd != NULL && upd_saved)
+    if (vpack != NULL && vpack->type != WT_CELL_DEL && upd_select->upd != NULL && upd_saved)
         WT_ERR(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
 err:
