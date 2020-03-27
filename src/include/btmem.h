@@ -339,7 +339,7 @@ struct __wt_page_modify {
                     WT_INSERT *ins; /* Insert list reference */
                     WT_ROW *ripcip; /* Original on-page reference */
                     WT_UPDATE *onpage_upd;
-                    bool restore;
+                    bool has_newer_updates;
                 } * supd;
                 uint32_t supd_entries;
 
