@@ -27,7 +27,7 @@ __rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
  */
 static int
 __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
-  WT_UPDATE *onpage_upd, bool has_newer_updates, size_t upd_memsize)
+  WT_UPDATE *onpage_upd, bool supd_restore, size_t upd_memsize)
 {
     WT_SAVE_UPD *supd;
 
@@ -35,8 +35,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
     supd = &r->supd[r->supd_next];
     supd->ins = ins;
     supd->ripcip = ripcip;
-    supd->restore = has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
-      r->page->type == WT_PAGE_COL_FIX;
+    supd->restore = supd_restore;
     WT_CLEAR(supd->onpage_upd);
     if (onpage_upd != NULL &&
       (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY))
@@ -178,7 +177,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     wt_timestamp_t checkpoint_timestamp, max_ts, tombstone_durable_ts;
     size_t size, upd_memsize;
     uint64_t max_txn, txnid;
-    bool has_newer_updates, is_hs_page, upd_saved;
+    bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -199,7 +198,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     max_ts = WT_TS_NONE;
     tombstone_durable_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
-    has_newer_updates = upd_saved = false;
+    has_newer_updates = supd_restore = upd_saved = false;
     is_hs_page = F_ISSET(S2BT(session), WT_BTREE_HS);
 
     /*
@@ -464,8 +463,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Additionally history store reconciliation is not set skip saving an update.
      */
     if (__rec_need_save_upd(session, r, upd_select, has_newer_updates)) {
-        WT_ERR(__rec_update_save(
-          session, r, ins, ripcip, upd_select->upd, has_newer_updates, upd_memsize));
+        /*
+         * We should restore the update chains to the new disk image if there are newer updates in
+         * eviction, or for cases that don't support history store, such as in-memory database and
+         * fixed length column store.
+         */
+        supd_restore = has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
+          page->type == WT_PAGE_COL_FIX;
+        if (supd_restore)
+            r->cache_write_restore = true;
+        WT_ERR(
+          __rec_update_save(session, r, ins, ripcip, upd_select->upd, supd_restore, upd_memsize));
         upd_saved = true;
     }
 

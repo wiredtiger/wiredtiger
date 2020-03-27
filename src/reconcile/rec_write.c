@@ -1069,33 +1069,33 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key,
      * key.
      */
     max = r->last;
+    if (r->cache_write_restore)
+        for (i = r->supd_next; i > 0; --i) {
+            supd = &r->supd[i - 1];
+            if (supd->ins == NULL)
+                WT_ERR(__wt_row_leaf_key(session, r->page, supd->ripcip, update, false));
+            else {
+                update->data = WT_INSERT_KEY(supd->ins);
+                update->size = WT_INSERT_KEY_SIZE(supd->ins);
+            }
 
-    for (i = r->supd_next; i > 0; --i) {
-        supd = &r->supd[i - 1];
-        if (supd->ins == NULL)
-            WT_ERR(__wt_row_leaf_key(session, r->page, supd->ripcip, update, false));
-        else {
-            update->data = WT_INSERT_KEY(supd->ins);
-            update->size = WT_INSERT_KEY_SIZE(supd->ins);
+            /* Compare against the current key, it must be less. */
+            WT_ERR(__wt_compare(session, btree->collator, update, r->cur, &cmp));
+            if (cmp >= 0)
+                continue;
+
+            /* Compare against the last key, it must be greater. */
+            WT_ERR(__wt_compare(session, btree->collator, update, r->last, &cmp));
+            if (cmp >= 0)
+                max = update;
+
+            /*
+             * The saved updates are in key-sort order so the entry we're looking for is either the
+             * last or the next-to- last one in the list. Once we've compared an entry against the
+             * last key on the page, we're done.
+             */
+            break;
         }
-
-        /* Compare against the current key, it must be less. */
-        WT_ERR(__wt_compare(session, btree->collator, update, r->cur, &cmp));
-        if (cmp >= 0)
-            continue;
-
-        /* Compare against the last key, it must be greater. */
-        WT_ERR(__wt_compare(session, btree->collator, update, r->last, &cmp));
-        if (cmp >= 0)
-            max = update;
-
-        /*
-         * The saved updates are in key-sort order so the entry we're looking for is either the last
-         * or the next-to- last one in the list. Once we've compared an entry against the last key
-         * on the page, we're done.
-         */
-        break;
-    }
 
     /*
      * The largest key on the last block must sort before the current key, so we'll either find a
@@ -1855,7 +1855,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
         /* If we need to restore the page to memory, copy the disk image. */
         if (restore) {
-            r->cache_write_restore = true;
             multi->supd_restore = true;
             goto copy_image;
         }
@@ -1903,7 +1902,7 @@ copy_image:
      * If re-instantiating this page in memory (either because eviction wants to, or because we
      * skipped updates to build the disk image), save a copy of the disk image.
      */
-    if (F_ISSET(r, WT_REC_SCRUB) || multi->restore)
+    if (F_ISSET(r, WT_REC_SCRUB) || multi->supd_restore)
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     return (0);
@@ -2201,7 +2200,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              * eviction has decided to retain the page in memory because the latter can't handle
              * update lists and splits can.
              */
-        if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->restore) {
+        if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->supd_restore) {
             WT_ASSERT(session, F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0));
             goto split;
