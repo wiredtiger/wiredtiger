@@ -1070,32 +1070,33 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key,
      */
     max = r->last;
 
-    for (i = r->supd_next; i > 0; --i) {
-        supd = &r->supd[i - 1];
-        if (supd->ins == NULL)
-            WT_ERR(__wt_row_leaf_key(session, r->page, supd->ripcip, update, false));
-        else {
-            update->data = WT_INSERT_KEY(supd->ins);
-            update->size = WT_INSERT_KEY_SIZE(supd->ins);
+    if (r->cache_write_restore)
+        for (i = r->supd_next; i > 0; --i) {
+            supd = &r->supd[i - 1];
+            if (supd->ins == NULL)
+                WT_ERR(__wt_row_leaf_key(session, r->page, supd->ripcip, update, false));
+            else {
+                update->data = WT_INSERT_KEY(supd->ins);
+                update->size = WT_INSERT_KEY_SIZE(supd->ins);
+            }
+
+            /* Compare against the current key, it must be less. */
+            WT_ERR(__wt_compare(session, btree->collator, update, r->cur, &cmp));
+            if (cmp >= 0)
+                continue;
+
+            /* Compare against the last key, it must be greater. */
+            WT_ERR(__wt_compare(session, btree->collator, update, r->last, &cmp));
+            if (cmp >= 0)
+                max = update;
+
+            /*
+             * The saved updates are in key-sort order so the entry we're looking for is either the
+             * last or the next-to- last one in the list. Once we've compared an entry against the
+             * last key on the page, we're done.
+             */
+            break;
         }
-
-        /* Compare against the current key, it must be less. */
-        WT_ERR(__wt_compare(session, btree->collator, update, r->cur, &cmp));
-        if (cmp >= 0)
-            continue;
-
-        /* Compare against the last key, it must be greater. */
-        WT_ERR(__wt_compare(session, btree->collator, update, r->last, &cmp));
-        if (cmp >= 0)
-            max = update;
-
-        /*
-         * The saved updates are in key-sort order so the entry we're looking for is either the last
-         * or the next-to- last one in the list. Once we've compared an entry against the last key
-         * on the page, we're done.
-         */
-        break;
-    }
 
     /*
      * The largest key on the last block must sort before the current key, so we'll either find a
