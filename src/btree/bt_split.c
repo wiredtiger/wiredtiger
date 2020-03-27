@@ -1433,6 +1433,9 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
+    /* If we have saved updates, we must have decided to restore them to the new page. */
+    WT_ASSERT(session, multi->supd_entries == 0 || multi->supd_restore);
+
     /* Re-create each modification we couldn't write. */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         /* Only need to restore update chain that has updates newer than the on page value. */
@@ -1518,6 +1521,9 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
     WT_SAVE_UPD *supd;
     WT_UPDATE *upd;
     uint32_t i, slot;
+
+    /* If we have saved updates, we must have decided to restore them to the new page. */
+    WT_ASSERT(session, multi->supd_entries == 0 || multi->supd_restore);
 
     /*
      * We successfully created new in-memory pages. For error-handling reasons, we've left the

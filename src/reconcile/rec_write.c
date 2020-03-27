@@ -1840,8 +1840,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
      * If configured for an in-memory database, we can't actually write it. Instead, we will
      * re-instantiate the page using the disk image and any list of updates we skipped.
      */
-    if (F_ISSET(r, WT_REC_IN_MEMORY))
+    if (F_ISSET(r, WT_REC_IN_MEMORY)) {
+        if (restore)
+            multi->supd_restore = true;
         goto copy_image;
+    }
 
     /* Check the eviction flag as checkpoint also saves updates. */
     if (F_ISSET(r, WT_REC_EVICT) && multi->supd != NULL) {
