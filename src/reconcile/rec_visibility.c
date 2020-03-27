@@ -468,8 +468,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * eviction, or for cases that don't support history store, such as in-memory database and
          * fixed length column store.
          */
-        supd_restore = has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
-          page->type == WT_PAGE_COL_FIX;
+        supd_restore = F_ISSET(r, WT_REC_EVICT) &&
+          (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
+                         page->type == WT_PAGE_COL_FIX);
         if (supd_restore)
             r->cache_write_restore = true;
         WT_ERR(
