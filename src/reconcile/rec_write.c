@@ -1437,23 +1437,23 @@ __wt_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  */
 static int
 __rec_supd_move(
-  WT_SESSION_IMPL *session, WT_MULTI *multi, WT_SAVE_UPD *supd, uint32_t n, bool *restorep)
+  WT_SESSION_IMPL *session, WT_MULTI *multi, WT_SAVE_UPD *supd, uint32_t n, bool *supd_restorep)
 {
     uint32_t i;
-    bool restore;
+    bool supd_restore;
 
-    restore = *restorep;
+    supd_restore = *supd_restorep;
 
     WT_RET(__wt_calloc_def(session, n, &multi->supd));
 
     for (i = 0; i < n; ++i) {
         if (supd->restore)
-            restore = true;
+            supd_restore = true;
         multi->supd[i] = *supd++;
     }
 
     multi->supd_entries = n;
-    *restorep = restore;
+    *supd_restorep = supd_restore;
     return (0);
 }
 
@@ -1464,7 +1464,7 @@ __rec_supd_move(
  */
 static int
 __rec_split_write_supd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk,
-  WT_MULTI *multi, bool last_block, bool *restorep)
+  WT_MULTI *multi, bool last_block, bool *supd_restorep)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(key);
@@ -1486,7 +1486,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
      * The last block gets all remaining saved updates.
      */
     if (last_block) {
-        WT_RET(__rec_supd_move(session, multi, r->supd, r->supd_next, restorep));
+        WT_RET(__rec_supd_move(session, multi, r->supd, r->supd_next, supd_restorep));
         r->supd_next = 0;
         r->supd_memsize = 0;
         return (ret);
@@ -1522,7 +1522,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
             if (WT_INSERT_RECNO(supd->ins) >= next->recno)
                 break;
     if (i != 0) {
-        WT_ERR(__rec_supd_move(session, multi, r->supd, i, restorep));
+        WT_ERR(__rec_supd_move(session, multi, r->supd, i, supd_restorep));
 
         /*
          * If there are updates that weren't moved to the block, shuffle them to the beginning of
@@ -1752,14 +1752,14 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_PAGE *page;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    bool restore;
+    bool supd_restore;
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
 
     btree = S2BT(session);
     page = r->page;
-    restore = false;
+    supd_restore = false;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
@@ -1809,7 +1809,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     /* Check if there are saved updates that might belong to this block. */
     if (r->supd_next != 0)
-        WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block, &restore));
+        WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block, &supd_restore));
 
     /* Initialize the page header(s). */
     __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);
@@ -1841,7 +1841,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
      * re-instantiate the page using the disk image and any list of updates we skipped.
      */
     if (F_ISSET(r, WT_REC_IN_MEMORY)) {
-        if (restore)
+        if (supd_restore)
             multi->supd_restore = true;
         goto copy_image;
     }
@@ -1857,7 +1857,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             return (__wt_set_return(session, EBUSY));
 
         /* If we need to restore the page to memory, copy the disk image. */
-        if (restore) {
+        if (supd_restore) {
             multi->supd_restore = true;
             goto copy_image;
         }
