@@ -1069,7 +1069,6 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key,
      * key.
      */
     max = r->last;
-
     if (r->cache_write_restore)
         for (i = r->supd_next; i > 0; --i) {
             supd = &r->supd[i - 1];
