@@ -1800,6 +1800,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     }
     multi->size = WT_STORE_SIZE(chunk->image.size);
     multi->checksum = 0;
+    multi->supd_restore = false;
 
     /* Set the key. */
     if (btree->type == BTREE_ROW)

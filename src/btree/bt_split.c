@@ -1676,6 +1676,10 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         WT_REF_SET_STATE(ref, WT_REF_DISK);
     }
 
+    /* If we don't have a disk image, we can't restore the saved updates. */
+    WT_ASSERT(
+      session, multi->disk_image != NULL || (multi->supd_entries == 0 && !multi->supd_restore));
+
     /*
      * If we have a disk image and we're not closing the file, re-instantiate the page.
      *
