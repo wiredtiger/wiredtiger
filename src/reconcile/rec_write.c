@@ -1856,7 +1856,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         /* If we need to restore the page to memory, copy the disk image. */
         if (restore) {
             r->cache_write_restore = true;
-            multi->restore = true;
+            multi->supd_restore = true;
             goto copy_image;
         }
 
@@ -2324,7 +2324,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         if (multi->supd != NULL) {
             WT_ERR(__wt_hs_insert_updates(session->hs_cursor, S2BT(session), r->page, multi));
             r->cache_write_hs = true;
-            if (!multi->restore) {
+            if (!multi->supd_restore) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
             }
