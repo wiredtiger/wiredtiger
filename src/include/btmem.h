@@ -341,6 +341,7 @@ struct __wt_page_modify {
                     WT_UPDATE *onpage_upd;
                 } * supd;
                 uint32_t supd_entries;
+                bool supd_restore;
 
                 /*
                  * Disk image was written: address, size and checksum. On subsequent reconciliations
@@ -351,8 +352,6 @@ struct __wt_page_modify {
                 WT_ADDR addr;
                 uint32_t size;
                 uint32_t checksum;
-
-                bool restore;
             } * multi;
             uint32_t multi_entries; /* Multiple blocks element count */
         } m;
