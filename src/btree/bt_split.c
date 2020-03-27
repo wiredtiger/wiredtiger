@@ -1529,7 +1529,6 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
         if (!supd->restore)
             continue;
 
-        upd = NULL;
         switch (orig->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
