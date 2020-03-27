@@ -1436,24 +1436,15 @@ __wt_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     Move a saved WT_UPDATE list from the per-page cache to a specific block's list.
  */
 static int
-__rec_supd_move(
-  WT_SESSION_IMPL *session, WT_MULTI *multi, WT_SAVE_UPD *supd, uint32_t n, bool *is_cleanp)
+__rec_supd_move(WT_SESSION_IMPL *session, WT_MULTI *multi, WT_SAVE_UPD *supd, uint32_t n)
 {
     uint32_t i;
-    bool is_clean;
-
-    is_clean = *is_cleanp;
 
     WT_RET(__wt_calloc_def(session, n, &multi->supd));
 
-    for (i = 0; i < n; ++i) {
-        if (supd->has_newer_updates)
-            is_clean = false;
+    for (i = 0; i < n; ++i)
         multi->supd[i] = *supd++;
-    }
-
     multi->supd_entries = n;
-    *is_cleanp = is_clean;
     return (0);
 }
 
@@ -1463,8 +1454,8 @@ __rec_supd_move(
  *     structure.
  */
 static int
-__rec_split_write_supd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk,
-  WT_MULTI *multi, bool last_block, bool *is_cleanp)
+__rec_split_write_supd(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk, WT_MULTI *multi, bool last_block)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(key);
@@ -1486,7 +1477,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
      * The last block gets all remaining saved updates.
      */
     if (last_block) {
-        WT_RET(__rec_supd_move(session, multi, r->supd, r->supd_next, is_cleanp));
+        WT_RET(__rec_supd_move(session, multi, r->supd, r->supd_next));
         r->supd_next = 0;
         r->supd_memsize = 0;
         return (ret);
@@ -1522,7 +1513,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
             if (WT_INSERT_RECNO(supd->ins) >= next->recno)
                 break;
     if (i != 0) {
-        WT_ERR(__rec_supd_move(session, multi, r->supd, i, is_cleanp));
+        WT_ERR(__rec_supd_move(session, multi, r->supd, i));
 
         /*
          * If there are updates that weren't moved to the block, shuffle them to the beginning of
@@ -1752,14 +1743,12 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_PAGE *page;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    bool is_clean;
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
 
     btree = S2BT(session);
     page = r->page;
-    is_clean = true;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
@@ -1809,7 +1798,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     /* Check if there are saved updates that might belong to this block. */
     if (r->supd_next != 0)
-        WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block, &is_clean));
+        WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block));
 
     /* Initialize the page header(s). */
     __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);
@@ -1854,13 +1843,13 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             return (__wt_set_return(session, EBUSY));
 
         /* If we need to restore the page to memory, copy the disk image. */
-        if (!is_clean) {
-            r->cache_write_restore = true;
+        if (r->cache_write_restore) {
             multi->restore = true;
             goto copy_image;
         }
 
-        WT_ASSERT(session, chunk->entries > 0);
+        if (chunk->entries == 0)
+            return (0);
     }
 
     /*
@@ -1903,7 +1892,7 @@ copy_image:
      * If re-instantiating this page in memory (either because eviction wants to, or because we
      * skipped updates to build the disk image), save a copy of the disk image.
      */
-    if (F_ISSET(r, WT_REC_SCRUB) || multi->restore)
+    if (F_ISSET(r, WT_REC_SCRUB) || (r->cache_write_restore && multi->supd != NULL))
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     return (0);
@@ -2201,7 +2190,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              * eviction has decided to retain the page in memory because the latter can't handle
              * update lists and splits can.
              */
-        if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->restore) {
+        if (F_ISSET(r, WT_REC_IN_MEMORY) || r->cache_write_restore) {
             WT_ASSERT(session, F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0));
             goto split;
