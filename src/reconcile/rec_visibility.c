@@ -32,7 +32,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
     WT_SAVE_UPD *supd;
 
     /* If nothing is committed, we must restore the update chain. */
-    WT_ASSERT(session, onpage_upd == NULL || supd_restore);
+    WT_ASSERT(session, onpage_upd != NULL || supd_restore);
     /* We can only write a standard update or a modify to the data store. */
     WT_ASSERT(session, onpage_upd == NULL ||
         (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY));
