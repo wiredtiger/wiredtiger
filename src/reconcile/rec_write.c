@@ -1440,20 +1440,18 @@ __rec_supd_move(
   WT_SESSION_IMPL *session, WT_MULTI *multi, WT_SAVE_UPD *supd, uint32_t n, bool *supd_restorep)
 {
     uint32_t i;
-    bool supd_restore;
 
-    supd_restore = *supd_restorep;
+    *supd_restorep = false;
 
     WT_RET(__wt_calloc_def(session, n, &multi->supd));
 
     for (i = 0; i < n; ++i) {
         if (supd->restore)
-            supd_restore = true;
+            *supd_restorep = true;
         multi->supd[i] = *supd++;
     }
 
     multi->supd_entries = n;
-    *supd_restorep = supd_restore;
     return (0);
 }
 
