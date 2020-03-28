@@ -34,8 +34,8 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
     /* If nothing is committed, we must restore the update chain. */
     WT_ASSERT(session, onpage_upd != NULL || supd_restore);
     /* We can only write a standard update or a modify to the data store. */
-    WT_ASSERT(session, onpage_upd == NULL ||
-        (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY));
+    WT_ASSERT(session, onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
+        onpage_upd->type == WT_UPDATE_MODIFY);
 
     WT_RET(__wt_realloc_def(session, &r->supd_allocated, r->supd_next + 1, &r->supd));
     supd = &r->supd[r->supd_next];
