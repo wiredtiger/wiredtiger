@@ -198,7 +198,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     max_ts = WT_TS_NONE;
     tombstone_durable_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
-    has_newer_updates = supd_restore = upd_saved = false;
+    has_newer_updates = upd_saved = false;
     is_hs_page = F_ISSET(S2BT(session), WT_BTREE_HS);
 
     /*
