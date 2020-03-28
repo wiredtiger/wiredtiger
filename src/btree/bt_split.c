@@ -1438,7 +1438,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
 
     /* Re-create each modification we couldn't write. */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-        /* Only need to restore update chain that has updates newer than the on page value. */
+        /* Don't restore the update chain that is clean after reconciliation. */
         if (!supd->restore)
             continue;
 
@@ -1531,7 +1531,7 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
      * original page, terminate the original page's reference to any update list we moved.
      */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-        /* Only need to restore update chain that has updates newer than the on page value. */
+        /* Discard the update chain that is clean after reconcilition. */
         if (!supd->restore)
             continue;
 
