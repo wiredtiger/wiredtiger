@@ -1531,7 +1531,7 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
      * original page, terminate the original page's reference to any update list we moved.
      */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-        /* Discard the update chain that is clean after reconcilition. */
+        /* Discard the update chain that is clean after reconciliation. */
         if (!supd->restore)
             continue;
 
@@ -1542,7 +1542,7 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
         } else {
             upd = supd->ins->upd;
             supd->ins->upd = NULL;
-        }   
+        }
 
         /*
          * Free the onpage value and the older versions moved to the history store. However, we

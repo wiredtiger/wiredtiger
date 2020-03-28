@@ -31,15 +31,15 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
 {
     WT_SAVE_UPD *supd;
 
+    WT_ASSERT(session, onpage_upd == NULL ||
+        (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY));
+
     WT_RET(__wt_realloc_def(session, &r->supd_allocated, r->supd_next + 1, &r->supd));
     supd = &r->supd[r->supd_next];
     supd->ins = ins;
     supd->ripcip = ripcip;
+    supd->onpage_upd = onpage_upd;
     supd->restore = supd_restore;
-    WT_CLEAR(supd->onpage_upd);
-    if (onpage_upd != NULL &&
-      (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY))
-        supd->onpage_upd = onpage_upd;
     ++r->supd_next;
     r->supd_memsize += upd_memsize;
     return (0);
