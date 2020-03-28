@@ -1433,7 +1433,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
-    /* If we have saved updates, we must have decided to restore them to the new page. */
+    /* We must have decided to restore the saved updates to the new page. */
     WT_ASSERT(session, multi->supd_restore);
 
     /* Re-create each modification we couldn't write. */
