@@ -1535,25 +1535,14 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
         if (!supd->restore)
             continue;
 
-        upd = NULL;
-        switch (orig->type) {
-        case WT_PAGE_COL_FIX:
-        case WT_PAGE_COL_VAR:
+        if (supd->ins == NULL) {
+            slot = WT_ROW_SLOT(orig, supd->ripcip);
+            upd = orig->modify->mod_row_update[slot];
+            orig->modify->mod_row_update[slot] = NULL;
+        } else {
             upd = supd->ins->upd;
             supd->ins->upd = NULL;
-            break;
-        case WT_PAGE_ROW_LEAF:
-            if (supd->ins == NULL) {
-                slot = WT_ROW_SLOT(orig, supd->ripcip);
-                upd = orig->modify->mod_row_update[slot];
-                orig->modify->mod_row_update[slot] = NULL;
-            } else {
-                upd = supd->ins->upd;
-                supd->ins->upd = NULL;
-            }
-
-            break;
-        }
+        }   
 
         /*
          * Free the onpage value and the older versions moved to the history store. However, we
