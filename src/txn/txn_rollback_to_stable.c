@@ -568,19 +568,17 @@ __rollback_abort_newer_row_leaf(
      * since the page was read from disk.
      */
     WT_ROW_FOREACH (page, rip, i) {
+        stable_update_found = false;
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)
             __rollback_abort_newer_update(session, upd, rollback_timestamp, &stable_update_found);
-        else
-            /*
-             * Reset the flag to make sure that we don't reuse an earlier row flag result for the
-             * current row.
-             */
-            stable_update_found = false;
 
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
             __rollback_abort_newer_insert(session, insert, rollback_timestamp);
 
-        /* If the configuration is not in-memory, abort any on-disk value. */
+        /*
+         * If the configuration is not in-memory and no stable update found in the update list,
+         * abort any on-disk value.
+         */
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !stable_update_found)
             WT_RET(__rollback_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
     }
@@ -1039,14 +1037,14 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          */
         if (S2BT(session)->modified || max_durable_ts > rollback_timestamp || !durable_ts_found) {
             __wt_verbose(session, WT_VERB_RTS,
-              "File rolled back with durable timestamp: %s, or when tree is modified: %s or "
+              "Tree rolled back with durable timestamp: %s, or when tree is modified: %s or "
               "when durable time is not found: %s",
               __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
               S2BT(session)->modified ? "true" : "false", !durable_ts_found ? "true" : "false");
             WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp));
         } else
             __wt_verbose(session, WT_VERB_RTS,
-              "File skipped with durable timestamp: %s and stable timestamp: %s",
+              "Tree skipped with durable timestamp: %s and stable timestamp: %s",
               __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
 
