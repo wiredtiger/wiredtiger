@@ -1439,7 +1439,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
 
     /* Re-create each modification we couldn't write. */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-        /* Don't restore the update chain that is clean after reconciliation. */
+        /* Ignore update chains that don't need to be restored. */
         if (!supd->restore)
             continue;
 
@@ -1532,7 +1532,7 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
      * original page, terminate the original page's reference to any update list we moved.
      */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-        /* Discard the update chain that is not restored. */
+        /* We have finished restoration. Discard the update chains that aren't restored. */
         if (!supd->restore)
             continue;
 
@@ -1546,9 +1546,8 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
         }
 
         /*
-         * Free the onpage value and the older versions moved to the history store. However, we
-         * can't free the updates for in memory database and fixed length column store as they don't
-         * support the history store.
+         * Free the onpage value and the older versions moved to the history store. We can't free
+         * the updates for in memory database and fixed length column store as they don't support
          */
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
           orig->type != WT_PAGE_COL_FIX) {
