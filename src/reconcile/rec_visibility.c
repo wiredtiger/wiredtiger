@@ -12,7 +12,7 @@
  * __rec_update_stable --
  *     Return whether an update is stable or not.
  */
-static inline bool
+inline static bool
 __rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
 {
     return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?

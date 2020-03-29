@@ -1423,18 +1423,19 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     if (!WT_READGEN_EVICT_SOON(orig->read_gen))
         page->read_gen = orig->read_gen;
 
-    /* If there are no updates to apply to the page, we're done. */
+    /*
+     * If there are no updates to apply to the page, we're done. Otherwise, we must have decided to
+     * restore the saved updates to the new page.
+     */
     if (multi->supd_entries == 0)
         return (0);
+    WT_ASSERT(session, multi->supd_restore);
 
     if (orig->type == WT_PAGE_ROW_LEAF)
         WT_RET(__wt_scr_alloc(session, 0, &key));
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
-
-    /* We must have decided to restore the saved updates to the new page. */
-    WT_ASSERT(session, multi->supd_restore);
 
     /* Re-create each modification we couldn't write. */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
@@ -1604,6 +1605,10 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     /* If closing the file, there better not be any saved updates. */
     WT_ASSERT(session, !closing || multi->supd == NULL);
 
+    /* If we don't have a disk image, we can't restore the saved updates. */
+    WT_ASSERT(
+      session, multi->disk_image != NULL || (multi->supd_entries == 0 && !multi->supd_restore));
+
     /* Verify any disk image we have. */
     WT_ASSERT(session, multi->disk_image == NULL ||
         __wt_verify_dsk_image(
@@ -1664,10 +1669,6 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
 
         WT_REF_SET_STATE(ref, WT_REF_DISK);
     }
-
-    /* If we don't have a disk image, we can't restore the saved updates. */
-    WT_ASSERT(
-      session, multi->disk_image != NULL || (multi->supd_entries == 0 && !multi->supd_restore));
 
     /*
      * If we have a disk image and we're not closing the file, re-instantiate the page.
