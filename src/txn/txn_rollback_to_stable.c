@@ -20,6 +20,7 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
     WT_UPDATE *upd;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
+    *stable_update_found = false;
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         /*
          * Updates with no timestamp will have a timestamp of zero and will never be rolled back. If
@@ -42,10 +43,9 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
             first_upd = upd->next;
 
             __wt_verbose(session, WT_VERB_RTS,
-              "%s: Rollback to stable update aborted with txnid: %" PRIu64
+              "Rollback to stable update aborted with txnid: %" PRIu64
               " durable timestamp: %s and stable timestamp: %s",
-              S2BT(session)->dhandle->name, upd->txnid,
-              __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
+              upd->txnid, __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
 
             upd->txnid = WT_TXN_ABORTED;
@@ -244,8 +244,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          */
         if (hs_stop_ts <= rollback_timestamp) {
             __wt_verbose(session, WT_VERB_RTS,
-              "%s :History store update valid with stop timestamp: %s and stable timestamp: %s",
-              S2BT(session)->dhandle->name, __wt_timestamp_to_string(hs_stop_ts, ts_string[0]),
+              "History store update valid with stop timestamp: %s and stable timestamp: %s",
+              __wt_timestamp_to_string(hs_stop_ts, ts_string[0]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
             break;
         }
@@ -253,9 +253,9 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         /* Stop processing when we find a stable update according to the given timestamp. */
         if (durable_ts <= rollback_timestamp) {
             __wt_verbose(session, WT_VERB_RTS,
-              "%s :History store update valid with start timestamp: %s, durable timestamp: %s, "
+              "History store update valid with start timestamp: %s, durable timestamp: %s, "
               "stop timestamp: %s and stable timestamp: %s",
-              S2BT(session)->dhandle->name, __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
+              __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
               __wt_timestamp_to_string(durable_ts, ts_string[1]),
               __wt_timestamp_to_string(hs_stop_ts, ts_string[2]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[3]));
@@ -264,9 +264,9 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         }
 
         __wt_verbose(session, WT_VERB_RTS,
-          "%s :History store update aborted with start timestamp: %s, durable timestamp: %s, stop "
+          "History store update aborted with start timestamp: %s, durable timestamp: %s, stop "
           "timestamp: %s and stable timestamp: %s",
-          S2BT(session)->dhandle->name, __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
+          __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
           __wt_timestamp_to_string(durable_ts, ts_string[1]),
           __wt_timestamp_to_string(hs_stop_ts, ts_string[2]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[3]));
@@ -349,9 +349,8 @@ __rollback_abort_row_ondisk_kv(
     __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
     if (vpack->durable_start_ts > rollback_timestamp) {
         __wt_verbose(session, WT_VERB_RTS,
-          "%s: On-disk update aborted with start durable timestamp: %s, commit timestamp: %s and "
+          "On-disk update aborted with start durable timestamp: %s, commit timestamp: %s and "
           "stable timestamp: %s",
-          S2BT(session)->dhandle->name,
           __wt_timestamp_to_string(vpack->durable_start_ts, ts_string[0]),
           __wt_timestamp_to_string(vpack->start_ts, ts_string[1]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
@@ -500,9 +499,8 @@ __rollback_abort_row_reconciled_page(
       (mod->mod_replace.start_durable_ts > rollback_timestamp ||
           mod->mod_replace.stop_durable_ts > rollback_timestamp)) {
         __wt_verbose(session, WT_VERB_RTS,
-          "%s: Reconciled replace block page history store update removal On-disk with start "
+          "Reconciled replace block page history store update removal On-disk with start "
           "durable timestamp: %s, stop durable timestamp: %s and stable timestamp: %s",
-          S2BT(session)->dhandle->name,
           __wt_timestamp_to_string(mod->mod_replace.start_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(mod->mod_replace.stop_durable_ts, ts_string[1]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
@@ -522,10 +520,9 @@ __rollback_abort_row_reconciled_page(
             if (multi->addr.start_durable_ts > rollback_timestamp ||
               multi->addr.stop_durable_ts > rollback_timestamp) {
                 __wt_verbose(session, WT_VERB_RTS,
-                  "%s: Reconciled multi block page history store update removal On-disk with "
+                  "Reconciled multi block page history store update removal On-disk with "
                   "start durable timestamp: %s, stop durable timestamp: %s and stable "
                   "timestamp: %s",
-                  S2BT(session)->dhandle->name,
                   __wt_timestamp_to_string(multi->addr.start_durable_ts, ts_string[0]),
                   __wt_timestamp_to_string(multi->addr.stop_durable_ts, ts_string[1]),
                   __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
@@ -571,9 +568,14 @@ __rollback_abort_newer_row_leaf(
      * since the page was read from disk.
      */
     WT_ROW_FOREACH (page, rip, i) {
-        stable_update_found = false;
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)
             __rollback_abort_newer_update(session, upd, rollback_timestamp, &stable_update_found);
+        else
+            /*
+             * Reset the flag to make sure that we don't reuse an earlier row flag result for the
+             * current row.
+             */
+            stable_update_found = false;
 
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
             __rollback_abort_newer_insert(session, insert, rollback_timestamp);
@@ -812,8 +814,8 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     conn = S2C(session);
 
     __wt_verbose(session, WT_VERB_RTS,
-      "%s: Rollback to stable connection logging enabled: %s and btree logging enabled: %s",
-      btree->dhandle->name, FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ? "true" : "false",
+      "Rollback to stable connection logging enabled: %s and btree logging enabled: %s",
+      FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ? "true" : "false",
       !F_ISSET(btree, WT_BTREE_NO_LOGGING) ? "true" : "false");
 
     /*
@@ -827,8 +829,6 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
         if (btree->id >= conn->stable_rollback_maxfile)
             WT_PANIC_RET(session, EINVAL, "btree file ID %" PRIu32 " larger than max %" PRIu32,
               btree->id, conn->stable_rollback_maxfile);
-        __wt_verbose(session, WT_VERB_RTS,
-          "%s: Immediately durable btree skipped for rollback to stable", btree->dhandle->name);
         return (0);
     }
 
@@ -941,8 +941,8 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         /* Set this comparison as exact match of the search for later use. */
         cbt->compare = 0;
         __wt_verbose(session, WT_VERB_RTS,
-          "%s: Rollback to stable history cleanup update with start timestamp: %s",
-          S2BT(session)->dhandle->name, __wt_timestamp_to_string(hs_start_ts, ts_string));
+          "Rollback to stable history store cleanup of update with start timestamp: %s",
+          __wt_timestamp_to_string(hs_start_ts, ts_string));
 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
@@ -1027,11 +1027,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         max_durable_ts = WT_MAX(start_durable_ts, stop_durable_ts);
         ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
         /* Ignore performing rollback to stable on files that don't exist. */
-        if (ret == ENOENT) {
-            __wt_verbose(
-              session, WT_VERB_RTS, "%s: rollback to stable ignored on non existing file", uri);
+        if (ret == ENOENT)
             continue;
-        }
         WT_ERR(ret);
 
         /*
@@ -1042,14 +1039,14 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          */
         if (S2BT(session)->modified || max_durable_ts > rollback_timestamp || !durable_ts_found) {
             __wt_verbose(session, WT_VERB_RTS,
-              "%s: file rolled back with durable timestamp: %s, or when tree is modified: %s or "
+              "File rolled back with durable timestamp: %s, or when tree is modified: %s or "
               "when durable time is not found: %s",
-              uri, __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
+              __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
               S2BT(session)->modified ? "true" : "false", !durable_ts_found ? "true" : "false");
             WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp));
         } else
             __wt_verbose(session, WT_VERB_RTS,
-              "%s: file skipped with durable timestamp: %s and stable timestamp: %s", uri,
+              "File skipped with durable timestamp: %s and stable timestamp: %s",
               __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
 
@@ -1063,11 +1060,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * 2. In-memory database - In this scenario, there is no history store to truncate.
          */
         if (!S2BT(session)->modified && max_durable_ts == WT_TS_NONE &&
-          !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-            __wt_verbose(
-              session, WT_VERB_RTS, "%s: non-timestamped file history store cleanup", uri);
+          !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             WT_TRET(__rollback_to_stable_btree_hs_truncate(session, S2BT(session)->id));
-        }
 
         WT_TRET(__wt_session_release_dhandle(session));
         WT_ERR(ret);
