@@ -464,7 +464,8 @@ __rollback_abort_row_reconciled_page_internal(WT_SESSION_IMPL *session, const vo
         image_local = tmp.data;
     }
 
-    page_flags = WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
+    /* Don't free the passed image later. */
+    page_flags = image != NULL ? 0 : WT_PAGE_DISK_ALLOC;
     WT_ERR(__wt_page_inmem(session, NULL, image_local, page_flags, &mod_page));
     tmp.mem = NULL;
     WT_ROW_FOREACH (mod_page, rip, i)
