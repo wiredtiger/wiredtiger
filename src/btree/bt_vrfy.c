@@ -18,6 +18,7 @@ typedef struct {
     WT_ITEM *max_key;  /* Largest key */
     WT_ITEM *max_addr; /* Largest key page */
 
+#define WT_VERIFY_PROGRESS_INTERVAL 100
     uint64_t fcnt; /* Progress counter */
 
     /* Configuration options passed in. */
@@ -740,30 +741,24 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
     else
         ++vs->depth_leaf[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];
 
-/*
- * The page's physical structure was verified when it was read into
- * memory by the read server thread, and then the in-memory version
- * of the page was built. Now we make sure the page and tree are
- * logically consistent.
- *
- * !!!
- * The problem: (1) the read server has to build the in-memory version
- * of the page because the read server is the thread that flags when
- * any thread can access the page in the tree; (2) we can't build the
- * in-memory version of the page until the physical structure is known
- * to be OK, so the read server has to verify at least the physical
- * structure of the page; (3) doing complete page verification requires
- * reading additional pages (for example, overflow keys imply reading
- * overflow pages in order to test the key's order in the page); (4)
- * the read server cannot read additional pages because it will hang
- * waiting on itself.  For this reason, we split page verification
- * into a physical verification, which allows the in-memory version
- * of the page to be built, and then a subsequent logical verification
- * which happens here.
- *
- * Report progress occasionally.
- */
-#define WT_VERIFY_PROGRESS_INTERVAL 100
+    /*
+     * The page's physical structure was verified when it was read into memory by the read server
+     * thread, and then the in-memory version of the page was built. Now we make sure the page and
+     * tree are logically consistent.
+     *
+     * !!!
+     * The problem: (1) the read server has to build the in-memory version of the page because the
+     * read server is the thread that flags when any thread can access the page in the tree; (2) we
+     * can't build the in-memory version of the page until the physical structure is known to be OK,
+     * so the read server has to verify at least the physical structure of the page; (3) doing
+     * complete page verification requires reading additional pages (for example, overflow keys
+     * imply reading overflow pages in order to test the key's order in the page); (4) the read
+     * server cannot read additional pages because it will hang waiting on itself. For this reason,
+     * we split page verification into a physical verification, which allows the in-memory version
+     * of the page to be built, and then a subsequent logical verification which happens here.
+     *
+     * Report progress occasionally.
+     */
     if (++vs->fcnt % WT_VERIFY_PROGRESS_INTERVAL == 0)
         WT_RET(__wt_progress(session, NULL, vs->fcnt));
 
