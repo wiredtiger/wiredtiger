@@ -44,8 +44,8 @@ static void *thread_insert(void *);
 static void *thread_get(void *);
 
 #define BLOOM false
-#define SHOW_GAP 5
-#define MAX_GAP 25
+#define GAP_DISPLAY 5 /* Threshold for seconds of gap to be displayed */
+#define GAP_ERROR 25  /* Threshold for seconds of gap to be treated as error */
 #define N_RECORDS 10000
 #define N_INSERT 1000000
 #define N_INSERT_THREAD 1
@@ -53,8 +53,8 @@ static void *thread_get(void *);
 #define S64 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789::"
 #define S1024 (S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64)
 
-#if MAX_GAP < SHOW_GAP
-#error "MAX_GAP must be >= SHOW_GAP"
+#if GAP_ERROR < GAP_DISPLAY
+#error "GAP_ERROR must be >= GAP_DISPLAY"
 #endif
 
 typedef struct {
@@ -192,7 +192,7 @@ main(int argc, char *argv[])
           " took more than %d seconds.\n"
           "This may indicate a real problem or a"
           " particularly slow machine.\n",
-          nfail, MAX_GAP);
+          nfail, GAP_ERROR);
     testutil_assert(nfail == 0);
     testutil_progress(opts, "cleanup starting");
     testutil_cleanup(opts);
@@ -251,14 +251,14 @@ thread_insert(void *arg)
                 fprintf(stderr, ".");
             __wt_seconds((WT_SESSION_IMPL *)session, &curtime);
             elapsed = curtime - prevtime;
-            if (elapsed > SHOW_GAP) {
+            if (elapsed > GAP_DISPLAY) {
                 testutil_progress(opts, "insert time gap");
                 fprintf(stderr,
                   "\n"
                   "GAP: %" PRIu64 " secs after %d inserts\n",
                   elapsed, i);
             }
-            if (elapsed > MAX_GAP)
+            if (elapsed > GAP_ERROR)
                 threadargs->nfail++;
             prevtime = curtime;
         }
@@ -318,14 +318,14 @@ thread_get(void *arg)
 
         __wt_seconds((WT_SESSION_IMPL *)session, &curtime);
         elapsed = curtime - prevtime;
-        if (elapsed > SHOW_GAP) {
+        if (elapsed > GAP_DISPLAY) {
             testutil_progress(opts, "get time gap");
             fprintf(stderr,
               "\n"
               "GAP: %" PRIu64 " secs after %d gets\n",
               elapsed, threadargs->njoins);
         }
-        if (elapsed > MAX_GAP)
+        if (elapsed > GAP_ERROR)
             threadargs->nfail++;
         prevtime = curtime;
     }
