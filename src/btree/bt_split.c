@@ -1556,7 +1556,7 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
              * We have decided to restore this update chain so it must have newer updates than the
              * onpage value on it.
              */
-            WT_ASSERT(session, upd != NULL && upd != supd->onpage_upd);
+            WT_ASSERT(session, upd != NULL && upd != supd->onpage_upd && supd->onpage_upd != NULL);
             /*
              * Move the pointer to the position before the onpage value and free all the updates
              * starting from the onpage value.
