@@ -1548,10 +1548,19 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
         /*
          * Free the onpage value and the older versions moved to the history store. We can't free
          * the updates for in memory database and fixed length column store as they don't support
+         * the history sore.
          */
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
           orig->type != WT_PAGE_COL_FIX) {
+            /*
+             * We have decided to restore this update chain so it must have newer updates than the
+             * onpage value on it.
+             */
             WT_ASSERT(session, upd != NULL && upd != supd->onpage_upd);
+            /*
+             * Move the pointer to the position before the onpage value and free all the updates
+             * starting from the onpage value.
+             */
             for (; upd->next != NULL && upd->next != supd->onpage_upd; upd = upd->next)
                 ;
             WT_ASSERT(session, upd->next == supd->onpage_upd);
