@@ -44,13 +44,18 @@ static void *thread_insert(void *);
 static void *thread_get(void *);
 
 #define BLOOM false
-#define MAX_GAP 7
+#define SHOW_GAP 5
+#define MAX_GAP 25
 #define N_RECORDS 10000
 #define N_INSERT 1000000
 #define N_INSERT_THREAD 1
 #define N_GET_THREAD 1
 #define S64 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789::"
 #define S1024 (S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64)
+
+#if MAX_GAP < SHOW_GAP
+#error "MAX_GAP must be >= SHOW_GAP"
+#endif
 
 typedef struct {
     char posturi[256];
@@ -245,14 +250,16 @@ thread_insert(void *arg)
             else
                 fprintf(stderr, ".");
             __wt_seconds((WT_SESSION_IMPL *)session, &curtime);
-            if ((elapsed = curtime - prevtime) > MAX_GAP) {
+            elapsed = curtime - prevtime;
+            if (elapsed > SHOW_GAP) {
                 testutil_progress(opts, "insert time gap");
                 fprintf(stderr,
                   "\n"
                   "GAP: %" PRIu64 " secs after %d inserts\n",
                   elapsed, i);
-                threadargs->nfail++;
             }
+            if (elapsed > MAX_GAP)
+                threadargs->nfail++;
             prevtime = curtime;
         }
     }
@@ -310,14 +317,16 @@ thread_get(void *arg)
         testutil_check(session->rollback_transaction(session, NULL));
 
         __wt_seconds((WT_SESSION_IMPL *)session, &curtime);
-        if ((elapsed = curtime - prevtime) > MAX_GAP) {
+        elapsed = curtime - prevtime;
+        if (elapsed > SHOW_GAP) {
             testutil_progress(opts, "get time gap");
             fprintf(stderr,
               "\n"
               "GAP: %" PRIu64 " secs after %d gets\n",
               elapsed, threadargs->njoins);
-            threadargs->nfail++;
         }
+        if (elapsed > MAX_GAP)
+            threadargs->nfail++;
         prevtime = curtime;
     }
     testutil_progress(opts, "get end");
