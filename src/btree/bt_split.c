@@ -1424,8 +1424,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         page->read_gen = orig->read_gen;
 
     /*
-     * If there are no updates to apply to the page, we're done. Otherwise, we must have decided to
-     * restore the saved updates to the new page.
+     * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
+     * need to restore.
      */
     if (multi->supd_entries == 0)
         return (0);
@@ -1529,7 +1529,8 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
     /*
      * We successfully created new in-memory pages. For error-handling reasons, we've left the
      * update chains referenced by both the original and new pages. We're ready to discard the
-     * original page, terminate the original page's reference to any update list we moved.
+     * original page, terminate the original page's reference to any update list we moved and free
+     * the values have been moved to the data store and the history store.
      */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         /* We have finished restoration. Discard the update chains that aren't restored. */
