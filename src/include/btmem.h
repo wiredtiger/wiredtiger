@@ -339,10 +339,10 @@ struct __wt_page_modify {
                     WT_INSERT *ins; /* Insert list reference */
                     WT_ROW *ripcip; /* Original on-page reference */
                     WT_UPDATE *onpage_upd;
-                    bool restore;
+                    bool restore; /* Whether to restore this saved update chain */
                 } * supd;
                 uint32_t supd_entries;
-                bool supd_restore;
+                bool supd_restore; /* Whether to restore saved update chains to this page */
 
                 /*
                  * Disk image was written: address, size and checksum. On subsequent reconciliations
