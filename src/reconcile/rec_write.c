@@ -1436,8 +1436,7 @@ __wt_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
  *     Move a saved WT_UPDATE list from the per-page cache to a specific block's list.
  */
 static int
-__rec_supd_move(
-  WT_SESSION_IMPL *session, WT_MULTI *multi, WT_SAVE_UPD *supd, uint32_t n)
+__rec_supd_move(WT_SESSION_IMPL *session, WT_MULTI *multi, WT_SAVE_UPD *supd, uint32_t n)
 {
     uint32_t i;
 
@@ -1461,8 +1460,8 @@ __rec_supd_move(
  *     structure.
  */
 static int
-__rec_split_write_supd(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk,
-  WT_MULTI *multi, bool last_block)
+__rec_split_write_supd(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk, WT_MULTI *multi, bool last_block)
 {
     WT_BTREE *btree;
     WT_DECL_ITEM(key);
