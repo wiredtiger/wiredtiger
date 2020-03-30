@@ -415,7 +415,7 @@ class test_hs06(wttest.WiredTigerTestCase):
             'oldest_timestamp=' + timestamp_str(1) + ',stable_timestamp=' + timestamp_str(1))
 
         # The base update is at timestamp 1.
-        # When we history store evict these pages, the base update is the only thing behind 
+        # When we history store evict these pages, the base update is the only thing behind
         # the stable timestamp.
         cursor = self.session.open_cursor(uri)
         for i in range(1, 10000):
