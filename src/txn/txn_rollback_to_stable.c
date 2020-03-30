@@ -30,6 +30,12 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
         if (upd->txnid == WT_TXN_ABORTED || upd->start_ts == WT_TS_NONE) {
             if (upd == first_upd)
                 first_upd = upd->next;
+
+            /*
+             * Consider WT_TS_NONE timestamped update as a valid stable update if it is not aborted.
+             */
+            if (upd->txnid != WT_TXN_ABORTED)
+                *stable_update_found = true;
         } else if (rollback_timestamp < upd->durable_ts) {
             /*
              * If any updates are aborted, all newer updates better be aborted as well.
