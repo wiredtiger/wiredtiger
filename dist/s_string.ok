@@ -1292,6 +1292,7 @@ testutil
 th
 tid
 timedwait
+timespec
 timestamp
 timestamped
 timestamps

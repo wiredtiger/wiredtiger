@@ -386,15 +386,14 @@ struct Thread {
 
 struct Transaction {
     bool _rollback;
-    bool use_prepare;
     bool commit_with_timestamp;
     std::string _begin_config;
     std::string _commit_config;
+    double prepare_time;
     double read_timestamp_lag;
 
-    Transaction(const char *_config = NULL) : _rollback(false), use_prepare(false),
-        commit_with_timestamp(false), _begin_config(_config == NULL ? "" : _config),
-        _commit_config(), read_timestamp_lag(0)
+    Transaction(const char *_config = NULL) : _rollback(false), commit_with_timestamp(false), _begin_config(_config == NULL ? "" : _config), _commit_config(), prepare_time(0.0),
+    read_timestamp_lag(0.0)
         {}
 
     void describe(std::ostream &os) const {
@@ -404,8 +403,8 @@ struct Transaction {
 	os << "begin_config: " << _begin_config;
 	if (!_commit_config.empty())
 	    os << ", commit_config: " << _commit_config;
-    if (use_prepare)
-	    os << "(use_prepare) ";
+    if (prepare_time)
+	    os << "(prepare_time) ";
     if (read_timestamp_lag)
         os << "(read_timestamp_lag)";
     }
