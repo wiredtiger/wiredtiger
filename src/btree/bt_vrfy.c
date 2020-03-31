@@ -928,7 +928,6 @@ __verify_page_content(
 {
     WT_BTREE *btree;
     WT_CELL_UNPACK unpack;
-    WT_COL *cip;
     WT_DECL_RET;
     WT_PAGE *page;
     const WT_PAGE_HEADER *dsk;
@@ -941,7 +940,6 @@ __verify_page_content(
 
     btree = S2BT(session);
     page = ref->page;
-    cip = page->pg_var;
     rip = page->pg_row;
     recno = ref->ref_recno;
     found_ovfl = false;
@@ -1093,15 +1091,13 @@ __verify_page_content(
             if (unpack.type != WT_CELL_KEY && unpack.type != WT_CELL_KEY_OVFL)
                 continue;
 
-            WT_RET(__wt_row_leaf_key(session, page, rip, vs->tmp1, false));
+            WT_RET(__wt_row_leaf_key(session, page, rip++, vs->tmp1, false));
+            WT_RET(__verify_key_hs(session, vs->tmp1, unpack.start_ts, vs));
 
 #ifdef HAVE_DIAGNOSTIC
             if (vs->dump_history)
                 WT_RET(__wt_debug_key_value(session, vs->tmp1, WT_RECNO_OOB, 0, &unpack));
 #endif
-            WT_RET(__verify_key_hs(session, vs->tmp1, unpack.start_ts, vs));
-
-            ++rip;
         } else if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
             p = vs->tmp1->mem;
@@ -1114,7 +1110,6 @@ __verify_page_content(
                 WT_RET(__wt_debug_key_value(session, NULL, recno, rle, &unpack));
 #endif
             recno += rle;
-            ++cip;
         }
     }
     WT_CELL_FOREACH_END;
