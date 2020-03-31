@@ -22,12 +22,8 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
 
     *stable_update_found = false;
     for (upd = first_upd; upd != NULL; upd = upd->next) {
-        /*
-         * Updates with no timestamp will have a timestamp of zero and will never be rolled back. If
-         * the table is configured for strict timestamp checking, assert that all more recent
-         * updates were also rolled back.
-         */
-        if (upd->txnid == WT_TXN_ABORTED || upd->start_ts == WT_TS_NONE) {
+        /* Skip the updates that are aborted. */
+        if (upd->txnid == WT_TXN_ABORTED) {
             if (upd == first_upd)
                 first_upd = upd->next;
         } else if (rollback_timestamp < upd->durable_ts) {
@@ -51,6 +47,10 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
             upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
             upd->durable_ts = upd->start_ts = WT_TS_NONE;
+        } else {
+            /* Valid update is found. */
+            WT_ASSERT(session, first_upd == upd);
+            break;
         }
     }
 
