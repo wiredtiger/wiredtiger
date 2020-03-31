@@ -22,20 +22,10 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
 
     *stable_update_found = false;
     for (upd = first_upd; upd != NULL; upd = upd->next) {
-        /*
-         * Updates with no timestamp will have a timestamp of zero and will never be rolled back. If
-         * the table is configured for strict timestamp checking, assert that all more recent
-         * updates were also rolled back.
-         */
-        if (upd->txnid == WT_TXN_ABORTED || upd->start_ts == WT_TS_NONE) {
+        /* Skip the updates that are aborted. */
+        if (upd->txnid == WT_TXN_ABORTED) {
             if (upd == first_upd)
                 first_upd = upd->next;
-
-            /*
-             * Consider WT_TS_NONE timestamped update as a valid stable update if it is not aborted.
-             */
-            if (upd->txnid != WT_TXN_ABORTED)
-                *stable_update_found = true;
         } else if (rollback_timestamp < upd->durable_ts) {
             /*
              * If any updates are aborted, all newer updates better be aborted as well.
