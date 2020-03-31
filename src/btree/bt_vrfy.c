@@ -404,19 +404,16 @@ static int
 __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack, WT_VSTUFF *vs)
 {
     WT_BM *bm;
-    WT_CELL *cell;
     WT_CELL_UNPACK *unpack, _unpack;
-    WT_COL *cip;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *child_ref;
     uint64_t recno;
-    uint32_t entry, i;
+    uint32_t entry;
 
     bm = S2BT(session)->bm;
-    page = ref->page;
-
     unpack = &_unpack;
+    page = ref->page;
 
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
       __wt_page_type_string(page->type));
@@ -461,14 +458,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
         WT_RET(__wt_debug_page(session, NULL, ref, NULL));
 #endif
 
-    /* Check the page's content. */
-    if (page->type != WT_PAGE_COL_FIX)
-        WT_RET(__verify_page_content(session, ref, addr_unpack, vs));
-
-    /*
-     * Column-store key order checks: check the page's record number and then update the total
-     * record count.
-     */
+    /* Column-store key order checks: check the page's record number. */
     switch (page->type) {
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_INT:
@@ -483,20 +473,6 @@ recno_chk:
               __verify_addr_string(session, ref, vs->tmp1), recno, vs->record_total + 1);
         break;
     }
-    switch (page->type) {
-    case WT_PAGE_COL_FIX:
-        vs->record_total += page->entries;
-        break;
-    case WT_PAGE_COL_VAR:
-        recno = 0;
-        WT_COL_FOREACH (page, cip, i) {
-            cell = WT_COL_PTR(page, cip);
-            __wt_cell_unpack(session, page, cell, unpack);
-            recno += __wt_cell_rle(unpack);
-        }
-        vs->record_total += recno;
-        break;
-    }
 
     /*
      * Row-store leaf page key order check: it's a depth-first traversal, the first key on this page
@@ -505,6 +481,19 @@ recno_chk:
     switch (page->type) {
     case WT_PAGE_ROW_LEAF:
         WT_RET(__verify_row_leaf_key_order(session, ref, vs));
+        break;
+    }
+
+    /* Check page content, additionally updating the variable-length column-store record count. */
+    switch (page->type) {
+    case WT_PAGE_COL_FIX:
+        vs->record_total += page->entries;
+        break;
+    case WT_PAGE_COL_INT:
+    case WT_PAGE_COL_VAR:
+    case WT_PAGE_ROW_INT:
+    case WT_PAGE_ROW_LEAF:
+        WT_RET(__verify_page_content(session, ref, addr_unpack, vs));
         break;
     }
 
@@ -1113,6 +1102,10 @@ __verify_page_content(
         }
     }
     WT_CELL_FOREACH_END;
+
+    /* Update the total record count. */
+    if (page->type == WT_PAGE_COL_VAR)
+        vs->record_total += recno;
 
     /*
      * Object if a leaf-no-overflow address cell references a page with overflow keys, but don't
