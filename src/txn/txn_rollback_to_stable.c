@@ -47,6 +47,10 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
             upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
             upd->durable_ts = upd->start_ts = WT_TS_NONE;
+        } else {
+            /* Valid update is found. */
+            WT_ASSERT(session, first_upd == upd);
+            break;
         }
     }
 
