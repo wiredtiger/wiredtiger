@@ -1565,7 +1565,8 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
             for (; upd->next != NULL && upd->next != supd->onpage_upd; upd = upd->next)
                 ;
             WT_ASSERT(session, upd->next == supd->onpage_upd);
-            __wt_free_update_list(session, &upd->next);
+            upd->next = NULL;
+            __wt_free_update_list(session, &supd->onpage_upd);
         }
     }
 }
