@@ -1094,7 +1094,7 @@ __verify_page_content(
                 WT_RET(__wt_debug_key_value(session, NULL, recno, rle, &unpack));
 #endif
             recno += rle;
-	    vs->records_so_far += rle;
+            vs->records_so_far += rle;
         }
     }
     WT_CELL_FOREACH_END;
