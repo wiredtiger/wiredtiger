@@ -234,8 +234,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * Verify the history store timestamps are in order. The start timestamp may be equal to the
          * stop timestamp if the original update's commit timestamp is out of order.
          */
-        WT_ASSERT(session,
-          (newer_hs_ts == WT_TS_NONE || hs_stop_ts <= newer_hs_ts || hs_start_ts == hs_stop_ts));
+        WT_ASSERT(session, (newer_hs_ts == WT_TS_NONE || hs_stop_ts <= newer_hs_ts ||
+                             hs_start_ts == newer_hs_ts || hs_start_ts == hs_stop_ts));
 
         /*
          * Stop processing when we find the newer version value of this key is stable according to
