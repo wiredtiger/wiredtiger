@@ -117,6 +117,43 @@ static void *thread_runner_main(void *arg) {
     return (NULL);
 }
 
+static void *thread_workload(void *arg) {
+
+    Workload *runner = (Workload *) arg;
+
+    try {
+        runner->increment_timestamp();
+    } catch (WorkgenException &wge) {
+        std::cerr << "Exception while incrementing timestamp." << std::endl;
+    }
+
+    return (NULL);
+}
+
+int Workload::increment_timestamp() {
+    char buf[500];
+    uint64_t time_us;
+
+    while(!stop_timestamp_thread)
+    {
+        if (options.oldest_timestamp_lag > 0) {
+            time_us = WorkgenTimeStamp::get_epoch_us() - WorkgenTimeStamp::secs_to_us(options.oldest_timestamp_lag);
+            sprintf(buf, "oldest_timestamp=%" PRIu64, time_us);
+            connection->set_timestamp(connection, buf);
+        }
+
+        if (options.stable_timestamp_lag > 0) {
+            time_us = WorkgenTimeStamp::get_epoch_us() - WorkgenTimeStamp::secs_to_us(options.stable_timestamp_lag);
+            sprintf(buf, "stable_timestamp=%" PRIu64, time_us);
+            connection->set_timestamp(connection, buf);
+        }
+
+        time_us = WorkgenTimeStamp::secs_to_us(options.timestamp_advance);
+        usleep(time_us);
+    }
+    return 0;
+}
+
 static void *monitor_main(void *arg) {
     Monitor *monitor = (Monitor *)arg;
     try {
@@ -277,7 +314,6 @@ int Monitor::run() {
     char time_buf[64], version[100];
     Stats prev_totals;
     WorkloadOptions *options = &_wrunner._workload->options;
-    WorkgenTimeStamp *timestamp;
     uint64_t latency_max = (uint64_t)options->max_latency;
     size_t buf_size;
     bool first;
@@ -305,9 +341,9 @@ int Monitor::run() {
 
     // The whole and fractional part of sample_interval are separated,
     // we don't want to sleep longer than a second.
-    int sample_secs = timestamp->millis_to_sec(options->sample_interval_ms);
+    int sample_secs = WorkgenTimeStamp::millis_to_sec(options->sample_interval_ms);
     useconds_t sample_usecs =
-      timestamp->millis_to_us(options->sample_interval_ms) - timestamp->secs_to_us(sample_secs);
+      WorkgenTimeStamp::millis_to_us(options->sample_interval_ms) - WorkgenTimeStamp::secs_to_us(sample_secs);
 
     while (!_stop) {
         int waitsecs;
@@ -329,7 +365,7 @@ int Monitor::run() {
         if (_stop)
             break;
 
-        timestamp->get_epoch(&t);
+        WorkgenTimeStamp::get_epoch(&t);
         tm = localtime_r(&t.tv_sec, &_tm);
         (void)strftime(time_buf, sizeof(time_buf), "%b %d %H:%M:%S", tm);
 
@@ -562,11 +598,10 @@ int ThreadRunner::cross_check(std::vector<ThreadRunner> &runners) {
 
 int ThreadRunner::run() {
     WT_DECL_RET;
-    WorkgenTimeStamp *timestamp;
     ThreadOptions *options = &_thread->options;
     std::string name = options->name;
 
-    _start_time_us = timestamp->get_epoch_us();
+    _start_time_us = WorkgenTimeStamp::get_epoch_us();
     _op_time_us = _start_time_us;
 
     VERBOSE(*this, "thread " << name << " running");
@@ -711,7 +746,6 @@ int ThreadRunner::op_run(Operation *op) {
     tint_t tint = op->_table._internal->_tint;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WorkgenTimeStamp *timestamp;
     uint64_t recno;
     uint64_t range;
     bool measure_latency, own_cursor, retry_op;
@@ -798,7 +832,7 @@ int ThreadRunner::op_run(Operation *op) {
     timespec start;
     if (measure_latency)
     {
-        timestamp->get_epoch(&start);
+        WorkgenTimeStamp::get_epoch(&start);
     }
     // Whether or not we are measuring latency, we track how many operations
     // are in progress, or that complete.
@@ -824,7 +858,7 @@ int ThreadRunner::op_run(Operation *op) {
                 THROW("nested transactions not supported");
 
             if (op->_transaction->read_timestamp_lag > 0) {
-                uint64_t read = timestamp->get_epoch_us() - timestamp->secs_to_us(op->_transaction->read_timestamp_lag);
+                uint64_t read = WorkgenTimeStamp::get_epoch_us() - WorkgenTimeStamp::secs_to_us(op->_transaction->read_timestamp_lag);
                 sprintf(buf, "%s=%" PRIu64, op->_transaction->_begin_config.c_str(), read);
             }
             else {
@@ -882,7 +916,7 @@ int ThreadRunner::op_run(Operation *op) {
 
     if (measure_latency) {
         timespec stop;
-        timestamp->get_epoch(&stop);
+        WorkgenTimeStamp::get_epoch(&stop);
         track->complete_with_latency(ts_us(stop - start));
     } else if (track != NULL)
         track->complete();
@@ -892,7 +926,7 @@ int ThreadRunner::op_run(Operation *op) {
         timespec now;
 
         if (op->_timed != 0.0)
-            endtime = _op_time_us + timestamp->secs_to_us(op->_timed);
+            endtime = _op_time_us + WorkgenTimeStamp::secs_to_us(op->_timed);
 
         VERBOSE(*this, "GROUP operation " << op->_timed << " secs, "
           << op->_repeatgroup << "times");
@@ -903,7 +937,7 @@ int ThreadRunner::op_run(Operation *op) {
                      i != op->_group->end(); i++)
                     WT_ERR(op_run(&*i));
             }
-        } while (!_stop && timestamp->get_epoch_us() < endtime);
+        } while (!_stop && WorkgenTimeStamp::get_epoch_us() < endtime);
 
         if (op->_timed != 0.0)
             _op_time_us = endtime;
@@ -917,16 +951,15 @@ err:
         else if (_in_transaction) {
             // Set prepare, commit and durable timestamp if prepare is set.
             if (op->_transaction->prepare_time > 0) {
-                time_us = timestamp->get_epoch_us();
+                time_us = WorkgenTimeStamp::get_epoch_us();
                 sprintf(buf, "prepare_timestamp=%" PRIu64, time_us);
                 ret = _session->prepare_transaction(_session, buf);
-                usleep(ceil(timestamp->secs_to_us(op->_transaction->prepare_time)));
-                time_us = time_us + timestamp->secs_to_us(1);
+                usleep(ceil(WorkgenTimeStamp::secs_to_us(op->_transaction->prepare_time)));
                 sprintf(buf, "commit_timestamp=%" PRIu64 ",durable_timestamp=%" PRIu64, time_us, time_us);
                 ret = _session->commit_transaction(_session, buf);
             }
             else if (op->_transaction->commit_with_timestamp) {
-                uint64_t commit_time_us = timestamp->get_epoch_us();
+                uint64_t commit_time_us = WorkgenTimeStamp::get_epoch_us();
                 sprintf(buf, "commit_timestamp=%" PRIu64, commit_time_us);
                 ret = _session->commit_transaction(_session, buf);
                 sleep(1);                
@@ -997,9 +1030,8 @@ int Throttle::throttle(uint64_t op_count, uint64_t *op_limit) {
     uint64_t ops;
     int64_t sleep_ms;
     timespec now;
-    WorkgenTimeStamp *timestamp;
 
-    timestamp->get_epoch(&now);
+    WorkgenTimeStamp::get_epoch(&now);
     DEBUG_CAPTURE(_runner, "throttle: ops=" << op_count);
     if (!_started) {
         _next_div = ts_add_ms(now, _ms_per_div);
@@ -1440,7 +1472,6 @@ void SleepOperationInternal::parse_config(const std::string &config)
 
 int SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
-    WorkgenTimeStamp *timestamp;
     uint64_t endtime;
     timespec now;
     uint64_t now_us;
@@ -1448,11 +1479,11 @@ int SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
     (void)runner;    /* not used */
     (void)session;   /* not used */
 
-    now_us = timestamp->get_epoch_us();
+    now_us = WorkgenTimeStamp::get_epoch_us();
     if (runner->_thread->options.synchronized)
-        endtime = runner->_op_time_us + timestamp->secs_to_us(_sleepvalue);
+        endtime = runner->_op_time_us + WorkgenTimeStamp::secs_to_us(_sleepvalue);
     else
-        endtime = now_us + timestamp->secs_to_us(_sleepvalue);
+        endtime = now_us + WorkgenTimeStamp::secs_to_us(_sleepvalue);
 
     // Sleep for up to a second at a time, so we'll break out if
     // we should stop.
@@ -1463,15 +1494,14 @@ int SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
         else
             usleep(sleep_us);
 
-        now_us = timestamp->get_epoch_us();
+        now_us = WorkgenTimeStamp::get_epoch_us();
     }
     return (0);
 }
 
 uint64_t SleepOperationInternal::sync_time_us() const
 {
-    WorkgenTimeStamp *timestamp;
-    return (timestamp->secs_to_us(_sleepvalue));
+    return (WorkgenTimeStamp::secs_to_us(_sleepvalue));
 }
 
 void TableOperationInternal::parse_config(const std::string &config)
@@ -1889,7 +1919,8 @@ TableInternal::~TableInternal() {}
 WorkloadOptions::WorkloadOptions() : max_latency(0),
     report_file("workload.stat"), report_interval(0), run_time(0),
     sample_file("monitor.json"), sample_interval_ms(0), sample_rate(1),
-    warmup(0), _options() {
+    warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0),
+    timestamp_advance(0.0), _options() {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
       "milliseconds. Requires sample_interval to be configured.");
@@ -1913,6 +1944,13 @@ WorkloadOptions::WorkloadOptions() : max_latency(0),
       "2 for every second operation, 3 for every third operation etc.");
     _options.add_int("warmup", warmup,
       "how long to run the workload phase before starting measurements");
+    _options.add_double("oldest_timestamp_lag", oldest_timestamp_lag,
+      "how much lag to the oldest timestamp from epoch time");
+    _options.add_double("stable_timestamp_lag", stable_timestamp_lag,
+      "how much lag to the oldest timestamp from epoch time");
+    _options.add_double("timestamp_advance", timestamp_advance,
+      "how many seconds to wait before moving oldest and stable"
+      "timestamp forward");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
@@ -1922,7 +1960,8 @@ WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
 WorkloadOptions::~WorkloadOptions() {}
 
 Workload::Workload(Context *context, const ThreadListWrapper &tlw) :
-    options(), stats(), _context(context), _threads(tlw._threads) {
+    options(), stats(), _context(context), _threads(tlw._threads),
+    stop_timestamp_thread(false), connection(NULL) {
     if (context == NULL)
         THROW("Workload contructor requires a Context");
 }
@@ -1949,6 +1988,7 @@ Workload& Workload::operator=(const Workload &other) {
 
 int Workload::run(WT_CONNECTION *conn) {
     WorkloadRunner runner(this);
+    connection = conn;
 
     return (runner.run(conn));
 }
@@ -2069,11 +2109,11 @@ int WorkloadRunner::run_all() {
     Stats counts(false);
     WorkgenException *exception;
     WorkloadOptions *options = &_workload->options;
-    WorkgenTimeStamp *timestamp;
     Monitor monitor(*this);
     std::ofstream monitor_out;
     std::ofstream monitor_json;
     std::ostream &out = *_report_out;
+    pthread_t time_thandle;
     WT_DECL_RET;
 
     for (size_t i = 0; i < _trunners.size(); i++)
@@ -2119,6 +2159,17 @@ int WorkloadRunner::run_all() {
         thread_handles.push_back(thandle);
     }
 
+    // Start Timestamp increment thread
+    if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
+        Workload *runner = _workload;
+        if ((ret = pthread_create(&time_thandle, NULL, thread_workload,
+          runner)) != 0) {
+            std::cerr << "pthread_create failed err=" << ret << std::endl;
+            std::cerr << "Stopping Time threads." << std::endl;
+            (void)pthread_join(time_thandle, &status);
+        }
+    }
+
     // Treat warmup separately from report interval so that if we have a
     // warmup period we clear and ignore stats after it ends.
     if (options->warmup != 0)
@@ -2130,7 +2181,7 @@ int WorkloadRunner::run_all() {
         runner->_stats.clear();
     }
 
-    timestamp->get_epoch(&_start);
+    WorkgenTimeStamp::get_epoch(&_start);
 
     timespec end = _start + options->run_time;
     timespec next_report = _start + options->report_interval;
@@ -2152,7 +2203,7 @@ int WorkloadRunner::run_all() {
         else
             usleep((useconds_t)((sleep_amt.tv_nsec + 999)/ 1000));
 
-        timestamp->get_epoch(&now);
+        WorkgenTimeStamp::get_epoch(&now);
         if (now >= next_report && now < end && options->report_interval != 0) {
             report(options->report_interval, (now - _start).tv_sec, &curstats);
             while (now >= next_report)
@@ -2166,6 +2217,10 @@ int WorkloadRunner::run_all() {
             _trunners[i]._stop = true;
     if (options->sample_interval_ms > 0)
         monitor._stop = true;
+    if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
+        std::cout << "Stop Timestamp Thread" << std::endl;
+        _workload->stop_timestamp_thread = true;
+    }
 
     // wait for all threads
     exception = NULL;
@@ -2180,7 +2235,13 @@ int WorkloadRunner::run_all() {
             exception = &_trunners[i]._exception;
     }
 
-    timestamp->get_epoch(&now);
+
+    // Wait for the time increment thread
+    if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
+        WT_TRET(pthread_join(time_thandle, &status));
+    }
+
+    WorkgenTimeStamp::get_epoch(&now);
     if (options->sample_interval_ms > 0) {
         WT_TRET(pthread_join(monitor._handle, &status));
         if (monitor._errno != 0)

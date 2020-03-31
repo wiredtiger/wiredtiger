@@ -422,6 +422,9 @@ struct WorkloadOptions {
     int sample_rate;
     std::string sample_file;
     int warmup;
+    double oldest_timestamp_lag;
+    double stable_timestamp_lag;
+    double timestamp_advance;
 
     WorkloadOptions();
     WorkloadOptions(const WorkloadOptions &other);
@@ -447,11 +450,15 @@ struct Workload {
     Stats stats;
     Context *_context;
     std::vector<Thread> _threads;
+    bool stop_timestamp_thread;
+    WT_CONNECTION *connection;
 
     Workload(Context *context, const ThreadListWrapper &threadlist);
     Workload(Context *context, const Thread &thread);
     Workload(const Workload &other);
     ~Workload();
+
+    int increment_timestamp();
 
 #ifndef SWIG
     Workload& operator=(const Workload &other);

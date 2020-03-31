@@ -50,7 +50,7 @@ pop_workload.run(conn)
 
 opread = Operation(Operation.OP_SEARCH, table)
 read_txn = txn(opread * 10, 'read_timestamp')
-read_txn._transaction.read_timestamp_lag = 20
+read_txn._transaction.read_timestamp_lag = 5
 treader = Thread(read_txn)
 
 opwrite = Operation(Operation.OP_INSERT, table)
@@ -66,5 +66,8 @@ tupdate = Thread(update_txn)
 workload = Workload(context, 10 * twriter + 10 * tupdate + 10 * treader)
 workload.options.run_time = 50
 workload.options.report_interval=500
+workload.options.oldest_timestamp_lag=30
+workload.options.stable_timestamp_lag=10
+workload.options.timestamp_advance=1
 print('transactional write workload:')
 workload.run(conn)

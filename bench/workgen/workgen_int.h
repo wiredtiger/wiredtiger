@@ -50,26 +50,26 @@ struct WorkloadRunner;
 struct WorkgenTimeStamp {
     WorkgenTimeStamp() {}
 
-    void get_epoch(timespec *tsp) {
+    static void get_epoch(timespec *tsp) {
         workgen_epoch(tsp);
     }
 
-    uint64_t get_epoch_us() {
+    static uint64_t get_epoch_us() {
         timespec start_time;
         workgen_epoch(&start_time);
 
         return (ts_us(start_time));
     }
 
-    uint64_t secs_to_us(double seconds) {
+    static uint64_t secs_to_us(double seconds) {
         return (secs_us(seconds));
     }
 
-    uint64_t millis_to_us(double millis) {
+    static uint64_t millis_to_us(double millis) {
         return (ms_to_us(millis));
     }
 
-    uint64_t millis_to_sec(double millis) {
+    static uint64_t millis_to_sec(double millis) {
         return (ms_to_sec(millis));
     }
 };
