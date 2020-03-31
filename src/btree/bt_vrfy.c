@@ -13,7 +13,7 @@
  * prettier.
  */
 typedef struct {
-    uint64_t record_total; /* Total record count */
+    uint64_t records_so_far; /* Total record count seen so far */
 
     WT_ITEM *max_key;  /* Largest key */
     WT_ITEM *max_addr; /* Largest key page */
@@ -328,7 +328,7 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
     vs->max_addr->size = 0;
 
     /* Record total is per checkpoint, reset the record count. */
-    vs->record_total = 0;
+    vs->records_so_far = 0;
 
     /* Tree depth. */
     vs->depth = 1;
@@ -408,7 +408,6 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *child_ref;
-    uint64_t recno;
     uint32_t entry;
 
     bm = S2BT(session)->bm;
@@ -462,15 +461,11 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
     switch (page->type) {
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_INT:
-        recno = ref->ref_recno;
-        goto recno_chk;
     case WT_PAGE_COL_VAR:
-        recno = ref->ref_recno;
-recno_chk:
-        if (recno != vs->record_total + 1)
+        if (ref->ref_recno != vs->records_so_far + 1)
             WT_RET_MSG(session, WT_ERROR, "page at %s has a starting record of %" PRIu64
                                           " when the expected starting record is %" PRIu64,
-              __verify_addr_string(session, ref, vs->tmp1), recno, vs->record_total + 1);
+              __verify_addr_string(session, ref, vs->tmp1), ref->ref_recno, vs->records_so_far + 1);
         break;
     }
 
@@ -487,7 +482,7 @@ recno_chk:
     /* Check page content, additionally updating the variable-length column-store record count. */
     switch (page->type) {
     case WT_PAGE_COL_FIX:
-        vs->record_total += page->entries;
+        vs->records_so_far += page->entries;
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_COL_VAR:
@@ -535,14 +530,14 @@ celltype_err:
              * than the total records reviewed to this point.
              */
             ++entry;
-            if (child_ref->ref_recno != vs->record_total + 1) {
+            if (child_ref->ref_recno != vs->records_so_far + 1) {
                 WT_RET_MSG(session, WT_ERROR, "the starting record number in entry %" PRIu32
                                               " of the column internal page at "
                                               "%s is %" PRIu64
                                               " and the expected "
                                               "starting record number is %" PRIu64,
                   entry, __verify_addr_string(session, child_ref, vs->tmp1), child_ref->ref_recno,
-                  vs->record_total + 1);
+                  vs->records_so_far + 1);
             }
 
             /* Unpack the address block and check timestamps */
@@ -1099,13 +1094,10 @@ __verify_page_content(
                 WT_RET(__wt_debug_key_value(session, NULL, recno, rle, &unpack));
 #endif
             recno += rle;
+	    vs->records_so_far += rle;
         }
     }
     WT_CELL_FOREACH_END;
-
-    /* Update the total record count. */
-    if (page->type == WT_PAGE_COL_VAR)
-        vs->record_total += recno;
 
     /*
      * Object if a leaf-no-overflow address cell references a page with overflow keys, but don't
