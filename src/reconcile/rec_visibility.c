@@ -12,7 +12,7 @@
  * __rec_update_stable --
  *     Return whether an update is stable or not.
  */
-static bool
+static inline bool
 __rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
 {
     return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
@@ -25,20 +25,24 @@ __rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
  * __rec_update_save --
  *     Save a WT_UPDATE list for later restoration.
  */
-static int
+static inline int
 __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
-  WT_UPDATE *onpage_upd, size_t upd_memsize)
+  WT_UPDATE *onpage_upd, bool supd_restore, size_t upd_memsize)
 {
     WT_SAVE_UPD *supd;
+
+    /* If nothing is committed, we must restore the update chain. */
+    WT_ASSERT(session, onpage_upd != NULL || supd_restore);
+    /* We can only write a standard update or a modify to the data store. */
+    WT_ASSERT(session, onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
+        onpage_upd->type == WT_UPDATE_MODIFY);
 
     WT_RET(__wt_realloc_def(session, &r->supd_allocated, r->supd_next + 1, &r->supd));
     supd = &r->supd[r->supd_next];
     supd->ins = ins;
     supd->ripcip = ripcip;
-    WT_CLEAR(supd->onpage_upd);
-    if (onpage_upd != NULL &&
-      (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY))
-        supd->onpage_upd = onpage_upd;
+    supd->onpage_upd = onpage_upd;
+    supd->restore = supd_restore;
     ++r->supd_next;
     r->supd_memsize += upd_memsize;
     return (0);
@@ -138,7 +142,7 @@ err:
  * __rec_need_save_upd --
  *     Return if we need to save the update chain
  */
-static bool
+static inline bool
 __rec_need_save_upd(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select, bool has_newer_updates)
 {
@@ -176,7 +180,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     wt_timestamp_t checkpoint_timestamp, max_ts, tombstone_durable_ts;
     size_t size, upd_memsize;
     uint64_t max_txn, txnid;
-    bool has_newer_updates, is_hs_page, upd_saved;
+    bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -455,13 +459,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         r->leave_dirty = true;
 
     /*
-     * We should restore the update chains to the new disk image if there are newer updates in
-     * eviction.
-     */
-    if (has_newer_updates && F_ISSET(r, WT_REC_EVICT))
-        r->cache_write_restore = true;
-
-    /*
      * The update doesn't have any further updates that need to be written to the history store,
      * skip saving the update as saving the update will cause reconciliation to think there is work
      * that needs to be done when there might not be.
@@ -469,7 +466,20 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Additionally history store reconciliation is not set skip saving an update.
      */
     if (__rec_need_save_upd(session, r, upd_select, has_newer_updates)) {
-        WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
+        /*
+         * We should restore the update chains to the new disk image if there are newer updates in
+         * eviction, or for cases that don't support history store, such as in-memory database and
+         * fixed length column store.
+         */
+        supd_restore = F_ISSET(r, WT_REC_EVICT) &&
+          (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
+                         page->type == WT_PAGE_COL_FIX);
+        if (supd_restore)
+            r->cache_write_restore = true;
+        WT_ERR(__rec_update_save(session, r, ins, ripcip,
+          upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE ? NULL :
+                                                                                    upd_select->upd,
+          supd_restore, upd_memsize));
         upd_saved = true;
     }
 
