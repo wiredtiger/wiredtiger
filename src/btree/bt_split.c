@@ -1517,8 +1517,7 @@ err:
  *     Discard moved update lists from the original page.
  */
 static void
-__split_multi_inmem_final(
-  WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi)
+__split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi)
 {
     WT_SAVE_UPD *supd;
     uint32_t i, slot;
