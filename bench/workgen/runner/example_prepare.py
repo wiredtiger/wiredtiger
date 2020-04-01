@@ -44,9 +44,9 @@ table.options.value_size = 10
 context = Context()
 op = Operation(Operation.OP_INSERT, table)
 thread = Thread(op * 5000)
-pop_workload = Workload(context, thread)
+pop_workload = Workload(conn, context, thread)
 print('populate:')
-pop_workload.run(conn)
+pop_workload.run()
 
 opread = Operation(Operation.OP_SEARCH, table)
 read_txn = txn(opread * 10, 'read_timestamp')
@@ -58,16 +58,16 @@ write_txn = txn(opwrite * 10, 'isolation=snapshot')
 write_txn._transaction.prepare_time=0.1
 twriter = Thread(write_txn)
 
-opupdate = Operation(Operation.OP_INSERT, table)
+opupdate = Operation(Operation.OP_UPDATE, table)
 update_txn = txn(opupdate * 10, 'isolation=snapshot')
 update_txn._transaction.commit_with_timestamp = True
 tupdate = Thread(update_txn)
 
-workload = Workload(context, 10 * twriter + 10 * tupdate + 10 * treader)
+workload = Workload(conn, context, 10 * twriter + 10 * tupdate + 10 * treader)
 workload.options.run_time = 50
 workload.options.report_interval=500
 workload.options.oldest_timestamp_lag=30
 workload.options.stable_timestamp_lag=10
 workload.options.timestamp_advance=1
 print('transactional write workload:')
-workload.run(conn)
+workload.run()

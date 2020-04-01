@@ -139,13 +139,13 @@ int Workload::increment_timestamp() {
         if (options.oldest_timestamp_lag > 0) {
             time_us = WorkgenTimeStamp::get_epoch_us() - WorkgenTimeStamp::secs_to_us(options.oldest_timestamp_lag);
             sprintf(buf, "oldest_timestamp=%" PRIu64, time_us);
-            connection->set_timestamp(connection, buf);
+            _connection->set_timestamp(_connection, buf);
         }
 
         if (options.stable_timestamp_lag > 0) {
             time_us = WorkgenTimeStamp::get_epoch_us() - WorkgenTimeStamp::secs_to_us(options.stable_timestamp_lag);
             sprintf(buf, "stable_timestamp=%" PRIu64, time_us);
-            connection->set_timestamp(connection, buf);
+            _connection->set_timestamp(_connection, buf);
         }
 
         time_us = WorkgenTimeStamp::secs_to_us(options.timestamp_advance);
@@ -1959,22 +1959,23 @@ WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
     sample_rate(other.sample_rate), _options(other._options) {}
 WorkloadOptions::~WorkloadOptions() {}
 
-Workload::Workload(Context *context, const ThreadListWrapper &tlw) :
-    options(), stats(), _context(context), _threads(tlw._threads),
-    stop_timestamp_thread(false), connection(NULL) {
+Workload::Workload(WT_CONNECTION *conn, Context *context, const ThreadListWrapper &tlw) :
+    options(), stats(), _connection(conn), _context(context), _threads(tlw._threads),
+    stop_timestamp_thread(false) {
     if (context == NULL)
         THROW("Workload contructor requires a Context");
 }
 
-Workload::Workload(Context *context, const Thread &thread) :
-    options(), stats(), _context(context), _threads() {
+Workload::Workload(WT_CONNECTION *conn, Context *context, const Thread &thread) :
+    options(), stats(), _connection(conn), _context(context), _threads() {
     if (context == NULL)
         THROW("Workload contructor requires a Context");
     _threads.push_back(thread);
 }
 
 Workload::Workload(const Workload &other) :
-    options(other.options), stats(other.stats), _context(other._context),
+    options(other.options), stats(other.stats), _connection(other._connection), 
+    _context(other._context),
     _threads(other._threads) {}
 Workload::~Workload() {}
 
@@ -1982,15 +1983,14 @@ Workload& Workload::operator=(const Workload &other) {
     options = other.options;
     stats.assign(other.stats);
     *_context = *other._context;
+    *_connection = *other._connection;
     _threads = other._threads;
     return (*this);
 }
 
-int Workload::run(WT_CONNECTION *conn) {
+int Workload::run() {
     WorkloadRunner runner(this);
-    connection = conn;
-
-    return (runner.run(conn));
+    return (runner.run(_connection));
 }
 
 WorkloadRunner::WorkloadRunner(Workload *workload) :
@@ -2218,7 +2218,6 @@ int WorkloadRunner::run_all() {
     if (options->sample_interval_ms > 0)
         monitor._stop = true;
     if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
-        std::cout << "Stop Timestamp Thread" << std::endl;
         _workload->stop_timestamp_thread = true;
     }
 

@@ -63,20 +63,20 @@ pop_ops = Operation(Operation.OP_INSERT, tables[0])
 pop_ops = op_multi_table(pop_ops, tables)
 nops_per_thread = icount // (populate_threads * table_count)
 pop_thread = Thread(pop_ops * nops_per_thread)
-pop_workload = Workload(context, populate_threads * pop_thread)
+pop_workload = Workload(conn, context, populate_threads * pop_thread)
 print('populate:')
-pop_workload.run(conn)
+pop_workload.run()
 
 # Run phase.
 ops = Operation(Operation.OP_INSERT, tables[0])
 ops = op_multi_table(ops, tables, False)
 thread0 = Thread(ops)
 
-workload = Workload(context, 20 * thread0)
+workload = Workload(conn, context, 20 * thread0)
 workload.options.report_interval=5
 workload.options.run_time=300
 print('Split stress workload running...')
-workload.run(conn)
+workload.run()
 
 latency_filename = "WT_TEST/latency.out"
 latency.workload_latency(workload, latency_filename)

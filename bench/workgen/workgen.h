@@ -448,13 +448,13 @@ private:
 struct Workload {
     WorkloadOptions options;
     Stats stats;
+    WT_CONNECTION *_connection;
     Context *_context;
     std::vector<Thread> _threads;
     bool stop_timestamp_thread;
-    WT_CONNECTION *connection;
 
-    Workload(Context *context, const ThreadListWrapper &threadlist);
-    Workload(Context *context, const Thread &thread);
+    Workload(WT_CONNECTION *conn, Context *context, const ThreadListWrapper &threadlist);
+    Workload(WT_CONNECTION *conn, Context *context, const Thread &thread);
     Workload(const Workload &other);
     ~Workload();
 
@@ -475,7 +475,7 @@ struct Workload {
 	}
 	os << "]";
     }
-    int run(WT_CONNECTION *conn);
+    int run();
 };
 
 }
