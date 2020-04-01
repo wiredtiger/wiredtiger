@@ -1344,7 +1344,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri)
         data_cursor->set_key(data_cursor, hs_key);
         if ((ret = data_cursor->search(data_cursor)) == WT_NOTFOUND)
             WT_ERR_MSG(session, ret,
-              "In %s, the associated history store key %s not found in the data store", uri_itr,
+              "In %s, the associated history store key %s was not found in the data store", uri_itr,
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key));
         WT_ERR(ret);
     }

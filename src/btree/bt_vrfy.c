@@ -13,7 +13,7 @@
  * prettier.
  */
 typedef struct {
-    uint64_t records_so_far; /* Total record count seen so far */
+    uint64_t records_so_far; /* Records seen so far */
 
     WT_ITEM *max_key;  /* Largest key */
     WT_ITEM *max_addr; /* Largest key page */
@@ -858,7 +858,7 @@ __verify_key_hs(
      * and iterate backwards until we reach a different key or btree.
      */
     hs_cursor = session->hs_cursor;
-    hs_cursor->set_key(hs_cursor, hs_btree_id, tmp1, WT_TS_MAX, UINT64_MAX);
+    hs_cursor->set_key(hs_cursor, hs_btree_id, tmp1, WT_TS_MAX, WT_TXN_MAX);
     ret = hs_cursor->search_near(hs_cursor, &exact);
 
     /* If we jumped to the next key, go back to the previous key. */
