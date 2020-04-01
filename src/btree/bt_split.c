@@ -1529,7 +1529,7 @@ __split_multi_inmem_final(
     /*
      * We successfully created new in-memory pages. For error-handling reasons, we've left the
      * update chains referenced by both the original and new pages. We're ready to discard the
-     * original page, terminate the original page's reference to any update list.
+     * original page, terminate the original page's reference to any update list we moved.
      */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         /* We have finished restoration. Discard the update chains that aren't restored. */
