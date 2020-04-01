@@ -22,12 +22,8 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
 
     *stable_update_found = false;
     for (upd = first_upd; upd != NULL; upd = upd->next) {
-        /*
-         * Updates with no timestamp will have a timestamp of zero and will never be rolled back. If
-         * the table is configured for strict timestamp checking, assert that all more recent
-         * updates were also rolled back.
-         */
-        if (upd->txnid == WT_TXN_ABORTED || upd->start_ts == WT_TS_NONE) {
+        /* Skip the updates that are aborted. */
+        if (upd->txnid == WT_TXN_ABORTED) {
             if (upd == first_upd)
                 first_upd = upd->next;
         } else if (rollback_timestamp < upd->durable_ts) {
@@ -51,6 +47,10 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
             upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
             upd->durable_ts = upd->start_ts = WT_TS_NONE;
+        } else {
+            /* Valid update is found. */
+            WT_ASSERT(session, first_upd == upd);
+            break;
         }
     }
 
@@ -354,7 +354,16 @@ __rollback_abort_row_ondisk_kv(
           __wt_timestamp_to_string(vpack->durable_start_ts, ts_string[0]),
           __wt_timestamp_to_string(vpack->start_ts, ts_string[1]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
-        return (__rollback_row_ondisk_fixup_key(session, page, rip, rollback_timestamp, true));
+        if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+            return (__rollback_row_ondisk_fixup_key(session, page, rip, rollback_timestamp, true));
+        else {
+            /*
+             * In-memory database don't have a history store to provide a stable update, so remove
+             * the key.
+             */
+            WT_RET(__wt_upd_alloc_tombstone(session, &upd));
+            WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
+        }
     } else if (vpack->durable_stop_ts != WT_TS_NONE &&
       vpack->durable_stop_ts > rollback_timestamp) {
         /*
@@ -577,10 +586,9 @@ __rollback_abort_newer_row_leaf(
             __rollback_abort_newer_insert(session, insert, rollback_timestamp);
 
         /*
-         * If the configuration is not in-memory and no stable update found in the update list,
-         * abort any on-disk value.
+         * If there is no stable update found in the update list, abort any on-disk value.
          */
-        if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !stable_update_found)
+        if (!stable_update_found)
             WT_RET(__rollback_abort_row_ondisk_kv(session, page, rip, rollback_timestamp));
     }
 

@@ -1440,10 +1440,16 @@ __rec_supd_move(WT_SESSION_IMPL *session, WT_MULTI *multi, WT_SAVE_UPD *supd, ui
 {
     uint32_t i;
 
+    multi->supd_restore = false;
+
     WT_RET(__wt_calloc_def(session, n, &multi->supd));
 
-    for (i = 0; i < n; ++i)
+    for (i = 0; i < n; ++i) {
+        if (supd->restore)
+            multi->supd_restore = true;
         multi->supd[i] = *supd++;
+    }
+
     multi->supd_entries = n;
     return (0);
 }
@@ -1789,6 +1795,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     }
     multi->size = WT_STORE_SIZE(chunk->image.size);
     multi->checksum = 0;
+    multi->supd_restore = false;
 
     /* Set the key. */
     if (btree->type == BTREE_ROW)
@@ -1843,13 +1850,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             return (__wt_set_return(session, EBUSY));
 
         /* If we need to restore the page to memory, copy the disk image. */
-        if (r->cache_write_restore) {
-            multi->supd_restore = true;
+        if (multi->supd_restore)
             goto copy_image;
-        }
 
-        if (chunk->entries == 0)
-            return (0);
+        WT_ASSERT(session, chunk->entries > 0);
     }
 
     /*
@@ -1892,7 +1896,7 @@ copy_image:
      * If re-instantiating this page in memory (either because eviction wants to, or because we
      * skipped updates to build the disk image), save a copy of the disk image.
      */
-    if (F_ISSET(r, WT_REC_SCRUB) || (r->cache_write_restore && multi->supd != NULL))
+    if (F_ISSET(r, WT_REC_SCRUB) || multi->supd_restore)
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     return (0);
@@ -2190,7 +2194,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              * eviction has decided to retain the page in memory because the latter can't handle
              * update lists and splits can.
              */
-        if (F_ISSET(r, WT_REC_IN_MEMORY) || r->cache_write_restore) {
+        if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->supd_restore) {
             WT_ASSERT(session, F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0));
             goto split;
