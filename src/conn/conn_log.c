@@ -267,7 +267,6 @@ __logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     if (!*runp)
         return (0);
 
-    __wt_logmgr_compat_version(session);
     WT_RET(__wt_config_gets(session, cfg, "log.archive", &cval));
     if (cval.val != 0)
         FLD_SET(conn->log_flags, WT_CONN_LOG_ARCHIVE);

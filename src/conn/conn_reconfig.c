@@ -207,7 +207,7 @@ done:
      * are compatibility errors, we inform the user but leave the directory unchanged.
      */
     __wt_logmgr_compat_version(session);
-    if (!reconfig)
+    if (!reconfig && F_ISSET(conn, WT_CONN_COMPATIBILITY))
         WT_ERR(__wt_log_compat_verify(session));
 
 err:
