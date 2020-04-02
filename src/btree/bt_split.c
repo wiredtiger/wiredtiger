@@ -1467,7 +1467,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              */
             WT_ASSERT(session, upd != supd->onpage_upd);
             /*
-             * Move the pointer to the position before the onpage value and free all the updates
+             * Move the pointer to the position before the onpage value and truncate all the updates
              * starting from the onpage value.
              */
             for (prev_onpage = upd;
