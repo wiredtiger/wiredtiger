@@ -1388,7 +1388,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SAVE_UPD *supd;
-    WT_UPDATE *upd;
+    WT_UPDATE *prev_onpage, *upd;
     uint64_t recno;
     uint32_t i, slot;
 
@@ -1443,43 +1443,11 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         if (!supd->restore)
             continue;
 
-        upd = NULL;
-        switch (orig->type) {
-        case WT_PAGE_COL_FIX:
-        case WT_PAGE_COL_VAR:
-            /* Build a key. */
+        if (supd->ins == NULL) {
+            slot = WT_ROW_SLOT(orig, supd->ripcip);
+            upd = orig->modify->mod_row_update[slot];
+        } else
             upd = supd->ins->upd;
-            recno = WT_INSERT_RECNO(supd->ins);
-
-            /* Search the page. */
-            WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
-
-            /* Apply the modification. */
-            WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true));
-            break;
-        case WT_PAGE_ROW_LEAF:
-            /* Build a key. */
-            if (supd->ins == NULL) {
-                slot = WT_ROW_SLOT(orig, supd->ripcip);
-                upd = orig->modify->mod_row_update[slot];
-
-                WT_ERR(__wt_row_leaf_key(session, orig, supd->ripcip, key, false));
-            } else {
-                upd = supd->ins->upd;
-
-                key->data = WT_INSERT_KEY(supd->ins);
-                key->size = WT_INSERT_KEY_SIZE(supd->ins);
-            }
-
-            /* Search the page. */
-            WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
-
-            /* Apply the modification. */
-            WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true));
-            break;
-        default:
-            WT_ERR(__wt_illegal_value(session, orig->type));
-        }
 
         /* We shouldn't restore an empty update chain. */
         WT_ASSERT(session, upd != NULL);
@@ -1488,7 +1456,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
          * Truncate the onpage value and the older versions moved to the history store. We can't
          * truncate the updates for in memory database and fixed length column store as they don't
          * support the history sore. We can't free the truncated updates here as we may still fail.
-         * If we fail, we will append them back to their original update chains.
+         * If we fail, we will append them back to their original update chains. Truncate before we
+         * restore them to ensure the size of the page is correct.
          */
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
           orig->type != WT_PAGE_COL_FIX) {
@@ -1501,10 +1470,43 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
              * Move the pointer to the position before the onpage value and free all the updates
              * starting from the onpage value.
              */
-            for (; upd->next != NULL && upd->next != supd->onpage_upd; upd = upd->next)
+            for (prev_onpage = upd;
+                 prev_onpage->next != NULL && prev_onpage->next != supd->onpage_upd;
+                 prev_onpage = prev_onpage->next)
                 ;
-            WT_ASSERT(session, upd->next == supd->onpage_upd);
-            upd->next = NULL;
+            WT_ASSERT(session, prev_onpage->next == supd->onpage_upd);
+            prev_onpage->next = NULL;
+        }
+
+        switch (orig->type) {
+        case WT_PAGE_COL_FIX:
+        case WT_PAGE_COL_VAR:
+            /* Build a key. */
+            recno = WT_INSERT_RECNO(supd->ins);
+
+            /* Search the page. */
+            WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
+
+            /* Apply the modification. */
+            WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true));
+            break;
+        case WT_PAGE_ROW_LEAF:
+            /* Build a key. */
+            if (supd->ins == NULL)
+                WT_ERR(__wt_row_leaf_key(session, orig, supd->ripcip, key, false));
+            else {
+                key->data = WT_INSERT_KEY(supd->ins);
+                key->size = WT_INSERT_KEY_SIZE(supd->ins);
+            }
+
+            /* Search the page. */
+            WT_ERR(__wt_row_search(&cbt, key, true, ref, true, NULL));
+
+            /* Apply the modification. */
+            WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true));
+            break;
+        default:
+            WT_ERR(__wt_illegal_value(session, orig->type));
         }
     }
 
@@ -1548,8 +1550,11 @@ static void
 __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi)
 {
     WT_SAVE_UPD *supd;
+    WT_UPDATE *upd;
+    size_t size;
     uint32_t i, slot;
 
+    size = 0;
     /* If we have saved updates, we must have decided to restore them to the new page. */
     WT_ASSERT(session, multi->supd_entries == 0 || multi->supd_restore);
 
@@ -1572,9 +1577,16 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
 
         /* Free the updates written to the data store and the history store. */
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-          orig->type != WT_PAGE_COL_FIX)
+          orig->type != WT_PAGE_COL_FIX) {
+            /* Track the freed size. */
+            for (upd = supd->onpage_upd; upd != NULL; upd = upd->next)
+                size += WT_UPDATE_MEMSIZE(upd);
             __wt_free_update_list(session, &supd->onpage_upd);
+        }
     }
+
+    if (size != 0)
+        __wt_cache_page_inmem_decr(session, orig, size);
 }
 
 /*
