@@ -797,6 +797,8 @@ extern int __wt_log_allocfile(WT_SESSION_IMPL *session, uint32_t lognum, const c
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_log_close(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_log_compat_verify(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_log_extract_lognum(WT_SESSION_IMPL *session, const char *name, uint32_t *id)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_log_filename(WT_SESSION_IMPL *session, uint32_t id, const char *file_prefix,
@@ -1674,6 +1676,7 @@ extern void __wt_log_slot_join(
   WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT_MYSLOT *myslot);
 extern void __wt_log_written_reset(WT_SESSION_IMPL *session);
 extern void __wt_log_wrlsn(WT_SESSION_IMPL *session, int *yield);
+extern void __wt_logmgr_compat_version(WT_SESSION_IMPL *session);
 extern void __wt_logrec_free(WT_SESSION_IMPL *session, WT_ITEM **logrecp);
 extern void __wt_lsm_manager_clear_tree(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree);
 extern void __wt_lsm_manager_free_work_unit(WT_SESSION_IMPL *session, WT_LSM_WORK_UNIT *entry);

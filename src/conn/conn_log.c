@@ -79,6 +79,49 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
 }
 
 /*
+ * __wt_logmgr_compat_version --
+ *     Set up the compatibility versions in the log manager. This is split out because it is called
+ *     much earlier than log subsystem creation on startup so that we can verify the system state in
+ *     files before modifying files.
+ */
+void
+__wt_logmgr_compat_version(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    /*
+     * Set up the maximum and minimum log version required if needed.
+     */
+    if (conn->req_max_major != WT_CONN_COMPAT_NONE) {
+        if (conn->req_max_major == WT_LOG_V5_MAJOR)
+            conn->log_req_max = WT_LOG_VERSION;
+        else if (conn->req_max_major == WT_LOG_V4_MAJOR)
+            if (conn->req_max_minor == WT_LOG_V4_MINOR)
+                conn->log_req_max = 4;
+            else if (conn->req_max_minor > WT_LOG_V2_MINOR)
+                conn->log_req_max = 3;
+            else
+                conn->log_req_max = 2;
+        else
+            conn->log_req_max = 1;
+    }
+    if (conn->req_min_major != WT_CONN_COMPAT_NONE) {
+        if (conn->req_min_major == WT_LOG_V5_MAJOR)
+            conn->log_req_min = WT_LOG_VERSION;
+        else if (conn->req_min_major == WT_LOG_V4_MAJOR)
+            if (conn->req_min_minor == WT_LOG_V4_MINOR)
+                conn->log_req_min = 4;
+            else if (conn->req_min_minor > WT_LOG_V2_MINOR)
+                conn->log_req_min = 3;
+            else
+                conn->log_req_min = 2;
+        else
+            conn->log_req_min = 1;
+    }
+}
+
+/*
  * __logmgr_version --
  *     Set up the versions in the log manager.
  */
@@ -122,35 +165,7 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
         downgrade = true;
     }
 
-    /*
-     * Set up the maximum and minimum log version required if needed.
-     */
-    if (conn->req_max_major != WT_CONN_COMPAT_NONE) {
-        if (conn->req_max_major == WT_LOG_V5_MAJOR)
-            conn->log_req_max = WT_LOG_VERSION;
-        else if (conn->req_max_major == WT_LOG_V4_MAJOR)
-            if (conn->req_max_minor == WT_LOG_V4_MINOR)
-                conn->log_req_max = 4;
-            else if (conn->req_max_minor > WT_LOG_V2_MINOR)
-                conn->log_req_max = 3;
-            else
-                conn->log_req_max = 2;
-        else
-            conn->log_req_max = 1;
-    }
-    if (conn->req_min_major != WT_CONN_COMPAT_NONE) {
-        if (conn->req_min_major == WT_LOG_V5_MAJOR)
-            conn->log_req_min = WT_LOG_VERSION;
-        else if (conn->req_min_major == WT_LOG_V4_MAJOR)
-            if (conn->req_min_minor == WT_LOG_V4_MINOR)
-                conn->log_req_min = 4;
-            else if (conn->req_min_minor > WT_LOG_V2_MINOR)
-                conn->log_req_min = 3;
-            else
-                conn->log_req_min = 2;
-        else
-            conn->log_req_min = 1;
-    }
+    __wt_logmgr_compat_version(session);
 
     /*
      * If the version is the same, there is nothing to do.
@@ -252,6 +267,7 @@ __logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     if (!*runp)
         return (0);
 
+    __wt_logmgr_compat_version(session);
     WT_RET(__wt_config_gets(session, cfg, "log.archive", &cval));
     if (cval.val != 0)
         FLD_SET(conn->log_flags, WT_CONN_LOG_ARCHIVE);
