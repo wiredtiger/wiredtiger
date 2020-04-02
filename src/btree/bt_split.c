@@ -1579,8 +1579,8 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
 
 /*
  * __split_multi_inmem_fail --
- *     Discard allocated pages after failure and append the onpage value back to the original update
- *     chains.
+ *     Discard allocated pages after failure and append the onpage values back to the original
+ *     update chains.
  */
 static void
 __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT_REF *ref)
