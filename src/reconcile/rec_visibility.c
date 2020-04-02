@@ -112,7 +112,7 @@ __rec_append_orig_value(
         tombstone->txnid = unpack->stop_txn;
         tombstone->start_ts = unpack->stop_ts;
         tombstone->durable_ts = unpack->durable_stop_ts;
-        total_size = size;
+        total_size += size;
     }
 
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
@@ -137,8 +137,8 @@ err:
     __wt_scr_free(session, &tmp);
     /* Free append when tombstone allocation fails */
     if (ret != 0) {
-        __wt_free(session, tombstone);
         __wt_free(session, append);
+        __wt_free(session, tombstone);
     }
     return (ret);
 }
