@@ -1591,26 +1591,29 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
     WT_UPDATE *upd;
     uint32_t i, slot;
 
-    /* Append the onpage values back to the original update chains. */
-    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
-        /* We don't need to do anything for update chains that are not restored. */
-        if (!supd->restore)
-            continue;
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && orig->type != WT_PAGE_COL_FIX)
+        /* Append the onpage values back to the original update chains. */
+        for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+            /*
+             * We don't need to do anything for update chains that are not restored, or restored
+             * without an onpage value.
+             */
+            if (!supd->restore || supd->onpage_upd == NULL)
+                continue;
 
-        if (supd->ins == NULL) {
-            slot = WT_ROW_SLOT(orig, supd->ripcip);
-            upd = orig->modify->mod_row_update[slot];
-        } else
-            upd = supd->ins->upd;
+            if (supd->ins == NULL) {
+                slot = WT_ROW_SLOT(orig, supd->ripcip);
+                upd = orig->modify->mod_row_update[slot];
+            } else
+                upd = supd->ins->upd;
 
-        if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
-          orig->type != WT_PAGE_COL_FIX) {
+            WT_ASSERT(session, upd != NULL);
+
             for (; upd->next != NULL && upd->next != supd->onpage_upd; upd = upd->next)
                 ;
             if (upd->next == NULL)
                 upd->next = supd->onpage_upd;
         }
-    }
 
     /*
      * We failed creating new in-memory pages. For error-handling reasons, we've left the update
