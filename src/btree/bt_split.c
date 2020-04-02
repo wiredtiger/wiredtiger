@@ -1603,9 +1603,10 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
 
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
           orig->type != WT_PAGE_COL_FIX) {
-            for (; upd->next != NULL; upd = upd->next)
+            for (; upd->next != NULL && upd->next != supd->onpage_upd; upd = upd->next)
                 ;
-            upd->next = supd->onpage_upd;
+            if (upd->next == NULL)
+                upd->next = supd->onpage_upd;
         }
     }
 
