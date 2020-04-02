@@ -1443,6 +1443,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         if (!supd->restore)
             continue;
 
+        upd = NULL;
         switch (orig->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
@@ -1479,6 +1480,32 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         default:
             WT_ERR(__wt_illegal_value(session, orig->type));
         }
+
+        /* We shouldn't restore an empty update chain. */
+        WT_ASSERT(session, upd != NULL);
+
+        /*
+         * Truncate the onpage value and the older versions moved to the history store. We can't
+         * truncate the updates for in memory database and fixed length column store as they don't
+         * support the history sore. We can't free the truncated updates here as we may still fail.
+         * If we fail, we will append them back to their original update chains.
+         */
+        if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
+          orig->type != WT_PAGE_COL_FIX) {
+            /*
+             * We have decided to restore this update chain so it must have newer updates than the
+             * onpage value on it.
+             */
+            WT_ASSERT(session, upd != supd->onpage_upd);
+            /*
+             * Move the pointer to the position before the onpage value and free all the updates
+             * starting from the onpage value.
+             */
+            for (; upd->next != NULL && upd->next != supd->onpage_upd; upd = upd->next)
+                ;
+            WT_ASSERT(session, upd->next == supd->onpage_upd);
+            upd->next = NULL;
+        }
     }
 
     /*
@@ -1514,7 +1541,8 @@ err:
 
 /*
  * __split_multi_inmem_final --
- *     Discard moved update lists from the original page.
+ *     Discard moved update lists from the original page and the updates written to the data store
+ *     and the history store.
  */
 static void
 __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi)
@@ -1528,7 +1556,8 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
     /*
      * We successfully created new in-memory pages. For error-handling reasons, we've left the
      * update chains referenced by both the original and new pages. We're ready to discard the
-     * original page, terminate the original page's reference to any update list we moved.
+     * original page, terminate the original page's reference to any update list we moved and free
+     * the updates written to the data store and the history store.
      */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
         /* We have finished restoration. Discard the update chains that aren't restored. */
@@ -1540,6 +1569,11 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
             orig->modify->mod_row_update[slot] = NULL;
         } else
             supd->ins->upd = NULL;
+
+        /* Free the updates written to the data store and the history store. */
+        if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
+          orig->type != WT_PAGE_COL_FIX)
+            __wt_free_update_list(session, &supd->onpage_upd);
     }
 }
 
@@ -1548,8 +1582,32 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
  *     Discard allocated pages after failure.
  */
 static void
-__split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_REF *ref)
+__split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT_REF *ref)
 {
+    WT_SAVE_UPD *supd;
+    WT_UPDATE *upd;
+    uint32_t i, slot;
+
+    /* Append the onpage values back to the original update chains. */
+    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        /* We don't need to do anything for update chains that are not restored. */
+        if (!supd->restore)
+            continue;
+
+        if (supd->ins == NULL) {
+            slot = WT_ROW_SLOT(orig, supd->ripcip);
+            upd = orig->modify->mod_row_update[slot];
+        } else
+            upd = supd->ins->upd;
+
+        if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
+          orig->type != WT_PAGE_COL_FIX) {
+            for (; upd->next != NULL; upd = upd->next)
+                ;
+            upd->next = supd->onpage_upd;
+        }
+    }
+
     /*
      * We failed creating new in-memory pages. For error-handling reasons, we've left the update
      * chains referenced by both the original and new pages. Discard the newly allocated WT_REF
@@ -2088,7 +2146,7 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
     if (0) {
 err:
         for (i = 0; i < new_entries; ++i)
-            __split_multi_inmem_fail(session, page, ref_new[i]);
+            __split_multi_inmem_fail(session, page, &mod->mod_multi[i], ref_new[i]);
     }
 
     __wt_free(session, ref_new);
@@ -2234,6 +2292,6 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     return (0);
 
 err:
-    __split_multi_inmem_fail(session, page, new);
+    __split_multi_inmem_fail(session, page, multi, new);
     return (ret);
 }
