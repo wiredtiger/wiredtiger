@@ -506,13 +506,13 @@ __rollback_abort_row_reconciled_page(
         return (0);
 
     if (mod->rec_result == WT_PM_REC_REPLACE &&
-      (mod->mod_replace.start_durable_ts > rollback_timestamp ||
-          mod->mod_replace.stop_durable_ts > rollback_timestamp)) {
+      (mod->mod_replace.newest_start_durable_ts > rollback_timestamp ||
+          mod->mod_replace.newest_stop_durable_ts > rollback_timestamp)) {
         __wt_verbose(session, WT_VERB_RTS,
           "reconciled replace block page history store update removal On-disk with start "
           "durable timestamp: %s, stop durable timestamp: %s and stable timestamp: %s",
-          __wt_timestamp_to_string(mod->mod_replace.start_durable_ts, ts_string[0]),
-          __wt_timestamp_to_string(mod->mod_replace.stop_durable_ts, ts_string[1]),
+          __wt_timestamp_to_string(mod->mod_replace.newest_start_durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(mod->mod_replace.newest_stop_durable_ts, ts_string[1]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
 
         WT_RET(__rollback_abort_row_reconciled_page_internal(session, mod->u1.r.disk_image,
@@ -527,14 +527,14 @@ __rollback_abort_row_reconciled_page(
     } else if (mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         for (multi = mod->mod_multi, multi_entry = 0; multi_entry < mod->mod_multi_entries;
              ++multi, ++multi_entry)
-            if (multi->addr.start_durable_ts > rollback_timestamp ||
-              multi->addr.stop_durable_ts > rollback_timestamp) {
+            if (multi->addr.newest_start_durable_ts > rollback_timestamp ||
+              multi->addr.newest_stop_durable_ts > rollback_timestamp) {
                 __wt_verbose(session, WT_VERB_RTS,
                   "reconciled multi block page history store update removal On-disk with "
                   "start durable timestamp: %s, stop durable timestamp: %s and stable "
                   "timestamp: %s",
-                  __wt_timestamp_to_string(multi->addr.start_durable_ts, ts_string[0]),
-                  __wt_timestamp_to_string(multi->addr.stop_durable_ts, ts_string[1]),
+                  __wt_timestamp_to_string(multi->addr.newest_start_durable_ts, ts_string[0]),
+                  __wt_timestamp_to_string(multi->addr.newest_stop_durable_ts, ts_string[1]),
                   __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
 
                 WT_RET(__rollback_abort_row_reconciled_page_internal(session, multi->disk_image,
@@ -636,14 +636,14 @@ __rollback_page_needs_abort(
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
         tag = "reconciled replace block";
-        durable_ts = WT_MAX(mod->mod_replace.start_durable_ts, mod->mod_replace.stop_durable_ts);
+        durable_ts = WT_MAX(mod->mod_replace.newest_start_durable_ts, mod->mod_replace.newest_stop_durable_ts);
         result = (durable_ts > rollback_timestamp);
     } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         tag = "reconciled multi block";
         /* Calculate the max durable timestamp by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            durable_ts = WT_MAX(durable_ts, multi->addr.start_durable_ts);
-            durable_ts = WT_MAX(durable_ts, multi->addr.stop_durable_ts);
+            durable_ts = WT_MAX(durable_ts, multi->addr.newest_start_durable_ts);
+            durable_ts = WT_MAX(durable_ts, multi->addr.newest_stop_durable_ts);
         }
         result = (durable_ts > rollback_timestamp);
     } else if (!__wt_off_page(ref->home, addr)) {
@@ -654,7 +654,7 @@ __rollback_page_needs_abort(
         result = (durable_ts > rollback_timestamp);
     } else if (addr != NULL) {
         tag = "address";
-        durable_ts = WT_MAX(addr->start_durable_ts, addr->stop_durable_ts);
+        durable_ts = WT_MAX(addr->newest_start_durable_ts, addr->newest_stop_durable_ts);
         result = (durable_ts > rollback_timestamp);
     }
 

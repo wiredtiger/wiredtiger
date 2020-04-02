@@ -251,6 +251,8 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, stop_durable_ts - newest_stop_ts));
         LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
+    if (prepare)
+        LF_SET(WT_CELL_PREPARE);
     *flagsp = flags;
 }
 
@@ -271,7 +273,7 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
     *p = '\0';
 
     __cell_pack_addr_validity(session, &p, start_durable_ts, oldest_start_ts, oldest_start_txn,
-      stop_durable_ts, newest_stop_ts, newest_stop_txn, preapre);
+      stop_durable_ts, newest_stop_ts, newest_stop_txn, prepare);
 
     if (recno == WT_RECNO_OOB)
         cell->__chunk[0] |= (uint8_t)cell_type; /* Type */
@@ -424,7 +426,6 @@ __wt_cell_pack_value_match(
  *     Write a copy value cell.
  */
 static inline size_t
-<<<<<<< HEAD
 __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t start_durable_ts,
   wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t stop_durable_ts,
   wt_timestamp_t stop_ts, uint64_t stop_txn, bool prepare, uint64_t rle, uint64_t v)
@@ -556,8 +557,8 @@ __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
 static inline size_t
 __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type,
   wt_timestamp_t durable_start_ts, wt_timestamp_t start_ts, uint64_t start_txn,
-  wt_timestamp_t durable_stop_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, bool prepare, uint64_t rle,
-  size_t size)
+  wt_timestamp_t durable_stop_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, bool prepare,
+  uint64_t rle, size_t size)
 {
     uint8_t *p;
 
