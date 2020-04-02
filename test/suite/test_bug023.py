@@ -55,10 +55,10 @@ class test_bug023(wttest.WiredTigerTestCase, suite_subprocess):
             ret = cursor.next()
             if ret != 0:
                 break
-            newfile = cursor.get_key()
-            sz = os.path.getsize(newfile)
-            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + dir)
-            shutil.copy(newfile, dir)
+            bkup_file = cursor.get_key()
+            sz = os.path.getsize(bkup_file)
+            self.pr('Copy from: ' + bkup_file + ' (' + str(sz) + ') to ' + dir)
+            shutil.copy(bkup_file, dir)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         cursor.close()
 

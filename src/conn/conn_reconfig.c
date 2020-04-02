@@ -47,7 +47,7 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
     uint16_t max_major, max_minor, min_major, min_minor;
     uint16_t rel_major, rel_minor;
     char *value;
-    bool txn_active, unchg;
+    bool require, txn_active, unchg;
 
     conn = S2C(session);
     value = NULL;
@@ -55,7 +55,7 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
     max_minor = WT_CONN_COMPAT_NONE;
     min_major = WT_CONN_COMPAT_NONE;
     min_minor = WT_CONN_COMPAT_NONE;
-    unchg = false;
+    require = unchg = false;
 
     WT_RET(__wt_config_gets(session, cfg, "compatibility.release", &cval));
     if (cval.len == 0) {
@@ -95,12 +95,16 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * connection, not reconfigure.
      */
     WT_RET(__wt_config_gets(session, cfg, "compatibility.require_min", &cval));
-    if (cval.len != 0)
+    if (cval.len != 0) {
         WT_RET(__conn_compat_parse(session, &cval, &min_major, &min_minor));
+        require = true;
+    }
 
     WT_RET(__wt_config_gets(session, cfg, "compatibility.require_max", &cval));
-    if (cval.len != 0)
+    if (cval.len != 0) {
         WT_RET(__conn_compat_parse(session, &cval, &max_major, &max_minor));
+        require = true;
+    }
 
     /*
      * The maximum required must be greater than or equal to the compatibility release we're using
@@ -207,7 +211,7 @@ done:
      * are compatibility errors, we inform the user but leave the directory unchanged.
      */
     __wt_logmgr_compat_version(session);
-    if (!reconfig && F_ISSET(conn, WT_CONN_COMPATIBILITY))
+    if (!reconfig && (F_ISSET(conn, WT_CONN_COMPATIBILITY) || require))
         WT_ERR(__wt_log_compat_verify(session));
 
 err:
