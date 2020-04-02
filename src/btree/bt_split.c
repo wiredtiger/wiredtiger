@@ -1541,8 +1541,8 @@ err:
 
 /*
  * __split_multi_inmem_final --
- *     Discard moved update lists from the original page and the updates written to the data store
- *     and the history store.
+ *     Discard moved update lists from the original page and free the updates written to the data
+ *     store and the history store.
  */
 static void
 __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi)
@@ -1579,7 +1579,8 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
 
 /*
  * __split_multi_inmem_fail --
- *     Discard allocated pages after failure.
+ *     Discard allocated pages after failure and append the onpage value back to the original update
+ *     chains.
  */
 static void
 __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT_REF *ref)
