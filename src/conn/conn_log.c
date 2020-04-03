@@ -87,9 +87,6 @@ static void
 __logmgr_set_majmin(
   WT_SESSION_IMPL *session, uint16_t req_major, uint16_t req_minor, uint16_t *log_req)
 {
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
     /*
      * Set up the maximum and minimum log version required if needed.
      */
