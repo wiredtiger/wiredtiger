@@ -84,8 +84,7 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
  *     and maximum fields in the connection.
  */
 static void
-__logmgr_set_majmin(
-  WT_SESSION_IMPL *session, uint16_t req_major, uint16_t req_minor, uint16_t *log_req)
+__logmgr_set_majmin(uint16_t req_major, uint16_t req_minor, uint16_t *log_req)
 {
     /*
      * Set up the maximum and minimum log version required if needed.
@@ -117,8 +116,8 @@ __wt_logmgr_compat_version(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    __logmgr_set_majmin(session, conn->req_max_major, conn->req_max_minor, &conn->log_req_max);
-    __logmgr_set_majmin(session, conn->req_min_major, conn->req_min_minor, &conn->log_req_min);
+    __logmgr_set_majmin(conn->req_max_major, conn->req_max_minor, &conn->log_req_max);
+    __logmgr_set_majmin(conn->req_min_major, conn->req_min_minor, &conn->log_req_min);
 }
 
 /*
