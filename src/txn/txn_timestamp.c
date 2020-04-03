@@ -1265,7 +1265,7 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 
 /*
  * __wt_txn_clear_timestamp_queues --
- *     We're releasing the transactions resources, remove ourselves from the commit timestamp queue
+ *     We're releasing the transaction's resources, remove ourselves from the commit timestamp queue
  *     and the read timestamp queue if we're on either of them.
  */
 void
