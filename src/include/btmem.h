@@ -74,6 +74,7 @@ struct __wt_page_header {
 #define WT_PAGE_EMPTY_V_ALL 0x02u  /* Page has all zero-length values */
 #define WT_PAGE_EMPTY_V_NONE 0x04u /* Page has no zero-length values */
 #define WT_PAGE_ENCRYPTED 0x08u    /* Page is encrypted on disk */
+#define WT_PAGE_UNUSED 0x10u       /* Historic lookaside store page updates, no longer used */
     uint8_t flags;                 /* 25: flags */
 
     /* A byte of padding, positioned to be added to the flags. */
@@ -338,8 +339,10 @@ struct __wt_page_modify {
                     WT_INSERT *ins; /* Insert list reference */
                     WT_ROW *ripcip; /* Original on-page reference */
                     WT_UPDATE *onpage_upd;
+                    bool restore; /* Whether to restore this saved update chain */
                 } * supd;
                 uint32_t supd_entries;
+                bool supd_restore; /* Whether to restore saved update chains to this page */
 
                 /*
                  * Disk image was written: address, size and checksum. On subsequent reconciliations

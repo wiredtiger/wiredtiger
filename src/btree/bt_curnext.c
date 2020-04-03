@@ -63,9 +63,22 @@ restart_read:
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
         } else {
-            if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK) && upd->type != WT_UPDATE_TOMBSTONE)
-                return (__wt_value_return(cbt, upd));
-            cbt->iface.value.data = upd->data;
+            /*
+             * If this update has been restored from the disk, it needs to be freed after copying it
+             * to the user cursor.
+             */
+            if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK)) {
+                switch (upd->type) {
+                case WT_UPDATE_TOMBSTONE:
+                    cbt->iface.value.data = upd->data;
+                    __wt_free_update_list(session, &upd);
+                    break;
+                default:
+                    return (__wt_value_return(cbt, upd));
+                }
+            }
+            if (upd != NULL)
+                cbt->iface.value.data = upd->data;
         }
     }
     cbt->iface.value.size = 1;
@@ -119,14 +132,27 @@ new_page:
      */
     if (cbt->ins != NULL)
 restart_read:
-    WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, NULL, &upd));
+    WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins->upd, NULL, &upd));
     if (upd == NULL) {
         cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
         cbt->iface.value.data = &cbt->v;
     } else {
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK) && upd->type != WT_UPDATE_TOMBSTONE)
-            return (__wt_value_return(cbt, upd));
-        cbt->iface.value.data = upd->data;
+        /*
+         * If this update has been restored from the disk, it needs to be freed after copying it to
+         * the user cursor.
+         */
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK)) {
+            switch (upd->type) {
+            case WT_UPDATE_TOMBSTONE:
+                cbt->iface.value.data = upd->data;
+                __wt_free_update_list(session, &upd);
+                break;
+            default:
+                return (__wt_value_return(cbt, upd));
+            }
+        }
+        if (upd != NULL)
+            cbt->iface.value.data = upd->data;
     }
     cbt->iface.value.size = 1;
     return (0);
@@ -397,7 +423,8 @@ restart_read_insert:
 restart_read_page:
         rip = &page->pg_row[cbt->slot];
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
-        WT_RET(__wt_txn_read(session, cbt, WT_ROW_UPDATE(page, rip), NULL, &upd));
+        WT_RET(__wt_txn_read(
+          session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip), NULL, &upd));
         if (upd == NULL)
             continue;
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {

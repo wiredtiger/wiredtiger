@@ -12,7 +12,7 @@
  * __rec_update_stable --
  *     Return whether an update is stable or not.
  */
-static bool
+static inline bool
 __rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
 {
     return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
@@ -25,20 +25,24 @@ __rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
  * __rec_update_save --
  *     Save a WT_UPDATE list for later restoration.
  */
-static int
+static inline int
 __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
-  WT_UPDATE *onpage_upd, size_t upd_memsize)
+  WT_UPDATE *onpage_upd, bool supd_restore, size_t upd_memsize)
 {
     WT_SAVE_UPD *supd;
+
+    /* If nothing is committed, we must restore the update chain. */
+    WT_ASSERT(session, onpage_upd != NULL || supd_restore);
+    /* We can only write a standard update or a modify to the data store. */
+    WT_ASSERT(session, onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
+        onpage_upd->type == WT_UPDATE_MODIFY);
 
     WT_RET(__wt_realloc_def(session, &r->supd_allocated, r->supd_next + 1, &r->supd));
     supd = &r->supd[r->supd_next];
     supd->ins = ins;
     supd->ripcip = ripcip;
-    WT_CLEAR(supd->onpage_upd);
-    if (onpage_upd != NULL &&
-      (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY))
-        supd->onpage_upd = onpage_upd;
+    supd->onpage_upd = onpage_upd;
+    supd->restore = supd_restore;
     ++r->supd_next;
     r->supd_memsize += upd_memsize;
     return (0);
@@ -56,6 +60,8 @@ __rec_append_orig_value(
     WT_DECL_RET;
     WT_UPDATE *append, *tombstone;
     size_t size, total_size;
+
+    WT_ASSERT(session, upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL);
 
     for (;; upd = upd->next) {
         /* Done if at least one self-contained update is globally visible. */
@@ -89,36 +95,38 @@ __rec_append_orig_value(
      */
     append = tombstone = NULL; /* -Wconditional-uninitialized */
     total_size = size = 0;     /* -Wconditional-uninitialized */
-    if (unpack == NULL || unpack->type == WT_CELL_DEL)
-        WT_RET(__wt_update_alloc(session, NULL, &append, &size, WT_UPDATE_TOMBSTONE));
-    else {
-        WT_RET(__wt_scr_alloc(session, 0, &tmp));
-        WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
-        WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
-        append->start_ts = append->durable_ts = unpack->start_ts;
-        append->txnid = unpack->start_txn;
-        total_size = size;
 
-        /*
-         * We need to append a TOMBSTONE before the onpage value if the onpage value has a valid
-         * stop pair.
-         *
-         * Imagine a case we insert and delete a value respectively at timestamp 0 and 10, and later
-         * insert it again at 20. We need the TOMBSTONE to tell us there is no value between 10 and
-         * 20.
-         */
-        if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
-            WT_ERR(__wt_update_alloc(session, NULL, &tombstone, &size, WT_UPDATE_TOMBSTONE));
-            tombstone->txnid = unpack->stop_txn;
-            tombstone->start_ts = unpack->stop_ts;
-            tombstone->durable_ts = unpack->stop_ts;
-            tombstone->next = append;
-            total_size += size;
-        }
+    /*
+     * We need to append a TOMBSTONE before the onpage value if the onpage value has a valid
+     * stop pair.
+     *
+     * Imagine a case we insert and delete a value respectively at timestamp 0 and 10, and later
+     * insert it again at 20. We need the TOMBSTONE to tell us there is no value between 10 and
+     * 20.
+     */
+    if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
+        /* No need to append anything if the stop time pair is globally visible. */
+        if (__wt_txn_visible_all(session, unpack->stop_txn, unpack->stop_ts))
+            return (0);
+        WT_ERR(__wt_update_alloc(session, NULL, &tombstone, &size, WT_UPDATE_TOMBSTONE));
+        tombstone->txnid = unpack->stop_txn;
+        tombstone->start_ts = unpack->stop_ts;
+        tombstone->durable_ts = unpack->durable_stop_ts;
+        total_size += size;
     }
 
-    if (tombstone != NULL)
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+    WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
+    WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
+    append->txnid = unpack->start_txn;
+    append->start_ts = unpack->start_ts;
+    append->durable_ts = unpack->durable_start_ts;
+    total_size += size;
+
+    if (tombstone != NULL) {
+        tombstone->next = append;
         append = tombstone;
+    }
 
     /* Append the new entry into the update list. */
     WT_PUBLISH(upd->next, append);
@@ -127,6 +135,11 @@ __rec_append_orig_value(
 
 err:
     __wt_scr_free(session, &tmp);
+    /* Free append when tombstone allocation fails */
+    if (ret != 0) {
+        __wt_free(session, append);
+        __wt_free(session, tombstone);
+    }
     return (ret);
 }
 
@@ -134,7 +147,7 @@ err:
  * __rec_need_save_upd --
  *     Return if we need to save the update chain
  */
-static bool
+static inline bool
 __rec_need_save_upd(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select, bool has_newer_updates)
 {
@@ -172,16 +185,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     wt_timestamp_t checkpoint_timestamp, max_ts, tombstone_durable_ts;
     size_t size, upd_memsize;
     uint64_t max_txn, txnid;
-    bool has_newer_updates, is_hs_page, upd_saved;
+    bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
      * both must be initialized.
      */
     upd_select->upd = NULL;
-    upd_select->durable_ts = WT_TS_NONE;
+    upd_select->start_durable_ts = WT_TS_NONE;
     upd_select->start_ts = WT_TS_NONE;
     upd_select->start_txn = WT_TXN_NONE;
+    upd_select->stop_durable_ts = WT_TS_NONE;
     upd_select->stop_ts = WT_TS_MAX;
     upd_select->stop_txn = WT_TXN_MAX;
 
@@ -190,7 +204,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_memsize = 0;
     checkpoint_timestamp = S2C(session)->txn_global.checkpoint_timestamp;
     max_ts = WT_TS_NONE;
-    tombstone_durable_ts = WT_TS_MAX;
+    tombstone_durable_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     has_newer_updates = upd_saved = false;
     is_hs_page = F_ISSET(S2BT(session), WT_BTREE_HS);
@@ -355,15 +369,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
         if (upd != NULL) {
             /* The beginning of the validity window is the selected update's time pair. */
-            upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
+            upd_select->start_durable_ts = upd_select->start_ts = upd->start_ts;
             /* If durable timestamp is provided, use it. */
             if (upd->durable_ts != WT_TS_NONE)
-                upd_select->durable_ts = upd->durable_ts;
+                upd_select->start_durable_ts = upd->durable_ts;
             upd_select->start_txn = upd->txnid;
 
             /* Use the tombstone durable timestamp as the overall durable timestamp if it exists. */
-            if (tombstone_durable_ts != WT_TS_MAX)
-                upd_select->durable_ts = tombstone_durable_ts;
+            if (tombstone_durable_ts != WT_TS_NONE)
+                upd_select->stop_durable_ts = tombstone_durable_ts;
         } else if (upd_select->stop_ts != WT_TS_NONE || upd_select->stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL);
@@ -377,12 +391,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * keep the same on-disk value but set the stop time pair to indicate that the validity
              * window ends when this tombstone started.
              */
-            upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
+            upd_select->start_durable_ts = upd_select->start_ts = vpack->start_ts;
             upd_select->start_txn = vpack->start_txn;
 
             /* Use the tombstone durable timestamp as the overall durable timestamp if it exists. */
-            if (tombstone_durable_ts != WT_TS_MAX)
-                upd_select->durable_ts = tombstone_durable_ts;
+            if (tombstone_durable_ts != WT_TS_NONE)
+                upd_select->stop_durable_ts = tombstone_durable_ts;
 
             /*
              * Leaving the update unset means that we can skip reconciling. If we've set the stop
@@ -392,7 +406,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));
             WT_ERR(__wt_update_alloc(session, tmp, &upd, &size, WT_UPDATE_STANDARD));
-            upd->start_ts = upd->durable_ts = vpack->start_ts;
+            upd->durable_ts = vpack->durable_start_ts;
+            upd->start_ts = vpack->start_ts;
             upd->txnid = vpack->start_txn;
             WT_PUBLISH(last_upd->next, upd);
             /* This is going in our update list so it should be accounted for in cache usage. */
@@ -428,6 +443,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
           "Warning: fixing out-of-order timestamps remove at %s earlier than value at %s",
           __wt_timestamp_to_string(upd_select->stop_ts, ts_string[0]),
           __wt_timestamp_to_string(upd_select->start_ts, ts_string[1]));
+        upd_select->start_durable_ts = upd_select->stop_durable_ts;
         upd_select->start_ts = upd_select->stop_ts;
         upd_select->start_txn = upd_select->stop_txn;
     }
@@ -449,13 +465,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         r->leave_dirty = true;
 
     /*
-     * We should restore the update chains to the new disk image if there are newer updates in
-     * eviction.
-     */
-    if (has_newer_updates && F_ISSET(r, WT_REC_EVICT))
-        r->cache_write_restore = true;
-
-    /*
      * The update doesn't have any further updates that need to be written to the history store,
      * skip saving the update as saving the update will cause reconciliation to think there is work
      * that needs to be done when there might not be.
@@ -463,7 +472,20 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Additionally history store reconciliation is not set skip saving an update.
      */
     if (__rec_need_save_upd(session, r, upd_select, has_newer_updates)) {
-        WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
+        /*
+         * We should restore the update chains to the new disk image if there are newer updates in
+         * eviction, or for cases that don't support history store, such as in-memory database and
+         * fixed length column store.
+         */
+        supd_restore = F_ISSET(r, WT_REC_EVICT) &&
+          (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
+                         page->type == WT_PAGE_COL_FIX);
+        if (supd_restore)
+            r->cache_write_restore = true;
+        WT_ERR(__rec_update_save(session, r, ins, ripcip,
+          upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE ? NULL :
+                                                                                    upd_select->upd,
+          supd_restore, upd_memsize));
         upd_saved = true;
     }
 
@@ -478,9 +500,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * time there are saved updates and during reconciliation of a backing overflow record that will
      * be physically removed once it's no longer needed.
      */
-    if (upd_select->upd != NULL &&
-      (upd_saved || (vpack != NULL && F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) &&
-                      vpack->raw != WT_CELL_VALUE_OVFL_RM)))
+    if (vpack != NULL && vpack->type != WT_CELL_DEL && upd_select->upd != NULL && upd_saved)
         WT_ERR(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
 err:

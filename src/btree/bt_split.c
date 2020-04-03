@@ -854,7 +854,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
       parent_entries, result_entries, deleted_entries);
 
 err:
-    __wt_scr_free(session, &scr);
     /*
      * A note on error handling: if we completed the split, return success, nothing really bad can
      * have happened, and our caller has to proceed with the split.
@@ -890,6 +889,7 @@ err:
         }
         break;
     }
+    __wt_scr_free(session, &scr);
     return (ret);
 }
 
@@ -1423,9 +1423,13 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     if (!WT_READGEN_EVICT_SOON(orig->read_gen))
         page->read_gen = orig->read_gen;
 
-    /* If there are no updates to apply to the page, we're done. */
+    /*
+     * If there are no updates to apply to the page, we're done. Otherwise, there are updates we
+     * need to restore.
+     */
     if (multi->supd_entries == 0)
         return (0);
+    WT_ASSERT(session, multi->supd_restore);
 
     if (orig->type == WT_PAGE_ROW_LEAF)
         WT_RET(__wt_scr_alloc(session, 0, &key));
@@ -1435,6 +1439,10 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
 
     /* Re-create each modification we couldn't write. */
     for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        /* Ignore update chains that don't need to be restored. */
+        if (!supd->restore)
+            continue;
+
         switch (orig->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
@@ -1509,30 +1517,58 @@ err:
  *     Discard moved update lists from the original page.
  */
 static void
-__split_multi_inmem_final(WT_PAGE *orig, WT_MULTI *multi)
+__split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi)
 {
     WT_SAVE_UPD *supd;
+    WT_UPDATE *upd;
     uint32_t i, slot;
+
+    /* If we have saved updates, we must have decided to restore them to the new page. */
+    WT_ASSERT(session, multi->supd_entries == 0 || multi->supd_restore);
 
     /*
      * We successfully created new in-memory pages. For error-handling reasons, we've left the
      * update chains referenced by both the original and new pages. We're ready to discard the
-     * original page, terminate the original page's reference to any update list we moved.
+     * original page, terminate the original page's reference to any update list we moved and free
+     * the values have been moved to the data store and the history store.
      */
-    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd)
-        switch (orig->type) {
-        case WT_PAGE_COL_FIX:
-        case WT_PAGE_COL_VAR:
+    for (i = 0, supd = multi->supd; i < multi->supd_entries; ++i, ++supd) {
+        /* We have finished restoration. Discard the update chains that aren't restored. */
+        if (!supd->restore)
+            continue;
+
+        if (supd->ins == NULL) {
+            slot = WT_ROW_SLOT(orig, supd->ripcip);
+            upd = orig->modify->mod_row_update[slot];
+            orig->modify->mod_row_update[slot] = NULL;
+        } else {
+            upd = supd->ins->upd;
             supd->ins->upd = NULL;
-            break;
-        case WT_PAGE_ROW_LEAF:
-            if (supd->ins == NULL) {
-                slot = WT_ROW_SLOT(orig, supd->ripcip);
-                orig->modify->mod_row_update[slot] = NULL;
-            } else
-                supd->ins->upd = NULL;
-            break;
         }
+
+        /*
+         * Free the onpage value and the older versions moved to the history store. We can't free
+         * the updates for in memory database and fixed length column store as they don't support
+         * the history sore.
+         */
+        if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
+          orig->type != WT_PAGE_COL_FIX) {
+            /*
+             * We have decided to restore this update chain so it must have newer updates than the
+             * onpage value on it.
+             */
+            WT_ASSERT(session, upd != NULL && upd != supd->onpage_upd && supd->onpage_upd != NULL);
+            /*
+             * Move the pointer to the position before the onpage value and free all the updates
+             * starting from the onpage value.
+             */
+            for (; upd->next != NULL && upd->next != supd->onpage_upd; upd = upd->next)
+                ;
+            WT_ASSERT(session, upd->next == supd->onpage_upd);
+            upd->next = NULL;
+            __wt_free_update_list(session, &supd->onpage_upd);
+        }
+    }
 }
 
 /*
@@ -1578,6 +1614,10 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
 
     /* If closing the file, there better not be any saved updates. */
     WT_ASSERT(session, !closing || multi->supd == NULL);
+
+    /* If we don't have a disk image, we can't restore the saved updates. */
+    WT_ASSERT(
+      session, multi->disk_image != NULL || (multi->supd_entries == 0 && !multi->supd_restore));
 
     /* Verify any disk image we have. */
     WT_ASSERT(session, multi->disk_image == NULL ||
@@ -2064,7 +2104,7 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      * Finalize the move, discarding moved update lists from the original page.
      */
     for (i = 0; i < new_entries; ++i)
-        __split_multi_inmem_final(page, &mod->mod_multi[i]);
+        __split_multi_inmem_final(session, page, &mod->mod_multi[i]);
 
     /*
      * Pages with unresolved changes are not marked clean in reconciliation, do it now, then discard
@@ -2199,7 +2239,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
      *
      * Finalize the move, discarding moved update lists from the original page.
      */
-    __split_multi_inmem_final(page, multi);
+    __split_multi_inmem_final(session, page, multi);
 
     /*
      * Discard the original page.

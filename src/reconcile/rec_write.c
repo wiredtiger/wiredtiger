@@ -518,7 +518,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * checkpoints into account.
      */
     if (WT_IS_METADATA(session->dhandle)) {
-        WT_ORDERED_READ(ckpt_txn, txn_global->checkpoint_id);
+        WT_ORDERED_READ(ckpt_txn, txn_global->checkpoint_state.id);
         if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
             r->last_running = ckpt_txn;
     }
@@ -844,15 +844,17 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
     /* Don't touch the key item memory, that memory is reused. */
     chunk->key.size = 0;
     chunk->entries = 0;
-    __wt_rec_addr_ts_init(r, &chunk->newest_durable_ts, &chunk->oldest_start_ts,
-      &chunk->oldest_start_txn, &chunk->newest_stop_ts, &chunk->newest_stop_txn);
+    __wt_rec_addr_ts_init(r, &chunk->start_durable_ts, &chunk->oldest_start_ts,
+      &chunk->oldest_start_txn, &chunk->stop_durable_ts, &chunk->newest_stop_ts,
+      &chunk->newest_stop_txn);
 
     chunk->min_recno = WT_RECNO_OOB;
     /* Don't touch the key item memory, that memory is reused. */
     chunk->min_key.size = 0;
     chunk->min_entries = 0;
-    __wt_rec_addr_ts_init(r, &chunk->min_newest_durable_ts, &chunk->min_oldest_start_ts,
-      &chunk->min_oldest_start_txn, &chunk->min_newest_stop_ts, &chunk->min_newest_stop_txn);
+    __wt_rec_addr_ts_init(r, &chunk->min_start_durable_ts, &chunk->min_oldest_start_ts,
+      &chunk->min_oldest_start_txn, &chunk->min_stop_durable_ts, &chunk->min_newest_stop_ts,
+      &chunk->min_newest_stop_txn);
     chunk->min_offset = 0;
 
     /*
@@ -1270,9 +1272,10 @@ __wt_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t ne
         r->cur_ptr->min_recno = r->recno;
         if (S2BT(session)->type == BTREE_ROW)
             WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->min_key, r->page->type));
-        r->cur_ptr->min_newest_durable_ts = r->cur_ptr->newest_durable_ts;
+        r->cur_ptr->min_start_durable_ts = r->cur_ptr->start_durable_ts;
         r->cur_ptr->min_oldest_start_ts = r->cur_ptr->oldest_start_ts;
         r->cur_ptr->min_oldest_start_txn = r->cur_ptr->oldest_start_txn;
+        r->cur_ptr->min_stop_durable_ts = r->cur_ptr->stop_durable_ts;
         r->cur_ptr->min_newest_stop_ts = r->cur_ptr->newest_stop_ts;
         r->cur_ptr->min_newest_stop_txn = r->cur_ptr->newest_stop_txn;
 
@@ -1325,10 +1328,10 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * boundaries and create a single chunk.
          */
         prev_ptr->entries += cur_ptr->entries;
-        prev_ptr->newest_durable_ts =
-          WT_MAX(prev_ptr->newest_durable_ts, cur_ptr->newest_durable_ts);
+        prev_ptr->start_durable_ts = WT_MAX(prev_ptr->start_durable_ts, cur_ptr->start_durable_ts);
         prev_ptr->oldest_start_ts = WT_MIN(prev_ptr->oldest_start_ts, cur_ptr->oldest_start_ts);
         prev_ptr->oldest_start_txn = WT_MIN(prev_ptr->oldest_start_txn, cur_ptr->oldest_start_txn);
+        prev_ptr->stop_durable_ts = WT_MAX(prev_ptr->stop_durable_ts, cur_ptr->stop_durable_ts);
         prev_ptr->newest_stop_ts = WT_MAX(prev_ptr->newest_stop_ts, cur_ptr->newest_stop_ts);
         prev_ptr->newest_stop_txn = WT_MAX(prev_ptr->newest_stop_txn, cur_ptr->newest_stop_txn);
         dsk = r->cur_ptr->image.mem;
@@ -1373,18 +1376,19 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         cur_ptr->recno = prev_ptr->min_recno;
         WT_RET(
           __wt_buf_set(session, &cur_ptr->key, prev_ptr->min_key.data, prev_ptr->min_key.size));
-        cur_ptr->newest_durable_ts =
-          WT_MAX(prev_ptr->newest_durable_ts, cur_ptr->newest_durable_ts);
+        cur_ptr->start_durable_ts = WT_MAX(prev_ptr->start_durable_ts, cur_ptr->start_durable_ts);
         cur_ptr->oldest_start_ts = WT_MIN(prev_ptr->oldest_start_ts, cur_ptr->oldest_start_ts);
         cur_ptr->oldest_start_txn = WT_MIN(prev_ptr->oldest_start_txn, cur_ptr->oldest_start_txn);
+        cur_ptr->stop_durable_ts = WT_MAX(prev_ptr->stop_durable_ts, cur_ptr->stop_durable_ts);
         cur_ptr->newest_stop_ts = WT_MAX(prev_ptr->newest_stop_ts, cur_ptr->newest_stop_ts);
         cur_ptr->newest_stop_txn = WT_MAX(prev_ptr->newest_stop_txn, cur_ptr->newest_stop_txn);
         cur_ptr->image.size += len_to_move;
 
         prev_ptr->entries = prev_ptr->min_entries;
-        prev_ptr->newest_durable_ts = prev_ptr->min_newest_durable_ts;
+        prev_ptr->start_durable_ts = prev_ptr->min_start_durable_ts;
         prev_ptr->oldest_start_ts = prev_ptr->min_oldest_start_ts;
         prev_ptr->oldest_start_txn = prev_ptr->min_oldest_start_txn;
+        prev_ptr->stop_durable_ts = prev_ptr->min_stop_durable_ts;
         prev_ptr->newest_stop_ts = prev_ptr->min_newest_stop_ts;
         prev_ptr->newest_stop_txn = prev_ptr->min_newest_stop_txn;
         prev_ptr->image.size -= len_to_move;
@@ -1436,10 +1440,16 @@ __rec_supd_move(WT_SESSION_IMPL *session, WT_MULTI *multi, WT_SAVE_UPD *supd, ui
 {
     uint32_t i;
 
+    multi->supd_restore = false;
+
     WT_RET(__wt_calloc_def(session, n, &multi->supd));
 
-    for (i = 0; i < n; ++i)
+    for (i = 0; i < n; ++i) {
+        if (supd->restore)
+            multi->supd_restore = true;
         multi->supd[i] = *supd++;
+    }
+
     multi->supd_entries = n;
     return (0);
 }
@@ -1760,14 +1770,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_RET(__wt_realloc_def(session, &r->multi_allocated, r->multi_next + 1, &r->multi));
     multi = &r->multi[r->multi_next++];
 
-    /*
-     * FIXME-prepare-support: audit the use of durable timestamps in this file, use both durable
-     * timestamps.
-     */
     /* Initialize the address (set the addr type for the parent). */
-    multi->addr.stop_durable_ts = chunk->newest_durable_ts;
+    multi->addr.start_durable_ts = chunk->start_durable_ts;
     multi->addr.oldest_start_ts = chunk->oldest_start_ts;
     multi->addr.oldest_start_txn = chunk->oldest_start_txn;
+    multi->addr.stop_durable_ts = chunk->stop_durable_ts;
     multi->addr.newest_stop_ts = chunk->newest_stop_ts;
     multi->addr.newest_stop_txn = chunk->newest_stop_txn;
 
@@ -1788,6 +1795,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     }
     multi->size = WT_STORE_SIZE(chunk->image.size);
     multi->checksum = 0;
+    multi->supd_restore = false;
 
     /* Set the key. */
     if (btree->type == BTREE_ROW)
@@ -1842,11 +1850,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             return (__wt_set_return(session, EBUSY));
 
         /* If we need to restore the page to memory, copy the disk image. */
-        if (r->cache_write_restore)
+        if (multi->supd_restore)
             goto copy_image;
 
-        if (chunk->entries == 0)
-            return (0);
+        WT_ASSERT(session, chunk->entries > 0);
     }
 
     /*
@@ -1889,7 +1896,7 @@ copy_image:
      * If re-instantiating this page in memory (either because eviction wants to, or because we
      * skipped updates to build the disk image), save a copy of the disk image.
      */
-    if (F_ISSET(r, WT_REC_SCRUB) || (r->cache_write_restore && multi->supd != NULL))
+    if (F_ISSET(r, WT_REC_SCRUB) || multi->supd_restore)
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
 
     return (0);
@@ -2164,7 +2171,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         ref = r->ref;
         if (__wt_ref_is_root(ref)) {
             __wt_checkpoint_tree_reconcile_update(
-              session, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX);
+              session, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX);
             WT_RET(bm->checkpoint(bm, session, NULL, btree->ckpt, false));
         }
 
@@ -2187,7 +2194,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              * eviction has decided to retain the page in memory because the latter can't handle
              * update lists and splits can.
              */
-        if (F_ISSET(r, WT_REC_IN_MEMORY) || r->cache_write_restore) {
+        if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->supd_restore) {
             WT_ASSERT(session, F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && r->leave_dirty && r->multi->supd_entries != 0));
             goto split;
@@ -2203,9 +2210,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             mod->mod_disk_image = r->multi->disk_image;
             r->multi->disk_image = NULL;
         } else {
-            __wt_checkpoint_tree_reconcile_update(session, r->multi->addr.stop_durable_ts,
+            __wt_checkpoint_tree_reconcile_update(session, r->multi->addr.start_durable_ts,
               r->multi->addr.oldest_start_ts, r->multi->addr.oldest_start_txn,
-              r->multi->addr.newest_stop_ts, r->multi->addr.newest_stop_txn);
+              r->multi->addr.stop_durable_ts, r->multi->addr.newest_stop_ts,
+              r->multi->addr.newest_stop_txn);
             WT_RET(__wt_bt_write(session, r->wrapup_checkpoint, NULL, NULL, NULL, true,
               F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
         }
@@ -2309,7 +2317,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         if (multi->supd != NULL) {
             WT_ERR(__wt_hs_insert_updates(session->hs_cursor, S2BT(session), r->page, multi));
             r->cache_write_hs = true;
-            if (!r->cache_write_restore) {
+            if (!multi->supd_restore) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
             }
@@ -2326,8 +2334,8 @@ err:
  */
 int
 __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
-  wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn,
-  uint64_t rle)
+  wt_timestamp_t start_durable_ts, wt_timestamp_t start_ts, uint64_t start_txn,
+  wt_timestamp_t stop_durable_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -2382,8 +2390,8 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
     WT_ERR(__wt_buf_set(session, &kv->buf, addr, size));
 
     /* Build the cell and return. */
-    kv->cell_len = __wt_cell_pack_ovfl(
-      session, &kv->cell, type, start_ts, start_txn, stop_ts, stop_txn, rle, kv->buf.size);
+    kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, start_durable_ts, start_ts,
+      start_txn, stop_durable_ts, stop_ts, stop_txn, rle, kv->buf.size);
     kv->len = kv->cell_len + kv->buf.size;
 
 err:
