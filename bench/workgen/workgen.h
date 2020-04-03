@@ -448,17 +448,16 @@ private:
 struct Workload {
     WorkloadOptions options;
     Stats stats;
-    WT_CONNECTION *_connection;
     Context *_context;
     std::vector<Thread> _threads;
     bool stop_timestamp_thread;
 
-    Workload(WT_CONNECTION *conn, Context *context, const ThreadListWrapper &threadlist);
-    Workload(WT_CONNECTION *conn, Context *context, const Thread &thread);
+    Workload(Context *context, const ThreadListWrapper &threadlist);
+    Workload(Context *context, const Thread &thread);
     Workload(const Workload &other);
     ~Workload();
 
-    int increment_timestamp();
+    int increment_timestamp(WT_CONNECTION *conn);
 
 #ifndef SWIG
     Workload& operator=(const Workload &other);
@@ -475,7 +474,7 @@ struct Workload {
 	}
 	os << "]";
     }
-    int run();
+    int run(WT_CONNECTION *conn);
 };
 
 }

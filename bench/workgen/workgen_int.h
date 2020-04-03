@@ -32,7 +32,9 @@
 #include <set>
 #ifndef SWIG
 extern "C" {
+#include <unistd.h>
 #include "workgen_func.h"
+#include <math.h>
 }
 #endif
 #include "workgen_time.h"
@@ -50,27 +52,22 @@ struct WorkloadRunner;
 struct WorkgenTimeStamp {
     WorkgenTimeStamp() {}
 
-    static void get_epoch(timespec *tsp) {
-        workgen_epoch(tsp);
+    static uint64_t get_timestamp_lag(double seconds) {
+        timespec start_time;
+        workgen_epoch(&start_time);
+
+        return (ts_us(start_time) - secs_us(seconds));
     }
 
-    static uint64_t get_epoch_us() {
+    static void sleep(double seconds) {
+        usleep(ceil(secs_us(seconds)));
+    }
+
+    static uint64_t get_timestamp() {
         timespec start_time;
         workgen_epoch(&start_time);
 
         return (ts_us(start_time));
-    }
-
-    static uint64_t secs_to_us(double seconds) {
-        return (secs_us(seconds));
-    }
-
-    static uint64_t millis_to_us(double millis) {
-        return (ms_to_us(millis));
-    }
-
-    static uint64_t millis_to_sec(double millis) {
-        return (ms_to_sec(millis));
     }
 };
 
@@ -291,7 +288,7 @@ private:
     int open_all();
     void open_report_file(std::ofstream &, const char *, const char *);
     void report(time_t, time_t, Stats *stats);
-    int run_all();
+    int run_all(WT_CONNECTION *conn);
 
     WorkloadRunner(const WorkloadRunner &);                 // disallowed
     WorkloadRunner& operator=(const WorkloadRunner &other); // disallowed
