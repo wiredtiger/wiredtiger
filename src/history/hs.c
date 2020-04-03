@@ -851,7 +851,7 @@ err:
 static void
 __hs_save_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *saved_timestamp)
 {
-    *saved_timestamp = session->txn.read_timestamp;
+    *saved_timestamp = session->txn->read_timestamp;
 }
 
 /*
@@ -861,7 +861,7 @@ __hs_save_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *saved_timesta
 static void
 __hs_restore_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t saved_timestamp)
 {
-    session->txn.read_timestamp = saved_timestamp;
+    session->txn->read_timestamp = saved_timestamp;
 }
 
 /*
@@ -899,7 +899,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     mod_upd = upd = NULL;
     orig_hs_value_buf = NULL;
     __wt_modify_vector_init(session, &modifies);
-    txn = &session->txn;
+    txn = session->txn;
     __hs_save_read_timestamp(session, &saved_timestamp);
     notused = size = 0;
     hs_btree_id = S2BT(session)->id;
@@ -982,7 +982,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
              * timestamp should be equivalent to the stop timestamp of the record that we're
              * currently on.
              */
-            session->txn.read_timestamp = hs_stop_ts_tmp;
+            session->txn->read_timestamp = hs_stop_ts_tmp;
 
             /*
              * Find the base update to apply the reverse deltas. If our cursor next fails to find an

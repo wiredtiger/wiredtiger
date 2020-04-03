@@ -135,7 +135,8 @@ struct __wt_session_impl {
     WT_ITEM err; /* Error buffer */
 
     WT_TXN_ISOLATION isolation;
-    WT_TXN txn; /* Transaction state */
+    WT_TXN *txn; /* Transaction state */
+
 #define WT_SESSION_BG_SYNC_MSEC 1200000
     WT_LSN bg_sync_lsn; /* Background sync operation LSN. */
     u_int ncursors;     /* Count of active file cursors. */

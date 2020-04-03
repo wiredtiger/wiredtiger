@@ -30,7 +30,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
     u_int i;
 
     mod = ref->page->modify;
-    txn = &session->txn;
+    txn = session->txn;
 
     /*
      * We can skip some dirty pages during a checkpoint. The requirements:
@@ -362,7 +362,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     conn = S2C(session);
     btree = S2BT(session);
     prev = walk = NULL;
-    txn = &session->txn;
+    txn = session->txn;
     tried_eviction = false;
     time_start = time_stop = 0;
     is_hs = false;
@@ -567,7 +567,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * pages. That happens prior to the final metadata checkpoint.
              */
             if (F_ISSET(walk, WT_REF_FLAG_LEAF) && page->read_gen == WT_READGEN_WONT_NEED &&
-              !tried_eviction && F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT)) {
+              !tried_eviction && F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
                 ret = __wt_page_release_evict(session, walk, 0);
                 walk = NULL;
                 WT_ERR_BUSY_OK(ret);

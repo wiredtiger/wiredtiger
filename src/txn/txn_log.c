@@ -206,7 +206,7 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
     uint32_t rectype;
     const char *fmt;
 
-    txn = &session->txn;
+    txn = session->txn;
     rectype = WT_LOGREC_COMMIT;
     fmt = WT_UNCHECKED_STRING(Iq);
 
@@ -255,7 +255,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     uint32_t fileid;
 
     conn = S2C(session);
-    txn = &session->txn;
+    txn = session->txn;
 
     if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
       F_ISSET(session, WT_SESSION_NO_LOGGING) ||
@@ -314,7 +314,7 @@ __wt_txn_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN *txn;
 
     WT_UNUSED(cfg);
-    txn = &session->txn;
+    txn = session->txn;
     /*
      * If there are no log records there is nothing to do.
      */
@@ -397,7 +397,7 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
     wt_timestamp_t commit, durable, first, prepare, read;
 
     conn = S2C(session);
-    txn = &session->txn;
+    txn = session->txn;
 
     if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
       F_ISSET(session, WT_SESSION_NO_LOGGING) ||
@@ -455,7 +455,7 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
-    txn = &session->txn;
+    txn = session->txn;
     ckpt_lsn = &txn->ckpt_lsn;
 
     /*

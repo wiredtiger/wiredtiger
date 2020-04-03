@@ -334,7 +334,7 @@ __txn_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char 
     WT_CONFIG_ITEM cval;
     WT_TXN *txn;
 
-    txn = &session->txn;
+    txn = session->txn;
 
     WT_STAT_CONN_INCR(session, session_query_ts);
     if (!F_ISSET(txn, WT_TXN_RUNNING))
@@ -606,7 +606,7 @@ __txn_assert_after_reads(
   WT_SESSION_IMPL *session, const char *op, wt_timestamp_t ts, WT_TXN **prevp)
 {
 #ifdef HAVE_DIAGNOSTIC
-    WT_TXN *prev, *txn = &session->txn;
+    WT_TXN *prev, *txn = session->txn;
     WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
     wt_timestamp_t tmp_timestamp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -658,7 +658,7 @@ __txn_assert_after_reads(
 int
 __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts)
 {
-    WT_TXN *txn = &session->txn;
+    WT_TXN *txn = session->txn;
     WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
     wt_timestamp_t oldest_ts, stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -764,7 +764,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
 int
 __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
 {
-    WT_TXN *txn = &session->txn;
+    WT_TXN *txn = session->txn;
     WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
     wt_timestamp_t oldest_ts, stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -827,7 +827,7 @@ __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_
 int
 __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
 {
-    WT_TXN *prev, *txn = &session->txn;
+    WT_TXN *prev, *txn = session->txn;
     WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
     wt_timestamp_t oldest_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -886,7 +886,7 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
 int
 __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
 {
-    WT_TXN *txn = &session->txn;
+    WT_TXN *txn = session->txn;
     WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
     wt_timestamp_t ts_oldest;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -1036,7 +1036,7 @@ __wt_txn_publish_timestamp(WT_SESSION_IMPL *session)
     wt_timestamp_t ts;
     uint64_t walked;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_global = &S2C(session)->txn_global;
 
     if (F_ISSET(txn, WT_TXN_TS_PUBLISHED))
@@ -1124,7 +1124,7 @@ __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     uint32_t flags;
 
-    txn = &session->txn;
+    txn = session->txn;
 
     if (!F_ISSET(txn, WT_TXN_TS_PUBLISHED))
         return;
@@ -1157,7 +1157,7 @@ __wt_txn_publish_read_timestamp(WT_SESSION_IMPL *session)
     wt_timestamp_t tmp_timestamp;
     uint64_t walked;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_global = &S2C(session)->txn_global;
 
     if (F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
@@ -1235,7 +1235,7 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     uint32_t flags;
 
-    txn = &session->txn;
+    txn = session->txn;
 
     if (!F_ISSET(txn, WT_TXN_PUBLIC_TS_READ)) {
         txn->read_timestamp = WT_TS_NONE;
@@ -1265,8 +1265,8 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 
 /*
  * __wt_txn_clear_timestamp_queues --
- *     We're about to clear the session and overwrite the txn structure. Remove ourselves from the
- *     commit timestamp queue and the read timestamp queue if we're on either of them.
+ *     We're releasing the transactions resources, remove ourselves from the commit timestamp queue
+ *     and the read timestamp queue if we're on either of them.
  */
 void
 __wt_txn_clear_timestamp_queues(WT_SESSION_IMPL *session)
@@ -1274,9 +1274,9 @@ __wt_txn_clear_timestamp_queues(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
 
-    txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
 
+    txn = session->txn;
     if (!txn->clear_durable_q && !txn->clear_read_q)
         return;
 
