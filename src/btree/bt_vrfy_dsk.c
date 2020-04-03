@@ -410,7 +410,7 @@ __verify_dsk_row(
         ++cell_num;
 
         /* Carefully unpack the cell. */
-        ret = __wt_cell_unpack_safe(session, dsk, cell, unpack, end);
+        ret = __wt_cell_unpack_safe(dsk, cell, unpack, end);
         if (ret != 0) {
             (void)__err_cell_corrupt(session, ret, cell_num, tag);
             goto err;
@@ -657,7 +657,7 @@ __verify_dsk_col_int(
         ++cell_num;
 
         /* Carefully unpack the cell. */
-        ret = __wt_cell_unpack_safe(session, dsk, cell, unpack, end);
+        ret = __wt_cell_unpack_safe(dsk, cell, unpack, end);
         if (ret != 0)
             return (__err_cell_corrupt(session, ret, cell_num, tag));
 
@@ -738,7 +738,7 @@ __verify_dsk_col_var(
         ++cell_num;
 
         /* Carefully unpack the cell. */
-        ret = __wt_cell_unpack_safe(session, dsk, cell, unpack, end);
+        ret = __wt_cell_unpack_safe(dsk, cell, unpack, end);
         if (ret != 0)
             return (__err_cell_corrupt(session, ret, cell_num, tag));
 
