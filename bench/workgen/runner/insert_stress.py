@@ -46,9 +46,9 @@ table.options.range = 100000000 # 100 million
 
 op = Operation(Operation.OP_INSERT, table)
 thread = Thread(op * 500)
-pop_workload = Workload(conn, context, thread)
+pop_workload = Workload(context, thread)
 print('populate:')
-pop_workload.run()
+pop_workload.run(conn)
 
 op = Operation(Operation.OP_INSERT, table, Key(Key.KEYGEN_UNIFORM, 10), Value(130 * 1024))
 op2 = Operation(Operation.OP_INSERT, table, Key(Key.KEYGEN_UNIFORM, 10), Value(100))
@@ -59,8 +59,8 @@ read_op = Operation(Operation.OP_SEARCH, table, Key(Key.KEYGEN_UNIFORM, 10))
 read_txn_ops = op_group_transaction(read_op, 100, "")
 read_thread = Thread(read_txn_ops)
 
-workload = Workload(conn, context, t * 8 + read_thread)
+workload = Workload(context, t * 8 + read_thread)
 workload.options.run_time = 240
 workload.options.report_interval = 5
 print('workload:')
-workload.run()
+workload.run(conn)

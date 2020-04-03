@@ -63,10 +63,10 @@ s.create(tname0, 'key_format=S,value_format=S')
 s.create(tname1, 'key_format=S,value_format=S')
 
 ops = Operation(Operation.OP_INSERT, Table(tname0), Key(Key.KEYGEN_APPEND, 10), Value(100))
-workload = Workload(conn, context, Thread(ops))
+workload = Workload(context, Thread(ops))
 
 print('RUN1')
-workload.run()
+workload.run(conn)
 show(tname0)
 
 # The context has memory of how many keys are in all the tables.
@@ -81,9 +81,9 @@ o = op2 * 10
 print('op is: ' + str(op))
 print('multiplying op is: ' + str(o))
 thread0 = Thread(o + op + op)
-workload = Workload(conn, context, thread0)
+workload = Workload(context, thread0)
 print('RUN2')
-workload.run()
+workload.run(conn)
 show(tname0)
 show(tname1)
 
@@ -95,9 +95,9 @@ op += Operation(Operation.OP_INSERT, Table(tname0), Key(Key.KEYGEN_APPEND, 10), 
 op *= 2
 op += Operation(Operation.OP_INSERT, Table(tname0), Key(Key.KEYGEN_APPEND, 10), Value(10))
 thread0 = Thread(op * 10 + op2 * 20)
-workload = Workload(conn, context, thread0)
+workload = Workload(context, thread0)
 print('RUN3')
-workload.run()
+workload.run(conn)
 show(tname0)
 show(tname1)
 
@@ -114,9 +114,9 @@ k = Key(Key.KEYGEN_APPEND, 1)
 assignit(k, 30)
 assignit(k, 1)  # we don't catch this exception here, but in Workload.run()
 op = Operation(Operation.OP_INSERT, Table(tname0), k, Value(10))
-workload = Workload(conn, context, Thread(op))
+workload = Workload(context, Thread(op))
 print('RUN4')
-expectException(lambda: workload.run())
+expectException(lambda: workload.run(conn))
 
 print('HELP:')
 print(workload.options.help())

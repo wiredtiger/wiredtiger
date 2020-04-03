@@ -42,15 +42,15 @@ table.options.value_size = 100
 
 op = Operation(Operation.OP_INSERT, table)
 thread = Thread(op * 500000)
-pop_workload = Workload(conn, context, thread)
+pop_workload = Workload(context, thread)
 print('populate:')
-pop_workload.run()
+pop_workload.run(conn)
 
 op = Operation(Operation.OP_SEARCH, table)
 op._config = 'reopen'
 t = Thread(op)
-workload = Workload(conn, context, t * 8)
+workload = Workload(context, t * 8)
 workload.options.run_time = 120
 workload.options.report_interval = 5
 print('read workload:')
-workload.run()
+workload.run(conn)

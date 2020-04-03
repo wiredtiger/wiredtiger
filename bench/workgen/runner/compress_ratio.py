@@ -111,9 +111,9 @@ for name_ext, compress_config in compression_opts.iteritems():
 icount=500000
 ins_ops = operations(Operation.OP_INSERT, tables, Key(Key.KEYGEN_APPEND, 20), Value(500))
 thread = Thread(ins_ops * icount)
-pop_workload = Workload(conn, context, thread)
+pop_workload = Workload(context, thread)
 print('populate:')
-pop_workload.run()
+pop_workload.run(conn)
 
 ins_ops = operations(Operation.OP_INSERT, tables, Key(Key.KEYGEN_APPEND, 20), Value(500), 0)
 upd_ops = operations(Operation.OP_UPDATE, tables, Key(Key.KEYGEN_UNIFORM, 20), Value(500), 0)
@@ -125,10 +125,10 @@ ins_thread.options.name = "Insert"
 upd_thread.options.throttle = 1000
 upd_thread.options.name = "Update"
 threads = ins_thread * 2 + upd_thread * 10
-workload = Workload(conn, context, threads)
+workload = Workload(context, threads)
 workload.options.run_time = 60
 workload.options.report_interval = 1
 workload.options.sample_interval = 1
 workload.options.sample_rate = 1
 print('Update heavy workload:')
-workload.run()
+workload.run(conn)

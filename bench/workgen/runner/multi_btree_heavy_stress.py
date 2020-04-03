@@ -97,9 +97,9 @@ logtable = Table(tname)
 icount=20000
 ins_ops = operations(Operation.OP_INSERT, tables, Key(Key.KEYGEN_APPEND, 20), Value(500))
 thread = Thread(ins_ops * icount)
-pop_workload = Workload(conn, context, thread)
+pop_workload = Workload(context, thread)
 print('populate:')
-pop_workload.run()
+pop_workload.run(conn)
 
 ins_ops = operations(Operation.OP_INSERT, tables, Key(Key.KEYGEN_APPEND, 20), Value(500), 0, logtable)
 upd_ops = operations(Operation.OP_UPDATE, tables, Key(Key.KEYGEN_UNIFORM, 20), Value(500), 0, logtable)
@@ -116,14 +116,14 @@ read_thread.options.throttle = 1000
 read_thread.options.name = "Read"
 ##threads = [ins_thread] * 10 + [upd_thread] * 10 + [read_thread] * 80
 threads = ins_thread * 1 + upd_thread * 1 + read_thread * 2
-workload = Workload(conn, context, threads)
+workload = Workload(context, threads)
 ##workload.options.run_time = 3600
 workload.options.run_time = 30
 workload.options.report_interval = 1
 workload.options.sample_interval = 5
 workload.options.sample_rate = 1
 print('heavy stress workload:')
-workload.run()
+workload.run(conn)
 
 latency_filename = conn.get_home() + '/latency.out'
 print('for latency output, see: ' + latency_filename)

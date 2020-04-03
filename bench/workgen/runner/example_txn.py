@@ -42,16 +42,16 @@ table.options.value_size = 100
 context = Context()
 op = Operation(Operation.OP_INSERT, table)
 thread = Thread(op * 500000)
-pop_workload = Workload(conn, context, thread)
+pop_workload = Workload(context, thread)
 print('populate:')
-pop_workload.run()
+pop_workload.run(conn)
 
 opread = Operation(Operation.OP_SEARCH, table)
 opwrite = Operation(Operation.OP_INSERT, table)
 treader = Thread(opread)
 twriter = Thread(txn(opwrite * 2))
-workload = Workload(conn, context, treader * 8 + twriter * 2)
+workload = Workload(context, treader * 8 + twriter * 2)
 workload.options.run_time = 10
 workload.options.report_interval = 5
 print('transactional write workload:')
-workload.run()
+workload.run(conn)
