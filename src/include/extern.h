@@ -1839,9 +1839,8 @@ static inline int __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy,
   bool *didworkp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_cell_pack_value_match(WT_CELL *page_cell, WT_CELL *val_cell,
   const uint8_t *val_data, bool *matchp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_cell_unpack_safe(const WT_PAGE_HEADER *dsk,
-  WT_CELL *cell, WT_CELL_UNPACK *unpack, const void *end)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_cell_unpack_safe(const WT_PAGE_HEADER *dsk, WT_CELL *cell,
+  WT_CELL_UNPACK *unpack, const void *end) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
   WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **new_insp, size_t new_ins_size,
   uint64_t *recnop, u_int skipdepth, bool exclusive)
