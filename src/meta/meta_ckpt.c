@@ -605,8 +605,10 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
     ckpt->newest_stop_txn = ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_MAX : (uint64_t)a.val;
+#ifdef MONGODB42_DONT_SKIP_CHECKPOINT_DURABLE_VERIFICATION
     __wt_check_addr_validity(session, WT_TS_NONE, ckpt->oldest_start_ts, ckpt->oldest_start_txn,
       WT_TS_NONE, ckpt->newest_stop_ts, ckpt->newest_stop_txn);
+#endif
 
     WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
     if (a.len == 0)

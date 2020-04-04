@@ -837,9 +837,11 @@ __verify_page_cell(
                   unpack.oldest_start_txn, unpack.newest_stop_txn);
             }
 
+#ifdef MONGODB42_DONT_SKIP_ADDR_DURABLE_VERIFICATION
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "newest durable",
               unpack.newest_durable_ts, "newest durable", addr_unpack->newest_durable_ts, false,
               vs));
+#endif
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "oldest start",
               unpack.oldest_start_ts, "oldest start", addr_unpack->oldest_start_ts, true, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "oldest start",
