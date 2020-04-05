@@ -280,8 +280,8 @@ config_backup(void)
 }
 
 /*
- * config_backup --
- *     Backup configuration.
+ * config_backward_compatible --
+ *     Backward compatibility configuration.
  */
 static void
 config_backward_compatible(void)
