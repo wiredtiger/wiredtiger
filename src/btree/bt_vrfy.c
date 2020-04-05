@@ -302,6 +302,7 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
     vs->depth = 1;
 }
 
+#ifdef MONGODB42_WITH_TIMESTAMP_AND_TXN_VALIDATE
 /*
  * __verify_addr_ts --
  *     Check an address block's timestamps.
@@ -338,6 +339,7 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
           unpack->newest_stop_txn);
     return (0);
 }
+#endif
 
 /*
  * __verify_tree --
@@ -518,7 +520,9 @@ celltype_err:
 
             /* Unpack the address block and check timestamps */
             __wt_cell_unpack(session, child_ref->home, child_ref->addr, unpack);
+#ifdef MONGODB42_WITH_TIMESTAMP_AND_TXN_VALIDATE
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
+#endif
 
             /* Verify the subtree. */
             ++vs->depth;
@@ -548,7 +552,9 @@ celltype_err:
 
             /* Unpack the address block and check timestamps */
             __wt_cell_unpack(session, child_ref->home, child_ref->addr, unpack);
+#ifdef MONGODB42_WITH_TIMESTAMP_AND_TXN_VALIDATE
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
+#endif
 
             /* Verify the subtree. */
             ++vs->depth;
@@ -687,6 +693,7 @@ __verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
     return (0);
 }
 
+#ifdef MONGODB42_WITH_TIMESTAMP_AND_TXN_VALIDATE
 /*
  * __verify_ts_addr_cmp --
  *     Do a cell timestamp check against the parent.
@@ -731,6 +738,7 @@ __verify_ts_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num, c
       cell_num, __wt_page_addr_string(session, ref, vs->tmp1), ts1_name, ts1_bp,
       gt ? "less than" : "greater than", ts2_name, ts2_bp);
 }
+#endif
 
 /*
  * __verify_txn_addr_cmp --
@@ -808,6 +816,7 @@ __verify_page_cell(
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
+#ifdef MONGODB42_WITH_TIMESTAMP_AND_TXN_VALIDATE
             if (unpack.newest_stop_ts == WT_TS_NONE)
                 WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
                                               " on page at %s has a "
@@ -837,11 +846,9 @@ __verify_page_cell(
                   unpack.oldest_start_txn, unpack.newest_stop_txn);
             }
 
-#ifdef MONGODB42_DONT_SKIP_ADDR_DURABLE_VERIFICATION
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "newest durable",
               unpack.newest_durable_ts, "newest durable", addr_unpack->newest_durable_ts, false,
               vs));
-#endif
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "oldest start",
               unpack.oldest_start_ts, "oldest start", addr_unpack->oldest_start_ts, true, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "oldest start",
@@ -850,12 +857,14 @@ __verify_page_cell(
               unpack.newest_stop_ts, "newest stop", addr_unpack->newest_stop_ts, false, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "newest stop",
               unpack.newest_stop_txn, "newest stop", addr_unpack->newest_stop_txn, false, vs));
+#endif
             break;
         case WT_CELL_DEL:
         case WT_CELL_VALUE:
         case WT_CELL_VALUE_COPY:
         case WT_CELL_VALUE_OVFL:
         case WT_CELL_VALUE_SHORT:
+#ifdef MONGODB42_WITH_TIMESTAMP_AND_TXN_VALIDATE
             if (unpack.stop_ts == WT_TS_NONE)
                 WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
                                               " on page at %s has a stop "
@@ -891,6 +900,7 @@ __verify_page_cell(
               "newest stop", addr_unpack->newest_stop_ts, false, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_txn,
               "newest stop", addr_unpack->newest_stop_txn, false, vs));
+#endif
             break;
         }
     }

@@ -15,7 +15,7 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t durable_sta
   wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t durable_stop_ts,
   wt_timestamp_t stop_ts, uint64_t stop_txn)
 {
-#ifdef HAVE_DIAGNOSTIC
+#if defined(MONGODB42_WITH_TIMESTAMP_AND_TXN_VALIDATE) && defined(HAVE_DIAGNOSTIC)
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     if (start_ts > durable_start_ts)
@@ -131,7 +131,7 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_durable_
   wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn, wt_timestamp_t stop_durable_ts,
   wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
 {
-#ifdef HAVE_DIAGNOSTIC
+#if defined(MONGODB42_WITH_TIMESTAMP_AND_TXN_VALIDATE) && defined(HAVE_DIAGNOSTIC)
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     if (oldest_start_ts != WT_TS_NONE && newest_stop_ts == WT_TS_NONE)
