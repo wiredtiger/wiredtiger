@@ -199,9 +199,9 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 #endif
 
     if (g.c_mmap)
-	CONFIG_APPEND(p, ",mmap=1");
+        CONFIG_APPEND(p, ",mmap=1");
     if (g.c_mmap_all)
-	CONFIG_APPEND(p, ",mmap_all=1");
+        CONFIG_APPEND(p, ",mmap_all=1");
 
     if (g.c_direct_io)
         CONFIG_APPEND(p, ",direct_io=(data)");

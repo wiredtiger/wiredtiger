@@ -287,10 +287,10 @@ static void
 config_backward_compatible(void)
 {
     if (!g.backward_compatible)
-	return;
+        return;
 
     if (config_is_perm("disk.mmap_all"))
-	testutil_die(EINVAL, "-B option incompatible with mmap_all configuration");
+        testutil_die(EINVAL, "-B option incompatible with mmap_all configuration");
     config_single("disk.mmap_all=off", false);
 }
 

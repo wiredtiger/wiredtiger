@@ -157,9 +157,9 @@ main(int argc, char *argv[])
         case '1': /* One run */
             one_flag = true;
             break;
-	case 'B': /* Backward compatibility */
-	    g.backward_compatible = true;
-	    break;
+        case 'B': /* Backward compatibility */
+            g.backward_compatible = true;
+            break;
         case 'C': /* wiredtiger_open config */
             g.config_open = __wt_optarg;
             break;
