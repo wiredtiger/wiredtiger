@@ -475,6 +475,8 @@ __verify_dsk_row(
 #ifdef MONGODB42_WITH_TIMESTAMP_AND_TXN_VALIDATE
         /* Check the validity window. */
         WT_ERR(__verify_dsk_validity(session, unpack, cell_num, addr, tag));
+#else
+        WT_UNUSED(addr);
 #endif
 
         /* Check if any referenced item has an invalid address. */
@@ -672,6 +674,8 @@ __verify_dsk_col_int(
 #ifdef MONGODB42_WITH_TIMESTAMP_AND_TXN_VALIDATE
         /* Check the validity window. */
         WT_RET(__verify_dsk_validity(session, unpack, cell_num, addr, tag));
+#else
+        WT_UNUSED(addr);
 #endif
 
         /* Check if any referenced item is entirely in the file. */
@@ -756,6 +760,8 @@ __verify_dsk_col_var(
 #ifdef MONGODB42_WITH_TIMESTAMP_AND_TXN_VALIDATE
         /* Check the validity window. */
         WT_RET(__verify_dsk_validity(session, unpack, cell_num, addr, tag));
+#else
+        WT_UNUSED(addr);
 #endif
 
         /* Check if any referenced item is entirely in the file. */

@@ -738,7 +738,6 @@ __verify_ts_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num, c
       cell_num, __wt_page_addr_string(session, ref, vs->tmp1), ts1_name, ts1_bp,
       gt ? "less than" : "greater than", ts2_name, ts2_bp);
 }
-#endif
 
 /*
  * __verify_txn_addr_cmp --
@@ -762,6 +761,7 @@ __verify_txn_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
       cell_num, __wt_page_addr_string(session, ref, vs->tmp1), txn1_name, txn1,
       gt ? "less than" : "greater than", txn2_name, txn2);
 }
+#endif
 
 /*
  * __verify_page_cell --
@@ -776,7 +776,9 @@ __verify_page_cell(
     WT_DECL_RET;
     const WT_PAGE_HEADER *dsk;
     uint32_t cell_num;
+#ifdef MONGODB42_WITH_TIMESTAMP_AND_TXN_VALIDATE
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+#endif
     bool found_ovfl;
 
     /*
