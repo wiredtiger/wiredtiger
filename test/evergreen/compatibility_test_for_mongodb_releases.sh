@@ -61,7 +61,7 @@ run_format()
         for am in $2; do
             dir="RUNDIR.$am"
             echo "./t running $am access method..."
-            ./t -1q $arg3 -h $dir "file_type=$am" $args
+            ./t -1q $3 -h $dir "file_type=$am" $args
 
             # Remove the version string from the base configuration file. (MongoDB does not
             # create a base configuration file, but format does, so we need to clean it up
