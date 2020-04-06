@@ -1044,8 +1044,14 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
     txn = &session->txn;
     btree = S2BT(session);
     /*
-     * If the user says a table should always use a read timestamp, verify this transaction has one.
-     * Same if it should never have a read timestamp.
+     * Verify does not use timestamps. Skip this during verify.
+     */
+    if (F_ISSET(btree, WT_BTREE_VERIFY))
+        return (0);
+
+    /*
+     * If the user says a table should always use a read timestamp, confirm this transaction has
+     * one. Same if it should never have a read timestamp.
      */
     if (!F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
       FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_ALWAYS) &&
