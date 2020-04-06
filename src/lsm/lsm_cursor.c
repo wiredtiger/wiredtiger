@@ -976,7 +976,7 @@ __clsm_next_random(WT_CURSOR *cursor)
          * picked is empty. We want to retry in that case.
          */
         ret = __wt_curfile_next_random(c);
-	WT_ERR_NOTFOUND_KEEP(ret);
+        WT_ERR_NOTFOUND_KEEP(ret);
         if (ret == WT_NOTFOUND)
             continue;
 
@@ -1163,7 +1163,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
             }
 
             ret = __wt_bloom_hash_get(bloom, &bhash);
-	    WT_ERR_NOTFOUND_KEEP(ret);
+            WT_ERR_NOTFOUND_KEEP(ret);
             if (ret == WT_NOTFOUND) {
                 WT_LSM_TREE_STAT_INCR(session, clsm->lsm_tree->bloom_miss);
                 continue;

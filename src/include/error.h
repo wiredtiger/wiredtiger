@@ -50,10 +50,10 @@
 
 #define WT_ERR_TEST_KEEP(a, v) \
     do {                       \
-	if (a) {               \
-	    ret = (v);         \
-	    goto err;          \
-	}                      \
+        if (a) {               \
+            ret = (v);         \
+            goto err;          \
+        }                      \
     } while (0)
 #define WT_ERR_ERROR_KEEP(a, e) WT_ERR_TEST_KEEP((ret = (a)) != 0 && ret != (e), ret)
 #define WT_ERR_BUSY_KEEP(a) WT_ERR_ERROR_KEEP(a, EBUSY)

@@ -1127,7 +1127,7 @@ __hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *
                 break;
         }
         /* No entries greater than or equal to the key we searched for. */
-	WT_ERR_NOTFOUND_KEEP(ret);
+        WT_ERR_NOTFOUND_KEEP(ret);
         if (ret == WT_NOTFOUND)
             goto done;
     }

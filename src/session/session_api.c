@@ -1322,7 +1322,7 @@ __wt_session_range_truncate(
         WT_ERR(__session_open_cursor((WT_SESSION *)session, uri, NULL, NULL, &start));
         local_start = true;
         ret = start->next(start);
-	WT_ERR_NOTFOUND_KEEP(ret);
+        WT_ERR_NOTFOUND_KEEP(ret);
         if (ret == WT_NOTFOUND) {
             /*
              * If there are no elements, there is nothing to do.
