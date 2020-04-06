@@ -1013,6 +1013,9 @@ config_single(const char *s, bool perm)
     u_int i;
     const char *equalp, *vp1, *vp2;
 
+    while (__wt_isspace((u_char)*s))
+        ++s;
+
     config_compat(&s);
 
     if ((equalp = strchr(s, '=')) == NULL)
