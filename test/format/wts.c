@@ -453,6 +453,10 @@ wts_close(void)
     WT_CONNECTION *conn;
 
     conn = g.wts_conn;
+
+    if (g.backward_compatible)
+        testutil_check(conn->reconfigure(conn, "compatibility=(release=3.3)"));
+
     testutil_check(conn->close(conn, g.c_leak_memory ? "leak_memory" : NULL));
 
     g.wts_conn = NULL;

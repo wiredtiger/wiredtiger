@@ -47,10 +47,7 @@ run_format()
         args+="data_source=table "
         args+="in_memory=0 "                    # Interested in the on-disk format
         args+="leak_memory=1 "                  # Faster runs
-        # XXX
-        # We're currently not testing logging compatibility, format is not yet creating
-        # log file formats that previous releases can read.
-        args+="logging=0 "                      # Test log compatibility
+        args+="logging=1 "                      # Test log compatibility
         args+="logging_compression=snappy "     # We only built with snappy, force the choice
         args+="rebalance=0 "                    # Faster runs
         args+="rows=1000000 "
@@ -63,9 +60,9 @@ run_format()
             echo "./t running $am access method..."
             ./t -1q $3 -h $dir "file_type=$am" $args
 
-            # Remove the version string from the base configuration file. (MongoDB does not
-            # create a base configuration file, but format does, so we need to clean it up
-            # to support backward compatibility testing.)
+            # Remove the version string from the base configuration file. (MongoDB does not create
+            # a base configuration file, but format does, so we need to remove its version string
+            # to allow backward compatibility testing.)
             (echo '/^version=/d'
              echo w) | ed -s $dir/WiredTiger.basecfg > /dev/null
         done
@@ -123,8 +120,8 @@ cd "$top"
 (verify_release mongodb-3.6 mongodb-3.4 "fix row var")
 (verify_release mongodb-4.0 mongodb-3.6 "fix row var")
 (verify_release mongodb-4.2 mongodb-4.0 "fix row var")
-#(verify_release mongodb-4.4 mongodb-4.2 "fix row var")
-#(verify_release develop mongodb-4.4 "row")
+(verify_release mongodb-4.4 mongodb-4.2 "fix row var")
+(verify_release develop mongodb-4.4 "row")
 (verify_release develop mongodb-4.2 "fix row var")
 
 # Verify forward compatibility for supported access methods.
