@@ -253,11 +253,16 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              */
             memset(&addr_unpack, 0, sizeof(addr_unpack));
             addr_unpack.newest_start_durable_ts = ckpt->start_durable_ts;
-            addr_unpack.oldest_start_ts = ckpt->oldest_start_ts;
-            addr_unpack.oldest_start_txn = ckpt->oldest_start_txn;
             addr_unpack.newest_stop_durable_ts = ckpt->stop_durable_ts;
+            addr_unpack.oldest_start_ts = ckpt->oldest_start_ts;
             addr_unpack.newest_stop_ts = ckpt->newest_stop_ts;
-            addr_unpack.newest_stop_txn = ckpt->newest_stop_txn;
+            if (ckpt->write_gen > S2C(session)->base_write_gen) {
+                addr_unpack.oldest_start_txn = ckpt->oldest_start_txn;
+                addr_unpack.newest_stop_txn = ckpt->newest_stop_txn;
+            } else {
+                addr_unpack.oldest_start_txn = WT_TXN_NONE;
+                addr_unpack.newest_stop_txn = WT_TXN_MAX;
+            }
             addr_unpack.raw = WT_CELL_ADDR_INT;
 
             /* Verify the tree. */
