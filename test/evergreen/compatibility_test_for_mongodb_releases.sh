@@ -48,7 +48,7 @@ run_format()
         args+="in_memory=0 "                    # Interested in the on-disk format
         args+="leak_memory=1 "                  # Faster runs
         # XXX
-        # We're currently not testing logging compatability, format is not yet creating
+        # We're currently not testing logging compatibility, format is not yet creating
         # log file formats that previous releases can read.
         args+="logging=0 "                      # Test log compatibility
         args+="logging_compression=snappy "     # We only built with snappy, force the choice
