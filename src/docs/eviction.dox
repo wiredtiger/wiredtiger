@@ -1,0 +1,103 @@
+/*! @m_page{{c,java},eviction, Eviction}
+
+All the operations performed in WiredTiger are on the data read into
+memory. WiredTiger uses memory as a cache for all the data on the disk
+and the data in memory forms the current working set.
+
+Since memory is limited and can't hold all the data stored on the disk,
+WiredTiger has to continuously move data that is currently not being
+accessed out of the memory in order to free up enough space to read data
+that are requested by the user but currently reside on the disk back
+into memory. This process is called eviction.
+
+@section overview Eviction overview
+
+The WiredTiger eviction runs in background with one eviction server
+thread and several eviction worker threads.
+
+1) The eviction server thread walks the btrees and put the pages into
+the evction queue.
+2) The eviction workers continuously remove pages from the evition
+queue and try to evict them.
+
+Eviction has to obtain exclusive access to the page as there may be
+application threads still reading content on the page that is being
+evicted.
+
+There are three types of eviction in WiredTiger:
+
+1) Clean eviction
+2) History store eviction
+3) Update restore eviction
+
+@section clean_eviction Clean eviction
+
+In the case of clean eviction, there is no dirty content on the page
+and it is directly removed from the memory. After eviction, the page
+remains solely on the disk unchanged.
+
+@section hs_eviction History store eviction
+
+For history store eviction, the page is modified but the changes are
+all committed. Therefore, the page should be clean and can be removed
+from memory after the dirty changes are written to the new disk image
+in the process called reconciliation. WiredTiger writes the newest
+committed value of each key to the disk image. All the older versions
+are moved to the history store table. The new disk image is
+subsequently flushed to the data file on the disk and the page is
+removed from memory.
+
+History store table is an internal table for WiredTiger to store
+historical versions for all the user created tables. The pages in
+history store table need be evicted and loaded back to memory as well.
+Each entry in the history store represents a historical value of a key
+in the user created tables. Different to the user created tables, all
+the content on the history store page are committed as the historical
+values it stores must all be committed and each entry only has one
+value and a deletion marking the expriation of the entry on its update
+chain. Therefore, history store pages should always be clean after
+reconciliation and can be evicted from memory. Also it prevents it
+from moving content recursively to the history store during
+reconciliation of the history store pages as it always only has one
+committed value for each entry.
+
+@section update_restore_eviction Update restore eviction
+
+Update restore eviction largely overlaps with history store eviction.
+The difference is that there are uncommitted changes on the page and
+WiredTiger cannot write them to the disk image. Instead, in additon
+to writing the disk image to the disk, eviction also keeps the disk
+image in memory and restore the uncommitted changes back to the new
+disk image.
+
+Since usually there are only a subset of keys have uncommitted
+changes, eviction only needs to restore those keys that are dirty
+after reconciliation. In addition, eviction may split a page into
+multiple pages and some of them may be clean after reconciliation
+even the old page before split has uncommitted changes. Therefore,
+WiredTiger tracks whether it needs to do update restore eviction in
+the key level and the page level.
+
+At the key level, the key needs to be restored if it has uncommitted
+updates. For each new page, restoration is required if any of the
+key on the new page needs to be restored. Once eviction decides to
+restore a page, it will make a copy of the disk image in memory
+during reconciliation.
+
+For the restored keys, eviction also frees all the values that have
+been written to the disk image and moved to the history store as there
+is no need to duplicate them on the update chains. While for the clean
+keys that are not restored, their whole update chains are removed from
+memory along with the old disk image.
+
+@section exceptions Exceptions
+
+In-memory database and fixed length column store are the exceptions.
+Since they don't support the history store, eviction can only discard
+their update chains until all the content on the update chains are
+globally visible and we cannot free the updates older than the update
+written to the disk image. Also for in-memory database, eviction
+always copy the new disk image and keep that in memory as there is no
+disk storage.
+
+ */
