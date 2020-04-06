@@ -692,7 +692,6 @@ __wt_rec_col_var(
             last.stop_durable_ts = WT_TS_NONE;
             last.stop_ts = WT_TS_MAX;
             last.stop_txn = WT_TXN_MAX;
-            last.stop_durable_ts = WT_TS_NONE;
             last.deleted = true;
             last.prepare = false;
 
@@ -703,7 +702,7 @@ __wt_rec_col_var(
             salvage->take += salvage->missing;
         } else
             WT_ERR(__rec_col_var_helper(session, r, NULL, NULL, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE,
-              WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX, false, salvage->missing, true, false));
+              WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX, prepare, salvage->missing, true, false));
     }
 
     /*
@@ -871,6 +870,7 @@ record_loop:
                 stop_durable_ts = upd_select.stop_durable_ts;
                 stop_ts = upd_select.stop_ts;
                 stop_txn = upd_select.stop_txn;
+                prepare = upd_select.prepare;
 
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
@@ -891,6 +891,7 @@ record_loop:
                     stop_durable_ts = WT_TS_NONE;
                     stop_ts = WT_TS_MAX;
                     stop_txn = WT_TXN_MAX;
+                    prepare = false;
                     deleted = true;
                     break;
                 default:
@@ -962,6 +963,7 @@ compare:
             last.stop_durable_ts = stop_durable_ts;
             last.stop_ts = stop_ts;
             last.stop_txn = stop_txn;
+            last.prepare = prepare;
             last.deleted = deleted;
             rle = repeat_count;
         }
@@ -1045,7 +1047,6 @@ compare:
                     stop_durable_ts = WT_TS_NONE;
                     stop_ts = WT_TS_MAX;
                     stop_txn = WT_TXN_MAX;
-                    stop_durable_ts = WT_TS_NONE;
                     prepare = false;
                 }
             } else if (upd == NULL) {
@@ -1056,7 +1057,6 @@ compare:
                 stop_durable_ts = WT_TS_NONE;
                 stop_ts = WT_TS_MAX;
                 stop_txn = WT_TXN_MAX;
-                stop_durable_ts = WT_TS_NONE;
                 prepare = false;
 
                 deleted = true;
@@ -1068,7 +1068,6 @@ compare:
                 stop_durable_ts = upd_select.stop_durable_ts;
                 stop_ts = upd_select.stop_ts;
                 stop_txn = upd_select.stop_txn;
-                stop_durable_ts = upd_select.stop_durable_ts;
                 prepare = upd_select.prepare;
 
                 switch (upd->type) {
@@ -1093,7 +1092,6 @@ compare:
                     stop_durable_ts = WT_TS_NONE;
                     stop_ts = WT_TS_MAX;
                     stop_txn = WT_TXN_MAX;
-                    stop_durable_ts = WT_TS_NONE;
                     prepare = false;
                     deleted = true;
                     break;
@@ -1161,6 +1159,7 @@ compare:
             last.stop_durable_ts = stop_durable_ts;
             last.stop_ts = stop_ts;
             last.stop_txn = stop_txn;
+            last.prepare = prepare;
             last.deleted = deleted;
             rle = 1;
 
