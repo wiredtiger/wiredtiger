@@ -288,6 +288,13 @@ struct __wt_txn {
     /* Read updates committed as of this timestamp. */
     wt_timestamp_t read_timestamp;
 
+    /*
+     * Set to the first read timestamp used in the transaction. As part of our history store
+     * mechanism, we can move the read timestamp forward so we need to keep track of the original
+     * read timestamp to know what history should be pinned in front of oldest.
+     */
+    wt_timestamp_t first_read_timestamp;
+
     TAILQ_ENTRY(__wt_txn) durable_timestampq;
     TAILQ_ENTRY(__wt_txn) read_timestampq;
     /* Set if need to clear from the durable queue */

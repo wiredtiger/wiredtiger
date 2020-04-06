@@ -415,6 +415,7 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
     /* We'd better have a transaction running. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
+    /* FIXME-WT-5766: Log first read timestamp here. */
     WT_RET(__txn_logrec_init(session));
     logrec = txn->logrec;
     commit = durable = first = prepare = read = WT_TS_NONE;
