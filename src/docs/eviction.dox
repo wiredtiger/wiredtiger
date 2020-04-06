@@ -6,9 +6,9 @@ and the data in memory forms the current working set.
 
 Since memory is limited and can't hold all the data stored on the disk,
 WiredTiger has to continuously move data that is currently not being
-accessed out of the memory in order to free up enough space to read data
-that are requested by the user but currently reside on the disk back
-into memory. This process is called eviction.
+accessed out of the memory to free up enough space to read data that
+are requested by the user but currently reside on the disk back into
+memory. This process is called eviction.
 
 @section overview Eviction overview
 
@@ -51,9 +51,9 @@ The history store table is the internal table for WiredTiger to store
 historical versions for all the user-created tables. The pages in the
 history store table need to be evicted and loaded back to memory as
 well. Each entry in the history store represents a historical value
-of a key in the user-created tables. Different from the user created
-tables, all the content on the history store page are committed as the
-historical values it stores must all be committed and each entry only
+of a key in the user-created tables. Different from the user-created
+tables, all the content on the history store page is committed as the
+historical values it stores must all be committed, and each entry only
 has one value and a deletion marking the expiration of the entry on
 its update chain. Therefore, history store pages should always be clean
 after reconciliation and can be evicted from memory. Besides, it
