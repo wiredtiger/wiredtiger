@@ -753,10 +753,8 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
         upd_visible = __wt_txn_upd_visible_type(session, upd);
         if (upd_visible == WT_VISIBLE_TRUE) {
             /*
-             * Don't consider tombstone updates for the history store when the session is requested
-             * unless if it is globally visible tombstone. A globally visible tombstone that is
-             * added by rollback to stable operation should contains all the timestamps and
-             * transaction id's to zero.
+             * A tombstone representing a stop time pair will have either a valid txn id or a valid
+             * timestamp. Ignore such tombstones in history store based on session settings.
              */
             if (type == WT_UPDATE_TOMBSTONE && WT_IS_HS(S2BT(session)) &&
               F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE) &&
