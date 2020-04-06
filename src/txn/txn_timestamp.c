@@ -340,7 +340,6 @@ __txn_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char 
     if (!F_ISSET(txn, WT_TXN_RUNNING))
         return (WT_NOTFOUND);
 
-    /* FIXME-WT-5766: Support querying first read timestamp. */
     WT_RET(__wt_config_gets(session, cfg, "get", &cval));
     if (WT_STRING_MATCH("commit", cval.str, cval.len))
         *tsp = txn->commit_timestamp;
