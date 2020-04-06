@@ -141,8 +141,8 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     __wt_rec_addr_ts_update(
       r, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_MAX, false);
 
-      /* Update the starting record number in case we split. */
-      r->recno += cbulk->rle;
+    /* Update the starting record number in case we split. */
+    r->recno += cbulk->rle;
 
     return (0);
 }
@@ -774,6 +774,7 @@ record_loop:
             update_no_copy =
               upd == NULL || !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK); /* No data copy */
             repeat_count = 1;                                             /* Single record */
+            deleted = false;
 
             if (upd == NULL) {
                 update_no_copy = false; /* Maybe data copy */

@@ -167,7 +167,6 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_durable_
     WT_UNUSED(stop_durable_ts);
     WT_UNUSED(newest_stop_ts);
     WT_UNUSED(newest_stop_txn);
-    WT_UNUSED(newest_stop_durable_ts);
 #endif
 }
 

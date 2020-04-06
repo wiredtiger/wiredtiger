@@ -1329,10 +1329,12 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * boundaries and create a single chunk.
          */
         prev_ptr->entries += cur_ptr->entries;
-        prev_ptr->newest_start_durable_ts = WT_MAX(prev_ptr->newest_start_durable_ts, cur_ptr->newest_start_durable_ts);
+        prev_ptr->newest_start_durable_ts =
+          WT_MAX(prev_ptr->newest_start_durable_ts, cur_ptr->newest_start_durable_ts);
         prev_ptr->oldest_start_ts = WT_MIN(prev_ptr->oldest_start_ts, cur_ptr->oldest_start_ts);
         prev_ptr->oldest_start_txn = WT_MIN(prev_ptr->oldest_start_txn, cur_ptr->oldest_start_txn);
-        prev_ptr->newest_stop_durable_ts = WT_MAX(prev_ptr->newest_stop_durable_ts, cur_ptr->newest_stop_durable_ts);
+        prev_ptr->newest_stop_durable_ts =
+          WT_MAX(prev_ptr->newest_stop_durable_ts, cur_ptr->newest_stop_durable_ts);
         prev_ptr->newest_stop_ts = WT_MAX(prev_ptr->newest_stop_ts, cur_ptr->newest_stop_ts);
         prev_ptr->newest_stop_txn = WT_MAX(prev_ptr->newest_stop_txn, cur_ptr->newest_stop_txn);
         if (cur_ptr->prepare)
@@ -1379,10 +1381,12 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         cur_ptr->recno = prev_ptr->min_recno;
         WT_RET(
           __wt_buf_set(session, &cur_ptr->key, prev_ptr->min_key.data, prev_ptr->min_key.size));
-        cur_ptr->newest_start_durable_ts = WT_MAX(prev_ptr->newest_start_durable_ts, cur_ptr->newest_start_durable_ts);
+        cur_ptr->newest_start_durable_ts =
+          WT_MAX(prev_ptr->newest_start_durable_ts, cur_ptr->newest_start_durable_ts);
         cur_ptr->oldest_start_ts = WT_MIN(prev_ptr->oldest_start_ts, cur_ptr->oldest_start_ts);
         cur_ptr->oldest_start_txn = WT_MIN(prev_ptr->oldest_start_txn, cur_ptr->oldest_start_txn);
-        cur_ptr->newest_stop_durable_ts = WT_MAX(prev_ptr->newest_stop_durable_ts, cur_ptr->newest_stop_durable_ts);
+        cur_ptr->newest_stop_durable_ts =
+          WT_MAX(prev_ptr->newest_stop_durable_ts, cur_ptr->newest_stop_durable_ts);
         cur_ptr->newest_stop_ts = WT_MAX(prev_ptr->newest_stop_ts, cur_ptr->newest_stop_ts);
         cur_ptr->newest_stop_txn = WT_MAX(prev_ptr->newest_stop_txn, cur_ptr->newest_stop_txn);
         if (prev_ptr->prepare)

@@ -2052,6 +2052,10 @@ static inline size_t __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell
   uint64_t oldest_start_txn, wt_timestamp_t stop_durable_ts, wt_timestamp_t newest_stop_ts,
   uint64_t newest_stop_txn, bool prepare, size_t size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline size_t __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell,
+  wt_timestamp_t start_durable_ts, wt_timestamp_t start_ts, uint64_t start_txn,
+  wt_timestamp_t stop_durable_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, bool prepare,
+  uint64_t rle, uint64_t v) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline size_t __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell,
   wt_timestamp_t start_durable_ts, wt_timestamp_t start_ts, uint64_t start_txn,
   wt_timestamp_t stop_durable_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
@@ -2162,8 +2166,8 @@ static inline void __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref);
 static inline void __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
-static inline void __wt_rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *start_durable_ts,
-  wt_timestamp_t *oldest_start_tsp, uint64_t *oldest_start_txnp, wt_timestamp_t *stop_durable_ts,
+static inline void __wt_rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *start_durable_tsp,
+  wt_timestamp_t *oldest_start_tsp, uint64_t *oldest_start_txnp, wt_timestamp_t *stop_durable_tsp,
   wt_timestamp_t *newest_stop_tsp, uint64_t *newest_stop_txnp, bool *preparep);
 static inline void __wt_rec_addr_ts_update(WT_RECONCILE *r, wt_timestamp_t start_durable_ts,
   wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn, wt_timestamp_t stop_durable_ts,

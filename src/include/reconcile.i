@@ -77,10 +77,12 @@ __wt_rec_addr_ts_update(WT_RECONCILE *r, wt_timestamp_t start_durable_ts,
   wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn, wt_timestamp_t stop_durable_ts,
   wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn, bool prepare)
 {
-    r->cur_ptr->newest_start_durable_ts = WT_MAX(start_durable_ts, r->cur_ptr->newest_start_durable_ts);
+    r->cur_ptr->newest_start_durable_ts =
+      WT_MAX(start_durable_ts, r->cur_ptr->newest_start_durable_ts);
     r->cur_ptr->oldest_start_ts = WT_MIN(oldest_start_ts, r->cur_ptr->oldest_start_ts);
     r->cur_ptr->oldest_start_txn = WT_MIN(oldest_start_txn, r->cur_ptr->oldest_start_txn);
-    r->cur_ptr->newest_stop_durable_ts = WT_MAX(stop_durable_ts, r->cur_ptr->newest_stop_durable_ts);
+    r->cur_ptr->newest_stop_durable_ts =
+      WT_MAX(stop_durable_ts, r->cur_ptr->newest_stop_durable_ts);
     r->cur_ptr->newest_stop_ts = WT_MAX(newest_stop_ts, r->cur_ptr->newest_stop_ts);
     r->cur_ptr->newest_stop_txn = WT_MAX(newest_stop_txn, r->cur_ptr->newest_stop_txn);
     if (prepare)

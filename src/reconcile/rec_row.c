@@ -598,7 +598,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         stop_durable_ts = upd_select.stop_durable_ts;
         stop_ts = upd_select.stop_ts;
         stop_txn = upd_select.stop_txn;
-        stop_durable_ts = upd_select.stop_durable_ts;
         prepare = upd_select.prepare;
 
         switch (upd->type) {

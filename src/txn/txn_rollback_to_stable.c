@@ -271,7 +271,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
           __wt_timestamp_to_string(hs_stop_ts, ts_string[2]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[3]));
 
-        newer_hs_ts = hs_start_ts;
+        newer_hs_ts = durable_ts;
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
@@ -636,7 +636,8 @@ __rollback_page_needs_abort(
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
         tag = "reconciled replace block";
-        durable_ts = WT_MAX(mod->mod_replace.newest_start_durable_ts, mod->mod_replace.newest_stop_durable_ts);
+        durable_ts =
+          WT_MAX(mod->mod_replace.newest_start_durable_ts, mod->mod_replace.newest_stop_durable_ts);
         result = (durable_ts > rollback_timestamp);
     } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         tag = "reconciled multi block";
