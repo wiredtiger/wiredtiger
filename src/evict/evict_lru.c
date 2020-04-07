@@ -2282,7 +2282,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     cache = conn->cache;
     time_start = time_stop = 0;
     txn_global = &conn->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_state = WT_SESSION_TXN_SHARED(session);
 
     /*
      * It is not safe to proceed if the eviction server threads aren't setup yet.

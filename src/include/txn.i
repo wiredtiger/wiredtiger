@@ -939,7 +939,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
     WT_TXN_SHARED *txn_state;
 
     txn = &session->txn;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_state = WT_SESSION_TXN_SHARED(session);
 
     /*
      * Check the published snap_min because read-uncommitted never sets WT_TXN_HAS_SNAPSHOT. We
@@ -966,7 +966,7 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
     uint64_t id;
 
     txn_global = &S2C(session)->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_state = WT_SESSION_TXN_SHARED(session);
 
     /*
      * Allocating transaction IDs involves several steps.
@@ -1159,7 +1159,7 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
 
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_state = WT_SESSION_TXN_SHARED(session);
 
     /*
      * We are about to read data, which means we need to protect against

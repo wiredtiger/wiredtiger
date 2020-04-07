@@ -75,14 +75,14 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
 
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_state = WT_SESSION_TXN_SHARED(session);
 
     WT_ASSERT(session, !WT_TXNID_LT(txn->id, txn_global->last_running));
     WT_ASSERT(session, txn->id != WT_TXN_NONE && txn_state->id != WT_TXN_NONE);
 #else
     WT_TXN_SHARED *txn_state;
 
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_state = WT_SESSION_TXN_SHARED(session);
 #endif
     WT_PUBLISH(txn_state->id, WT_TXN_NONE);
 }
@@ -122,7 +122,7 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_state = WT_SESSION_TXN_SHARED(session);
 
     WT_ASSERT(session, txn_state->pinned_id == WT_TXN_NONE ||
         session->txn.isolation == WT_ISO_READ_UNCOMMITTED ||
@@ -157,7 +157,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
     conn = S2C(session);
     txn = &session->txn;
     txn_global = &conn->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_state = WT_SESSION_TXN_SHARED(session);
     n = 0;
 
     /* Fast path if we already have the current snapshot. */
@@ -548,7 +548,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 
     /* Clear the transaction's ID from the global table. */
     if (WT_SESSION_IS_CHECKPOINT(session)) {
-        WT_ASSERT(session, WT_SESSION_TXN_STATE(session)->id == WT_TXN_NONE);
+        WT_ASSERT(session, WT_SESSION_TXN_SHARED(session)->id == WT_TXN_NONE);
         txn->id = txn_global->checkpoint_state.id = WT_TXN_NONE;
 
         /*
@@ -563,7 +563,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
         if (!F_ISSET(txn, WT_TXN_PREPARE))
             __txn_remove_from_global_table(session);
         else
-            WT_ASSERT(session, WT_SESSION_TXN_STATE(session)->id == WT_TXN_NONE);
+            WT_ASSERT(session, WT_SESSION_TXN_SHARED(session)->id == WT_TXN_NONE);
         txn->id = WT_TXN_NONE;
     }
 
@@ -1403,7 +1403,7 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 #ifdef HAVE_DIAGNOSTIC
     if (S2C(session_ret)->txn_global.states != NULL) {
         WT_TXN_SHARED *txn_state;
-        txn_state = WT_SESSION_TXN_STATE(session_ret);
+        txn_state = WT_SESSION_TXN_SHARED(session_ret);
         WT_ASSERT(session, txn_state->pinned_id == WT_TXN_NONE);
     }
 #endif
@@ -1666,7 +1666,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     uint64_t global_oldest;
 
     txn = &session->txn;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_state = WT_SESSION_TXN_SHARED(session);
     global_oldest = S2C(session)->txn_global.oldest_id;
 
     /* We can't roll back prepared transactions. */

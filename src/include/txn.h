@@ -46,7 +46,7 @@ typedef enum {
 
 #define WT_TXNID_LT(t1, t2) ((t1) < (t2))
 
-#define WT_SESSION_TXN_STATE(s) (&S2C(s)->txn_global.states[(s)->id])
+#define WT_SESSION_TXN_SHARED(s) (&S2C(s)->txn_global.states[(s)->id])
 
 #define WT_SESSION_IS_CHECKPOINT(s) ((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
 
@@ -81,7 +81,7 @@ typedef enum {
     do {                                                                  \
         WT_TXN_ISOLATION saved_iso = (s)->isolation;                      \
         WT_TXN_ISOLATION saved_txn_iso = (s)->txn.isolation;              \
-        WT_TXN_SHARED *txn_state = WT_SESSION_TXN_STATE(s);               \
+        WT_TXN_SHARED *txn_state = WT_SESSION_TXN_SHARED(s);              \
         WT_TXN_SHARED saved_state = *txn_state;                           \
         (s)->txn.forced_iso++;                                            \
         (s)->isolation = (s)->txn.isolation = (iso);                      \
