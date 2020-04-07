@@ -221,7 +221,14 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
 static inline wt_timestamp_t
 __txn_get_published_timestamp(WT_SESSION_IMPL *session, WT_TXN_SHARED *txn_state)
 {
+    WT_TXN *txn;
     wt_timestamp_t ts;
+
+    /*
+     * This is one of the few instances where we're potentially reading another session's internal
+     * transaction data. We need to pay close attention to how this gets used.
+     */
+    txn = txn_state->internal_txn;
 
     /*
      * Any checking of bit flags in this logic is invalid. __wt_txn_release may have already been
@@ -236,10 +243,8 @@ __txn_get_published_timestamp(WT_SESSION_IMPL *session, WT_TXN_SHARED *txn_state
      *
      * In the prepared case, the first commit will always be equal to the commit so we'll return
      * durable.
-     *
-     * FIXME-WT-5766: Unfortunately we need a way to read the mutable transaction data here.
      */
-    if (/*txn->commit_ts*/ 0 != txn_state->first_commit_timestamp)
+    if (txn->commit_timestamp != txn_state->first_commit_timestamp)
         ts = txn_state->first_commit_timestamp;
     else
         ts = txn_state->durable_timestamp;
@@ -839,10 +844,11 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
 {
     WT_TXN *txn = &session->txn;
     WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
-    WT_TXN_SHARED *prev_state = WT_SESSION_TXN_SHARED(session);
-
+    WT_TXN_SHARED *prev_state;
     wt_timestamp_t oldest_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+
+    prev_state = WT_SESSION_TXN_SHARED(session);
 
     WT_RET(__wt_txn_context_prepare_check(session));
 
@@ -1246,7 +1252,7 @@ __wt_txn_publish_read_timestamp(WT_SESSION_IMPL *session)
     ++txn_global->read_timestampq_len;
     WT_STAT_CONN_INCR(session, txn_read_queue_inserts);
     txn_state->clear_read_q = false;
-    // F_SET(txn, WT_TXN_HAS_TS_READ | WT_TXN_PUBLIC_TS_READ);
+    F_SET(txn, WT_TXN_HAS_TS_READ | WT_TXN_PUBLIC_TS_READ);
     __wt_writeunlock(session, &txn_global->read_timestamp_rwlock);
 }
 

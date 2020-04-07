@@ -242,6 +242,13 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
     WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
     txn_state->pinned_id = pinned_id;
 
+    /*
+     * In general, other threads should be only be reading data exposed in the shared transaction
+     * state. There are a few instances where we need to read the internal transaction data in a
+     * controlled manner so we need to leave an escape hatch here to allow this.
+     */
+    txn_state->internal_txn = txn;
+
 done:
     __wt_readunlock(session, &txn_global->rwlock);
     __txn_sort_snapshot(session, n, current_id);

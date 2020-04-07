@@ -131,6 +131,8 @@ struct __wt_txn_shared {
     /* Set if need to clear from the durable queue */
     bool clear_durable_q;
 
+    WT_TXN *internal_txn; /* A reference to the corresponding internal transaction data. */
+
     WT_CACHE_LINE_PAD_END
 };
 
