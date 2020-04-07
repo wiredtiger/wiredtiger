@@ -744,6 +744,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
     bool op_zero_ts, upd_zero_ts;
 
     txn = &session->txn;
+    txn_state = WT_SESSION_TXN_SHARED(session);
     cursor = NULL;
     durable_op_timestamp = prev_op_timestamp = WT_TS_NONE;
 
