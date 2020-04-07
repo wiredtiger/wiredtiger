@@ -1449,9 +1449,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         } else
             upd = supd->ins->upd;
 
-        /* We shouldn't restore an empty update chain. */
-        WT_ASSERT(session, upd != NULL);
-
         /*
          * Truncate the onpage value and the older versions moved to the history store. We can't
          * truncate the updates for in memory database and fixed length column store as they don't
