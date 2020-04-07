@@ -1095,8 +1095,7 @@ retry:
     WT_ERR(__cursor_func_init(cbt, true));
 
     if (btree->type == BTREE_ROW) {
-        ret = __cursor_row_search(cbt, false, NULL, NULL);
-        WT_ERR_NOTFOUND_KEEP(ret);
+        WT_ERR_NOTFOUND_KEEP(__cursor_row_search(cbt, false, NULL, NULL));
         if (ret == WT_NOTFOUND)
             goto search_notfound;
 
@@ -1111,8 +1110,7 @@ retry:
 
         ret = __cursor_row_modify(cbt, WT_UPDATE_TOMBSTONE);
     } else {
-        ret = __cursor_col_search(cbt, NULL, NULL);
-        WT_ERR_NOTFOUND_KEEP(ret);
+        WT_ERR_NOTFOUND_KEEP(__cursor_col_search(cbt, NULL, NULL));
         if (ret == WT_NOTFOUND)
             goto search_notfound;
 

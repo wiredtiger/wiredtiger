@@ -493,8 +493,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         if (is_dup)
             WT_ERR_MSG(session, EINVAL,
               "Incremental identifier can only be specified on a primary backup cursor");
-        ret = __backup_find_id(session, &cval, NULL);
-        WT_ERR_NOTFOUND_KEEP(ret);
+        WT_ERR_NOTFOUND_KEEP(__backup_find_id(session, &cval, NULL));
         if (ret == 0)
             WT_ERR_MSG(session, EINVAL, "Incremental identifier already exists");
 

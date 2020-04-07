@@ -975,8 +975,7 @@ __clsm_next_random(WT_CURSOR *cursor)
          * This call to next_random on the chunk can potentially end in WT_NOTFOUND if the chunk we
          * picked is empty. We want to retry in that case.
          */
-        ret = __wt_curfile_next_random(c);
-        WT_ERR_NOTFOUND_KEEP(ret);
+        WT_ERR_NOTFOUND_KEEP(__wt_curfile_next_random(c));
         if (ret == WT_NOTFOUND)
             continue;
 
@@ -1162,8 +1161,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
                 have_hash = true;
             }
 
-            ret = __wt_bloom_hash_get(bloom, &bhash);
-            WT_ERR_NOTFOUND_KEEP(ret);
+            WT_ERR_NOTFOUND_KEEP(__wt_bloom_hash_get(bloom, &bhash));
             if (ret == WT_NOTFOUND) {
                 WT_LSM_TREE_STAT_INCR(session, clsm->lsm_tree->bloom_miss);
                 continue;

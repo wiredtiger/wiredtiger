@@ -554,8 +554,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
      * an older version.
      */
     metac->set_key(metac, WT_HS_URI);
-    ret = metac->search(metac);
-    WT_ERR_NOTFOUND_KEEP(ret);
+    WT_ERR_NOTFOUND_KEEP(metac->search(metac));
     if (ret == WT_NOTFOUND)
         hs_exists = false;
     /* Unpin the page from cache. */

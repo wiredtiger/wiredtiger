@@ -386,8 +386,7 @@ restart:
              * Not-found is an expected return, as eviction might have been attempted. Restart is
              * not expected, our parent WT_REF should not have split.
              */
-            ret = __wt_page_swap(session, couple, ref, WT_READ_NOTFOUND_OK | flags);
-            WT_ERR_NOTFOUND_KEEP(ret);
+            WT_ERR_NOTFOUND_KEEP(__wt_page_swap(session, couple, ref, WT_READ_NOTFOUND_OK | flags));
             if (ret == 0) {
                 /* Success, "couple" released. */
                 couple = NULL;

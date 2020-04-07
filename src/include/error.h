@@ -36,27 +36,19 @@
         __wt_err(session, ret, __VA_ARGS__); \
         goto err;                            \
     } while (0)
-#define WT_ERR_TEST(a, v) \
-    do {                  \
-        if (a) {          \
-            ret = (v);    \
-            goto err;     \
-        } else            \
-            ret = 0;      \
+#define WT_ERR_TEST(a, v, clear) \
+    do {                         \
+        if (a) {                 \
+            ret = (v);           \
+            goto err;            \
+        } else if (clear)        \
+            ret = 0;             \
     } while (0)
-#define WT_ERR_ERROR_OK(a, e) WT_ERR_TEST((ret = (a)) != 0 && ret != (e), ret)
+#define WT_ERR_ERROR_OK(a, e) WT_ERR_TEST((ret = (a)) != 0 && ret != (e), ret, true)
 #define WT_ERR_BUSY_OK(a) WT_ERR_ERROR_OK(a, EBUSY)
 #define WT_ERR_NOTFOUND_OK(a) WT_ERR_ERROR_OK(a, WT_NOTFOUND)
 
-#define WT_ERR_TEST_KEEP(a, v) \
-    do {                       \
-        if (a) {               \
-            ret = (v);         \
-            goto err;          \
-        }                      \
-    } while (0)
-#define WT_ERR_ERROR_KEEP(a, e) WT_ERR_TEST_KEEP((ret = (a)) != 0 && ret != (e), ret)
-#define WT_ERR_BUSY_KEEP(a) WT_ERR_ERROR_KEEP(a, EBUSY)
+#define WT_ERR_ERROR_KEEP(a, e) WT_ERR_TEST((ret = (a)) != 0 && ret != (e), ret, false)
 #define WT_ERR_NOTFOUND_KEEP(a) WT_ERR_ERROR_KEEP(a, WT_NOTFOUND)
 
 /* Return tests. */

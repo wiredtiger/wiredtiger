@@ -933,8 +933,8 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
      * las) to the oldest (earlier in the las) for a given key.
      */
     read_timestamp = allow_prepare ? txn->prepare_timestamp : txn->read_timestamp;
-    ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp);
-    WT_ERR_NOTFOUND_KEEP(ret);
+    WT_ERR_NOTFOUND_KEEP(
+      __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp));
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
@@ -1107,9 +1107,8 @@ __hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *
 
     hs_cursor->set_key(hs_cursor, btree_id, key, WT_TS_NONE, (uint64_t)0);
     WT_ERR(__wt_buf_set(session, srch_key, hs_cursor->key.data, hs_cursor->key.size));
-    ret = hs_cursor->search_near(hs_cursor, &exact);
+    WT_ERR_NOTFOUND_KEEP(hs_cursor->search_near(hs_cursor, &exact));
     /* Empty history store is fine. */
-    WT_ERR_NOTFOUND_KEEP(ret);
     if (ret == WT_NOTFOUND)
         goto done;
     /*
