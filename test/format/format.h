@@ -86,8 +86,9 @@ typedef struct {
     bool logging; /* log operations  */
     FILE *logfp;  /* log file */
 
-    bool replay;           /* Replaying a run. */
-    bool workers_finished; /* Operations completed */
+    bool backward_compatible; /* Backward compatibility testing */
+    bool replay;              /* Replaying a run. */
+    bool workers_finished;    /* Operations completed */
 
     pthread_rwlock_t backup_lock; /* Backup running */
     uint32_t backup_id;           /* Block incremental id */

@@ -30,6 +30,7 @@
 #include "config.h"
 
 static void config_backup(void);
+static void config_backward_compatible(void);
 static void config_cache(void);
 static void config_checkpoint(void);
 static void config_checksum(void);
@@ -190,11 +191,13 @@ config_setup(void)
     config_pct();
     config_cache();
 
-    /* Give in-memory and LSM configurations a final review. */
+    /* Give in-memory, LSM and backward compatible configurations a final review. */
     if (g.c_in_memory != 0)
         config_in_memory_reset();
     if (DATASOURCE("lsm"))
         config_lsm_reset();
+    if (g.backward_compatible != 0)
+        config_backward_compatible();
 
     /*
      * Key/value minimum/maximum are related, correct unless specified by the configuration.
@@ -275,6 +278,22 @@ config_backup(void)
         config_single(cstr, false);
     }
 }
+
+/*
+ * config_backward_compatible --
+ *     Backward compatibility configuration.
+ */
+static void
+config_backward_compatible(void)
+{
+    if (!g.backward_compatible)
+        return;
+
+    if (config_is_perm("disk.mmap_all"))
+        testutil_die(EINVAL, "-B option incompatible with mmap_all configuration");
+    config_single("disk.mmap_all=off", false);
+}
+
 /*
  * config_cache --
  *     Cache configuration.
