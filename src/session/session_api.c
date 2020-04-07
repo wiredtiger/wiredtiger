@@ -132,7 +132,7 @@ __wt_session_copy_values(WT_SESSION_IMPL *session)
              * We have to do this with a transaction ID pinned unless the cursor is reading from a
              * checkpoint.
              */
-            WT_TXN_STATE *txn_state = WT_SESSION_TXN_STATE(session);
+            WT_TXN_SHARED *txn_state = WT_SESSION_TXN_STATE(session);
             WT_ASSERT(session, txn_state->pinned_id != WT_TXN_NONE ||
                 (WT_PREFIX_MATCH(cursor->uri, "file:") &&
                                  F_ISSET((WT_CURSOR_BTREE *)cursor, WT_CBT_NO_TXN)));
@@ -1817,7 +1817,7 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_state;
     uint64_t pinned;
 
     session = (WT_SESSION_IMPL *)wt_session;

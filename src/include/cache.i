@@ -374,7 +374,7 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
 {
     WT_BTREE *btree;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_state;
     double pct_full;
 
     if (didworkp != NULL)

@@ -81,8 +81,8 @@ typedef enum {
     do {                                                                  \
         WT_TXN_ISOLATION saved_iso = (s)->isolation;                      \
         WT_TXN_ISOLATION saved_txn_iso = (s)->txn.isolation;              \
-        WT_TXN_STATE *txn_state = WT_SESSION_TXN_STATE(s);                \
-        WT_TXN_STATE saved_state = *txn_state;                            \
+        WT_TXN_SHARED *txn_state = WT_SESSION_TXN_STATE(s);               \
+        WT_TXN_SHARED saved_state = *txn_state;                           \
         (s)->txn.forced_iso++;                                            \
         (s)->isolation = (s)->txn.isolation = (iso);                      \
         op;                                                               \
@@ -99,7 +99,7 @@ typedef enum {
         txn_state->pinned_id = saved_state.pinned_id;                     \
     } while (0)
 
-struct __wt_txn_state {
+struct __wt_txn_shared {
     WT_CACHE_LINE_PAD_BEGIN
     volatile uint64_t id;
     volatile uint64_t pinned_id;
@@ -163,14 +163,14 @@ struct __wt_txn_global {
      */
     volatile bool checkpoint_running;    /* Checkpoint running */
     volatile uint32_t checkpoint_id;     /* Checkpoint's session ID */
-    WT_TXN_STATE checkpoint_state;       /* Checkpoint's txn state */
+    WT_TXN_SHARED checkpoint_state;      /* Checkpoint's txn state */
     wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */
 
     volatile uint64_t debug_ops;       /* Debug mode op counter */
     uint64_t debug_rollback;           /* Debug mode rollback */
     volatile uint64_t metadata_pinned; /* Oldest ID for metadata */
 
-    WT_TXN_STATE *states; /* Per-session transaction states */
+    WT_TXN_SHARED *states; /* Per-session transaction states */
 };
 
 typedef enum __wt_txn_isolation {

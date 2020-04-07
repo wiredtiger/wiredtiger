@@ -2271,7 +2271,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_state;
     uint64_t elapsed, time_start, time_stop;
     uint64_t initial_progress, max_progress;
     bool app_thread;

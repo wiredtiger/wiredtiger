@@ -936,7 +936,7 @@ static inline int
 __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_state;
 
     txn = &session->txn;
     txn_state = WT_SESSION_TXN_STATE(session);
@@ -962,7 +962,7 @@ static inline uint64_t
 __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 {
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_state;
     uint64_t id;
 
     txn_global = &S2C(session)->txn_global;
@@ -1155,7 +1155,7 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_state;
 
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
