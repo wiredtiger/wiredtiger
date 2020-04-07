@@ -482,6 +482,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                          page->type == WT_PAGE_COL_FIX);
         if (supd_restore)
             r->cache_write_restore = true;
+        WT_ASSERT(session, !supd_restore || has_newer_updates);
         WT_ERR(__rec_update_save(session, r, ins, ripcip,
           upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE ? NULL :
                                                                                     upd_select->upd,

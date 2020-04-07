@@ -1461,11 +1461,11 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
          */
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
           orig->type != WT_PAGE_COL_FIX) {
-            /*
-             * We have decided to restore this update chain so it must have newer updates than the
-             * onpage value on it.
-             */
-            WT_ASSERT(session, upd != supd->onpage_upd);
+            if (upd == supd->onpage_upd) {
+                supd->restore = false;
+                continue;
+            }
+
             /*
              * Move the pointer to the position before the onpage value and truncate all the updates
              * starting from the onpage value.
