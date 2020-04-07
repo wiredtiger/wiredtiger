@@ -851,7 +851,7 @@ err:
 static void
 __hs_restore_read_timestamp(WT_SESSION_IMPL *session)
 {
-    session->txn.read_timestamp = session->txn.first_read_timestamp;
+    session->txn.read_timestamp = session->txn.pinned_read_timestamp;
 }
 
 /*
@@ -900,7 +900,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
      * We temporarily move the read timestamp forwards to read modify records in the history store.
      * Outside of that window, it should always be equal to the original read timestamp.
      */
-    WT_ASSERT(session, txn->read_timestamp == txn->first_read_timestamp);
+    WT_ASSERT(session, txn->read_timestamp == txn->pinned_read_timestamp);
 
     /* Row-store key is as passed to us, create the column-store key as needed. */
     WT_ASSERT(
