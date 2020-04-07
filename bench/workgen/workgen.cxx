@@ -101,8 +101,8 @@ extern "C" {
 namespace workgen {
 
 
-struct WorkloadConnection {
-    Workload *workload;
+struct WorkloadRunnerConnection {
+    WorkloadRunner *runner;
     WT_CONNECTION *connection;
 };
 
@@ -124,12 +124,12 @@ static void *thread_runner_main(void *arg) {
 
 static void *thread_workload(void *arg) {
 
-    WorkloadConnection *workloadConnection = (WorkloadConnection *) arg;
-    Workload *workload = workloadConnection->workload;
-    WT_CONNECTION *connection = workloadConnection->connection;
+    WorkloadRunnerConnection *runnerConnection = (WorkloadRunnerConnection *) arg;
+    WorkloadRunner *runner = runnerConnection->runner;
+    WT_CONNECTION *connection = runnerConnection->connection;
 
     try {
-        workload->increment_timestamp(connection);
+        runner->increment_timestamp(connection);
     } catch (WorkgenException &wge) {
         std::cerr << "Exception while incrementing timestamp." << std::endl;
     }
@@ -139,27 +139,27 @@ static void *thread_workload(void *arg) {
 
 /*
  * This function will sleep for "timestamp_advance" seconds, increment and set oldest_timestamp,
- * stable_timestamp with the specified lag until stop_timestamp_thread is set to true
+ * stable_timestamp with the specified lag until stopping is set to true
  */
-int Workload::increment_timestamp(WT_CONNECTION *conn) {
+int WorkloadRunner::increment_timestamp(WT_CONNECTION *conn) {
     char buf[BUF_SIZE];
     uint64_t time_us;
 
-    while (!stop_timestamp_thread)
+    while (!stopping)
     {
-        if (options.oldest_timestamp_lag > 0) {
-            time_us = WorkgenTimeStamp::get_timestamp_lag(options.oldest_timestamp_lag);
+        if (_workload->options.oldest_timestamp_lag > 0) {
+            time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.oldest_timestamp_lag);
             sprintf(buf, "oldest_timestamp=%" PRIu64, time_us);
             conn->set_timestamp(conn, buf);
         }
 
-        if (options.stable_timestamp_lag > 0) {
-            time_us = WorkgenTimeStamp::get_timestamp_lag(options.stable_timestamp_lag);
+        if (_workload->options.stable_timestamp_lag > 0) {
+            time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.stable_timestamp_lag);
             sprintf(buf, "stable_timestamp=%" PRIu64, time_us);
             conn->set_timestamp(conn, buf);
         }
 
-        WorkgenTimeStamp::sleep(options.timestamp_advance);
+        WorkgenTimeStamp::sleep(_workload->options.timestamp_advance);
     }
     return 0;
 }
@@ -1974,7 +1974,7 @@ WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
 WorkloadOptions::~WorkloadOptions() {}
 
 Workload::Workload(Context *context, const ThreadListWrapper &tlw) :
-    options(), stats(), _context(context), _threads(tlw._threads), stop_timestamp_thread(false) {
+    options(), stats(), _context(context), _threads(tlw._threads) {
     if (context == NULL)
         THROW("Workload contructor requires a Context");
 }
@@ -2006,7 +2006,7 @@ int Workload::run(WT_CONNECTION *conn) {
 
 WorkloadRunner::WorkloadRunner(Workload *workload) :
     _workload(workload), _trunners(workload->_threads.size()),
-    _report_out(&std::cout), _start() {
+    _report_out(&std::cout), _start(), stopping(false) {
     ts_clear(_start);
 }
 WorkloadRunner::~WorkloadRunner() {}
@@ -2123,7 +2123,7 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
     Stats counts(false);
     WorkgenException *exception;
     WorkloadOptions *options = &_workload->options;
-    WorkloadConnection *workloadConnection;
+    WorkloadRunnerConnection *runnerConnection;
     Monitor monitor(*this);
     std::ofstream monitor_out;
     std::ofstream monitor_json;
@@ -2177,16 +2177,16 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
     // Start Timestamp increment thread
     if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
 
-        workloadConnection = new WorkloadConnection();
-        workloadConnection->workload = _workload;
-        workloadConnection->connection = conn;
+        runnerConnection = new WorkloadRunnerConnection();
+        runnerConnection->runner = this;
+        runnerConnection->connection = conn;
 
         if ((ret = pthread_create(&time_thandle, NULL, thread_workload,
-            workloadConnection)) != 0) {
+            runnerConnection)) != 0) {
             std::cerr << "pthread_create failed err=" << ret << std::endl;
             std::cerr << "Stopping Time threads." << std::endl;
             (void)pthread_join(time_thandle, &status);
-            delete workloadConnection;
+            delete runnerConnection;
         }
     }
 
@@ -2237,7 +2237,7 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
     if (options->sample_interval_ms > 0)
         monitor._stop = true;
     if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
-        _workload->stop_timestamp_thread = true;
+        stopping = true;
     }
 
     // wait for all threads
@@ -2256,7 +2256,7 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
     // Wait for the time increment thread
     if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
         WT_TRET(pthread_join(time_thandle, &status));
-        delete workloadConnection;
+        delete runnerConnection;
     }
 
     workgen_epoch(&now);

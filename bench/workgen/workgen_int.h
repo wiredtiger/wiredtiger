@@ -30,13 +30,11 @@
 #include <vector>
 #include <map>
 #include <set>
-#ifndef SWIG
 extern "C" {
 #include <unistd.h>
 #include "workgen_func.h"
 #include <math.h>
 }
-#endif
 #include "workgen_time.h"
 
 namespace workgen {
@@ -275,10 +273,12 @@ struct WorkloadRunner {
     std::ostream *_report_out;
     std::string _wt_home;
     timespec _start;
+    bool stopping;
 
     WorkloadRunner(Workload *);
     ~WorkloadRunner();
     int run(WT_CONNECTION *conn);
+    int increment_timestamp(WT_CONNECTION *conn);
 
 private:
     int close_all();

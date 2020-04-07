@@ -452,14 +452,11 @@ struct Workload {
     Stats stats;
     Context *_context;
     std::vector<Thread> _threads;
-    bool stop_timestamp_thread;
 
     Workload(Context *context, const ThreadListWrapper &threadlist);
     Workload(Context *context, const Thread &thread);
     Workload(const Workload &other);
     ~Workload();
-
-    int increment_timestamp(WT_CONNECTION *conn);
 
 #ifndef SWIG
     Workload& operator=(const Workload &other);

@@ -57,7 +57,6 @@ opwrite = Operation(Operation.OP_INSERT, table)
 write_txn = txn(opwrite * 10, 'isolation=snapshot')
 # use_prepare_timestamp - Commit the transaction with stable_timestamp.
 write_txn.transaction.use_prepare_timestamp = True
-#write_txn.transaction.use_commit_timestamp = True
 twriter = Thread(write_txn)
 
 opupdate = Operation(Operation.OP_UPDATE, table)
@@ -75,5 +74,5 @@ workload.options.oldest_timestamp_lag=30
 workload.options.stable_timestamp_lag=10
 # timestamp_advance is the number of seconds to wait before moving oldest and stable timestamp.
 workload.options.timestamp_advance=1
-print('transactional write workload:')
+print('transactional prepare workload:')
 workload.run(conn)
