@@ -198,7 +198,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_select->stop_durable_ts = WT_TS_NONE;
     upd_select->stop_ts = WT_TS_MAX;
     upd_select->stop_txn = WT_TXN_MAX;
-    upd_select->stop_durable_ts = WT_TS_NONE;
     upd_select->prepare = false;
 
     page = r->page;

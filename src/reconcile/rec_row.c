@@ -279,10 +279,6 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Copy the key and value onto the page. */
         __wt_rec_image_copy(session, r, key);
         __wt_rec_image_copy(session, r, val);
-        /*
-         * FIXME-prepare-support: audit the use of durable timestamps in this file, use both durable
-         * timestamps.
-         */
         __wt_rec_addr_ts_update(r, addr->newest_start_durable_ts, addr->oldest_start_ts,
           addr->oldest_start_txn, addr->newest_stop_durable_ts, addr->newest_stop_ts,
           addr->newest_stop_txn, addr->prepare);
