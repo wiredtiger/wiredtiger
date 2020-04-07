@@ -348,7 +348,7 @@ __txn_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char 
     else if (WT_STRING_MATCH("prepare", cval.str, cval.len))
         *tsp = txn->prepare_timestamp;
     else if (WT_STRING_MATCH("read", cval.str, cval.len))
-        *tsp = txn->read_timestamp;
+        *tsp = txn->pinned_read_timestamp;
     else
         WT_RET_MSG(session, EINVAL, "unknown timestamp query %.*s", (int)cval.len, cval.str);
 
