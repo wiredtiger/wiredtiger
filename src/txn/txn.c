@@ -1699,7 +1699,7 @@ __wt_verbose_dump_txn_one(
   WT_SESSION_IMPL *session, WT_TXN *txn, int error_code, const char *error_string)
 {
     char buf[512];
-    char ts_string[5][WT_TS_INT_STRING_SIZE];
+    char ts_string[6][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
 
     WT_NOT_READ(iso_tag, "INVALID");
@@ -1727,6 +1727,7 @@ __wt_verbose_dump_txn_one(
                    ", first_commit_timestamp: %s"
                    ", prepare_timestamp: %s"
                    ", read_timestamp: %s"
+                   ", pinned_read_timestamp: %s"
                    ", checkpoint LSN: [%" PRIu32 "][%" PRIu32 "]"
                    ", full checkpoint: %s"
                    ", rollback reason: %s"
@@ -1736,7 +1737,8 @@ __wt_verbose_dump_txn_one(
       __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
       __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
       __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
-      __wt_timestamp_to_string(txn->read_timestamp, ts_string[4]), txn->ckpt_lsn.l.file,
+      __wt_timestamp_to_string(txn->read_timestamp, ts_string[4]),
+      __wt_timestamp_to_string(txn->pinned_read_timestamp, ts_string[5]), txn->ckpt_lsn.l.file,
       txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
       txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
 
