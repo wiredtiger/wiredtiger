@@ -1311,7 +1311,11 @@ __wt_txn_clear_timestamp_queues(WT_SESSION_IMPL *session)
     txn_state = WT_SESSION_TXN_SHARED(session);
     txn_global = &S2C(session)->txn_global;
 
-    if (!txn_state->clear_durable_q && !txn_state->clear_read_q)
+    /*
+     * If we've closed the connection, our transaction shared states may already have been freed. In
+     * that case, there's nothing more to do here.
+     */
+    if (!txn_state || (!txn_state->clear_durable_q && !txn_state->clear_read_q))
         return;
 
     if (txn_state->clear_durable_q) {

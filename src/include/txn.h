@@ -151,7 +151,6 @@ struct __wt_txn_shared {
 #define WT_TXN_PUBLIC_TS_READ 0x4u
 #define WT_TXN_TS_PUBLISHED 0x8u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
-
     uint32_t flags;
 
     WT_CACHE_LINE_PAD_END
