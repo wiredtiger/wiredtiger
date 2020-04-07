@@ -35,7 +35,6 @@
 #include "wiredtiger.h"
 #include "workgen.h"
 #include "workgen_int.h"
-#include <memory>
 extern "C" {
 // Include some specific WT files, as some files included by wt_internal.h
 // have some C-ism's that don't work in C++.
@@ -47,6 +46,7 @@ extern "C" {
 #include "error.h"
 #include "misc.h"
 }
+#define BUF_SIZE 100
 
 #define LATENCY_US_BUCKETS 1000
 #define LATENCY_MS_BUCKETS 1000
@@ -137,8 +137,12 @@ static void *thread_workload(void *arg) {
     return (NULL);
 }
 
+/*
+ * This function will sleep for "timestamp_advance" seconds, increment and set oldest_timestamp,
+ * stable_timestamp with the specified lag until stop_timestamp_thread is set to true
+ */
 int Workload::increment_timestamp(WT_CONNECTION *conn) {
-    char buf[500];
+    char buf[BUF_SIZE];
     uint64_t time_us;
 
     while (!stop_timestamp_thread)
@@ -759,7 +763,7 @@ int ThreadRunner::op_run(Operation *op) {
     bool measure_latency, own_cursor, retry_op;
     timespec start_time;
     uint64_t time_us;
-    char buf[100];
+    char buf[BUF_SIZE];
 
     track = NULL;
     cursor = NULL;
@@ -863,6 +867,8 @@ int ThreadRunner::op_run(Operation *op) {
         if (op->_transaction != NULL) {
             if (_in_transaction)
                 THROW("nested transactions not supported");
+            if (op->_transaction->use_commit_timestamp && op->_transaction->use_prepare_timestamp)
+                THROW("Either use_prepare_timestamp or use_commit_timestamp must be set.");
 
             if (op->_transaction->read_timestamp_lag > 0) {
                 uint64_t read = WorkgenTimeStamp::get_timestamp_lag(op->_transaction->read_timestamp_lag);
@@ -958,15 +964,14 @@ err:
             WT_TRET(_session->rollback_transaction(_session, NULL));
         else if (_in_transaction) {
             // Set prepare, commit and durable timestamp if prepare is set.
-            if (op->_transaction->prepare_time > 0) {
+            if (op->_transaction->use_prepare_timestamp) {
                 time_us = WorkgenTimeStamp::get_timestamp();
                 sprintf(buf, "prepare_timestamp=%" PRIu64, time_us);
                 ret = _session->prepare_transaction(_session, buf);
-                WorkgenTimeStamp::sleep(op->_transaction->prepare_time);
                 sprintf(buf, "commit_timestamp=%" PRIu64 ",durable_timestamp=%" PRIu64, time_us, time_us);
                 ret = _session->commit_transaction(_session, buf);
             }
-            else if (op->_transaction->commit_with_timestamp) {
+            else if (op->_transaction->use_commit_timestamp) {
                 uint64_t commit_time_us = WorkgenTimeStamp::get_timestamp();
                 sprintf(buf, "commit_timestamp=%" PRIu64, commit_time_us);
                 ret = _session->commit_transaction(_session, buf);     
@@ -2012,6 +2017,9 @@ int WorkloadRunner::run(WT_CONNECTION *conn) {
     std::ofstream report_out;
 
     _wt_home = conn->get_home(conn);
+
+    if ( (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) && options->timestamp_advance < 0 )
+        THROW("Workload.options.timestamp_advance must be positive if either Workload.options.oldest_timestamp_lag or Workload.options.stable_timestamp_lag is set");
     if (options->sample_interval_ms > 0 && options->sample_rate <= 0)
         THROW("Workload.options.sample_rate must be positive");
     if (!options->report_file.empty()) {
