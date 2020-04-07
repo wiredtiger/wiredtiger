@@ -730,6 +730,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_OP *op;
+    WT_TXN_SHARED *txn_state;
     WT_UPDATE *upd;
     wt_timestamp_t durable_op_timestamp, op_timestamp, prev_op_timestamp;
     u_int i;
@@ -817,8 +818,8 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
         upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
         if (op_zero_ts != upd_zero_ts) {
             WT_ERR(__wt_verbose_dump_update(session, upd));
-            WT_ERR(__wt_verbose_dump_txn_one(session, &session->txn, EINVAL,
-              "per-key timestamps used inconsistently, dumping relevant information"));
+            WT_ERR(__wt_verbose_dump_txn_one(session, &session->txn, WT_SESSION_TXN_SHARED(session),
+              EINVAL, "per-key timestamps used inconsistently, dumping relevant information"));
         }
         /*
          * If we aren't using timestamps for this transaction then we are done checking. Don't check
@@ -835,7 +836,8 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
             op_timestamp = txn->commit_timestamp;
         if (F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS) && op_timestamp < prev_op_timestamp)
             WT_ERR_MSG(session, EINVAL, "out of order commit timestamps");
-        if (F_ISSET(txn, WT_TXN_TS_DURABLE_KEYS) && txn->durable_timestamp < durable_op_timestamp)
+        if (F_ISSET(txn, WT_TXN_TS_DURABLE_KEYS) &&
+          txn_state->durable_timestamp < durable_op_timestamp)
             WT_ERR_MSG(session, EINVAL, "out of order durable timestamps");
     }
 
@@ -887,6 +889,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_OP *op;
+    WT_TXN_SHARED *txn_state;
     WT_UPDATE *upd;
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp;
     uint32_t fileid;
@@ -894,6 +897,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     bool locked, prepare, readonly, update_durable_ts;
 
     txn = &session->txn;
+    txn_state = WT_SESSION_TXN_SHARED(session);
     conn = S2C(session);
     cursor = NULL;
     txn_global = &conn->txn_global;
@@ -1081,7 +1085,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     candidate_durable_timestamp = WT_TS_NONE;
     if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-        candidate_durable_timestamp = txn->durable_timestamp;
+        candidate_durable_timestamp = txn_state->durable_timestamp;
     else if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
         candidate_durable_timestamp = txn->commit_timestamp;
 
@@ -1695,8 +1699,8 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
  *     Output diagnostic information about a transaction structure.
  */
 int
-__wt_verbose_dump_txn_one(
-  WT_SESSION_IMPL *session, WT_TXN *txn, int error_code, const char *error_string)
+__wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn, WT_TXN_SHARED *txn_state,
+  int error_code, const char *error_string)
 {
     char buf[512];
     char ts_string[6][WT_TS_INT_STRING_SIZE];
@@ -1734,11 +1738,11 @@ __wt_verbose_dump_txn_one(
                    ", flags: 0x%08" PRIx32 ", isolation: %s",
       txn->id, txn->mod_count, txn->snap_min, txn->snap_max, txn->snapshot_count,
       __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
-      __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
-      __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
+      __wt_timestamp_to_string(txn_state->durable_timestamp, ts_string[1]),
+      __wt_timestamp_to_string(txn_state->first_commit_timestamp, ts_string[2]),
       __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
       __wt_timestamp_to_string(txn->read_timestamp, ts_string[4]),
-      __wt_timestamp_to_string(txn->pinned_read_timestamp, ts_string[5]), txn->ckpt_lsn.l.file,
+      __wt_timestamp_to_string(txn_state->read_timestamp, ts_string[5]), txn->ckpt_lsn.l.file,
       txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
       txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
 
@@ -1824,7 +1828,8 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
         WT_RET(__wt_msg(session,
           "ID: %" PRIu64 ", pinned ID: %" PRIu64 ", metadata pinned ID: %" PRIu64 ", name: %s", id,
           s->pinned_id, s->metadata_pinned, sess->name == NULL ? "EMPTY" : sess->name));
-        WT_RET(__wt_verbose_dump_txn_one(session, &sess->txn, 0, NULL));
+        WT_RET(
+          __wt_verbose_dump_txn_one(session, &sess->txn, WT_SESSION_TXN_SHARED(sess), 0, NULL));
     }
 
     return (0);

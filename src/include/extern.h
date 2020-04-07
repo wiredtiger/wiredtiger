@@ -1531,8 +1531,9 @@ extern int __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursor
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn, int error_code,
-  const char *error_string) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn,
+  WT_TXN_SHARED *txn_state, int error_code, const char *error_string)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verbose_dump_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])

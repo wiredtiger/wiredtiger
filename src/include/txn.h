@@ -106,6 +106,31 @@ struct __wt_txn_shared {
     volatile uint64_t metadata_pinned;
     volatile bool is_allocating;
 
+    /*
+     * Durable timestamp copied into updates created by this transaction. It is used to decide
+     * whether to consider this update to be persisted or not by stable checkpoint.
+     */
+    wt_timestamp_t durable_timestamp;
+
+    /*
+     * Set to the first commit timestamp used in the transaction and fixed while the transaction is
+     * on the public list of committed timestamps.
+     */
+    wt_timestamp_t first_commit_timestamp;
+
+    /*
+     * Set to the first read timestamp used in the transaction. As part of our history store
+     * mechanism, we can move the read timestamp forward so we need to keep track of the original
+     * read timestamp to know what history should be pinned in front of oldest.
+     */
+    wt_timestamp_t read_timestamp;
+
+    TAILQ_ENTRY(__wt_txn_shared) read_timestampq;
+    bool clear_read_q; /* Set if need to clear from the read queue */
+    TAILQ_ENTRY(__wt_txn_shared) durable_timestampq;
+    /* Set if need to clear from the durable queue */
+    bool clear_durable_q;
+
     WT_CACHE_LINE_PAD_END
 };
 
@@ -144,12 +169,12 @@ struct __wt_txn_global {
 
     /* List of transactions sorted by durable timestamp. */
     WT_RWLOCK durable_timestamp_rwlock;
-    TAILQ_HEAD(__wt_txn_dts_qh, __wt_txn) durable_timestamph;
+    TAILQ_HEAD(__wt_txn_dts_qh, __wt_txn_shared) durable_timestamph;
     uint32_t durable_timestampq_len;
 
     /* List of transactions sorted by read timestamp. */
     WT_RWLOCK read_timestamp_rwlock;
-    TAILQ_HEAD(__wt_txn_rts_qh, __wt_txn) read_timestamph;
+    TAILQ_HEAD(__wt_txn_rts_qh, __wt_txn_shared) read_timestamph;
     uint32_t read_timestampq_len;
 
     /*
@@ -269,37 +294,12 @@ struct __wt_txn {
     wt_timestamp_t commit_timestamp;
 
     /*
-     * Durable timestamp copied into updates created by this transaction. It is used to decide
-     * whether to consider this update to be persisted or not by stable checkpoint.
-     */
-    wt_timestamp_t durable_timestamp;
-
-    /*
-     * Set to the first commit timestamp used in the transaction and fixed while the transaction is
-     * on the public list of committed timestamps.
-     */
-    wt_timestamp_t first_commit_timestamp;
-
-    /*
      * Timestamp copied into updates created by this transaction, when this transaction is prepared.
      */
     wt_timestamp_t prepare_timestamp;
 
     /* Read updates committed as of this timestamp. */
     wt_timestamp_t read_timestamp;
-
-    /*
-     * Set to the first read timestamp used in the transaction. As part of our history store
-     * mechanism, we can move the read timestamp forward so we need to keep track of the original
-     * read timestamp to know what history should be pinned in front of oldest.
-     */
-    wt_timestamp_t pinned_read_timestamp;
-
-    TAILQ_ENTRY(__wt_txn) durable_timestampq;
-    TAILQ_ENTRY(__wt_txn) read_timestampq;
-    /* Set if need to clear from the durable queue */
-    bool clear_durable_q;
-    bool clear_read_q; /* Set if need to clear from the read queue */
 
     /* Array of modifications by this transaction. */
     WT_TXN_OP *mod;
