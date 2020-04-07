@@ -393,6 +393,8 @@ restart:
                 *refp = ref;
                 goto done;
             }
+
+	    /* ret == WT_NOTFOUND, an expected error.  Continue with "couple" unchanged. */
         }
 
         if (prev)
