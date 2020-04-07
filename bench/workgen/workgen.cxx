@@ -864,18 +864,19 @@ int ThreadRunner::op_run(Operation *op) {
     }
     // Retry on rollback until success.
     while (retry_op) {
-        if (op->_transaction != NULL) {
+        if (op->transaction != NULL) {
             if (_in_transaction)
                 THROW("nested transactions not supported");
-            if (op->_transaction->use_commit_timestamp && op->_transaction->use_prepare_timestamp)
+            if (op->transaction->use_commit_timestamp && op->transaction->use_prepare_timestamp)
+            {
                 THROW("Either use_prepare_timestamp or use_commit_timestamp must be set.");
-
-            if (op->_transaction->read_timestamp_lag > 0) {
-                uint64_t read = WorkgenTimeStamp::get_timestamp_lag(op->_transaction->read_timestamp_lag);
-                sprintf(buf, "%s=%" PRIu64, op->_transaction->_begin_config.c_str(), read);
+            }
+            if (op->transaction->read_timestamp_lag > 0) {
+                uint64_t read = WorkgenTimeStamp::get_timestamp_lag(op->transaction->read_timestamp_lag);
+                sprintf(buf, "%s=%" PRIu64, op->transaction->_begin_config.c_str(), read);
             }
             else {
-                sprintf(buf, "%s", op->_transaction->_begin_config.c_str());
+                sprintf(buf, "%s", op->transaction->_begin_config.c_str());
             }
             WT_ERR(_session->begin_transaction(_session, buf));
 
@@ -959,26 +960,26 @@ int ThreadRunner::op_run(Operation *op) {
 err:
     if (own_cursor)
         WT_TRET(cursor->close(cursor));
-    if (op->_transaction != NULL) {
-        if (ret != 0 || op->_transaction->_rollback)
+    if (op->transaction != NULL) {
+        if (ret != 0 || op->transaction->_rollback)
             WT_TRET(_session->rollback_transaction(_session, NULL));
         else if (_in_transaction) {
             // Set prepare, commit and durable timestamp if prepare is set.
-            if (op->_transaction->use_prepare_timestamp) {
+            if (op->transaction->use_prepare_timestamp) {
                 time_us = WorkgenTimeStamp::get_timestamp();
                 sprintf(buf, "prepare_timestamp=%" PRIu64, time_us);
                 ret = _session->prepare_transaction(_session, buf);
                 sprintf(buf, "commit_timestamp=%" PRIu64 ",durable_timestamp=%" PRIu64, time_us, time_us);
                 ret = _session->commit_transaction(_session, buf);
             }
-            else if (op->_transaction->use_commit_timestamp) {
+            else if (op->transaction->use_commit_timestamp) {
                 uint64_t commit_time_us = WorkgenTimeStamp::get_timestamp();
                 sprintf(buf, "commit_timestamp=%" PRIu64, commit_time_us);
                 ret = _session->commit_transaction(_session, buf);     
             }
             else {
                 ret = _session->commit_transaction(_session,
-                    op->_transaction->_commit_config.c_str());
+                    op->transaction->_commit_config.c_str());
             }
         }
         _in_transaction = false;
@@ -1153,27 +1154,27 @@ void Thread::describe(std::ostream &os) const {
 
 Operation::Operation() :
     _optype(OP_NONE), _internal(NULL), _table(), _key(), _value(), _config(),
-    _transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
+    transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
     init_internal(NULL);
 }
 
 Operation::Operation(OpType optype, Table table, Key key, Value value) :
     _optype(optype), _internal(NULL), _table(table), _key(key), _value(value),
-    _config(), _transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
+    _config(), transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
     init_internal(NULL);
     size_check();
 }
 
 Operation::Operation(OpType optype, Table table, Key key) :
     _optype(optype), _internal(NULL), _table(table), _key(key), _value(),
-    _config(), _transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
+    _config(), transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
     init_internal(NULL);
     size_check();
 }
 
 Operation::Operation(OpType optype, Table table) :
     _optype(optype), _internal(NULL), _table(table), _key(), _value(),
-    _config(), _transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
+    _config(), transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
     init_internal(NULL);
     size_check();
 }
@@ -1181,22 +1182,22 @@ Operation::Operation(OpType optype, Table table) :
 Operation::Operation(const Operation &other) :
     _optype(other._optype), _internal(NULL), _table(other._table),
     _key(other._key), _value(other._value), _config(other._config),
-    _transaction(other._transaction), _group(other._group),
+    transaction(other.transaction), _group(other._group),
     _repeatgroup(other._repeatgroup), _timed(other._timed) {
-    // Creation and destruction of _group and _transaction is managed
+    // Creation and destruction of _group and transaction is managed
     // by Python.
     init_internal(other._internal);
 }
 
 Operation::Operation(OpType optype, const char *config) :
     _optype(optype), _internal(NULL), _table(), _key(), _value(),
-    _config(config), _transaction(NULL), _group(NULL), _repeatgroup(0),
+    _config(config), transaction(NULL), _group(NULL), _repeatgroup(0),
     _timed(0.0) {
     init_internal(NULL);
 }
 
 Operation::~Operation() {
-    // Creation and destruction of _group, _transaction is managed by Python.
+    // Creation and destruction of _group, transaction is managed by Python.
     delete _internal;
 }
 
@@ -1205,7 +1206,7 @@ Operation& Operation::operator=(const Operation &other) {
     _table = other._table;
     _key = other._key;
     _value = other._value;
-    _transaction = other._transaction;
+    transaction = other.transaction;
     _group = other._group;
     _repeatgroup = other._repeatgroup;
     _timed = other._timed;
@@ -1260,7 +1261,7 @@ void Operation::init_internal(OperationInternal *other) {
 
 bool Operation::combinable() const {
     return (_group != NULL && _repeatgroup == 1 && _timed == 0.0 &&
-      _transaction == NULL && _config == "");
+      transaction == NULL && _config == "");
 }
 
 void Operation::create_all() {
@@ -1279,9 +1280,9 @@ void Operation::describe(std::ostream &os) const {
     }
     if (!_config.empty())
         os << ", '" << _config << "'";
-    if (_transaction != NULL) {
+    if (transaction != NULL) {
         os << ", [";
-        _transaction->describe(os);
+        transaction->describe(os);
         os << "]";
     }
     if (_timed != 0.0)

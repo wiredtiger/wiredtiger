@@ -292,7 +292,7 @@ struct Operation {
     Key _key;
     Value _value;
     std::string _config;
-    Transaction *_transaction;
+    Transaction *transaction;
     std::vector<Operation> *_group;
     int _repeatgroup;
     double _timed;
