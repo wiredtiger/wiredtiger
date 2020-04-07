@@ -1,7 +1,7 @@
 /*! @m_page{{c,java},eviction, Eviction}
 
 All the operations performed in WiredTiger are on the data read into
-reconfigured amount of memory. WiredTiger uses memory as a cache for
+preconfigured amount of memory. WiredTiger uses memory as a cache for
 all the data on the disk and the data in memory forms the current
 working set.
 
