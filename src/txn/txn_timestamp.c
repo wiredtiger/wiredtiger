@@ -1314,7 +1314,7 @@ __wt_txn_clear_timestamp_queues(WT_SESSION_IMPL *session)
      * If we've closed the connection, our transaction shared states may already have been freed. In
      * that case, there's nothing more to do here.
      */
-    if (!txn_state || (!txn_state->clear_durable_q && !txn_state->clear_read_q))
+    if (txn_state == NULL || (!txn_state->clear_durable_q && !txn_state->clear_read_q))
         return;
 
     if (txn_state->clear_durable_q) {

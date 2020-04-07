@@ -546,9 +546,11 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
+    WT_TXN_SHARED *txn_state;
 
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
+    txn_state = WT_SESSION_TXN_SHARED(session);
 
     WT_ASSERT(session, txn->mod_count == 0);
     txn->notify = NULL;
@@ -602,6 +604,9 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 
     /* Clear operation timer. */
     txn->operation_timeout_us = 0;
+
+    /* Ensure that shared transaction state flags are cleared on exit. */
+    txn_state->flags = 0;
 }
 
 /*
