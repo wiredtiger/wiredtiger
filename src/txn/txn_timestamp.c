@@ -1188,7 +1188,6 @@ __wt_txn_publish_read_timestamp(WT_SESSION_IMPL *session)
     txn_global = &S2C(session)->txn_global;
     txn_state = WT_SESSION_TXN_SHARED(session);
 
-    /* FIXME-WT-5766: Move flags to shared state. */
     if (F_ISSET(txn_state, WT_TXN_PUBLIC_TS_READ))
         return;
 
