@@ -394,7 +394,7 @@ restart:
                 goto done;
             }
 
-	    /* ret == WT_NOTFOUND, an expected error.  Continue with "couple" unchanged. */
+            /* ret == WT_NOTFOUND, an expected error.  Continue with "couple" unchanged. */
         }
 
         if (prev)
