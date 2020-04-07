@@ -322,6 +322,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     wt_timestamp_t *timestamp;
 
     txn = &session->txn;
+    txn_state = WT_SESSION_TXN_SHARED(session);
 
     /*
      * Updates in the metadata never get timestamps (either now or at commit): metadata cannot be
