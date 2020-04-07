@@ -328,7 +328,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
      * Updates in the metadata never get timestamps (either now or at commit): metadata cannot be
      * read at a point in time, only the most recently committed data matches files on disk.
      */
-    if (WT_IS_METADATA(op->btree->dhandle) || !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+    if (WT_IS_METADATA(op->btree->dhandle) || !F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT))
         return;
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
@@ -1047,9 +1047,9 @@ static inline int
 __wt_txn_search_check(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
-    WT_TXN *txn;
+    WT_TXN_SHARED *txn_state;
 
-    txn = &session->txn;
+    txn_state = WT_SESSION_TXN_SHARED(session);
     btree = S2BT(session);
     /*
      * If the user says a table should always use a read timestamp, verify this transaction has one.
@@ -1057,12 +1057,12 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
      */
     if (!F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
       FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_ALWAYS) &&
-      !F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
+      !F_ISSET(txn_state, WT_TXN_PUBLIC_TS_READ))
         WT_RET_MSG(session, EINVAL,
           "read_timestamp required and "
           "none set on this transaction");
     if (FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_NEVER) &&
-      F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
+      F_ISSET(txn_state, WT_TXN_PUBLIC_TS_READ))
         WT_RET_MSG(session, EINVAL,
           "no read_timestamp required and "
           "timestamp set on this transaction");

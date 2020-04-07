@@ -750,17 +750,17 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
     /*
      * Debugging checks on timestamps, if user requested them.
      */
-    if (F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS) && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+    if (F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS) && !F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT) &&
       txn->mod_count != 0)
         WT_RET_MSG(session, EINVAL, "commit_timestamp required and none set on this transaction");
-    if (F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+    if (F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER) && F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT) &&
       txn->mod_count != 0)
         WT_RET_MSG(
           session, EINVAL, "no commit_timestamp required and timestamp set on this transaction");
-    if (F_ISSET(txn, WT_TXN_TS_DURABLE_ALWAYS) && !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
+    if (F_ISSET(txn, WT_TXN_TS_DURABLE_ALWAYS) && !F_ISSET(txn_state, WT_TXN_HAS_TS_DURABLE) &&
       txn->mod_count != 0)
         WT_RET_MSG(session, EINVAL, "durable_timestamp required and none set on this transaction");
-    if (F_ISSET(txn, WT_TXN_TS_DURABLE_NEVER) && F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
+    if (F_ISSET(txn, WT_TXN_TS_DURABLE_NEVER) && F_ISSET(txn_state, WT_TXN_HAS_TS_DURABLE) &&
       txn->mod_count != 0)
         WT_RET_MSG(session, EINVAL,
           "no durable_timestamp required and durable timestamp set on this transaction");
@@ -821,7 +821,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
          * originally then they should be used the same way always. For this transaction, timestamps
          * are in use anytime the commit timestamp is set. Check timestamps are used in order.
          */
-        op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
+        op_zero_ts = !F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT);
         upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
         if (op_zero_ts != upd_zero_ts) {
             WT_ERR(__wt_verbose_dump_update(session, upd));
@@ -927,10 +927,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_txn_set_timestamp(session, cfg));
 
     if (prepare) {
-        if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+        if (!F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT))
             WT_ERR_MSG(session, EINVAL, "commit_timestamp is required for a prepared transaction");
 
-        if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+        if (!F_ISSET(txn_state, WT_TXN_HAS_TS_DURABLE))
             WT_ERR_MSG(session, EINVAL, "durable_timestamp is required for a prepared transaction");
 
         WT_ASSERT(session, txn->prepare_timestamp <= txn->commit_timestamp);
@@ -938,13 +938,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
             WT_ERR_MSG(session, EINVAL, "prepare timestamp is set for non-prepared transaction");
 
-        if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+        if (F_ISSET(txn_state, WT_TXN_HAS_TS_DURABLE))
             WT_ERR_MSG(session, EINVAL,
               "durable_timestamp should not be specified for non-prepared transaction");
     }
 
-    WT_ASSERT(session,
-      !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || txn->commit_timestamp <= txn_state->durable_timestamp);
+    WT_ASSERT(session, !F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT) ||
+        txn->commit_timestamp <= txn_state->durable_timestamp);
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
@@ -1091,9 +1091,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * durable isn't set, durable is implied to be the same as commit so we'll use that instead.
      */
     candidate_durable_timestamp = WT_TS_NONE;
-    if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+    if (F_ISSET(txn_state, WT_TXN_HAS_TS_DURABLE))
         candidate_durable_timestamp = txn_state->durable_timestamp;
-    else if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+    else if (F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT))
         candidate_durable_timestamp = txn->commit_timestamp;
 
     __wt_txn_release(session);

@@ -607,8 +607,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * We rely on having the global transaction data locked so the oldest timestamp can't move past
      * the stable timestamp.
      */
-    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ |
-                           WT_TXN_TS_PUBLISHED | WT_TXN_PUBLIC_TS_READ));
+    WT_ASSERT(session,
+      !F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT | WT_TXN_TS_PUBLISHED | WT_TXN_PUBLIC_TS_READ) &&
+        !F_ISSET(txn, WT_TXN_HAS_TS_READ));
 
     if (use_timestamp) {
         /*

@@ -719,7 +719,8 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
          * Compare against the commit timestamp of the current transaction. Return an error if the
          * given timestamp is older than the first commit timestamp.
          */
-        if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) && commit_ts < txn_state->first_commit_timestamp)
+        if (F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT) &&
+          commit_ts < txn_state->first_commit_timestamp)
             WT_RET_MSG(session, EINVAL,
               "commit timestamp %s older than the first "
               "commit timestamp %s for this transaction",
@@ -748,13 +749,13 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
         }
     }
 
-    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) ||
+    WT_ASSERT(session, !F_ISSET(txn_state, WT_TXN_HAS_TS_DURABLE) ||
         txn_state->durable_timestamp == txn->commit_timestamp);
     txn->commit_timestamp = commit_ts;
     /*
      * First time copy the commit timestamp to the first commit timestamp.
      */
-    if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+    if (!F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT))
         txn_state->first_commit_timestamp = commit_ts;
 
     /*
@@ -762,10 +763,10 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
      * might happen if we set a commit timestamp, set a durable timestamp and then subsequently set
      * the commit timestamp again.
      */
-    if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+    if (!F_ISSET(txn_state, WT_TXN_HAS_TS_DURABLE))
         txn_state->durable_timestamp = commit_ts;
 
-    F_SET(txn, WT_TXN_HAS_TS_COMMIT);
+    F_SET(txn_state, WT_TXN_HAS_TS_COMMIT);
     return (0);
 }
 
@@ -793,7 +794,7 @@ __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_
           "durable timestamp should not be specified for "
           "non-prepared transaction");
 
-    if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+    if (!F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT))
         WT_RET_MSG(session, EINVAL, "commit timestamp is needed before the durable timestamp");
 
     /*
@@ -830,7 +831,7 @@ __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_
           __wt_timestamp_to_string(txn->commit_timestamp, ts_string[1]));
 
     txn_state->durable_timestamp = durable_ts;
-    F_SET(txn, WT_TXN_HAS_TS_DURABLE);
+    F_SET(txn_state, WT_TXN_HAS_TS_DURABLE);
 
     return (0);
 }
@@ -844,18 +845,18 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
 {
     WT_TXN *txn = &session->txn;
     WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
-    WT_TXN_SHARED *prev_state;
+    WT_TXN_SHARED *txn_state, *prev_state;
     wt_timestamp_t oldest_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    prev_state = WT_SESSION_TXN_SHARED(session);
+    txn_state = prev_state = WT_SESSION_TXN_SHARED(session);
 
     WT_RET(__wt_txn_context_prepare_check(session));
 
     if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
         WT_RET_MSG(session, EINVAL, "prepare timestamp is already set");
 
-    if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+    if (F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT))
         WT_RET_MSG(session, EINVAL,
           "commit timestamp "
           "should not have been set before the prepare timestamp");
@@ -1062,12 +1063,12 @@ __wt_txn_publish_timestamp(WT_SESSION_IMPL *session)
     txn_global = &S2C(session)->txn_global;
     txn_state = WT_SESSION_TXN_SHARED(session);
 
-    if (F_ISSET(txn, WT_TXN_TS_PUBLISHED))
+    if (F_ISSET(txn_state, WT_TXN_TS_PUBLISHED))
         return;
 
-    if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+    if (F_ISSET(txn_state, WT_TXN_HAS_TS_DURABLE))
         ts = txn_state->durable_timestamp;
-    else if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
+    else if (F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT)) {
         /*
          * If we know for a fact that this is a prepared transaction and we only have a commit
          * timestamp, don't add to the durable queue. If we poll all_durable after setting the
@@ -1135,7 +1136,7 @@ __wt_txn_publish_timestamp(WT_SESSION_IMPL *session)
     ++txn_global->durable_timestampq_len;
     WT_STAT_CONN_INCR(session, txn_durable_queue_inserts);
     txn_state->clear_durable_q = false;
-    F_SET(txn, WT_TXN_TS_PUBLISHED);
+    F_SET(txn_state, WT_TXN_TS_PUBLISHED);
     __wt_writeunlock(session, &txn_global->durable_timestamp_rwlock);
 }
 
@@ -1146,14 +1147,12 @@ __wt_txn_publish_timestamp(WT_SESSION_IMPL *session)
 void
 __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
 {
-    WT_TXN *txn;
     WT_TXN_SHARED *txn_state;
     uint32_t flags;
 
-    txn = &session->txn;
     txn_state = WT_SESSION_TXN_SHARED(session);
 
-    if (!F_ISSET(txn, WT_TXN_TS_PUBLISHED))
+    if (!F_ISSET(txn_state, WT_TXN_TS_PUBLISHED))
         return;
 
     /*
@@ -1167,9 +1166,9 @@ __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
      * Serialize clearing the flag with setting the queue state. The serialization has been here for
      * awhile, but nobody remembers if or why it's necessary.
      */
-    flags = txn->flags;
+    flags = txn_state->flags;
     LF_CLR(WT_TXN_TS_PUBLISHED);
-    WT_PUBLISH(txn->flags, flags);
+    WT_PUBLISH(txn_state->flags, flags);
 }
 
 /*
@@ -1190,7 +1189,7 @@ __wt_txn_publish_read_timestamp(WT_SESSION_IMPL *session)
     txn_state = WT_SESSION_TXN_SHARED(session);
 
     /* FIXME-WT-5766: Move flags to shared state. */
-    if (F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
+    if (F_ISSET(txn_state, WT_TXN_PUBLIC_TS_READ))
         return;
 
     __wt_writelock(session, &txn_global->read_timestamp_rwlock);
@@ -1252,7 +1251,8 @@ __wt_txn_publish_read_timestamp(WT_SESSION_IMPL *session)
     ++txn_global->read_timestampq_len;
     WT_STAT_CONN_INCR(session, txn_read_queue_inserts);
     txn_state->clear_read_q = false;
-    F_SET(txn, WT_TXN_HAS_TS_READ | WT_TXN_PUBLIC_TS_READ);
+    F_SET(txn, WT_TXN_HAS_TS_READ);
+    F_SET(txn_state, WT_TXN_PUBLIC_TS_READ);
     __wt_writeunlock(session, &txn_global->read_timestamp_rwlock);
 }
 
@@ -1270,7 +1270,7 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
     txn = &session->txn;
     txn_state = WT_SESSION_TXN_SHARED(session);
 
-    if (!F_ISSET(txn, WT_TXN_PUBLIC_TS_READ)) {
+    if (!F_ISSET(txn_state, WT_TXN_PUBLIC_TS_READ)) {
         txn->read_timestamp = txn_state->pinned_read_timestamp = WT_TS_NONE;
         return;
     }
@@ -1290,9 +1290,9 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
      * Serialize clearing the flag with setting the queue state. The serialization has been here for
      * awhile, but nobody remembers if or why it's necessary.
      */
-    flags = txn->flags;
+    flags = txn_state->flags;
     LF_CLR(WT_TXN_PUBLIC_TS_READ);
-    WT_PUBLISH(txn->flags, flags);
+    WT_PUBLISH(txn_state->flags, flags);
 
     txn->read_timestamp = txn_state->pinned_read_timestamp = WT_TS_NONE;
 }
