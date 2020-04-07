@@ -769,6 +769,14 @@ config_transaction(void)
     bool prepare_requires_ts;
 
     /*
+     * WiredTiger cannot support relaxed isolation levels. Turn off everything but timestamps with
+     * snapshot isolation.
+     */
+    if ((!g.c_txn_timestamps && config_is_perm("transaction.timestamps")) ||
+      (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation")))
+        testutil_die(EINVAL, "format limited to timestamp and snapshot-isolation runs");
+
+    /*
      * We can't prepare a transaction if logging is configured or timestamps aren't configured.
      * Further, for repeatable reads to work in timestamp testing, all updates must be within a
      * snapshot-isolation transaction. Check for incompatible configurations, then let prepare and
