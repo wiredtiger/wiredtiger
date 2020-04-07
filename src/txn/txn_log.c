@@ -430,7 +430,7 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
         prepare = txn->prepare_timestamp;
     if (F_ISSET(txn, WT_TXN_HAS_TS_READ)) {
         read = txn->read_timestamp;
-        pinned_read = txn_state->read_timestamp;
+        pinned_read = txn_state->pinned_read_timestamp;
     }
 
     __wt_epoch(session, &t);

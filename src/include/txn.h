@@ -123,7 +123,7 @@ struct __wt_txn_shared {
      * mechanism, we can move the read timestamp forward so we need to keep track of the original
      * read timestamp to know what history should be pinned in front of oldest.
      */
-    wt_timestamp_t read_timestamp;
+    wt_timestamp_t pinned_read_timestamp;
 
     TAILQ_ENTRY(__wt_txn_shared) read_timestampq;
     bool clear_read_q; /* Set if need to clear from the read queue */

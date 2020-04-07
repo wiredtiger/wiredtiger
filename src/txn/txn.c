@@ -1749,8 +1749,8 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn, WT_TXN_SHARED *
       __wt_timestamp_to_string(txn_state->first_commit_timestamp, ts_string[2]),
       __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
       __wt_timestamp_to_string(txn->read_timestamp, ts_string[4]),
-      __wt_timestamp_to_string(txn_state->read_timestamp, ts_string[5]), txn->ckpt_lsn.l.file,
-      txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
+      __wt_timestamp_to_string(txn_state->pinned_read_timestamp, ts_string[5]),
+      txn->ckpt_lsn.l.file, txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
       txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
 
     /*
