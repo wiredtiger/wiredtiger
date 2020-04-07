@@ -607,23 +607,23 @@ set:
  */
 static int
 __txn_assert_after_reads(
-  WT_SESSION_IMPL *session, const char *op, wt_timestamp_t ts, WT_TXN **prevp)
+  WT_SESSION_IMPL *session, const char *op, wt_timestamp_t ts, WT_TXN_SHARED **prev_statep)
 {
 #ifdef HAVE_DIAGNOSTIC
-    WT_TXN *prev, *txn = &session->txn;
     WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
+    WT_TXN_SHARED *prev_state, *txn_state = WT_SESSION_TXN_SHARED(session);
     wt_timestamp_t tmp_timestamp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     __wt_readlock(session, &txn_global->read_timestamp_rwlock);
-    prev = TAILQ_LAST(&txn_global->read_timestamph, __wt_txn_rts_qh);
-    while (prev != NULL) {
+    prev_state = TAILQ_LAST(&txn_global->read_timestamph, __wt_txn_rts_qh);
+    while (prev_state != NULL) {
         /*
          * Skip self and non-active transactions. Copy out value of read timestamp to prevent
          * possible race where a transaction resets its read timestamp while we traverse the queue.
          */
-        if (!__txn_get_read_timestamp(prev, &tmp_timestamp) || prev == txn) {
-            prev = TAILQ_PREV(prev, __wt_txn_rts_qh, read_timestampq);
+        if (!__txn_get_read_timestamp(prev_state, &tmp_timestamp) || prev_state == txn_state) {
+            prev_state = TAILQ_PREV(prev_state, __wt_txn_rts_qh, read_timestampq);
             continue;
         }
 
@@ -640,13 +640,13 @@ __txn_assert_after_reads(
 
     __wt_readunlock(session, &txn_global->read_timestamp_rwlock);
 
-    if (prevp != NULL)
-        *prevp = prev;
+    if (prev_statep != NULL)
+        *prev_statep = prev_state;
 #else
     WT_UNUSED(session);
     WT_UNUSED(op);
     WT_UNUSED(ts);
-    WT_UNUSED(prevp);
+    WT_UNUSED(prev_statep);
 #endif
 
     return (0);
@@ -743,8 +743,8 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
         }
     }
 
-    WT_ASSERT(session,
-      !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) || txn->durable_timestamp == txn->commit_timestamp);
+    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) ||
+        txn_state->durable_timestamp == txn->commit_timestamp);
     txn->commit_timestamp = commit_ts;
     /*
      * First time copy the commit timestamp to the first commit timestamp.
@@ -837,8 +837,10 @@ __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_
 int
 __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
 {
-    WT_TXN *prev, *txn = &session->txn;
+    WT_TXN *txn = &session->txn;
     WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
+    WT_TXN_SHARED *prev_state = WT_SESSION_TXN_SHARED(session);
+
     wt_timestamp_t oldest_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -852,7 +854,7 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
           "commit timestamp "
           "should not have been set before the prepare timestamp");
 
-    WT_RET(__txn_assert_after_reads(session, "prepare", prepare_ts, &prev));
+    WT_RET(__txn_assert_after_reads(session, "prepare", prepare_ts, &prev_state));
 
     /*
      * Check whether the prepare timestamp is less than the oldest timestamp.
@@ -867,7 +869,7 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
              * Check that there are no active readers. That would be a violation of preconditions
              * for rounding timestamps of prepared transactions.
              */
-            WT_ASSERT(session, prev == NULL);
+            WT_ASSERT(session, prev_state == NULL);
 
             __wt_verbose(session, WT_VERB_TIMESTAMP,
               "prepare timestamp %s rounded to oldest "
@@ -1268,7 +1270,7 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
     }
 
     /* Assert the read timestamp is greater than or equal to the pinned timestamp. */
-    WT_ASSERT(session, txn->read_timestamp == txn->pinned_read_timestamp &&
+    WT_ASSERT(session, txn->read_timestamp == txn_state->read_timestamp &&
         txn->read_timestamp >= S2C(session)->txn_global.pinned_timestamp);
 
     /*

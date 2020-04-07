@@ -937,7 +937,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     WT_ASSERT(session,
-      !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || txn->commit_timestamp <= txn->durable_timestamp);
+      !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || txn->commit_timestamp <= txn_state->durable_timestamp);
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
