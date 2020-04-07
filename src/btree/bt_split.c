@@ -1461,6 +1461,10 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
          */
         if (supd->onpage_upd != NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY) &&
           orig->type != WT_PAGE_COL_FIX) {
+            /*
+             * Uncommitted updates are aborted concurrently. No need to restore the update chain any
+             * more.
+             */
             if (upd == supd->onpage_upd) {
                 supd->restore = false;
                 continue;
