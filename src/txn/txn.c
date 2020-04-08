@@ -1745,10 +1745,10 @@ __wt_verbose_dump_txn_one(
       sizeof(buf), "transaction id: %" PRIu64 ", mod count: %u"
                    ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", snapshot count: %u"
                    ", commit_timestamp: %s"
-                   ", durable_timestamp: %s"
-                   ", first_commit_timestamp: %s"
                    ", prepare_timestamp: %s"
                    ", read_timestamp: %s"
+                   ", durable_timestamp: %s"
+                   ", first_commit_timestamp: %s"
                    ", pinned_read_timestamp: %s"
                    ", checkpoint LSN: [%" PRIu32 "][%" PRIu32 "]"
                    ", full checkpoint: %s"
@@ -1756,10 +1756,10 @@ __wt_verbose_dump_txn_one(
                    ", flags: 0x%08" PRIx32 ", isolation: %s",
       txn->id, txn->mod_count, txn->snap_min, txn->snap_max, txn->snapshot_count,
       __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
-      __wt_timestamp_to_string(txn_state->durable_timestamp, ts_string[1]),
-      __wt_timestamp_to_string(txn_state->first_commit_timestamp, ts_string[2]),
-      __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
-      __wt_timestamp_to_string(txn->read_timestamp, ts_string[4]),
+      __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[1]),
+      __wt_timestamp_to_string(txn->read_timestamp, ts_string[2]),
+      __wt_timestamp_to_string(txn_state->durable_timestamp, ts_string[3]),
+      __wt_timestamp_to_string(txn_state->first_commit_timestamp, ts_string[4]),
       __wt_timestamp_to_string(txn_state->pinned_read_timestamp, ts_string[5]),
       txn->ckpt_lsn.l.file, txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
       txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
