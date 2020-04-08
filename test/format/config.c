@@ -772,7 +772,11 @@ config_transaction(void)
      */
     if ((!g.c_txn_timestamps && config_is_perm("transaction.timestamps")) ||
       (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation")))
-        testutil_die(EINVAL, "format limited to timestamp and snapshot-isolation runs");
+        testutil_die(EINVAL, "format limited to timestamp and snapshot-isolation testing");
+    if (!g.c_txn_timestamps)
+        config_single("transaction.timestamps=on", false);
+    if (g.c_isolation_flag != ISOLATION_SNAPSHOT)
+        config_single("transaction.isolation=snapshot", false);
 
     /*
      * Check the permanent configuration. We can't prepare a transaction if logging is configured or
