@@ -239,6 +239,7 @@ typedef struct {
 #define ENCRYPT_ROTN_7 2
     u_int c_encryption_flag; /* Encryption flag value */
 
+#define ISOLATION_NOT_SET 0
 #define ISOLATION_RANDOM 1
 #define ISOLATION_READ_UNCOMMITTED 2
 #define ISOLATION_READ_COMMITTED 3
