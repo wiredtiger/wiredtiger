@@ -735,10 +735,10 @@ __wt_cell_leaf_value_parse(WT_PAGE *page, WT_CELL *cell)
 
 /*
  * __unstable_skip --
- *     Optionally skip unstable entries
+ *     Optionally skip unstable entries in the MongoDB 4.2 release.
  */
 static inline bool
-__unstable_skip(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
+__unstable_skip(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack)
 {
     /*
      * We should never see a prepared cell, it implies an unclean shutdown followed by a downgrade
@@ -753,8 +753,7 @@ __unstable_skip(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNP
      * Skip unstable entries after downgrade to releases without validity windows and from previous
      * wiredtiger_open connections.
      */
-    return ((unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) &&
-      (S2C(session)->base_write_gen > dsk->write_gen || !__wt_process.page_version_ts));
+    return (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX);
 }
 
 /*
@@ -1035,7 +1034,7 @@ restart:
         return (WT_ERROR); /* Unknown cell type. */
     }
 
-    if (__unstable_skip(session, dsk, unpack))
+    if (__unstable_skip(session, unpack))
         F_SET(unpack, WT_CELL_UNPACK_TOMBSTONE);
 
 /*
