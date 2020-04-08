@@ -31,7 +31,7 @@ from runner import *
 from wiredtiger import *
 from workgen import *
 
-def show(tname):
+def show(tname, s):
     print('')
     print('<><><><> ' + tname + ' <><><><>')
     c = s.open_cursor(tname, None)
@@ -41,19 +41,22 @@ def show(tname):
     print('<><><><><><><><><><><><>')
     c.close()
 
-context = Context()
-conn = wiredtiger_open("WT_TEST", "create,cache_size=1G")
-s = conn.open_session()
-tname = 'table:simple'
-s.create(tname, 'key_format=S,value_format=S')
+def example_simple_workload(args):
+    context = Context()
+    conn = wiredtiger_open("WT_TEST", "create,cache_size=1G")
+    s = conn.open_session()
+    tname = 'table:simple'
+    s.create(tname, 'key_format=S,value_format=S')
 
-ops = Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), Value(40))
-thread = Thread(ops)
-workload = Workload(context, thread)
-workload.run(conn)
-show(tname)
+    ops = Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), Value(40))
+    thread = Thread(ops)
+    workload = Workload(context, thread)
+    workload.run(conn)
+    show(tname, s)
 
-thread = Thread(ops * 5)
-workload = Workload(context, thread)
-workload.run(conn)
-show(tname)
+    thread = Thread(ops * 5)
+    workload = Workload(context, thread)
+    workload.run(conn)
+    show(tname, s)
+
+run_workgen(example_simple_workload)
