@@ -601,7 +601,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep, bool ch
         case WT_CELL_VALUE_OVFL:
             /* Optionally skip unstable values */
             if (F_ISSET(&unpack, WT_CELL_UNPACK_TOMBSTONE) && check_unstable)
-                WT_RET(__inmem_row_leaf_tombstone(session, page, rip, sizep));
+                WT_RET(__inmem_row_leaf_tombstone(session, page, rip - 1, sizep));
             break;
         default:
             return (__wt_illegal_value(session, unpack.type));
