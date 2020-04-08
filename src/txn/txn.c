@@ -831,8 +831,8 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
         upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
         if (op_zero_ts != upd_zero_ts) {
             WT_ERR(__wt_verbose_dump_update(session, upd));
-            WT_ERR(__wt_verbose_dump_txn_one(session, &session->txn, WT_SESSION_TXN_SHARED(session),
-              EINVAL, "per-key timestamps used inconsistently, dumping relevant information"));
+            WT_ERR(__wt_verbose_dump_txn_one(session, session, EINVAL,
+              "per-key timestamps used inconsistently, dumping relevant information"));
         }
         /*
          * If we aren't using timestamps for this transaction then we are done checking. Don't check
@@ -1712,12 +1712,17 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
  *     Output diagnostic information about a transaction structure.
  */
 int
-__wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn, WT_TXN_SHARED *txn_state,
-  int error_code, const char *error_string)
+__wt_verbose_dump_txn_one(
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session, int error_code, const char *error_string)
 {
+    WT_TXN *txn;
+    WT_TXN_SHARED *txn_state;
     char buf[512];
     char ts_string[6][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
+
+    txn = &txn_session->txn;
+    txn_state = WT_SESSION_TXN_SHARED(txn_session);
 
     WT_NOT_READ(iso_tag, "INVALID");
     switch (txn->isolation) {
@@ -1841,8 +1846,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
         WT_RET(__wt_msg(session,
           "ID: %" PRIu64 ", pinned ID: %" PRIu64 ", metadata pinned ID: %" PRIu64 ", name: %s", id,
           s->pinned_id, s->metadata_pinned, sess->name == NULL ? "EMPTY" : sess->name));
-        WT_RET(
-          __wt_verbose_dump_txn_one(session, &sess->txn, WT_SESSION_TXN_SHARED(sess), 0, NULL));
+        WT_RET(__wt_verbose_dump_txn_one(session, sess, 0, NULL));
     }
 
     return (0);
