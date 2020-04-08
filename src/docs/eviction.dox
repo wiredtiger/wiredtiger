@@ -16,8 +16,8 @@ memory. This process is called eviction.
 The WiredTiger eviction runs in the background with one eviction server
 thread and several eviction worker threads.
 
-1) The eviction server thread walks the btrees and put the pages into
-the eviction queue.
+1) The eviction server thread walks the btrees and adds the least
+recently used pages to the eviction queues until the queus are full.
 2) The eviction workers continuously remove pages from the eviction
 queue and try to evict them.
 
@@ -41,26 +41,30 @@ remains solely on the disk unchanged.
 
 For history store eviction, the page is modified but the changes are
 all committed. Therefore, the page should be clean and can be removed
-from memory after the dirty changes are written to the new disk image
-in the process called reconciliation. WiredTiger writes the newest
-committed value of each key to the disk image. All the older versions
-are moved to the history store table. The new disk image is
-subsequently flushed to the data file on the disk and the page is
-removed from memory.
+from memory after the dirty changes are written to the new disk image,
+which is the data fomat WiredTiger stores on disk. The process that
+builds the disk image is called reconciliation. In reconciliation,
+WiredTiger writes the newest committed value of each key to the disk
+image. All the older values of the key are moved to the history store
+table. In the end, reconciliation flushes the new disk image to the
+data file on the disk and later eviction removes the old page from
+memory.
 
 The history store table is the internal table for WiredTiger to store
-historical versions for all the user-created tables. The pages in the
-history store table need to be evicted and loaded back to memory as
-well. Each entry in the history store represents a historical value
-of a key in the user-created tables. Different from the user-created
-tables, all the content on the history store page is committed as the
-historical values it stores must all be committed, and each entry only
-has one value and a deletion marking the expiration of the entry on
-its update chain. Therefore, history store pages should always be clean
-after reconciliation and can be evicted from memory. Besides, it
-prevents eviction from moving content in the history store recursively
-to the history store during reconciliation as keys in the history store
-always only have one committed value.
+historical values for all the user-created tables. Each entry in the
+history store represents a historical value of a key in the
+user-created tables. The pages in the history store table need to be
+evicted and loaded back to memory as well. Different from the
+user-created tables, all the content on the history store page is
+committed as the historical values it stores must all be committed,
+and each entry only has one value and a deletion marking the expiration
+of the entry on its update chain. Therefore, history store pages should
+always be clean after reconciliation and can be evicted from memory.
+Besides, only having one committed value for each key in the history
+store prevents eviction from moving content already in the history
+store recursively to the history store when evicting a history store
+page because we only move the values after the first committed value to
+the history store.
 
 @section update_restore_eviction Update restore eviction
 
@@ -92,12 +96,12 @@ memory along with the old disk image.
 
 @section exceptions Exceptions
 
-In-memory database and fixed-length column store are the exceptions.
-Since they don't support the history store, eviction can only discard
-the update chains until all the content on the update chains are
-globally visible. For the same reason, we cannot free the updates
-older than the update written to the disk image. Also for in-memory
-database, eviction always copy the new disk image and keep that in
-memory as there is no disk storage.
+Eviction works differently for in-memory database and fixed-length
+column store. Since they don't support the history store, eviction
+only discards the update chains when all the values on the update
+chains are globally visible. For the same reason, we cannot free the
+updates older than the update written to the disk image. Because
+there is no disk storage for in-memory database, eviction has to keep
+all the reconciled disk images in memory.
 
  */
