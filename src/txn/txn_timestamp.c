@@ -1148,7 +1148,7 @@ void
 __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
 {
     WT_TXN_SHARED *txn_state;
-    uint32_t flags;
+    uint8_t flags;
 
     txn_state = WT_SESSION_TXN_SHARED(session);
 
@@ -1264,7 +1264,7 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
     WT_TXN_SHARED *txn_state;
-    uint32_t flags;
+    uint8_t flags;
 
     txn = &session->txn;
     txn_state = WT_SESSION_TXN_SHARED(session);
