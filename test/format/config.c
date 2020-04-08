@@ -781,9 +781,9 @@ config_transaction(void)
     /*
      * Check the permanent configuration. We can't prepare a transaction if logging is configured or
      * timestamps aren't configured. For repeatable reads to work in timestamp testing, all updates
-     * must be done in snapshot isolation.
+     * must be done in a snapshot isolation transaction.
      */
-    if (config_is_perm("ops.prepare")) {
+    if (g.c_prepare && config_is_perm("ops.prepare")) {
         if (g.c_logging && config_is_perm("logging"))
             testutil_die(EINVAL, "prepare is incompatible with logging");
         if (!g.c_txn_timestamps && config_is_perm("transaction.timestamps"))
@@ -794,17 +794,18 @@ config_transaction(void)
             testutil_die(EINVAL, "prepare requires transaction frequency set to 100");
     }
     if (config_is_perm("transaction.timestamps")) {
-        if (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation"))
-            testutil_die(EINVAL, "timestamps require snapshot isolation");
-        if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
-            testutil_die(EINVAL, "timestamps require transaction frequency set to 100");
-    }
-    if (config_is_perm("transaction.isolation")) {
-        if (g.c_isolation_flag != ISOLATION_SNAPSHOT && !g.c_txn_timestamps &&
-          config_is_perm("transaction.timestamps"))
-            testutil_die(EINVAL, "snapshot isolation requires timestamps");
-        if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
-            testutil_die(EINVAL, "snapshot isolation require transaction frequency set to 100");
+        if (g.c_txn_timestamps) {
+            if (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation"))
+                testutil_die(EINVAL, "timestamps require snapshot isolation");
+            if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
+                testutil_die(EINVAL, "timestamps require transaction frequency set to 100");
+        } else {
+            if (g.c_isolation_flag == ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation"))
+                testutil_die(EINVAL, "snapshot isolation requires timestamps");
+            if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
+                testutil_die(
+                  EINVAL, "snapshot isolation requires transaction frequency set to 100");
+        }
     }
 
     /*
