@@ -104,7 +104,6 @@ struct __wt_txn_shared {
     volatile uint64_t id;
     volatile uint64_t pinned_id;
     volatile uint64_t metadata_pinned;
-    volatile bool is_allocating;
 
     /*
      * Durable timestamp copied into updates created by this transaction. It is used to decide
@@ -125,13 +124,15 @@ struct __wt_txn_shared {
      */
     wt_timestamp_t pinned_read_timestamp;
 
+    WT_TXN *internal_txn; /* A reference to the corresponding internal transaction data. */
+
     TAILQ_ENTRY(__wt_txn_shared) read_timestampq;
-    bool clear_read_q; /* Set if need to clear from the read queue */
     TAILQ_ENTRY(__wt_txn_shared) durable_timestampq;
     /* Set if need to clear from the durable queue */
-    bool clear_durable_q;
 
-    WT_TXN *internal_txn; /* A reference to the corresponding internal transaction data. */
+    volatile uint8_t is_allocating;
+    uint8_t clear_durable_q;
+    uint8_t clear_read_q; /* Set if need to clear from the read queue */
 
 /*
  * WT_TXN_HAS_TS_COMMIT --
@@ -151,7 +152,7 @@ struct __wt_txn_shared {
 #define WT_TXN_PUBLIC_TS_READ 0x4u
 #define WT_TXN_TS_PUBLISHED 0x8u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint32_t flags;
+    uint8_t flags;
 
     WT_CACHE_LINE_PAD_END
 };
