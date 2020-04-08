@@ -1417,13 +1417,8 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 
     WT_RET(__wt_calloc_def(session, S2C(session_ret)->session_size, &txn->snapshot));
 
-#ifdef HAVE_DIAGNOSTIC
-    if (S2C(session_ret)->txn_global.states != NULL) {
-        WT_TXN_SHARED *txn_state;
-        txn_state = WT_SESSION_TXN_SHARED(session_ret);
-        WT_ASSERT(session, txn_state->pinned_id == WT_TXN_NONE);
-    }
-#endif
+    WT_ASSERT(session, S2C(session_ret)->txn_global.states == NULL ||
+        WT_SESSION_TXN_SHARED(session_ret)->pinned_id == WT_TXN_NONE);
 
     /*
      * Take care to clean these out in case we are reusing the transaction for eviction.
