@@ -793,25 +793,23 @@ config_transaction(void)
         if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
             testutil_die(EINVAL, "prepare requires transaction frequency set to 100");
     }
-    if (config_is_perm("transaction.timestamps")) {
-        if (g.c_txn_timestamps) {
-            if (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation"))
-                testutil_die(EINVAL, "timestamps require snapshot isolation");
-            if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
-                testutil_die(EINVAL, "timestamps require transaction frequency set to 100");
-        } else {
-            if (g.c_isolation_flag == ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation"))
-                testutil_die(EINVAL, "snapshot isolation requires timestamps");
-            if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
-                testutil_die(
-                  EINVAL, "snapshot isolation requires transaction frequency set to 100");
-        }
+    if (g.c_txn_timestamps && config_is_perm("transaction.timestamps")) {
+        if (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation"))
+            testutil_die(EINVAL, "timestamps require snapshot isolation");
+        if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
+            testutil_die(EINVAL, "timestamps require transaction frequency set to 100");
+    }
+    if (g.c_isolation_flag == ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation")) {
+        if (!g.c_txn_timestamps && config_is_perm("transaction.timestamps"))
+            testutil_die(EINVAL, "snapshot isolation requires timestamps");
+        if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
+            testutil_die(EINVAL, "snapshot isolation requires transaction frequency set to 100");
     }
 
     /*
-     * The permanent configuration is OK, adjust the temporary configuration as necessary. Prepare
-     * overrides timestamps overrides isolation for no particular reason other than prepare is the
-     * least-often configured and timestamps the most, and timestamps requires snapshot isolation.
+     * The permanent configuration has no incompatible settings, adjust the temporary configuration
+     * as necessary. Prepare overrides timestamps, overrides isolation, for no reason other than
+     * prepare is the least configured and timestamps are the option we want to test the most.
      */
     if (g.c_prepare) {
         if (g.c_logging)
@@ -829,7 +827,7 @@ config_transaction(void)
         if (g.c_txn_freq != 100)
             config_single("transaction.frequency=100", false);
     }
-    if (g.c_isolation_flag == ISOLATION_NOT_SET)
+    if (g.c_isolation_flag == ISOLATION_NOT_SET) {
         switch (mmrand(NULL, 1, 20)) {
         case 1: /* 5% */
             config_single("transaction.isolation=random", false);
@@ -844,16 +842,17 @@ config_transaction(void)
             config_single("transaction.isolation=snapshot", false);
             break;
         }
-    if (g.c_isolation_flag == ISOLATION_SNAPSHOT) {
-        if (!g.c_txn_timestamps)
-            config_single("transaction.timestamps=on", false);
-        if (g.c_txn_freq != 100)
-            config_single("transaction.frequency=100", false);
-    } else {
-        if (g.c_prepare)
-            config_single("ops.prepare=off", false);
-        if (g.c_txn_timestamps)
-            config_single("transaction.timestamps=off", false);
+        if (g.c_isolation_flag == ISOLATION_SNAPSHOT) {
+            if (!g.c_txn_timestamps)
+                config_single("transaction.timestamps=on", false);
+            if (g.c_txn_freq != 100)
+                config_single("transaction.frequency=100", false);
+        } else {
+            if (g.c_prepare)
+                config_single("ops.prepare=off", false);
+            if (g.c_txn_timestamps)
+                config_single("transaction.timestamps=off", false);
+        }
     }
 }
 
