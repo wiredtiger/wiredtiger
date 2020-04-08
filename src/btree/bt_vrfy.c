@@ -839,6 +839,7 @@ static int
 __verify_key_hs(
   WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_start_ts, WT_VSTUFF *vs)
 {
+#ifdef WT_VERIFY_VALIDATE_HISTORY_STORE
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
@@ -905,6 +906,13 @@ __verify_key_hs(
     }
 
     return (ret == WT_NOTFOUND ? 0 : ret);
+#else
+    WT_UNUSED(session);
+    WT_UNUSED(tmp1);
+    WT_UNUSED(newer_start_ts);
+    WT_UNUSED(vs);
+    return (0);
+#endif
 }
 
 /*
