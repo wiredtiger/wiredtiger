@@ -298,6 +298,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
 done:
+    WT_ERR(__wt_verify_history_store_tree(session, name, btree->id));
 err:
     /* Inform the underlying block manager we're done. */
     if (bm_start)
