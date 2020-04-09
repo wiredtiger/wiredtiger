@@ -534,21 +534,12 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT
     unbuffered = yielded = false;
     closed = raced = slept = false;
     wait_cnt = 0;
-    diag_yield = false;
-
-/*
- * Figure out whether this write should be buffered. If a record is bigger than the buffer size it
- * needs to be non-buffered. If the record is being written during recovery it needs to be
- * unbuffered - since the log server thread isn't present to flush in the background. Also
- * occasionally write unbuffered records periodically in diagnostic mode - we've had bugs in the
- * past related to coordinating buffered and unbuffered log writes.
- */
 #ifdef HAVE_DIAGNOSTIC
     diag_yield = (++log->write_calls % 7) == 0;
-    if (mysize > WT_LOG_SLOT_BUF_MAX || F_ISSET(conn, WT_CONN_RECOVERING) ||
-      (log->write_calls % WT_THOUSAND) == 0) {
+    if ((log->write_calls % WT_THOUSAND) == 0 || mysize > WT_LOG_SLOT_BUF_MAX) {
 #else
-    if (mysize > WT_LOG_SLOT_BUF_MAX || F_ISSET(conn, WT_CONN_RECOVERING)) {
+    diag_yield = false;
+    if (mysize > WT_LOG_SLOT_BUF_MAX) {
 #endif
         unbuffered = true;
         F_SET(myslot, WT_MYSLOT_UNBUFFERED);
