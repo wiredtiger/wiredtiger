@@ -70,12 +70,12 @@ config_final(void)
 {
     config(); /* Finish up configuration and review it. */
 
-    if (!g.reopen && !g.replay) /* Dump created configuration. */
-        config_print(false);
+    config_print(false);
+
+    g.rows = g.c_rows; /* Set the key count. */
 
     key_init(); /* Initialize key/value information. */
     val_init();
-    g.key_cnt = 0; /* Reset the key count. */
 }
 
 /*
@@ -911,6 +911,10 @@ config_print(bool error_display)
 {
     CONFIG *cp;
     FILE *fp;
+
+    /* Reopening or replaying an existing database should leave the existing CONFIG file. */
+    if (g.reopen || g.replay)
+        return;
 
     if (error_display)
         fp = stdout;

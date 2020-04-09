@@ -249,15 +249,14 @@ typedef struct {
     uint32_t intl_page_max; /* Maximum page sizes */
     uint32_t leaf_page_max;
 
-    uint64_t key_cnt; /* Keys loaded so far */
-    uint64_t rows;    /* Total rows */
+    uint64_t rows; /* Total rows */
 
     uint32_t key_rand_len[1031]; /* Key lengths */
 } GLOBAL;
 extern GLOBAL g;
 
 /* Worker thread operations. */
-typedef enum { INSERT, MODIFY, READ, REMOVE, TRUNCATE, UPDATE } thread_op;
+typedef enum { INSERT = 1, MODIFY, READ, REMOVE, TRUNCATE, UPDATE } thread_op;
 
 /* Worker read operations. */
 typedef enum { NEXT, PREV, SEARCH, SEARCH_NEAR } read_operation;
