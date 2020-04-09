@@ -455,6 +455,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     WT_PAGE *page;
     WT_RECONCILE *r;
     WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t checkpoint_ts;
     uint64_t ckpt_txn;
 
     btree = S2BT(session);
@@ -647,6 +648,15 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     r->update_modify_cbt.ref = ref;
     r->update_modify_cbt.iface.value_format = btree->value_format;
+
+    /*
+     * FIXME: cache the stable timestamp used to check if the durable timestamps in prepared updates
+     * can be discarded (until PM-1524 completes and durable timestamps are stored in data pages).
+     */
+    WT_ORDERED_READ(r->stable_ts, S2C(session)->txn_global.stable_timestamp);
+    if ((checkpoint_ts = S2C(session)->txn_global.checkpoint_timestamp) != WT_TS_NONE &&
+      checkpoint_ts < r->stable_ts)
+        r->stable_ts = checkpoint_ts;
 
 /*
  * If we allocated the reconciliation structure and there was an error, clean up. If our caller
