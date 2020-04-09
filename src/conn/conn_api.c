@@ -2661,7 +2661,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * overwrite any salvage we did if done before that call.
      */
     if (F_ISSET(conn, WT_CONN_SALVAGE)) {
-        WT_ERR(__wt_verify_history_store_tree(session, NULL, WT_BTREE_ID_INVALID));
+        WT_ERR(__wt_verify_history_store(session, NULL, WT_BTREE_ID_INVALID));
         WT_ERR(__wt_metadata_salvage(session));
     }
 

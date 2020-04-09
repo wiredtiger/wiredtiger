@@ -1241,13 +1241,13 @@ err:
 }
 
 /*
- * __wt_verify_history_store_tree --
+ * __wt_verify_history_store --
  *     Verify the history store. There can't be an entry in the history store without having the
  *     latest value for the respective key in the data store. If given a uri, limit the verification
  *     to the corresponding btree.
  */
 int
-__wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri, uint32_t uri_btree_id)
+__wt_verify_history_store(WT_SESSION_IMPL *session, const char *uri, uint32_t uri_btree_id)
 {
     WT_CURSOR *cursor, *data_cursor;
     WT_DECL_ITEM(hs_key);
@@ -1261,8 +1261,8 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri, uint32
     bool is_owner;
 
     cursor = data_cursor = NULL;
-    session_flags = 0; /* [-Wconditional-uninitialized] */
-    prev_btree_id = 0; /* [-Wconditional-uninitialized] */
+    session_flags = 0;                   /* [-Wconditional-uninitialized] */
+    prev_btree_id = WT_BTREE_ID_INVALID; /* [-Wconditional-uninitialized] */
     uri_data = NULL;
     is_owner = false; /* [-Wconditional-uninitialized] */
 
