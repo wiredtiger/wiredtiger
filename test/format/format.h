@@ -61,6 +61,16 @@
 #define MAX_MODIFY_ENTRIES 5 /* maximum change vectors */
 
 typedef struct {
+    WT_CONNECTION *wts_conn;
+    WT_EXTENSION_API *wt_api;
+
+    char *uri; /* Object name */
+
+    bool backward_compatible; /* Backward compatibility testing */
+    bool reopen;              /* Reopen an existing database */
+    bool replay;              /* Replaying a run. */
+    bool workers_finished;    /* Operations completed */
+
     char *home;              /* Home directory */
     char *home_backup;       /* Hot-backup directory */
     char *home_backup_init;  /* Initialize backup command */
@@ -73,10 +83,8 @@ typedef struct {
     char *home_salvage_copy; /* Salvage copy command */
     char *home_stats;        /* Statistics file path */
 
+    char *config_open;                     /* Command-line configuration */
     char wiredtiger_open_config[8 * 1024]; /* Database open config */
-
-    WT_CONNECTION *wts_conn;
-    WT_EXTENSION_API *wt_api;
 
     bool rand_log_stop; /* Logging turned off */
     FILE *randfp;       /* Random number log */
@@ -85,10 +93,6 @@ typedef struct {
 
     bool logging; /* log operations  */
     FILE *logfp;  /* log file */
-
-    bool backward_compatible; /* Backward compatibility testing */
-    bool replay;              /* Replaying a run. */
-    bool workers_finished;    /* Operations completed */
 
     pthread_rwlock_t backup_lock; /* Backup running */
     uint32_t backup_id;           /* Block incremental id */
@@ -109,10 +113,6 @@ typedef struct {
     uint64_t truncate_cnt; /* Counter for truncation */
 
     pthread_rwlock_t death_lock; /* Single-thread failure */
-
-    char *uri; /* Object name */
-
-    char *config_open; /* Command-line configuration */
 
     uint32_t c_abort; /* Config values */
     uint32_t c_alter;
@@ -343,15 +343,18 @@ void config_clear(void);
 void config_compat(const char **);
 void config_error(void);
 void config_file(const char *);
+void config_final(void);
 void config_print(bool);
-void config_setup(void);
 void config_single(const char *, bool);
 void fclose_and_clear(FILE **);
+void handle_init(void);
+void handle_teardown(void);
 void key_gen(WT_ITEM *, uint64_t);
 void key_gen_init(WT_ITEM *);
 void key_gen_insert(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void key_gen_teardown(WT_ITEM *);
 void key_init(void);
+void operations(u_int, bool);
 WT_THREAD_RET random_kv(void *);
 void path_setup(const char *);
 int read_row_worker(WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
@@ -372,11 +375,11 @@ void val_gen_teardown(WT_ITEM *);
 void val_init(void);
 void wts_checkpoints(void);
 void wts_close(void);
+void wts_create(void);
 void wts_dump(const char *, bool);
 void wts_init(void);
 void wts_load(void);
 void wts_open(const char *, bool, WT_CONNECTION **);
-void wts_ops(u_int, bool);
 void wts_read_scan(void);
 void wts_rebalance(void);
 void wts_reopen(void);

@@ -29,6 +29,7 @@
 #include "format.h"
 #include "config.h"
 
+static void config(void);
 static void config_backup(void);
 static void config_backward_compatible(void);
 static void config_cache(void);
@@ -61,11 +62,28 @@ static void config_transaction(void);
 #define DISABLE_RANDOM_LSM_TESTING 1
 
 /*
- * config_setup --
- *     Initialize configuration for a run.
+ * config_final --
+ *     Final run initialization.
  */
 void
-config_setup(void)
+config_final(void)
+{
+    config(); /* Finish up configuration and review it. */
+
+    if (!g.reopen && !g.replay) /* Dump created configuration. */
+        config_print(false);
+
+    key_init(); /* Initialize key/value information. */
+    val_init();
+    g.key_cnt = 0; /* Reset the key count. */
+}
+
+/*
+ * config --
+ *     Initialize the configuration itself.
+ */
+static void
+config(void)
 {
     CONFIG *cp;
     char buf[128];
@@ -237,9 +255,6 @@ config_setup(void)
         else
             config_single("runs.timer=360", false);
     }
-
-    /* Reset the key count. */
-    g.key_cnt = 0;
 }
 
 /*

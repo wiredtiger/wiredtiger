@@ -43,7 +43,7 @@ Barack
 BerkeleyDB
 Bitfield
 Bitwise
-Blqr
+BlqRr
 Brueckner
 Bsearch
 Btree
@@ -959,7 +959,7 @@ lookaside
 lookup
 lookups
 lossy
-lqrt
+lqRrt
 lr
 lrt
 lru
