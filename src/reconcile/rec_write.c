@@ -650,9 +650,8 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->update_modify_cbt.iface.value_format = btree->value_format;
 
     /*
-     * Similarly, cache the stable timestamp used to check if the durable timestamps in prepared
-     * updates can be discarded (until PM-1524 completes and durable timestamps are stored in data
-     * pages).
+     * FIXME: cache the stable timestamp used to check if the durable timestamps in prepared updates
+     * can be discarded (until PM-1524 completes and durable timestamps are stored in data pages).
      */
     WT_ORDERED_READ(r->stable_ts, S2C(session)->txn_global.stable_timestamp);
     if ((checkpoint_ts = S2C(session)->txn_global.checkpoint_timestamp) != WT_TS_NONE &&
