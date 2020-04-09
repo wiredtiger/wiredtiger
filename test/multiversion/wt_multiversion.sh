@@ -1,20 +1,20 @@
 #!/bin/bash
 
-LAST_STABLE=4.2
-LAST_STABLE_DIR=wiredtiger_${LAST_STABLE}/
-LAST_STABLE_BRANCH=mongodb-${LAST_STABLE}
+last_stable=4.2
+last_stable_dir=wiredtiger_${last_stable}/
+last_stable_branch=mongodb-${last_stable}
 
 # Exporting to satisfy ShellCheck.
-export LAST_STABLE_BRANCH
+export last_stable_branch
 
 # FIXME-WT-5986: Temporarily point this at a local branch for testing.
 # Remove this once workgen args are backported to v4.2.
-TMP_BRANCH=wt-5989-workgen-args-4_2
+tmp_branch=wt-5989-workgen-args-4_2
 
 function setup_last_stable {
-    git clone git@github.com:wiredtiger/wiredtiger.git ${LAST_STABLE_DIR}
-    cd ${LAST_STABLE_DIR}/build_posix/ || exit
-    git checkout $TMP_BRANCH
+    git clone git@github.com:wiredtiger/wiredtiger.git ${last_stable_dir}
+    cd ${last_stable_dir}/build_posix/ || exit
+    git checkout $tmp_branch
     bash reconf
     ../configure --enable-python --enable-diagnostic
     make -j 10
@@ -23,17 +23,17 @@ function setup_last_stable {
 }
 
 # Clone and build v4.2 if it doesn't already exist.
-if [ ! -d $LAST_STABLE_DIR ]; then
+if [ ! -d $last_stable_dir ]; then
     setup_last_stable
 fi
 
-LATEST_WORKGEN=../../bench/workgen/runner/multiversion.py
-LAST_STABLE_WORKGEN=${LAST_STABLE_DIR}/bench/workgen/runner/multiversion.py
+latest_workgen=../../bench/workgen/runner/multiversion.py
+last_stable_workgen=${last_stable_dir}/bench/workgen/runner/multiversion.py
 
 # Copy the workload into the v4.2 tree.
-cp $LATEST_WORKGEN $LAST_STABLE_WORKGEN
+cp $latest_workgen $last_stable_workgen
 
-$LATEST_WORKGEN --release 4.4
-$LATEST_WORKGEN -K --release 4.4
-$LAST_STABLE_WORKGEN -K --release 4.2
-$LATEST_WORKGEN -K --release 4.4
+$latest_workgen --release 4.4
+$latest_workgen -K --release 4.4
+$last_stable_workgen -K --release 4.2
+$latest_workgen -K --release 4.4
