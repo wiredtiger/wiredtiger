@@ -377,4 +377,5 @@ def run_workgen(workload_func, register_args_func=None):
         shutil.rmtree('WT_TEST', True)
         os.mkdir('WT_TEST')
     # Execute workload.
+    assert workload_func is not None
     workload_func(args)
