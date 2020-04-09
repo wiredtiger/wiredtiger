@@ -1119,9 +1119,11 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
     /*
      * Don't use the connection's default session: we are working on data handles and (a) don't want
      * to cache all of them forever, plus (b) can't guarantee that no other method will be called
-     * concurrently.
+     * concurrently. Copy parent session no logging option to the internal session to make sure that
+     * rollback to stable doesn't generate log records.
      */
-    WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, &session));
+    WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true,
+      F_MASK(session, WT_SESSION_NO_LOGGING), &session));
 
     F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS);
     ret = __rollback_to_stable(session, cfg);
