@@ -31,7 +31,9 @@ from runner import *
 from wiredtiger import *
 from workgen import *
 
-def show(tname, s):
+def show(tname, s, args):
+    if not args.verbose:
+        return
     print('')
     print('<><><><> ' + tname + ' <><><><>')
     c = s.open_cursor(tname, None)
@@ -40,6 +42,10 @@ def show(tname, s):
         print('value: ' + v)
     print('<><><><><><><><><><><><>')
     c.close()
+
+def example_simple_register_args(parser):
+    parser.add_argument("-v", dest="verbose", action="store_true",
+                        help="Print table contents as part of workload")
 
 def example_simple_workload(args):
     context = Context()
@@ -52,11 +58,11 @@ def example_simple_workload(args):
     thread = Thread(ops)
     workload = Workload(context, thread)
     workload.run(conn)
-    show(tname, s)
+    show(tname, s, args)
 
     thread = Thread(ops * 5)
     workload = Workload(context, thread)
     workload.run(conn)
-    show(tname, s)
+    show(tname, s, args)
 
-run_workgen(example_simple_workload)
+run_workgen(example_simple_workload, example_simple_register_args)
