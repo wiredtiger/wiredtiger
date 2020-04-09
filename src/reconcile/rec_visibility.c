@@ -309,7 +309,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * checkpoint in a concurrent session.
      */
     WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) || upd == NULL ||
-        upd->txnid == WT_TXN_NONE || upd->txnid != S2C(session)->txn_global.checkpoint_state.id ||
+        upd->txnid == WT_TXN_NONE ||
+        upd->txnid != S2C(session)->txn_global.checkpoint_txn_shared.id ||
         WT_SESSION_IS_CHECKPOINT(session));
 
     /* If all of the updates were aborted, quit. */

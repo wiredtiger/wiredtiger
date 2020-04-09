@@ -162,10 +162,10 @@ static inline void
 __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
     WT_TXN *txn;
-    WT_TXN_SHARED *txn_state;
+    WT_TXN_SHARED *txn_shared;
 
     txn = &session->txn;
-    txn_state = WT_SESSION_TXN_SHARED(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
     /*
      * In case of a prepared transaction, the order of modification of the prepare timestamp to
      * commit timestamp in the update chain will not affect the data visibility, a reader will
@@ -176,7 +176,7 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     upd->prepare_state = WT_PREPARE_LOCKED;
     WT_WRITE_BARRIER();
     upd->start_ts = txn->commit_timestamp;
-    upd->durable_ts = txn_state->durable_timestamp;
+    upd->durable_ts = txn_shared->durable_timestamp;
     WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
 }
 
@@ -239,13 +239,13 @@ static inline void
 __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool commit)
 {
     WT_TXN *txn;
-    WT_TXN_SHARED *txn_state;
+    WT_TXN_SHARED *txn_shared;
     WT_UPDATE **updp;
     wt_timestamp_t ts;
     uint8_t prepare_state, previous_state;
 
     txn = &session->txn;
-    txn_state = WT_SESSION_TXN_SHARED(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
      * Lock the ref to ensure we don't race with eviction freeing the page deleted update list or
@@ -268,11 +268,11 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
          */
         (*updp)->prepare_state = prepare_state;
         if (commit)
-            (*updp)->durable_ts = txn_state->durable_timestamp;
+            (*updp)->durable_ts = txn_shared->durable_timestamp;
     }
     ref->page_del->timestamp = ts;
     if (commit)
-        ref->page_del->durable_timestamp = txn_state->durable_timestamp;
+        ref->page_del->durable_timestamp = txn_shared->durable_timestamp;
     WT_PUBLISH(ref->page_del->prepare_state, prepare_state);
 
     WT_REF_UNLOCK(ref, previous_state);
@@ -286,12 +286,12 @@ static inline void
 __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_TXN *txn;
-    WT_TXN_SHARED *txn_state;
+    WT_TXN_SHARED *txn_shared;
     WT_UPDATE **updp;
     uint8_t previous_state;
 
     txn = &session->txn;
-    txn_state = WT_SESSION_TXN_SHARED(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
      * Lock the ref to ensure we don't race with eviction freeing the page deleted update list or
@@ -301,7 +301,7 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 
     for (updp = ref->page_del->update_list; updp != NULL && *updp != NULL; ++updp) {
         (*updp)->start_ts = txn->commit_timestamp;
-        (*updp)->durable_ts = txn_state->durable_timestamp;
+        (*updp)->durable_ts = txn_shared->durable_timestamp;
     }
 
     WT_REF_UNLOCK(ref, previous_state);
@@ -317,18 +317,18 @@ static inline void
 __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
     WT_TXN *txn;
-    WT_TXN_SHARED *txn_state;
+    WT_TXN_SHARED *txn_shared;
     WT_UPDATE *upd;
     wt_timestamp_t *timestamp;
 
     txn = &session->txn;
-    txn_state = WT_SESSION_TXN_SHARED(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
      * Updates in the metadata never get timestamps (either now or at commit): metadata cannot be
      * read at a point in time, only the most recently committed data matches files on disk.
      */
-    if (WT_IS_METADATA(op->btree->dhandle) || !F_ISSET(txn_state, WT_TXN_HAS_TS_COMMIT))
+    if (WT_IS_METADATA(op->btree->dhandle) || !F_ISSET(txn_shared, WT_TXN_HAS_TS_COMMIT))
         return;
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
@@ -356,7 +356,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 
             timestamp = op->type == WT_TXN_OP_REF_DELETE ? &op->u.ref->page_del->durable_timestamp :
                                                            &op->u.op_upd->durable_ts;
-            *timestamp = txn_state->durable_timestamp;
+            *timestamp = txn_shared->durable_timestamp;
         }
 
         if (op->type == WT_TXN_OP_REF_DELETE)
@@ -483,7 +483,7 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      * If there is no active checkpoint or this handle is up to date with the active checkpoint then
      * it's safe to ignore the checkpoint ID in the visibility check.
      */
-    checkpoint_pinned = txn_global->checkpoint_state.pinned_id;
+    checkpoint_pinned = txn_global->checkpoint_txn_shared.pinned_id;
     if (checkpoint_pinned == WT_TXN_NONE || WT_TXNID_LT(oldest_id, checkpoint_pinned))
         return (oldest_id);
 
@@ -944,10 +944,10 @@ static inline int
 __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
-    WT_TXN_SHARED *txn_state;
+    WT_TXN_SHARED *txn_shared;
 
     txn = &session->txn;
-    txn_state = WT_SESSION_TXN_SHARED(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
      * Check the published snap_min because read-uncommitted never sets WT_TXN_HAS_SNAPSHOT. We
@@ -956,7 +956,7 @@ __wt_txn_idle_cache_check(WT_SESSION_IMPL *session)
      * necessary.
      */
     if (F_ISSET(txn, WT_TXN_RUNNING) && !F_ISSET(txn, WT_TXN_HAS_ID) &&
-      txn_state->pinned_id == WT_TXN_NONE)
+      txn_shared->pinned_id == WT_TXN_NONE)
         WT_RET(__wt_cache_eviction_check(session, false, true, NULL));
 
     return (0);
@@ -970,11 +970,11 @@ static inline uint64_t
 __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 {
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_SHARED *txn_state;
+    WT_TXN_SHARED *txn_shared;
     uint64_t id;
 
     txn_global = &S2C(session)->txn_global;
-    txn_state = WT_SESSION_TXN_SHARED(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
      * Allocating transaction IDs involves several steps.
@@ -996,12 +996,12 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
      * well defined, we must use an atomic increment here.
      */
     if (publish) {
-        WT_PUBLISH(txn_state->is_allocating, true);
-        WT_PUBLISH(txn_state->id, txn_global->current);
+        WT_PUBLISH(txn_shared->is_allocating, true);
+        WT_PUBLISH(txn_shared->id, txn_global->current);
         id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
         session->txn.id = id;
-        WT_PUBLISH(txn_state->id, id);
-        WT_PUBLISH(txn_state->is_allocating, false);
+        WT_PUBLISH(txn_shared->id, id);
+        WT_PUBLISH(txn_shared->is_allocating, false);
     } else
         id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
 
@@ -1047,9 +1047,9 @@ static inline int
 __wt_txn_search_check(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
-    WT_TXN_SHARED *txn_state;
+    WT_TXN_SHARED *txn_shared;
 
-    txn_state = WT_SESSION_TXN_SHARED(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
     btree = S2BT(session);
     /*
      * If the user says a table should always use a read timestamp, verify this transaction has one.
@@ -1057,12 +1057,12 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
      */
     if (!F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
       FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_ALWAYS) &&
-      !F_ISSET(txn_state, WT_TXN_PUBLIC_TS_READ))
+      !F_ISSET(txn_shared, WT_TXN_PUBLIC_TS_READ))
         WT_RET_MSG(session, EINVAL,
           "read_timestamp required and "
           "none set on this transaction");
     if (FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_NEVER) &&
-      F_ISSET(txn_state, WT_TXN_PUBLIC_TS_READ))
+      F_ISSET(txn_shared, WT_TXN_PUBLIC_TS_READ))
         WT_RET_MSG(session, EINVAL,
           "no read_timestamp required and "
           "timestamp set on this transaction");
@@ -1163,11 +1163,11 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_SHARED *txn_state;
+    WT_TXN_SHARED *txn_shared;
 
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
-    txn_state = WT_SESSION_TXN_SHARED(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
      * We are about to read data, which means we need to protect against
@@ -1187,10 +1187,10 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
      * positioned on a value, it can't be freed.
      */
     if (txn->isolation == WT_ISO_READ_UNCOMMITTED) {
-        if (txn_state->pinned_id == WT_TXN_NONE)
-            txn_state->pinned_id = txn_global->last_running;
-        if (txn_state->metadata_pinned == WT_TXN_NONE)
-            txn_state->metadata_pinned = txn_state->pinned_id;
+        if (txn_shared->pinned_id == WT_TXN_NONE)
+            txn_shared->pinned_id = txn_global->last_running;
+        if (txn_shared->metadata_pinned == WT_TXN_NONE)
+            txn_shared->metadata_pinned = txn_shared->pinned_id;
     } else if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         __wt_txn_get_snapshot(session);
 }

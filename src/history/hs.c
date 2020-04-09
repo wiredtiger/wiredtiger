@@ -851,10 +851,10 @@ err:
 static void
 __hs_restore_read_timestamp(WT_SESSION_IMPL *session)
 {
-    WT_TXN_SHARED *txn_state;
+    WT_TXN_SHARED *txn_shared;
 
-    txn_state = WT_SESSION_TXN_SHARED(session);
-    session->txn.read_timestamp = txn_state->pinned_read_timestamp;
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+    session->txn.read_timestamp = txn_shared->pinned_read_timestamp;
 }
 
 /*

@@ -46,7 +46,7 @@ typedef enum {
 
 #define WT_TXNID_LT(t1, t2) ((t1) < (t2))
 
-#define WT_SESSION_TXN_SHARED(s) (&S2C(s)->txn_global.states[(s)->id])
+#define WT_SESSION_TXN_SHARED(s) (&S2C(s)->txn_global.txn_shared_list[(s)->id])
 
 #define WT_SESSION_IS_CHECKPOINT(s) ((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
 
@@ -77,26 +77,26 @@ typedef enum {
  * snap_min forwards (or updates we need could be freed while this operation is
  * in progress).  Check for those cases: the bugs they cause are hard to debug.
  */
-#define WT_WITH_TXN_ISOLATION(s, iso, op)                                 \
-    do {                                                                  \
-        WT_TXN_ISOLATION saved_iso = (s)->isolation;                      \
-        WT_TXN_ISOLATION saved_txn_iso = (s)->txn.isolation;              \
-        WT_TXN_SHARED *txn_state = WT_SESSION_TXN_SHARED(s);              \
-        WT_TXN_SHARED saved_state = *txn_state;                           \
-        (s)->txn.forced_iso++;                                            \
-        (s)->isolation = (s)->txn.isolation = (iso);                      \
-        op;                                                               \
-        (s)->isolation = saved_iso;                                       \
-        (s)->txn.isolation = saved_txn_iso;                               \
-        WT_ASSERT((s), (s)->txn.forced_iso > 0);                          \
-        (s)->txn.forced_iso--;                                            \
-        WT_ASSERT((s), txn_state->id == saved_state.id &&                 \
-            (txn_state->metadata_pinned == saved_state.metadata_pinned || \
-                         saved_state.metadata_pinned == WT_TXN_NONE) &&   \
-            (txn_state->pinned_id == saved_state.pinned_id ||             \
-                         saved_state.pinned_id == WT_TXN_NONE));          \
-        txn_state->metadata_pinned = saved_state.metadata_pinned;         \
-        txn_state->pinned_id = saved_state.pinned_id;                     \
+#define WT_WITH_TXN_ISOLATION(s, iso, op)                                       \
+    do {                                                                        \
+        WT_TXN_ISOLATION saved_iso = (s)->isolation;                            \
+        WT_TXN_ISOLATION saved_txn_iso = (s)->txn.isolation;                    \
+        WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(s);                   \
+        WT_TXN_SHARED saved_txn_shared = *txn_shared;                           \
+        (s)->txn.forced_iso++;                                                  \
+        (s)->isolation = (s)->txn.isolation = (iso);                            \
+        op;                                                                     \
+        (s)->isolation = saved_iso;                                             \
+        (s)->txn.isolation = saved_txn_iso;                                     \
+        WT_ASSERT((s), (s)->txn.forced_iso > 0);                                \
+        (s)->txn.forced_iso--;                                                  \
+        WT_ASSERT((s), txn_shared->id == saved_txn_shared.id &&                 \
+            (txn_shared->metadata_pinned == saved_txn_shared.metadata_pinned || \
+                         saved_txn_shared.metadata_pinned == WT_TXN_NONE) &&    \
+            (txn_shared->pinned_id == saved_txn_shared.pinned_id ||             \
+                         saved_txn_shared.pinned_id == WT_TXN_NONE));           \
+        txn_shared->metadata_pinned = saved_txn_shared.metadata_pinned;         \
+        txn_shared->pinned_id = saved_txn_shared.pinned_id;                     \
     } while (0)
 
 struct __wt_txn_shared {
@@ -211,14 +211,14 @@ struct __wt_txn_global {
      */
     volatile bool checkpoint_running;    /* Checkpoint running */
     volatile uint32_t checkpoint_id;     /* Checkpoint's session ID */
-    WT_TXN_SHARED checkpoint_state;      /* Checkpoint's txn state */
+    WT_TXN_SHARED checkpoint_txn_shared; /* Checkpoint's txn shared state */
     wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */
 
     volatile uint64_t debug_ops;       /* Debug mode op counter */
     uint64_t debug_rollback;           /* Debug mode rollback */
     volatile uint64_t metadata_pinned; /* Oldest ID for metadata */
 
-    WT_TXN_SHARED *states; /* Per-session transaction states */
+    WT_TXN_SHARED *txn_shared_list; /* Per-session shared transaction states */
 };
 
 typedef enum __wt_txn_isolation {
