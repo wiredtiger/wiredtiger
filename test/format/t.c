@@ -285,8 +285,9 @@ main(int argc, char *argv[])
             wts_init();
             TIMED_MAJOR_OP(wts_load()); /* Load and verify initial records */
             TIMED_MAJOR_OP(wts_verify("post-bulk verify"));
-            TIMED_MAJOR_OP(wts_read_scan());
         }
+
+        TIMED_MAJOR_OP(wts_read_scan());
 
         /* Operations. */
         for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
