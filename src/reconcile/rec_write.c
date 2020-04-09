@@ -1579,6 +1579,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     }
 
     dsk->unused = 0;
+    dsk->version = WT_PAGE_VERSION_TS;
 
     /* Clear the memory owned by the block manager. */
     memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);
