@@ -345,31 +345,6 @@ __wt_metadata_salvage(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_metadata_uri_to_btree_id --
- *     Given a uri, find the btree id from the metadata. WT_NOTFOUND is returned for a non-file uri.
- */
-int
-__wt_metadata_uri_to_btree_id(WT_SESSION_IMPL *session, const char *uri, uint32_t *btree_id)
-{
-    WT_CONFIG_ITEM id;
-    WT_DECL_RET;
-    char *value;
-
-    value = NULL;
-
-    if (!WT_PREFIX_MATCH(uri, "file:"))
-        return (WT_NOTFOUND);
-
-    WT_ERR(__wt_metadata_search(session, uri, &value));
-    WT_ERR(__wt_config_getones(session, value, "id", &id));
-    *btree_id = (uint32_t)id.val;
-
-err:
-    __wt_free(session, value);
-    return (ret);
-}
-
-/*
  * __wt_metadata_btree_id_to_uri --
  *     Given a btree id, find the matching entry in the metadata and return a copy of the uri. The
  *     caller has to free the returned uri.

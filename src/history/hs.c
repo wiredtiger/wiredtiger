@@ -1314,8 +1314,8 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri, uint32
                 data_cursor = NULL;
             }
             /*
-             * If we've been given a URI just use it. No need to recompute it from the id. That
-	     * can be very expensive if there are a lot of tables in the metadata.
+             * If we've been given a URI just use it. No need to recompute it from the id. That can
+             * be very expensive if there are a lot of tables in the metadata.
              */
             if (uri != NULL)
                 uri_data = (char *)uri;
@@ -1361,7 +1361,7 @@ err:
 
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &prev_hs_key);
-    if (uri != NULL)
+    if (uri == NULL)
         __wt_free(session, uri_data);
     return (ret);
 }
