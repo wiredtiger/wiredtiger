@@ -524,7 +524,8 @@ __inmem_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, ui
 
 /*
  * __inmem_row_leaf_tombstone --
- *     Add tombstones required by 4.4 downgrade.
+ *     Add row-store tombstones required by 4.4 downgrade. (Similar code is not included for
+ *     column-store, MongoDB does not use the column-store functionality.)
  */
 static int
 __inmem_row_leaf_tombstone(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, size_t *sizep)
