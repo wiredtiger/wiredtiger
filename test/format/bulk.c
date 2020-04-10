@@ -166,8 +166,10 @@ wts_load(void)
             }
 
             /*
-             * If Decrease inserts, they won't be successful if we're at the cache limit, and
-             * increase the delete percentage to get some extra space once the run starts.
+             * Decrease inserts since they won't be successful if we're hitting cache limits, and
+             * increase the delete percentage to get some extra space once the run starts. We can't
+             * simply modify the values because they have to equal 100 when the database is reopened
+             * (we are going to rewrite the CONFIG file, too).
              */
             if (g.c_insert_pct > 5) {
                 g.c_delete_pct += g.c_insert_pct - 5;
