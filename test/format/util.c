@@ -108,12 +108,6 @@ path_setup(const char *home)
     g.home_log = dmalloc(len);
     testutil_check(__wt_snprintf(g.home_log, len, "%s/%s", g.home, name));
 
-    /* Statistics file. */
-    name = "OPERATIONS.stats";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_stats = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_stats, len, "%s/%s", g.home, name));
-
     /* History store dump file. */
     name = "FAIL.HSdump";
     len = strlen(g.home) + strlen(name) + 2;
@@ -126,21 +120,11 @@ path_setup(const char *home)
     g.home_pagedump = dmalloc(len);
     testutil_check(__wt_snprintf(g.home_pagedump, len, "%s/%s", g.home, name));
 
-    /* Primary backup directory. */
-    len = strlen(g.home) + strlen("BACKUP") + 2;
-    g.home_backup = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_backup, len, "%s/%s", g.home, "BACKUP"));
-
-/*
- * Backup directory initialize command, remove and re-create the primary backup directory, plus a
- * copy we maintain for recovery testing.
- */
-#define HOME_BACKUP_INIT_CMD "rm -rf %s/%s %s/%s && mkdir %s/%s %s/%s"
-    len = strlen(g.home) * 4 + strlen("BACKUP") * 2 + strlen("BACKUP.COPY") * 2 +
-      strlen(HOME_BACKUP_INIT_CMD) + 1;
-    g.home_backup_init = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_backup_init, len, HOME_BACKUP_INIT_CMD, g.home, "BACKUP",
-      g.home, "BACKUP.COPY", g.home, "BACKUP", g.home, "BACKUP.COPY"));
+    /* Statistics file. */
+    name = "OPERATIONS.stats";
+    len = strlen(g.home) + strlen(name) + 2;
+    g.home_stats = dmalloc(len);
+    testutil_check(__wt_snprintf(g.home_stats, len, "%s/%s", g.home, name));
 }
 
 /*

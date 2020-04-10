@@ -71,17 +71,15 @@ typedef struct {
     bool replay;              /* Replaying a run. */
     bool workers_finished;    /* Operations completed */
 
-    char *home;             /* Home directory */
-    char *home_backup;      /* Hot-backup directory */
-    char *home_backup_init; /* Initialize backup command */
-    char *home_config;      /* Run CONFIG file path */
-    char *home_hsdump;      /* HS dump filename */
-    char *home_init;        /* Initialize home command */
-    char *home_key;         /* Key file filename */
-    char *home_log;         /* Operation log file path */
-    char *home_pagedump;    /* Page dump filename */
-    char *home_rand;        /* RNG log file path */
-    char *home_stats;       /* Statistics file path */
+    char *home;          /* Home directory */
+    char *home_config;   /* Run CONFIG file path */
+    char *home_hsdump;   /* HS dump filename */
+    char *home_init;     /* Initialize home command */
+    char *home_key;      /* Key file filename */
+    char *home_log;      /* Operation log file path */
+    char *home_pagedump; /* Page dump filename */
+    char *home_rand;     /* RNG log file path */
+    char *home_stats;    /* Statistics file path */
 
     char *config_open;                     /* Command-line configuration */
     char wiredtiger_open_config[8 * 1024]; /* Database open config */
