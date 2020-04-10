@@ -156,9 +156,6 @@ wts_load(void)
          * case, guaranteeing the load succeeds probably means future updates are also guaranteed to
          * succeed, which isn't what we want. If we run out of space in the initial load, reset the
          * row counter and continue.
-         *
-         * Decrease inserts, they can't be successful if we're at the cache limit, and increase the
-         * delete percentage to get some extra space once the run starts.
          */
         if ((ret = cursor->insert(cursor)) != 0) {
             testutil_assert(ret == WT_CACHE_FULL || ret == WT_ROLLBACK);
@@ -168,10 +165,22 @@ wts_load(void)
                 bulk_begin_transaction(session);
             }
 
-            if (g.c_insert_pct > 5)
+            /*
+             * If Decrease inserts, they won't be successful if we're at the cache limit, and
+             * increase the delete percentage to get some extra space once the run starts.
+             */
+            if (g.c_insert_pct > 5) {
+                g.c_delete_pct += g.c_insert_pct - 5;
                 g.c_insert_pct = 5;
-            if (g.c_delete_pct < 20)
-                g.c_delete_pct += 20;
+            }
+            if (g.c_delete_pct < 20) {
+                g.c_delete_pct += g.c_write_pct / 2;
+                g.c_write_pct = g.c_write_pct / 2;
+            }
+            if (g.c_delete_pct < 20) {
+                g.c_delete_pct += g.c_modify_pct / 2;
+                g.c_write_pct = g.c_modify_pct / 2;
+            }
             break;
         }
     }

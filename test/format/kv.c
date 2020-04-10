@@ -32,33 +32,59 @@
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #endif
 
+/*
+ * key_init --
+ *     Initialize the keys for a run.
+ */
 void
 key_init(void)
 {
+    FILE *fp;
     size_t i;
     uint32_t max;
 
     /*
-     * The key is a variable length item with a leading 10-digit value.
-     * Since we have to be able re-construct it from the record number
-     * (when doing row lookups), we pre-load a set of random lengths in
-     * a lookup table, and then use the record number to choose one of
-     * the pre-loaded lengths.
+     * The key is a variable length item with a leading 10-digit value. Since we have to be able
+     * re-construct it from the record number (when doing row lookups), we pre-load a set of random
+     * lengths in a lookup table, and then use the record number to choose one of the pre-loaded
+     * lengths.
      *
+     * Read in the values during reopen.
+     */
+    if (g.reopen) {
+        if ((fp = fopen(g.home_key, "r")) == NULL)
+            testutil_die(errno, "%s", g.home_key);
+        for (i = 0; i < WT_ELEMENTS(g.key_rand_len); ++i)
+            fp_readv(fp, g.home_key, false, &g.key_rand_len[i]);
+        fclose_and_clear(&fp);
+        return;
+    }
+
+    /*
      * Fill in the random key lengths.
      *
-     * Focus on relatively small items, admitting the possibility of larger
-     * items. Pick a size close to the minimum most of the time, only create
-     * a larger item 1 in 20 times.
+     * Focus on relatively small items, admitting the possibility of larger items. Pick a size close
+     * to the minimum most of the time, only create a larger item 1 in 20 times.
      */
-    for (i = 0; i < sizeof(g.key_rand_len) / sizeof(g.key_rand_len[0]); ++i) {
+    for (i = 0; i < WT_ELEMENTS(g.key_rand_len); ++i) {
         max = g.c_key_max;
         if (i % 20 != 0 && max > g.c_key_min + 20)
             max = g.c_key_min + 20;
         g.key_rand_len[i] = mmrand(NULL, g.c_key_min, max);
     }
+
+    /* Write out the values for a subsequent reopen. */
+    if ((fp = fopen(g.home_key, "w")) == NULL)
+        testutil_die(errno, "%s", g.home_key);
+    for (i = 0; i < WT_ELEMENTS(g.key_rand_len); ++i)
+        fprintf(fp, "%" PRIu32 "\n", g.key_rand_len[i]);
+    fclose_and_clear(&fp);
 }
 
+/*
+ * key_gen_init --
+ *     Initialize the key structures for a run.
+ */
 void
 key_gen_init(WT_ITEM *key)
 {
@@ -76,6 +102,10 @@ key_gen_init(WT_ITEM *key)
     key->size = 0;
 }
 
+/*
+ * key_gen_teardown --
+ *     Tear down the key structures.
+ */
 void
 key_gen_teardown(WT_ITEM *key)
 {
@@ -83,7 +113,11 @@ key_gen_teardown(WT_ITEM *key)
     memset(key, 0, sizeof(*key));
 }
 
-static void
+/*
+ * key_gen_common --
+ *     Key generation code shared between normal and insert key generation.
+ */
+void
 key_gen_common(WT_ITEM *key, uint64_t keyno, const char *const suffix)
 {
     int len;
@@ -120,21 +154,6 @@ key_gen_common(WT_ITEM *key, uint64_t keyno, const char *const suffix)
 
     key->data = key->mem;
     key->size = (size_t)len;
-}
-
-void
-key_gen(WT_ITEM *key, uint64_t keyno)
-{
-    key_gen_common(key, keyno, "00");
-}
-
-void
-key_gen_insert(WT_RAND_STATE *rnd, WT_ITEM *key, uint64_t keyno)
-{
-    static const char *const suffix[15] = {
-      "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15"};
-
-    key_gen_common(key, keyno, suffix[mmrand(rnd, 0, 14)]);
 }
 
 static char *val_base;            /* Base/original value */

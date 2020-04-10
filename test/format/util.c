@@ -79,66 +79,52 @@ void
 path_setup(const char *home)
 {
     size_t len;
+    const char *name;
 
     /* Home directory. */
     g.home = dstrdup(home == NULL ? "RUNDIR" : home);
 
-    /* Log file. */
-    len = strlen(g.home) + strlen("log") + 2;
-    g.home_log = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_log, len, "%s/%s", g.home, "log"));
+    /* Configuration file. */
+    name = "CONFIG";
+    len = strlen(g.home) + strlen(name) + 2;
+    g.home_config = dmalloc(len);
+    testutil_check(__wt_snprintf(g.home_config, len, "%s/%s", g.home, name));
 
-    /* History store dump file. */
-    len = strlen(g.home) + strlen("HSdump") + 2;
-    g.home_hsdump = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_hsdump, len, "%s/%s", g.home, "HSdump"));
-
-    /* Page dump file. */
-    len = strlen(g.home) + strlen("pagedump") + 2;
-    g.home_pagedump = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_pagedump, len, "%s/%s", g.home, "pagedump"));
+    /* Key length configuration file. */
+    name = "CONFIG.keylen";
+    len = strlen(g.home) + strlen(name) + 2;
+    g.home_key = dmalloc(len);
+    testutil_check(__wt_snprintf(g.home_key, len, "%s/%s", g.home, name));
 
     /* RNG log file. */
-    len = strlen(g.home) + strlen("rand") + 2;
+    name = "CONFIG.rand";
+    len = strlen(g.home) + strlen(name) + 2;
     g.home_rand = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_rand, len, "%s/%s", g.home, "rand"));
+    testutil_check(__wt_snprintf(g.home_rand, len, "%s/%s", g.home, name));
 
-    /* Run file. */
-    len = strlen(g.home) + strlen("CONFIG") + 2;
-    g.home_config = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_config, len, "%s/%s", g.home, "CONFIG"));
+    /* Log file. */
+    name = "OPERATIONS.log";
+    len = strlen(g.home) + strlen(name) + 2;
+    g.home_log = dmalloc(len);
+    testutil_check(__wt_snprintf(g.home_log, len, "%s/%s", g.home, name));
 
     /* Statistics file. */
-    len = strlen(g.home) + strlen("stats") + 2;
+    name = "OPERATIONS.stats";
+    len = strlen(g.home) + strlen(name) + 2;
     g.home_stats = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_stats, len, "%s/%s", g.home, "stats"));
+    testutil_check(__wt_snprintf(g.home_stats, len, "%s/%s", g.home, name));
 
-/*
- * Home directory initialize command: create the directory if it doesn't exist, else remove
- * everything except the RNG log file.
- *
- * Redirect the "cd" command to /dev/null so chatty cd implementations don't add the new working
- * directory to our output.
- */
-#undef CMD
-#ifdef _WIN32
-#define CMD                                             \
-    "del /q rand.copy & "                               \
-    "(IF EXIST %s\\rand copy /y %s\\rand rand.copy) & " \
-    "(IF EXIST %s rd /s /q %s) & mkdir %s & "           \
-    "(IF EXIST rand.copy copy rand.copy %s\\rand)"
-    len = strlen(g.home) * 7 + strlen(CMD) + 1;
-    g.home_init = dmalloc(len);
-    testutil_check(
-      __wt_snprintf(g.home_init, len, CMD, g.home, g.home, g.home, g.home, g.home, g.home, g.home));
-#else
-#define CMD                    \
-    "test -e %s || mkdir %s; " \
-    "cd %s > /dev/null && rm -rf `ls | sed /rand/d`"
-    len = strlen(g.home) * 3 + strlen(CMD) + 1;
-    g.home_init = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_init, len, CMD, g.home, g.home, g.home));
-#endif
+    /* History store dump file. */
+    name = "FAIL.HSdump";
+    len = strlen(g.home) + strlen(name) + 2;
+    g.home_hsdump = dmalloc(len);
+    testutil_check(__wt_snprintf(g.home_hsdump, len, "%s/%s", g.home, name));
+
+    /* Page dump file. */
+    name = "FAIL.pagedump";
+    len = strlen(g.home) + strlen(name) + 2;
+    g.home_pagedump = dmalloc(len);
+    testutil_check(__wt_snprintf(g.home_pagedump, len, "%s/%s", g.home, name));
 
     /* Primary backup directory. */
     len = strlen(g.home) + strlen("BACKUP") + 2;
@@ -149,38 +135,39 @@ path_setup(const char *home)
  * Backup directory initialize command, remove and re-create the primary backup directory, plus a
  * copy we maintain for recovery testing.
  */
-#undef CMD
-#ifdef _WIN32
-#define CMD "rd /s /q %s\\%s %s\\%s & mkdir %s\\%s %s\\%s"
-#else
-#define CMD "rm -rf %s/%s %s/%s && mkdir %s/%s %s/%s"
-#endif
-    len = strlen(g.home) * 4 + strlen("BACKUP") * 2 + strlen("BACKUP_COPY") * 2 + strlen(CMD) + 1;
+#define HOME_BACKUP_INIT_CMD "rm -rf %s/%s %s/%s && mkdir %s/%s %s/%s"
+    len = strlen(g.home) * 4 + strlen("BACKUP") * 2 + strlen("BACKUP.COPY") * 2 +
+      strlen(HOME_BACKUP_INIT_CMD) + 1;
     g.home_backup_init = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_backup_init, len, CMD, g.home, "BACKUP", g.home,
-      "BACKUP_COPY", g.home, "BACKUP", g.home, "BACKUP_COPY"));
+    testutil_check(__wt_snprintf(g.home_backup_init, len, HOME_BACKUP_INIT_CMD, g.home, "BACKUP",
+      g.home, "BACKUP.COPY", g.home, "BACKUP", g.home, "BACKUP.COPY"));
+}
 
 /*
- * Salvage command, save the interesting files so we can replay the salvage command as necessary.
- *
- * Redirect the "cd" command to /dev/null so chatty cd implementations don't add the new working
- * directory to our output.
+ * fp_readv --
+ *     Read and return a value from a file.
  */
-#undef CMD
-#ifdef _WIN32
-#define CMD                                    \
-    "cd %s && "                                \
-    "rd /q /s slvg.copy & mkdir slvg.copy && " \
-    "copy WiredTiger* slvg.copy\\ >:nul && copy wt* slvg.copy\\ >:nul"
-#else
-#define CMD                                   \
-    "cd %s > /dev/null && "                   \
-    "rm -rf slvg.copy && mkdir slvg.copy && " \
-    "cp WiredTiger* wt* slvg.copy/"
-#endif
-    len = strlen(g.home) + strlen(CMD) + 1;
-    g.home_salvage_copy = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_salvage_copy, len, CMD, g.home));
+bool
+fp_readv(FILE *fp, char *name, bool eof_ok, uint32_t *vp)
+{
+    u_long ulv;
+    char *endptr, buf[100];
+
+    if (fgets(buf, sizeof(buf), fp) == NULL) {
+        if (feof(g.randfp)) {
+            if (eof_ok)
+                return (true);
+            testutil_die(errno, "%s: read-value EOF", name);
+        }
+        testutil_die(errno, "%s: read-value error", name);
+    }
+
+    errno = 0;
+    ulv = strtoul(buf, &endptr, 10);
+    testutil_assert(errno == 0 && endptr[0] == '\n');
+    testutil_assert(ulv <= UINT32_MAX);
+    *vp = ulv;
+    return (false);
 }
 
 /*
@@ -190,30 +177,20 @@ path_setup(const char *home)
 uint32_t
 rng_slow(WT_RAND_STATE *rnd)
 {
-    u_long ulv;
     uint32_t v;
-    char *endptr, buf[64];
 
     /*
      * We can reproduce a single-threaded run based on the random numbers used in the initial run,
      * plus the configuration files.
      */
     if (g.replay) {
-        if (fgets(buf, sizeof(buf), g.randfp) == NULL) {
-            if (feof(g.randfp)) {
-                fprintf(stderr,
-                  "\n"
-                  "end of random number log reached\n");
-                exit(EXIT_SUCCESS);
-            }
-            testutil_die(errno, "random number log");
+        if (fp_readv(g.randfp, g.home_rand, true, &v)) {
+            fprintf(stderr,
+              "\n"
+              "end of random number log reached\n");
+            exit(EXIT_SUCCESS);
         }
-
-        errno = 0;
-        ulv = strtoul(buf, &endptr, 10);
-        testutil_assert(errno == 0 && endptr[0] == '\n');
-        testutil_assert(ulv <= UINT32_MAX);
-        return ((uint32_t)ulv);
+        return (v);
     }
 
     v = __wt_random(rnd);
@@ -265,7 +242,6 @@ fclose_and_clear(FILE **fpp)
     *fpp = NULL;
     if (fclose(fp) != 0)
         testutil_die(errno, "fclose");
-    return;
 }
 
 /*

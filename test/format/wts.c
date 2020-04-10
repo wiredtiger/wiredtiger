@@ -29,6 +29,17 @@
 #include "format.h"
 
 /*
+ * Home directory initialize command: create the directory if it doesn't exist, else remove
+ * everything except the RNG log file.
+ *
+ * Redirect the "cd" command to /dev/null so chatty cd implementations don't add the new working
+ * directory to our output.
+ */
+#define FORMAT_HOME_INIT_CMD   \
+    "test -e %s || mkdir %s; " \
+    "cd %s > /dev/null && rm -rf `ls | sed /CONFIG.rand/d`"
+
+/*
  * wts_create --
  *     Create the database home.
  */
@@ -36,10 +47,15 @@ void
 wts_create(void)
 {
     WT_DECL_RET;
+    size_t len;
+    char *cmd;
 
-    if ((ret = system(g.home_init)) == 0)
-        return;
-    testutil_die(ret, "home initialization (\"%s\") failed", g.home_init);
+    len = strlen(g.home) * 3 + strlen(FORMAT_HOME_INIT_CMD) + 1;
+    cmd = dmalloc(len);
+    testutil_check(__wt_snprintf(cmd, len, FORMAT_HOME_INIT_CMD, g.home, g.home, g.home));
+    if ((ret = system(cmd)) != 0)
+        testutil_die(ret, "home initialization (\"%s\") failed", cmd);
+    free(cmd);
 }
 
 /*

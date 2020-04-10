@@ -71,17 +71,17 @@ typedef struct {
     bool replay;              /* Replaying a run. */
     bool workers_finished;    /* Operations completed */
 
-    char *home;              /* Home directory */
-    char *home_backup;       /* Hot-backup directory */
-    char *home_backup_init;  /* Initialize backup command */
-    char *home_config;       /* Run CONFIG file path */
-    char *home_init;         /* Initialize home command */
-    char *home_hsdump;       /* HS dump filename */
-    char *home_log;          /* Operation log file path */
-    char *home_pagedump;     /* Page dump filename */
-    char *home_rand;         /* RNG log file path */
-    char *home_salvage_copy; /* Salvage copy command */
-    char *home_stats;        /* Statistics file path */
+    char *home;             /* Home directory */
+    char *home_backup;      /* Hot-backup directory */
+    char *home_backup_init; /* Initialize backup command */
+    char *home_config;      /* Run CONFIG file path */
+    char *home_hsdump;      /* HS dump filename */
+    char *home_init;        /* Initialize home command */
+    char *home_key;         /* Key file filename */
+    char *home_log;         /* Operation log file path */
+    char *home_pagedump;    /* Page dump filename */
+    char *home_rand;        /* RNG log file path */
+    char *home_stats;       /* Statistics file path */
 
     char *config_open;                     /* Command-line configuration */
     char wiredtiger_open_config[8 * 1024]; /* Database open config */
@@ -95,7 +95,7 @@ typedef struct {
     FILE *logfp;  /* log file */
 
     pthread_rwlock_t backup_lock; /* Backup running */
-    uint32_t backup_id;           /* Block incremental id */
+    uint64_t backup_id;           /* Block incremental id */
 
     WT_RAND_STATE rnd; /* Global RNG state */
 
@@ -346,11 +346,11 @@ void config_final(void);
 void config_print(bool);
 void config_single(const char *, bool);
 void fclose_and_clear(FILE **);
+bool fp_readv(FILE *, char *, bool, uint32_t *);
 void handle_init(void);
 void handle_teardown(void);
-void key_gen(WT_ITEM *, uint64_t);
+void key_gen_common(WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
-void key_gen_insert(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void key_gen_teardown(WT_ITEM *);
 void key_init(void);
 void operations(u_int, bool);

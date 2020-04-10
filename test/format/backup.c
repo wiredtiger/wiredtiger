@@ -171,7 +171,7 @@ again:
 #endif
             error_sys_check(unlink(filename));
             testutil_check(__wt_snprintf(
-              filename, sizeof(filename), "%s/BACKUP_COPY/%s", g.home, prev->names[prevpos]));
+              filename, sizeof(filename), "%s/BACKUP.COPY/%s", g.home, prev->names[prevpos]));
             error_sys_check(unlink(filename));
         } else {
             /*
@@ -227,7 +227,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
     /*
      * Save another copy of the original file to make debugging recovery errors easier.
      */
-    len = strlen(g.home) + strlen("BACKUP_COPY") + strlen(name) + 10;
+    len = strlen(g.home) + strlen("BACKUP.COPY") + strlen(name) + 10;
     second = dmalloc(len);
     testutil_check(__wt_snprintf(config, sizeof(config), "incremental=(file=%s)", name));
 
@@ -245,7 +245,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
              * prepend the home directory to the file names ourselves.
              */
             testutil_check(__wt_snprintf(first, len, "%s/BACKUP/%s", g.home, name));
-            testutil_check(__wt_snprintf(second, len, "%s/BACKUP_COPY/%s", g.home, name));
+            testutil_check(__wt_snprintf(second, len, "%s/BACKUP.COPY/%s", g.home, name));
             if (tmp_sz < size) {
                 tmp = drealloc(tmp, size);
                 tmp_sz = size;
@@ -270,7 +270,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
              * directory to the name for us.
              */
             testutil_check(__wt_snprintf(first, len, "BACKUP/%s", name));
-            testutil_check(__wt_snprintf(second, len, "BACKUP_COPY/%s", name));
+            testutil_check(__wt_snprintf(second, len, "BACKUP.COPY/%s", name));
             testutil_assert(type == WT_BACKUP_FILE);
             testutil_assert(rfd == -1);
             testutil_assert(first_pass == true);
@@ -306,9 +306,9 @@ copy_file(WT_SESSION *session, const char *name)
     /*
      * Save another copy of the original file to make debugging recovery errors easier.
      */
-    len = strlen("BACKUP_COPY") + strlen(name) + 10;
+    len = strlen("BACKUP.COPY") + strlen(name) + 10;
     second = dmalloc(len);
-    testutil_check(__wt_snprintf(second, len, "BACKUP_COPY/%s", name));
+    testutil_check(__wt_snprintf(second, len, "BACKUP.COPY/%s", name));
     testutil_check(__wt_copy_and_sync(session, first, second));
 
     free(first);
@@ -336,6 +336,9 @@ backup(void *arg)
     (void)(arg);
 
     conn = g.wts_conn;
+
+    /* Guarantee backup ID uniqueness, we might be reopening an existing database. */
+    __wt_seconds(NULL, &g.backup_id);
 
     /* Open a session. */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
@@ -378,7 +381,7 @@ backup(void *arg)
                 active_now = &active[g.backup_id % 2];
                 active_prev = NULL;
                 testutil_check(__wt_snprintf(
-                  cfg, sizeof(cfg), "incremental=(enabled,this_id=ID%" PRIu32 ")", g.backup_id++));
+                  cfg, sizeof(cfg), "incremental=(enabled,this_id=ID%" PRIu64 ")", g.backup_id++));
                 full = true;
                 incr_full = false;
             } else {
@@ -388,7 +391,7 @@ backup(void *arg)
                     active_now = &active[0];
                 src_id = g.backup_id - 1;
                 testutil_check(__wt_snprintf(cfg, sizeof(cfg),
-                  "incremental=(enabled,src_id=ID%u,this_id=ID%" PRIu32 ")", src_id,
+                  "incremental=(enabled,src_id=ID%u,this_id=ID%" PRIu64 ")", src_id,
                   g.backup_id++));
                 /* Restart a full incremental every once in a while. */
                 full = false;
