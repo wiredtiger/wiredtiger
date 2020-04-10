@@ -150,7 +150,7 @@ fp_readv(FILE *fp, char *name, bool eof_ok, uint32_t *vp)
     ulv = strtoul(buf, &endptr, 10);
     testutil_assert(errno == 0 && endptr[0] == '\n');
     testutil_assert(ulv <= UINT32_MAX);
-    *vp = ulv;
+    *vp = (uint32_t)ulv;
     return (false);
 }
 
