@@ -343,7 +343,7 @@ backup(void *arg)
     WT_SESSION *session;
     size_t len;
     u_int incremental, period;
-    uint32_t src_id;
+    uint64_t src_id;
     const char *config, *key;
     char cfg[512], *cmd;
     bool full, incr_full;
@@ -406,7 +406,7 @@ backup(void *arg)
                     active_now = &active[0];
                 src_id = g.backup_id - 1;
                 testutil_check(__wt_snprintf(cfg, sizeof(cfg),
-                  "incremental=(enabled,src_id=ID%u,this_id=ID%" PRIu64 ")", src_id,
+                  "incremental=(enabled,src_id=ID%" PRIu64 ",this_id=ID%" PRIu64 ")", src_id,
                   g.backup_id++));
                 /* Restart a full incremental every once in a while. */
                 full = false;
