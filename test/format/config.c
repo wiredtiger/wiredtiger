@@ -879,6 +879,7 @@ void
 config_error(void)
 {
     CONFIG *cp;
+    size_t max_name;
 
     /* Display configuration names. */
     fprintf(stderr, "\n");
@@ -895,11 +896,10 @@ config_error(void)
     fprintf(stderr, "\n");
     fprintf(stderr, "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n");
     fprintf(stderr, "Configuration names:\n");
+    for (max_name = 0, cp = c; cp->name != NULL; ++cp)
+        max_name = WT_MAX(max_name, strlen(cp->name));
     for (cp = c; cp->name != NULL; ++cp)
-        if (strlen(cp->name) > 25)
-            fprintf(stderr, "%s: %s\n", cp->name, cp->desc);
-        else
-            fprintf(stderr, "%25s: %s\n", cp->name, cp->desc);
+        fprintf(stderr, "%*s: %s\n", (int)max_name, cp->name, cp->desc);
 }
 
 /*
