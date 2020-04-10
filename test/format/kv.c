@@ -28,10 +28,6 @@
 
 #include "format.h"
 
-#ifndef MAX
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
-#endif
-
 /*
  * key_init --
  *     Initialize the keys for a run.
@@ -91,7 +87,7 @@ key_gen_init(WT_ITEM *key)
     size_t i, len;
     char *p;
 
-    len = MAX(KILOBYTE(100), g.c_key_max);
+    len = WT_MAX(KILOBYTE(100), g.c_key_max);
     p = dmalloc(len);
     for (i = 0; i < len; ++i)
         p[i] = "abcdefghijklmnopqrstuvwxyz"[i % 26];
@@ -192,7 +188,7 @@ val_init(void)
      * Add a few extra bytes in order to guarantee we can always offset into the buffer by a few
      * extra bytes, used to generate different data for column-store run-length encoded files.
      */
-    val_len = MAX(KILOBYTE(100), g.c_value_max) + 20;
+    val_len = WT_MAX(KILOBYTE(100), g.c_value_max) + 20;
     val_base = dmalloc(val_len);
     for (i = 0; i < val_len; ++i)
         val_base[i] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i % 26];
