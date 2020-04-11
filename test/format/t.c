@@ -212,7 +212,7 @@ main(int argc, char *argv[])
      */
     if (g.reopen || g.replay) {
         if (config != NULL)
-            testutil_die(EINVAL, "-c incompatible with -r");
+            testutil_die(EINVAL, "-c incompatible with -R or -r");
         if (access(g.home_config, R_OK) != 0)
             testutil_die(ENOENT, "%s", g.home_config);
         config = g.home_config;

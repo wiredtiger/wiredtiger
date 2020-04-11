@@ -214,8 +214,7 @@ config(void)
         config_in_memory_reset();
     if (DATASOURCE("lsm"))
         config_lsm_reset();
-    if (g.backward_compatible != 0)
-        config_backward_compatible();
+    config_backward_compatible();
 
     /*
      * Key/value minimum/maximum are related, correct unless specified by the configuration.
@@ -301,12 +300,30 @@ config_backup(void)
 static void
 config_backward_compatible(void)
 {
-    if (!g.backward_compatible)
+    bool backward_compatible;
+
+    /*
+     * If built in a branch that doesn't support all current options, or creating a database for
+     * such an environment, strip out configurations that won't work.
+     */
+    backward_compatible = g.backward_compatible;
+#if WIREDTIGER_VERSION_MAJOR < 10
+    backward_compatible = true;
+#endif
+    if (!backward_compatible)
         return;
 
-    if (config_is_perm("disk.mmap_all"))
-        testutil_die(EINVAL, "-B option incompatible with mmap_all configuration");
-    config_single("disk.mmap_all=off", false);
+    if (g.c_mmap_all) {
+        if (config_is_perm("disk.mmap_all"))
+            testutil_die(EINVAL, "disk.mmap_all not supported in backward compatibility mode");
+        config_single("disk.mmap_all=off", false);
+    }
+
+    if (g.c_timing_stress_hs_sweep) {
+        if (config_is_perm("stress.hs_sweep"))
+            testutil_die(EINVAL, "stress.hs_sweep not supported in backward compatibility mode");
+        config_single("stress.hs_sweep=off", false);
+    }
 }
 
 /*
