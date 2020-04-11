@@ -101,11 +101,11 @@ random_failure(void)
 TINFO **tinfo_list;
 
 /*
- * wts_ops --
+ * operations --
  *     Perform a number of operations in a set of threads.
  */
 void
-wts_ops(u_int ops_seconds, bool lastrun)
+operations(u_int ops_seconds, bool lastrun)
 {
     TINFO *tinfo, total;
     WT_CONNECTION *conn;
@@ -195,14 +195,25 @@ wts_ops(u_int ops_seconds, bool lastrun)
         testutil_check(__wt_thread_create(NULL, &alter_tid, alter, NULL));
     if (g.c_backups)
         testutil_check(__wt_thread_create(NULL, &backup_tid, backup, NULL));
-    if (g.c_checkpoint_flag == CHECKPOINT_ON)
-        testutil_check(__wt_thread_create(NULL, &checkpoint_tid, checkpoint, NULL));
     if (g.c_compact)
         testutil_check(__wt_thread_create(NULL, &compact_tid, compact, NULL));
     if (g.c_random_cursor)
         testutil_check(__wt_thread_create(NULL, &random_tid, random_kv, NULL));
     if (g.c_txn_timestamps)
         testutil_check(__wt_thread_create(NULL, &timestamp_tid, timestamp, tinfo_list));
+
+    /*
+     * Configuring WiredTiger library checkpoints is done separately, rather than as part of the
+     * original database open because format tests small caches and you can get into cache stuck
+     * trouble during the initial load (where bulk load isn't configured). There's a single thread
+     * doing lots of inserts and creating huge leaf pages. Those pages can't be evicted if there's a
+     * checkpoint running in the tree, and the cache can get stuck. That workload is unlikely enough
+     * we're not going to fix it in the library, so configure it away by delaying checkpoint start.
+     */
+    if (g.c_checkpoint_flag == CHECKPOINT_WIREDTIGER)
+        wts_checkpoints();
+    if (g.c_checkpoint_flag == CHECKPOINT_ON)
+        testutil_check(__wt_thread_create(NULL, &checkpoint_tid, checkpoint, NULL));
 
     /* Spin on the threads, calculating the totals. */
     for (;;) {
@@ -288,8 +299,16 @@ wts_ops(u_int ops_seconds, bool lastrun)
     if (g.logging)
         testutil_check(session->close(session, NULL));
 
-    for (i = 0; i < g.c_threads; ++i)
-        free(tinfo_list[i]);
+    for (i = 0; i < g.c_threads; ++i) {
+        tinfo = tinfo_list[i];
+
+        /*
+         * Assert records were not removed unless configured to do so, otherwise subsequent runs can
+         * incorrect report scan errors.
+         */
+        testutil_assert(g.c_delete_pct != 0 || tinfo->remove == 0);
+        free(tinfo);
+    }
     free(tinfo_list);
 }
 
@@ -532,10 +551,10 @@ prepare_transaction(TINFO *tinfo)
  * When in a transaction on the live table with snapshot isolation, track operations for later
  * repetition.
  */
-#define SNAP_TRACK(tinfo, op)                                          \
-    do {                                                               \
-        if (intxn && !ckpt_handle && iso_config == ISOLATION_SNAPSHOT) \
-            snap_track(tinfo, op);                                     \
+#define SNAP_TRACK(tinfo, op)                          \
+    do {                                               \
+        if (intxn && iso_config == ISOLATION_SNAPSHOT) \
+            snap_track(tinfo, op);                     \
     } while (0)
 
 /*
@@ -543,7 +562,7 @@ prepare_transaction(TINFO *tinfo)
  *     Create a new session/cursor pair for the thread.
  */
 static void
-ops_open_session(TINFO *tinfo, bool *ckpt_handlep)
+ops_open_session(TINFO *tinfo)
 {
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
@@ -559,38 +578,13 @@ ops_open_session(TINFO *tinfo, bool *ckpt_handlep)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
-     * 10% of the time, perform some read-only operations from a checkpoint.
-     * Skip if we are using data-sources or LSM, they don't support reading
-     * from checkpoints.
+     * Configure "append", in the case of column stores, we append when inserting new rows.
+     *
+     * WT_SESSION.open_cursor can return EBUSY if concurrent with a metadata operation, retry.
      */
-    cursor = NULL;
-    if (!DATASOURCE("lsm") && mmrand(&tinfo->rnd, 1, 10) == 1) {
-        /*
-         * WT_SESSION.open_cursor can return EBUSY if concurrent with a metadata operation, retry.
-         */
-        while ((ret = session->open_cursor(
-                  session, g.uri, NULL, "checkpoint=WiredTigerCheckpoint", &cursor)) == EBUSY)
-            __wt_yield();
-
-        /*
-         * If the checkpoint hasn't been created yet, ignore the error.
-         */
-        if (ret != ENOENT) {
-            testutil_check(ret);
-            *ckpt_handlep = true;
-        }
-    }
-    if (cursor == NULL) {
-        /*
-         * Configure "append", in the case of column stores, we append when inserting new rows.
-         *
-         * WT_SESSION.open_cursor can return EBUSY if concurrent with a metadata operation, retry.
-         */
-        while ((ret = session->open_cursor(session, g.uri, NULL, "append", &cursor)) == EBUSY)
-            __wt_yield();
-        testutil_checkfmt(ret, "%s", g.uri);
-        *ckpt_handlep = false;
-    }
+    while ((ret = session->open_cursor(session, g.uri, NULL, "append", &cursor)) == EBUSY)
+        __wt_yield();
+    testutil_checkfmt(ret, "%s", g.uri);
 
     tinfo->session = session;
     tinfo->cursor = cursor;
@@ -611,12 +605,11 @@ ops(void *arg)
     uint64_t reset_op, session_op, truncate_op;
     uint32_t range, rnd;
     u_int i, j, iso_config;
-    bool ckpt_handle, greater_than, intxn, next, positioned, prepared;
+    bool greater_than, intxn, next, positioned, prepared;
 
     tinfo = arg;
 
     iso_config = ISOLATION_RANDOM; /* -Wconditional-uninitialized */
-    ckpt_handle = false;           /* -Wconditional-uninitialized */
 
     /* Tracking of transactional snapshot isolation operations. */
     tinfo->snap = tinfo->snap_first = tinfo->snap_list;
@@ -651,7 +644,7 @@ ops(void *arg)
                 intxn = false;
             }
 
-            ops_open_session(tinfo, &ckpt_handle);
+            ops_open_session(tinfo);
 
             /* Pick the next session/cursor close/open. */
             session_op += mmrand(&tinfo->rnd, 100, 5000);
@@ -676,7 +669,7 @@ ops(void *arg)
          * If not in a transaction, have a live handle and running in a timestamp world,
          * occasionally repeat a timestamped operation.
          */
-        if (!intxn && !ckpt_handle && g.c_txn_timestamps && mmrand(&tinfo->rnd, 1, 15) == 1) {
+        if (!intxn && g.c_txn_timestamps && mmrand(&tinfo->rnd, 1, 15) == 1) {
             ++tinfo->search;
             snap_repeat_single(cursor, tinfo);
         }
@@ -695,22 +688,20 @@ ops(void *arg)
 
         /* Select an operation. */
         op = READ;
-        if (!ckpt_handle) {
-            i = mmrand(&tinfo->rnd, 1, 100);
-            if (i < g.c_delete_pct && tinfo->ops > truncate_op) {
-                op = TRUNCATE;
+        i = mmrand(&tinfo->rnd, 1, 100);
+        if (i < g.c_delete_pct && tinfo->ops > truncate_op) {
+            op = TRUNCATE;
 
-                /* Pick the next truncate operation. */
-                truncate_op += mmrand(&tinfo->rnd, 20000, 100000);
-            } else if (i < g.c_delete_pct)
-                op = REMOVE;
-            else if (i < g.c_delete_pct + g.c_insert_pct)
-                op = INSERT;
-            else if (i < g.c_delete_pct + g.c_insert_pct + g.c_modify_pct)
-                op = MODIFY;
-            else if (i < g.c_delete_pct + g.c_insert_pct + g.c_modify_pct + g.c_write_pct)
-                op = UPDATE;
-        }
+            /* Pick the next truncate operation. */
+            truncate_op += mmrand(&tinfo->rnd, 20000, 100000);
+        } else if (i < g.c_delete_pct)
+            op = REMOVE;
+        else if (i < g.c_delete_pct + g.c_insert_pct)
+            op = INSERT;
+        else if (i < g.c_delete_pct + g.c_insert_pct + g.c_modify_pct)
+            op = MODIFY;
+        else if (i < g.c_delete_pct + g.c_insert_pct + g.c_modify_pct + g.c_write_pct)
+            op = UPDATE;
 
         /* Select a row. */
         tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)g.rows);
@@ -735,7 +726,7 @@ ops(void *arg)
          * Optionally reserve a row. Reserving a row before a read isn't all that sensible, but not
          * unexpected, either.
          */
-        if (intxn && !ckpt_handle && mmrand(&tinfo->rnd, 0, 20) == 1) {
+        if (intxn && mmrand(&tinfo->rnd, 0, 20) == 1) {
             switch (g.type) {
             case ROW:
                 ret = row_reserve(tinfo, cursor, positioned);
@@ -814,7 +805,6 @@ ops(void *arg)
                 READ_OP_FAILED(true);
             break;
         case REMOVE:
-remove_instead_of_truncate:
             switch (g.type) {
             case ROW:
                 ret = row_remove(tinfo, cursor, positioned);
@@ -841,7 +831,7 @@ remove_instead_of_truncate:
              */
             if (__wt_atomic_addv64(&g.truncate_cnt, 1) > 2) {
                 (void)__wt_atomic_subv64(&g.truncate_cnt, 1);
-                goto remove_instead_of_truncate;
+                goto update_instead_of_chosen_op;
             }
 
             if (!positioned)
@@ -955,7 +945,7 @@ update_instead_of_chosen_op:
          * Ending a transaction. If on a live handle and the transaction was configured for snapshot
          * isolation, repeat the operations and confirm the results are unchanged.
          */
-        if (intxn && !ckpt_handle && iso_config == ISOLATION_SNAPSHOT) {
+        if (intxn && iso_config == ISOLATION_SNAPSHOT) {
             __wt_yield(); /* Encourage races */
 
             ret = snap_repeat_txn(cursor, tinfo);
@@ -1051,7 +1041,7 @@ wts_read_scan(void)
     testutil_check(ret);
 
     /* Check a random subset of the records using the key. */
-    for (keyno = 0; keyno < g.key_cnt;) {
+    for (keyno = 0; keyno < g.rows;) {
         keyno += mmrand(NULL, 1, 1000);
         if (keyno > g.rows)
             keyno = g.rows;
@@ -1208,9 +1198,12 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
         /*
          * Compare the returned key with the previously returned key, and assert the order is
          * correct. If not deleting keys, and the rows aren't in the column-store insert name space,
-         * also assert we don't skip groups of records (that's a page-split bug symptom).
+         * also assert we don't skip groups of records (that's a page-split bug symptom). Note a
+         * previous run that performed salvage might have corrupted a chunk of space such that
+         * records were removed. If this is a reopen of an existing database, assume salvage might
+         * have happened.
          */
-        record_gaps = g.c_delete_pct != 0;
+        record_gaps = g.c_delete_pct != 0 || g.reopen;
         switch (g.type) {
         case FIX:
         case VAR:
@@ -1240,8 +1233,8 @@ order_error_col:
             if (!record_gaps) {
                 /*
                  * Convert the keys to record numbers and then compare less-than-or-equal. (Not
-                 * less-than, row-store inserts new rows in-between rows by append a new suffix to
-                 * the row's key.)
+                 * less-than, row-store inserts new rows in-between rows by appending a new suffix
+                 * to the row's key.)
                  */
                 testutil_check(__wt_buf_fmt((WT_SESSION_IMPL *)cursor->session, tinfo->tbuf, "%.*s",
                   (int)tinfo->key->size, (char *)tinfo->key->data));
