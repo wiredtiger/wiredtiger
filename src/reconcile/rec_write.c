@@ -852,7 +852,6 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
     /* Don't touch the key item memory, that memory is reused. */
     chunk->min_key.size = 0;
     chunk->min_entries = 0;
-    /* FIXME-prepare-support: chunk->prepare should be some sort of aggregated prepare? */
     __wt_rec_addr_ts_init(r, &chunk->min_newest_start_durable_ts, &chunk->min_oldest_start_ts,
       &chunk->min_oldest_start_txn, &chunk->min_newest_stop_durable_ts, &chunk->min_newest_stop_ts,
       &chunk->min_newest_stop_txn, &chunk->prepare);
