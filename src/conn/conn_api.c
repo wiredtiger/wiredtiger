@@ -2660,10 +2660,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * call to wt_turtle_init because that moves metadata files around from backups and would
      * overwrite any salvage we did if done before that call.
      */
-    if (F_ISSET(conn, WT_CONN_SALVAGE)) {
-        WT_ERR(__wt_verify_history_store(session, NULL, WT_BTREE_ID_INVALID));
+    if (F_ISSET(conn, WT_CONN_SALVAGE))
         WT_ERR(__wt_metadata_salvage(session));
-    }
 
     /* Initialize the connection's base write generation. */
     WT_ERR(__wt_metadata_init_base_write_gen(session));
