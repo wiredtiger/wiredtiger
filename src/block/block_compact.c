@@ -24,9 +24,10 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     /* Reset the compaction state information. */
     block->compact_pct_tenths = 0;
+    block->compact_blocks_moved = 0;
+    block->compact_cache_evictions = 0;
     block->compact_pages_reviewed = 0;
     block->compact_pages_skipped = 0;
-    block->compact_pages_written = 0;
 
     return (0);
 }
@@ -128,27 +129,22 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
 }
 
 /*
- * __wt_block_compact_page_skip --
+ * __compact_page_skip --
  *     Return if writing a particular page will shrink the file.
  */
-int
-__wt_block_compact_page_skip(
-  WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, size_t addr_size, bool *skipp)
+static void
+__compact_page_skip(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset, uint32_t size, bool *skipp)
 {
     WT_EXT *ext;
     WT_EXTLIST *el;
-    wt_off_t limit, offset;
-    uint32_t size, checksum;
+    wt_off_t limit;
 
-    WT_UNUSED(addr_size);
     *skipp = true; /* Return a default skip. */
-
-    /* Crack the cookie. */
-    WT_RET(__wt_block_buffer_to_addr(block, addr, &offset, &size, &checksum));
 
     /*
      * If this block is in the chosen percentage of the file and there's a block on the available
-     * list that's appears before that percentage of the file, rewrite the block. Checking the
+     * list that appears before that percentage of the file, rewrite the block. Checking the
      * available list is necessary (otherwise writing the block would extend the file), but there's
      * an obvious race if the file is sufficiently busy.
      */
@@ -166,6 +162,26 @@ __wt_block_compact_page_skip(
         }
     }
     __wt_spin_unlock(session, &block->live_lock);
+}
+
+/*
+ * __wt_block_compact_page_skip --
+ *     Return if writing a particular page will shrink the file.
+ */
+int
+__wt_block_compact_page_skip(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, size_t addr_size, bool *skipp)
+{
+    wt_off_t offset;
+    uint32_t size, checksum;
+
+    WT_UNUSED(addr_size);
+    *skipp = true; /* Return a default skip. */
+
+    /* Crack the cookie. */
+    WT_RET(__wt_block_buffer_to_addr(block, addr, &offset, &size, &checksum));
+
+    __compact_page_skip(session, block, offset, size, skipp);
 
     if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT) ||
       WT_VERBOSE_ISSET(session, WT_VERB_COMPACT_PROGRESS)) {
@@ -173,10 +189,87 @@ __wt_block_compact_page_skip(
         if (*skipp)
             ++block->compact_pages_skipped;
         else
-            ++block->compact_pages_written;
+            ++block->compact_cache_evictions;
     }
 
     return (0);
+}
+
+/*
+ * __wt_block_compact_page_rewrite --
+ *     Rewrite a page if it will shrink the file.
+ */
+int
+__wt_block_compact_page_rewrite(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, uint8_t *addr, size_t *addr_sizep, bool *skipp)
+{
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    wt_off_t offset, new_offset;
+    uint32_t size, checksum;
+    uint8_t *endp;
+    bool discard_block;
+
+    *skipp = true; /* Return a default skip. */
+
+    discard_block = false;
+
+    /* Crack the cookie. */
+    WT_ERR(__wt_block_buffer_to_addr(block, addr, &offset, &size, &checksum));
+
+    /* Check if the block is worth rewriting. */
+    __compact_page_skip(session, block, offset, size, skipp);
+
+    if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT) ||
+      WT_VERBOSE_ISSET(session, WT_VERB_COMPACT_PROGRESS)) {
+        ++block->compact_pages_reviewed;
+        if (*skipp)
+            ++block->compact_pages_skipped;
+        else
+            ++block->compact_blocks_moved;
+    }
+    if (*skipp)
+        return (0);
+
+    /* Read the block. */
+    WT_ERR(__wt_scr_alloc(session, size, &tmp));
+    WT_ERR(__wt_read(session, block->fh, offset, size, tmp->mem));
+
+    /* Allocate a replacement block. */
+    WT_ERR(__wt_block_ext_prealloc(session, 5));
+    __wt_spin_lock(session, &block->live_lock);
+    ret = __wt_block_alloc(session, block, &new_offset, (wt_off_t)size);
+    __wt_spin_unlock(session, &block->live_lock);
+    WT_ERR(ret);
+    discard_block = true;
+
+    /* Write the block. */
+    WT_ERR(__wt_write(session, block->fh, new_offset, size, tmp->mem));
+
+    /* Free the original block. */
+    __wt_spin_lock(session, &block->live_lock);
+    ret = __wt_block_off_free(session, block, offset, (wt_off_t)size);
+    __wt_spin_unlock(session, &block->live_lock);
+    WT_ERR(ret);
+
+    /* Build the returned address cookie. */
+    endp = addr;
+    WT_ERR(__wt_block_addr_to_buffer(block, &endp, new_offset, size, checksum));
+    *addr_sizep = WT_PTRDIFF(endp, addr);
+
+    WT_STAT_CONN_INCR(session, block_write);
+    WT_STAT_CONN_INCRV(session, block_byte_write, size);
+
+    discard_block = false;
+
+err:
+    if (discard_block) {
+        __wt_spin_lock(session, &block->live_lock);
+        WT_TRET(__wt_block_off_free(session, block, new_offset, (wt_off_t)size));
+        __wt_spin_unlock(session, &block->live_lock);
+    }
+    __wt_scr_free(session, &tmp);
+    return (ret);
 }
 
 /*
@@ -202,8 +295,10 @@ __block_dump_avail(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
           session, WT_VERB_COMPACT, "pages reviewed: %" PRIu64, block->compact_pages_reviewed);
         __wt_verbose(
           session, WT_VERB_COMPACT, "pages skipped: %" PRIu64, block->compact_pages_skipped);
+        __wt_verbose(session, WT_VERB_COMPACT, "cache pages evicted: %" PRIu64,
+          block->compact_cache_evictions);
         __wt_verbose(
-          session, WT_VERB_COMPACT, "pages written: %" PRIu64, block->compact_pages_written);
+          session, WT_VERB_COMPACT, "blocks moved : %" PRIu64, block->compact_blocks_moved);
     }
 
     __wt_verbose(session, WT_VERB_COMPACT, "file size %" PRIuMAX "MB (%" PRIuMAX ") with %" PRIuMAX
