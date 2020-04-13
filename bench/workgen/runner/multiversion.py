@@ -31,9 +31,7 @@ from runner import *
 from wiredtiger import *
 from workgen import *
 
-def show(tname, s, args):
-    if not args.verbose:
-        return
+def show(tname, s):
     print('')
     print('<><><><> ' + tname + ' <><><><>')
     c = s.open_cursor(tname, None)
@@ -43,17 +41,20 @@ def show(tname, s, args):
     print('<><><><><><><><><><><><>')
     c.close()
 
+def create_compat_config(args):
+    if args.release == "4.4":
+        return ',compatibility=(release="3.3", require_min="3.2.0")'
+    elif args.release == "4.2":
+        return ',compatibility=(release="3.2", require_max="3.3.0")'
+    else:
+        return ''
+
 context = Context()
+context.parser.add_argument("--release", dest="release", type=str,
+  choices=["4.2", "4.4"], help="The WiredTiger version")
+context.initialize()   # parse the arguments.
+conn = context.wiredtiger_open("create,cache_size=1G," + create_compat_config(context.args))
 
-# Using the context's wiredtiger_open() method has benefits:
-#   * there is a default home directory (WT_TEST), which is automatically cleared before the open.
-#   * the args on the python command line are parsed, allowing for:
-#     --home homedir
-#     --keep   (don't remove homedir before starting)
-#     --verbose
-#     and the ability to add additional command line arguments.
-
-conn = context.wiredtiger_open("create,cache_size=1G")
 s = conn.open_session()
 tname = 'table:simple'
 s.create(tname, 'key_format=S,value_format=S')
@@ -62,9 +63,9 @@ ops = Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), V
 thread = Thread(ops)
 workload = Workload(context, thread)
 workload.run(conn)
-show(tname, s, context.args)
+show(tname, s)
 
 thread = Thread(ops * 5)
 workload = Workload(context, thread)
 workload.run(conn)
-show(tname, s, context.args)
+show(tname, s)
