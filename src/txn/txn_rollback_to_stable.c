@@ -273,7 +273,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
         /*
          * Durable timestamp of the current record is used as stop timestamp of previous record.
-         * Save it to verify againt previous record.
+         * Save it to verify against previous record.
          */
         newer_hs_ts = durable_ts;
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));

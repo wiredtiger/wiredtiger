@@ -391,6 +391,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
      */
     WT_ERR(__wt_update_alloc(session, &cursor->value, &hs_upd->next, &notused, WT_UPDATE_STANDARD));
     hs_upd->next->start_ts = upd->start_ts;
+    hs_upd->next->durable_ts = upd->durable_ts;
     hs_upd->next->txnid = upd->txnid;
 
     /*
