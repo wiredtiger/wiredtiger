@@ -101,6 +101,106 @@ random_failure(void)
 TINFO **tinfo_list;
 
 /*
+ * tinfo_init --
+ *     Initialize the worker thread structures.
+ */
+static void
+tinfo_init(WT_SESSION *session)
+{
+    TINFO *tinfo;
+    u_int i;
+
+    /* Allocate the thread structures separately to minimize false sharing. */
+    if (tinfo_list == NULL) {
+        tinfo_list = dcalloc((size_t)g.c_threads + 1, sizeof(TINFO *));
+        for (i = 0; i < g.c_threads; ++i) {
+            tinfo_list[i] = dcalloc(1, sizeof(TINFO));
+            tinfo = tinfo_list[i];
+
+            tinfo->id = (int)i + 1;
+
+            /*
+             * Characterize the per-thread random number generator. Normally we want independent
+             * behavior so threads start in different parts of the RNG space, but we've found bugs
+             * by having the threads pound on the same key/value pairs, that is, by making them
+             * traverse the same RNG space. 75% of the time we run in independent RNG space.
+             */
+            if (g.c_independent_thread_rng)
+                __wt_random_init_seed((WT_SESSION_IMPL *)session, &tinfo->rnd);
+            else
+                __wt_random_init(&tinfo->rnd);
+
+            /* Set up the default key and value buffers. */
+            tinfo->key = &tinfo->_key;
+            key_gen_init(tinfo->key);
+            tinfo->value = &tinfo->_value;
+            val_gen_init(tinfo->value);
+            tinfo->lastkey = &tinfo->_lastkey;
+            key_gen_init(tinfo->lastkey);
+            tinfo->tbuf = &tinfo->_tbuf;
+
+            snap_init(tinfo);
+        }
+    }
+
+    /* Cleanup for each new run. */
+    for (i = 0; i < g.c_threads; ++i) {
+        tinfo = tinfo_list[i];
+
+        tinfo->ops = 0;
+        tinfo->commit = 0;
+        tinfo->insert = 0;
+        tinfo->prepare = 0;
+        tinfo->remove = 0;
+        tinfo->rollback = 0;
+        tinfo->search = 0;
+        tinfo->truncate = 0;
+        tinfo->update = 0;
+
+        tinfo->session = NULL;
+        tinfo->cursor = NULL;
+
+        tinfo->insert_list_cnt = 0;
+
+        tinfo->state = TINFO_RUNNING;
+    }
+}
+
+/*
+ * tinfo_teardown --
+ *     Tear down the worker thread structures.
+ */
+static void
+tinfo_teardown(void)
+{
+    TINFO *tinfo;
+    u_int i;
+
+    for (i = 0; i < g.c_threads; ++i) {
+        tinfo = tinfo_list[i];
+
+        /*
+         * Assert records were not removed unless configured to do so, otherwise subsequent runs can
+         * incorrectly report scan errors.
+         */
+        testutil_assert(g.c_delete_pct != 0 || tinfo->remove == 0);
+
+        for (i = 0; i < WT_ELEMENTS(tinfo->snap_list); ++i) {
+            free(tinfo->snap_list[i].kdata);
+            free(tinfo->snap_list[i].vdata);
+        }
+        key_gen_teardown(tinfo->key);
+        val_gen_teardown(tinfo->value);
+        key_gen_teardown(tinfo->lastkey);
+        free(tinfo->tbuf->mem);
+
+        free(tinfo);
+    }
+    free(tinfo_list);
+    tinfo_list = NULL;
+}
+
+/*
  * operations --
  *     Perform a number of operations in a set of threads.
  */
@@ -151,46 +251,18 @@ operations(u_int ops_seconds, bool lastrun)
         quit_fourths = fourths + 15 * 4 * 60;
     }
 
-    /*
-     * We support replay of threaded runs, but don't log random numbers after threaded operations
-     * start, there's no point.
-     */
-    if (!SINGLETHREADED)
-        g.rand_log_stop = true;
+    /* Get a session. */
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /* Logging requires a session. */
-    if (g.logging)
-        testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    logop(session, "%s", "=============== thread ops start");
-
-    /*
-     * Create the per-thread structures and start the worker threads. Allocate the thread structures
-     * separately to minimize false sharing.
-     */
-    tinfo_list = dcalloc((size_t)g.c_threads + 1, sizeof(TINFO *));
+    /* Initialize and start the worker threads. */
+    tinfo_init(session);
+    logop(session, "%s", "=============== thread start");
     for (i = 0; i < g.c_threads; ++i) {
-        tinfo_list[i] = tinfo = dcalloc(1, sizeof(TINFO));
-
-        tinfo->id = (int)i + 1;
-
-        /*
-         * Characterize the per-thread random number generator. Normally we want independent
-         * behavior so threads start in different parts of the RNG space, but we've found bugs by
-         * having the threads pound on the same key/value pairs, that is, by making them traverse
-         * the same RNG space. 75% of the time we run in independent RNG space.
-         */
-        if (g.c_independent_thread_rng)
-            __wt_random_init_seed((WT_SESSION_IMPL *)session, &tinfo->rnd);
-        else
-            __wt_random_init(&tinfo->rnd);
-
-        tinfo->state = TINFO_RUNNING;
+        tinfo = tinfo_list[i];
         testutil_check(__wt_thread_create(NULL, &tinfo->tid, ops, tinfo));
     }
 
-    /*
-     * If a multi-threaded run, start optional special-purpose threads.
-     */
+    /* Start optional special-purpose threads. */
     if (g.c_alter)
         testutil_check(__wt_thread_create(NULL, &alter_tid, alter, NULL));
     if (g.c_backups)
@@ -295,21 +367,11 @@ operations(u_int ops_seconds, bool lastrun)
         testutil_check(__wt_thread_join(NULL, &timestamp_tid));
     g.workers_finished = false;
 
-    logop(session, "%s", "=============== thread ops stop");
-    if (g.logging)
-        testutil_check(session->close(session, NULL));
+    logop(session, "%s", "=============== thread stop");
+    testutil_check(session->close(session, NULL));
 
-    for (i = 0; i < g.c_threads; ++i) {
-        tinfo = tinfo_list[i];
-
-        /*
-         * Assert records were not removed unless configured to do so, otherwise subsequent runs can
-         * incorrectly report scan errors.
-         */
-        testutil_assert(g.c_delete_pct != 0 || tinfo->remove == 0);
-        free(tinfo);
-    }
-    free(tinfo_list);
+    if (lastrun)
+        tinfo_teardown();
 }
 
 /*
@@ -352,7 +414,7 @@ begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
         testutil_check(__wt_snprintf(buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
         ret = session->timestamp_transaction(session, buf);
         if (ret == 0) {
-            snap_init(tinfo, ts, true);
+            snap_op_init(tinfo, ts, true);
             logop(session, "begin snapshot read-ts=%" PRIu64 " (repeatable)", ts);
             return;
         }
@@ -380,7 +442,7 @@ begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
 
     testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 
-    snap_init(tinfo, ts, false);
+    snap_op_init(tinfo, ts, false);
     logop(session, "begin snapshot read-ts=%" PRIu64 " (not repeatable)", ts);
 }
 
@@ -421,7 +483,7 @@ begin_transaction(TINFO *tinfo, u_int *iso_configp)
 
     wiredtiger_begin_transaction(session, config);
 
-    snap_init(tinfo, WT_TS_NONE, false);
+    snap_op_init(tinfo, WT_TS_NONE, false);
     logop(session, "begin %s", log);
 }
 
@@ -610,18 +672,6 @@ ops(void *arg)
     tinfo = arg;
 
     iso_config = ISOLATION_RANDOM; /* -Wconditional-uninitialized */
-
-    /* Tracking of transactional snapshot isolation operations. */
-    tinfo->snap = tinfo->snap_first = tinfo->snap_list;
-
-    /* Set up the default key and value buffers. */
-    tinfo->key = &tinfo->_key;
-    key_gen_init(tinfo->key);
-    tinfo->value = &tinfo->_value;
-    val_gen_init(tinfo->value);
-    tinfo->lastkey = &tinfo->_lastkey;
-    key_gen_init(tinfo->lastkey);
-    tinfo->tbuf = &tinfo->_tbuf;
 
     /* Set the first operation where we'll create sessions and cursors. */
     cursor = NULL;
@@ -988,17 +1038,11 @@ rollback:
         intxn = false;
     }
 
-    if (session != NULL)
+    if (session != NULL) {
         testutil_check(session->close(session, NULL));
-
-    for (i = 0; i < WT_ELEMENTS(tinfo->snap_list); ++i) {
-        free(tinfo->snap_list[i].kdata);
-        free(tinfo->snap_list[i].vdata);
+        tinfo->cursor = NULL;
+        tinfo->session = NULL;
     }
-    key_gen_teardown(tinfo->key);
-    val_gen_teardown(tinfo->value);
-    key_gen_teardown(tinfo->lastkey);
-    free(tinfo->tbuf->mem);
 
     tinfo->state = TINFO_COMPLETE;
     return (WT_THREAD_RET_VALUE);

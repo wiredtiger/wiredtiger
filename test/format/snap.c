@@ -33,7 +33,17 @@
  *     Initialize the repeatable operation tracking.
  */
 void
-snap_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
+snap_init(TINFO *tinfo)
+{
+    tinfo->snap = tinfo->snap_list;
+}
+
+/*
+ * snap_op_init --
+ *     Initialize the repeatable operation tracking for each new operation.
+ */
+void
+snap_op_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
 {
     ++tinfo->opid;
 

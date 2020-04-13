@@ -211,6 +211,8 @@ main(int argc, char *argv[])
      * file, used when running checks.
      */
     if (g.reopen || g.replay) {
+        if (g.reopen && g.replay)
+            testutil_die(EINVAL, "-R incompatible with -r");
         if (config != NULL)
             testutil_die(EINVAL, "-c incompatible with -R or -r");
         if (access(g.home_config, R_OK) != 0)
@@ -285,6 +287,13 @@ main(int argc, char *argv[])
             wts_init();
             TIMED_MAJOR_OP(wts_load()); /* Load and verify initial records */
             TIMED_MAJOR_OP(wts_verify("post-bulk verify"));
+
+            /*
+             * We support replay of threaded runs, but don't log random numbers after bulk load
+             * fishes (when threaded operations start), there's no point.
+             */
+            if (!SINGLETHREADED)
+                g.rand_log_stop = true;
         }
 
         TIMED_MAJOR_OP(wts_read_scan());
