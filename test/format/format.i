@@ -76,7 +76,7 @@ rng(WT_RAND_STATE *rnd)
      * and replay because threaded operation order can't be replayed. Do that check inline so it's a
      * cheap call once thread performance starts to matter.
      */
-    return (g.rand_log_stop ? __wt_random(rnd) : rng_slow(rnd));
+    return (g.randfp == NULL || g.rand_log_stop ? __wt_random(rnd) : rng_slow(rnd));
 }
 
 /*
@@ -138,4 +138,27 @@ wiredtiger_begin_transaction(WT_SESSION *session, const char *config)
     while ((ret = session->begin_transaction(session, config)) == WT_CACHE_FULL)
         __wt_yield();
     testutil_check(ret);
+}
+
+/*
+ * key_gen --
+ *     Generate a key for lookup.
+ */
+static inline void
+key_gen(WT_ITEM *key, uint64_t keyno)
+{
+    key_gen_common(key, keyno, "00");
+}
+
+/*
+ * key_gen_insert --
+ *     Generate a key for insertion.
+ */
+static inline void
+key_gen_insert(WT_RAND_STATE *rnd, WT_ITEM *key, uint64_t keyno)
+{
+    static const char *const suffix[15] = {
+      "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15"};
+
+    key_gen_common(key, keyno, suffix[mmrand(rnd, 0, 14)]);
 }
