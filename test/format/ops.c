@@ -304,7 +304,7 @@ operations(u_int ops_seconds, bool lastrun)
 
         /*
          * Assert records were not removed unless configured to do so, otherwise subsequent runs can
-         * incorrect report scan errors.
+         * incorrectly report scan errors.
          */
         testutil_assert(g.c_delete_pct != 0 || tinfo->remove == 0);
         free(tinfo);

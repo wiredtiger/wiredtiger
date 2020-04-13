@@ -168,7 +168,7 @@ main(int argc, char *argv[])
     one_flag = quiet_flag = false;
     while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:lqRrt:")) != EOF)
         switch (ch) {
-        case '1': /* One run */
+        case '1': /* One run and quit */
             one_flag = true;
             break;
         case 'B': /* Backward compatibility */
@@ -177,7 +177,7 @@ main(int argc, char *argv[])
         case 'C': /* wiredtiger_open config */
             g.config_open = __wt_optarg;
             break;
-        case 'c': /* Configuration from a file */
+        case 'c': /* Read configuration from a file */
             config = __wt_optarg;
             break;
         case 'h':
@@ -189,10 +189,10 @@ main(int argc, char *argv[])
         case 'q': /* Quiet */
             quiet_flag = true;
             break;
-        case 'R': /* Reopen */
+        case 'R': /* Reopen (start running on an existing database) */
             g.reopen = true;
             break;
-        case 'r': /* Replay a run */
+        case 'r': /* Replay a run (use the configuration and random numbers from a previous run) */
             g.replay = true;
             break;
         default:
@@ -383,15 +383,15 @@ usage(void)
       "[-c config-file] [-h home] [name=value ...]\n",
       progname);
     fprintf(stderr, "%s",
-      "\t-1 run once\n"
+      "\t-1 run once then quit\n"
       "\t-B create backward compatible configurations\n"
       "\t-C specify wiredtiger_open configuration arguments\n"
       "\t-c read test program configuration from a file (default 'CONFIG')\n"
-      "\t-h home (default 'RUNDIR')\n"
+      "\t-h home directory (default 'RUNDIR')\n"
       "\t-l log operations to a file\n"
       "\t-q run quietly\n"
       "\t-R run on an existing database\n"
-      "\t-r replay the last run\n");
+      "\t-r replay the last run from the home directory configuration\n");
 
     config_error();
     exit(EXIT_FAILURE);
