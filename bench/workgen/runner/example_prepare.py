@@ -54,7 +54,7 @@ pop_workload.run(conn)
 opread = Operation(Operation.OP_SEARCH, table)
 read_txn = txn(opread, 'read_timestamp')
 # read_timestamp_lag is the lag to the read_timestamp from current time
-read_txn.transaction.read_timestamp_lag = 5
+read_txn.transaction.read_timestamp_lag = 2
 treader = Thread(read_txn)
 
 opwrite = Operation(Operation.OP_INSERT, table)
@@ -82,9 +82,9 @@ print('transactional prepare workload:')
 workload.run(conn)
 
 end_time = time.time()
-rum_time = end_time -start_time
+run_time = end_time - start_time
 
-print('Workload took %d minutes' %(rum_time//60))
+print('Workload took %d minutes' %(run_time//60))
 
 latency_filename = homedir + "/latency.out"
 latency.workload_latency(workload, latency_filename)
