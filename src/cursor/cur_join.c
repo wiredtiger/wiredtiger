@@ -847,7 +847,7 @@ advance:
             break;
     }
 done:
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
     if (c != NULL)
@@ -1031,7 +1031,7 @@ __curjoin_next(WT_CURSOR *cursor)
             break;
     }
     iter->positioned = (ret == 0);
-    WT_ERR_NOTFOUND_KEEP(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
 
     if (ret == 0) {
         /*

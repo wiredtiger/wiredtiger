@@ -479,7 +479,8 @@ __rollback_abort_row_reconciled_page_internal(WT_SESSION_IMPL *session, const vo
     tmp.mem = NULL;
     WT_ROW_FOREACH (mod_page, rip, i)
         WT_ERR_NOTFOUND_OK(
-          __rollback_row_ondisk_fixup_key(session, mod_page, rip, rollback_timestamp, false));
+          __rollback_row_ondisk_fixup_key(session, mod_page, rip, rollback_timestamp, false),
+          false);
 
 err:
     if (mod_page != NULL)
@@ -956,7 +957,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
     __wt_scr_free(session, &hs_key);
@@ -1023,13 +1024,13 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
                 start_durable_ts = WT_MAX(start_durable_ts, (wt_timestamp_t)durableval.val);
                 durable_ts_found = true;
             }
-            WT_ERR_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, false);
             ret = __wt_config_subgets(session, &cval, "stop_durable_ts", &durableval);
             if (ret == 0) {
                 stop_durable_ts = WT_MAX(stop_durable_ts, (wt_timestamp_t)durableval.val);
                 durable_ts_found = true;
             }
-            WT_ERR_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, false);
         }
         max_durable_ts = WT_MAX(start_durable_ts, stop_durable_ts);
         ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
@@ -1073,7 +1074,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         WT_TRET(__wt_session_release_dhandle(session));
         WT_ERR(ret);
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
