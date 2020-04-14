@@ -112,7 +112,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     WT_DECL_RET;
     WT_ITEM key, start_key, stop_key, value;
     WT_SESSION_IMPL *session;
-    wt_timestamp_t commit, durable, first_commit, prepare, read, pinned_read;
+    wt_timestamp_t commit, durable, first_commit, pinned_read, prepare, read;
     uint64_t recno, start_recno, stop_recno, t_nsec, t_sec;
     uint32_t fileid, mode, optype, opsize;
 
