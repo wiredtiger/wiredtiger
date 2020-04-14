@@ -1084,7 +1084,8 @@ __wt_txn_publish_durable_timestamp(WT_SESSION_IMPL *session)
          * Now walk backwards from the end to find the correct position for the insert.
          */
         qtxn_shared = TAILQ_LAST(&txn_global->durable_timestamph, __wt_txn_dts_qh);
-        while (qtxn_shared != NULL && (!__txn_get_durable_timestamp(qtxn_shared, &tmpts) || tmpts > ts)) {
+        while (qtxn_shared != NULL &&
+          (!__txn_get_durable_timestamp(qtxn_shared, &tmpts) || tmpts > ts)) {
             ++walked;
             qtxn_shared = TAILQ_PREV(qtxn_shared, __wt_txn_dts_qh, durable_timestampq);
         }
