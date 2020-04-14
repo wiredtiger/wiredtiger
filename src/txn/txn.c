@@ -242,13 +242,6 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
     WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
     txn_shared->pinned_id = pinned_id;
 
-    /*
-     * In general, other threads should be only be reading data exposed in the shared transaction
-     * state. There are a few instances where we need to read the internal transaction data in a
-     * controlled manner so we need to leave an escape hatch here to allow this.
-     */
-    txn_shared->internal_txn = txn;
-
 done:
     __wt_readunlock(session, &txn_global->rwlock);
     __txn_sort_snapshot(session, n, current_id);
@@ -546,11 +539,9 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_SHARED *txn_shared;
 
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
-    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     WT_ASSERT(session, txn->mod_count == 0);
     txn->notify = NULL;
@@ -604,9 +595,6 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 
     /* Clear operation timer. */
     txn->operation_timeout_us = 0;
-
-    /* Ensure that shared transaction state flags are cleared on exit. */
-    txn_shared->flags = 0;
 }
 
 /*
@@ -742,31 +730,29 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_OP *op;
-    WT_TXN_SHARED *txn_shared;
     WT_UPDATE *upd;
     wt_timestamp_t durable_op_timestamp, op_timestamp, prev_op_timestamp;
     u_int i;
     bool op_zero_ts, upd_zero_ts;
 
     txn = &session->txn;
-    txn_shared = WT_SESSION_TXN_SHARED(session);
     cursor = NULL;
     durable_op_timestamp = prev_op_timestamp = WT_TS_NONE;
 
     /*
      * Debugging checks on timestamps, if user requested them.
      */
-    if (F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS) && !F_ISSET(txn_shared, WT_TXN_HAS_TS_COMMIT) &&
+    if (F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS) && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
       txn->mod_count != 0)
         WT_RET_MSG(session, EINVAL, "commit_timestamp required and none set on this transaction");
-    if (F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER) && F_ISSET(txn_shared, WT_TXN_HAS_TS_COMMIT) &&
+    if (F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
       txn->mod_count != 0)
         WT_RET_MSG(
           session, EINVAL, "no commit_timestamp required and timestamp set on this transaction");
-    if (F_ISSET(txn, WT_TXN_TS_DURABLE_ALWAYS) && !F_ISSET(txn_shared, WT_TXN_HAS_TS_DURABLE) &&
+    if (F_ISSET(txn, WT_TXN_TS_DURABLE_ALWAYS) && !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
       txn->mod_count != 0)
         WT_RET_MSG(session, EINVAL, "durable_timestamp required and none set on this transaction");
-    if (F_ISSET(txn, WT_TXN_TS_DURABLE_NEVER) && F_ISSET(txn_shared, WT_TXN_HAS_TS_DURABLE) &&
+    if (F_ISSET(txn, WT_TXN_TS_DURABLE_NEVER) && F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
       txn->mod_count != 0)
         WT_RET_MSG(session, EINVAL,
           "no durable_timestamp required and durable timestamp set on this transaction");
@@ -827,7 +813,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
          * originally then they should be used the same way always. For this transaction, timestamps
          * are in use anytime the commit timestamp is set. Check timestamps are used in order.
          */
-        op_zero_ts = !F_ISSET(txn_shared, WT_TXN_HAS_TS_COMMIT);
+        op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
         upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
         if (op_zero_ts != upd_zero_ts) {
             WT_ERR(__wt_verbose_dump_update(session, upd));
@@ -849,8 +835,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
             op_timestamp = txn->commit_timestamp;
         if (F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS) && op_timestamp < prev_op_timestamp)
             WT_ERR_MSG(session, EINVAL, "out of order commit timestamps");
-        if (F_ISSET(txn, WT_TXN_TS_DURABLE_KEYS) &&
-          txn_shared->durable_timestamp < durable_op_timestamp)
+        if (F_ISSET(txn, WT_TXN_TS_DURABLE_KEYS) && txn->durable_timestamp < durable_op_timestamp)
             WT_ERR_MSG(session, EINVAL, "out of order durable timestamps");
     }
 
@@ -902,7 +887,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_OP *op;
-    WT_TXN_SHARED *txn_shared;
     WT_UPDATE *upd;
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp;
     uint32_t fileid;
@@ -910,7 +894,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     bool locked, prepare, readonly, update_durable_ts;
 
     txn = &session->txn;
-    txn_shared = WT_SESSION_TXN_SHARED(session);
     conn = S2C(session);
     cursor = NULL;
     txn_global = &conn->txn_global;
@@ -933,10 +916,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_txn_set_timestamp(session, cfg));
 
     if (prepare) {
-        if (!F_ISSET(txn_shared, WT_TXN_HAS_TS_COMMIT))
+        if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
             WT_ERR_MSG(session, EINVAL, "commit_timestamp is required for a prepared transaction");
 
-        if (!F_ISSET(txn_shared, WT_TXN_HAS_TS_DURABLE))
+        if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
             WT_ERR_MSG(session, EINVAL, "durable_timestamp is required for a prepared transaction");
 
         WT_ASSERT(session, txn->prepare_timestamp <= txn->commit_timestamp);
@@ -944,13 +927,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
             WT_ERR_MSG(session, EINVAL, "prepare timestamp is set for non-prepared transaction");
 
-        if (F_ISSET(txn_shared, WT_TXN_HAS_TS_DURABLE))
+        if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
             WT_ERR_MSG(session, EINVAL,
               "durable_timestamp should not be specified for non-prepared transaction");
     }
 
-    WT_ASSERT(session, !F_ISSET(txn_shared, WT_TXN_HAS_TS_COMMIT) ||
-        txn->commit_timestamp <= txn_shared->durable_timestamp);
+    WT_ASSERT(session,
+      !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || txn->commit_timestamp <= txn->durable_timestamp);
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
@@ -1097,9 +1080,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * durable isn't set, durable is implied to be the same as commit so we'll use that instead.
      */
     candidate_durable_timestamp = WT_TS_NONE;
-    if (F_ISSET(txn_shared, WT_TXN_HAS_TS_DURABLE))
-        candidate_durable_timestamp = txn_shared->durable_timestamp;
-    else if (F_ISSET(txn_shared, WT_TXN_HAS_TS_COMMIT))
+    if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+        candidate_durable_timestamp = txn->durable_timestamp;
+    else if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
         candidate_durable_timestamp = txn->commit_timestamp;
 
     __wt_txn_release(session);
@@ -1713,7 +1696,7 @@ __wt_verbose_dump_txn_one(
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     char buf[512];
-    char ts_string[6][WT_TS_INT_STRING_SIZE];
+    char ts_string[7][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
 
     txn = &txn_session->txn;
@@ -1740,10 +1723,11 @@ __wt_verbose_dump_txn_one(
       sizeof(buf), "transaction id: %" PRIu64 ", mod count: %u"
                    ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", snapshot count: %u"
                    ", commit_timestamp: %s"
-                   ", prepare_timestamp: %s"
-                   ", read_timestamp: %s"
                    ", durable_timestamp: %s"
                    ", first_commit_timestamp: %s"
+                   ", prepare_timestamp: %s"
+                   ", read_timestamp: %s"
+                   ", pinned_durable_timestamp: %s"
                    ", pinned_read_timestamp: %s"
                    ", checkpoint LSN: [%" PRIu32 "][%" PRIu32 "]"
                    ", full checkpoint: %s"
@@ -1751,11 +1735,12 @@ __wt_verbose_dump_txn_one(
                    ", flags: 0x%08" PRIx32 ", isolation: %s",
       txn->id, txn->mod_count, txn->snap_min, txn->snap_max, txn->snapshot_count,
       __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
-      __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[1]),
-      __wt_timestamp_to_string(txn->read_timestamp, ts_string[2]),
-      __wt_timestamp_to_string(txn_shared->durable_timestamp, ts_string[3]),
-      __wt_timestamp_to_string(txn_shared->first_commit_timestamp, ts_string[4]),
-      __wt_timestamp_to_string(txn_shared->pinned_read_timestamp, ts_string[5]),
+      __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
+      __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
+      __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
+      __wt_timestamp_to_string(txn->read_timestamp, ts_string[4]),
+      __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[5]),
+      __wt_timestamp_to_string(txn_shared->pinned_read_timestamp, ts_string[6]),
       txn->ckpt_lsn.l.file, txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
       txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
 

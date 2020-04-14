@@ -162,10 +162,8 @@ static inline void
 __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
     WT_TXN *txn;
-    WT_TXN_SHARED *txn_shared;
 
     txn = &session->txn;
-    txn_shared = WT_SESSION_TXN_SHARED(session);
     /*
      * In case of a prepared transaction, the order of modification of the prepare timestamp to
      * commit timestamp in the update chain will not affect the data visibility, a reader will
@@ -176,7 +174,7 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     upd->prepare_state = WT_PREPARE_LOCKED;
     WT_WRITE_BARRIER();
     upd->start_ts = txn->commit_timestamp;
-    upd->durable_ts = txn_shared->durable_timestamp;
+    upd->durable_ts = txn->durable_timestamp;
     WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
 }
 
@@ -239,13 +237,11 @@ static inline void
 __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool commit)
 {
     WT_TXN *txn;
-    WT_TXN_SHARED *txn_shared;
     WT_UPDATE **updp;
     wt_timestamp_t ts;
     uint8_t prepare_state, previous_state;
 
     txn = &session->txn;
-    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
      * Lock the ref to ensure we don't race with eviction freeing the page deleted update list or
@@ -268,11 +264,11 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
          */
         (*updp)->prepare_state = prepare_state;
         if (commit)
-            (*updp)->durable_ts = txn_shared->durable_timestamp;
+            (*updp)->durable_ts = txn->durable_timestamp;
     }
     ref->page_del->timestamp = ts;
     if (commit)
-        ref->page_del->durable_timestamp = txn_shared->durable_timestamp;
+        ref->page_del->durable_timestamp = txn->durable_timestamp;
     WT_PUBLISH(ref->page_del->prepare_state, prepare_state);
 
     WT_REF_UNLOCK(ref, previous_state);
@@ -286,12 +282,10 @@ static inline void
 __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_TXN *txn;
-    WT_TXN_SHARED *txn_shared;
     WT_UPDATE **updp;
     uint8_t previous_state;
 
     txn = &session->txn;
-    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
      * Lock the ref to ensure we don't race with eviction freeing the page deleted update list or
@@ -301,7 +295,7 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 
     for (updp = ref->page_del->update_list; updp != NULL && *updp != NULL; ++updp) {
         (*updp)->start_ts = txn->commit_timestamp;
-        (*updp)->durable_ts = txn_shared->durable_timestamp;
+        (*updp)->durable_ts = txn->durable_timestamp;
     }
 
     WT_REF_UNLOCK(ref, previous_state);
@@ -317,18 +311,16 @@ static inline void
 __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
     WT_TXN *txn;
-    WT_TXN_SHARED *txn_shared;
     WT_UPDATE *upd;
     wt_timestamp_t *timestamp;
 
     txn = &session->txn;
-    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
      * Updates in the metadata never get timestamps (either now or at commit): metadata cannot be
      * read at a point in time, only the most recently committed data matches files on disk.
      */
-    if (WT_IS_METADATA(op->btree->dhandle) || !F_ISSET(txn_shared, WT_TXN_HAS_TS_COMMIT))
+    if (WT_IS_METADATA(op->btree->dhandle) || !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
         return;
 
     if (F_ISSET(txn, WT_TXN_PREPARE)) {
@@ -356,7 +348,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 
             timestamp = op->type == WT_TXN_OP_REF_DELETE ? &op->u.ref->page_del->durable_timestamp :
                                                            &op->u.op_upd->durable_ts;
-            *timestamp = txn_shared->durable_timestamp;
+            *timestamp = txn->durable_timestamp;
         }
 
         if (op->type == WT_TXN_OP_REF_DELETE)
@@ -1047,22 +1039,23 @@ static inline int
 __wt_txn_search_check(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
-    WT_TXN_SHARED *txn_shared;
+    WT_TXN *txn;
 
-    txn_shared = WT_SESSION_TXN_SHARED(session);
     btree = S2BT(session);
+    txn = &session->txn;
+
     /*
      * If the user says a table should always use a read timestamp, verify this transaction has one.
      * Same if it should never have a read timestamp.
      */
     if (!F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
       FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_ALWAYS) &&
-      !F_ISSET(txn_shared, WT_TXN_PUBLIC_TS_READ))
+      !F_ISSET(txn, WT_TXN_SHARED_TS_READ))
         WT_RET_MSG(session, EINVAL,
           "read_timestamp required and "
           "none set on this transaction");
     if (FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_NEVER) &&
-      F_ISSET(txn_shared, WT_TXN_PUBLIC_TS_READ))
+      F_ISSET(txn, WT_TXN_SHARED_TS_READ))
         WT_RET_MSG(session, EINVAL,
           "no read_timestamp required and "
           "timestamp set on this transaction");

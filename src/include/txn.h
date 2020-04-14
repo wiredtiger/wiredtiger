@@ -106,16 +106,10 @@ struct __wt_txn_shared {
     volatile uint64_t metadata_pinned;
 
     /*
-     * Durable timestamp copied into updates created by this transaction. It is used to decide
-     * whether to consider this update to be persisted or not by stable checkpoint.
+     * The first commit or durable timestamp used for this transaction. Determines its position in
+     * the durable queue and prevents the all_durable timestamp moving past this point.
      */
-    wt_timestamp_t durable_timestamp;
-
-    /*
-     * Set to the first commit timestamp used in the transaction and fixed while the transaction is
-     * on the public list of committed timestamps.
-     */
-    wt_timestamp_t first_commit_timestamp;
+    wt_timestamp_t pinned_durable_timestamp;
 
     /*
      * Set to the first read timestamp used in the transaction. As part of our history store
@@ -124,8 +118,6 @@ struct __wt_txn_shared {
      */
     wt_timestamp_t pinned_read_timestamp;
 
-    WT_TXN *internal_txn; /* A reference to the corresponding internal transaction data. */
-
     TAILQ_ENTRY(__wt_txn_shared) read_timestampq;
     TAILQ_ENTRY(__wt_txn_shared) durable_timestampq;
     /* Set if need to clear from the durable queue */
@@ -133,26 +125,6 @@ struct __wt_txn_shared {
     volatile uint8_t is_allocating;
     uint8_t clear_durable_q;
     uint8_t clear_read_q; /* Set if need to clear from the read queue */
-
-/*
- * WT_TXN_HAS_TS_COMMIT --
- *	The transaction has a set commit timestamp.
- * WT_TXN_HAS_TS_DURABLE --
- *	The transaction has an explicitly set durable timestamp (that is, it
- *	hasn't been mirrored from its commit timestamp value).
- * WT_TXN_TS_PUBLISHED --
- *	The transaction has been published to the durable queue. Setting this
- *	flag lets us know that, on release, we need to mark the transaction for
- *	clearing.
- */
-
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_TXN_HAS_TS_COMMIT 0x1u
-#define WT_TXN_HAS_TS_DURABLE 0x2u
-#define WT_TXN_PUBLIC_TS_READ 0x4u
-#define WT_TXN_TS_PUBLISHED 0x8u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint8_t flags;
 
     WT_CACHE_LINE_PAD_END
 };
@@ -317,6 +289,18 @@ struct __wt_txn {
     wt_timestamp_t commit_timestamp;
 
     /*
+     * Durable timestamp copied into updates created by this transaction. It is used to decide
+     * whether to consider this update to be persisted or not by stable checkpoint.
+     */
+    wt_timestamp_t durable_timestamp;
+
+    /*
+     * Set to the first commit timestamp used in the transaction and fixed while the transaction is
+     * on the public list of committed timestamps.
+     */
+    wt_timestamp_t first_commit_timestamp;
+
+    /*
      * Timestamp copied into updates created by this transaction, when this transaction is prepared.
      */
     wt_timestamp_t prepare_timestamp;
@@ -346,27 +330,43 @@ struct __wt_txn {
 
     const char *rollback_reason; /* If rollback, the reason */
 
+/*
+ * WT_TXN_HAS_TS_COMMIT --
+ *	The transaction has a set commit timestamp.
+ * WT_TXN_HAS_TS_DURABLE --
+ *	The transaction has an explicitly set durable timestamp (that is, it
+ *	hasn't been mirrored from its commit timestamp value).
+ * WT_TXN_SHARED_TS_DURABLE --
+ *	The transaction has been published to the durable queue. Setting this
+ *	flag lets us know that, on release, we need to mark the transaction for
+ *	clearing.
+ */
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_TXN_AUTOCOMMIT 0x00001u
-#define WT_TXN_ERROR 0x00002u
-#define WT_TXN_HAS_ID 0x00004u
-#define WT_TXN_HAS_SNAPSHOT 0x00008u
-#define WT_TXN_HAS_TS_PREPARE 0x00010u
-#define WT_TXN_HAS_TS_READ 0x00020u
-#define WT_TXN_IGNORE_PREPARE 0x00040u
-#define WT_TXN_PREPARE 0x00080u
-#define WT_TXN_READONLY 0x00100u
-#define WT_TXN_RUNNING 0x00200u
-#define WT_TXN_SYNC_SET 0x00400u
-#define WT_TXN_TS_COMMIT_ALWAYS 0x00800u
-#define WT_TXN_TS_COMMIT_KEYS 0x01000u
-#define WT_TXN_TS_COMMIT_NEVER 0x02000u
-#define WT_TXN_TS_DURABLE_ALWAYS 0x04000u
-#define WT_TXN_TS_DURABLE_KEYS 0x08000u
-#define WT_TXN_TS_DURABLE_NEVER 0x10000u
-#define WT_TXN_TS_ROUND_PREPARED 0x20000u
-#define WT_TXN_TS_ROUND_READ 0x40000u
-#define WT_TXN_UPDATE 0x80000u
+#define WT_TXN_AUTOCOMMIT 0x000001u
+#define WT_TXN_ERROR 0x000002u
+#define WT_TXN_HAS_ID 0x000004u
+#define WT_TXN_HAS_SNAPSHOT 0x000008u
+#define WT_TXN_HAS_TS_COMMIT 0x000010u
+#define WT_TXN_HAS_TS_DURABLE 0x000020u
+#define WT_TXN_HAS_TS_PREPARE 0x000040u
+#define WT_TXN_HAS_TS_READ 0x000080u
+#define WT_TXN_IGNORE_PREPARE 0x000100u
+#define WT_TXN_PREPARE 0x000200u
+#define WT_TXN_READONLY 0x000400u
+#define WT_TXN_RUNNING 0x000800u
+#define WT_TXN_SHARED_TS_DURABLE 0x001000u
+#define WT_TXN_SHARED_TS_READ 0x002000u
+#define WT_TXN_SYNC_SET 0x004000u
+#define WT_TXN_TS_COMMIT_ALWAYS 0x008000u
+#define WT_TXN_TS_COMMIT_KEYS 0x010000u
+#define WT_TXN_TS_COMMIT_NEVER 0x020000u
+#define WT_TXN_TS_DURABLE_ALWAYS 0x040000u
+#define WT_TXN_TS_DURABLE_KEYS 0x080000u
+#define WT_TXN_TS_DURABLE_NEVER 0x100000u
+#define WT_TXN_TS_ROUND_PREPARED 0x200000u
+#define WT_TXN_TS_ROUND_READ 0x400000u
+#define WT_TXN_UPDATE 0x800000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };

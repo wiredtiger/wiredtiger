@@ -420,12 +420,12 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
     WT_RET(__txn_logrec_init(session));
     logrec = txn->logrec;
     commit = durable = first_commit = prepare = read = pinned_read = WT_TS_NONE;
-    if (F_ISSET(txn_shared, WT_TXN_HAS_TS_COMMIT)) {
+    if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
         commit = txn->commit_timestamp;
-        first_commit = txn_shared->first_commit_timestamp;
+        first_commit = txn->first_commit_timestamp;
     }
-    if (F_ISSET(txn_shared, WT_TXN_HAS_TS_DURABLE))
-        durable = txn_shared->durable_timestamp;
+    if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+        durable = txn->durable_timestamp;
     if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
         prepare = txn->prepare_timestamp;
     if (F_ISSET(txn, WT_TXN_HAS_TS_READ)) {
