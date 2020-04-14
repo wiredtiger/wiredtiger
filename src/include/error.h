@@ -45,7 +45,6 @@
             ret = 0;            \
     } while (0)
 #define WT_ERR_ERROR_OK(a, e, keep) WT_ERR_TEST((ret = (a)) != 0 && ret != (e), ret, keep)
-#define WT_ERR_BUSY_OK(a, keep) WT_ERR_ERROR_OK(a, EBUSY, keep)
 #define WT_ERR_NOTFOUND_OK(a, keep) WT_ERR_ERROR_OK(a, WT_NOTFOUND, keep)
 
 /* Return tests. */

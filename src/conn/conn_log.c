@@ -903,7 +903,7 @@ __log_server(void *arg)
          * buffer may need to wait for the write_lsn to advance in the case of a synchronous buffer.
          * We end up with a hang.
          */
-        WT_ERR_BUSY_OK(__wt_log_force_write(session, 0, &did_work), false);
+        WT_ERR_ERROR_OK(__wt_log_force_write(session, 0, &did_work), EBUSY, false);
 
         /*
          * We don't want to archive or pre-allocate files as often as we want to force out log
