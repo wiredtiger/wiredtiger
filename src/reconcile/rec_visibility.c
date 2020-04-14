@@ -391,14 +391,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             upd_select->upd = upd;
         }
     }
-    /*
-     * If we've set the stop to a zeroed pair, we intend to remove the key. Instead of selecting the
-     * onpage value and setting the stop a zeroed time pair which would trigger a rewrite of the
-     * cell with the new stop time pair, we should unset the selected update so the key itself gets
-     * omitted from the new page image.
-     */
-    if (upd_select->stop_ts == WT_TS_NONE && upd_select->stop_txn == WT_TXN_NONE)
-        upd_select->upd = NULL;
 
     /*
      * If we found a tombstone with a time pair earlier than the update it applies to, which can
