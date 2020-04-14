@@ -51,7 +51,7 @@
 %}
 
 %pythoncode %{
-import numbers
+    import argparse,numbers,os,shutil,wiredtiger
 %}
 
 %exception {
@@ -116,6 +116,9 @@ import numbers
 InterruptableFunction(workgen::execute)
 InterruptableFunction(workgen::Workload::run)
 
+/* We'll define a different constructor below. */
+%ignore workgen::Context::Context();
+
 %module workgen
 /* Parse the header to generate wrappers. */
 %include "workgen.h"
@@ -141,6 +144,67 @@ WorkgenClass(Context)
 WorkgenFrozenClass(TableOptions)
 WorkgenFrozenClass(ThreadOptions)
 WorkgenFrozenClass(WorkloadOptions)
+
+/*
+ * It's a bit tricky to redefine a constructor, but it can be done.
+ * This question had the needed clues to make it work:
+ *   https://stackoverflow.com/questions/33564645/how-to-add-an-alternative-constructor-to-the-target-language-specifically-pytho
+ * It does unfortunately rely on some SWIG implementation details.
+ */
+%inline %{
+    workgen::Context* _new_Context() {
+        return new workgen::Context();
+    }
+%}
+
+%extend workgen::Context {
+%pythoncode %{
+    def __init__(self, parser = None):
+        this = _new_Context()
+        try:
+             self.this.append(this)
+        except:
+            self.this = this
+        self.__internal_init(parser)
+
+    def __internal_init(self, parser):
+        self.default_home = "WT_TEST"
+        self.default_config = "create"
+        if not parser:
+            parser = argparse.ArgumentParser("Execute workgen.")
+        parser.add_argument("--home", dest="home", type=str,
+          help="home directory for the run (default=%s)" % self.default_home)
+        parser.add_argument("--keep", dest="keep", action="store_true",
+          help="Run the workload on an existing home directory")
+        parser.add_argument("--verbose", dest="verbose", action="store_true",
+          help="Run the workload verbosely")
+        self.parser = parser
+        self._initialized = False
+
+    def parse_arguments(self, parser):
+        self.args = parser.parse_args()
+
+    def wiredtiger_open_config(self, config):
+        return config
+
+    def wiredtiger_open(self, config = None):
+        if config == None:
+            config = self.default_config
+        self.initialize()
+        return wiredtiger.wiredtiger_open(self.args.home, self.wiredtiger_open_config(config))
+
+    def initialize(self):
+        if not self._initialized:
+            self.parse_arguments(self.parser)
+            if self.args.home == None:
+               self.args.home = self.default_home
+            self._initialized = True
+            if not self.args.keep:
+                shutil.rmtree(self.args.home, True)
+                os.mkdir(self.args.home)
+        return self
+%}
+};
 
 %extend workgen::Operation {
 %pythoncode %{

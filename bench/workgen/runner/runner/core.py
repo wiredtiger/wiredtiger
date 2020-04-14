@@ -28,7 +28,7 @@
 #
 # runner/core.py
 #   Core functions available to all runners
-import argparse, glob, os, random, shutil
+import glob, os, random
 from workgen import Key, Operation, OpList, Table, Transaction, Value
 
 # txn --
@@ -358,24 +358,3 @@ def op_populate_with_range(ops_arg, tables, icount, random_range, pop_threads):
         op._table = tables[fill_tables]
         ops = op_append(ops, op * fill_per_thread)
     return ops
-
-# A wrapper function that workloads should use to execute their contents.
-# Workloads can provide a function for registering command line arguments on the
-# parser as well as a mandatory function to execute the actual workload.
-def run_workgen(workload_func, register_args_func=None):
-    parser = argparse.ArgumentParser(description="Execute Workgen.")
-    # Add generic arguments that should apply to all workloads.
-    parser.add_argument("-K", dest="keep", action="store_true",
-                        help="Run the workload on an existing WT_TEST directory")
-    # Add workload specific arguments.
-    if register_args_func is not None:
-        register_args_func(parser)
-    args = parser.parse_args()
-    # Apply generic arguments.
-    if not args.keep:
-        # Clear out the WT_TEST directory.
-        shutil.rmtree('WT_TEST', True)
-        os.mkdir('WT_TEST')
-    # Execute workload.
-    assert workload_func is not None
-    workload_func(args)

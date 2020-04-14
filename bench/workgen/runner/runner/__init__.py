@@ -84,5 +84,5 @@ except:
     sys.path.insert(0, os.path.join(wt_builddir, 'bench', 'workgen'))
     import workgen
 
-from .core import txn, extensions_config, op_append, op_group_transaction, op_log_like, op_multi_table, op_populate_with_range, run_workgen, sleep, timed
+from .core import txn, extensions_config, op_append, op_group_transaction, op_log_like, op_multi_table, op_populate_with_range, sleep, timed
 from .latency import workload_latency

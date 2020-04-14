@@ -43,26 +43,28 @@ def show(tname, s, args):
     print('<><><><><><><><><><><><>')
     c.close()
 
-def example_simple_register_args(parser):
-    parser.add_argument("-v", dest="verbose", action="store_true",
-                        help="Print table contents as part of workload")
+context = Context()
 
-def example_simple_workload(args):
-    context = Context()
-    conn = wiredtiger_open("WT_TEST", "create,cache_size=1G")
-    s = conn.open_session()
-    tname = 'table:simple'
-    s.create(tname, 'key_format=S,value_format=S')
+# Using the context's wiredtiger_open() method has benefits:
+#   * there is a default home directory (WT_TEST), which is automatically cleared before the open.
+#   * the args on the python command line are parsed, allowing for:
+#     --home homedir
+#     --keep   (don't remove homedir before starting)
+#     --verbose
+#     and the ability to add additional command line arguments.
 
-    ops = Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), Value(40))
-    thread = Thread(ops)
-    workload = Workload(context, thread)
-    workload.run(conn)
-    show(tname, s, args)
+conn = context.wiredtiger_open("create,cache_size=1G")
+s = conn.open_session()
+tname = 'table:simple'
+s.create(tname, 'key_format=S,value_format=S')
 
-    thread = Thread(ops * 5)
-    workload = Workload(context, thread)
-    workload.run(conn)
-    show(tname, s, args)
+ops = Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), Value(40))
+thread = Thread(ops)
+workload = Workload(context, thread)
+workload.run(conn)
+show(tname, s, context.args)
 
-run_workgen(example_simple_workload, example_simple_register_args)
+thread = Thread(ops * 5)
+workload = Workload(context, thread)
+workload.run(conn)
+show(tname, s, context.args)
