@@ -116,9 +116,6 @@
 InterruptableFunction(workgen::execute)
 InterruptableFunction(workgen::Workload::run)
 
-/* We'll define a different constructor below. */
-%ignore workgen::Context::Context();
-
 %module workgen
 /* Parse the header to generate wrappers. */
 %include "workgen.h"
@@ -145,29 +142,14 @@ WorkgenFrozenClass(TableOptions)
 WorkgenFrozenClass(ThreadOptions)
 WorkgenFrozenClass(WorkloadOptions)
 
-/*
- * It's a bit tricky to redefine a constructor, but it can be done.
- * This question had the needed clues to make it work:
- *   https://stackoverflow.com/questions/33564645/how-to-add-an-alternative-constructor-to-the-target-language-specifically-pytho
- * It does unfortunately rely on some SWIG implementation details.
- */
-%inline %{
-    workgen::Context* _new_Context() {
-        return new workgen::Context();
-    }
-%}
-
 %extend workgen::Context {
 %pythoncode %{
-    def __init__(self, parser = None):
-        this = _new_Context()
-        try:
-             self.this.append(this)
-        except:
-            self.this = this
-        self.__internal_init(parser)
+    # This will be the actual __init__ function after we shuffle names below!
+    def Xinit(self, parser = None):
+        self.__original_init__()
+        self._internal_init(parser)
 
-    def __internal_init(self, parser):
+    def _internal_init(self, parser):
         self.default_home = "WT_TEST"
         self.default_config = "create"
         if not parser:
@@ -205,6 +187,14 @@ WorkgenFrozenClass(WorkloadOptions)
         return self
 %}
 };
+
+%pythoncode %{
+# Shuffle the names of the __init__ function, we want ours (Xinit above), called first.
+# This seems to be the most natural way to intercept a C++ constructor, and do
+# Python-specific actions as part of the regular constructor.
+Context.__original_init__ = Context.__init__
+Context.__init__ = Context.Xinit
+%}
 
 %extend workgen::Operation {
 %pythoncode %{
