@@ -27,10 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import time
 from runner import *
 from wiredtiger import *
 from workgen import *
+import time
 
 homedir = "WT_TEST"
 conn = wiredtiger_open(homedir, "create,cache_size=500MB")
