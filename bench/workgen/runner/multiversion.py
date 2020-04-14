@@ -41,34 +41,31 @@ def show(tname, s):
     print('<><><><><><><><><><><><>')
     c.close()
 
-def multiversion_register_args(parser):
-    parser.add_argument("--release", dest="release", type=str,
-                        choices=["4.2", "4.4"],
-                        help="The WiredTiger version")
-
 def create_compat_config(args):
     if args.release == "4.4":
-        return 'compatibility=(release="3.3", require_min="3.2.0")'
+        return ',compatibility=(release="3.3", require_min="3.2.0")'
+    elif args.release == "4.2":
+        return ',compatibility=(release="3.2", require_max="3.3.0")'
     else:
-        return 'compatibility=(release="3.2", require_max="3.3.0")'
+        return ''
 
-def multiversion_workload(args):
-    context = Context()
-    compat_config = create_compat_config(args)
-    conn = wiredtiger_open("WT_TEST", "create,cache_size=1G,{}".format(compat_config))
-    s = conn.open_session()
-    tname = 'table:simple'
-    s.create(tname, 'key_format=S,value_format=S')
+context = Context()
+context.parser.add_argument("--release", dest="release", type=str,
+  choices=["4.2", "4.4"], help="The WiredTiger version")
+context.initialize()   # parse the arguments.
+conn = context.wiredtiger_open("create,cache_size=1G," + create_compat_config(context.args))
 
-    ops = Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), Value(40))
-    thread = Thread(ops)
-    workload = Workload(context, thread)
-    workload.run(conn)
-    show(tname, s)
+s = conn.open_session()
+tname = 'table:simple'
+s.create(tname, 'key_format=S,value_format=S')
 
-    thread = Thread(ops * 5)
-    workload = Workload(context, thread)
-    workload.run(conn)
-    show(tname, s)
+ops = Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), Value(40))
+thread = Thread(ops)
+workload = Workload(context, thread)
+workload.run(conn)
+show(tname, s)
 
-run_workgen(multiversion_workload, multiversion_register_args)
+thread = Thread(ops * 5)
+workload = Workload(context, thread)
+workload.run(conn)
+show(tname, s)
