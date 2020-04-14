@@ -648,7 +648,6 @@ __wt_rec_col_var(
     last.stop_durable_ts = WT_TS_MAX;
     last.stop_ts = WT_TS_NONE;
     last.stop_txn = WT_TXN_NONE;
-    last.stop_durable_ts = WT_TS_NONE;
     last.deleted = false;
     last.prepare = false;
 
