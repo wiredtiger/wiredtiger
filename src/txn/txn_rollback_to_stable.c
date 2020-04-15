@@ -479,7 +479,8 @@ __rollback_abort_row_reconciled_page_internal(WT_SESSION_IMPL *session, const vo
     tmp.mem = NULL;
     WT_ROW_FOREACH (mod_page, rip, i)
         WT_ERR_NOTFOUND_OK(
-          __rollback_row_ondisk_fixup_key(session, mod_page, rip, rollback_timestamp, false));
+          __rollback_row_ondisk_fixup_key(session, mod_page, rip, rollback_timestamp, false),
+          false);
 
 err:
     if (mod_page != NULL)
@@ -956,7 +957,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
     __wt_scr_free(session, &hs_key);
@@ -1023,13 +1024,13 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
                 start_durable_ts = WT_MAX(start_durable_ts, (wt_timestamp_t)durableval.val);
                 durable_ts_found = true;
             }
-            WT_ERR_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, false);
             ret = __wt_config_subgets(session, &cval, "stop_durable_ts", &durableval);
             if (ret == 0) {
                 stop_durable_ts = WT_MAX(stop_durable_ts, (wt_timestamp_t)durableval.val);
                 durable_ts_found = true;
             }
-            WT_ERR_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, false);
         }
         max_durable_ts = WT_MAX(start_durable_ts, stop_durable_ts);
         ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
@@ -1073,7 +1074,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         WT_TRET(__wt_session_release_dhandle(session));
         WT_ERR(ret);
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
@@ -1119,9 +1120,11 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
     /*
      * Don't use the connection's default session: we are working on data handles and (a) don't want
      * to cache all of them forever, plus (b) can't guarantee that no other method will be called
-     * concurrently.
+     * concurrently. Copy parent session no logging option to the internal session to make sure that
+     * rollback to stable doesn't generate log records.
      */
-    WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true, 0, &session));
+    WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true,
+      F_MASK(session, WT_SESSION_NO_LOGGING), &session));
 
     F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS);
     ret = __rollback_to_stable(session, cfg);
