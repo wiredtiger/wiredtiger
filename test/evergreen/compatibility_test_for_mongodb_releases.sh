@@ -14,6 +14,20 @@ format_b_flag()
         # Return if the branch's format command takes the -B flag for backward compatibility.
         test "$1" = "develop" && echo "-B "
         test "$1" = "mongodb-4.4" && echo "-B "
+        return 0
+}
+
+#############################################################
+# get_prev_version:
+#       arg1: branch name
+#############################################################
+get_prev_version()
+{
+    # Sort the list of WiredTiger tags numerically, then pick out the argument number of releases
+    # from the end of the list. That is, get a list of releases in numeric order, then pick out
+    # the last release (argument "1"), the next-to-last release (argument "2") and so on. Assumes
+    # WiredTiger releases are tagged with just numbers and decimal points.
+    echo "$(git tag | egrep '^[0-9][0-9.]*$' | sort -g | tail -$1 | head -1)"
 }
 
 #############################################################
@@ -31,7 +45,6 @@ build_branch()
         git checkout --quiet "$1"
 
         config=""
-        config+="--enable-diagnostic "
         config+="--enable-snappy "
         (sh build_posix/reconf &&
             ./configure $config && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
@@ -147,7 +160,15 @@ cd "$top"
 (build_branch mongodb-4.0)
 (build_branch mongodb-4.2)
 (build_branch mongodb-4.4)
-(build_branch "develop")
+(build_branch develop)
+
+# Get the names of the last two WiredTiger releases, wt1 is the most recent release, wt2 is the
+# release before that. Minor trickiness, we depend on the "develop" directory already existing
+# so we have a source in which to do git commands.
+cd develop; wt1=$(get_prev_version 1); cd ..
+(build_branch "$wt1")
+cd develop; wt2=$(get_prev_version 2); cd ..
+(build_branch "$wt2")
 
 # Run format in each branch for supported access methods.
 (run_format mongodb-3.4 "fix row var")
@@ -155,7 +176,9 @@ cd "$top"
 (run_format mongodb-4.0 "fix row var")
 (run_format mongodb-4.2 "fix row var")
 (run_format mongodb-4.4 "row")
-(run_format "develop" "row")
+(run_format develop "row")
+(run_format "$wt1" "fix row var")
+(run_format "$wt2" "fix row var")
 
 # Verify backward compatibility for supported access methods.
 (verify_branches mongodb-3.6 mongodb-3.4 "fix row var")
@@ -164,6 +187,8 @@ cd "$top"
 ### (verify_branches mongodb-4.4 mongodb-4.2 "fix row var")
 ### (verify_branches develop mongodb-4.4 "row")
 (verify_branches develop mongodb-4.2 "row")
+(verify_branches "$wt2" "$wt1" "row")
+(verify_branches develop "$wt1" "row")
 
 # Verify forward compatibility for supported access methods.
 ### (verify_branches mongodb-4.2 mongodb-4.4 "row")
