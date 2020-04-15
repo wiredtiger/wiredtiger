@@ -1305,13 +1305,13 @@ err:
 }
 
 /*
- * __wt_verify_history_store_one --
+ * __wt_history_store_verify_one --
  *     Verify the history store. There can't be an entry in the history store without having the
  *     latest value for the respective key in the data store. When given a uri, limit the
  *     verification to the corresponding btree.
  */
 int
-__wt_verify_history_store_one(WT_SESSION_IMPL *session)
+__wt_history_store_verify_one(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE cbt;
@@ -1348,13 +1348,13 @@ err:
 }
 
 /*
- * __wt_verify_history_store --
+ * __wt_history_store_verify --
  *     Verify the history store. There can't be an entry in the history store without having the
  *     latest value for the respective key in the data store. If given a uri, limit the verification
  *     to the corresponding btree.
  */
 int
-__wt_verify_history_store(WT_SESSION_IMPL *session)
+__wt_history_store_verify(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor, *data_cursor;
     WT_DECL_ITEM(buf);

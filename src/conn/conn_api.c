@@ -2654,16 +2654,19 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * DATABASE HOME, IT'S WHAT WE USE TO DECIDE IF WE'RE CREATING OR NOT.
      */
     WT_ERR(__wt_turtle_init(session));
+    WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
+    if (cval.val) {
+        WT_ERR(__wt_metadata_verify(session));
+        WT_ERR(__wt_history_store_verify(session));
+    }
 
     /*
      * If the user wants to salvage, do so before opening the metadata cursor. We do this after the
      * call to wt_turtle_init because that moves metadata files around from backups and would
      * overwrite any salvage we did if done before that call.
      */
-    if (F_ISSET(conn, WT_CONN_SALVAGE)) {
-        WT_ERR(__wt_verify_history_store(session));
+    if (F_ISSET(conn, WT_CONN_SALVAGE))
         WT_ERR(__wt_metadata_salvage(session));
-    }
 
     /* Initialize the connection's base write generation. */
     WT_ERR(__wt_metadata_init_base_write_gen(session));

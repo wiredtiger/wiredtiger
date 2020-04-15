@@ -289,7 +289,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              */
             if (ret == 0 && WT_STRING_MATCH(last_ckpt, ckpt->name, strlen(last_ckpt)))
                 /* Verify this session's btree. */
-                WT_TRET(__wt_verify_history_store_one(session));
+                WT_TRET(__wt_history_store_verify_one(session));
 
             WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
         }

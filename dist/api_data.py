@@ -1034,6 +1034,10 @@ wiredtiger_open_common =\
             @ref tune_durability for more information''',
             choices=['dsync', 'fsync', 'none']),
         ]),
+    Config('verify_metadata', 'false', r'''
+        open connection and verify any WiredTiger-owned table. This API
+        allows verification and detection of corruption in WiredTiger tables.''',
+        type='boolean'),
     Config('write_through', '', r'''
         Use \c FILE_FLAG_WRITE_THROUGH on Windows to write to files.  Ignored
         on non-Windows systems.  Options are given as a list, such as
