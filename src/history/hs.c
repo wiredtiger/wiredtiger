@@ -1331,11 +1331,17 @@ __wt_verify_history_store_one(WT_SESSION_IMPL *session)
     btree_id = cbt.btree->id;
     cursor->set_key(cursor, btree_id, hs_key, 0, 0, 0, 0);
     ret = cursor->search_near(cursor, &exact);
+    WT_ERR_NOTFOUND_OK(ret, true);
+    __wt_errx(session, "VERIFY_HS_ONE: verify hs with ret %d id %" PRIu32, ret, btree_id);
     if (ret == 0 && exact < 0)
         ret = cursor->next(cursor);
-    WT_ERR(ret);
-    WT_ERR(__verify_history_store_id(session, &cbt, btree_id));
+
+    /* If we positioned the cursor there is something to verify. */
+    if (ret != WT_NOTFOUND)
+        WT_ERR(__verify_history_store_id(session, &cbt, btree_id));
+    ret = 0;
 err:
+    __wt_errx(session, "VERIFY_HS_ONE: ret %d", ret);
     WT_TRET(__wt_btcur_close(&cbt, true));
     __wt_scr_free(session, &hs_key);
     return (ret);
@@ -1388,9 +1394,11 @@ __wt_verify_history_store(WT_SESSION_IMPL *session)
               "Unable to find btree-id %" PRIu32
               " in the metadata file for the associated history store key %s",
               btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, buf));
+        __wt_errx(session, "VERIFY_HS: verify hs with id %" PRIu32 " URI %s", btree_id, uri_data);
         WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &data_cursor));
         F_SET(data_cursor, WT_CURSOR_RAW_OK);
         ret = __verify_history_store_id(session, (WT_CURSOR_BTREE *)data_cursor, btree_id);
+        __wt_errx(session, "VERIFY_HS: ret from call %d", ret);
         if (ret == WT_NOTFOUND)
             stop = true;
         WT_TRET(data_cursor->close(data_cursor));

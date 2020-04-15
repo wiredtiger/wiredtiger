@@ -171,13 +171,14 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     size_t root_addr_size;
     uint32_t session_flags;
     uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
-    const char *name;
+    const char *last_ckpt, *name;
     bool bm_start, is_owner, quit;
 
     btree = S2BT(session);
     bm = btree->bm;
     ckptbase = NULL;
     session_flags = 0; /* -Wuninitialized */
+    last_ckpt = NULL;
     name = session->dhandle->name;
     bm_start = false;
     is_owner = false; /* -Wuninitialized */
@@ -198,6 +199,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__verify_config_offsets(session, cfg, &quit));
     if (quit)
         goto done;
+
+    /* Get the name of the last checkpoint for later history store verification. */
+    WT_ERR(__wt_meta_checkpoint_last_name(session, name, &last_ckpt));
 
     /*
      * Get a list of the checkpoints for this file. Empty objects have no checkpoints, in which case
@@ -277,6 +281,16 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * the loop and re-acquire it here.
              */
             WT_TRET(__wt_evict_file_exclusive_on(session));
+
+            /*
+             * If this is the most recent checkpoint, verify the history store against this one. We
+             * need to do this here because we still have the root page loaded and the file is now
+             * exclusive again and before it is discarded.
+             */
+            if (ret == 0 && WT_STRING_MATCH(last_ckpt, ckpt->name, strlen(last_ckpt)))
+                /* Verify this session's btree. */
+                WT_TRET(__wt_verify_history_store_one(session));
+
             WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
         }
 
@@ -296,10 +310,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ERR(__dump_layout(session, vs));
     }
 
-#if 1
-    /* Verify this session's btree. */
-    WT_ERR(__wt_verify_history_store_one(session));
-#endif
 done:
 err:
     /* Inform the underlying block manager we're done. */
@@ -307,6 +317,7 @@ err:
         WT_TRET(bm->verify_end(bm, session));
 
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
+    __wt_free(session, last_ckpt);
 
     /* Discard the list of checkpoints. */
     if (ckptbase != NULL)
