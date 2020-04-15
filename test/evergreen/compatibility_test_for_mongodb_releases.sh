@@ -12,9 +12,8 @@ set -e
 format_b_flag()
 {
         # Return if the branch's format command takes the -B flag for backward compatibility.
-        test "$1" = "develop" && return 0
-        test "$1" = "mongodb-4.4" && return 0
-        return 1
+        test "$1" = "develop" && echo "-B "
+        test "$1" = "mongodb-4.4" && echo "-B "
 }
 
 #############################################################
@@ -51,8 +50,7 @@ run_format()
 
         cd "$1/test/format"
 
-        flags="-1q "
-        format_b_flag "$1" && flags+="-B "
+        flags="-1q $(format_b_flag $1)"
 
         args=""
         args+="cache=80 "                       # Medium cache so there's eviction
@@ -121,20 +119,18 @@ upgrade_downgrade()
         echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
         # Alternate running each branch format test program on the second branch's build.
-	# Loop twice, that is, run format twice using each branch.
+        # Loop twice, that is, run format twice using each branch.
         top="$PWD"
         for am in $3; do
             for reps in {1..2}; do
                 echo "$1 format running on $2 access method $am..."
                 cd "$top/$1/test/format"
-                flags="-1qR "
-                format_b_flag "$1" && flags+="-B "
+                flags="-1qR $(format_b_flag $1)"
                 ./t $flags -h "$top/$2/test/format/RUNDIR.$am" timer=2
 
                 echo "$2 format running on $2 access method $am..."
                 cd "$top/$2/test/format"
-                flags="-1qR "
-                format_b_flag "$2" && flags+="-B "
+                flags="-1qR $(format_b_flag $1)"
                 ./t $flags -h "RUNDIR.$am" timer=2
             done
         done
