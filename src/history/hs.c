@@ -361,12 +361,12 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-    WT_UPDATE *hs_upd;
+    WT_UPDATE *hs_upd, *upd_local;
     size_t notused;
     uint32_t session_flags;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    hs_upd = NULL;
+    hs_upd = upd_local = NULL;
 
     /*
      * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to
@@ -376,23 +376,32 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
       cursor, btree->id, key, upd->start_ts, __wt_atomic_add64(&btree->hs_counter, 1));
     cursor->set_value(cursor, stop_ts_pair.timestamp, upd->durable_ts, (uint64_t)type, hs_value);
 
-    /*
-     * Insert a delete record to represent stop time pair for the actual record to be inserted. Set
-     * the stop time pair as the commit time pair of the history store delete record.
-     */
-    WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &notused, WT_UPDATE_TOMBSTONE));
-    hs_upd->start_ts = stop_ts_pair.timestamp;
-    hs_upd->durable_ts = stop_ts_pair.timestamp;
-    hs_upd->txnid = stop_ts_pair.txnid;
+    /* Allocate a tombstone only when there is a valid stop time pair. */
+    if (stop_ts_pair.timestamp != WT_TS_MAX || stop_ts_pair.txnid != WT_TXN_MAX) {
+        /*
+         * Insert a delete record to represent stop time pair for the actual record to be inserted.
+         * Set the stop time pair as the commit time pair of the history store delete record.
+         */
+        WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &notused, WT_UPDATE_TOMBSTONE));
+        hs_upd->start_ts = stop_ts_pair.timestamp;
+        hs_upd->durable_ts = stop_ts_pair.timestamp;
+        hs_upd->txnid = stop_ts_pair.txnid;
+    }
 
     /*
      * Append to the delete record, the actual record to be inserted into the history store. Set the
      * current update start time pair as the commit time pair to the history store record.
      */
-    WT_ERR(__wt_update_alloc(session, &cursor->value, &hs_upd->next, &notused, WT_UPDATE_STANDARD));
-    hs_upd->next->start_ts = upd->start_ts;
-    hs_upd->next->durable_ts = upd->durable_ts;
-    hs_upd->next->txnid = upd->txnid;
+    WT_ERR(__wt_update_alloc(session, &cursor->value, &upd_local, &notused, WT_UPDATE_STANDARD));
+    upd_local->start_ts = upd->start_ts;
+    upd_local->durable_ts = upd->durable_ts;
+    upd_local->txnid = upd->txnid;
+
+    /* Insert the standard update as next update if there is a tombstone. */
+    if (hs_upd != NULL)
+        hs_upd->next = upd_local;
+    else
+        hs_upd = upd_local;
 
     /*
      * Search the page and insert the updates. We expect there will be no existing data: assert that
@@ -699,13 +708,26 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
             __wt_modify_vector_pop(&modifies, &prev_upd);
 
             /*
-             * Set the stop timestamp from durable timestamp instead of commit timestamp. The
-             * Garbage collection of history store removes the history values once the stop
-             * timestamp is globally visible. i.e. durable timestamp of data store version.
+             * For any uncommitted prepared updates written to disk, the stop timestamp of the last
+             * update moved into the history store should be with max visibility to protect it
+             * removing by the checkpoint garbage collection until the data store update is
+             * committed.
              */
-            WT_ASSERT(session, prev_upd->start_ts <= prev_upd->durable_ts);
-            stop_ts_pair.timestamp = prev_upd->durable_ts;
-            stop_ts_pair.txnid = prev_upd->txnid;
+            if (prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+              prev_upd->prepare_state == WT_PREPARE_LOCKED) {
+                WT_ASSERT(session, list->onpage_upd == prev_upd);
+                stop_ts_pair.timestamp = WT_TS_MAX;
+                stop_ts_pair.txnid = WT_TXN_MAX;
+            } else {
+                /*
+                 * Set the stop timestamp from durable timestamp instead of commit timestamp. The
+                 * Garbage collection of history store removes the history values once the stop
+                 * timestamp is globally visible. i.e. durable timestamp of data store version.
+                 */
+                WT_ASSERT(session, prev_upd->start_ts <= prev_upd->durable_ts);
+                stop_ts_pair.timestamp = prev_upd->durable_ts;
+                stop_ts_pair.txnid = prev_upd->txnid;
+            }
 
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
