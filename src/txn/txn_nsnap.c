@@ -149,7 +149,7 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
     started_txn = false;
     nsnap_new = NULL;
     txn_global = &S2C(session)->txn_global;
-    txn = &session->txn;
+    txn = session->txn;
 
     WT_RET(__wt_config_gets_def(session, cfg, "include_updates", 0, &cval));
     include_updates = cval.val != 0;
@@ -182,7 +182,7 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
         nsnap->id = txn->id;
     } else
         nsnap->id = WT_TXN_NONE;
-    nsnap->pinned_id = WT_SESSION_TXN_STATE(session)->pinned_id;
+    nsnap->pinned_id = WT_SESSION_TXN_SHARED(session)->pinned_id;
     nsnap->snap_min = txn->snap_min;
     nsnap->snap_max = txn->snap_max;
     if (txn->snapshot_count > 0) {
@@ -214,7 +214,7 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
 err:
     if (started_txn) {
 #ifdef HAVE_DIAGNOSTIC
-        uint64_t pinned_id = WT_SESSION_TXN_STATE(session)->pinned_id;
+        uint64_t pinned_id = WT_SESSION_TXN_SHARED(session)->pinned_id;
 #endif
         WT_TRET(__wt_txn_rollback(session, NULL));
         WT_DIAGNOSTIC_YIELD;
@@ -277,11 +277,11 @@ __wt_txn_named_snapshot_get(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *nameval)
     WT_NAMED_SNAPSHOT *nsnap;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_shared;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_global = &S2C(session)->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     txn->isolation = WT_ISO_SNAPSHOT;
     if (session->ncursors > 0)
@@ -295,13 +295,13 @@ __wt_txn_named_snapshot_get(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *nameval)
              * ID.
              */
             __wt_readlock(session, &txn_global->rwlock);
-            txn_state->pinned_id = nsnap->pinned_id;
+            txn_shared->pinned_id = nsnap->pinned_id;
             __wt_readunlock(session, &txn_global->rwlock);
 
             WT_ASSERT(session,
-              !__wt_txn_visible_all(session, txn_state->pinned_id, WT_TS_NONE) &&
+              !__wt_txn_visible_all(session, txn_shared->pinned_id, WT_TS_NONE) &&
                 txn_global->nsnap_oldest_id != WT_TXN_NONE &&
-                WT_TXNID_LE(txn_global->nsnap_oldest_id, txn_state->pinned_id));
+                WT_TXNID_LE(txn_global->nsnap_oldest_id, txn_shared->pinned_id));
             txn->snap_min = nsnap->snap_min;
             txn->snap_max = nsnap->snap_max;
             if ((txn->snapshot_count = nsnap->snapshot_count) != 0)
@@ -339,7 +339,7 @@ __wt_txn_named_snapshot_config(
     WT_CONFIG_ITEM cval;
     WT_TXN *txn;
 
-    txn = &session->txn;
+    txn = session->txn;
     *has_create = *has_drops = false;
 
     /* Verify that the name is legal. */

@@ -23,8 +23,8 @@
 static void
 __las_set_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION *saved_isolationp)
 {
-    *saved_isolationp = session->txn.isolation;
-    session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
+    *saved_isolationp = session->txn->isolation;
+    session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
 }
 
 /*
@@ -34,7 +34,7 @@ __las_set_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION *saved_isolationp
 static void
 __las_restore_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION saved_isolation)
 {
-    session->txn.isolation = saved_isolation;
+    session->txn->isolation = saved_isolation;
 }
 
 /*
@@ -396,7 +396,7 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_TXN *txn;
 
-    txn = &session->txn;
+    txn = session->txn;
 
     /*
      * Skip lookaside pages if reading without a timestamp and all the updates in lookaside are in
