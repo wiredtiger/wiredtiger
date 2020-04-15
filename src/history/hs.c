@@ -1306,9 +1306,8 @@ err:
 
 /*
  * __wt_history_store_verify_one --
- *     Verify the history store. There can't be an entry in the history store without having the
- *     latest value for the respective key in the data store. When given a uri, limit the
- *     verification to the corresponding btree.
+ *     Verify the history store for the btree that is set up in this session. This must be called
+ *     when we are known to have exclusive access tot he btree.
  */
 int
 __wt_history_store_verify_one(WT_SESSION_IMPL *session)
@@ -1350,8 +1349,7 @@ err:
 /*
  * __wt_history_store_verify --
  *     Verify the history store. There can't be an entry in the history store without having the
- *     latest value for the respective key in the data store. If given a uri, limit the verification
- *     to the corresponding btree.
+ *     latest value for the respective key in the data store.
  */
 int
 __wt_history_store_verify(WT_SESSION_IMPL *session)
