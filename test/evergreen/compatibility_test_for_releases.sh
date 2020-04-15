@@ -143,7 +143,7 @@ upgrade_downgrade()
 
                 echo "$2 format running on $2 access method $am..."
                 cd "$top/$2/test/format"
-                flags="-1qR $(format_b_flag $1)"
+                flags="-1qR $(format_b_flag $2)"
                 ./t $flags -h "RUNDIR.$am" timer=2
             done
         done
