@@ -6,6 +6,18 @@
 set -e
 
 #############################################################
+# format_b_flag:
+#       arg1: release
+#############################################################
+format_b_flag()
+{
+        # Return if the release's format command takes the -B flag for backward compatibility.
+        test "$1" = "develop" && return 0
+        test "$1" = "mongodb4.4" && return 0
+        return 1
+}
+
+#############################################################
 # build_release:
 #       arg1: release
 #############################################################
@@ -30,7 +42,6 @@ build_release()
 # run_format:
 #       arg1: release
 #       arg2: access methods list
-#       arg3: -B for compatibility testing
 #############################################################
 run_format()
 {
@@ -39,6 +50,9 @@ run_format()
         echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
         cd "$1/test/format"
+
+        flags="-1q "
+        format_b_flag "$1" && flags+="-B "
 
         args=""
         args+="cache=80 "                       # Medium cache so there's eviction
@@ -58,7 +72,7 @@ run_format()
         for am in $2; do
             dir="RUNDIR.$am"
             echo "./t running $am access method..."
-            ./t -1q $3 -h $dir "file_type=$am" $args
+            ./t $flags -h $dir "file_type=$am" $args
 
             # Remove the version string from the base configuration file. (MongoDB does not create
             # a base configuration file, but format does, so we need to remove its version string
@@ -85,13 +99,43 @@ verify_release()
         echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
         echo "Release \"$1\" verifying \"$2\""
         echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-        
+
         cd "$1"
         for am in $3; do
-            dir="$2/test/format/RUNDIR.$am"
             echo "$1/wt verifying $2 access method $am..."
-
+            dir="$2/test/format/RUNDIR.$am"
             WIREDTIGER_CONFIG="$EXT" ./wt -h "../$dir" verify table:wt
+        done
+}
+
+#############################################################
+# upgrade_downgrade:
+#       arg1: release #1
+#       arg2: release #2
+#       arg3: access methods list
+#############################################################
+upgrade_downgrade()
+{
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        echo "Upgrade/downgrade testing with \"$1\" and \"$2\""
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+        # Alternate running each release format test program on the second release build.
+        top="$PWD"
+        for am in $3; do
+            for reps in {1..2}; do
+                echo "$1 format running on $2 access method $am..."
+                cd "$top/$1/test/format"
+                flags="-1qR "
+                format_b_flag "$1" && flags+="-B "
+                ./t $flags -h "$top/$2/test/format/RUNDIR.$am" timer=2
+
+                echo "$2 format running on $2 access method $am..."
+                cd "$top/$2/test/format"
+                flags="-1qR "
+                format_b_flag "$2" && flags+="-B "
+                ./t $flags -h "RUNDIR.$am" timer=2
+            done
         done
 }
 
@@ -105,7 +149,7 @@ cd "$top"
 (build_release mongodb-3.6)
 (build_release mongodb-4.0)
 (build_release mongodb-4.2)
-#(build_release mongodb-4.4)
+(build_release mongodb-4.4)
 (build_release "develop")
 
 # Run format in each release for supported access methods.
@@ -113,18 +157,25 @@ cd "$top"
 (run_format mongodb-3.6 "fix row var")
 (run_format mongodb-4.0 "fix row var")
 (run_format mongodb-4.2 "fix row var")
-#(run_format mongodb-4.4 "row")
-(run_format "develop" "row" "-B")
+(run_format mongodb-4.4 "row")
+(run_format "develop" "row")
 
 # Verify backward compatibility for supported access methods.
 (verify_release mongodb-3.6 mongodb-3.4 "fix row var")
 (verify_release mongodb-4.0 mongodb-3.6 "fix row var")
 (verify_release mongodb-4.2 mongodb-4.0 "fix row var")
-#(verify_release mongodb-4.4 mongodb-4.2 "fix row var")
-#(verify_release develop mongodb-4.4 "row")
-(verify_release develop mongodb-4.2 "fix row var")
+### (verify_release mongodb-4.4 mongodb-4.2 "fix row var")
+### (verify_release develop mongodb-4.4 "row")
+(verify_release develop mongodb-4.2 "row")
 
 # Verify forward compatibility for supported access methods.
+### (verify_release mongodb-4.2 mongodb-4.4 "row")
 (verify_release mongodb-4.2 develop "row")
+### (verify_release mongodb-4.4 develop "row")
+
+# Upgrade/downgrade testing for supported access methods.
+### (upgrade_downgrade mongodb-4.2 mongodb-4.4 "row")
+(upgrade_downgrade mongodb-4.2 develop "row")
+### (upgrade_downgrade mongodb-4.4 develop "row")
 
 exit 0
