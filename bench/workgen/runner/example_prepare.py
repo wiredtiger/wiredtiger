@@ -31,7 +31,8 @@ from runner import *
 from wiredtiger import *
 from workgen import *
 
-conn = wiredtiger_open("WT_TEST", "create,cache_size=500MB")
+context = Context()
+conn = context.wiredtiger_open("create,cache_size=500MB")
 s = conn.open_session()
 tname = "table:test"
 config = "key_format=S,value_format=S,"
@@ -40,7 +41,6 @@ table = Table(tname)
 table.options.key_size = 20
 table.options.value_size = 10
 
-context = Context()
 op = Operation(Operation.OP_INSERT, table)
 thread = Thread(op * 5000)
 pop_workload = Workload(context, thread)
