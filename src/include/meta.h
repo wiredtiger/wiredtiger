@@ -140,6 +140,7 @@ struct __wt_ckpt {
     wt_timestamp_t stop_durable_ts;
     wt_timestamp_t newest_stop_ts;
     uint64_t newest_stop_txn;
+    bool prepare;
 
     WT_ITEM addr; /* Checkpoint cookie string */
     WT_ITEM raw;  /* Checkpoint cookie raw */

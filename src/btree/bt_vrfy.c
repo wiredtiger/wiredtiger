@@ -262,6 +262,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
                 addr_unpack.oldest_start_txn = WT_TXN_NONE;
                 addr_unpack.newest_stop_txn = WT_TXN_MAX;
             }
+            if (ckpt->prepare)
+                F_SET(&addr_unpack, WT_CELL_UNPACK_PREPARE);
             addr_unpack.raw = WT_CELL_ADDR_INT;
 
             /* Verify the tree. */

@@ -1498,7 +1498,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
 void
 __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, wt_timestamp_t start_durable_ts,
   wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn, wt_timestamp_t stop_durable_ts,
-  wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
+  wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn, bool prepare)
 {
     WT_BTREE *btree;
     WT_CKPT *ckpt, *ckptbase;
@@ -1520,6 +1520,7 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, wt_timestamp_t s
             ckpt->stop_durable_ts = stop_durable_ts;
             ckpt->newest_stop_ts = newest_stop_ts;
             ckpt->newest_stop_txn = newest_stop_txn;
+            ckpt->prepare = prepare;
         }
 }
 
@@ -1566,7 +1567,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      */
     if (is_checkpoint && btree->original) {
         __wt_checkpoint_tree_reconcile_update(
-          session, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX);
+          session, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX, false);
 
         fake_ckpt = true;
         goto fake;

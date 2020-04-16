@@ -192,6 +192,7 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
     ckptbase->stop_durable_ts = WT_TS_NONE;
     ckptbase->newest_stop_ts = WT_TS_MAX;
     ckptbase->newest_stop_txn = WT_TXN_MAX;
+    ckptbase->prepare = false;
     ckptbase->write_gen = btree->write_gen;
     F_SET(ckptbase, WT_CKPT_ADD);
 

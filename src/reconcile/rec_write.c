@@ -1736,6 +1736,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     multi->addr.newest_stop_durable_ts = chunk->newest_stop_durable_ts;
     multi->addr.newest_stop_ts = chunk->newest_stop_ts;
     multi->addr.newest_stop_txn = chunk->newest_stop_txn;
+    multi->addr.prepare = chunk->prepare;
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
@@ -2129,8 +2130,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          */
         ref = r->ref;
         if (__wt_ref_is_root(ref)) {
-            __wt_checkpoint_tree_reconcile_update(
-              session, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX);
+            __wt_checkpoint_tree_reconcile_update(session, WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE,
+              WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX, false);
             WT_RET(bm->checkpoint(bm, session, NULL, btree->ckpt, false));
         }
 
@@ -2173,7 +2174,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             __wt_checkpoint_tree_reconcile_update(session, r->multi->addr.newest_start_durable_ts,
               r->multi->addr.oldest_start_ts, r->multi->addr.oldest_start_txn,
               r->multi->addr.newest_stop_durable_ts, r->multi->addr.newest_stop_ts,
-              r->multi->addr.newest_stop_txn);
+              r->multi->addr.newest_stop_txn, r->multi->addr.prepare);
             WT_RET(__wt_bt_write(session, r->wrapup_checkpoint, NULL, NULL, NULL, true,
               F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
         }
