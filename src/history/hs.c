@@ -1299,7 +1299,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
             WT_ERR_MSG(session, ret,
               "the associated history store key %s was not found in the data store %s",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key),
-              cbt->dhandle->name);
+              session->dhandle->name);
 
         /* Swap current/previous buffers. */
         tmp = hs_key;
