@@ -882,6 +882,7 @@ int ThreadRunner::op_run(Operation *op) {
 
             _in_transaction = true;
         }
+        // Call cursor operations only when transaction != NULL or _in_transaction is true.
         if (op->is_table_op() && _in_transaction) {
             switch (op->_optype) {
             case Operation::OP_INSERT:
@@ -975,7 +976,7 @@ err:
             else if (op->transaction->use_commit_timestamp) {
                 uint64_t commit_time_us = WorkgenTimeStamp::get_timestamp();
                 sprintf(buf, "commit_timestamp=%" PRIu64, commit_time_us);
-                ret = _session->commit_transaction(_session, buf);
+                ret = _session->commit_transaction(_session, buf);     
             }
             else {
                 ret = _session->commit_transaction(_session,

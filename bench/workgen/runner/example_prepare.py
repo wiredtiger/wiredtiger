@@ -36,7 +36,6 @@ homedir = "WT_TEST"
 context = Context()
 conn = context.wiredtiger_open("create,cache_size=500MB")
 s = conn.open_session()
-#s = conn.open_session("isolation=snapshot")
 tname = "table:test"
 config = "key_format=S,value_format=S,"
 s.create(tname, config)
