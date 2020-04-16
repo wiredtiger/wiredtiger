@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ##############################################################################################
-# Check branches to ensure forward/backward compatibility, including some pgrade/downgrade testing.
+# Check branches to ensure forward/backward compatibility, including some upgrade/downgrade testing.
 ##############################################################################################
 
 set -e
