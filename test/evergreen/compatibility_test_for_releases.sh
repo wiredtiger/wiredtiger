@@ -187,7 +187,7 @@ cd develop; wt2=$(get_prev_version 2); cd ..
 ### (verify_branches mongodb-4.4 mongodb-4.2 "fix row var")
 ### (verify_branches develop mongodb-4.4 "row")
 (verify_branches develop mongodb-4.2 "row")
-(verify_branches "$wt2" "$wt1" "row")
+(verify_branches "$wt1" "$wt2" "row")
 (verify_branches develop "$wt1" "row")
 
 # Verify forward compatibility for supported access methods.
