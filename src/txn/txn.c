@@ -1489,7 +1489,7 @@ __wt_txn_release_resources(WT_SESSION_IMPL *session)
     WT_TXN *txn;
 
     if ((txn = session->txn) == NULL)
-	return;
+        return;
 
     WT_ASSERT(session, txn->mod_count == 0);
     __wt_free(session, txn->mod);
