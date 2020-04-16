@@ -30,6 +30,8 @@ usage(void)
     fprintf(stderr,
       "global options:\n"
       "\t"
+      "-B\t"
+      "maintain release 3.3 log file compatibility\n"
       "-C\t"
       "wiredtiger_open configuration\n"
       "\t"
@@ -116,7 +118,7 @@ main(int argc, char *argv[])
     int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
     const char *cmd_config, *config, *p1, *p2, *p3, *readonly_config, *rec_config;
-    bool logoff, readonly, recover, salvage;
+    bool backward_compatible, logoff, readonly, recover, salvage;
 
     conn = NULL;
     p = NULL;
@@ -145,10 +147,13 @@ main(int argc, char *argv[])
      * needed, the user can specify -R to run recovery.
      */
     rec_config = REC_ERROR;
-    logoff = readonly = recover = salvage = false;
+    backward_compatible = logoff = readonly = recover = salvage = false;
     /* Check for standard options. */
-    while ((ch = __wt_getopt(progname, argc, argv, "C:E:h:LRrSVv")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:LRrSVv")) != EOF)
         switch (ch) {
+        case 'B': /* backward compatibility */
+            backward_compatible = true;
+            break;
         case 'C': /* wiredtiger_open config */
             cmd_config = __wt_optarg;
             break;
@@ -348,9 +353,16 @@ err:
     }
 done:
 
-    /* Close the database. */
-    if (conn != NULL && (tret = conn->close(conn, NULL)) != 0 && ret == 0)
-        ret = tret;
+    if (conn != NULL) {
+        /* Maintain backward compatibility. */
+        if (backward_compatible &&
+          (tret = conn->reconfigure(conn, "compatibility=(release=3.3)")) != 0 && ret == 0)
+            ret = tret;
+
+        /* Close the database. */
+        if ((tret = conn->close(conn, NULL)) != 0 && ret == 0)
+            ret = tret;
+    }
 
     free(p);
     free(secretkey);
