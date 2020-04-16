@@ -1341,6 +1341,7 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
     ret = 0;
 err:
     __wt_errx(session, "VERIFY_HS_ONE: ret %d", ret);
+    WT_TRET(__wt_btcur_reset(&cbt));
     WT_TRET(__wt_btcur_close(&cbt, true));
     __wt_scr_free(session, &hs_key);
     return (ret);
