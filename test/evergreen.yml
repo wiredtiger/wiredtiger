@@ -2209,14 +2209,6 @@ tasks:
               exit 1
             fi
 
-  - name: compatibility-test-for-wiredtiger-releases
-    commands:
-      - func: "get project"
-      - command: subprocess.exec
-        params:
-          working_dir: "wiredtiger"
-          command: bash test/evergreen/compatibility_test_for_wiredtiger_releases.sh
-
   - name: format-stress-sanitizer-ppc-test
     # Set 2.5 hours timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
@@ -2411,7 +2403,6 @@ buildvariants:
   - ubuntu1804-test
   tasks:
     - name: compatibility-test-for-releases
-    - name: compatibility-test-for-wiredtiger-releases
 
 - name: windows-64
   display_name: Windows 64-bit
