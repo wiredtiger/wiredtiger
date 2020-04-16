@@ -1256,6 +1256,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     uint64_t hs_counter;
     uint32_t btree_id;
     int cmp;
+    bool found;
 
     cursor = session->hs_cursor;
 
@@ -1288,11 +1289,14 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         if (cmp == 0)
             continue;
         WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, hs_key, false, NULL, false, NULL));
-
         WT_ERR(ret);
-        if (cbt->compare != 0)
+
+        found = cbt->compare == 0;
+        WT_ERR(__cursor_reset(cbt));
+
+        if (!found)
             WT_ERR_MSG(session, ret,
-              "The associated history store key %s was not found in the data store %s",
+              "the associated history store key %s was not found in the data store %s",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key),
               cbt->dhandle->name);
         WT_ERR(__wt_buf_set(session, prev_hs_key, hs_key->data, hs_key->size));
@@ -1307,7 +1311,7 @@ err:
 /*
  * __wt_history_store_verify_one --
  *     Verify the history store for the btree that is set up in this session. This must be called
- *     when we are known to have exclusive access tot he btree.
+ *     when we are known to have exclusive access to the btree.
  */
 int
 __wt_history_store_verify_one(WT_SESSION_IMPL *session)
@@ -1341,8 +1345,7 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
     ret = 0;
 err:
     __wt_errx(session, "VERIFY_HS_ONE: ret %d", ret);
-    WT_TRET(__wt_btcur_reset(&cbt));
-    WT_TRET(__wt_btcur_close(&cbt, true));
+    WT_TRET(__wt_btcur_close(&cbt, false));
     __wt_scr_free(session, &hs_key);
     return (ret);
 }
