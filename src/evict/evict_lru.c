@@ -479,6 +479,13 @@ __wt_evict_create(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    /*
+     * In case recovery has allocated some transaction IDs, bump to the current state. This will
+     * prevent eviction threads from pinning anything as they start up and read metadata in order to
+     * open cursors.
+     */
+    WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+
     WT_ASSERT(session, conn->evict_threads_min > 0);
     /* Set first, the thread might run before we finish up. */
     F_SET(conn, WT_CONN_EVICTION_RUN);
