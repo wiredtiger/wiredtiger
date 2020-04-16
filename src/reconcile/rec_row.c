@@ -803,6 +803,7 @@ __wt_rec_row_leaf(
                 stop_durable_ts = vpack->durable_stop_ts;
                 stop_ts = vpack->stop_ts;
                 stop_txn = vpack->stop_txn;
+                prepare = F_ISSET(vpack, WT_CELL_UNPACK_PREPARE);
             } else {
                 start_durable_ts = WT_TS_NONE;
                 start_ts = WT_TS_NONE;

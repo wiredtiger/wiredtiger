@@ -116,11 +116,6 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_
             LF_SET(WT_CELL_TS_DURABLE_STOP);
         }
     }
-    /*
-     * Currently, no uncommitted prepared updates are written to the data store, so this flag must
-     * be false until we allow writing them in WT-5984. In that ticket this assert must be removed.
-     */
-    WT_ASSERT(session, prepare == false);
     if (prepare)
         LF_SET(WT_CELL_PREPARE);
     *flagsp = flags;
@@ -255,11 +250,6 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, stop_durable_ts - newest_stop_ts));
         LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
-    /*
-     * Currently, no uncommitted prepared updates are written to the data store, so this flag must
-     * be false until we allow writing them in WT-5984. In that ticket this assert must be removed.
-     */
-    WT_ASSERT(session, prepare == false);
     if (prepare)
         LF_SET(WT_CELL_PREPARE);
     *flagsp = flags;

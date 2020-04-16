@@ -242,20 +242,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             has_newer_updates = true;
             continue;
         }
-        if (upd->prepare_state == WT_PREPARE_LOCKED ||
-          upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            has_newer_updates = true;
-            if (upd->start_ts > max_ts)
-                max_ts = upd->start_ts;
-
-            /*
-             * Track the oldest update not on the page, used to decide whether reads can use the
-             * page image, hence using the start rather than the durable timestamp.
-             */
-            if (upd->start_ts < r->min_skipped_ts)
-                r->min_skipped_ts = upd->start_ts;
-            continue;
-        }
 
         /* Track the first update with non-zero timestamp. */
         if (upd->start_ts > max_ts)
@@ -327,6 +313,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * stable.
      */
     if (upd != NULL) {
+        /* Mark the prepare flag if the selected update is an uncommitted prepare. */
+        if (upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED)
+            upd_select->prepare = true;
+
         /*
          * If the newest is a tombstone then select the update before it and set the end of the
          * visibility window to its time pair as appropriate to indicate that we should return "not
