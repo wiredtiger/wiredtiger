@@ -69,7 +69,7 @@ __checkpoint_name_check(WT_SESSION_IMPL *session, const char *uri)
                 break;
             }
         }
-        WT_ERR_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret, false);
     } else if (!WT_PREFIX_MATCH(uri, "colgroup:") && !WT_PREFIX_MATCH(uri, "file:") &&
       !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, "table:"))
         fail = uri;
@@ -152,7 +152,7 @@ __checkpoint_apply_operation(
         if ((ret = __wt_schema_worker(session, tmp->data, op, NULL, cfg, 0)) != 0)
             WT_ERR_MSG(session, ret, "%s", (const char *)tmp->data);
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     if (!target_list && named)
         /* Some objects don't support named checkpoints. */
@@ -531,7 +531,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_shared;
     const char *txn_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
     bool use_timestamp;
@@ -539,7 +539,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     conn = S2C(session);
     txn = &session->txn;
     txn_global = &conn->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
     use_timestamp = (cval.val != 0);
@@ -585,21 +585,21 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * time and only write to the metadata.
      */
     __wt_writelock(session, &txn_global->rwlock);
-    txn_global->checkpoint_state = *txn_state;
-    txn_global->checkpoint_state.pinned_id = txn->snap_min;
+    txn_global->checkpoint_txn_shared = *txn_shared;
+    txn_global->checkpoint_txn_shared.pinned_id = txn->snap_min;
 
     /*
      * Sanity check that the oldest ID hasn't moved on before we have cleared our entry.
      */
-    WT_ASSERT(session, WT_TXNID_LE(txn_global->oldest_id, txn_state->id) &&
-        WT_TXNID_LE(txn_global->oldest_id, txn_state->pinned_id));
+    WT_ASSERT(session, WT_TXNID_LE(txn_global->oldest_id, txn_shared->id) &&
+        WT_TXNID_LE(txn_global->oldest_id, txn_shared->pinned_id));
 
     /*
      * Clear our entry from the global transaction session table. Any operation that needs to know
      * about the ID for this checkpoint will consider the checkpoint ID in the global structure.
      * Most operations can safely ignore the checkpoint ID (see the visible all check for details).
      */
-    txn_state->id = txn_state->pinned_id = txn_state->metadata_pinned = WT_TXN_NONE;
+    txn_shared->id = txn_shared->pinned_id = txn_shared->metadata_pinned = WT_TXN_NONE;
 
     /*
      * Set the checkpoint transaction's timestamp, if requested.
@@ -608,7 +608,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * the stable timestamp.
      */
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ |
-                           WT_TXN_TS_PUBLISHED | WT_TXN_PUBLIC_TS_READ));
+                           WT_TXN_SHARED_TS_DURABLE | WT_TXN_SHARED_TS_READ));
 
     if (use_timestamp) {
         /*
@@ -625,7 +625,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     } else {
         if (!F_ISSET(conn, WT_CONN_RECOVERING))
             txn_global->meta_ckpt_timestamp = WT_TS_NONE;
-        txn->read_timestamp = WT_TS_NONE;
+        txn->read_timestamp = txn_shared->pinned_read_timestamp = WT_TS_NONE;
     }
 
     __wt_writeunlock(session, &txn_global->rwlock);
@@ -869,7 +869,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * part of the metadata file (performing recovery on backup folder where no checkpoint
      * occurred), this will return ENOENT which we ignore and continue.
      */
-    WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0), ENOENT);
+    WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0), ENOENT, false);
     hs_dhandle = session->dhandle;
 
     /*
@@ -961,7 +961,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Now that the metadata is stable, re-open the metadata file for regular eviction by clearing
      * the checkpoint_pinned flag.
      */
-    txn_global->checkpoint_state.pinned_id = WT_TXN_NONE;
+    txn_global->checkpoint_txn_shared.pinned_id = WT_TXN_NONE;
 
     if (full) {
         __checkpoint_stats(session);
@@ -1399,7 +1399,7 @@ __checkpoint_lock_dirty_tree(
                       "key: %.*s",
                       (int)k.len, k.str);
             }
-            WT_ERR_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, false);
         }
     }
 

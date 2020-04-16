@@ -71,20 +71,20 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
 #ifdef HAVE_DIAGNOSTIC
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_shared;
 
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     WT_ASSERT(session, !WT_TXNID_LT(txn->id, txn_global->last_running));
-    WT_ASSERT(session, txn->id != WT_TXN_NONE && txn_state->id != WT_TXN_NONE);
+    WT_ASSERT(session, txn->id != WT_TXN_NONE && txn_shared->id != WT_TXN_NONE);
 #else
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_shared;
 
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 #endif
-    WT_PUBLISH(txn_state->id, WT_TXN_NONE);
+    WT_PUBLISH(txn_shared->id, WT_TXN_NONE);
 }
 
 /*
@@ -118,22 +118,22 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_shared;
 
     txn = &session->txn;
     txn_global = &S2C(session)->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
-    WT_ASSERT(session, txn_state->pinned_id == WT_TXN_NONE ||
+    WT_ASSERT(session, txn_shared->pinned_id == WT_TXN_NONE ||
         session->txn.isolation == WT_ISO_READ_UNCOMMITTED ||
-        !__wt_txn_visible_all(session, txn_state->pinned_id, WT_TS_NONE));
+        !__wt_txn_visible_all(session, txn_shared->pinned_id, WT_TS_NONE));
 
-    txn_state->metadata_pinned = txn_state->pinned_id = WT_TXN_NONE;
+    txn_shared->metadata_pinned = txn_shared->pinned_id = WT_TXN_NONE;
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
     /* Clear a checkpoint's pinned ID. */
     if (WT_SESSION_IS_CHECKPOINT(session)) {
-        txn_global->checkpoint_state.pinned_id = WT_TXN_NONE;
+        txn_global->checkpoint_txn_shared.pinned_id = WT_TXN_NONE;
         txn_global->checkpoint_timestamp = 0;
     }
 
@@ -150,14 +150,14 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *s, *txn_state;
+    WT_TXN_SHARED *s, *txn_shared;
     uint64_t commit_gen, current_id, id, prev_oldest_id, pinned_id;
     uint32_t i, n, session_cnt;
 
     conn = S2C(session);
     txn = &session->txn;
     txn_global = &conn->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
     n = 0;
 
     /* Fast path if we already have the current snapshot. */
@@ -179,14 +179,14 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
      * changes the checkpoint has written to the metadata. We don't have to keep the checkpoint's
      * changes pinned so don't including it in the published pinned ID.
      */
-    if ((id = txn_global->checkpoint_state.id) != WT_TXN_NONE) {
+    if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE) {
         txn->snapshot[n++] = id;
-        txn_state->metadata_pinned = id;
+        txn_shared->metadata_pinned = id;
     }
 
     /* For pure read-only workloads, avoid scanning. */
     if (prev_oldest_id == current_id) {
-        txn_state->pinned_id = current_id;
+        txn_shared->pinned_id = current_id;
         /* Check that the oldest ID has not moved in the meantime. */
         WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
         goto done;
@@ -194,7 +194,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 
     /* Walk the array of concurrent transactions. */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /*
          * Build our snapshot of any concurrent transaction IDs.
          *
@@ -209,7 +209,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
          *    this case, we ignore this transaction because it would
          *    not be visible to the current snapshot.
          */
-        while (s != txn_state && (id = s->id) != WT_TXN_NONE && WT_TXNID_LE(prev_oldest_id, id) &&
+        while (s != txn_shared && (id = s->id) != WT_TXN_NONE && WT_TXNID_LE(prev_oldest_id, id) &&
           WT_TXNID_LT(id, current_id)) {
             /*
              * If the transaction is still allocating its ID, then we spin here until it gets its
@@ -240,7 +240,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
      */
     WT_ASSERT(session, WT_TXNID_LE(prev_oldest_id, pinned_id));
     WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
-    txn_state->pinned_id = pinned_id;
+    txn_shared->pinned_id = pinned_id;
 
 done:
     __wt_readunlock(session, &txn_global->rwlock);
@@ -258,7 +258,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *oldest_session;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *s;
+    WT_TXN_SHARED *s;
     uint64_t id, last_running, metadata_pinned, oldest_id, prev_oldest_id;
     uint32_t i, session_cnt;
 
@@ -269,12 +269,12 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     /* The oldest ID cannot change while we are holding the scan lock. */
     prev_oldest_id = txn_global->oldest_id;
     last_running = oldest_id = txn_global->current;
-    if ((metadata_pinned = txn_global->checkpoint_state.id) == WT_TXN_NONE)
+    if ((metadata_pinned = txn_global->checkpoint_txn_shared.id) == WT_TXN_NONE)
         metadata_pinned = oldest_id;
 
     /* Walk the array of concurrent transactions. */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /* Update the last running transaction ID. */
         while ((id = s->id) != WT_TXN_NONE && WT_TXNID_LE(prev_oldest_id, id) &&
           WT_TXNID_LT(id, last_running)) {
@@ -548,8 +548,8 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 
     /* Clear the transaction's ID from the global table. */
     if (WT_SESSION_IS_CHECKPOINT(session)) {
-        WT_ASSERT(session, WT_SESSION_TXN_STATE(session)->id == WT_TXN_NONE);
-        txn->id = txn_global->checkpoint_state.id = WT_TXN_NONE;
+        WT_ASSERT(session, WT_SESSION_TXN_SHARED(session)->id == WT_TXN_NONE);
+        txn->id = txn_global->checkpoint_txn_shared.id = WT_TXN_NONE;
 
         /*
          * Be extra careful to cleanup everything for checkpoints: once the global checkpoint ID is
@@ -563,7 +563,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
         if (!F_ISSET(txn, WT_TXN_PREPARE))
             __txn_remove_from_global_table(session);
         else
-            WT_ASSERT(session, WT_SESSION_TXN_STATE(session)->id == WT_TXN_NONE);
+            WT_ASSERT(session, WT_SESSION_TXN_SHARED(session)->id == WT_TXN_NONE);
         txn->id = WT_TXN_NONE;
     }
 
@@ -817,7 +817,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
         upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
         if (op_zero_ts != upd_zero_ts) {
             WT_ERR(__wt_verbose_dump_update(session, upd));
-            WT_ERR(__wt_verbose_dump_txn_one(session, &session->txn, EINVAL,
+            WT_ERR(__wt_verbose_dump_txn_one(session, session, EINVAL,
               "per-key timestamps used inconsistently, dumping relevant information"));
         }
         /*
@@ -1227,6 +1227,13 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
             /* Set prepare timestamp. */
             upd->start_ts = txn->prepare_timestamp;
 
+            /*
+             * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign
+             * it with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be
+             * a problem.
+             */
+            upd->durable_ts = WT_TS_NONE;
+
             WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
             op->u.op_upd = NULL;
 
@@ -1400,13 +1407,8 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 
     WT_RET(__wt_calloc_def(session, S2C(session_ret)->session_size, &txn->snapshot));
 
-#ifdef HAVE_DIAGNOSTIC
-    if (S2C(session_ret)->txn_global.states != NULL) {
-        WT_TXN_STATE *txn_state;
-        txn_state = WT_SESSION_TXN_STATE(session_ret);
-        WT_ASSERT(session, txn_state->pinned_id == WT_TXN_NONE);
-    }
-#endif
+    WT_ASSERT(session, S2C(session_ret)->txn_global.txn_shared_list == NULL ||
+        WT_SESSION_TXN_SHARED(session_ret)->pinned_id == WT_TXN_NONE);
 
     /*
      * Take care to clean these out in case we are reusing the transaction for eviction.
@@ -1436,7 +1438,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
     conn = S2C(session);
     txn_global = &conn->txn_global;
     stats = conn->stats;
-    checkpoint_pinned = txn_global->checkpoint_state.pinned_id;
+    checkpoint_pinned = txn_global->checkpoint_txn_shared.pinned_id;
 
     WT_STAT_SET(session, stats, txn_pinned_range, txn_global->current - txn_global->oldest_id);
 
@@ -1512,7 +1514,7 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *s;
+    WT_TXN_SHARED *s;
     u_int i;
 
     WT_UNUSED(cfg);
@@ -1532,9 +1534,9 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RWLOCK_INIT_TRACKED(session, &txn_global->read_timestamp_rwlock, read_timestamp);
     TAILQ_INIT(&txn_global->read_timestamph);
 
-    WT_RET(__wt_calloc_def(session, conn->session_size, &txn_global->states));
+    WT_RET(__wt_calloc_def(session, conn->session_size, &txn_global->txn_shared_list));
 
-    for (i = 0, s = txn_global->states; i < conn->session_size; i++, s++)
+    for (i = 0, s = txn_global->txn_shared_list; i < conn->session_size; i++, s++)
         s->id = s->metadata_pinned = s->pinned_id = WT_TXN_NONE;
 
     return (0);
@@ -1561,7 +1563,7 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
     __wt_rwlock_destroy(session, &txn_global->durable_timestamp_rwlock);
     __wt_rwlock_destroy(session, &txn_global->read_timestamp_rwlock);
     __wt_rwlock_destroy(session, &txn_global->visibility_rwlock);
-    __wt_free(session, txn_global->states);
+    __wt_free(session, txn_global->txn_shared_list);
 }
 
 /*
@@ -1662,11 +1664,11 @@ int
 __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_shared;
     uint64_t global_oldest;
 
     txn = &session->txn;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
     global_oldest = S2C(session)->txn_global.oldest_id;
 
     /* We can't roll back prepared transactions. */
@@ -1684,7 +1686,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     /*
      * Check if either the transaction's ID or its pinned ID is equal to the oldest transaction ID.
      */
-    return (txn_state->id == global_oldest || txn_state->pinned_id == global_oldest ?
+    return (txn_shared->id == global_oldest || txn_shared->pinned_id == global_oldest ?
         __wt_txn_rollback_required(
           session, "oldest pinned transaction ID rolled back for eviction") :
         0);
@@ -1696,11 +1698,16 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
  */
 int
 __wt_verbose_dump_txn_one(
-  WT_SESSION_IMPL *session, WT_TXN *txn, int error_code, const char *error_string)
+  WT_SESSION_IMPL *session, WT_SESSION_IMPL *txn_session, int error_code, const char *error_string)
 {
+    WT_TXN *txn;
+    WT_TXN_SHARED *txn_shared;
     char buf[512];
-    char ts_string[5][WT_TS_INT_STRING_SIZE];
+    char ts_string[7][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
+
+    txn = &txn_session->txn;
+    txn_shared = WT_SESSION_TXN_SHARED(txn_session);
 
     WT_NOT_READ(iso_tag, "INVALID");
     switch (txn->isolation) {
@@ -1727,6 +1734,8 @@ __wt_verbose_dump_txn_one(
                    ", first_commit_timestamp: %s"
                    ", prepare_timestamp: %s"
                    ", read_timestamp: %s"
+                   ", pinned_durable_timestamp: %s"
+                   ", pinned_read_timestamp: %s"
                    ", checkpoint LSN: [%" PRIu32 "][%" PRIu32 "]"
                    ", full checkpoint: %s"
                    ", rollback reason: %s"
@@ -1736,8 +1745,10 @@ __wt_verbose_dump_txn_one(
       __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
       __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
       __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
-      __wt_timestamp_to_string(txn->read_timestamp, ts_string[4]), txn->ckpt_lsn.l.file,
-      txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
+      __wt_timestamp_to_string(txn->read_timestamp, ts_string[4]),
+      __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[5]),
+      __wt_timestamp_to_string(txn_shared->pinned_read_timestamp, ts_string[6]),
+      txn->ckpt_lsn.l.file, txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
       txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
 
     /*
@@ -1762,7 +1773,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *sess;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *s;
+    WT_TXN_SHARED *s;
     uint64_t id;
     uint32_t i, session_cnt;
     char ts_string[WT_TS_INT_STRING_SIZE];
@@ -1801,9 +1812,9 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
       __wt_msg(session, "checkpoint running: %s", txn_global->checkpoint_running ? "yes" : "no"));
     WT_RET(
       __wt_msg(session, "checkpoint generation: %" PRIu64, __wt_gen(session, WT_GEN_CHECKPOINT)));
-    WT_RET(
-      __wt_msg(session, "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_state.pinned_id));
-    WT_RET(__wt_msg(session, "checkpoint txn ID: %" PRIu64, txn_global->checkpoint_state.id));
+    WT_RET(__wt_msg(
+      session, "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_txn_shared.pinned_id));
+    WT_RET(__wt_msg(session, "checkpoint txn ID: %" PRIu64, txn_global->checkpoint_txn_shared.id));
 
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
     WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt));
@@ -1814,7 +1825,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
      * handles is not thread safe, so some information may change while traversing if other threads
      * are active at the same time, which is OK since this is diagnostic code.
      */
-    for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /* Skip sessions with no active transaction */
         if ((id = s->id) == WT_TXN_NONE && s->pinned_id == WT_TXN_NONE)
             continue;
@@ -1822,7 +1833,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
         WT_RET(__wt_msg(session,
           "ID: %" PRIu64 ", pinned ID: %" PRIu64 ", metadata pinned ID: %" PRIu64 ", name: %s", id,
           s->pinned_id, s->metadata_pinned, sess->name == NULL ? "EMPTY" : sess->name));
-        WT_RET(__wt_verbose_dump_txn_one(session, &sess->txn, 0, NULL));
+        WT_RET(__wt_verbose_dump_txn_one(session, sess, 0, NULL));
     }
 
     return (0);

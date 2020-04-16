@@ -381,7 +381,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     internal_bytes = leaf_bytes = 0;
     internal_pages = leaf_pages = 0;
-    saved_pinned_id = WT_SESSION_TXN_STATE(session)->pinned_id;
+    saved_pinned_id = WT_SESSION_TXN_SHARED(session)->pinned_id;
     timer = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT);
     if (timer)
         time_start = __wt_clock(session);
@@ -570,7 +570,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
               !tried_eviction && F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT)) {
                 ret = __wt_page_release_evict(session, walk, 0);
                 walk = NULL;
-                WT_ERR_BUSY_OK(ret);
+                WT_ERR_ERROR_OK(ret, EBUSY, false);
 
                 walk = prev;
                 prev = NULL;
