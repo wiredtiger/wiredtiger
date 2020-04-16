@@ -4,17 +4,10 @@ last_stable=4.2
 last_stable_dir=wiredtiger_${last_stable}/
 last_stable_branch=mongodb-${last_stable}
 
-# Exporting to satisfy ShellCheck.
-export last_stable_branch
-
-# FIXME-WT-5986: Temporarily point this at a local branch for testing.
-# Remove this once workgen args are backported to v4.2.
-tmp_branch=wt-5989-workgen-args-4_2
-
 function setup_last_stable {
     git clone git@github.com:wiredtiger/wiredtiger.git ${last_stable_dir}
     cd ${last_stable_dir}/build_posix/ || exit
-    git checkout $tmp_branch || exit 1
+    git checkout $last_stable_branch || exit 1
     bash reconf
     ../configure --enable-python --enable-diagnostic
     make -j 10
