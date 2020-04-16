@@ -80,16 +80,16 @@ typedef enum {
 #define WT_WITH_TXN_ISOLATION(s, iso, op)                                       \
     do {                                                                        \
         WT_TXN_ISOLATION saved_iso = (s)->isolation;                            \
-        WT_TXN_ISOLATION saved_txn_iso = (s)->txn.isolation;                    \
+        WT_TXN_ISOLATION saved_txn_iso = (s)->txn->isolation;                   \
         WT_TXN_SHARED *txn_shared = WT_SESSION_TXN_SHARED(s);                   \
         WT_TXN_SHARED saved_txn_shared = *txn_shared;                           \
-        (s)->txn.forced_iso++;                                                  \
-        (s)->isolation = (s)->txn.isolation = (iso);                            \
+        (s)->txn->forced_iso++;                                                 \
+        (s)->isolation = (s)->txn->isolation = (iso);                           \
         op;                                                                     \
         (s)->isolation = saved_iso;                                             \
-        (s)->txn.isolation = saved_txn_iso;                                     \
-        WT_ASSERT((s), (s)->txn.forced_iso > 0);                                \
-        (s)->txn.forced_iso--;                                                  \
+        (s)->txn->isolation = saved_txn_iso;                                    \
+        WT_ASSERT((s), (s)->txn->forced_iso > 0);                               \
+        (s)->txn->forced_iso--;                                                 \
         WT_ASSERT((s), txn_shared->id == saved_txn_shared.id &&                 \
             (txn_shared->metadata_pinned == saved_txn_shared.metadata_pinned || \
                          saved_txn_shared.metadata_pinned == WT_TXN_NONE) &&    \
@@ -369,4 +369,10 @@ struct __wt_txn {
 #define WT_TXN_UPDATE 0x800000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
+
+    /*
+     * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
+     * a C99 flexible array member which has the semantics we want.
+     */
+    uint64_t __snapshot[];
 };

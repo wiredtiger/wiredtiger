@@ -73,7 +73,7 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_global = &S2C(session)->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
@@ -96,7 +96,7 @@ __txn_sort_snapshot(WT_SESSION_IMPL *session, uint32_t n, uint64_t snap_max)
 {
     WT_TXN *txn;
 
-    txn = &session->txn;
+    txn = session->txn;
 
     if (n > 1)
         __snapsort(txn->snapshot, n);
@@ -120,12 +120,12 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_global = &S2C(session)->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     WT_ASSERT(session, txn_shared->pinned_id == WT_TXN_NONE ||
-        session->txn.isolation == WT_ISO_READ_UNCOMMITTED ||
+        session->txn->isolation == WT_ISO_READ_UNCOMMITTED ||
         !__wt_txn_visible_all(session, txn_shared->pinned_id, WT_TS_NONE));
 
     txn_shared->metadata_pinned = txn_shared->pinned_id = WT_TXN_NONE;
@@ -155,7 +155,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
     uint32_t i, n, session_cnt;
 
     conn = S2C(session);
-    txn = &session->txn;
+    txn = session->txn;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
     n = 0;
@@ -422,7 +422,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
               "old snapshot %" PRIu64 " pinned in session %" PRIu32
               " [%s]"
               " with snap_min %" PRIu64,
-              oldest_id, oldest_session->id, oldest_session->lastop, oldest_session->txn.snap_min);
+              oldest_id, oldest_session->id, oldest_session->lastop, oldest_session->txn->snap_min);
         }
     }
 
@@ -442,7 +442,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN *txn;
     wt_timestamp_t read_ts;
 
-    txn = &session->txn;
+    txn = session->txn;
 
     WT_RET(__wt_config_gets_def(session, cfg, "isolation", 0, &cval));
     if (cval.len != 0)
@@ -516,7 +516,7 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, const char *config)
     WT_DECL_RET;
     WT_TXN *txn;
 
-    txn = &session->txn;
+    txn = session->txn;
 
     ret = __wt_config_getones(session, config, "isolation", &cval);
     if (ret == 0 && cval.len != 0) {
@@ -540,7 +540,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_global = &S2C(session)->txn_global;
 
     WT_ASSERT(session, txn->mod_count == 0);
@@ -613,7 +613,7 @@ __txn_search_prepared_op(
 
     *updp = NULL;
 
-    txn = &session->txn;
+    txn = session->txn;
 
     cursor = *cursorp;
     if (cursor == NULL || ((WT_CURSOR_BTREE *)cursor)->btree->id != op->btree->id) {
@@ -669,7 +669,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_TXN *txn;
     WT_UPDATE *upd;
 
-    txn = &session->txn;
+    txn = session->txn;
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
@@ -735,7 +735,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
     u_int i;
     bool op_zero_ts, upd_zero_ts;
 
-    txn = &session->txn;
+    txn = session->txn;
     cursor = NULL;
     durable_op_timestamp = prev_op_timestamp = WT_TS_NONE;
 
@@ -893,7 +893,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     u_int i;
     bool locked, prepare, readonly, update_durable_ts;
 
-    txn = &session->txn;
+    txn = session->txn;
     conn = S2C(session);
     cursor = NULL;
     txn_global = &conn->txn_global;
@@ -1163,7 +1163,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     int64_t txn_prepared_updates_count;
     u_int i;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_prepared_updates_count = 0;
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -1261,7 +1261,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     WT_STAT_CONN_INCR(session, txn_prepared_updates_count);
 
     /* Set transaction state to prepare. */
-    F_SET(&session->txn, WT_TXN_PREPARE);
+    F_SET(session->txn, WT_TXN_PREPARE);
 
     /* Release our snapshot in case it is keeping data pinned. */
     __wt_txn_release_snapshot(session);
@@ -1294,7 +1294,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     WT_UNUSED(cfg);
 
     cursor = NULL;
-    txn = &session->txn;
+    txn = session->txn;
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
 
@@ -1389,7 +1389,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_txn_rollback_required(WT_SESSION_IMPL *session, const char *reason)
 {
-    session->txn.rollback_reason = reason;
+    session->txn->rollback_reason = reason;
     return (WT_ROLLBACK);
 }
 
@@ -1402,10 +1402,12 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 {
     WT_TXN *txn;
 
-    txn = &session_ret->txn;
+    /* Allocate the WT_TXN structure, including a variable length array of snapshot information. */
+    WT_RET(__wt_calloc(session, 1,
+      sizeof(WT_TXN) + sizeof(txn->snapshot[0]) * S2C(session)->session_size, &session_ret->txn));
+    txn = session_ret->txn;
+    txn->snapshot = txn->__snapshot;
     txn->id = WT_TXN_NONE;
-
-    WT_RET(__wt_calloc_def(session, S2C(session_ret)->session_size, &txn->snapshot));
 
     WT_ASSERT(session, S2C(session_ret)->txn_global.txn_shared_list == NULL ||
         WT_SESSION_TXN_SHARED(session_ret)->pinned_id == WT_TXN_NONE);
@@ -1486,7 +1488,8 @@ __wt_txn_release_resources(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
 
-    txn = &session->txn;
+    if ((txn = session->txn) == NULL)
+	return;
 
     WT_ASSERT(session, txn->mod_count == 0);
     __wt_free(session, txn->mod);
@@ -1502,7 +1505,7 @@ void
 __wt_txn_destroy(WT_SESSION_IMPL *session)
 {
     __wt_txn_release_resources(session);
-    __wt_free(session, session->txn.snapshot);
+    __wt_free(session, session->txn);
 }
 
 /*
@@ -1667,7 +1670,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     WT_TXN_SHARED *txn_shared;
     uint64_t global_oldest;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
     global_oldest = S2C(session)->txn_global.oldest_id;
 
@@ -1706,7 +1709,7 @@ __wt_verbose_dump_txn_one(
     char ts_string[7][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
 
-    txn = &txn_session->txn;
+    txn = txn_session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(txn_session);
 
     WT_NOT_READ(iso_tag, "INVALID");

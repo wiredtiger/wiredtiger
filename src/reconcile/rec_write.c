@@ -47,7 +47,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * (rare) cases where we write data at read-uncommitted isolation.
      */
     WT_ASSERT(session, !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
-        F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
+        F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* It's an error to be called with a clean page. */
     WT_ASSERT(session, __wt_page_is_modified(page));
