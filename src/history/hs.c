@@ -1318,21 +1318,20 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE cbt;
-    WT_DECL_ITEM(hs_key);
+    WT_ITEM hs_key;
     WT_DECL_RET;
     uint32_t btree_id;
     int exact;
 
     cursor = session->hs_cursor;
+    btree_id = S2BT(session)->id;
+
     /*
      * We are required to position the history store cursor. Set it to the first record of our btree
      * in the history store.
      */
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
-    __wt_btcur_init(session, &cbt);
-    __wt_btcur_open(&cbt);
-    btree_id = cbt.btree->id;
-    cursor->set_key(cursor, btree_id, hs_key, 0, 0, 0, 0);
+    memset(&hs_key, 0, sizeof(hs_key));
+    cursor->set_key(cursor, btree_id, &hs_key, 0, 0, 0, 0);
     ret = cursor->search_near(cursor, &exact);
     WT_ERR_NOTFOUND_OK(ret, true);
     __wt_errx(session, "VERIFY_HS_ONE: verify hs with ret %d id %" PRIu32, ret, btree_id);
@@ -1340,13 +1339,16 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
         ret = cursor->next(cursor);
 
     /* If we positioned the cursor there is something to verify. */
-    if (ret != WT_NOTFOUND)
-        WT_ERR(__verify_history_store_id(session, &cbt, btree_id));
+    if (ret != WT_NOTFOUND) {
+	__wt_btcur_init(session, &cbt);
+	__wt_btcur_open(&cbt);
+        ret = __verify_history_store_id(session, &cbt, btree_id);
+	WT_TRET(__wt_btcur_close(&cbt, false));
+	WT_ERR(ret);
+    }
     ret = 0;
 err:
     __wt_errx(session, "VERIFY_HS_ONE: ret %d", ret);
-    WT_TRET(__wt_btcur_close(&cbt, false));
-    __wt_scr_free(session, &hs_key);
     return (ret);
 }
 
