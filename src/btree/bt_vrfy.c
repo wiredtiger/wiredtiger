@@ -171,14 +171,13 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     size_t root_addr_size;
     uint32_t session_flags;
     uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
-    const char *last_ckpt, *name;
+    const char *name;
     bool bm_start, is_owner, quit;
 
     btree = S2BT(session);
     bm = btree->bm;
     ckptbase = NULL;
     session_flags = 0; /* -Wuninitialized */
-    last_ckpt = NULL;
     name = session->dhandle->name;
     bm_start = false;
     is_owner = false; /* -Wuninitialized */
@@ -199,9 +198,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__verify_config_offsets(session, cfg, &quit));
     if (quit)
         goto done;
-
-    /* Get the name of the last checkpoint for later history store verification. */
-    WT_ERR(__wt_meta_checkpoint_last_name(session, name, &last_ckpt));
 
     /*
      * Get a list of the checkpoints for this file. Empty objects have no checkpoints, in which case
@@ -273,6 +269,13 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
             /*
+             * The checkpoints are in time-order, so the last one in the list is the most recent. If
+             * this is the most recent checkpoint, verify the history store against it.
+             */
+            if (ret == 0 && (ckpt + 1)->name == NULL)
+                WT_TRET(__wt_history_store_verify_one(session));
+
+            /*
              * We have an exclusive lock on the handle, but we're swapping root pages in-and-out of
              * that handle, and there's a race with eviction entering the tree and seeing an invalid
              * root page. Eviction must work on trees being verified (else we'd have to do our own
@@ -281,14 +284,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * the loop and re-acquire it here.
              */
             WT_TRET(__wt_evict_file_exclusive_on(session));
-
-            /*
-             * If this is the most recent checkpoint, verify the history store against this one. We
-             * need to do this here because we still have the root page loaded and the file is now
-             * exclusive again and before it is discarded.
-             */
-            if (ret == 0 && WT_STRING_MATCH(last_ckpt, ckpt->name, strlen(last_ckpt)))
-                WT_TRET(__wt_history_store_verify_one(session));
 
             WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
         }
@@ -316,7 +311,6 @@ err:
         WT_TRET(bm->verify_end(bm, session));
 
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
-    __wt_free(session, last_ckpt);
 
     /* Discard the list of checkpoints. */
     if (ckptbase != NULL)
