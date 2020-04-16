@@ -118,11 +118,6 @@ format_process_env(void)
     (void)signal(SIGTERM, signal_handler);
 #endif
 
-    /* Initialize locks to single-thread backups, failures, and timestamp updates. */
-    testutil_check(pthread_rwlock_init(&g.backup_lock, NULL));
-    testutil_check(pthread_rwlock_init(&g.death_lock, NULL));
-    testutil_check(pthread_rwlock_init(&g.ts_lock, NULL));
-
 #if 0
     /* Configure the GNU malloc for debugging. */
     (void)setenv("MALLOC_CHECK_", "2", 1);
@@ -156,6 +151,10 @@ main(int argc, char *argv[])
     bool one_flag, quiet_flag;
 
     custom_die = format_die; /* Local death handler. */
+
+    LOCK_CLEAR(&g.backup_lock);
+    LOCK_CLEAR(&g.death_lock);
+    LOCK_CLEAR(&g.ts_lock);
 
     config = NULL;
 
@@ -328,10 +327,6 @@ main(int argc, char *argv[])
 
     config_print(false);
 
-    testutil_check(pthread_rwlock_destroy(&g.backup_lock));
-    testutil_check(pthread_rwlock_destroy(&g.death_lock));
-    testutil_check(pthread_rwlock_destroy(&g.ts_lock));
-
     config_clear();
 
     printf("%s: successful run completed\n", progname);
@@ -358,7 +353,8 @@ format_die(void)
     /*
      * Single-thread error handling, our caller exits after calling us (we never release the lock).
      */
-    (void)pthread_rwlock_wrlock(&g.death_lock);
+    if (LOCK_INITIALIZED(&g.death_lock))
+        (void)pthread_rwlock_wrlock(&g.death_lock.l.pthread);
 
     /* Flush/close any logging information. */
     fclose_and_clear(&g.logfp);

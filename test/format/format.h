@@ -60,6 +60,24 @@
 
 #define MAX_MODIFY_ENTRIES 5 /* maximum change vectors */
 
+/* 
+ * Abstract lock that lets us use either pthread reader-writer locks or WiredTiger's own
+ * (likely faster) implementation.
+ */
+typedef struct {
+    union {
+	WT_RWLOCK	 wt;
+	pthread_rwlock_t pthread;
+    } l;
+#define LOCK_NONE	0
+#define LOCK_WT    	1
+#define LOCK_PTHREAD	2
+    uint32_t lock_type;
+} RWLOCK;
+
+#define LOCK_CLEAR(lock) ((lock)->lock_type = LOCK_NONE)
+#define LOCK_INITIALIZED(lock) ((lock)->lock_type != LOCK_NONE)
+
 typedef struct {
     WT_CONNECTION *wts_conn;
     WT_EXTENSION_API *wt_api;
@@ -92,7 +110,7 @@ typedef struct {
     bool logging; /* log operations  */
     FILE *logfp;  /* log file */
 
-    pthread_rwlock_t backup_lock; /* Backup running */
+    RWLOCK backup_lock; /* Backup running */
     uint64_t backup_id;           /* Block incremental id */
 
     WT_RAND_STATE rnd; /* Global RNG state */
@@ -104,13 +122,13 @@ typedef struct {
      * We get the last committed timestamp periodically in order to update the oldest timestamp,
      * that requires locking out transactional ops that set a timestamp.
      */
-    pthread_rwlock_t ts_lock;
+    RWLOCK ts_lock;
 
     uint64_t timestamp; /* Counter for timestamps */
 
     uint64_t truncate_cnt; /* Counter for truncation */
 
-    pthread_rwlock_t death_lock; /* Single-thread failure */
+    RWLOCK death_lock; /* Single-thread failure */
 
     uint32_t c_abort; /* Config values */
     uint32_t c_alter;
@@ -204,6 +222,7 @@ typedef struct {
     uint32_t c_value_min;
     uint32_t c_verify;
     uint32_t c_write_pct;
+    uint32_t c_wt_mutex;
 
 #define FIX 1
 #define ROW 2
@@ -351,6 +370,11 @@ void key_gen_common(WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
 void key_gen_teardown(WT_ITEM *);
 void key_init(void);
+void lock_destroy(WT_SESSION *, RWLOCK *);
+void lock_init(WT_SESSION *, RWLOCK *);
+int lock_try_writelock(WT_SESSION *, RWLOCK *);
+void lock_writelock(WT_SESSION *, RWLOCK *);
+void lock_writeunlock(WT_SESSION *, RWLOCK *);
 void operations(u_int, bool);
 WT_THREAD_RET random_kv(void *);
 void path_setup(const char *);
@@ -364,7 +388,7 @@ int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
 WT_THREAD_RET timestamp(void *);
-void timestamp_once(void);
+void timestamp_once(WT_SESSION *);
 void track(const char *, uint64_t, TINFO *);
 void val_gen(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void val_gen_init(WT_ITEM *);
