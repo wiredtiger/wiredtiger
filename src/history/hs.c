@@ -1251,6 +1251,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     WT_CURSOR *cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(prev_hs_key);
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
@@ -1299,7 +1300,11 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
               "the associated history store key %s was not found in the data store %s",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key),
               cbt->dhandle->name);
-        WT_ERR(__wt_buf_set(session, prev_hs_key, hs_key->data, hs_key->size));
+
+        /* Swap current/previous buffers. */
+        tmp = hs_key;
+        hs_key = prev_hs_key;
+        prev_hs_key = tmp;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 err:
@@ -1318,8 +1323,8 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE cbt;
-    WT_ITEM hs_key;
     WT_DECL_RET;
+    WT_ITEM hs_key;
     uint32_t btree_id;
     int exact;
 
@@ -1340,11 +1345,11 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
 
     /* If we positioned the cursor there is something to verify. */
     if (ret != WT_NOTFOUND) {
-	__wt_btcur_init(session, &cbt);
-	__wt_btcur_open(&cbt);
+        __wt_btcur_init(session, &cbt);
+        __wt_btcur_open(&cbt);
         ret = __verify_history_store_id(session, &cbt, btree_id);
-	WT_TRET(__wt_btcur_close(&cbt, false));
-	WT_ERR(ret);
+        WT_TRET(__wt_btcur_close(&cbt, false));
+        WT_ERR(ret);
     }
     ret = 0;
 err:
