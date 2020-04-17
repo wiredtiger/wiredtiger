@@ -246,12 +246,12 @@ timestamp_once(WT_SESSION *session)
 
     /*
      * Lock out transaction timestamp operations. The lock acts as a barrier ensuring we've checked
-     * if the workers have finished, we don't want that line reordered.  We can also be called
-     * from places, such as bulk load, where we are single-threaded and the locks haven't been
+     * if the workers have finished, we don't want that line reordered. We can also be called from
+     * places, such as bulk load, where we are single-threaded and the locks haven't been
      * initialized.
      */
     if (LOCK_INITIALIZED(&g.ts_lock))
-	lock_writelock(session, &g.ts_lock);
+        lock_writelock(session, &g.ts_lock);
 
     ret = conn->query_timestamp(conn, buf + strlen(oldest_timestamp_str), "get=all_durable");
     testutil_assert(ret == 0 || ret == WT_NOTFOUND);
@@ -259,7 +259,7 @@ timestamp_once(WT_SESSION *session)
         testutil_check(conn->set_timestamp(conn, buf));
 
     if (LOCK_INITIALIZED(&g.ts_lock))
-	lock_writeunlock(session, &g.ts_lock);
+        lock_writeunlock(session, &g.ts_lock);
 }
 
 /*
@@ -353,15 +353,15 @@ alter(void *arg)
 void
 lock_init(WT_SESSION *session, RWLOCK *lock)
 {
-    testutil_assert (lock->lock_type == LOCK_NONE);
-    testutil_assert (session != NULL);
+    testutil_assert(lock->lock_type == LOCK_NONE);
+    testutil_assert(session != NULL);
 
     if (g.c_wt_mutex) {
-	testutil_check(__wt_rwlock_init((WT_SESSION_IMPL *)session, &lock->l.wt));
-	lock->lock_type = LOCK_WT;
+        testutil_check(__wt_rwlock_init((WT_SESSION_IMPL *)session, &lock->l.wt));
+        lock->lock_type = LOCK_WT;
     } else {
-	testutil_check(pthread_rwlock_init(&lock->l.pthread, NULL));
-	lock->lock_type = LOCK_PTHREAD;
+        testutil_check(pthread_rwlock_init(&lock->l.pthread, NULL));
+        lock->lock_type = LOCK_PTHREAD;
     }
 }
 
@@ -373,11 +373,11 @@ void
 lock_destroy(WT_SESSION *session, RWLOCK *lock)
 {
     if (g.c_wt_mutex) {
-	testutil_assert(lock->lock_type == LOCK_WT);
-	__wt_rwlock_destroy((WT_SESSION_IMPL *)session, &lock->l.wt);
+        testutil_assert(lock->lock_type == LOCK_WT);
+        __wt_rwlock_destroy((WT_SESSION_IMPL *)session, &lock->l.wt);
     } else {
-	testutil_assert(lock->lock_type == LOCK_PTHREAD);
-	testutil_check(pthread_rwlock_destroy(&lock->l.pthread));
+        testutil_assert(lock->lock_type == LOCK_PTHREAD);
+        testutil_check(pthread_rwlock_destroy(&lock->l.pthread));
     }
     lock->lock_type = LOCK_NONE;
 }
@@ -390,11 +390,11 @@ int
 lock_try_writelock(WT_SESSION *session, RWLOCK *lock)
 {
     if (g.c_wt_mutex) {
-	testutil_assert(lock->lock_type == LOCK_WT);
-	return(__wt_try_writelock((WT_SESSION_IMPL *)session, &lock->l.wt));
+        testutil_assert(lock->lock_type == LOCK_WT);
+        return (__wt_try_writelock((WT_SESSION_IMPL *)session, &lock->l.wt));
     } else {
-	testutil_assert(lock->lock_type == LOCK_PTHREAD);
-	return(pthread_rwlock_trywrlock(&lock->l.pthread));
+        testutil_assert(lock->lock_type == LOCK_PTHREAD);
+        return (pthread_rwlock_trywrlock(&lock->l.pthread));
     }
 }
 
@@ -406,11 +406,11 @@ void
 lock_writelock(WT_SESSION *session, RWLOCK *lock)
 {
     if (g.c_wt_mutex) {
-	testutil_assert(lock->lock_type == LOCK_WT);
-	__wt_writelock((WT_SESSION_IMPL *)session, &lock->l.wt);
+        testutil_assert(lock->lock_type == LOCK_WT);
+        __wt_writelock((WT_SESSION_IMPL *)session, &lock->l.wt);
     } else {
-	testutil_assert(lock->lock_type == LOCK_PTHREAD);
-	testutil_check(pthread_rwlock_wrlock(&lock->l.pthread));
+        testutil_assert(lock->lock_type == LOCK_PTHREAD);
+        testutil_check(pthread_rwlock_wrlock(&lock->l.pthread));
     }
 }
 
@@ -422,10 +422,10 @@ void
 lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
 {
     if (g.c_wt_mutex) {
-	testutil_assert(lock->lock_type == LOCK_WT);
-	__wt_writeunlock((WT_SESSION_IMPL *)session, &lock->l.wt);
+        testutil_assert(lock->lock_type == LOCK_WT);
+        __wt_writeunlock((WT_SESSION_IMPL *)session, &lock->l.wt);
     } else {
-	testutil_assert(lock->lock_type == LOCK_PTHREAD);
-	testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
+        testutil_assert(lock->lock_type == LOCK_PTHREAD);
+        testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
     }
 }

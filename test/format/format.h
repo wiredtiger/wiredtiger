@@ -60,18 +60,18 @@
 
 #define MAX_MODIFY_ENTRIES 5 /* maximum change vectors */
 
-/* 
+/*
  * Abstract lock that lets us use either pthread reader-writer locks or WiredTiger's own
  * (likely faster) implementation.
  */
 typedef struct {
     union {
-	WT_RWLOCK	 wt;
-	pthread_rwlock_t pthread;
+        WT_RWLOCK wt;
+        pthread_rwlock_t pthread;
     } l;
-#define LOCK_NONE	0
-#define LOCK_WT    	1
-#define LOCK_PTHREAD	2
+#define LOCK_NONE 0
+#define LOCK_WT 1
+#define LOCK_PTHREAD 2
     uint32_t lock_type;
 } RWLOCK;
 
@@ -111,7 +111,7 @@ typedef struct {
     FILE *logfp;  /* log file */
 
     RWLOCK backup_lock; /* Backup running */
-    uint64_t backup_id;           /* Block incremental id */
+    uint64_t backup_id; /* Block incremental id */
 
     WT_RAND_STATE rnd; /* Global RNG state */
 

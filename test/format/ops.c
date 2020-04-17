@@ -450,7 +450,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
     ts = 0; /* -Wconditional-uninitialized */
     if (g.c_txn_timestamps) {
         /* Lock out the oldest timestamp update. */
-	lock_writelock(session, &g.ts_lock);
+        lock_writelock(session, &g.ts_lock);
 
         ts = __wt_atomic_addv64(&g.timestamp, 1);
         testutil_check(__wt_snprintf(buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
@@ -461,7 +461,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
             testutil_check(session->timestamp_transaction(session, buf));
         }
 
-	lock_writeunlock(session, &g.ts_lock);
+        lock_writeunlock(session, &g.ts_lock);
     }
     testutil_check(session->commit_transaction(session, NULL));
 
