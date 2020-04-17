@@ -426,8 +426,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
 
     WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !LF_ISSET(WT_DHANDLE_LOCK_ONLY));
 
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS) ||
-        !F_ISSET(S2C(session), WT_CONN_CLOSING_NO_MORE_OPENS));
+    WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_CLOSING_NO_MORE_OPENS));
 
     /* Turn off eviction. */
     if (dhandle->type == WT_DHANDLE_TYPE_BTREE)

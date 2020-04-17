@@ -97,6 +97,10 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     /* The eviction server is shut down last. */
     WT_TRET(__wt_evict_destroy(session));
 
+    /* There should be no more file opens after this point. */
+    F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
+    WT_FULL_BARRIER();
+
     /* Close open data handles. */
     WT_TRET(__wt_conn_dhandle_discard(session));
 
