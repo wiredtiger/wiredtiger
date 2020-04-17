@@ -1131,13 +1131,9 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
     WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true,
       F_MASK(session, WT_SESSION_NO_LOGGING), &session));
 
-    /*
-     * Rollback to stable should ignore tombstones in the history store since it needs to scan the
-     * entire table sequentially.
-     */
-    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE | WT_SESSION_IGNORE_HS_TOMBSTONE);
+    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS);
     ret = __rollback_to_stable(session, cfg);
-    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE | WT_SESSION_IGNORE_HS_TOMBSTONE);
+    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS);
 
     /*
      * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to
