@@ -537,7 +537,7 @@ config_opt_file(WTPERF *wtperf, const char *filename)
             ;
 
         /*
-         * Find the end of the line; if there's no trailing newline, the
+         * Find the end of the line; if there's no trailing newline,
          * the line is too long for the buffer or the file was corrupted
          * (there's no terminating newline in the file).
          */
