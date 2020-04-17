@@ -68,6 +68,8 @@ struct __wt_cursor_backup {
     uint8_t flags;
 };
 
+typedef enum { WT_CBT_RETRY_NOTSET = 0, WT_CBT_RETRY_INSERT, WT_CBT_RETRY_PAGE } WT_CBT_RETRY;
+
 struct __wt_cursor_btree {
     WT_CURSOR iface;
 
@@ -192,7 +194,7 @@ struct __wt_cursor_btree {
      * We have to restart cursor next/prev after a prepare conflict. Keep the state of the cursor
      * separately so we can restart at exactly the right point.
      */
-    enum { WT_CBT_RETRY_NOTSET = 0, WT_CBT_RETRY_INSERT, WT_CBT_RETRY_PAGE } iter_retry;
+    WT_CBT_RETRY iter_retry;
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check that cursor next/prev never returns keys out-of-order. */

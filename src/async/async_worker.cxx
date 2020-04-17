@@ -272,7 +272,7 @@ __wt_async_worker(void *arg)
     WT_SESSION_IMPL *session;
     uint64_t flush_gen;
 
-    session = arg;
+    session = static_cast<WT_SESSION_IMPL*>(arg);
     conn = S2C(session);
     async = conn->async;
 

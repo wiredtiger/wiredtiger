@@ -276,7 +276,7 @@ __pack_size(WT_SESSION_IMPL *session, WT_PACK_VALUE *pv, size_t *vp)
             ssize_t len;
 
             /* The string was previously validated. */
-            len = __wt_json_strlen(pv->u.item.data, pv->u.item.size);
+            len = __wt_json_strlen(static_cast<const char *>(pv->u.item.data), pv->u.item.size);
             WT_ASSERT(session, len >= 0);
             s = (size_t)len + (pv->type == 'K' ? 0 : 1);
         }
@@ -388,8 +388,8 @@ __pack_write(WT_SESSION_IMPL *session, WT_PACK_VALUE *pv, uint8_t **pp, size_t m
             pad = 1;
         if (s > 0) {
             oldp = *pp;
-            WT_RET(
-              __wt_json_strncpy((WT_SESSION *)session, (char **)pp, maxlen, pv->u.item.data, s));
+            WT_RET(__wt_json_strncpy((WT_SESSION *)session, (char **)pp, maxlen,
+              static_cast<const char *>(pv->u.item.data), s));
             maxlen -= (size_t)(*pp - oldp);
         }
         if (pad > 0) {
@@ -626,7 +626,7 @@ __wt_struct_packv(WT_SESSION_IMPL *session, void *buffer, size_t size, const cha
     WT_PACK pack;
     uint8_t *p, *end;
 
-    p = buffer;
+    p = static_cast<uint8_t *>(buffer);
     end = p + size;
 
     if (fmt[0] != '\0' && fmt[1] == '\0') {
@@ -692,7 +692,7 @@ __wt_struct_unpackv(
     WT_PACK pack;
     const uint8_t *p, *end;
 
-    p = buffer;
+    p = static_cast<const uint8_t *>(buffer);
     end = p + size;
 
     if (fmt[0] != '\0' && fmt[1] == '\0') {

@@ -7,6 +7,25 @@
  */
 
 /*
+ * WT_REC_KV--
+ *	An on-page key/value item we're building.
+ */
+struct __wt_rec_kv {
+    WT_ITEM buf;  /* Data */
+    WT_CELL cell; /* Cell and cell's length */
+    size_t cell_len;
+    size_t len; /* Total length of cell + data */
+};
+
+struct __wt_rec_dictionary {
+    uint64_t hash;   /* Hash value */
+    uint32_t offset; /* Matching cell */
+
+    u_int depth; /* Skiplist */
+    WT_REC_DICTIONARY *next[0];
+};
+
+/*
  * Reconciliation is the process of taking an in-memory page, walking each entry
  * in the page, building a backing disk image in a temporary buffer representing
  * that information, and writing that buffer to disk.  What could be simpler?
@@ -194,27 +213,12 @@ struct __wt_reconcile {
      * and subsequent copies point to the original cell. The dictionary is
      * fixed size, but organized in a skip-list to make searches faster.
      */
-    struct __wt_rec_dictionary {
-        uint64_t hash;   /* Hash value */
-        uint32_t offset; /* Matching cell */
-
-        u_int depth; /* Skiplist */
-        WT_REC_DICTIONARY *next[0];
-    } * *dictionary;                         /* Dictionary */
+    WT_REC_DICTIONARY **dictionary;          /* Dictionary */
     u_int dictionary_next, dictionary_slots; /* Next, max entries */
                                              /* Skiplist head. */
     WT_REC_DICTIONARY *dictionary_head[WT_SKIP_MAXDEPTH];
 
-    /*
-     * WT_REC_KV--
-     *	An on-page key/value item we're building.
-     */
-    struct __wt_rec_kv {
-        WT_ITEM buf;  /* Data */
-        WT_CELL cell; /* Cell and cell's length */
-        size_t cell_len;
-        size_t len; /* Total length of cell + data */
-    } k, v;         /* Key/Value being built */
+    WT_REC_KV k, v; /* Key/Value being built */
 
     WT_ITEM *cur, _cur;   /* Key/Value being built */
     WT_ITEM *last, _last; /* Last key/value built */

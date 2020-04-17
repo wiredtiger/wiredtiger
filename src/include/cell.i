@@ -1165,7 +1165,8 @@ __cell_data_ref(
     }
 
     return (huffman == NULL || store->size == 0 ? 0 : __wt_huffman_decode(session, huffman,
-                                                        store->data, store->size, store));
+                                                        static_cast<const uint8_t *>(store->data),
+                                                        store->size, store));
 }
 
 /*
@@ -1201,12 +1202,13 @@ __wt_page_cell_data_ref(
  * WT_CELL_FOREACH --
  *	Walk the cells on a page.
  */
-#define WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack)                              \
-    do {                                                                                \
-        uint32_t __i;                                                                   \
-        uint8_t *__cell;                                                                \
-        for (__cell = WT_PAGE_HEADER_BYTE(btree, dsk), __i = (dsk)->u.entries; __i > 0; \
-             __cell += (unpack).__len, --__i) {                                         \
+#define WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack)                     \
+    do {                                                                       \
+        uint32_t __i;                                                          \
+        uint8_t *__cell;                                                       \
+        for (__cell = static_cast<uint8_t *>(WT_PAGE_HEADER_BYTE(btree, dsk)), \
+            __i = (dsk)->u.entries;                                            \
+             __i > 0; __cell += (unpack).__len, --__i) {                       \
             __wt_cell_unpack_dsk(session, dsk, (WT_CELL *)__cell, &(unpack));
 
 #define WT_CELL_FOREACH_END \

@@ -79,7 +79,7 @@ __wt_page_alloc(
         WT_ERR(
           __wt_calloc(session, 1, sizeof(WT_PAGE_INDEX) + alloc_entries * sizeof(WT_REF *), &p));
         size += sizeof(WT_PAGE_INDEX) + alloc_entries * sizeof(WT_REF *);
-        pindex = p;
+        pindex = static_cast<WT_PAGE_INDEX *>(p);
         pindex->index = (WT_REF **)((WT_PAGE_INDEX *)p + 1);
         pindex->entries = alloc_entries;
         WT_INTL_INDEX_SET(page, pindex);
@@ -136,7 +136,7 @@ __wt_page_inmem(
 
     *pagep = NULL;
 
-    dsk = image;
+    dsk = static_cast<const WT_PAGE_HEADER *>(image);
     alloc_entries = 0;
 
     /*
@@ -255,7 +255,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page)
     btree = S2BT(session);
     dsk = page->dsk;
 
-    page->pg_fix_bitf = WT_PAGE_HEADER_BYTE(btree, dsk);
+    page->pg_fix_bitf = static_cast<uint8_t*>(WT_PAGE_HEADER_BYTE(btree, dsk));
 }
 
 /*
@@ -359,7 +359,7 @@ __inmem_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t recno, size_t 
                 WT_RET(__wt_calloc(session, 1, size, &p));
                 *sizep += size;
 
-                page->u.col_var.repeats = p;
+                page->u.col_var.repeats = static_cast<WT_COL_VAR_REPEAT*>(p);
                 page->pg_var_nrepeats = n;
                 repeats = page->pg_var_repeats;
             }

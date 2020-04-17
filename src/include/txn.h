@@ -199,6 +199,17 @@ typedef enum __wt_txn_isolation {
     WT_ISO_SNAPSHOT
 } WT_TXN_ISOLATION;
 
+typedef enum __wt_txn_type {
+    WT_TXN_OP_NONE = 0,
+    WT_TXN_OP_BASIC_COL,
+    WT_TXN_OP_BASIC_ROW,
+    WT_TXN_OP_INMEM_COL,
+    WT_TXN_OP_INMEM_ROW,
+    WT_TXN_OP_REF_DELETE,
+    WT_TXN_OP_TRUNCATE_COL,
+    WT_TXN_OP_TRUNCATE_ROW
+} WT_TXN_TYPE;
+
 /*
  * WT_TXN_OP --
  *	A transactional operation.  Each transaction builds an in-memory array
@@ -207,16 +218,7 @@ typedef enum __wt_txn_isolation {
  */
 struct __wt_txn_op {
     WT_BTREE *btree;
-    enum {
-        WT_TXN_OP_NONE = 0,
-        WT_TXN_OP_BASIC_COL,
-        WT_TXN_OP_BASIC_ROW,
-        WT_TXN_OP_INMEM_COL,
-        WT_TXN_OP_INMEM_ROW,
-        WT_TXN_OP_REF_DELETE,
-        WT_TXN_OP_TRUNCATE_COL,
-        WT_TXN_OP_TRUNCATE_ROW
-    } type;
+    WT_TXN_TYPE type;
     union {
         /* WT_TXN_OP_BASIC_ROW, WT_TXN_OP_INMEM_ROW */
         struct {

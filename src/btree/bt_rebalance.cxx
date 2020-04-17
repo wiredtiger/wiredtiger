@@ -64,7 +64,7 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session, const uint8_t *key, size_t key
 
     __wt_verbose(session, WT_VERB_REBALANCE, "rebalance leaf-list append %s, %s",
       __wt_buf_set_printable(session, key, key_len, rs->tmp2),
-      __wt_addr_string(session, unpack->data, unpack->size, rs->tmp1));
+                 __wt_addr_string(session, static_cast<const uint8_t*>(unpack->data), unpack->size, rs->tmp1));
 
     /* Allocate and initialize a new leaf page reference. */
     WT_RET(__wt_realloc_def(session, &rs->leaf_allocated, rs->leaf_next + 1, &rs->leaf));
@@ -212,11 +212,11 @@ __rebalance_col_walk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_REB
         switch (unpack.type) {
         case WT_CELL_ADDR_INT:
             /* An internal page: read it and recursively walk it. */
-            WT_ERR(__wt_bt_read(session, buf, unpack.data, unpack.size));
-            WT_ERR(__rebalance_col_walk(session, buf->data, rs));
+	        WT_ERR(__wt_bt_read(session, buf, static_cast<const uint8_t*>(unpack.data), unpack.size));
+	        WT_ERR(__rebalance_col_walk(session, static_cast<const WT_PAGE_HEADER *>(buf->data), rs));
             __wt_verbose(session, WT_VERB_REBALANCE, "free-list append internal page: %s",
-              __wt_addr_string(session, unpack.data, unpack.size, rs->tmp1));
-            WT_ERR(__rebalance_fl_append(session, unpack.data, unpack.size, rs));
+                         __wt_addr_string(session, static_cast<const uint8_t*>(unpack.data), unpack.size, rs->tmp1));
+            WT_ERR(__rebalance_fl_append(session, static_cast<const uint8_t*>(unpack.data), unpack.size, rs));
             break;
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
@@ -305,9 +305,9 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_REB
              * keys are (well, should be), uncommon.
              */
             __wt_verbose(session, WT_VERB_REBALANCE, "free-list append overflow key: %s",
-              __wt_addr_string(session, unpack.data, unpack.size, rs->tmp1));
+                         __wt_addr_string(session, static_cast<const uint8_t*>(unpack.data), unpack.size, rs->tmp1));
 
-            WT_ERR(__rebalance_fl_append(session, unpack.data, unpack.size, rs));
+            WT_ERR(__rebalance_fl_append(session, static_cast<const uint8_t*>(unpack.data), unpack.size, rs));
 
             key = unpack;
             break;
@@ -321,12 +321,12 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_REB
         case WT_CELL_ADDR_INT:
             /* An internal page, schedule its blocks to be freed. */
             __wt_verbose(session, WT_VERB_REBALANCE, "free-list append internal page: %s",
-              __wt_addr_string(session, unpack.data, unpack.size, rs->tmp1));
-            WT_ERR(__rebalance_fl_append(session, unpack.data, unpack.size, rs));
+                         __wt_addr_string(session, static_cast<const uint8_t*>(unpack.data), unpack.size, rs->tmp1));
+            WT_ERR(__rebalance_fl_append(session, static_cast<const uint8_t*>(unpack.data), unpack.size, rs));
 
             /* Read and recursively walk the page. */
-            WT_ERR(__wt_bt_read(session, buf, unpack.data, unpack.size));
-            WT_ERR(__rebalance_row_walk(session, buf->data, rs));
+            WT_ERR(__wt_bt_read(session, buf, static_cast<const uint8_t*>(unpack.data), unpack.size));
+            WT_ERR(__rebalance_row_walk(session, static_cast<const WT_PAGE_HEADER*>(buf->data), rs));
             break;
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
@@ -337,7 +337,7 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_REB
              * we can use the internal page's key as is, it's sufficient for the page.
              */
             if (first_cell) {
-                WT_ERR(__rebalance_row_leaf_key(session, unpack.data, unpack.size, leafkey, rs));
+	            WT_ERR(__rebalance_row_leaf_key(session, static_cast<const uint8_t*>(unpack.data), unpack.size, leafkey, rs));
                 p = leafkey->data;
                 len = leafkey->size;
             } else if (key.type == WT_CELL_KEY_OVFL) {
@@ -348,7 +348,7 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_REB
                 p = key.data;
                 len = key.size;
             }
-            WT_ERR(__rebalance_leaf_append(session, p, len, &unpack, rs));
+            WT_ERR(__rebalance_leaf_append(session, static_cast<const uint8_t*>(p), len, &unpack, rs));
 
             first_cell = false;
             break;

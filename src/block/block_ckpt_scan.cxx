@@ -176,24 +176,24 @@ __block_checkpoint_update(WT_SESSION_IMPL *session, WT_BLOCK *block, struct save
     checkpoint = info->checkpoint;
 
     if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
-        __wt_ckpt_verbose(session, block, "import original", NULL, checkpoint->mem);
+	    __wt_ckpt_verbose(session, block, "import original", NULL, static_cast<const uint8_t*>(checkpoint->mem));
 
     /*
      * Convert the final checkpoint data blob to a WT_BLOCK_CKPT structure, update it with the avail
      * list information, and convert it back to a data blob.
      */
-    WT_RET(__wt_block_buffer_to_ckpt(session, block, checkpoint->data, &ci));
+    WT_RET(__wt_block_buffer_to_ckpt(session, block, static_cast<const uint8_t*>(checkpoint->data), &ci));
     ci.avail.offset = info->offset;
     ci.avail.size = info->size;
     ci.avail.checksum = info->checksum;
     ci.file_size = (wt_off_t)info->file_size;
     WT_RET(__wt_buf_extend(session, checkpoint, WT_BLOCK_CHECKPOINT_BUFFER));
-    endp = checkpoint->mem;
+    endp = static_cast<uint8_t*>(checkpoint->mem);
     WT_RET(__wt_block_ckpt_to_buffer(session, block, &endp, &ci, false));
     checkpoint->size = WT_PTRDIFF(endp, checkpoint->mem);
 
     if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
-        __wt_ckpt_verbose(session, block, "import replace", NULL, checkpoint->mem);
+	    __wt_ckpt_verbose(session, block, "import replace", NULL, static_cast<const uint8_t*>(checkpoint->mem));
 
     return (0);
 }
@@ -267,7 +267,7 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **met
          */
         if ((ret = __wt_read(session, fh, offset, (size_t)WT_BTREE_MIN_ALLOC_SIZE, tmp->mem)) != 0)
             break;
-        blk = WT_BLOCK_HEADER_REF(tmp->mem);
+        blk = static_cast<WT_BLOCK_HEADER *>(WT_BLOCK_HEADER_REF(tmp->mem));
         __wt_block_header_byteswap(blk);
         size = blk->disk_size;
         checksum = blk->checksum;
@@ -284,11 +284,11 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **met
             continue;
         }
 
-        dsk = tmp->mem;
+        dsk = static_cast<const WT_PAGE_HEADER *>(tmp->mem);
         if (dsk->type != WT_PAGE_BLOCK_MANAGER)
             continue;
 
-        p = WT_BLOCK_HEADER_BYTE(tmp->mem);
+        p = static_cast<const uint8_t *>(WT_BLOCK_HEADER_BYTE(tmp->mem));
         WT_BLOCK_SKIP(__wt_extlist_read_pair(&p, &ext_off, &ext_size));
         if (ext_off != WT_BLOCK_EXTLIST_MAGIC || ext_size != 0)
             continue;

@@ -116,7 +116,7 @@ __wt_read_cell_time_pairs(
         __wt_read_row_time_pairs(session, page, &page->pg_row[cbt->slot], start, stop);
     } else if (page->type == WT_PAGE_COL_VAR) {
         __wt_read_col_time_pairs(
-          session, page, WT_COL_PTR(page, &page->pg_var[cbt->slot]), start, stop);
+	        session, page, static_cast<WT_CELL*>(WT_COL_PTR(page, &page->pg_var[cbt->slot])), start, stop);
     } else {
         /* WT_PAGE_COL_FIX: return the default time pairs. */
         __time_pairs_init(start, stop);
@@ -208,7 +208,7 @@ __wt_value_return_buf(
 
     if (page->type == WT_PAGE_COL_VAR) {
         /* Take the value from the original page cell. */
-        cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
+	    cell = static_cast<WT_CELL*>(WT_COL_PTR(page, &page->pg_var[cbt->slot]));
         __wt_cell_unpack(session, page, cell, &unpack);
         if (start != NULL && stop != NULL)
             __time_pairs_set(start, stop, &unpack);

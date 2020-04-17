@@ -95,7 +95,7 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
      * Strip out the checkpoint LSN, an imported file isn't associated with any log files. Assign a
      * unique file ID.
      */
-    filecfg[1] = a->data;
+    filecfg[1] = static_cast<const char*>(a->data);
     filecfg[2] = checkpoint_list;
     filecfg[3] = "checkpoint_backup_info=";
     filecfg[4] = "checkpoint_lsn=";

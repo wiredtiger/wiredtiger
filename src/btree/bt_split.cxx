@@ -180,7 +180,7 @@ __split_ovfl_key_cleanup(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref)
     /* Leak blocks rather than try this twice. */
     ikey->cell_offset = 0;
 
-    cell = WT_PAGE_REF_OFFSET(page, cell_offset);
+    cell = static_cast<WT_CELL *>(WT_PAGE_REF_OFFSET(page, cell_offset));
     __wt_cell_unpack(session, page, cell, &kpack);
     if (FLD_ISSET(kpack.flags, WT_CELL_UNPACK_OVERFLOW) && kpack.raw != WT_CELL_KEY_OVFL_RM)
         WT_RET(__wt_ovfl_discard(session, page, cell));
@@ -229,7 +229,7 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         if ((ikey = __wt_ref_key_instantiated(ref)) == NULL) {
             __wt_ref_key(from_home, ref, &key, &size);
             WT_RET(__wt_row_ikey(session, 0, key, size, ref));
-            ikey = ref->ref_ikey;
+            ikey = static_cast<WT_IKEY*>(ref->ref_ikey);
         } else {
             WT_RET(__split_ovfl_key_cleanup(session, from_home, ref));
             *decrp += sizeof(WT_IKEY) + ikey->size;
@@ -245,7 +245,7 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
      * unchanged from the original. In the case of a race, the address must no longer reference the
      * split page, we're done.
      */
-    WT_ORDERED_READ(ref_addr, ref->addr);
+    WT_ORDERED_READ(ref_addr, static_cast<WT_ADDR*>(ref->addr));
     if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
         __wt_cell_unpack(session, from_home, (WT_CELL *)ref_addr, &unpack);
         WT_RET(__wt_calloc_one(session, &addr));
@@ -707,7 +707,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
                 if (scr == NULL)
                     WT_ERR(__wt_scr_alloc(session, 10 * sizeof(uint32_t), &scr));
                 WT_ERR(__wt_buf_grow(session, scr, (deleted_entries + 1) * sizeof(uint32_t)));
-                deleted_refs = scr->mem;
+                deleted_refs = static_cast< uint32_t*>(scr->mem);
                 deleted_refs[deleted_entries++] = i;
             }
         }
@@ -2250,7 +2250,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 {
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_REF *new;
+    WT_REF *newv;
 
     page = ref->page;
 
@@ -2268,10 +2268,10 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
      * Allocate a WT_REF, the error path calls routines that free memory. The only field we need to
      * set is the record number, as it's used by the search routines.
      */
-    WT_RET(__wt_calloc_one(session, &new));
-    new->ref_recno = ref->ref_recno;
+    WT_RET(__wt_calloc_one(session, &newv));
+    newv->ref_recno = ref->ref_recno;
 
-    WT_ERR(__split_multi_inmem(session, page, multi, new));
+    WT_ERR(__split_multi_inmem(session, page, multi, newv));
 
     /*
      * The rewrite succeeded, we can no longer fail.
@@ -2293,14 +2293,14 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
     __wt_ref_out(session, ref);
 
     /* Swap the new page into place. */
-    ref->page = new->page;
+    ref->page = newv->page;
 
     WT_REF_SET_STATE(ref, WT_REF_MEM);
 
-    __wt_free(session, new);
+    __wt_free(session, newv);
     return (0);
 
 err:
-    __split_multi_inmem_fail(session, page, multi, new);
+    __split_multi_inmem_fail(session, page, multi, newv);
     return (ret);
 }

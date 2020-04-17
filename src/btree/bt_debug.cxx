@@ -91,7 +91,7 @@ __debug_bytes(WT_DBG *ds, const void *data_arg, size_t size)
     const uint8_t *data;
     u_char ch;
 
-    for (data = data_arg, i = 0; i < size; ++i, ++data) {
+    for (data = static_cast<const uint8_t*>(data_arg), i = 0; i < size; ++i, ++data) {
         ch = data[0];
         if (__wt_isprint(ch))
             WT_RET(ds->f(ds, "%c", (int)ch));
@@ -349,7 +349,7 @@ __wt_debug_addr(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
 
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(bm->read(bm, session, buf, addr, addr_size));
-    ret = __wt_debug_disk(session, buf->mem, ofile);
+    ret = __wt_debug_disk(session, static_cast<const WT_PAGE_HEADER *>(buf->mem), ofile);
 
 err:
     __wt_scr_free(session, &buf);
@@ -404,7 +404,7 @@ __wt_debug_offset(
      */
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_bt_read(session, buf, addr, WT_PTRDIFF(endp, addr)));
-    ret = __wt_debug_disk(session, buf->mem, ofile);
+    ret = __wt_debug_disk(session, static_cast<const WT_PAGE_HEADER*>(buf->mem), ofile);
 
 err:
     __wt_scr_free(session, &buf);
@@ -698,8 +698,8 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
 
-    cursor = cursor_arg;
-    cbt = cursor_arg;
+    cursor = static_cast<WT_CURSOR*>(cursor_arg);
+    cbt = static_cast<WT_CURSOR_BTREE*>(cursor_arg);
     return (__wt_debug_page(cursor->session, cbt->btree, cbt->ref, ofile));
 }
 
@@ -718,7 +718,7 @@ __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
     uint32_t session_flags;
     bool is_owner;
 
-    cursor = cursor_arg;
+    cursor = static_cast<WT_CURSOR *>(cursor_arg);
     session = (WT_SESSION_IMPL *)cursor->session;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
 
@@ -1087,7 +1087,7 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
     recno = ref->ref_recno;
 
     WT_COL_FOREACH (page, cip, i) {
-        cell = WT_COL_PTR(page, cip);
+	    cell = static_cast<WT_CELL *>(WT_COL_PTR(page, cip));
         __wt_cell_unpack(ds->session, page, cell, unpack);
         rle = __wt_cell_rle(unpack);
         WT_RET(__wt_snprintf(tag, sizeof(tag), "%" PRIu64 " %" PRIu64, recno, rle));

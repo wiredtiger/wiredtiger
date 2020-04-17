@@ -55,11 +55,11 @@ __wt_row_leaf_keys(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     if ((gap = btree->key_gap) == 0)
         gap = 1;
-    __inmem_row_leaf_slots(tmp->mem, 0, page->entries, gap);
+    __inmem_row_leaf_slots(static_cast<uint8_t*>(tmp->mem), 0, page->entries, gap);
 
     /* Instantiate the keys. */
     for (rip = page->pg_row, i = 0; i < page->entries; ++rip, ++i)
-        if (__bit_test(tmp->mem, i))
+	    if (__bit_test(static_cast<uint8_t*>(tmp->mem), i))
             WT_ERR(__wt_row_leaf_key_work(session, page, rip, key, true));
 
     F_SET_ATOMIC(page, WT_PAGE_BUILD_KEYS);

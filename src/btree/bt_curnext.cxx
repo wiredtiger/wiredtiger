@@ -280,7 +280,7 @@ restart_read:
          * information.
          */
         if (cbt->cip_saved != cip) {
-            cell = WT_COL_PTR(page, cip);
+	        cell = static_cast<WT_CELL *>(WT_COL_PTR(page, cip));
             __wt_cell_unpack(session, page, cell, &unpack);
             if (unpack.type == WT_CELL_DEL) {
                 if ((rle = __wt_cell_rle(&unpack)) == 1)

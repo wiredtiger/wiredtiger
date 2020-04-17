@@ -478,7 +478,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
          * file to grow as little as possible, or shrink, and future salvage calls don't need them
          * either.
          */
-        dsk = buf->data;
+        dsk = static_cast<const WT_PAGE_HEADER *>(buf->data);
         switch (dsk->type) {
         case WT_PAGE_BLOCK_MANAGER:
         case WT_PAGE_COL_INT:
@@ -496,7 +496,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
          * the end of the file or overflow references to non-existent pages, might as well discard
          * these pages now.
          */
-        if (__wt_verify_dsk(session, as->data, buf) != 0) {
+        if (__wt_verify_dsk(session, static_cast<const char*>(as->data), buf) != 0) {
             __wt_verbose(session, WT_VERB_SALVAGE, "%s page failed verify %s",
               __wt_page_type_string(dsk->type), (const char *)as->data);
             WT_ERR(bm->free(bm, session, addr, addr_size));
@@ -719,7 +719,7 @@ __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRA
 
             __wt_verbose(session, WT_VERB_SALVAGE, "%s overflow reference %s",
               __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1),
-              __wt_addr_string(session, unpack.data, unpack.size, trk->ss->tmp2));
+                         __wt_addr_string(session, static_cast<const uint8_t*>(unpack.data), unpack.size, trk->ss->tmp2));
 
             if (++ovfl_cnt == trk->trk_ovfl_cnt)
                 break;
@@ -871,7 +871,7 @@ static int
 __slvg_col_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_slot, WT_STUFF *ss)
 {
     WT_DECL_RET;
-    WT_TRACK *a_trk, *b_trk, *new;
+    WT_TRACK *a_trk, *b_trk, *newv;
     uint32_t i;
 
     /*
@@ -1006,10 +1006,10 @@ delete_b:
      *
      * Allocate a new WT_TRACK object, and extend the array of pages as necessary.
      */
-    WT_RET(__wt_calloc_one(session, &new));
+    WT_RET(__wt_calloc_one(session, &newv));
     if ((ret = __wt_realloc_def(session, &ss->pages_allocated, ss->pages_next + 1, &ss->pages)) !=
       0) {
-        __wt_free(session, new);
+        __wt_free(session, newv);
         return (ret);
     }
 
@@ -1017,9 +1017,9 @@ delete_b:
      * First, set up the track share (we do this after the allocation to ensure the shared reference
      * count is never incorrect).
      */
-    new->shared = a_trk->shared;
-    new->ss = a_trk->ss;
-    ++new->shared->ref;
+    newv->shared = a_trk->shared;
+    newv->ss = a_trk->ss;
+    ++newv->shared->ref;
 
     /*
      * Second, insert the new element into the array after the existing element (that's probably
@@ -1027,7 +1027,7 @@ delete_b:
      */
     memmove(
       ss->pages + a_slot + 1, ss->pages + a_slot, (ss->pages_next - a_slot) * sizeof(*ss->pages));
-    ss->pages[a_slot + 1] = new;
+    ss->pages[a_slot + 1] = newv;
     ++ss->pages_next;
 
     /*
@@ -1036,8 +1036,8 @@ delete_b:
      * __slvg_col_trk_update_start. That function will re-sort the WT_TRACK array as necessary to
      * move our new entry into the right sorted location.
      */
-    new->col_start = b_trk->col_stop + 1;
-    new->col_stop = a_trk->col_stop;
+    newv->col_start = b_trk->col_stop + 1;
+    newv->col_stop = a_trk->col_stop;
     __slvg_col_trk_update_start(a_slot + 1, ss);
 
     /*
@@ -1046,7 +1046,7 @@ delete_b:
      */
     a_trk->col_stop = b_trk->col_start - 1;
 
-    F_SET(new, WT_TRACK_MERGE);
+    F_SET(newv, WT_TRACK_MERGE);
     F_SET(a_trk, WT_TRACK_MERGE);
 
 merge:
@@ -1349,7 +1349,7 @@ __slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_PAGE *page, uint64_t
     stop = (recno + skip + take) - 1;
 
     WT_COL_FOREACH (page, cip, i) {
-        cell = WT_COL_PTR(page, cip);
+	    cell = static_cast<WT_CELL*>(WT_COL_PTR(page, cip));
         __wt_cell_unpack(session, page, cell, &unpack);
         recno += __wt_cell_rle(&unpack);
 
@@ -1454,7 +1454,7 @@ __slvg_row_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_s
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    WT_TRACK *a_trk, *b_trk, *new;
+    WT_TRACK *a_trk, *b_trk, *newv;
     uint32_t i;
     int start_cmp, stop_cmp;
 
@@ -1597,10 +1597,10 @@ delete_b:
      *
      * Allocate a new WT_TRACK object, and extend the array of pages as necessary.
      */
-    WT_RET(__wt_calloc_one(session, &new));
+    WT_RET(__wt_calloc_one(session, &newv));
     if ((ret = __wt_realloc_def(session, &ss->pages_allocated, ss->pages_next + 1, &ss->pages)) !=
       0) {
-        __wt_free(session, new);
+        __wt_free(session, newv);
         return (ret);
     }
 
@@ -1608,9 +1608,9 @@ delete_b:
      * First, set up the track share (we do this after the allocation to ensure the shared reference
      * count is never incorrect).
      */
-    new->shared = a_trk->shared;
-    new->ss = a_trk->ss;
-    ++new->shared->ref;
+    newv->shared = a_trk->shared;
+    newv->ss = a_trk->ss;
+    ++newv->shared->ref;
 
     /*
      * Second, insert the new element into the array after the existing element (that's probably
@@ -1618,7 +1618,7 @@ delete_b:
      */
     memmove(
       ss->pages + a_slot + 1, ss->pages + a_slot, (ss->pages_next - a_slot) * sizeof(*ss->pages));
-    ss->pages[a_slot + 1] = new;
+    ss->pages[a_slot + 1] = newv;
     ++ss->pages_next;
 
     /*
@@ -1627,7 +1627,7 @@ delete_b:
      * after the stop key of the middle chunk (that's b_trk), and re-sort the WT_TRACK array as
      * necessary to move our new entry into the right sorted location.
      */
-    WT_RET(__slvg_key_copy(session, &new->row_stop, A_TRK_STOP));
+    WT_RET(__slvg_key_copy(session, &newv->row_stop, A_TRK_STOP));
     WT_RET(__slvg_row_trk_update_start(session, B_TRK_STOP, a_slot + 1, ss));
 
     /*
@@ -1635,10 +1635,10 @@ delete_b:
      * page, that is, everything up to the starting key of the middle chunk (that's b_trk).
      */
     WT_RET(__slvg_key_copy(session, A_TRK_STOP, B_TRK_START));
-    F_SET(new, WT_TRACK_CHECK_START);
+    F_SET(newv, WT_TRACK_CHECK_START);
     F_SET(a_trk, WT_TRACK_CHECK_STOP);
 
-    F_SET(new, WT_TRACK_MERGE);
+    F_SET(newv, WT_TRACK_MERGE);
     F_SET(a_trk, WT_TRACK_MERGE);
 
 merge:
@@ -2119,7 +2119,7 @@ __slvg_ovfl_reconcile(WT_SESSION_IMPL *session, WT_STUFF *ss)
         for (j = 0; j < trk->trk_ovfl_cnt; ++j) {
             addr = &trk->trk_ovfl_addr[j];
             searchp =
-              bsearch(addr, ss->ovfl, ss->ovfl_next, sizeof(WT_TRACK *), __slvg_ovfl_compare);
+	            static_cast<WT_TRACK**>(bsearch(addr, ss->ovfl, ss->ovfl_next, sizeof(WT_TRACK *), __slvg_ovfl_compare));
 
             /*
              * If the overflow page doesn't exist or if another page has already claimed it, this

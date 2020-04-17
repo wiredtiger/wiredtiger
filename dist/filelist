@@ -1,214 +1,214 @@
 # filelist --
 #	List of source files for WiredTiger library.
 
-src/async/async_api.c
-src/async/async_op.c
-src/async/async_worker.c
-src/block/block_addr.c
-src/block/block_ckpt.c
-src/block/block_ckpt_scan.c
-src/block/block_compact.c
-src/block/block_ext.c
-src/block/block_map.c
-src/block/block_mgr.c
-src/block/block_open.c
-src/block/block_read.c
-src/block/block_session.c
-src/block/block_slvg.c
-src/block/block_vrfy.c
-src/block/block_write.c
-src/bloom/bloom.c
-src/btree/bt_compact.c
-src/btree/bt_curnext.c
-src/btree/bt_curprev.c
-src/btree/bt_cursor.c
-src/btree/bt_debug.c
-src/btree/bt_delete.c
-src/btree/bt_discard.c
-src/btree/bt_handle.c
-src/btree/bt_huffman.c
-src/btree/bt_import.c
-src/btree/bt_io.c
-src/btree/bt_misc.c
-src/btree/bt_ovfl.c
-src/btree/bt_page.c
-src/btree/bt_random.c
-src/btree/bt_read.c
-src/btree/bt_rebalance.c
-src/btree/bt_ret.c
-src/btree/bt_slvg.c
-src/btree/bt_split.c
-src/btree/bt_stat.c
-src/btree/bt_sync.c
-src/btree/bt_upgrade.c
-src/btree/bt_vrfy.c
-src/btree/bt_vrfy_dsk.c
-src/btree/bt_walk.c
-src/btree/col_modify.c
-src/btree/col_srch.c
-src/btree/row_key.c
-src/btree/row_modify.c
-src/btree/row_srch.c
-src/checksum/arm64/crc32-arm64.c	ARM64_HOST
+src/async/async_api.cxx
+src/async/async_op.cxx
+src/async/async_worker.cxx
+src/block/block_addr.cxx
+src/block/block_ckpt.cxx
+src/block/block_ckpt_scan.cxx
+src/block/block_compact.cxx
+src/block/block_ext.cxx
+src/block/block_map.cxx
+src/block/block_mgr.cxx
+src/block/block_open.cxx
+src/block/block_read.cxx
+src/block/block_session.cxx
+src/block/block_slvg.cxx
+src/block/block_vrfy.cxx
+src/block/block_write.cxx
+src/bloom/bloom.cxx
+src/btree/bt_compact.cxx
+src/btree/bt_curnext.cxx
+src/btree/bt_curprev.cxx
+src/btree/bt_cursor.cxx
+src/btree/bt_debug.cxx
+src/btree/bt_delete.cxx
+src/btree/bt_discard.cxx
+src/btree/bt_handle.cxx
+src/btree/bt_huffman.cxx
+src/btree/bt_import.cxx
+src/btree/bt_io.cxx
+src/btree/bt_misc.cxx
+src/btree/bt_ovfl.cxx
+src/btree/bt_page.cxx
+src/btree/bt_random.cxx
+src/btree/bt_read.cxx
+src/btree/bt_rebalance.cxx
+src/btree/bt_ret.cxx
+src/btree/bt_slvg.cxx
+src/btree/bt_split.cxx
+src/btree/bt_stat.cxx
+src/btree/bt_sync.cxx
+src/btree/bt_upgrade.cxx
+src/btree/bt_vrfy.cxx
+src/btree/bt_vrfy_dsk.cxx
+src/btree/bt_walk.cxx
+src/btree/col_modify.cxx
+src/btree/col_srch.cxx
+src/btree/row_key.cxx
+src/btree/row_modify.cxx
+src/btree/row_srch.cxx
+src/checksum/arm64/crc32-arm64.cxx	ARM64_HOST
 src/checksum/power8/crc32.sx		POWERPC_HOST
-src/checksum/power8/crc32_wrapper.c	POWERPC_HOST
-src/checksum/software/checksum.c
-src/checksum/x86/crc32-x86.c		X86_HOST
-src/checksum/x86/crc32-x86-alt.c	X86_HOST
-src/checksum/zseries/crc32-s390x.c	ZSERIES_HOST
+src/checksum/power8/crc32_wrapper.cxx	POWERPC_HOST
+src/checksum/software/checksum.cxx
+src/checksum/x86/crc32-x86.cxx		X86_HOST
+src/checksum/x86/crc32-x86-alt.cxx	X86_HOST
+src/checksum/zseries/crc32-s390x.cxx	ZSERIES_HOST
 src/checksum/zseries/crc32le-vx.sx	ZSERIES_HOST
-src/config/config.c
-src/config/config_api.c
-src/config/config_check.c
-src/config/config_collapse.c
-src/config/config_def.c
-src/config/config_ext.c
-src/conn/api_calc_modify.c
-src/conn/api_strerror.c
-src/conn/api_version.c
-src/conn/conn_api.c
-src/conn/conn_cache.c
-src/conn/conn_cache_pool.c
-src/conn/conn_capacity.c
-src/conn/conn_ckpt.c
-src/conn/conn_dhandle.c
-src/conn/conn_handle.c
-src/conn/conn_log.c
-src/conn/conn_open.c
-src/conn/conn_reconfig.c
-src/conn/conn_stat.c
-src/conn/conn_sweep.c
-src/cursor/cur_backup.c
-src/cursor/cur_backup_incr.c
-src/cursor/cur_bulk.c
-src/cursor/cur_config.c
-src/cursor/cur_ds.c
-src/cursor/cur_dump.c
-src/cursor/cur_file.c
-src/cursor/cur_index.c
-src/cursor/cur_join.c
-src/cursor/cur_json.c
-src/cursor/cur_log.c
-src/cursor/cur_metadata.c
-src/cursor/cur_stat.c
-src/cursor/cur_std.c
-src/cursor/cur_table.c
-src/evict/evict_file.c
-src/evict/evict_lru.c
-src/evict/evict_page.c
-src/evict/evict_stat.c
-src/history/hs.c
-src/log/log.c
-src/log/log_auto.c
-src/log/log_slot.c
-src/log/log_sys.c
-src/lsm/lsm_cursor.c
-src/lsm/lsm_cursor_bulk.c
-src/lsm/lsm_manager.c
-src/lsm/lsm_merge.c
-src/lsm/lsm_meta.c
-src/lsm/lsm_stat.c
-src/lsm/lsm_tree.c
-src/lsm/lsm_work_unit.c
-src/lsm/lsm_worker.c
-src/meta/meta_apply.c
-src/meta/meta_ckpt.c
-src/meta/meta_ext.c
-src/meta/meta_table.c
-src/meta/meta_track.c
-src/meta/meta_turtle.c
-src/optrack/optrack.c
-src/os_common/filename.c
-src/os_common/os_abort.c
-src/os_common/os_alloc.c
-src/os_common/os_errno.c
-src/os_common/os_fhandle.c
-src/os_common/os_fs_inmemory.c
-src/os_common/os_fstream.c
-src/os_common/os_fstream_stdio.c
-src/os_common/os_getopt.c
-src/os_common/os_strtouq.c
-src/os_posix/os_dir.c			POSIX_HOST
-src/os_posix/os_dlopen.c		POSIX_HOST
-src/os_posix/os_fallocate.c		POSIX_HOST
-src/os_posix/os_fs.c			POSIX_HOST
-src/os_posix/os_getenv.c		POSIX_HOST
-src/os_posix/os_map.c			POSIX_HOST
-src/os_posix/os_mtx_cond.c		POSIX_HOST
-src/os_posix/os_once.c			POSIX_HOST
-src/os_posix/os_pagesize.c		POSIX_HOST
-src/os_posix/os_path.c			POSIX_HOST
-src/os_posix/os_priv.c			POSIX_HOST
-src/os_posix/os_setvbuf.c		POSIX_HOST
-src/os_posix/os_sleep.c			POSIX_HOST
-src/os_posix/os_snprintf.c		POSIX_HOST
-src/os_posix/os_thread.c		POSIX_HOST
-src/os_posix/os_time.c			POSIX_HOST
-src/os_posix/os_yield.c			POSIX_HOST
-src/os_win/os_dir.c			WINDOWS_HOST
-src/os_win/os_dlopen.c			WINDOWS_HOST
-src/os_win/os_fs.c			WINDOWS_HOST
-src/os_win/os_getenv.c			WINDOWS_HOST
-src/os_win/os_map.c			WINDOWS_HOST
-src/os_win/os_mtx_cond.c		WINDOWS_HOST
-src/os_win/os_once.c			WINDOWS_HOST
-src/os_win/os_pagesize.c		WINDOWS_HOST
-src/os_win/os_path.c			WINDOWS_HOST
-src/os_win/os_priv.c			WINDOWS_HOST
-src/os_win/os_setvbuf.c			WINDOWS_HOST
-src/os_win/os_sleep.c			WINDOWS_HOST
-src/os_win/os_snprintf.c		WINDOWS_HOST
-src/os_win/os_thread.c			WINDOWS_HOST
-src/os_win/os_time.c			WINDOWS_HOST
-src/os_win/os_utf8.c			WINDOWS_HOST
-src/os_win/os_winerr.c			WINDOWS_HOST
-src/os_win/os_yield.c			WINDOWS_HOST
-src/packing/pack_api.c
-src/packing/pack_impl.c
-src/packing/pack_stream.c
-src/reconcile/rec_child.c
-src/reconcile/rec_col.c
-src/reconcile/rec_dictionary.c
-src/reconcile/rec_row.c
-src/reconcile/rec_track.c
-src/reconcile/rec_visibility.c
-src/reconcile/rec_write.c
-src/schema/schema_alter.c
-src/schema/schema_create.c
-src/schema/schema_drop.c
-src/schema/schema_list.c
-src/schema/schema_open.c
-src/schema/schema_plan.c
-src/schema/schema_project.c
-src/schema/schema_rename.c
-src/schema/schema_stat.c
-src/schema/schema_truncate.c
-src/schema/schema_util.c
-src/schema/schema_worker.c
-src/session/session_api.c
-src/session/session_compact.c
-src/session/session_dhandle.c
-src/support/cond_auto.c
-src/support/crypto.c
-src/support/err.c
-src/support/generation.c
-src/support/global.c
-src/support/hash_city.c
-src/support/hash_fnv.c
-src/support/hazard.c
-src/support/hex.c
-src/support/huffman.c
-src/support/modify.c
-src/support/mtx_rw.c
-src/support/pow.c
-src/support/rand.c
-src/support/scratch.c
-src/support/stat.c
-src/support/thread_group.c
-src/txn/txn.c
-src/txn/txn_ckpt.c
-src/txn/txn_ext.c
-src/txn/txn_log.c
-src/txn/txn_recover.c
-src/txn/txn_rollback_to_stable.c
-src/txn/txn_timestamp.c
+src/config/config.cxx
+src/config/config_api.cxx
+src/config/config_check.cxx
+src/config/config_collapse.cxx
+src/config/config_def.cxx
+src/config/config_ext.cxx
+src/conn/api_calc_modify.cxx
+src/conn/api_strerror.cxx
+src/conn/api_version.cxx
+src/conn/conn_api.cxx
+src/conn/conn_cache.cxx
+src/conn/conn_cache_pool.cxx
+src/conn/conn_capacity.cxx
+src/conn/conn_ckpt.cxx
+src/conn/conn_dhandle.cxx
+src/conn/conn_handle.cxx
+src/conn/conn_log.cxx
+src/conn/conn_open.cxx
+src/conn/conn_reconfig.cxx
+src/conn/conn_stat.cxx
+src/conn/conn_sweep.cxx
+src/cursor/cur_backup.cxx
+src/cursor/cur_backup_incr.cxx
+src/cursor/cur_bulk.cxx
+src/cursor/cur_config.cxx
+src/cursor/cur_ds.cxx
+src/cursor/cur_dump.cxx
+src/cursor/cur_file.cxx
+src/cursor/cur_index.cxx
+src/cursor/cur_join.cxx
+src/cursor/cur_json.cxx
+src/cursor/cur_log.cxx
+src/cursor/cur_metadata.cxx
+src/cursor/cur_stat.cxx
+src/cursor/cur_std.cxx
+src/cursor/cur_table.cxx
+src/evict/evict_file.cxx
+src/evict/evict_lru.cxx
+src/evict/evict_page.cxx
+src/evict/evict_stat.cxx
+src/history/hs.cxx
+src/log/log.cxx
+src/log/log_auto.cxx
+src/log/log_slot.cxx
+src/log/log_sys.cxx
+src/lsm/lsm_cursor.cxx
+src/lsm/lsm_cursor_bulk.cxx
+src/lsm/lsm_manager.cxx
+src/lsm/lsm_merge.cxx
+src/lsm/lsm_meta.cxx
+src/lsm/lsm_stat.cxx
+src/lsm/lsm_tree.cxx
+src/lsm/lsm_work_unit.cxx
+src/lsm/lsm_worker.cxx
+src/meta/meta_apply.cxx
+src/meta/meta_ckpt.cxx
+src/meta/meta_ext.cxx
+src/meta/meta_table.cxx
+src/meta/meta_track.cxx
+src/meta/meta_turtle.cxx
+src/optrack/optrack.cxx
+src/os_common/filename.cxx
+src/os_common/os_abort.cxx
+src/os_common/os_alloc.cxx
+src/os_common/os_errno.cxx
+src/os_common/os_fhandle.cxx
+src/os_common/os_fs_inmemory.cxx
+src/os_common/os_fstream.cxx
+src/os_common/os_fstream_stdio.cxx
+src/os_common/os_getopt.cxx
+src/os_common/os_strtouq.cxx
+src/os_posix/os_dir.cxx			POSIX_HOST
+src/os_posix/os_dlopen.cxx		POSIX_HOST
+src/os_posix/os_fallocate.cxx		POSIX_HOST
+src/os_posix/os_fs.cxx			POSIX_HOST
+src/os_posix/os_getenv.cxx		POSIX_HOST
+src/os_posix/os_map.cxx			POSIX_HOST
+src/os_posix/os_mtx_cond.cxx		POSIX_HOST
+src/os_posix/os_once.cxx			POSIX_HOST
+src/os_posix/os_pagesize.cxx		POSIX_HOST
+src/os_posix/os_path.cxx			POSIX_HOST
+src/os_posix/os_priv.cxx			POSIX_HOST
+src/os_posix/os_setvbuf.cxx		POSIX_HOST
+src/os_posix/os_sleep.cxx			POSIX_HOST
+src/os_posix/os_snprintf.cxx		POSIX_HOST
+src/os_posix/os_thread.cxx		POSIX_HOST
+src/os_posix/os_time.cxx			POSIX_HOST
+src/os_posix/os_yield.cxx			POSIX_HOST
+src/os_win/os_dir.cxx			WINDOWS_HOST
+src/os_win/os_dlopen.cxx			WINDOWS_HOST
+src/os_win/os_fs.cxx			WINDOWS_HOST
+src/os_win/os_getenv.cxx			WINDOWS_HOST
+src/os_win/os_map.cxx			WINDOWS_HOST
+src/os_win/os_mtx_cond.cxx		WINDOWS_HOST
+src/os_win/os_once.cxx			WINDOWS_HOST
+src/os_win/os_pagesize.cxx		WINDOWS_HOST
+src/os_win/os_path.cxx			WINDOWS_HOST
+src/os_win/os_priv.cxx			WINDOWS_HOST
+src/os_win/os_setvbuf.cxx			WINDOWS_HOST
+src/os_win/os_sleep.cxx			WINDOWS_HOST
+src/os_win/os_snprintf.cxx		WINDOWS_HOST
+src/os_win/os_thread.cxx			WINDOWS_HOST
+src/os_win/os_time.cxx			WINDOWS_HOST
+src/os_win/os_utf8.cxx			WINDOWS_HOST
+src/os_win/os_winerr.cxx			WINDOWS_HOST
+src/os_win/os_yield.cxx			WINDOWS_HOST
+src/packing/pack_api.cxx
+src/packing/pack_impl.cxx
+src/packing/pack_stream.cxx
+src/reconcile/rec_child.cxx
+src/reconcile/rec_col.cxx
+src/reconcile/rec_dictionary.cxx
+src/reconcile/rec_row.cxx
+src/reconcile/rec_track.cxx
+src/reconcile/rec_visibility.cxx
+src/reconcile/rec_write.cxx
+src/schema/schema_alter.cxx
+src/schema/schema_create.cxx
+src/schema/schema_drop.cxx
+src/schema/schema_list.cxx
+src/schema/schema_open.cxx
+src/schema/schema_plan.cxx
+src/schema/schema_project.cxx
+src/schema/schema_rename.cxx
+src/schema/schema_stat.cxx
+src/schema/schema_truncate.cxx
+src/schema/schema_util.cxx
+src/schema/schema_worker.cxx
+src/session/session_api.cxx
+src/session/session_compact.cxx
+src/session/session_dhandle.cxx
+src/support/cond_auto.cxx
+src/support/crypto.cxx
+src/support/err.cxx
+src/support/generation.cxx
+src/support/global.cxx
+src/support/hash_city.cxx
+src/support/hash_fnv.cxx
+src/support/hazard.cxx
+src/support/hex.cxx
+src/support/huffman.cxx
+src/support/modify.cxx
+src/support/mtx_rw.cxx
+src/support/pow.cxx
+src/support/rand.cxx
+src/support/scratch.cxx
+src/support/stat.cxx
+src/support/thread_group.cxx
+src/txn/txn.cxx
+src/txn/txn_ckpt.cxx
+src/txn/txn_ext.cxx
+src/txn/txn_log.cxx
+src/txn/txn_recover.cxx
+src/txn/txn_rollback_to_stable.cxx
+src/txn/txn_timestamp.cxx

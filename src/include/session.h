@@ -39,6 +39,8 @@ struct __wt_hazard {
 
 typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 
+typedef enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } WT_COMPACT_STATE_TYPE;
+
 /* Number of cursors cached to trigger cursor sweep. */
 #define WT_SESSION_CURSOR_SWEEP_COUNTDOWN 40
 
@@ -89,7 +91,7 @@ struct __wt_session_impl {
     WT_CURSOR_BACKUP *bkp_cursor; /* Hot backup cursor */
 
     WT_COMPACT_STATE *compact; /* Compaction information */
-    enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } compact_state;
+    WT_COMPACT_STATE_TYPE compact_state;
 
     WT_CURSOR *hs_cursor; /* History store table cursor */
 

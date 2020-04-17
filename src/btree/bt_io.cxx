@@ -36,12 +36,12 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
      */
     if (btree->compressor == NULL && btree->kencryptor == NULL) {
         WT_RET(bm->read(bm, session, buf, addr, addr_size));
-        dsk = buf->data;
+        dsk = static_cast<const WT_PAGE_HEADER *>(buf->data);
         ip = NULL;
     } else {
         WT_RET(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(bm->read(bm, session, tmp, addr, addr_size));
-        dsk = tmp->data;
+        dsk = static_cast<const WT_PAGE_HEADER *>(tmp->data);
         ip = tmp;
     }
 
@@ -65,7 +65,7 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
         }
 
         ip = etmp;
-        dsk = ip->data;
+        dsk = static_cast<const WT_PAGE_HEADER *>(ip->data);
     } else if (btree->kencryptor != NULL) {
         fail_msg = "unencrypted block in file for which encryption configured";
         goto corrupt;
@@ -121,7 +121,7 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
         if (tmp == NULL)
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
-        WT_ERR(__wt_verify_dsk(session, tmp->data, buf));
+        WT_ERR(__wt_verify_dsk(session, static_cast<const char*>(tmp->data), buf));
     }
 
     WT_STAT_CONN_INCR(session, cache_read);
@@ -192,7 +192,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
      * We're passed a table's disk image. Decompress if necessary and verify the image. Always check
      * the in-memory length for accuracy.
      */
-    dsk = buf->mem;
+    dsk = static_cast<WT_PAGE_HEADER *>(buf->mem);
     if (compressed) {
         WT_ERR(__wt_scr_alloc(session, dsk->mem_size, &ctmp));
 
@@ -300,7 +300,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
         encrypted = true;
         ip = etmp;
     }
-    dsk = ip->mem;
+    dsk = static_cast<WT_PAGE_HEADER *>(ip->mem);
 
     /* If the buffer is compressed, set the flag. */
     if (compressed)
