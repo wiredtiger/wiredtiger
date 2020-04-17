@@ -1033,7 +1033,7 @@ err:
      * never referenced that file.
      */
     for (s = conn->sessions, i = 0; i < conn->session_cnt; ++s, ++i)
-        if (s->active && !F_ISSET(s, WT_SESSION_INTERNAL) && F_ISSET(&s->txn, WT_TXN_RUNNING)) {
+        if (s->active && !F_ISSET(s, WT_SESSION_INTERNAL) && F_ISSET(s->txn, WT_TXN_RUNNING)) {
             wt_session = &s->iface;
             WT_TRET(wt_session->rollback_transaction(wt_session, NULL));
         }
@@ -1918,7 +1918,7 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
                   "read-committed" :
                   (s->isolation == WT_ISO_READ_UNCOMMITTED ? "read-uncommitted" : "snapshot")));
             WT_ERR(__wt_msg(session, "  Transaction:"));
-            WT_ERR(__wt_verbose_dump_txn_one(session, &s->txn, 0, NULL));
+            WT_ERR(__wt_verbose_dump_txn_one(session, s, 0, NULL));
         } else {
             WT_ERR(__wt_msg(session, "  Number of positioned cursors: %u", s->ncursors));
             TAILQ_FOREACH (cursor, &s->cursors, q) {

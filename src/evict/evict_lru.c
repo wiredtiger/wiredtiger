@@ -2285,7 +2285,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_shared;
     uint64_t elapsed, time_start, time_stop;
     uint64_t initial_progress, max_progress;
     bool app_thread;
@@ -2296,7 +2296,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     cache = conn->cache;
     time_start = time_stop = 0;
     txn_global = &conn->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
      * It is not safe to proceed if the eviction server threads aren't setup yet.
@@ -2323,7 +2323,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
                 --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_fail_cache);
                 if (app_thread)
-                    WT_TRET(__wt_msg(session, "%s", session->txn.rollback_reason));
+                    WT_TRET(__wt_msg(session, "%s", session->txn->rollback_reason));
             }
             WT_ERR(ret);
         }
@@ -2336,7 +2336,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
          * below 100%, limit the work to 5 evictions and return. If that's not the case, we can do
          * more.
          */
-        if (!busy && txn_state->pinned_id != WT_TXN_NONE &&
+        if (!busy && txn_shared->pinned_id != WT_TXN_NONE &&
           txn_global->current != txn_global->oldest_id)
             busy = true;
         max_progress = busy ? 5 : 20;
