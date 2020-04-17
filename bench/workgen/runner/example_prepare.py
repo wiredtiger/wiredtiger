@@ -45,13 +45,14 @@ table.options.value_size = 10
 start_time = time.time()
 
 op = Operation(Operation.OP_INSERT, table)
+#pop_txn = txn(op, 'isolation=snapshot')
 thread = Thread(op * 5000)
 pop_workload = Workload(context, thread)
 print('populate:')
 pop_workload.run(conn)
 
 opread = Operation(Operation.OP_SEARCH, table)
-read_txn = txn(opread, 'read_timestamp')
+read_txn = txn(opread * 10, 'read_timestamp')
 # read_timestamp_lag is the lag to the read_timestamp from current time
 read_txn.transaction.read_timestamp_lag = 2
 treader = Thread(read_txn)
@@ -63,12 +64,12 @@ write_txn.transaction.use_prepare_timestamp = True
 twriter = Thread(write_txn)
 
 opupdate = Operation(Operation.OP_UPDATE, table)
-update_txn = txn(opupdate, 'isolation=snapshot')
+update_txn = txn(opupdate * 10, 'isolation=snapshot')
 # use_commit_timestamp - Commit the transaction with commit_timestamp.
 update_txn.transaction.use_commit_timestamp = True
 tupdate = Thread(update_txn)
 
-workload = Workload(context, 30 * twriter + 20 * tupdate + 10 * treader)
+workload = Workload(context, 30 * twriter + 30 * tupdate + 30 * treader)
 workload.options.run_time = 50
 workload.options.report_interval=500
 # read_timestamp_lag - Number of seconds lag to the oldest_timestamp from current time.
@@ -85,6 +86,6 @@ run_time = end_time - start_time
 
 print('Workload took %d minutes' %(run_time//60))
 
-latency_filename = homedir + "/latency.out"
+latency_filename = "WT_TEST" + "/latency.out"
 latency.workload_latency(workload, latency_filename)
 conn.close()
