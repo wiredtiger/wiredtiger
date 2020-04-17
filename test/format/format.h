@@ -69,13 +69,9 @@ typedef struct {
         WT_RWLOCK wt;
         pthread_rwlock_t pthread;
     } l;
-#define LOCK_NONE 0
-#define LOCK_WT 1
-#define LOCK_PTHREAD 2
-    uint32_t lock_type;
+    enum { LOCK_NONE = 0, LOCK_WT, LOCK_PTHREAD } lock_type;
 } RWLOCK;
 
-#define LOCK_CLEAR(lock) ((lock)->lock_type = LOCK_NONE)
 #define LOCK_INITIALIZED(lock) ((lock)->lock_type != LOCK_NONE)
 
 typedef struct {
@@ -128,7 +124,11 @@ typedef struct {
 
     uint64_t truncate_cnt; /* Counter for truncation */
 
-    RWLOCK death_lock; /* Single-thread failure */
+    /*
+     * Single-thread failure. Always use pthread lock rather than WT lock in case WT library is
+     * misbehaving.
+     */
+    pthread_rwlock_t death_lock;
 
     uint32_t c_abort; /* Config values */
     uint32_t c_alter;
@@ -372,9 +372,6 @@ void key_gen_teardown(WT_ITEM *);
 void key_init(void);
 void lock_destroy(WT_SESSION *, RWLOCK *);
 void lock_init(WT_SESSION *, RWLOCK *);
-int lock_try_writelock(WT_SESSION *, RWLOCK *);
-void lock_writelock(WT_SESSION *, RWLOCK *);
-void lock_writeunlock(WT_SESSION *, RWLOCK *);
 void operations(u_int, bool);
 WT_THREAD_RET random_kv(void *);
 void path_setup(const char *);

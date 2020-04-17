@@ -118,6 +118,9 @@ format_process_env(void)
     (void)signal(SIGTERM, signal_handler);
 #endif
 
+    /* Initialize lock to ensure single threading during failure handling */
+    testutil_check(pthread_rwlock_init(&g.death_lock, NULL));
+
 #if 0
     /* Configure the GNU malloc for debugging. */
     (void)setenv("MALLOC_CHECK_", "2", 1);
@@ -151,10 +154,6 @@ main(int argc, char *argv[])
     bool one_flag, quiet_flag;
 
     custom_die = format_die; /* Local death handler. */
-
-    LOCK_CLEAR(&g.backup_lock);
-    LOCK_CLEAR(&g.death_lock);
-    LOCK_CLEAR(&g.ts_lock);
 
     config = NULL;
 
@@ -353,8 +352,7 @@ format_die(void)
     /*
      * Single-thread error handling, our caller exits after calling us (we never release the lock).
      */
-    if (LOCK_INITIALIZED(&g.death_lock))
-        (void)pthread_rwlock_wrlock(&g.death_lock.l.pthread);
+    (void)pthread_rwlock_wrlock(&g.death_lock);
 
     /* Flush/close any logging information. */
     fclose_and_clear(&g.logfp);

@@ -158,13 +158,11 @@ operations(u_int ops_seconds, bool lastrun)
     if (!SINGLETHREADED)
         g.rand_log_stop = true;
 
-    /* Logging and locking require a session. */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     logop(session, "%s", "=============== thread ops start");
 
     /* Initialize locks to single-thread backups, failures, and timestamp updates. */
     lock_init(session, &g.backup_lock);
-    lock_init(session, &g.death_lock);
     lock_init(session, &g.ts_lock);
 
     /*
@@ -300,7 +298,6 @@ operations(u_int ops_seconds, bool lastrun)
     g.workers_finished = false;
 
     lock_destroy(session, &g.backup_lock);
-    lock_destroy(session, &g.death_lock);
     lock_destroy(session, &g.ts_lock);
 
     logop(session, "%s", "=============== thread ops stop");

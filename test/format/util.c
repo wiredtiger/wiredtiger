@@ -354,7 +354,6 @@ void
 lock_init(WT_SESSION *session, RWLOCK *lock)
 {
     testutil_assert(lock->lock_type == LOCK_NONE);
-    testutil_assert(session != NULL);
 
     if (g.c_wt_mutex) {
         testutil_check(__wt_rwlock_init((WT_SESSION_IMPL *)session, &lock->l.wt));
@@ -372,60 +371,12 @@ lock_init(WT_SESSION *session, RWLOCK *lock)
 void
 lock_destroy(WT_SESSION *session, RWLOCK *lock)
 {
-    if (g.c_wt_mutex) {
-        testutil_assert(lock->lock_type == LOCK_WT);
+    testutil_assert(LOCK_INITIALIZED(lock));
+
+    if (lock->lock_type == LOCK_WT) {
         __wt_rwlock_destroy((WT_SESSION_IMPL *)session, &lock->l.wt);
     } else {
-        testutil_assert(lock->lock_type == LOCK_PTHREAD);
         testutil_check(pthread_rwlock_destroy(&lock->l.pthread));
     }
     lock->lock_type = LOCK_NONE;
-}
-
-/*
- * lock_try_writelock
- *     Try to get exclusive lock.  Fail immediately if not available.
- */
-int
-lock_try_writelock(WT_SESSION *session, RWLOCK *lock)
-{
-    if (g.c_wt_mutex) {
-        testutil_assert(lock->lock_type == LOCK_WT);
-        return (__wt_try_writelock((WT_SESSION_IMPL *)session, &lock->l.wt));
-    } else {
-        testutil_assert(lock->lock_type == LOCK_PTHREAD);
-        return (pthread_rwlock_trywrlock(&lock->l.pthread));
-    }
-}
-
-/*
- * lock_writelock --
- *     Wait to get exclusive lock.
- */
-void
-lock_writelock(WT_SESSION *session, RWLOCK *lock)
-{
-    if (g.c_wt_mutex) {
-        testutil_assert(lock->lock_type == LOCK_WT);
-        __wt_writelock((WT_SESSION_IMPL *)session, &lock->l.wt);
-    } else {
-        testutil_assert(lock->lock_type == LOCK_PTHREAD);
-        testutil_check(pthread_rwlock_wrlock(&lock->l.pthread));
-    }
-}
-
-/*
- * lock_writeunlock --
- *     Release an exclusive lock.
- */
-void
-lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
-{
-    if (g.c_wt_mutex) {
-        testutil_assert(lock->lock_type == LOCK_WT);
-        __wt_writeunlock((WT_SESSION_IMPL *)session, &lock->l.wt);
-    } else {
-        testutil_assert(lock->lock_type == LOCK_PTHREAD);
-        testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
-    }
 }
