@@ -141,9 +141,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
             WT_ERR_NOTFOUND_OK(ret, false);
         else {
             /*
-             * Build/insert a complete value during recovery rather
-             * than using cursor modify to create a partial update
-             * (for no particular reason than simplicity).
+             * Build/insert a complete value during recovery rather than using cursor modify to
+             * create a partial update (for no particular reason than simplicity).
              */
             WT_ERR(__wt_modify_apply(cursor, value.data));
             WT_ERR(cursor->insert(cursor));
@@ -203,9 +202,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
             WT_ERR_NOTFOUND_OK(ret, false);
         else {
             /*
-             * Build/insert a complete value during recovery rather
-             * than using cursor modify to create a partial update
-             * (for no particular reason than simplicity).
+             * Build/insert a complete value during recovery rather than using cursor modify to
+             * create a partial update (for no particular reason than simplicity).
              */
             WT_ERR(__wt_modify_apply(cursor, value.data));
             WT_ERR(cursor->insert(cursor));

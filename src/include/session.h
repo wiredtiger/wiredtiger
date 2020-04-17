@@ -145,11 +145,10 @@ struct __wt_session_impl {
     /*
      * Operations acting on handles.
      *
-     * The preferred pattern is to gather all of the required handles at
-     * the beginning of an operation, then drop any other locks, perform
-     * the operation, then release the handles.  This cannot be easily
-     * merged with the list of checkpoint handles because some operations
-     * (such as compact) do checkpoints internally.
+     * The preferred pattern is to gather all of the required handles at the beginning of an
+     * operation, then drop any other locks, perform the operation, then release the handles. This
+     * cannot be easily merged with the list of checkpoint handles because some operations (such as
+     * compact) do checkpoints internally.
      */
     WT_DATA_HANDLE **op_handle; /* Handle list */
     u_int op_handle_next;       /* Next empty slot */

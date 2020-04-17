@@ -42,9 +42,9 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /*
      * Sanity check flags.
      *
-     * If we try to do eviction using transaction visibility, we had better
-     * have a snapshot.  This doesn't apply to checkpoints: there are
-     * (rare) cases where we write data at read-uncommitted isolation.
+     * If we try to do eviction using transaction visibility, we had better have a snapshot. This
+     * doesn't apply to checkpoints: there are (rare) cases where we write data at read-uncommitted
+     * isolation.
      */
     WT_ASSERT(session, !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
         F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
@@ -225,11 +225,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     __rec_cleanup(session, r);
 
     /*
-     * When threads perform eviction, don't cache block manager structures
-     * (even across calls), we can have a significant number of threads
-     * doing eviction at the same time with large items. Ignore checkpoints,
-     * once the checkpoint completes, all unnecessary session resources will
-     * be discarded.
+     * When threads perform eviction, don't cache block manager structures (even across calls), we
+     * can have a significant number of threads doing eviction at the same time with large items.
+     * Ignore checkpoints, once the checkpoint completes, all unnecessary session resources will be
+     * discarded.
      */
     if (!WT_SESSION_IS_CHECKPOINT(session)) {
         /*
@@ -551,19 +550,16 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_HS) || !LF_ISSET(WT_REC_HS));
 
     /*
-     * History store table eviction is configured when eviction gets aggressive,
-     * adjust the flags for cases we don't support.
+     * History store table eviction is configured when eviction gets aggressive, adjust the flags
+     * for cases we don't support.
      *
-     * We don't yet support fixed-length column-store combined with the
-     * history store table. It's not hard to do, but the underlying function
-     * that reviews which updates can be written to the evicted page and
-     * which updates need to be written to the history store table needs access
-     * to the original value from the page being evicted, and there's no
-     * code path for that in the case of fixed-length column-store objects.
-     * (Row-store and variable-width column-store objects provide a
-     * reference to the unpacked on-page cell for this purpose, but there
-     * isn't an on-page cell for fixed-length column-store objects.) For
-     * now, turn it off.
+     * We don't yet support fixed-length column-store combined with the history store table. It's
+     * not hard to do, but the underlying function that reviews which updates can be written to the
+     * evicted page and which updates need to be written to the history store table needs access to
+     * the original value from the page being evicted, and there's no code path for that in the case
+     * of fixed-length column-store objects. (Row-store and variable-width column-store objects
+     * provide a reference to the unpacked on-page cell for this purpose, but there isn't an on-page
+     * cell for fixed-length column-store objects.) For now, turn it off.
      */
     if (page->type == WT_PAGE_COL_FIX)
         LF_CLR(WT_REC_HS);
@@ -755,23 +751,20 @@ __rec_leaf_page_max(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     switch (page->type) {
     case WT_PAGE_COL_FIX:
         /*
-         * Column-store pages can grow if there are missing records
-         * (that is, we lost a chunk of the range, and have to write
-         * deleted records).  Fixed-length objects are a problem, if
-         * there's a big missing range, we could theoretically have to
-         * write large numbers of missing objects.
+         * Column-store pages can grow if there are missing records (that is, we lost a chunk of the
+         * range, and have to write deleted records). Fixed-length objects are a problem, if there's
+         * a big missing range, we could theoretically have to write large numbers of missing
+         * objects.
          */
         page_size = (uint32_t)WT_ALIGN(
           WT_FIX_ENTRIES_TO_BYTES(btree, r->salvage->take + r->salvage->missing), btree->allocsize);
         break;
     case WT_PAGE_COL_VAR:
         /*
-         * Column-store pages can grow if there are missing records
-         * (that is, we lost a chunk of the range, and have to write
-         * deleted records).  Variable-length objects aren't usually a
-         * problem because we can write any number of deleted records
-         * in a single page entry because of the RLE, we just need to
-         * ensure that additional entry fits.
+         * Column-store pages can grow if there are missing records (that is, we lost a chunk of the
+         * range, and have to write deleted records). Variable-length objects aren't usually a
+         * problem because we can write any number of deleted records in a single page entry because
+         * of the RLE, we just need to ensure that additional entry fits.
          */
         break;
     case WT_PAGE_ROW_LEAF:
@@ -946,15 +939,14 @@ __wt_rec_split_init(
     }
 
     /*
-     * Ensure the disk image buffer is large enough for the max object, as
-     * corrected by the underlying block manager.
+     * Ensure the disk image buffer is large enough for the max object, as corrected by the
+     * underlying block manager.
      *
-     * Since we want to support split_size values larger than the page size
-     * (to allow for adjustments based on the compression), this buffer
-     * should be the greater of split_size and page_size, then aligned to
-     * the next allocation size boundary. The latter shouldn't be an issue,
-     * but it's a possible scenario if, for example, the compression engine
-     * is expected to give us 5x compression and gives us nothing at all.
+     * Since we want to support split_size values larger than the page size (to allow for
+     * adjustments based on the compression), this buffer should be the greater of split_size and
+     * page_size, then aligned to the next allocation size boundary. The latter shouldn't be an
+     * issue, but it's a possible scenario if, for example, the compression engine is expected to
+     * give us 5x compression and gives us nothing at all.
      */
     corrected_page_size = r->page_size;
     WT_RET(bm->write_size(bm, session, &corrected_page_size));
@@ -1626,12 +1618,11 @@ __rec_split_write_reuse(
         return (false);
 
     /*
-     * Quit if evicting with no previously written block to compare against.
-     * (In other words, if there's eviction pressure and the page was never
-     * written by a checkpoint, calculating a checksum is worthless.)
+     * Quit if evicting with no previously written block to compare against. (In other words, if
+     * there's eviction pressure and the page was never written by a checkpoint, calculating a
+     * checksum is worthless.)
      *
-     * Quit if evicting and a previous check failed, once there's a miss no
-     * future block will match.
+     * Quit if evicting and a previous check failed, once there's a miss no future block will match.
      */
     if (F_ISSET(r, WT_REC_EVICT)) {
         if (mod->rec_result != WT_PM_REC_MULTIBLOCK || mod->mod_multi_entries < r->multi_next)

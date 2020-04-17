@@ -72,10 +72,10 @@ typedef enum {
 /*
  * Perform an operation at the specified isolation level.
  *
- * This is fiddly: we can't cope with operations that begin transactions
- * (leaving an ID allocated), and operations must not move our published
- * snap_min forwards (or updates we need could be freed while this operation is
- * in progress).  Check for those cases: the bugs they cause are hard to debug.
+ * This is fiddly: we can't cope with operations that begin transactions (leaving an ID allocated),
+ * and operations must not move our published snap_min forwards (or updates we need could be freed
+ * while this operation is in progress). Check for those cases: the bugs they cause are hard to
+ * debug.
  */
 #define WT_WITH_TXN_ISOLATION(s, iso, op)                                       \
     do {                                                                        \

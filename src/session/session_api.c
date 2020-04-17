@@ -184,14 +184,12 @@ static void
 __session_clear(WT_SESSION_IMPL *session)
 {
     /*
-     * There's no serialization support around the review of the hazard
-     * array, which means threads checking for hazard pointers first check
-     * the active field (which may be 0) and then use the hazard pointer
-     * (which cannot be NULL).
+     * There's no serialization support around the review of the hazard array, which means threads
+     * checking for hazard pointers first check the active field (which may be 0) and then use the
+     * hazard pointer (which cannot be NULL).
      *
-     * Additionally, the session structure can include information that
-     * persists past the session's end-of-life, stored as part of page
-     * splits.
+     * Additionally, the session structure can include information that persists past the session's
+     * end-of-life, stored as part of page splits.
      *
      * For these reasons, be careful when clearing the session structure.
      */
