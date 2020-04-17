@@ -280,7 +280,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     if (!WT_IS_METADATA(session->dhandle)) {
         WT_CURSOR *meta_cursor;
 
-        WT_ASSERT(session, !F_ISSET(&session->txn, WT_TXN_ERROR));
+        WT_ASSERT(session, !F_ISSET(session->txn, WT_TXN_ERROR));
         WT_RET(__wt_metadata_cursor(session, &meta_cursor));
         meta_cursor->set_key(meta_cursor, session->dhandle->name);
         ret = __wt_curfile_insert_check(meta_cursor);
@@ -537,7 +537,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     bool use_timestamp;
 
     conn = S2C(session);
-    txn = &session->txn;
+    txn = session->txn;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
@@ -756,7 +756,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     cache = conn->cache;
     hs_dhandle = NULL;
-    txn = &session->txn;
+    txn = session->txn;
     txn_global = &conn->txn_global;
     saved_isolation = session->isolation;
     full = idle = logging = tracking = use_timestamp = false;
@@ -1632,7 +1632,7 @@ fake:
      * that case, we need to sync the file here or we could roll forward the metadata in recovery
      * and open a checkpoint that isn't yet durable.
      */
-    if (WT_IS_METADATA(dhandle) || !F_ISSET(&session->txn, WT_TXN_RUNNING))
+    if (WT_IS_METADATA(dhandle) || !F_ISSET(session->txn, WT_TXN_RUNNING))
         WT_ERR(__wt_checkpoint_sync(session, NULL));
 
     WT_ERR(__wt_meta_ckptlist_set(session, dhandle->name, btree->ckpt, &ckptlsn));
@@ -1704,7 +1704,7 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     bool with_timestamp;
 
     btree = S2BT(session);
-    txn = &session->txn;
+    txn = session->txn;
 
     /* Are we using a read timestamp for this checkpoint transaction? */
     with_timestamp = F_ISSET(txn, WT_TXN_HAS_TS_READ);
