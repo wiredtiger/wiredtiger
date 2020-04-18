@@ -602,7 +602,7 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
         WT_ASSERT(session, dhandle->type == WT_DHANDLE_TYPE_BTREE);
         WT_ASSERT(session, ((WT_BTREE *)dhandle->handle)->root.page != NULL);
 
-        cbt->btree = dhandle->handle;
+        cbt->btree = static_cast<WT_BTREE*>(dhandle->handle);
         cursor->internal_uri = cbt->btree->dhandle->name;
         cursor->key_format = cbt->btree->key_format;
         cursor->value_format = cbt->btree->value_format;

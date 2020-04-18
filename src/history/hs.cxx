@@ -595,7 +595,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
         switch (page->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
-            p = key->mem;
+	        p = static_cast<uint8_t*>(key->mem);
             WT_ERR(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(list->ins)));
             key->size = WT_PTRDIFF(p, key->data);
             break;

@@ -77,6 +77,13 @@ typedef enum {
     CKSUM_UNCOMPRESSED = 3 /* Uncompressed blocks only */
 } WT_BTREE_CHECKSUM;
 
+    typedef enum {                        /* Start position for eviction walk */
+        WT_EVICT_WALK_NEXT,
+        WT_EVICT_WALK_PREV,
+        WT_EVICT_WALK_RAND_NEXT,
+        WT_EVICT_WALK_RAND_PREV
+    } WT_EVICT_WALK_TYPE;
+
 /*
  * WT_BTREE --
  *	A btree handle.
@@ -229,12 +236,7 @@ struct __wt_btree {
     int32_t evict_disabled;       /* Eviction disabled count */
     bool evict_disabled_open;     /* Eviction disabled on open */
     volatile uint32_t evict_busy; /* Count of threads in eviction */
-    enum {                        /* Start position for eviction walk */
-        WT_EVICT_WALK_NEXT,
-        WT_EVICT_WALK_PREV,
-        WT_EVICT_WALK_RAND_NEXT,
-        WT_EVICT_WALK_RAND_PREV
-    } evict_start_type;
+    WT_EVICT_WALK_TYPE evict_start_type;/* Start position for eviction walk */
 
 /*
  * Flag values up to 0xff are reserved for WT_DHANDLE_XXX. We don't automatically generate these

@@ -61,7 +61,7 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
     WT_DECL_RET;
 
     dhandle = session->dhandle;
-    btree = dhandle->type == WT_DHANDLE_TYPE_BTREE ? dhandle->handle : NULL;
+    btree = dhandle->type == WT_DHANDLE_TYPE_BTREE ? static_cast<WT_BTREE*>(dhandle->handle) : NULL;
 
     /*
      * Acquire an exclusive lock on the handle and mark it dead.
@@ -270,7 +270,7 @@ __sweep_server(void *arg)
     u_int dead_handles;
     bool cv_signalled;
 
-    session = arg;
+    session = static_cast<WT_SESSION_IMPL*>(arg);
     conn = S2C(session);
     if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
         sweep_interval = conn->sweep_interval / 10;

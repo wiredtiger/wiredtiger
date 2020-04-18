@@ -87,7 +87,7 @@ __fstream_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
             fstr->off += (wt_off_t)len;
         }
 
-        c = *(p = fstr->buf.data);
+        c = *(p = static_cast<const char*>(fstr->buf.data));
         fstr->buf.data = ++p;
 
         /* Leave space for a trailing NUL. */

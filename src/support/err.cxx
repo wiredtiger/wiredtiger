@@ -397,7 +397,7 @@ __wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((
 
     wt_session = (WT_SESSION *)session;
     handler = session->event_handler;
-    ret = handler->handle_message(handler, wt_session, buf->data);
+    ret = handler->handle_message(handler, wt_session, static_cast<const char*>(buf->data));
 
     __wt_scr_free(session, &buf);
 
@@ -426,7 +426,7 @@ __wt_ext_msg_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
 
     wt_session = (WT_SESSION *)session;
     handler = session->event_handler;
-    ret = handler->handle_message(handler, wt_session, buf->data);
+    ret = handler->handle_message(handler, wt_session, static_cast<const char*>(buf->data));
 
     __wt_scr_free(session, &buf);
 

@@ -106,7 +106,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
           ++S2C(session)->next_file_id, WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
         for (p = filecfg; *p != NULL; ++p)
             ;
-        *p = val->data;
+        *p = static_cast<const char*>(val->data);
         WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
         WT_ERR(__wt_metadata_insert(session, uri, fileconf));
     }
@@ -231,12 +231,12 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
     /* Add the source to the colgroup config before collapsing. */
     if (__wt_config_getones(session, config, "source", &cval) == 0 && cval.len != 0) {
         WT_ERR(__wt_buf_fmt(session, &namebuf, "%.*s", (int)cval.len, cval.str));
-        source = namebuf.data;
+        source = static_cast<const char*>(namebuf.data);
     } else {
         WT_ERR(__wt_schema_colgroup_source(session, table, cgname, config, &namebuf));
-        source = namebuf.data;
+        source = static_cast<const char*>(namebuf.data);
         WT_ERR(__wt_buf_fmt(session, &confbuf, "source=\"%s\"", source));
-        *cfgp++ = confbuf.data;
+        *cfgp++ = static_cast<const char*>(confbuf.data);
     }
 
     /* Calculate the key/value formats: these go into the source config. */
@@ -249,7 +249,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
         WT_ERR(__wt_buf_catfmt(session, &fmt, ",value_format="));
         WT_ERR(__wt_struct_reformat(session, table, cval.str, cval.len, NULL, true, &fmt));
     }
-    sourcecfg[1] = fmt.data;
+    sourcecfg[1] = static_cast<const char*>(fmt.data);
     WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
     WT_ERR(__wt_schema_create(session, source, sourceconf));
 
@@ -417,10 +417,10 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
 
     if (__wt_config_getones(session, config, "source", &cval) == 0) {
         WT_ERR(__wt_buf_fmt(session, &namebuf, "%.*s", (int)cval.len, cval.str));
-        source = namebuf.data;
+        source = static_cast<const char*>(namebuf.data);
     } else {
         WT_ERR(__wt_schema_index_source(session, table, idxname, config, &namebuf));
-        source = namebuf.data;
+        source = static_cast<const char*>(namebuf.data);
 
         /* Add the source name to the index config before collapsing. */
         WT_ERR(__wt_buf_catfmt(session, &confbuf, ",source=\"%s\"", source));
@@ -493,7 +493,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
       session, table, icols.str, icols.len, (const char *)extra_cols.data, false, &fmt));
 
     /* Check for a record number index key, which makes no sense. */
-    WT_ERR(__wt_config_getones(session, fmt.data, "key_format", &cval));
+    WT_ERR(__wt_config_getones(session, static_cast<const char*>(fmt.data), "key_format", &cval));
     if (cval.len == 1 && cval.str[0] == 'r')
         WT_ERR_MSG(session, EINVAL,
           "column-store index may not use the record number as its "
@@ -501,13 +501,13 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
 
     WT_ERR(__wt_buf_catfmt(session, &fmt, ",index_key_columns=%u", npublic_cols));
 
-    sourcecfg[1] = fmt.data;
+    sourcecfg[1] = static_cast<const char*>(fmt.data);
     WT_ERR(__wt_config_merge(session, sourcecfg, NULL, &sourceconf));
 
     WT_ERR(__wt_schema_create(session, source, sourceconf));
 
     cfg[1] = sourceconf;
-    cfg[2] = confbuf.data;
+    cfg[2] = static_cast<const char*>(confbuf.data);
     WT_ERR(__wt_config_collapse(session, cfg, &idxconf));
 
     if (!exists) {

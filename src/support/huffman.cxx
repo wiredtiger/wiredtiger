@@ -328,7 +328,7 @@ __wt_huffman_open(
     /*
      * Order the array by symbol and check for invalid symbols and duplicates.
      */
-    sym = symbol_frequency_array;
+    sym = static_cast<INDEXED_SYMBOL*>(symbol_frequency_array);
     __wt_qsort(sym, symcnt, sizeof(INDEXED_SYMBOL), indexed_symbol_compare);
     for (i = 0; i < symcnt; ++i) {
         if (i > 0 && sym[i].symbol == sym[i - 1].symbol)

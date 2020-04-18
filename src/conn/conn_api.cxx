@@ -944,8 +944,8 @@ __conn_load_extensions(WT_SESSION_IMPL *session, const char *cfg[], bool early_l
                 WT_ERR(__wt_scr_alloc(session, 0, &exconfig));
             WT_ERR(__wt_buf_fmt(session, exconfig, "%.*s", (int)sval.len, sval.str));
         }
-        sub_cfg[1] = sval.len > 0 ? exconfig->data : NULL;
-        WT_ERR(__conn_load_extension_int(session, expath->data, sub_cfg, early_load));
+        sub_cfg[1] = sval.len > 0 ? static_cast<const char*>(exconfig->data) : NULL;
+        WT_ERR(__conn_load_extension_int(session, static_cast<const char*>(expath->data), sub_cfg, early_load));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
@@ -1360,7 +1360,7 @@ __conn_config_file(
      * unless the newline is quoted or backslash escaped. Comment lines (an unescaped newline where
      * the next non- white-space character is a hash), are discarded.
      */
-    for (quoted = false, p = t = cbuf->mem; len > 0;) {
+    for (quoted = false, p = t = static_cast<char*>(cbuf->mem); len > 0;) {
         /*
          * Backslash pairs pass through untouched, unless immediately preceding a newline, in which
          * case both the backslash and the newline are discarded. Backslash characters escape quoted
@@ -1419,15 +1419,15 @@ __conn_config_file(
     cbuf->size = WT_PTRDIFF(t, cbuf->data);
 
     /* Check any version. */
-    WT_ERR(__conn_config_check_version(session, cbuf->data));
+    WT_ERR(__conn_config_check_version(session, static_cast<const char*>(cbuf->data)));
 
     /* Check the configuration information. */
     WT_ERR(__wt_config_check(session, is_user ? WT_CONFIG_REF(session, wiredtiger_open_usercfg) :
                                                 WT_CONFIG_REF(session, wiredtiger_open_basecfg),
-      cbuf->data, 0));
+                             static_cast<const char*>(cbuf->data), 0));
 
     /* Append it to the stack. */
-    __conn_config_append(cfg, cbuf->data);
+    __conn_config_append(cfg, static_cast<const char*>(cbuf->data));
 
 err:
     WT_TRET(__wt_close(session, &fh));
@@ -1514,7 +1514,7 @@ __conn_config_env(WT_SESSION_IMPL *session, const char *cfg[], WT_ITEM *cbuf)
     WT_ERR(__wt_config_check(session, WT_CONFIG_REF(session, wiredtiger_open), env_config, 0));
 
     /* Append it to the stack. */
-    __conn_config_append(cfg, cbuf->data);
+    __conn_config_append(cfg, static_cast<const char*>(cbuf->data));
 
 err:
     __wt_free(session, env_config);

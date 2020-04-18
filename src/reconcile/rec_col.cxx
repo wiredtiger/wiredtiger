@@ -20,7 +20,7 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)cbulk->cbt.iface.session;
-    r = cbulk->reconcile;
+    r = static_cast<WT_RECONCILE*>(cbulk->reconcile);
     btree = S2BT(session);
 
     if (cbulk->entry == cbulk->nrecs) {
@@ -54,7 +54,7 @@ __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     WT_CURSOR *cursor;
     WT_RECONCILE *r;
 
-    r = cbulk->reconcile;
+    r = static_cast<WT_RECONCILE*>(cbulk->reconcile);
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
 
@@ -80,13 +80,13 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     uint32_t entries, offset, page_entries, page_size;
     const uint8_t *data;
 
-    r = cbulk->reconcile;
+    r = static_cast<WT_RECONCILE*>(cbulk->reconcile);
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
 
     if (((r->recno - 1) * btree->bitcnt) & 0x7)
         WT_RET_MSG(session, EINVAL, "Bulk bitmap load not aligned on a byte boundary");
-    for (data = cursor->value.data, entries = (uint32_t)cursor->value.size; entries > 0;
+    for (data = static_cast<const uint8_t*>(cursor->value.data), entries = (uint32_t)cursor->value.size; entries > 0;
          entries -= page_entries, data += page_size) {
         WT_RET(__rec_col_fix_bulk_insert_split_check(cbulk));
 
@@ -111,7 +111,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     WT_RECONCILE *r;
     WT_REC_KV *val;
 
-    r = cbulk->reconcile;
+    r = static_cast<WT_RECONCILE*>(cbulk->reconcile);
     btree = S2BT(session);
 
     val = &r->v;
@@ -276,9 +276,9 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
          * else build a new cell.
          */
         if (addr == NULL && __wt_off_page(page, ref->addr))
-            addr = ref->addr;
+	        addr = static_cast<WT_ADDR*>(ref->addr);
         if (addr == NULL) {
-            __wt_cell_unpack(session, page, ref->addr, vpack);
+	        __wt_cell_unpack(session, page, static_cast<WT_CELL*>(ref->addr), vpack);
             val->buf.data = ref->addr;
             val->buf.size = __wt_cell_total_len(vpack);
             val->cell_len = 0;
@@ -714,7 +714,7 @@ __wt_rec_col_var(
     /* For each entry in the in-memory page... */
     WT_COL_FOREACH (page, cip, i) {
         ovfl_state = OVFL_IGNORE;
-        cell = WT_COL_PTR(page, cip);
+        cell = static_cast<WT_CELL*>(WT_COL_PTR(page, cip));
         __wt_cell_unpack(session, page, cell, vpack);
         nrepeat = __wt_cell_rle(vpack);
         ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip));

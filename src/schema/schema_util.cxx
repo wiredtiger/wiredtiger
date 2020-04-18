@@ -181,7 +181,7 @@ __wt_name_check(WT_SESSION_IMPL *session, const char *str, size_t len, bool chec
     WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)len, str));
 
     /* If we want to skip the URI check call the internal function directly. */
-    ret = check_uri ? __wt_str_name_check(session, tmp->data) :
+    ret = check_uri ? __wt_str_name_check(session, static_cast<const char*>(tmp->data)) :
                       __str_name_check(session, tmp->data, false);
 
 err:

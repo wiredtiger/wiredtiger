@@ -41,6 +41,18 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
 
 typedef enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } WT_COMPACT_STATE_TYPE;
 
+        struct __wt_stash {
+            void *p; /* Memory, length */
+            size_t len;
+            uint64_t gen; /* Generation */
+        };
+
+    struct __wt_session_stash {
+        WT_STASH* list;
+        size_t cnt;   /* Array entries */
+        size_t alloc; /* Allocated bytes */
+    };
+
 /* Number of cursors cached to trigger cursor sweep. */
 #define WT_SESSION_CURSOR_SWEEP_COUNTDOWN 40
 
@@ -233,15 +245,7 @@ struct __wt_session_impl {
      * memory that's still in use. In order to eventually free it, it's stashed here with its
      * generation number; when no thread is reading in generation, the memory can be freed for real.
      */
-    struct __wt_session_stash {
-        struct __wt_stash {
-            void *p; /* Memory, length */
-            size_t len;
-            uint64_t gen; /* Generation */
-        } * list;
-        size_t cnt;   /* Array entries */
-        size_t alloc; /* Allocated bytes */
-    } stash[WT_GENERATIONS];
+    WT_SESSION_STASH stash[WT_GENERATIONS];
 
 /*
  * Hazard pointers.

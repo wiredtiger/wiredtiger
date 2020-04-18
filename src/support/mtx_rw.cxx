@@ -124,7 +124,7 @@ __wt_rwlock_destroy(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 int
 __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-    WT_RWLOCK new, old;
+    WT_RWLOCK newv, old;
     int64_t **stats;
 
     WT_STAT_CONN_INCR(session, rwlock_read);
@@ -143,12 +143,12 @@ __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
      * The replacement lock value is a result of adding an active reader. Check for overflow: if the
      * maximum number of readers are already active, no new readers can enter the lock.
      */
-    new.u.v = old.u.v;
-    if (++new.u.s.readers_active == 0)
+    newv.u.v = old.u.v;
+    if (++newv.u.s.readers_active == 0)
         return (__wt_set_return(session, EBUSY));
 
     /* We rely on this atomic operation to provide a barrier. */
-    return (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v) ? 0 : EBUSY);
+    return (__wt_atomic_casv64(&l->u.v, old.u.v, newv.u.v) ? 0 : EBUSY);
 }
 
 /*
@@ -168,7 +168,7 @@ __read_blocked(WT_SESSION_IMPL *session)
 void
 __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-    WT_RWLOCK new, old;
+    WT_RWLOCK newv, old;
     uint64_t time_diff, time_start, time_stop;
     int64_t *session_stats, **stats;
     int16_t writers_active;
@@ -189,14 +189,14 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
          * Fast path: if there is no active writer, join the current group.
          */
         for (old.u.v = l->u.v; old.u.s.current == old.u.s.next; old.u.v = l->u.v) {
-            new.u.v = old.u.v;
+            newv.u.v = old.u.v;
             /*
              * Check for overflow: if the maximum number of readers are already active, no new
              * readers can enter the lock.
              */
-            if (++new.u.s.readers_active == 0)
+            if (++newv.u.s.readers_active == 0)
                 goto stall;
-            if (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v))
+            if (__wt_atomic_casv64(&l->u.v, old.u.v, newv.u.v))
                 return;
             WT_PAUSE();
         }
@@ -224,12 +224,12 @@ stall:
          * If we are the first reader to queue, set the next read group. Note: don't re-read from
          * the lock or we could race with a writer unlocking.
          */
-        new.u.v = old.u.v;
-        if (new.u.s.readers_queued++ == 0)
-            new.u.s.reader = new.u.s.next;
-        ticket = new.u.s.reader;
-        WT_ASSERT(session, new.u.s.readers_queued != 0);
-        if (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v))
+        newv.u.v = old.u.v;
+        if (newv.u.s.readers_queued++ == 0)
+            newv.u.s.reader = newv.u.s.next;
+        ticket = newv.u.s.reader;
+        WT_ASSERT(session, newv.u.s.readers_queued != 0);
+        if (__wt_atomic_casv64(&l->u.v, old.u.v, newv.u.v))
             break;
     }
 
@@ -281,7 +281,7 @@ stall:
 void
 __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-    WT_RWLOCK new, old;
+    WT_RWLOCK newv, old;
 
     do {
         old.u.v = l->u.v;
@@ -291,11 +291,11 @@ __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
          * Decrement the active reader count (other readers are doing the same, make sure we don't
          * race).
          */
-        new.u.v = old.u.v;
-        --new.u.s.readers_active;
-    } while (!__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v));
+        newv.u.v = old.u.v;
+        --newv.u.s.readers_active;
+    } while (!__wt_atomic_casv64(&l->u.v, old.u.v, newv.u.v));
 
-    if (new.u.s.readers_active == 0 && new.u.s.current != new.u.s.next)
+    if (newv.u.s.readers_active == 0 && newv.u.s.current != newv.u.s.next)
         __wt_cond_signal(session, l->cond_writers);
 }
 
@@ -306,7 +306,7 @@ __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 int
 __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-    WT_RWLOCK new, old;
+    WT_RWLOCK newv, old;
     int64_t **stats;
 
     WT_STAT_CONN_INCR(session, rwlock_write);
@@ -335,9 +335,9 @@ __wt_try_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
      *
      * We rely on this atomic operation to provide a barrier.
      */
-    new.u.v = old.u.v;
-    new.u.s.next++;
-    return (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v) ? 0 : EBUSY);
+    newv.u.v = old.u.v;
+    newv.u.s.next++;
+    return (__wt_atomic_casv64(&l->u.v, old.u.v, newv.u.v) ? 0 : EBUSY);
 }
 
 /*
@@ -360,7 +360,7 @@ __write_blocked(WT_SESSION_IMPL *session)
 void
 __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-    WT_RWLOCK new, old;
+    WT_RWLOCK newv, old;
     uint64_t time_diff, time_start, time_stop;
     int64_t *session_stats, **stats;
     uint8_t ticket;
@@ -377,18 +377,18 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
         old.u.v = l->u.v;
 
         /* Allocate a ticket. */
-        new.u.v = old.u.v;
-        ticket = new.u.s.next++;
+        newv.u.v = old.u.v;
+        ticket = newv.u.s.next++;
 
         /*
          * Check for overflow: if the next ticket is allowed to catch up with the current batch, two
          * writers could be granted the lock simultaneously.
          */
-        if (new.u.s.current == new.u.s.next) {
+        if (newv.u.s.current == newv.u.s.next) {
             __wt_cond_wait(session, l->cond_writers, 10 * WT_THOUSAND, NULL);
             continue;
         }
-        if (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v))
+        if (__wt_atomic_casv64(&l->u.v, old.u.v, newv.u.v))
             break;
     }
 
@@ -446,7 +446,7 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 void
 __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-    WT_RWLOCK new, old;
+    WT_RWLOCK newv, old;
 
     do {
         old.u.v = l->u.v;
@@ -462,16 +462,16 @@ __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
          * If there are readers in the next group, swap queued readers to active: this could race
          * with new readlock requests, so we have to spin.
          */
-        new.u.v = old.u.v;
-        if (++new.u.s.current == new.u.s.reader) {
-            new.u.s.readers_active = new.u.s.readers_queued;
-            new.u.s.readers_queued = 0;
+        newv.u.v = old.u.v;
+        if (++newv.u.s.current == newv.u.s.reader) {
+            newv.u.s.readers_active = newv.u.s.readers_queued;
+            newv.u.s.readers_queued = 0;
         }
-    } while (!__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v));
+    } while (!__wt_atomic_casv64(&l->u.v, old.u.v, newv.u.v));
 
-    if (new.u.s.readers_active != 0)
+    if (newv.u.s.readers_active != 0)
         __wt_cond_signal(session, l->cond_readers);
-    else if (new.u.s.current != new.u.s.next)
+    else if (newv.u.s.current != newv.u.s.next)
         __wt_cond_signal(session, l->cond_writers);
 
     WT_DIAGNOSTIC_YIELD;

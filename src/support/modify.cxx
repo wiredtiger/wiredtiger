@@ -51,7 +51,7 @@ __wt_modify_idempotent(const void *modify)
     int nentries;
 
     /* Get the number of modify entries. */
-    p = modify;
+    p = static_cast<const size_t*>(modify);
     memcpy(&tmp, p++, sizeof(size_t));
     nentries = (int)tmp;
 
@@ -99,7 +99,7 @@ __wt_modify_pack(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries, WT_ITEM **
     WT_RET(__wt_scr_alloc(session, len, &modify));
 
     data = (uint8_t *)modify->mem + sizeof(size_t) + ((size_t)nentries * 3 * sizeof(size_t));
-    p = modify->mem;
+    p = static_cast<size_t*>(modify->mem);
     *p++ = (size_t)nentries;
     for (i = 0; i < nentries; ++i) {
         *p++ = entries[i].data.size;

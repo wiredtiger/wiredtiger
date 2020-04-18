@@ -253,6 +253,13 @@ struct __wt_ovfl_reuse {
             ",leaf_value_max=64MB"                                                \
             ",prefix_compression=false"
 
+    struct __wt_save_upd {
+        WT_INSERT *ins; /* Insert list reference */
+        WT_ROW *ripcip; /* Original on-page reference */
+        WT_UPDATE *onpage_upd;
+        bool restore; /* Whether to restore this saved update chain */
+    };
+
 struct __wt_multi {
     /*
      * Block's key: either a column-store record number or a row-store variable length byte string.
@@ -276,12 +283,7 @@ struct __wt_multi {
      * If there are unresolved updates, the block wasn't written and there will always be a disk
      * image.
      */
-    struct __wt_save_upd {
-        WT_INSERT *ins; /* Insert list reference */
-        WT_ROW *ripcip; /* Original on-page reference */
-        WT_UPDATE *onpage_upd;
-        bool restore; /* Whether to restore this saved update chain */
-    } * supd;
+    WT_SAVE_UPD* supd;
     uint32_t supd_entries;
 
     bool supd_restore; /* Whether to restore saved update chains to this page */

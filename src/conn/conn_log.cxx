@@ -549,7 +549,7 @@ __log_file_server(void *arg)
     uint32_t filenum;
     bool locked;
 
-    session = arg;
+    session = static_cast<WT_SESSION_IMPL*>(arg);
     conn = S2C(session);
     log = conn->log;
     locked = false;
@@ -821,7 +821,7 @@ __log_wrlsn_server(void *arg)
     int yield;
     bool did_work;
 
-    session = arg;
+    session = static_cast<WT_SESSION_IMPL*>(arg);
     conn = S2C(session);
     log = conn->log;
     yield = 0;
@@ -875,7 +875,7 @@ __log_server(void *arg)
     uint64_t time_start, time_stop, timediff;
     bool did_work, signalled;
 
-    session = arg;
+    session = static_cast<WT_SESSION_IMPL*>(arg);
     conn = S2C(session);
     log = conn->log;
     signalled = false;

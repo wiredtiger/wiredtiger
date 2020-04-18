@@ -150,13 +150,13 @@ __rename_tree(WT_SESSION_IMPL *session, WT_TABLE *table, const char *newuri, con
      * Do the rename before updating the metadata to avoid leaving the metadata inconsistent if the
      * rename fails.
      */
-    WT_ERR(__wt_schema_rename(session, os->data, ns->data, cfg));
+    WT_ERR(__wt_schema_rename(session, static_cast<const char*>(os->data), static_cast<const char*>(os->data), cfg));
 
     /*
      * Remove the old metadata entry. Insert the new metadata entry.
      */
     WT_ERR(__wt_metadata_remove(session, name));
-    WT_ERR(__wt_metadata_insert(session, nn->data, nv->data));
+    WT_ERR(__wt_metadata_insert(session, static_cast<const char*>(nn->data), static_cast<const char*>(nv->data)));
 
 err:
     __wt_scr_free(session, &nn);

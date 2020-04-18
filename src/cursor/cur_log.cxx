@@ -18,7 +18,7 @@ __curlog_logrec(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LSN 
 {
     WT_CURSOR_LOG *cl;
 
-    cl = cookie;
+    cl = static_cast<WT_CURSOR_LOG*>(cookie);
     WT_UNUSED(firstrecord);
 
     /* Set up the LSNs and take a copy of the log record for the cursor. */

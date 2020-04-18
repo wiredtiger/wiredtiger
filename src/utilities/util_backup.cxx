@@ -88,7 +88,7 @@ copy(WT_SESSION *session, const char *directory, const char *name)
 
     /* Build the target pathname. */
     len = strlen(directory) + strlen(name) + 2;
-    if ((to = malloc(len)) == NULL) {
+    if ((to = static_cast<char*>(malloc(len))) == NULL) {
         fprintf(stderr, "%s: %s\n", progname, strerror(errno));
         return (1);
     }

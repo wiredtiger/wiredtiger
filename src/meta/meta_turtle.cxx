@@ -26,7 +26,7 @@ __metadata_config(WT_SESSION_IMPL *session, char **metaconfp)
     WT_ERR(
       __wt_buf_fmt(session, buf, "key_format=S,value_format=S,id=%d,version=(major=%d,minor=%d)",
         WT_METAFILE_ID, WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
-    cfg[1] = buf->data;
+    cfg[1] = static_cast<const char*>(buf->data);
     ret = __wt_config_collapse(session, cfg, metaconfp);
 
 err:
@@ -81,7 +81,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
         WT_ERR(__wt_getline(session, fs, value));
         if (value->size == 0)
             WT_PANIC_ERR(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
-        WT_ERR(__wt_metadata_update(session, key->data, value->data));
+        WT_ERR(__wt_metadata_update(session, static_cast<const char*>(key->data), static_cast<const char*>(value->data)));
     }
 
     F_SET(S2C(session), WT_CONN_WAS_BACKUP);
@@ -351,7 +351,7 @@ __wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
         WT_ERR(__wt_getline(session, fs, buf));
         if (buf->size == 0)
             WT_ERR(WT_NOTFOUND);
-    } while (strcmp(key, buf->data) != 0);
+    } while (strcmp(key, static_cast<const char*>(buf->data)) != 0);
 
     /* Key matched: read the subsequent line for the value. */
     WT_ERR(__wt_getline(session, fs, buf));
@@ -359,7 +359,7 @@ __wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
         WT_ERR(WT_NOTFOUND);
 
     /* Copy the value for the caller. */
-    WT_ERR(__wt_strdup(session, buf->data, valuep));
+    WT_ERR(__wt_strdup(session, static_cast<const char*>(buf->data), valuep));
 
 err:
     WT_TRET(__wt_fclose(session, &fs));

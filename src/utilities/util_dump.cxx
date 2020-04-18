@@ -325,7 +325,7 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor, char
     const char *keyformat, *p;
 
     len = strlen(config) + strlen(cursor->value_format) + strlen(cursor->uri) + 20;
-    if ((newconfig = malloc(len)) == NULL)
+    if ((newconfig = static_cast<char*>(malloc(len))) == NULL)
         return (util_err(session, errno, NULL));
     *newconfigp = newconfig;
     wt_api = session->connection->get_extension_api(session->connection);
@@ -456,7 +456,7 @@ dump_table_parts_config(
     }
 
     len = strlen(entry) + strlen(name) + 1;
-    if ((uriprefix = malloc(len)) == NULL)
+    if ((uriprefix = static_cast<char*>(malloc(len))) == NULL)
         return (util_err(session, errno, NULL));
     if ((ret = __wt_snprintf(uriprefix, len, "%s%s", entry, name)) != 0) {
         free(uriprefix);

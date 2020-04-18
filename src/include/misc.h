@@ -314,6 +314,12 @@ union __wt_rand_state {
     struct {
         uint32_t w, z;
     } x;
+
+// C++ doesn't generate an assignment operator with default qualifier.
+    volatile __wt_rand_state& operator=(const __wt_rand_state& other) volatile {
+        v = other.v;
+        return *this;
+    }
 };
 
 /*

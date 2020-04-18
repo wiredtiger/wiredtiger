@@ -40,7 +40,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
     WT_RET(__wt_realloc_def(session, &r->supd_allocated, r->supd_next + 1, &r->supd));
     supd = &r->supd[r->supd_next];
     supd->ins = ins;
-    supd->ripcip = ripcip;
+    supd->ripcip = static_cast<WT_ROW*>(ripcip);
     supd->onpage_upd = onpage_upd;
     supd->restore = supd_restore;
     ++r->supd_next;

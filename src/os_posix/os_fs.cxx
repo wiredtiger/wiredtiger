@@ -126,7 +126,7 @@ __posix_directory_sync(WT_SESSION_IMPL *session, const char *path)
      * This layer should never see a path that doesn't include a trailing path separator, this code
      * asserts that fact.
      */
-    dir = tmp->mem;
+    dir = static_cast<char*>(tmp->mem);
     strrchr(dir, '/')[1] = '\0';
 
     fd = 0; /* -Wconditional-uninitialized */
@@ -423,7 +423,7 @@ __posix_file_read(
           len >= S2C(session)->buffer_alignment && len % S2C(session)->buffer_alignment == 0));
 
     /* Break reads larger than 1GB into 1GB chunks. */
-    for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
+    for (addr = static_cast<uint8_t*>(buf); len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
         chunk = WT_MIN(len, WT_GIGABYTE);
         if ((nr = pread(pfh->fd, addr, chunk, offset)) <= 0)
             WT_RET_MSG(session, nr == 0 ? WT_ERROR : __wt_errno(),
@@ -612,7 +612,7 @@ __posix_file_write(
           len >= S2C(session)->buffer_alignment && len % S2C(session)->buffer_alignment == 0));
 
     /* Break writes larger than 1GB into 1GB chunks. */
-    for (addr = buf; len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
+    for (addr = static_cast<const uint8_t*>(buf); len > 0; addr += nw, len -= (size_t)nw, offset += nw) {
         chunk = WT_MIN(len, WT_GIGABYTE);
         if ((nw = pwrite(pfh->fd, addr, chunk, offset)) < 0)
             WT_RET_MSG(session, __wt_errno(),

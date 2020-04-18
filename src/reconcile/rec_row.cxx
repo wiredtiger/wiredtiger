@@ -139,7 +139,7 @@ __rec_cell_build_leaf_key(
                 pfx_max = size;
             if (r->last->size < pfx_max)
                 pfx_max = r->last->size;
-            for (a = data, b = r->last->data; pfx < pfx_max; ++pfx)
+            for (a = static_cast<const uint8_t*>(data), b = static_cast<const uint8_t*>(r->last->data); pfx < pfx_max; ++pfx)
                 if (*a++ != *b++)
                     break;
 
@@ -160,7 +160,7 @@ __rec_cell_build_leaf_key(
     /* Optionally compress the key using the Huffman engine. */
     if (btree->huffman_key != NULL)
         WT_RET(__wt_huffman_encode(
-          session, btree->huffman_key, key->buf.data, (uint32_t)key->buf.size, &key->buf));
+	               session, btree->huffman_key, static_cast<const uint8_t*>(key->buf.data), (uint32_t)key->buf.size, &key->buf));
 
     /* Create an overflow object if the data won't fit. */
     if (key->buf.size > btree->maxleafkey) {
@@ -197,7 +197,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WT_REC_KV *key, *val;
     bool ovfl_key;
 
-    r = cbulk->reconcile;
+    r = static_cast<WT_RECONCILE*>(cbulk->reconcile);
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
 
@@ -358,14 +358,14 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         key_onpage_ovfl = false;
         ikey = __wt_ref_key_instantiated(ref);
         if (ikey != NULL && ikey->cell_offset != 0) {
-            cell = WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
+	        cell = static_cast<WT_CELL*>(WT_PAGE_REF_OFFSET(page, ikey->cell_offset));
             __wt_cell_unpack(session, page, cell, kpack);
             key_onpage_ovfl =
               F_ISSET(kpack, WT_CELL_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM;
         }
 
         WT_ERR(__wt_rec_child_modify(session, r, ref, &hazard, &state));
-        addr = ref->addr;
+        addr = static_cast<WT_ADDR*>(ref->addr);
         child = ref->page;
 
         switch (state) {
@@ -445,7 +445,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             newest_stop_txn = addr->newest_stop_txn;
             prepare = addr->prepare;
         } else {
-            __wt_cell_unpack(session, page, ref->addr, vpack);
+	        __wt_cell_unpack(session, page, static_cast<WT_CELL*>(ref->addr), vpack);
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED)) {
                 /*
                  * The transaction ids are cleared after restart. Repack the cell with new validity
@@ -455,7 +455,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                   session, r, NULL, vpack, state == WT_CHILD_PROXY, WT_RECNO_OOB);
             } else if (state == WT_CHILD_PROXY) {
                 WT_ERR(__wt_buf_set(session, &val->buf, ref->addr, __wt_cell_total_len(vpack)));
-                __wt_cell_type_reset(session, val->buf.mem, 0, WT_CELL_ADDR_DEL);
+                __wt_cell_type_reset(session, static_cast<WT_CELL*>(val->buf.mem), 0, WT_CELL_ADDR_DEL);
                 val->cell_len = 0;
                 val->len = val->buf.size;
             } else {
@@ -689,7 +689,7 @@ __rec_cell_repack(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RECONCILE *r, WT
         size = vpack->size;
     } else {
         WT_ERR(
-          __wt_huffman_decode(session, btree->huffman_value, vpack->data, vpack->size, tmpval));
+	        __wt_huffman_decode(session, btree->huffman_value, static_cast<const uint8_t*>(vpack->data), vpack->size, tmpval));
         p = tmpval->data;
         size = tmpval->size;
     }

@@ -56,6 +56,9 @@
             WT_DHANDLE_ACQUIRE(dhandle);                                     \
     } while (0)
 
+    typedef enum {
+        WT_DHANDLE_TYPE_BTREE, WT_DHANDLE_TYPE_TABLE } WT_DATA_HANDLE_TYPE;
+
 /*
  * WT_DATA_HANDLE --
  *	A handle for a generic named data source.
@@ -85,7 +88,7 @@ struct __wt_data_handle {
     WT_DATA_SOURCE *dsrc; /* Data source for this handle */
     void *handle;         /* Generic handle */
 
-    enum { WT_DHANDLE_TYPE_BTREE, WT_DHANDLE_TYPE_TABLE } type;
+    WT_DATA_HANDLE_TYPE type;
 
     bool compact_skip; /* If the handle failed to compact */
 

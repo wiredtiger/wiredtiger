@@ -110,7 +110,7 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
     *is_deadp = false;
 
     dhandle = session->dhandle;
-    btree = dhandle->handle;
+    btree = static_cast<WT_BTREE*>(dhandle->handle);
     lock_busy = false;
     want_exclusive = LF_ISSET(WT_DHANDLE_EXCLUSIVE);
 
@@ -228,7 +228,7 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
     bool locked, write_locked;
 
     dhandle = session->dhandle;
-    btree = dhandle->handle;
+    btree = static_cast<WT_BTREE*>(dhandle->handle);
     write_locked = F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE);
     locked = true;
 

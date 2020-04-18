@@ -1660,7 +1660,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     /* Verify any disk image we have. */
     WT_ASSERT(session, multi->disk_image == NULL ||
         __wt_verify_dsk_image(
-          session, "[page instantiate]", multi->disk_image, 0, &multi->addr, true) == 0);
+	        session, "[page instantiate]", static_cast<const WT_PAGE_HEADER*>(multi->disk_image), 0, &multi->addr, true) == 0);
 
     /* Allocate an underlying WT_REF. */
     WT_RET(__wt_calloc_one(session, refp));
