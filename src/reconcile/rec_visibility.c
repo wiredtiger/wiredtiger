@@ -82,8 +82,9 @@ __rec_append_orig_value(
         /*
          * Done if at least one self-contained update is globally visible. It's tempting to pull
          * this test out of the loop and only test the oldest self-contained update for global
-         * visibility (as visibility tests are expensive), but it's possible at lower isolation
-         * levels for an update on the chain to be globally visible and followed by an (earlier)
+         * visibility (as visibility tests are expensive). However, when running at lower isolation
+         * levels, or when an application intentionally commits in out of timestamp order, it's
+         * possible for an update on the chain to be globally visible and followed by an (earlier)
          * update that is not yet globally visible.
          */
         if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
