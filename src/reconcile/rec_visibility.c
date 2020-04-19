@@ -463,7 +463,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /*
      * Returning an update means the original on-page value might be lost, and that's a problem if
      * there's a reader that needs it, make a copy of the on-page value. We do that any time there
-     * are saved updates (we may need to original on-page value to terminate a the update chain, for
+     * are saved updates (we may need to original on-page value to terminate the update chain, for
      * example, in the case of an update that modifies the original value). Additionally, make a
      * copy of the on-page value if the value is an overflow item and anything other than the
      * on-page cell is being written. This is because the value's backing overflow blocks aren't
