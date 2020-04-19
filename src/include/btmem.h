@@ -1131,6 +1131,9 @@ struct __wt_update {
      * a C99 flexible array member which has the semantics we want.
      */
     uint8_t data[]; /* start of the data */
+
+    __wt_update(uint64_t txnid, uint8_t type)
+    : txnid(txnid), type(type) {}
 };
 
 /*

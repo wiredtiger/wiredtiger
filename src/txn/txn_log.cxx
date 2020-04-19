@@ -516,7 +516,7 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
         txn->ckpt_nsnapshot = txn->snapshot_count;
         recsize = (size_t)txn->ckpt_nsnapshot * WT_INTPACK64_MAXSIZE;
         WT_ERR(__wt_scr_alloc(session, recsize, &txn->ckpt_snapshot));
-        p = txn->ckpt_snapshot->mem;
+        p = static_cast<uint8_t*>(txn->ckpt_snapshot->mem);
         end = p + recsize;
         for (i = 0; i < txn->snapshot_count; i++)
             WT_ERR(__wt_vpack_uint(&p, WT_PTRDIFF(end, p), txn->snapshot[i]));
@@ -651,7 +651,7 @@ __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *
     bool compressed;
 
     WT_UNUSED(next_lsnp);
-    args = cookie;
+    args = static_cast<WT_TXN_PRINTLOG_ARGS*>(cookie);
 
     p = WT_LOG_SKIP_HEADER(rawrec->data);
     end = (const uint8_t *)rawrec->data + rawrec->size;

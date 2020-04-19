@@ -968,7 +968,7 @@ __wt_rec_split_init(
     /* Starting record number, entries, first free byte. */
     r->recno = recno;
     r->entries = 0;
-    r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
+    r->first_free = static_cast<uint8_t*>(WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem));
 
     /* New page, compression off. */
     r->key_pfx_compress = r->key_sfx_compress = false;
@@ -1102,8 +1102,8 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key,
      * larger byte value in the current key, or the current key will be a longer key, and the
      * interesting byte is one past the length of the shorter key.
      */
-    pa = max->data;
-    pb = r->cur->data;
+    pa = static_cast<const uint8_t*>(max->data);
+    pb = static_cast<const uint8_t*>(r->cur->data);
     len = WT_MIN(max->size, r->cur->size);
     size = len + 1;
     for (cnt = 1; len > 0; ++cnt, --len, ++pa, ++pb)
@@ -1220,7 +1220,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len, bool 
 
     /* Reset tracking information. */
     r->entries = 0;
-    r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
+    r->first_free = static_cast<uint8_t*>(WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem));
 
     /*
      * Set the space available to another split-size and minimum split-size chunk.
@@ -1338,7 +1338,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         prev_ptr->newest_stop_txn = WT_MAX(prev_ptr->newest_stop_txn, cur_ptr->newest_stop_txn);
         if (cur_ptr->prepare)
             prev_ptr->prepare = true;
-        dsk = r->cur_ptr->image.mem;
+        dsk = static_cast<WT_PAGE_HEADER*>(r->cur_ptr->image.mem);
         memcpy((uint8_t *)r->prev_ptr->image.mem + prev_ptr->image.size,
           WT_PAGE_HEADER_BYTE(btree, dsk), cur_ptr->image.size - WT_PAGE_HEADER_BYTE_SIZE(btree));
         prev_ptr->image.size = combined_size;
@@ -1363,7 +1363,7 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         len_to_move = prev_ptr->image.size - prev_ptr->min_offset;
         if (r->space_avail < len_to_move)
             WT_RET(__rec_split_grow(session, r, len_to_move));
-        cur_dsk_start = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
+        cur_dsk_start = static_cast<uint8_t*>(WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem));
 
         /*
          * Shift the contents of the current buffer to make space for the data that will be
@@ -1680,7 +1680,7 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
   bool last_block, uint64_t *adjustp)
 {
     WT_BTREE *btree;
-    uint64_t adjust, current, new;
+    uint64_t adjust, current, newv;
     u_int ten_percent;
 
     btree = S2BT(session);
@@ -1715,9 +1715,9 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
          */
         adjust = current - max;
         if (adjust > ten_percent)
-            new = current - ten_percent;
+            newv = current - ten_percent;
         else if (adjust != 0)
-            new = max;
+            newv = max;
         else
             return;
     } else {
@@ -1736,13 +1736,13 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
 
         adjust = current + ten_percent;
         if (adjust < btree->maxmempage_image)
-            new = adjust;
+            newv = adjust;
         else if (current != btree->maxmempage_image)
-            new = btree->maxmempage_image;
+            newv = btree->maxmempage_image;
         else
             return;
     }
-    *adjustp = new;
+    *adjustp = newv;
 }
 
 /*
@@ -1817,9 +1817,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block));
 
     /* Initialize the page header(s). */
-    __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);
+    __rec_split_write_header(session, r, chunk, multi, static_cast<WT_PAGE_HEADER*>(chunk->image.mem));
     if (compressed_image != NULL)
-        __rec_split_write_header(session, r, chunk, multi, compressed_image->mem);
+	    __rec_split_write_header(session, r, chunk, multi, static_cast<WT_PAGE_HEADER*>(compressed_image->mem));
 
     /*
      * If we are writing the whole page in our first/only attempt, it might be a checkpoint
@@ -1899,7 +1899,7 @@ copy_image:
      */
     WT_ASSERT(session, verify_image == false ||
         __wt_verify_dsk_image(
-          session, "[reconcile-image]", chunk->image.data, 0, &multi->addr, true) == 0);
+	        session, "[reconcile-image]", static_cast<const WT_PAGE_HEADER*>(chunk->image.data), 0, &multi->addr, true) == 0);
 #endif
     /*
      * If re-instantiating this page in memory (either because eviction wants to, or because we
@@ -1941,7 +1941,7 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     cbulk->leaf = cbulk->ref->page;
 
     WT_RET(__rec_init(session, cbulk->ref, 0, NULL, &cbulk->reconcile));
-    r = cbulk->reconcile;
+    r = static_cast<WT_RECONCILE*>(cbulk->reconcile);
     r->is_bulk_load = true;
 
     recno = btree->type == BTREE_ROW ? WT_RECNO_OOB : 1;
@@ -1962,7 +1962,7 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WT_RECONCILE *r;
 
     btree = S2BT(session);
-    if ((r = cbulk->reconcile) == NULL)
+    if ((r = static_cast<WT_RECONCILE*>(cbulk->reconcile)) == NULL)
         return (0);
 
     switch (btree->type) {
@@ -2376,7 +2376,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
         WT_RET(__wt_scr_alloc(session, size, &tmp));
 
         /* Initialize the buffer: disk header and overflow record. */
-        dsk = tmp->mem;
+        dsk = static_cast<WT_PAGE_HEADER*>(tmp->mem);
         memset(dsk, 0, WT_PAGE_HEADER_SIZE);
         dsk->type = WT_PAGE_OVFL;
         dsk->u.datalen = (uint32_t)kv->buf.size;

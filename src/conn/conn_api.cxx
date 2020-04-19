@@ -2635,7 +2635,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_scr_alloc(session, 0, &encbuf));
     WT_ERR(__wt_buf_fmt(session, encbuf, "(name=%.*s,keyid=%.*s,secretkey=%.*s)", (int)cval.len,
       cval.str, (int)keyid.len, keyid.str, (int)secretkey.len, secretkey.str));
-    enc_cfg[0] = encbuf->data;
+    enc_cfg[0] = static_cast<const char*>(encbuf->data);
     WT_ERR(
       __wt_encryptor_config(session, &cval, &keyid, (WT_CONFIG_ARG *)enc_cfg, &conn->kencryptor));
 

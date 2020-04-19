@@ -134,7 +134,7 @@ util_flush(WT_SESSION *session, const char *uri)
     char *buf;
 
     len = strlen(uri) + 100;
-    if ((buf = malloc(len)) == NULL)
+    if ((buf = static_cast<char*>(malloc(len))) == NULL)
         return (util_err(session, errno, NULL));
 
     if ((ret = __wt_snprintf(buf, len, "target=(\"%s\")", uri)) != 0) {

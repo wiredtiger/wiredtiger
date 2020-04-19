@@ -149,7 +149,7 @@ __checkpoint_apply_operation(
         if (op == NULL)
             continue;
         WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)k.len, k.str));
-        if ((ret = __wt_schema_worker(session, tmp->data, op, NULL, cfg, 0)) != 0)
+        if ((ret = __wt_schema_worker(session, static_cast<const char*>(tmp->data), op, NULL, cfg, 0)) != 0)
             WT_ERR_MSG(session, ret, "%s", (const char *)tmp->data);
     }
     WT_ERR_NOTFOUND_OK(ret, false);

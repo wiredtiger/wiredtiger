@@ -53,6 +53,11 @@ typedef enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } WT_
         size_t alloc; /* Allocated bytes */
     };
 
+    struct __wt_scratch_track {
+        const char *func; /* Allocating function, line */
+        int line;
+    };
+
 /* Number of cursors cached to trigger cursor sweep. */
 #define WT_SESSION_CURSOR_SWEEP_COUNTDOWN 40
 
@@ -134,10 +139,7 @@ struct __wt_session_impl {
      * mode we track them; DIAGNOSTIC can't simply add additional fields to WT_ITEM structures
      * because they are visible to applications, create a parallel structure instead.
      */
-    struct __wt_scratch_track {
-        const char *func; /* Allocating function, line */
-        int line;
-    } * scratch_track;
+    WT_SCRATCH_TRACK* scratch_track;
 #endif
 
     WT_ITEM err; /* Error buffer */

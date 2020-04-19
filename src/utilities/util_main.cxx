@@ -317,7 +317,7 @@ main(int argc, char *argv[])
         p3 = ")";
     }
     len += strlen(rec_config);
-    if ((p = malloc(len)) == NULL) {
+    if ((p = static_cast<char*>(malloc(len))) == NULL) {
         (void)util_err(NULL, errno, NULL);
         goto err;
     }
@@ -376,7 +376,7 @@ util_uri(WT_SESSION *session, const char *s, const char *type)
     }
 
     len = strlen(type) + strlen(s) + 2;
-    if ((name = calloc(len, 1)) == NULL) {
+    if ((name = static_cast<char*>(calloc(len, 1))) == NULL) {
         (void)util_err(session, errno, NULL);
         return (NULL);
     }

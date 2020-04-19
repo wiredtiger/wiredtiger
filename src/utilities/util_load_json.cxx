@@ -147,7 +147,7 @@ json_kvraw_append(WT_SESSION *session, JSON_INPUT_STATE *ins, const char *str, s
 
     if (len > 0) {
         needsize = strlen(ins->kvraw) + len + 2;
-        if ((tmp = malloc(needsize)) == NULL)
+        if ((tmp = static_cast<char*>(malloc(needsize))) == NULL)
             return (util_err(session, errno, NULL));
         WT_ERR(__wt_snprintf(tmp, needsize, "%s %.*s", ins->kvraw, (int)len, str));
         free(ins->kvraw);
@@ -182,7 +182,7 @@ json_strdup(WT_SESSION *session, JSON_INPUT_STATE *ins, char **resultp)
         goto err;
     }
     resultlen += 1;
-    if ((result = malloc((size_t)resultlen)) == NULL) {
+    if ((result = static_cast<char*>(malloc((size_t)resultlen))) == NULL) {
         ret = util_err(session, errno, NULL);
         goto err;
     }
@@ -256,7 +256,7 @@ json_data(WT_SESSION *session, JSON_INPUT_STATE *ins, CONFIG_LIST *clp, uint32_t
         nfield = 0;
         JSON_EXPECT(session, ins, '{');
         if (ins->kvraw == NULL) {
-            if ((ins->kvraw = malloc(1)) == NULL) {
+	        if ((ins->kvraw = static_cast<char*>(malloc(1))) == NULL) {
                 ret = util_err(session, errno, NULL);
                 goto err;
             }
@@ -293,7 +293,7 @@ json_data(WT_SESSION *session, JSON_INPUT_STATE *ins, CONFIG_LIST *clp, uint32_t
             if (json_peek(session, ins) != 's')
                 goto err;
         }
-        if (json_kvraw_append(session, ins, ins->line.mem, JSON_INPUT_POS(ins)))
+        if (json_kvraw_append(session, ins, static_cast<const char*>(ins->line.mem), JSON_INPUT_POS(ins)))
             goto err;
 
         ins->kvraw[keystrlen] = '\0';
@@ -356,7 +356,7 @@ json_top_level(WT_SESSION *session, JSON_INPUT_STATE *ins, uint32_t flags)
     JSON_EXPECT(session, ins, '{');
     while (json_peek(session, ins) == 's') {
         JSON_EXPECT(session, ins, 's');
-        tableuri = realloc(tableuri, ins->toklen);
+        tableuri = static_cast<char*>(realloc(tableuri, ins->toklen));
         if ((ret = __wt_snprintf(
                tableuri, ins->toklen, "%.*s", (int)(ins->toklen - 2), ins->tokstart + 1)) != 0) {
             ret = util_err(session, ret, NULL);
@@ -471,7 +471,7 @@ json_peek(WT_SESSION *session, JSON_INPUT_STATE *ins)
                 break;
             if (ins->kvraw != NULL) {
                 if (json_kvraw_append(session, ins, (char *)ins->line.mem + ins->kvrawstart,
-                      strlen(ins->line.mem) - ins->kvrawstart)) {
+                                      strlen(static_cast<const char*>(ins->line.mem)) - ins->kvrawstart)) {
                     ret = -1;
                     goto err;
                 }

@@ -136,7 +136,7 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
     uint8_t *to;
     const uint8_t *data, *from;
 
-    data = modify->data.data;
+    data = static_cast<const uint8_t*>(modify->data.data);
     data_size = modify->data.size;
     offset = modify->offset;
     size = modify->size;
@@ -377,7 +377,7 @@ __wt_modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, const void *mod
     /*
      * Get the number of modify entries and set a second pointer to reference the replacement data.
      */
-    p = modify;
+    p = static_cast<const size_t*>(modify);
     memcpy(&tmp, p++, sizeof(size_t));
     nentries = (int)tmp;
 

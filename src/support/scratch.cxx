@@ -99,11 +99,11 @@ __wt_buf_catfmt(WT_SESSION_IMPL *session, WT_ITEM *buf, const char *fmt, ...)
 const char *
 __wt_buf_set_printable(WT_SESSION_IMPL *session, const void *p, size_t size, WT_ITEM *buf)
 {
-    if (__wt_raw_to_esc_hex(session, p, size, buf)) {
+	if (__wt_raw_to_esc_hex(session, static_cast<const uint8_t*>(p), size, buf)) {
         buf->data = "[Error]";
         buf->size = strlen("[Error]");
     }
-    return (buf->data);
+	return (static_cast<const char*>(buf->data));
 }
 
 /*
@@ -217,7 +217,7 @@ __wt_buf_set_size(WT_SESSION_IMPL *session, uint64_t size, bool exact, WT_ITEM *
         buf->data = "[Error]";
         buf->size = strlen("[Error]");
     }
-    return (buf->data);
+    return (static_cast<const char*>(buf->data));
 }
 
 /*
