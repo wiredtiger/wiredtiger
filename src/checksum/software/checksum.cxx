@@ -566,7 +566,7 @@ static const uint32_t g_crc_slicing[8][256] = {
 #endif
 };
 
-extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
+extern "C" uint32_t __wt_checksum_sw(const void *chunk, size_t len);
 
 /*
  * __wt_checksum_sw --
