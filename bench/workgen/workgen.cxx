@@ -890,7 +890,7 @@ int ThreadRunner::op_run(Operation *op) {
             _in_transaction = true;
         }
         // Call cursor operations only when transaction != NULL or _in_transaction is true.
-        if (op->is_table_op() && _in_transaction) {
+        if (op->is_table_op()) {
             switch (op->_optype) {
             case Operation::OP_INSERT:
                 ret = cursor->insert(cursor);
