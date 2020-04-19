@@ -447,15 +447,6 @@ struct __wt_page_modify {
         WT_CELL **discard;
         size_t discard_entries;
         size_t discard_allocated;
-
-        /* Cached overflow value cell/update address pairs. */
-        struct {
-            WT_CELL *cell;
-            uint8_t *data;
-            size_t size;
-        } * remove;
-        size_t remove_allocated;
-        uint32_t remove_next;
     } * ovfl_track;
 
 #define WT_PAGE_LOCK(s, p) __wt_spin_lock((s), &(p)->modify->page_lock)
