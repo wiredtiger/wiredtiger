@@ -1138,6 +1138,7 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
     F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE | WT_SESSION_IGNORE_HS_TOMBSTONE);
     ret = __rollback_to_stable(session, cfg);
     F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE | WT_SESSION_IGNORE_HS_TOMBSTONE);
+    WT_RET(ret);
 
     /*
      * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to
