@@ -26,13 +26,14 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# This benchmark is designed to stress disk access to the history store file.
+# This benchmark is designed to stress disk access to the history store file using timestamps.
 # This is achieved through:
 #   - Long running transactions consisting of read and update operations.
 #   - Low cache size (~20%) for a reasonably sized WT table with large documents.
 #   - Pareto distribution for operations in long running transactions. This will cause
 #     skewed access for a selective set of keys in WT table.
 #   - Relatively large number of read operation threads to stress cache.
+#   - It uses prepare transactions.
 
 ###################################################################################################
 '''
@@ -115,6 +116,7 @@ s.create(log_name, wtperf_table_config + "key_format=S,value_format=S," +\
         compress_table_config + table_config + ",log=(enabled=true)")
 log_table = Table(log_name)
 
+# Read operation with read_timestamp_lag
 ops = Operation(Operation.OP_SEARCH, tables[0],Key(Key.KEYGEN_PARETO, 0, ParetoOptions(1)))
 ops = op_multi_table(ops, tables, False)
 ops = op_log_like(ops, log_table, 0)
@@ -122,17 +124,19 @@ read_txn = txn(ops, 'read_timestamp')
 read_txn.transaction.read_timestamp_lag = 2
 thread0 = Thread(read_txn)
 
+# Insert operations with snapshot isolation level and prepare_timestamp.
 ops = Operation(Operation.OP_INSERT, tables[0])
 ops = op_multi_table(ops, tables, False)
 ops = op_log_like(ops, log_table, 0)
 write_txn = txn(ops, 'isolation=snapshot')
-# use_prepare_timestamp - Commit the transaction with stable_timestamp.
+# use_prepare_timestamp - Commit the transaction with prepare, commit and durable timestamp.
 write_txn.transaction.use_prepare_timestamp = True
 thread1 = Thread(write_txn)
 # These operations include log_like operations, which will increase the number
 # of insert/update operations by a factor of 2.0. This may cause the
 # actual operations performed to be above the throttle.
 
+# Insert operations with snapshot isolation level and sets commit timestamp.
 ops = Operation(Operation.OP_UPDATE, tables[0])
 ops = op_multi_table(ops, tables, False)
 ops = op_log_like(ops, log_table, 0)
@@ -158,8 +162,8 @@ ops = Operation(Operation.OP_SLEEP, "0.1") + \
       Operation(Operation.OP_LOG_FLUSH, "")
 logging_thread = Thread(ops)
 
-workload = Workload(context, 50 * thread0 + 100 * thread1 +\
-                    100 * thread2 + 100 * thread3 + logging_thread)
+workload = Workload(context, 50 * thread0 + 50 * thread1 +\
+                    10 * thread2 + 100 * thread3 + logging_thread)
 workload.options.report_interval=5
 workload.options.run_time=500
 workload.options.max_latency=50000
