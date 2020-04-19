@@ -508,12 +508,19 @@ ThreadRunner::~ThreadRunner() {
 
 int ThreadRunner::create_all(WT_CONNECTION *conn) {
     size_t keysize, valuesize;
+    char buf[BUF_SIZE]="";
 
     WT_RET(close_all());
     ASSERT(_session == NULL);
     if (_thread->options.synchronized)
         _thread->_op.synchronized_check();
-    WT_RET(conn->open_session(conn, NULL, NULL, &_session));
+
+    Operation *op = &_thread->_op;
+    if (op->transaction != NULL && (op->transaction->use_commit_timestamp || op->transaction->use_prepare_timestamp))
+        sprintf(buf, "%s", op->transaction->_begin_config.c_str());
+
+    WT_RET(conn->open_session(conn, NULL, buf, &_session));
+
     _table_usage.clear();
     _stats.track_latency(_workload->options.sample_interval_ms > 0);
     WT_RET(workgen_random_alloc(_session, &_rand_state));
@@ -522,7 +529,7 @@ int ThreadRunner::create_all(WT_CONNECTION *conn) {
     _in_transaction = 0;
     keysize = 1;
     valuesize = 1;
-    op_create_all(&_thread->_op, keysize, valuesize);
+    op_create_all(op, keysize, valuesize);
     _keybuf = new char[keysize];
     _valuebuf = new char[valuesize];
     _keybuf[keysize - 1] = '\0';
