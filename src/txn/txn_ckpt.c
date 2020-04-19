@@ -269,13 +269,11 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
 
     /*
-     * We may have raced between starting the checkpoint transaction and
-     * some operation completing on the handle that updated the metadata
-     * (e.g., closing a bulk load cursor).  All such operations either have
-     * exclusive access to the handle or hold the schema lock.  We are now
-     * holding the schema lock and have an open btree handle, so if we
-     * can't update the metadata, then there has been some state change
-     * invisible to the checkpoint transaction.
+     * We may have raced between starting the checkpoint transaction and some operation completing
+     * on the handle that updated the metadata (e.g., closing a bulk load cursor). All such
+     * operations either have exclusive access to the handle or hold the schema lock. We are now
+     * holding the schema lock and have an open btree handle, so if we can't update the metadata,
+     * then there has been some state change invisible to the checkpoint transaction.
      */
     if (!WT_IS_METADATA(session->dhandle)) {
         WT_CURSOR *meta_cursor;

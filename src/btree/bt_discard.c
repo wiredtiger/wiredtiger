@@ -190,9 +190,8 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
         /*
          * Free the insert array.
          *
-         * Row-store tables have one additional slot in the insert array
-         * (the insert array has an extra slot to hold keys that sort
-         * before keys found on the original page).
+         * Row-store tables have one additional slot in the insert array (the insert array has an
+         * extra slot to hold keys that sort before keys found on the original page).
          */
         if (mod->mod_row_insert != NULL)
             __free_skip_array(session, mod->mod_row_insert, page->entries + 1, update_ignore);
@@ -261,12 +260,11 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
     }
 
     /*
-     * Optionally free row-store WT_REF key allocation. Historic versions of
-     * this code looked in a passed-in page argument, but that is dangerous,
-     * some of our error-path callers create WT_REF structures without ever
-     * setting WT_REF.home or having a parent page to which the WT_REF will
-     * be linked. Those WT_REF structures invariably have instantiated keys,
-     * (they obviously cannot be on-page keys), and we must free the memory.
+     * Optionally free row-store WT_REF key allocation. Historic versions of this code looked in a
+     * passed-in page argument, but that is dangerous, some of our error-path callers create WT_REF
+     * structures without ever setting WT_REF.home or having a parent page to which the WT_REF will
+     * be linked. Those WT_REF structures invariably have instantiated keys, (they obviously cannot
+     * be on-page keys), and we must free the memory.
      */
     switch (page_type) {
     case WT_PAGE_ROW_INT:

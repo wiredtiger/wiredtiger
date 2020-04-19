@@ -2645,13 +2645,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__conn_write_base_config(session, cfg));
 
     /*
-     * Check on the turtle and metadata files, creating them if necessary
-     * (which avoids application threads racing to create the metadata file
-     * later).  Once the metadata file exists, get a reference to it in
-     * the connection's session.
+     * Check on the turtle and metadata files, creating them if necessary (which avoids application
+     * threads racing to create the metadata file later). Once the metadata file exists, get a
+     * reference to it in the connection's session.
      *
-     * THE TURTLE FILE MUST BE THE LAST FILE CREATED WHEN INITIALIZING THE
-     * DATABASE HOME, IT'S WHAT WE USE TO DECIDE IF WE'RE CREATING OR NOT.
+     * THE TURTLE FILE MUST BE THE LAST FILE CREATED WHEN INITIALIZING THE DATABASE HOME, IT'S WHAT
+     * WE USE TO DECIDE IF WE'RE CREATING OR NOT.
      */
     WT_ERR(__wt_turtle_init(session));
 
