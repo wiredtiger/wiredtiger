@@ -309,13 +309,11 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX));
 
         /*
-         * We have written the page, but something prevents it from being evicted. If we wrote the
-         * newest versions of updates, the on-disk page may contain records that are newer than what
-         * checkpoint would write. Make sure that checkpoint visits the page and (if necessary)
-         * fixes things up.
+         * We have written the page, but something prevents it from being evicted, and the on-disk
+         * page may contain records that are newer than what checkpoint would write. Make sure that
+         * checkpoint visits the page and (if necessary) fixes things up.
          */
-        if (r->hs_skew_newest)
-            mod->first_dirty_txn = WT_TXN_FIRST;
+        mod->first_dirty_txn = WT_TXN_FIRST;
     } else {
         /*
          * Track the page's maximum transaction ID (used to decide if we can evict a clean page and
@@ -521,30 +519,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
             r->last_running = ckpt_txn;
     }
-
-    /*
-     * Decide whether to skew on-page values towards newer or older versions. This is a heuristic
-     * attempting to minimize the number of pages that need to be rewritten by future checkpoints.
-     *
-     * We usually prefer to skew to newer versions, the logic being that by the time the next
-     * checkpoint runs, it is likely that all the updates we choose will be stable. However, if
-     * checkpointing with a timestamp (indicated by a stable_timestamp being set), and there is a
-     * checkpoint already running, or this page was read with history store history, or the stable
-     * timestamp hasn't changed since last time this page was successfully, skew oldest instead.
-     */
-    if (F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DEBUG_MODE) &&
-      __wt_random(&session->rnd) % 3 == 0)
-        r->hs_skew_newest = false;
-    else
-        r->hs_skew_newest = LF_ISSET(WT_REC_HS) && LF_ISSET(WT_REC_VISIBLE_ALL);
-
-    if (r->hs_skew_newest && !__wt_btree_immediately_durable(session) &&
-      txn_global->has_stable_timestamp &&
-      ((btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT) &&
-         txn_global->stable_is_pinned) ||
-          FLD_ISSET(page->modify->restore_state, WT_PAGE_RS_HS) ||
-          page->modify->last_stable_timestamp == txn_global->stable_timestamp))
-        r->hs_skew_newest = false;
 
     /* When operating on the history store table, we should never try history store eviction. */
     WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_HS) || !LF_ISSET(WT_REC_HS));
