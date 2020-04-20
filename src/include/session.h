@@ -189,8 +189,9 @@ struct __wt_session_impl {
 #define WT_SESSION_QUIET_CORRUPT_FILE 0x02000000u
 #define WT_SESSION_READ_WONT_NEED 0x04000000u
 #define WT_SESSION_RESOLVING_TXN 0x08000000u
-#define WT_SESSION_SCHEMA_TXN 0x10000000u
-#define WT_SESSION_SERVER_ASYNC 0x20000000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x10000000u
+#define WT_SESSION_SCHEMA_TXN 0x20000000u
+#define WT_SESSION_SERVER_ASYNC 0x40000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 
@@ -270,9 +271,3 @@ struct __wt_session_impl {
 
     WT_SESSION_STATS stats;
 };
-
-/*
- * Rollback to stable should ignore tombstones in the history store since it needs to scan the
- * entire table sequentially.
- */
-#define WT_SESSION_ROLLBACK_TO_STABLE_FLAGS (WT_SESSION_IGNORE_HS_TOMBSTONE)

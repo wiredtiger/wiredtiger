@@ -272,10 +272,23 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    uint32_t session_flags;
     bool did_work, was_intr;
+    bool is_owner;
 
     conn = S2C(session);
     cache = conn->cache;
+
+    /*
+     * Cache a history store cursor to avoid deadlock: if an eviction thread thread marks a file
+     * busy and then opens a different file (in this case, the HS file), it can deadlock with a
+     * thread waiting for the first file to drain from the eviction queue. See WT-5946 for details.
+     */
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+        session_flags = 0; /* [-Werror=maybe-uninitialized] */
+        WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
+        WT_RET(__wt_hs_cursor_close(session, session_flags, is_owner));
+    }
 
     if (conn->evict_server_running && __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
         /*
@@ -465,6 +478,13 @@ __wt_evict_create(WT_SESSION_IMPL *session)
     uint32_t session_flags;
 
     conn = S2C(session);
+
+    /*
+     * In case recovery has allocated some transaction IDs, bump to the current state. This will
+     * prevent eviction threads from pinning anything as they start up and read metadata in order to
+     * open cursors.
+     */
+    WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
     WT_ASSERT(session, conn->evict_threads_min > 0);
     /* Set first, the thread might run before we finish up. */

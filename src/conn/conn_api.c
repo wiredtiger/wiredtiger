@@ -1067,11 +1067,9 @@ err:
      * After the async and LSM threads have exited, we won't open more files for the application.
      * However, the sweep server is still running and it can close file handles at the same time the
      * final checkpoint is reviewing open data handles (forcing checkpoint to reopen handles). Shut
-     * down the sweep server and then flag the system should not open anything new.
+     * down the sweep server.
      */
     WT_TRET(__wt_sweep_destroy(session));
-    F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
-    WT_FULL_BARRIER();
 
     /*
      * Shut down the checkpoint and capacity server threads: we don't want to throttle writes and
