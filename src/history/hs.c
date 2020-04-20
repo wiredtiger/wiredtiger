@@ -1294,7 +1294,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
 
         if (ret == WT_NOTFOUND)
             found = false;
-	else
+        else
             found = cbt->compare == 0;
         WT_ERR(__cursor_reset(cbt));
 

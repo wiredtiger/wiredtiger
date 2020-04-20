@@ -172,7 +172,7 @@ main(int argc, char *argv[])
             break;
         case 'm': /* verify metadata on connection open */
             cmd_config = "verify_metadata=true";
-	    meta_verify = true;
+            meta_verify = true;
             break;
         case 'R': /* recovery */
             rec_config = REC_RECOVER;
