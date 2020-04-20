@@ -307,13 +307,6 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          */
         WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) ||
             (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX));
-
-        /*
-         * We have written the page, but something prevents it from being evicted, and the on-disk
-         * page may contain records that are newer than what checkpoint would write. Make sure that
-         * checkpoint visits the page and (if necessary) fixes things up.
-         */
-        mod->first_dirty_txn = WT_TXN_FIRST;
     } else {
         /*
          * Track the page's maximum transaction ID (used to decide if we can evict a clean page and
