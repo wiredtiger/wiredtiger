@@ -940,6 +940,9 @@ __wt_stat_connection_init(WT_SESSION_IMPL *session, WT_CONNECTION_IMPL *handle)
         handle->stats[i] = &handle->stat_array[i];
         __wt_stat_connection_init_single(handle->stats[i]);
     }
+
+    handle->ckpt_prep_min = UINT64_MAX;
+    handle->ckpt_time_min = UINT64_MAX;
     return (0);
 }
 
