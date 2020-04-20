@@ -236,25 +236,25 @@ void
 timestamp_once(void)
 {
     static const char *oldest_timestamp_str = "oldest_timestamp=";
+    static const char *stable_timestamp_str = "stable_timestamp=";
     WT_CONNECTION *conn;
     WT_DECL_RET;
-    char buf[WT_TS_HEX_STRING_SIZE + 64];
+    char buf[WT_TS_HEX_STRING_SIZE * 2 + 64], tsbuf[WT_TS_HEX_STRING_SIZE + 1];
 
     conn = g.wts_conn;
-
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", oldest_timestamp_str));
 
     /*
      * Lock out transaction timestamp operations. The lock acts as a barrier ensuring we've checked
      * if the workers have finished, we don't want that line reordered.
      */
     testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
-
-    ret = conn->query_timestamp(conn, buf + strlen(oldest_timestamp_str), "get=all_durable");
+    ret = conn->query_timestamp(conn, tsbuf, "get=all_durable");
     testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-    if (ret == 0)
+    if (ret == 0) {
+        testutil_check(__wt_snprintf(
+          buf, sizeof(buf), "%s%s,%s%s", oldest_timestamp_str, tsbuf, stable_timestamp_str, tsbuf));
         testutil_check(conn->set_timestamp(conn, buf));
-
+    }
     testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 }
 

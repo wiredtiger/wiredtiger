@@ -329,6 +329,10 @@ static CONFIG c[] = {
     "isolation level (random | read-uncommitted | read-committed | snapshot)", C_IGNORE | C_STRING,
     0, 0, 0, NULL, &g.c_isolation},
 
+  /* 60% */
+  {"transaction.rollback_to_stable", "if rollback_to_stable should be called", C_BOOL, 40, 0, 0,
+    &g.c_txn_rollback_to_stable, NULL},
+
   /* 70% */
   {"transaction.timestamps", "enable transaction timestamp support", C_BOOL, 70, 0, 0,
     &g.c_txn_timestamps, NULL},

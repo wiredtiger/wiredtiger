@@ -199,6 +199,7 @@ typedef struct {
     uint32_t c_timing_stress_split_8;
     uint32_t c_truncate;
     uint32_t c_txn_freq;
+    uint32_t c_txn_rollback_to_stable;
     uint32_t c_txn_timestamps;
     uint32_t c_value_max;
     uint32_t c_value_min;

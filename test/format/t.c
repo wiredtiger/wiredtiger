@@ -153,7 +153,7 @@ main(int argc, char *argv[])
     u_int ops_seconds;
     int ch, reps;
     const char *config, *home;
-    bool one_flag, quiet_flag;
+    bool last_run, one_flag, quiet_flag;
 
     custom_die = format_die; /* Local death handler. */
 
@@ -290,7 +290,7 @@ main(int argc, char *argv[])
 
             /*
              * We support replay of threaded runs, but don't log random numbers after bulk load
-             * fishes (when threaded operations start), there's no point.
+             * finishes (when threaded operations start), there's no point.
              */
             if (!SINGLETHREADED)
                 g.rand_log_stop = true;
@@ -299,8 +299,15 @@ main(int argc, char *argv[])
         TIMED_MAJOR_OP(wts_read_scan());
 
         /* Operations. */
-        for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
-            operations(ops_seconds, reps == FORMAT_OPERATION_REPS);
+        for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps) {
+            last_run = (reps == FORMAT_OPERATION_REPS);
+            operations(ops_seconds, last_run);
+            if (!last_run && g.c_txn_rollback_to_stable && g.c_txn_timestamps) {
+                printf("rollback_to_stable()\n");
+                g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
+                // TODO: reset the thread specific info
+            }
+        }
 
         /* Copy out the run's statistics. */
         TIMED_MAJOR_OP(wts_stats());
