@@ -326,9 +326,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * indicate that the value is visible to any timestamp/transaction id ahead of it.
          */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
-            upd_select->stop_ts = upd->start_ts;
+            upd_select->stop_durable_ts = upd_select->stop_ts = upd->start_ts;
+            /*
+             * Durable timestamp can be 0 for prepared updates, in those cases use the prepared
+             * timestamp as durable timestamp.
+             */
+            if (upd->durable_ts != WT_TS_NONE)
+                upd_select->stop_durable_ts = upd->durable_ts;
             upd_select->stop_txn = upd->txnid;
-            upd_select->stop_durable_ts = upd->durable_ts;
 
             /* Find the update this tombstone applies to. */
             if (!__wt_txn_visible_all(session, upd->txnid, upd->start_ts)) {
@@ -342,8 +347,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
         if (upd != NULL) {
             /* The beginning of the validity window is the selected update's time pair. */
-            upd_select->start_ts = upd->start_ts;
-            upd_select->start_durable_ts = upd->durable_ts;
+            upd_select->start_durable_ts = upd_select->start_ts = upd->start_ts;
+            /*
+             * Durable timestamp can be 0 for prepared updates, in those cases use the prepared
+             * timestamp as durable timestamp.
+             */
+            if (upd->durable_ts != WT_TS_NONE)
+                upd_select->start_durable_ts = upd->durable_ts;
             upd_select->start_txn = upd->txnid;
         } else if (upd_select->stop_ts != WT_TS_NONE || upd_select->stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
