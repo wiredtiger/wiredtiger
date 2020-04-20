@@ -61,8 +61,8 @@
 #define MAX_MODIFY_ENTRIES 5 /* maximum change vectors */
 
 /*
- * Abstract lock that lets us use either pthread reader-writer locks or WiredTiger's own
- * (likely faster) implementation.
+ * Abstract lock that lets us use either pthread reader-writer locks or WiredTiger's own (likely
+ * faster) implementation.
  */
 typedef struct {
     union {
