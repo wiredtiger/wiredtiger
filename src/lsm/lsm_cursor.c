@@ -104,10 +104,10 @@ __clsm_enter_update(WT_CURSOR_LSM *clsm)
     } else {
         primary = clsm->chunks[clsm->nchunks - 1]->cursor;
         primary_chunk = clsm->primary_chunk;
-        WT_ASSERT(session, F_ISSET(&session->txn, WT_TXN_HAS_ID));
+        WT_ASSERT(session, F_ISSET(session->txn, WT_TXN_HAS_ID));
         have_primary = (primary != NULL && primary_chunk != NULL &&
           (primary_chunk->switch_txn == WT_TXN_NONE ||
-                          WT_TXNID_LT(session->txn.id, primary_chunk->switch_txn)));
+                          WT_TXNID_LT(session->txn->id, primary_chunk->switch_txn)));
     }
 
     /*
@@ -160,7 +160,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
 
     lsm_tree = clsm->lsm_tree;
     session = (WT_SESSION_IMPL *)clsm->iface.session;
-    txn = &session->txn;
+    txn = session->txn;
 
     /* Merge cursors never update. */
     if (F_ISSET(clsm, WT_CLSM_MERGE))
@@ -209,7 +209,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
             clsm->nupdates = 1;
             if (txn->isolation == WT_ISO_SNAPSHOT && F_ISSET(clsm, WT_CLSM_OPEN_SNAPSHOT)) {
                 WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT));
-                pinned_id = WT_SESSION_TXN_STATE(session)->pinned_id;
+                pinned_id = WT_SESSION_TXN_SHARED(session)->pinned_id;
                 for (i = clsm->nchunks - 2; clsm->nupdates < clsm->nchunks; clsm->nupdates++, i--) {
                     switch_txn = clsm->chunks[i]->switch_txn;
                     if (WT_TXNID_LT(switch_txn, pinned_id))
@@ -429,7 +429,7 @@ __clsm_open_cursors(WT_CURSOR_LSM *clsm, bool update, u_int start_chunk, uint32_
     c = &clsm->iface;
     cursor = NULL;
     session = (WT_SESSION_IMPL *)c->session;
-    txn = &session->txn;
+    txn = session->txn;
     chunk = NULL;
     locked = false;
     lsm_tree = clsm->lsm_tree;
@@ -832,7 +832,7 @@ __clsm_position_chunk(WT_CURSOR_LSM *clsm, WT_CURSOR *c, bool forward, int *cmpp
          * and stepping forward / back. In that case, keep going until we see a key in the expected
          * range.
          */
-        if (session->txn.isolation != WT_ISO_READ_UNCOMMITTED)
+        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED)
             return (0);
 
         WT_RET(WT_LSM_CURCMP(session, clsm->lsm_tree, c, cursor, *cmpp));
@@ -873,7 +873,7 @@ __clsm_next(WT_CURSOR *cursor)
               (ret = __clsm_position_chunk(clsm, c, true, &cmp)) == 0 && cmp == 0 &&
               clsm->current == NULL)
                 clsm->current = c;
-            WT_ERR_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, false);
         }
         F_SET(clsm, WT_CLSM_ITERATE_NEXT | WT_CLSM_MULTIPLE);
         F_CLR(clsm, WT_CLSM_ITERATE_PREV);
@@ -894,14 +894,14 @@ retry:
                 if (c != clsm->current) {
                     WT_ERR(WT_LSM_CURCMP(session, clsm->lsm_tree, c, clsm->current, cmp));
                     if (cmp == 0)
-                        WT_ERR_NOTFOUND_OK(c->next(c));
+                        WT_ERR_NOTFOUND_OK(c->next(c), false);
                 }
             }
         }
 
         /* Move the smallest cursor forward. */
         c = clsm->current;
-        WT_ERR_NOTFOUND_OK(c->next(c));
+        WT_ERR_NOTFOUND_OK(c->next(c), false);
     }
 
     /* Find the cursor(s) with the smallest key. */
@@ -975,11 +975,10 @@ __clsm_next_random(WT_CURSOR *cursor)
          * This call to next_random on the chunk can potentially end in WT_NOTFOUND if the chunk we
          * picked is empty. We want to retry in that case.
          */
-        ret = __wt_curfile_next_random(c);
+        WT_ERR_NOTFOUND_OK(__wt_curfile_next_random(c), true);
         if (ret == WT_NOTFOUND)
             continue;
 
-        WT_ERR(ret);
         F_SET(cursor, WT_CURSTD_KEY_INT);
         WT_ERR(c->get_key(c, &cursor->key));
         /*
@@ -1031,7 +1030,7 @@ __clsm_prev(WT_CURSOR *cursor)
               (ret = __clsm_position_chunk(clsm, c, false, &cmp)) == 0 && cmp == 0 &&
               clsm->current == NULL)
                 clsm->current = c;
-            WT_ERR_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, false);
         }
         F_SET(clsm, WT_CLSM_ITERATE_PREV | WT_CLSM_MULTIPLE);
         F_CLR(clsm, WT_CLSM_ITERATE_NEXT);
@@ -1052,14 +1051,14 @@ retry:
                 if (c != clsm->current) {
                     WT_ERR(WT_LSM_CURCMP(session, clsm->lsm_tree, c, clsm->current, cmp));
                     if (cmp == 0)
-                        WT_ERR_NOTFOUND_OK(c->prev(c));
+                        WT_ERR_NOTFOUND_OK(c->prev(c), false);
                 }
             }
         }
 
         /* Move the largest cursor backwards. */
         c = clsm->current;
-        WT_ERR_NOTFOUND_OK(c->prev(c));
+        WT_ERR_NOTFOUND_OK(c->prev(c), false);
     }
 
     /* Find the cursor(s) with the largest key. */
@@ -1162,14 +1161,13 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
                 have_hash = true;
             }
 
-            ret = __wt_bloom_hash_get(bloom, &bhash);
+            WT_ERR_NOTFOUND_OK(__wt_bloom_hash_get(bloom, &bhash), true);
             if (ret == WT_NOTFOUND) {
                 WT_LSM_TREE_STAT_INCR(session, clsm->lsm_tree->bloom_miss);
                 continue;
             }
             if (ret == 0)
                 WT_LSM_TREE_STAT_INCR(session, clsm->lsm_tree->bloom_hit);
-            WT_ERR(ret);
         }
         c->set_key(c, &cursor->key);
         if ((ret = c->search(c)) == 0) {
@@ -1179,7 +1177,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
                 ret = WT_NOTFOUND;
             goto done;
         }
-        WT_ERR_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret, false);
         F_CLR(c, WT_CURSTD_KEY_SET);
         /* Update stats: the active chunk can't have a bloom filter. */
         if (bloom != NULL)
@@ -1347,7 +1345,7 @@ __clsm_search_near(WT_CURSOR *cursor, int *exactp)
                 deleted = false;
             }
         }
-        WT_ERR_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret, false);
     }
     if (deleted) {
         clsm->current = NULL;
@@ -1388,9 +1386,9 @@ __clsm_put(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm, const WT_ITEM *key, co
 
     lsm_tree = clsm->lsm_tree;
 
-    WT_ASSERT(session, F_ISSET(&session->txn, WT_TXN_HAS_ID) && clsm->primary_chunk != NULL &&
+    WT_ASSERT(session, F_ISSET(session->txn, WT_TXN_HAS_ID) && clsm->primary_chunk != NULL &&
         (clsm->primary_chunk->switch_txn == WT_TXN_NONE ||
-                         WT_TXNID_LE(session->txn.id, clsm->primary_chunk->switch_txn)));
+                         WT_TXNID_LE(session->txn->id, clsm->primary_chunk->switch_txn)));
 
     /*
      * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
@@ -1620,12 +1618,11 @@ err:
     CURSOR_UPDATE_API_END(session, ret);
 
     /*
-     * The application might do a WT_CURSOR.get_value call when we return,
-     * so we need a value and the underlying functions didn't set one up.
-     * For various reasons, those functions may not have done a search and
-     * any previous value in the cursor might race with WT_CURSOR.reserve
-     * (and in cases like LSM, the reserve never encountered the original
-     * key). For simplicity, repeat the search here.
+     * The application might do a WT_CURSOR.get_value call when we return, so we need a value and
+     * the underlying functions didn't set one up. For various reasons, those functions may not have
+     * done a search and any previous value in the cursor might race with WT_CURSOR.reserve (and in
+     * cases like LSM, the reserve never encountered the original key). For simplicity, repeat the
+     * search here.
      */
     return (ret == 0 ? cursor->search(cursor) : ret);
 }

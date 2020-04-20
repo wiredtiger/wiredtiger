@@ -329,8 +329,7 @@ static CONFIG c[] = {
     "isolation level (random | read-uncommitted | read-committed | snapshot)", C_IGNORE | C_STRING,
     0, 0, 0, NULL, &g.c_isolation},
 
-  /* 60% */
-  {"transaction.rollback_to_stable", "if rollback_to_stable should be called", C_BOOL, 40, 0, 0,
+  {"transaction.rollback_to_stable", "if rollback_to_stable should be called", C_BOOL, 0, 0, 0,
     &g.c_txn_rollback_to_stable, NULL},
 
   /* 70% */
@@ -339,6 +338,10 @@ static CONFIG c[] = {
 
   {"wiredtiger.config", "configuration string used to wiredtiger_open", C_IGNORE | C_STRING, 0, 0,
     0, NULL, &g.c_config_open},
+
+  /* 80% */
+  {"wiredtiger.rwlock", "if wiredtiger read/write mutexes should be used", C_BOOL, 80, 0, 0,
+    &g.c_wt_mutex, NULL},
 
   {"wiredtiger.leak_memory", "if memory should be leaked on close", C_BOOL, 0, 0, 0,
     &g.c_leak_memory, NULL},

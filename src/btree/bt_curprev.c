@@ -413,11 +413,9 @@ restart_read:
         }
 
         /*
-         * If we're at the same slot as the last reference and there's
-         * no matching insert list item, re-use the return information
-         * (so encoded items with large repeat counts aren't repeatedly
-         * decoded).  Otherwise, unpack the cell and build the return
-         * information.
+         * If we're at the same slot as the last reference and there's no matching insert list item,
+         * re-use the return information (so encoded items with large repeat counts aren't
+         * repeatedly decoded). Otherwise, unpack the cell and build the return information.
          */
         if (cbt->cip_saved != cip) {
             cell = WT_COL_PTR(page, cip);
@@ -695,7 +693,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
         WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
-        WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND);
+        WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
     }
 
 err:

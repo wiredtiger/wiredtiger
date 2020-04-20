@@ -847,7 +847,7 @@ advance:
             break;
     }
 done:
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
     if (c != NULL)
@@ -926,7 +926,7 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, bool iterab
          * doing any needed check during the iteration.
          */
         if (!iterable && F_ISSET(je, WT_CURJOIN_ENTRY_BLOOM)) {
-            if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
+            if (session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
                 WT_ERR_MSG(session, EINVAL,
                   "join cursors with Bloom filters cannot be "
                   "used with read-uncommitted isolation");
@@ -1031,8 +1031,7 @@ __curjoin_next(WT_CURSOR *cursor)
             break;
     }
     iter->positioned = (ret == 0);
-    if (ret != 0 && ret != WT_NOTFOUND)
-        WT_ERR(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
 
     if (ret == 0) {
         /*

@@ -233,7 +233,7 @@ fclose_and_clear(FILE **fpp)
  *     Update the timestamp once.
  */
 void
-timestamp_once(void)
+timestamp_once(WT_SESSION *session)
 {
     static const char *oldest_timestamp_str = "oldest_timestamp=";
     static const char *stable_timestamp_str = "stable_timestamp=";
@@ -245,9 +245,13 @@ timestamp_once(void)
 
     /*
      * Lock out transaction timestamp operations. The lock acts as a barrier ensuring we've checked
-     * if the workers have finished, we don't want that line reordered.
+     * if the workers have finished, we don't want that line reordered. We can also be called from
+     * places, such as bulk load, where we are single-threaded and the locks haven't been
+     * initialized.
      */
-    testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
+    if (LOCK_INITIALIZED(&g.ts_lock))
+        lock_writelock(session, &g.ts_lock);
+
     ret = conn->query_timestamp(conn, tsbuf, "get=all_durable");
     testutil_assert(ret == 0 || ret == WT_NOTFOUND);
     if (ret == 0) {
@@ -255,7 +259,9 @@ timestamp_once(void)
           buf, sizeof(buf), "%s%s,%s%s", oldest_timestamp_str, tsbuf, stable_timestamp_str, tsbuf));
         testutil_check(conn->set_timestamp(conn, buf));
     }
-    testutil_check(pthread_rwlock_unlock(&g.ts_lock));
+
+    if (LOCK_INITIALIZED(&g.ts_lock))
+        lock_writeunlock(session, &g.ts_lock);
 }
 
 /*
@@ -265,9 +271,15 @@ timestamp_once(void)
 WT_THREAD_RET
 timestamp(void *arg)
 {
+    WT_CONNECTION *conn;
+    WT_SESSION *session;
     bool done;
 
     (void)(arg);
+    conn = g.wts_conn;
+
+    /* Locks need session */
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Update the oldest timestamp at least once every 15 seconds. */
     done = false;
@@ -281,10 +293,11 @@ timestamp(void *arg)
         else
             random_sleep(&g.rnd, 15);
 
-        timestamp_once();
+        timestamp_once(session);
 
     } while (!done);
 
+    testutil_check(session->close(session, NULL));
     return (WT_THREAD_RET_VALUE);
 }
 
@@ -333,4 +346,39 @@ alter(void *arg)
 
     testutil_check(session->close(session, NULL));
     return (WT_THREAD_RET_VALUE);
+}
+
+/*
+ * lock_init --
+ *     Initialize abstract lock that can use either pthread of wt reader-writer locks.
+ */
+void
+lock_init(WT_SESSION *session, RWLOCK *lock)
+{
+    testutil_assert(lock->lock_type == LOCK_NONE);
+
+    if (g.c_wt_mutex) {
+        testutil_check(__wt_rwlock_init((WT_SESSION_IMPL *)session, &lock->l.wt));
+        lock->lock_type = LOCK_WT;
+    } else {
+        testutil_check(pthread_rwlock_init(&lock->l.pthread, NULL));
+        lock->lock_type = LOCK_PTHREAD;
+    }
+}
+
+/*
+ * lock_destroy --
+ *     Destroy abstract lock.
+ */
+void
+lock_destroy(WT_SESSION *session, RWLOCK *lock)
+{
+    testutil_assert(LOCK_INITIALIZED(lock));
+
+    if (lock->lock_type == LOCK_WT) {
+        __wt_rwlock_destroy((WT_SESSION_IMPL *)session, &lock->l.wt);
+    } else {
+        testutil_check(pthread_rwlock_destroy(&lock->l.pthread));
+    }
+    lock->lock_type = LOCK_NONE;
 }

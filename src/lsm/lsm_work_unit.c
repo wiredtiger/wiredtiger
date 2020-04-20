@@ -403,10 +403,10 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, WT_LS
      * Set read-uncommitted: we have already checked that all of the updates in this chunk are
      * globally visible, use the cheapest possible check in reconciliation.
      */
-    saved_isolation = session->txn.isolation;
-    session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
+    saved_isolation = session->txn->isolation;
+    session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
     ret = __wt_sync_file(session, WT_SYNC_WRITE_LEAVES);
-    session->txn.isolation = saved_isolation;
+    session->txn->isolation = saved_isolation;
     WT_ERR(ret);
 
     __wt_verbose(session, WT_VERB_LSM, "LSM worker checkpointing %s", chunk->uri);
@@ -559,7 +559,7 @@ __lsm_bloom_create(
         WT_ERR(src->get_key(src, &key));
         __wt_bloom_insert(bloom, &key);
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
     WT_TRET(src->close(src));
 
     WT_TRET(__wt_bloom_finalize(bloom));
@@ -569,7 +569,7 @@ __lsm_bloom_create(
 
     /* Load the new Bloom filter into cache. */
     WT_CLEAR(key);
-    WT_ERR_NOTFOUND_OK(__wt_bloom_get(bloom, &key));
+    WT_ERR_NOTFOUND_OK(__wt_bloom_get(bloom, &key), false);
 
     __wt_verbose(session, WT_VERB_LSM,
       "LSM worker created bloom filter %s. "

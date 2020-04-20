@@ -391,6 +391,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
      */
     WT_ERR(__wt_update_alloc(session, &cursor->value, &hs_upd->next, &notused, WT_UPDATE_STANDARD));
     hs_upd->next->start_ts = upd->start_ts;
+    hs_upd->next->durable_ts = upd->durable_ts;
     hs_upd->next->txnid = upd->txnid;
 
     /*
@@ -845,23 +846,16 @@ err:
 }
 
 /*
- * __hs_save_read_timestamp --
- *     Save the currently running transaction's read timestamp into a variable.
- */
-static void
-__hs_save_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *saved_timestamp)
-{
-    *saved_timestamp = session->txn.read_timestamp;
-}
-
-/*
  * __hs_restore_read_timestamp --
- *     Reset the currently running transaction's read timestamp with a previously saved one.
+ *     Reset the currently running transaction's read timestamp with the original read timestamp.
  */
 static void
-__hs_restore_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t saved_timestamp)
+__hs_restore_read_timestamp(WT_SESSION_IMPL *session)
 {
-    session->txn.read_timestamp = saved_timestamp;
+    WT_TXN_SHARED *txn_shared;
+
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+    session->txn->read_timestamp = txn_shared->pinned_read_timestamp;
 }
 
 /*
@@ -885,7 +879,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     WT_TXN *txn;
     WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, hs_start_ts, hs_start_ts_tmp;
-    wt_timestamp_t hs_stop_ts, hs_stop_ts_tmp, read_timestamp, saved_timestamp;
+    wt_timestamp_t hs_stop_ts, hs_stop_ts_tmp, read_timestamp;
     size_t notused, size;
     uint64_t hs_counter, hs_counter_tmp, upd_type_full;
     uint32_t hs_btree_id, session_flags;
@@ -899,13 +893,19 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     mod_upd = upd = NULL;
     orig_hs_value_buf = NULL;
     __wt_modify_vector_init(session, &modifies);
-    txn = &session->txn;
-    __hs_save_read_timestamp(session, &saved_timestamp);
+    txn = session->txn;
     notused = size = 0;
     hs_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     WT_NOT_READ(modify, false);
     is_owner = false;
+
+    /*
+     * We temporarily move the read timestamp forwards to read modify records in the history store.
+     * Outside of that window, it should always be equal to the original read timestamp.
+     */
+    WT_ASSERT(
+      session, txn->read_timestamp == WT_SESSION_TXN_SHARED(session)->pinned_read_timestamp);
 
     /* Row-store key is as passed to us, create the column-store key as needed. */
     WT_ASSERT(
@@ -933,12 +933,12 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
      * las) to the oldest (earlier in the las) for a given key.
      */
     read_timestamp = allow_prepare ? txn->prepare_timestamp : txn->read_timestamp;
-    ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp);
+    WT_ERR_NOTFOUND_OK(
+      __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
     }
-    WT_ERR(ret);
     WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
     /* Stop before crossing over to the next btree */
@@ -982,7 +982,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
              * timestamp should be equivalent to the stop timestamp of the record that we're
              * currently on.
              */
-            session->txn.read_timestamp = hs_stop_ts_tmp;
+            session->txn->read_timestamp = hs_stop_ts_tmp;
 
             /*
              * Find the base update to apply the reverse deltas. If our cursor next fails to find an
@@ -1030,7 +1030,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
             mod_upd = NULL;
         }
         /* After we're done looping over modifies, reset the read timestamp. */
-        __hs_restore_read_timestamp(session, saved_timestamp);
+        __hs_restore_read_timestamp(session);
         WT_STAT_CONN_INCR(session, cache_hs_read_squash);
     }
 
@@ -1060,7 +1060,7 @@ err:
      * Restore the read timestamp if we encountered an error while processing a modify. There's no
      * harm in doing this multiple times.
      */
-    __hs_restore_read_timestamp(session, saved_timestamp);
+    __hs_restore_read_timestamp(session);
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     __wt_free_update_list(session, &mod_upd);
@@ -1107,11 +1107,10 @@ __hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *
 
     hs_cursor->set_key(hs_cursor, btree_id, key, WT_TS_NONE, (uint64_t)0);
     WT_ERR(__wt_buf_set(session, srch_key, hs_cursor->key.data, hs_cursor->key.size));
-    ret = hs_cursor->search_near(hs_cursor, &exact);
+    WT_ERR_NOTFOUND_OK(hs_cursor->search_near(hs_cursor, &exact), true);
     /* Empty history store is fine. */
     if (ret == WT_NOTFOUND)
         goto done;
-    WT_ERR(ret);
     /*
      * If we raced with a history store insert, we may be two or more records away from our target.
      * Keep iterating forwards until we are on or past our target key.
@@ -1127,9 +1126,9 @@ __hs_delete_key_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *
                 break;
         }
         /* No entries greater than or equal to the key we searched for. */
+        WT_ERR_NOTFOUND_OK(ret, true);
         if (ret == WT_NOTFOUND)
             goto done;
-        WT_ERR(ret);
     }
     /* Bailing out here also means we have no history store records for our key. */
     WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
@@ -1348,7 +1347,7 @@ __wt_verify_history_store_tree(WT_SESSION_IMPL *session, const char *uri)
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key));
         WT_ERR(ret);
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 err:
     if (data_cursor != NULL)
         WT_TRET(data_cursor->close(data_cursor));
