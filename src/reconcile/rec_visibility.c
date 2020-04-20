@@ -103,7 +103,7 @@ __rec_append_orig_value(
     /* We need the original on-page value for some reader: get a copy. */
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
-    WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
+    WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
     total_size += size;
     append->txnid = unpack->start_txn;
     append->start_ts = unpack->start_ts;
@@ -116,7 +116,7 @@ __rec_append_orig_value(
      * the tombstone to tell us there is no value between 10 and 20.
      */
     if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
-        WT_ERR(__wt_update_alloc(session, NULL, &tombstone, &size, WT_UPDATE_TOMBSTONE));
+        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
         total_size += size;
         tombstone->txnid = unpack->stop_txn;
         tombstone->start_ts = unpack->stop_ts;
@@ -379,7 +379,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              */
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));
-            WT_ERR(__wt_update_alloc(session, tmp, &upd, &size, WT_UPDATE_STANDARD));
+            WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &upd, &size));
             upd->durable_ts = vpack->durable_start_ts;
             upd->start_ts = vpack->start_ts;
             upd->txnid = vpack->start_txn;
