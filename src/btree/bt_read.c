@@ -81,6 +81,79 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __row_page_prepare_instantiate --
+ *     Instantiate an update for prepared updates of a row-store leaf page.
+ */
+static int
+__row_page_prepare_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_BTREE *btree;
+    WT_CELL_UNPACK unpack;
+    WT_DECL_RET;
+    WT_ITEM buf;
+    WT_PAGE *page;
+    WT_ROW *rip;
+    WT_UPDATE **upd_array, *upd;
+    size_t size;
+    uint32_t i;
+
+    btree = S2BT(session);
+    page = ref->page;
+
+    /*
+     * Give the page a modify structure.
+     *
+     * Mark tree dirty, unless the handle is read-only. (We'd like to free the deleted pages, but if
+     * the handle is read-only, we're not able to do so.)
+     */
+    WT_RET(__wt_page_modify_init(session, page));
+    if (!F_ISSET(btree, WT_BTREE_READONLY))
+        __wt_page_modify_set(session, page);
+
+    /*
+     * Allocate the per-page update array if one doesn't already exist. (It might already exist
+     * because deletes are instantiated after the history store table updates.)
+     */
+    if (page->entries != 0 && page->modify->mod_row_update == NULL)
+        WT_RET(__wt_calloc_def(session, page->entries, &page->modify->mod_row_update));
+
+    /* Walk the page entries, giving each one a tombstone. */
+    size = 0;
+    upd_array = page->modify->mod_row_update;
+    WT_ROW_FOREACH (page, rip, i) {
+        /* Retrieve the unpacked value cell and form an update. */
+        __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
+
+        /* Ignore retrieving the updates that are not prepared. */
+        if (!F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE))
+            continue;
+
+        if (unpack.newest_stop_ts == WT_TS_MAX && unpack.newest_stop_txn == WT_TXN_MAX) {
+            buf.data = unpack.data;
+            buf.size = unpack.size;
+            WT_ERR(__wt_update_alloc(session, &buf, &upd, &size, WT_UPDATE_STANDARD));
+            upd->durable_ts = unpack.durable_start_ts;
+            upd->start_ts = unpack.start_ts;
+            upd->txnid = unpack.start_txn;
+        } else {
+            WT_ERR(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
+            upd->durable_ts = unpack.durable_stop_ts;
+            upd->start_ts = unpack.stop_ts;
+            upd->txnid = unpack.stop_txn;
+        }
+        upd->prepare_state = WT_PREPARE_INPROGRESS;
+        upd_array[WT_ROW_SLOT(page, rip)] = upd;
+    }
+
+    __wt_cache_page_inmem_incr(session, page, size);
+
+    return (0);
+
+err:
+    return (ret);
+}
+
+/*
  * __page_read --
  *     Read a page from the file.
  */
@@ -88,13 +161,14 @@ static int
 __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_ADDR_COPY addr;
+    WT_CELL_UNPACK unpack;
     WT_DECL_RET;
     WT_ITEM tmp;
     WT_PAGE *notused;
     uint64_t time_diff, time_start, time_stop;
     uint32_t page_flags;
     uint8_t previous_state;
-    bool timer;
+    bool prepared_updates, timer;
 
     time_start = time_stop = 0;
 
@@ -167,6 +241,18 @@ skip_read:
     case WT_REF_DELETED:
         /* Move all records to a deleted state. */
         WT_ERR(__wt_delete_page_instantiate(session, ref));
+        break;
+    case WT_REF_DISK:
+        if (__wt_off_page(ref->home, &addr))
+            prepared_updates = addr.prepare;
+        else {
+            /* If on-page, the pointer references a cell. */
+            __wt_cell_unpack(session, ref->home, (WT_CELL *)&addr, &unpack);
+            prepared_updates = F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE);
+        }
+
+        if (!WT_PAGE_IS_INTERNAL(ref->page) && prepared_updates)
+            __row_page_prepare_instantiate(session, ref);
         break;
     }
 

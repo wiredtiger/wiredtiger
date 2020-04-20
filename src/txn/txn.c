@@ -650,7 +650,7 @@ __txn_search_prepared_op(
     }
 
     F_CLR(txn, txn_flags);
-    WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_uncommitted(cursor, updp));
+    WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_prepared(cursor, updp));
     F_SET(txn, txn_flags);
     WT_RET(ret);
     WT_RET_ASSERT(session, *updp != NULL, WT_NOTFOUND,
@@ -688,6 +688,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
             upd->txnid = WT_TXN_ABORTED;
             continue;
         }
+
+        /* Ignore the already resolved updates. */
+        if (upd->prepare_state == WT_PREPARE_RESOLVED)
+            continue;
 
         /*
          * Newer updates are inserted at head of update chain, and transaction operations are added

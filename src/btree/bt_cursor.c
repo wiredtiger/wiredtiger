@@ -460,11 +460,11 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_btcur_search_uncommitted --
- *     Search and return exact matching records only, including uncommitted ones.
+ * __wt_btcur_search_prepared --
+ *     Search and return exact matching records only.
  */
 int
-__wt_btcur_search_uncommitted(WT_CURSOR *cursor, WT_UPDATE **updp)
+__wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
 {
     WT_BTREE *btree;
     WT_CURSOR_BTREE *cbt;
@@ -519,12 +519,6 @@ __wt_btcur_search_uncommitted(WT_CURSOR *cursor, WT_UPDATE **updp)
             upd = cbt->ins->upd;
         break;
     }
-
-    /*
-     * Like regular uncommitted updates, pages with prepared updates are pinned to the cache and can
-     * never be written to the history store. Therefore, there is no need to do a search here for
-     * uncommitted updates.
-     */
 
     *updp = upd;
     return (0);
