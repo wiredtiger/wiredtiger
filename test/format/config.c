@@ -264,7 +264,7 @@ static void
 config_backup_incr(void)
 {
     /* Incremental backup requires backup. */
-    if (g.c_backup_incremental == 0)
+    if (g.c_backups == 0)
         return;
 
     /*
