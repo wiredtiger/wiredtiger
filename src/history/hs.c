@@ -1290,13 +1290,16 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         if (cmp == 0)
             continue;
         WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, hs_key, false, NULL, false, NULL));
-        WT_ERR(ret);
+        WT_ERR_NOTFOUND_OK(ret, true);
 
-        found = cbt->compare == 0;
+        if (ret == WT_NOTFOUND)
+            found = false;
+	else
+            found = cbt->compare == 0;
         WT_ERR(__cursor_reset(cbt));
 
         if (!found)
-            WT_ERR_MSG(session, ret,
+            WT_ERR_MSG(session, WT_NOTFOUND,
               "the associated history store key %s was not found in the data store %s",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key),
               session->dhandle->name);
