@@ -48,10 +48,11 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
      * A "full update list" is distinguished from "an update" by checking whether it has a "next"
      * update.
      */
-    WT_ASSERT(session, ((modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) &&
-                         value == NULL && upd_arg == NULL) ||
-        (modify_type != WT_UPDATE_TOMBSTONE && ((value == NULL && upd_arg != NULL) ||
-                                                 (value != NULL && upd_arg == NULL))));
+    WT_ASSERT(
+      session, ((modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) &&
+                 value == NULL && upd_arg == NULL) ||
+        (!(modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) &&
+                 ((value == NULL && upd_arg != NULL) || (value != NULL && upd_arg == NULL))));
 
     /* If we don't yet have a modify structure, we'll need one. */
     WT_RET(__wt_page_modify_init(session, page));
