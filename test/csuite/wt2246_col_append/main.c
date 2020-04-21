@@ -95,12 +95,13 @@ main(int argc, char *argv[])
     char buf[100];
 
     /* Temporarily disable this test (WT-5790) */
-    return (EXIT_SUCCESS);
+    if (true)
+        return (EXIT_SUCCESS);
 
-    /* Bypass this test for valgrind */
     if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
         return (EXIT_SUCCESS);
 
+    /* Bypass this test for valgrind */
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     opts->table_type = TABLE_ROW;
