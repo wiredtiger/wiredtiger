@@ -25,9 +25,10 @@ static const char *command; /* Command name */
 static void
 usage(void)
 {
-    static const char *options[] = {"-C config", "wiredtiger_open configuration", "-E key",
-      "secret encryption key", "-h home", "database directory", "-L",
-      "turn logging off for debug-mode", "-R", "run recovery (if recovery configured)", "-r",
+    static const char *options[] = {"-B", "maintain release 3.3 log file compatibility",
+      "-C config", "wiredtiger_open configuration", "-E key", "secret encryption key", "-h home",
+      "database directory", "-L", "turn logging off for debug-mode", "-R",
+      "run recovery (if recovery configured)", "-r",
       "access the database via a readonly connection", "-S",
       "run salvage recovery (if recovery configured)", "-V", "display library version and exit",
       "-v", "verbose", NULL, NULL};
@@ -62,7 +63,7 @@ main(int argc, char *argv[])
     int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
     const char *cmd_config, *config, *p1, *p2, *p3, *readonly_config, *rec_config;
-    bool logoff, readonly, recover, salvage;
+    bool backward_compatible, logoff, readonly, recover, salvage;
 
     conn = NULL;
     p = NULL;
@@ -91,10 +92,13 @@ main(int argc, char *argv[])
      * needed, the user can specify -R to run recovery.
      */
     rec_config = REC_ERROR;
-    logoff = readonly = recover = salvage = false;
+    backward_compatible = logoff = readonly = recover = salvage = false;
     /* Check for standard options. */
-    while ((ch = __wt_getopt(progname, argc, argv, "C:E:h:LRrSVv")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:LRrSVv")) != EOF)
         switch (ch) {
+        case 'B': /* backward compatibility */
+            backward_compatible = true;
+            break;
         case 'C': /* wiredtiger_open config */
             cmd_config = __wt_optarg;
             break;
@@ -294,9 +298,16 @@ err:
     }
 done:
 
-    /* Close the database. */
-    if (conn != NULL && (tret = conn->close(conn, NULL)) != 0 && ret == 0)
-        ret = tret;
+    if (conn != NULL) {
+        /* Maintain backward compatibility. */
+        if (backward_compatible &&
+          (tret = conn->reconfigure(conn, "compatibility=(release=3.3)")) != 0 && ret == 0)
+            ret = tret;
+
+        /* Close the database. */
+        if ((tret = conn->close(conn, NULL)) != 0 && ret == 0)
+            ret = tret;
+    }
 
     free(p);
     free(secretkey);

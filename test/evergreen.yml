@@ -1544,7 +1544,7 @@ tasks:
             ulimit -c unlimited
             largescale/run-million-collection-test.sh .
 
-  - name: compatibility-test-for-mongodb-releases
+  - name: compatibility-test-for-releases
     commands:
       - func: "get project"
       - command: shell.exec
@@ -1553,7 +1553,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_mongodb_releases.sh
+            test/evergreen/compatibility_test_for_releases.sh
 
   # Temporarily disabled
   # - name: generate-datafile-little-endian
@@ -2210,14 +2210,6 @@ tasks:
               exit 1
             fi
 
-  - name: compatibility-test-for-wiredtiger-releases
-    commands:
-      - func: "get project"
-      - command: subprocess.exec
-        params:
-          working_dir: "wiredtiger"
-          command: bash test/evergreen/compatibility_test_for_wiredtiger_releases.sh
-
   - name: format-stress-sanitizer-ppc-test
     # Set 2.5 hours timeout (60 * 60 * 2.5)
     exec_timeout_secs: 9000
@@ -2411,8 +2403,7 @@ buildvariants:
   run_on:
   - ubuntu1804-test
   tasks:
-    - name: compatibility-test-for-mongodb-releases
-    - name: compatibility-test-for-wiredtiger-releases
+    - name: compatibility-test-for-releases
 
 - name: windows-64
   display_name: Windows 64-bit
