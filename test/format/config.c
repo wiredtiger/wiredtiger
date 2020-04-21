@@ -875,6 +875,10 @@ config_transaction(void)
         if (g.c_txn_freq != 100)
             config_single("transaction.frequency=100", false);
     }
+    if (g.c_txn_rollback_to_stable) {
+        if (!g.c_txn_timestamps)
+            config_single("transaction.timestamps=on", false);
+    }
     if (g.c_txn_timestamps) {
         if (g.c_isolation_flag != ISOLATION_SNAPSHOT)
             config_single("transaction.isolation=snapshot", false);

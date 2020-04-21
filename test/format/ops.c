@@ -110,7 +110,7 @@ tinfo_init(WT_SESSION *session, bool rollback)
     TINFO *tinfo;
     u_int i;
 
-    (void)rollback;             /* TODO */
+    (void)rollback; /* TODO */
     /* Allocate the thread structures separately to minimize false sharing. */
     if (tinfo_list == NULL) {
         tinfo_list = dcalloc((size_t)g.c_threads + 1, sizeof(TINFO *));
