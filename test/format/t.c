@@ -151,7 +151,7 @@ main(int argc, char *argv[])
     u_int ops_seconds;
     int ch, reps;
     const char *config, *home;
-    bool last_run, one_flag, quiet_flag, rollback;
+    bool last_run, one_flag, quiet_flag;
 
     custom_die = format_die; /* Local death handler. */
 
@@ -297,12 +297,10 @@ main(int argc, char *argv[])
         TIMED_MAJOR_OP(wts_read_scan());
 
         /* Operations. */
-        rollback = false;
         for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps) {
             last_run = (reps == FORMAT_OPERATION_REPS);
-            operations(ops_seconds, last_run, rollback);
-            rollback = (!last_run && g.c_txn_rollback_to_stable && g.c_txn_timestamps);
-            if (rollback)
+            operations(ops_seconds, last_run);
+            if (!last_run && g.c_txn_rollback_to_stable)
                 g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
         }
 

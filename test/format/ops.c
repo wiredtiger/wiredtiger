@@ -105,12 +105,11 @@ TINFO **tinfo_list;
  *     Initialize the worker thread structures.
  */
 static void
-tinfo_init(WT_SESSION *session, bool rollback)
+tinfo_init(WT_SESSION *session)
 {
     TINFO *tinfo;
     u_int i;
 
-    (void)rollback; /* TODO */
     /* Allocate the thread structures separately to minimize false sharing. */
     if (tinfo_list == NULL) {
         tinfo_list = dcalloc((size_t)g.c_threads + 1, sizeof(TINFO *));
@@ -206,7 +205,7 @@ tinfo_teardown(void)
  *     Perform a number of operations in a set of threads.
  */
 void
-operations(u_int ops_seconds, bool lastrun, bool rollback)
+operations(u_int ops_seconds, bool lastrun)
 {
     TINFO *tinfo, total;
     WT_CONNECTION *conn;
@@ -256,7 +255,7 @@ operations(u_int ops_seconds, bool lastrun, bool rollback)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Initialize and start the worker threads. */
-    tinfo_init(session, rollback);
+    tinfo_init(session);
     logop(session, "%s", "=============== thread start");
 
     /* Initialize locks to single-thread backups, failures, and timestamp updates. */

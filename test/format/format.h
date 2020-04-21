@@ -373,7 +373,7 @@ void key_gen_teardown(WT_ITEM *);
 void key_init(void);
 void lock_destroy(WT_SESSION *, RWLOCK *);
 void lock_init(WT_SESSION *, RWLOCK *);
-void operations(u_int, bool, bool);
+void operations(u_int, bool);
 WT_THREAD_RET random_kv(void *);
 void path_setup(const char *);
 int read_row_worker(WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
