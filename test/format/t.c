@@ -302,11 +302,8 @@ main(int argc, char *argv[])
         for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps) {
             last_run = (reps == FORMAT_OPERATION_REPS);
             operations(ops_seconds, last_run);
-            if (!last_run && g.c_txn_rollback_to_stable && g.c_txn_timestamps) {
-                printf("rollback_to_stable()\n");
+            if (!last_run && g.c_txn_rollback_to_stable)
                 g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
-                // TODO: reset the thread specific info
-            }
         }
 
         /* Copy out the run's statistics. */
