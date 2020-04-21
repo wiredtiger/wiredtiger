@@ -61,12 +61,16 @@ write_txn = txn(opwrite * 5, 'isolation=snapshot')
 # use_prepare_timestamp - Commit the transaction with stable_timestamp.
 write_txn.transaction.use_prepare_timestamp = True
 twriter = Thread(write_txn)
+# Thread.options.session_config - Session configuration.
+twriter.options.session_config="isolation=snapshot"
 
 opupdate = Operation(Operation.OP_UPDATE, table)
 update_txn = txn(opupdate * 5, 'isolation=snapshot')
 # use_commit_timestamp - Commit the transaction with commit_timestamp.
 update_txn.transaction.use_commit_timestamp = True
 tupdate = Thread(update_txn)
+# Thread.options.session_config - Session configuration. 
+tupdate.options.session_config="isolation=snapshot"
 
 workload = Workload(context, 30 * twriter + 30 * tupdate + 30 * treader)
 workload.options.run_time = 50
