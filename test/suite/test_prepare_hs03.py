@@ -183,7 +183,6 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # and call verify
         self.corrupt_salvage_verify()
 
-    @unittest.skip("Temporarily disabled")
     def test_prepare_hs(self):
         nrows = 100
         ds = SimpleDataSet(self, self.uri, nrows, key_format="S", value_format='u')

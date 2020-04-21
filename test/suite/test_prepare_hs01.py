@@ -84,14 +84,17 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
                 self.assertEquals(cursors[j].insert(), 0)
             sessions[j].prepare_transaction('prepare_timestamp=' + timestamp_str(2))
 
-        # Re-read the original versions of all the data.  To do this, the pages
-        # that were just evicted need to be read back. This ensures reading
-        # prepared updates from the history store
+        # Re-read the original versions of all the data. This ensures reading
+        # original versions from the history store
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
         for i in range(1, nsessions * nkeys):
             cursor.set_key(ds.key(nrows + i))
             self.assertEquals(cursor.search(), 0)
+            # Correctness Test - commit_value should be visible
+            self.assertEquals(cursor.get_value(), bigvalue1)
+            # Correctness Test - prepare_value should NOT be visible
+            self.assertNotEquals(cursor.get_value(), bigvalue2)
         cursor.close()
         self.session.commit_transaction()
 
@@ -101,7 +104,21 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
             cursors[j].close()
             sessions[j].close()
 
-    @unittest.skip("Temporarily disabled")
+        # Re-read the original versions of all the data. This ensures reading
+        # original versions from the data store as the prepared updates are
+        # aborted
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
+        for i in range(1, nsessions * nkeys):
+            cursor.set_key(ds.key(nrows + i))
+            self.assertEquals(cursor.search(), 0)
+            # Correctness Test - commit_value should be visible
+            self.assertEquals(cursor.get_value(), bigvalue1)
+            # Correctness Test - prepare_value should NOT be visible
+            self.assertNotEquals(cursor.get_value(), bigvalue2)
+        cursor.close()
+        self.session.commit_transaction()
+
     def test_prepare_hs(self):
         # Create a small table.
         uri = "table:test_prepare_hs01"
