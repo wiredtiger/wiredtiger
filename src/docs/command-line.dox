@@ -126,6 +126,21 @@ The following are command-specific options for the \c create command:
 Include a configuration string to be passed to WT_SESSION::create.
 
 <hr>
+@section util_downgrade wt downgrade
+Downgrade a database.
+
+The \c downgrade command downgrades the database to the specified compatibility version.
+
+@subsection util_downgrade_synopsis Synopsis
+<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] downgrade -V version</code>
+
+@subsection util_downgrade_options Options
+The following are command-specific options for the \c downgrade command:
+
+@par <code>-V version</code>
+The \c -V option is required, and specfies the version to which the database is downgraded.
+
+<hr>
 @section util_drop wt drop
 Drop a table.
 
@@ -155,7 +170,7 @@ The following are command-specific options for the \c dump command:
 
 @par <code>-c</code>
 By default, the \c dump command opens the most recent version of the data
-source; the \c -c option changes the \c dump command to open the named
+source; the \c -c option changes the \c dump command to dump as of the named
 checkpoint.
 
 @par <code>-f</code>
@@ -169,14 +184,14 @@ format.
 @par <code>-r</code>
 Dump in reverse order, from largest key to smallest.
 
+@par <code>-t</code>
+By default, the \c dump command opens the most recent version of the data
+source; the \c -c option changes the \c dump command to dump as of the specified
+timestamp.
+
 @par <code>-x</code>
 Dump all characters in a hexadecimal encoding (the default is to leave
 printable characters unencoded).
-
-@par <code>-t</code>
-By default, the \c dump command reads the most recent timestamp versions of
-the data source; the \c -t option changes the \c dump command to read at a
-specific timestamp.
 
 <hr>
 @section util_list wt list
@@ -418,23 +433,23 @@ The \c verify command verifies the specified table, exiting success if
 the data source is correct, and failure if the data source is corrupted.
 
 @subsection util_verify_synopsis Synopsis
-<code>wt [-RrVv] [-C config] [-E secretkey ] [-h directory] verify [-d dump_address | dump_blocks | dump_history | dump_layout | dump_offsets=#,# | dump_pages ] [-s] -a|uri</code>
+<code>wt [-RrVv] [-C config] [-E secretkey ] [-h directory] verify [-as] [-d dump_address | dump_blocks | dump_history | dump_layout | dump_offsets=#,# | dump_pages ] [uri]</code>
 
 @subsection util_verify_options Options
 The following are command-specific options for the \c verify command:
+
+<code>-a</code>
+This options allows you to verify the history store against the current state
+of the data store. A uri is not passed along with this option. See the WT_SESSION::verify
+configuration options.
 
 <code>-d [config]</code>
 This option allows you to specify values which you want to be displayed
 when verification is run. See the WT_SESSION::verify configuration options.
 
-<code>-s [config]</code>
+<code>-s</code>
 This option allows you to verify against the stable timestamp, valid only after a
 rollback-to-stable operation. See the WT_SESSION::verify configuration options.
-
-<code>-a [config]</code>
-This options allows you to verify the history store against the current state
-of the data store. A uri is not passed along with this option. See the WT_SESSION::verify
-configuration options.
 
 <hr>
 @section util_write wt write
