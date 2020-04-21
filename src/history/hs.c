@@ -1290,12 +1290,9 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         if (cmp == 0)
             continue;
         WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, hs_key, false, NULL, false, NULL));
-        WT_ERR_NOTFOUND_OK(ret, true);
+        WT_ERR(ret);
 
-        if (ret == WT_NOTFOUND)
-            found = false;
-        else
-            found = cbt->compare == 0;
+        found = cbt->compare == 0;
         WT_ERR(__cursor_reset(cbt));
 
         if (!found)
