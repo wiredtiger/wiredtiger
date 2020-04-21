@@ -239,7 +239,8 @@ timestamp_once(WT_SESSION *session)
     static const char *stable_timestamp_str = "stable_timestamp=";
     WT_CONNECTION *conn;
     WT_DECL_RET;
-    char buf[WT_TS_HEX_STRING_SIZE * 2 + 64], tsbuf[WT_TS_HEX_STRING_SIZE + 1];
+    size_t len;
+    char buf[WT_TS_HEX_STRING_SIZE * 2 + 64], tsbuf[WT_TS_HEX_STRING_SIZE];
 
     conn = g.wts_conn;
 
@@ -255,8 +256,17 @@ timestamp_once(WT_SESSION *session)
     ret = conn->query_timestamp(conn, tsbuf, "get=all_durable");
     testutil_assert(ret == 0 || ret == WT_NOTFOUND);
     if (ret == 0) {
-        testutil_check(__wt_snprintf(
-          buf, sizeof(buf), "%s%s,%s%s", oldest_timestamp_str, tsbuf, stable_timestamp_str, tsbuf));
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s", oldest_timestamp_str, tsbuf));
+        /*
+         * When we're doing rollback to stable operations, we'll also advance the stable timestamp
+         * too, in lockstep with the oldest timestamp.
+         */
+        if (g.c_txn_rollback_to_stable) {
+            len = strlen(buf);
+            WT_ASSERT((WT_SESSION_IMPL *)session, len < sizeof(buf));
+            testutil_check(
+              __wt_snprintf(buf + len, sizeof(buf) - len, ",%s%s", stable_timestamp_str, tsbuf));
+        }
         testutil_check(conn->set_timestamp(conn, buf));
     }
 
