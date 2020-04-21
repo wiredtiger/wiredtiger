@@ -153,8 +153,8 @@ __rec_need_save_upd(
 
     /*
      * Save updates for any reconciliation that doesn't involve history store (in-memory database
-     * and fixed length column store), except when the maximum timestamp and txnid are globally
-     * visible.
+     * and fixed length column store), except when the selected stop time pair or the selected start
+     * time pair is globally visible.
      */
     if (!F_ISSET(r, WT_REC_HS) && !F_ISSET(r, WT_REC_IN_MEMORY) && r->page->type != WT_PAGE_COL_FIX)
         return (false);
@@ -462,11 +462,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
     /*
      * Returning an update means the original on-page value might be lost, and that's a problem if
-     * there's a reader that needs it. This call makes a copy of the on-page value. We do that any
-     * time there are saved updates and during reconciliation of a backing overflow record that will
-     * be physically removed once it's no longer needed.
+     * there's a reader that needs it, make a copy of the on-page value. We do that any time there
+     * are saved updates (we may need the original on-page value to terminate the update chain, for
+     * example, in the case of an update that modifies the original value). Additionally, make a
+     * copy of the on-page value if the value is an overflow item and anything other than the
+     * on-page cell is being written. This is because the value's backing overflow blocks aren't
+     * part of the page, and they are physically removed by checkpoint writing this page, that is,
+     * the checkpoint doesn't include the overflow blocks so they're removed and future readers of
+     * this page won't be able to find them.
      */
-    if (vpack != NULL && vpack->type != WT_CELL_DEL && upd_select->upd != NULL && upd_saved)
+    if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
+      (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_ERR(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
 err:
