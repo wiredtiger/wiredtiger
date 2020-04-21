@@ -2283,7 +2283,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_DECL_ITEM(i3);
     WT_DECL_RET;
     const WT_NAME_FLAG *ft;
-    WT_SESSION_IMPL *session;
+    WT_SESSION *wt_verify_session;
+    WT_SESSION_IMPL *session, *verify_session;
     bool config_base_set, try_salvage;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
@@ -2656,8 +2657,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_turtle_init(session));
     WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
     if (cval.val) {
-        WT_ERR(__wt_metadata_verify(session));
-        WT_ERR(__wt_history_store_verify(conn));
+        WT_ERR(__wt_open_internal_session(conn, "verify", true, 0, &verify_session));
+        ret = __wt_metadata_verify(verify_session);
+        if (ret == 0)
+            ret = __wt_history_store_verify(verify_session);
+        wt_verify_session = &verify_session->iface;
+        WT_TRET(wt_verify_session->close(wt_verify_session, NULL));
+        WT_ERR(ret);
     }
 
     /*
