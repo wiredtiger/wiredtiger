@@ -2657,7 +2657,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_turtle_init(session));
     WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
     if (cval.val) {
-        WT_ERR(__wt_open_internal_session(conn, "verify", true, 0, &verify_session));
+        WT_ERR(__wt_open_internal_session(conn, "verify", false, 0, &verify_session));
         ret = __wt_metadata_verify(verify_session);
         if (ret == 0)
             ret = __wt_history_store_verify(verify_session);
