@@ -94,6 +94,9 @@ main(int argc, char *argv[])
     uint64_t i, id;
     char buf[100];
 
+    /* Temporarily disable this test (WT-5790) */
+    return (EXIT_SUCCESS);
+
     /* Bypass this test for valgrind */
     if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
         return (EXIT_SUCCESS);
