@@ -258,8 +258,8 @@ timestamp_once(WT_SESSION *session)
     if (ret == 0) {
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s", oldest_timestamp_str, tsbuf));
         /*
-         * When we're doing rollback to stable operations, we'll also advance the stable timestamp
-         * too, in lockstep with the oldest timestamp.
+         * When we're doing rollback to stable operations, we'll advance the stable timestamp too,
+         * in lockstep with the oldest timestamp.
          */
         if (g.c_txn_rollback_to_stable) {
             len = strlen(buf);
