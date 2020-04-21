@@ -127,12 +127,13 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  */
 struct __wt_addr {
     /* Validity window */
+    wt_timestamp_t newest_start_durable_ts;
     wt_timestamp_t oldest_start_ts;
     uint64_t oldest_start_txn;
-    wt_timestamp_t start_durable_ts;
+    wt_timestamp_t newest_stop_durable_ts;
     wt_timestamp_t newest_stop_ts;
     uint64_t newest_stop_txn;
-    wt_timestamp_t stop_durable_ts;
+    bool prepare;
 
     uint8_t *addr; /* Block-manager's cookie */
     uint8_t size;  /* Block-manager's cookie length */
@@ -159,12 +160,13 @@ struct __wt_addr {
  */
 struct __wt_addr_copy {
     /* Validity window */
+    wt_timestamp_t newest_start_durable_ts;
     wt_timestamp_t oldest_start_ts;
     uint64_t oldest_start_txn;
-    wt_timestamp_t start_durable_ts;
+    wt_timestamp_t newest_stop_durable_ts;
     wt_timestamp_t newest_stop_ts;
     uint64_t newest_stop_txn;
-    wt_timestamp_t stop_durable_ts;
+    bool prepare;
 
     uint8_t type;
 
@@ -445,15 +447,6 @@ struct __wt_page_modify {
         WT_CELL **discard;
         size_t discard_entries;
         size_t discard_allocated;
-
-        /* Cached overflow value cell/update address pairs. */
-        struct {
-            WT_CELL *cell;
-            uint8_t *data;
-            size_t size;
-        } * remove;
-        size_t remove_allocated;
-        uint32_t remove_next;
     } * ovfl_track;
 
 #define WT_PAGE_LOCK(s, p) __wt_spin_lock((s), &(p)->modify->page_lock)
@@ -483,8 +476,7 @@ struct __wt_page_modify {
 #define WT_PM_REC_REPLACE 3    /* Reconciliation: single block */
     uint8_t rec_result;        /* Reconciliation state */
 
-#define WT_PAGE_RS_HS 0x1
-#define WT_PAGE_RS_RESTORED 0x2
+#define WT_PAGE_RS_RESTORED 0x1
     uint8_t restore_state; /* Created by restoring updates */
 };
 

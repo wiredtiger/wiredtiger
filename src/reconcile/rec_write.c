@@ -42,12 +42,12 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /*
      * Sanity check flags.
      *
-     * If we try to do eviction using transaction visibility, we had better
-     * have a snapshot.  This doesn't apply to checkpoints: there are
-     * (rare) cases where we write data at read-uncommitted isolation.
+     * If we try to do eviction using transaction visibility, we had better have a snapshot. This
+     * doesn't apply to checkpoints: there are (rare) cases where we write data at read-uncommitted
+     * isolation.
      */
     WT_ASSERT(session, !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
-        F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
+        F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* It's an error to be called with a clean page. */
     WT_ASSERT(session, __wt_page_is_modified(page));
@@ -225,11 +225,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     __rec_cleanup(session, r);
 
     /*
-     * When threads perform eviction, don't cache block manager structures
-     * (even across calls), we can have a significant number of threads
-     * doing eviction at the same time with large items. Ignore checkpoints,
-     * once the checkpoint completes, all unnecessary session resources will
-     * be discarded.
+     * When threads perform eviction, don't cache block manager structures (even across calls), we
+     * can have a significant number of threads doing eviction at the same time with large items.
+     * Ignore checkpoints, once the checkpoint completes, all unnecessary session resources will be
+     * discarded.
      */
     if (!WT_SESSION_IS_CHECKPOINT(session)) {
         /*
@@ -242,14 +241,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 
         WT_TRET(__rec_destroy_session(session));
     }
-
-    /*
-     * We track removed overflow objects in case there's a reader in transit when they're removed.
-     * Any form of eviction locks out readers, we can discard them all.
-     */
-    if (LF_ISSET(WT_REC_EVICT))
-        __wt_ovfl_discard_remove(session, page);
-
     WT_RET(ret);
 
     /*
@@ -308,15 +299,6 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          */
         WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) ||
             (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX));
-
-        /*
-         * We have written the page, but something prevents it from being evicted. If we wrote the
-         * newest versions of updates, the on-disk page may contain records that are newer than what
-         * checkpoint would write. Make sure that checkpoint visits the page and (if necessary)
-         * fixes things up.
-         */
-        if (r->hs_skew_newest)
-            mod->first_dirty_txn = WT_TXN_FIRST;
     } else {
         /*
          * Track the page's maximum transaction ID (used to decide if we can evict a clean page and
@@ -455,7 +437,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     WT_PAGE *page;
     WT_RECONCILE *r;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t checkpoint_ts;
     uint64_t ckpt_txn;
 
     btree = S2BT(session);
@@ -519,52 +500,25 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * checkpoints into account.
      */
     if (WT_IS_METADATA(session->dhandle)) {
-        WT_ORDERED_READ(ckpt_txn, txn_global->checkpoint_state.id);
+        WT_ORDERED_READ(ckpt_txn, txn_global->checkpoint_txn_shared.id);
         if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
             r->last_running = ckpt_txn;
     }
-
-    /*
-     * Decide whether to skew on-page values towards newer or older versions. This is a heuristic
-     * attempting to minimize the number of pages that need to be rewritten by future checkpoints.
-     *
-     * We usually prefer to skew to newer versions, the logic being that by the time the next
-     * checkpoint runs, it is likely that all the updates we choose will be stable. However, if
-     * checkpointing with a timestamp (indicated by a stable_timestamp being set), and there is a
-     * checkpoint already running, or this page was read with history store history, or the stable
-     * timestamp hasn't changed since last time this page was successfully, skew oldest instead.
-     */
-    if (F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DEBUG_MODE) &&
-      __wt_random(&session->rnd) % 3 == 0)
-        r->hs_skew_newest = false;
-    else
-        r->hs_skew_newest = LF_ISSET(WT_REC_HS) && LF_ISSET(WT_REC_VISIBLE_ALL);
-
-    if (r->hs_skew_newest && !__wt_btree_immediately_durable(session) &&
-      txn_global->has_stable_timestamp &&
-      ((btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT) &&
-         txn_global->stable_is_pinned) ||
-          FLD_ISSET(page->modify->restore_state, WT_PAGE_RS_HS) ||
-          page->modify->last_stable_timestamp == txn_global->stable_timestamp))
-        r->hs_skew_newest = false;
 
     /* When operating on the history store table, we should never try history store eviction. */
     WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_HS) || !LF_ISSET(WT_REC_HS));
 
     /*
-     * History store table eviction is configured when eviction gets aggressive,
-     * adjust the flags for cases we don't support.
+     * History store table eviction is configured when eviction gets aggressive, adjust the flags
+     * for cases we don't support.
      *
-     * We don't yet support fixed-length column-store combined with the
-     * history store table. It's not hard to do, but the underlying function
-     * that reviews which updates can be written to the evicted page and
-     * which updates need to be written to the history store table needs access
-     * to the original value from the page being evicted, and there's no
-     * code path for that in the case of fixed-length column-store objects.
-     * (Row-store and variable-width column-store objects provide a
-     * reference to the unpacked on-page cell for this purpose, but there
-     * isn't an on-page cell for fixed-length column-store objects.) For
-     * now, turn it off.
+     * We don't yet support fixed-length column-store combined with the history store table. It's
+     * not hard to do, but the underlying function that reviews which updates can be written to the
+     * evicted page and which updates need to be written to the history store table needs access to
+     * the original value from the page being evicted, and there's no code path for that in the case
+     * of fixed-length column-store objects. (Row-store and variable-width column-store objects
+     * provide a reference to the unpacked on-page cell for this purpose, but there isn't an on-page
+     * cell for fixed-length column-store objects.) For now, turn it off.
      */
     if (page->type == WT_PAGE_COL_FIX)
         LF_CLR(WT_REC_HS);
@@ -648,15 +602,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     r->update_modify_cbt.ref = ref;
     r->update_modify_cbt.iface.value_format = btree->value_format;
-
-    /*
-     * FIXME: cache the stable timestamp used to check if the durable timestamps in prepared updates
-     * can be discarded (until PM-1524 completes and durable timestamps are stored in data pages).
-     */
-    WT_ORDERED_READ(r->stable_ts, S2C(session)->txn_global.stable_timestamp);
-    if ((checkpoint_ts = S2C(session)->txn_global.checkpoint_timestamp) != WT_TS_NONE &&
-      checkpoint_ts < r->stable_ts)
-        r->stable_ts = checkpoint_ts;
 
 /*
  * If we allocated the reconciliation structure and there was an error, clean up. If our caller
@@ -765,23 +710,20 @@ __rec_leaf_page_max(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     switch (page->type) {
     case WT_PAGE_COL_FIX:
         /*
-         * Column-store pages can grow if there are missing records
-         * (that is, we lost a chunk of the range, and have to write
-         * deleted records).  Fixed-length objects are a problem, if
-         * there's a big missing range, we could theoretically have to
-         * write large numbers of missing objects.
+         * Column-store pages can grow if there are missing records (that is, we lost a chunk of the
+         * range, and have to write deleted records). Fixed-length objects are a problem, if there's
+         * a big missing range, we could theoretically have to write large numbers of missing
+         * objects.
          */
         page_size = (uint32_t)WT_ALIGN(
           WT_FIX_ENTRIES_TO_BYTES(btree, r->salvage->take + r->salvage->missing), btree->allocsize);
         break;
     case WT_PAGE_COL_VAR:
         /*
-         * Column-store pages can grow if there are missing records
-         * (that is, we lost a chunk of the range, and have to write
-         * deleted records).  Variable-length objects aren't usually a
-         * problem because we can write any number of deleted records
-         * in a single page entry because of the RLE, we just need to
-         * ensure that additional entry fits.
+         * Column-store pages can grow if there are missing records (that is, we lost a chunk of the
+         * range, and have to write deleted records). Variable-length objects aren't usually a
+         * problem because we can write any number of deleted records in a single page entry because
+         * of the RLE, we just need to ensure that additional entry fits.
          */
         break;
     case WT_PAGE_ROW_LEAF:
@@ -854,17 +796,17 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
     /* Don't touch the key item memory, that memory is reused. */
     chunk->key.size = 0;
     chunk->entries = 0;
-    __wt_rec_addr_ts_init(r, &chunk->start_durable_ts, &chunk->oldest_start_ts,
-      &chunk->oldest_start_txn, &chunk->stop_durable_ts, &chunk->newest_stop_ts,
-      &chunk->newest_stop_txn);
+    __wt_rec_addr_ts_init(r, &chunk->newest_start_durable_ts, &chunk->oldest_start_ts,
+      &chunk->oldest_start_txn, &chunk->newest_stop_durable_ts, &chunk->newest_stop_ts,
+      &chunk->newest_stop_txn, &chunk->prepare);
 
     chunk->min_recno = WT_RECNO_OOB;
     /* Don't touch the key item memory, that memory is reused. */
     chunk->min_key.size = 0;
     chunk->min_entries = 0;
-    __wt_rec_addr_ts_init(r, &chunk->min_start_durable_ts, &chunk->min_oldest_start_ts,
-      &chunk->min_oldest_start_txn, &chunk->min_stop_durable_ts, &chunk->min_newest_stop_ts,
-      &chunk->min_newest_stop_txn);
+    __wt_rec_addr_ts_init(r, &chunk->min_newest_start_durable_ts, &chunk->min_oldest_start_ts,
+      &chunk->min_oldest_start_txn, &chunk->min_newest_stop_durable_ts, &chunk->min_newest_stop_ts,
+      &chunk->min_newest_stop_txn, &chunk->prepare);
     chunk->min_offset = 0;
 
     /*
@@ -956,15 +898,14 @@ __wt_rec_split_init(
     }
 
     /*
-     * Ensure the disk image buffer is large enough for the max object, as
-     * corrected by the underlying block manager.
+     * Ensure the disk image buffer is large enough for the max object, as corrected by the
+     * underlying block manager.
      *
-     * Since we want to support split_size values larger than the page size
-     * (to allow for adjustments based on the compression), this buffer
-     * should be the greater of split_size and page_size, then aligned to
-     * the next allocation size boundary. The latter shouldn't be an issue,
-     * but it's a possible scenario if, for example, the compression engine
-     * is expected to give us 5x compression and gives us nothing at all.
+     * Since we want to support split_size values larger than the page size (to allow for
+     * adjustments based on the compression), this buffer should be the greater of split_size and
+     * page_size, then aligned to the next allocation size boundary. The latter shouldn't be an
+     * issue, but it's a possible scenario if, for example, the compression engine is expected to
+     * give us 5x compression and gives us nothing at all.
      */
     corrected_page_size = r->page_size;
     WT_RET(bm->write_size(bm, session, &corrected_page_size));
@@ -1282,10 +1223,10 @@ __wt_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t ne
         r->cur_ptr->min_recno = r->recno;
         if (S2BT(session)->type == BTREE_ROW)
             WT_RET(__rec_split_row_promote(session, r, &r->cur_ptr->min_key, r->page->type));
-        r->cur_ptr->min_start_durable_ts = r->cur_ptr->start_durable_ts;
+        r->cur_ptr->min_newest_start_durable_ts = r->cur_ptr->newest_start_durable_ts;
         r->cur_ptr->min_oldest_start_ts = r->cur_ptr->oldest_start_ts;
         r->cur_ptr->min_oldest_start_txn = r->cur_ptr->oldest_start_txn;
-        r->cur_ptr->min_stop_durable_ts = r->cur_ptr->stop_durable_ts;
+        r->cur_ptr->min_newest_stop_durable_ts = r->cur_ptr->newest_stop_durable_ts;
         r->cur_ptr->min_newest_stop_ts = r->cur_ptr->newest_stop_ts;
         r->cur_ptr->min_newest_stop_txn = r->cur_ptr->newest_stop_txn;
 
@@ -1338,12 +1279,16 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * boundaries and create a single chunk.
          */
         prev_ptr->entries += cur_ptr->entries;
-        prev_ptr->start_durable_ts = WT_MAX(prev_ptr->start_durable_ts, cur_ptr->start_durable_ts);
+        prev_ptr->newest_start_durable_ts =
+          WT_MAX(prev_ptr->newest_start_durable_ts, cur_ptr->newest_start_durable_ts);
         prev_ptr->oldest_start_ts = WT_MIN(prev_ptr->oldest_start_ts, cur_ptr->oldest_start_ts);
         prev_ptr->oldest_start_txn = WT_MIN(prev_ptr->oldest_start_txn, cur_ptr->oldest_start_txn);
-        prev_ptr->stop_durable_ts = WT_MAX(prev_ptr->stop_durable_ts, cur_ptr->stop_durable_ts);
+        prev_ptr->newest_stop_durable_ts =
+          WT_MAX(prev_ptr->newest_stop_durable_ts, cur_ptr->newest_stop_durable_ts);
         prev_ptr->newest_stop_ts = WT_MAX(prev_ptr->newest_stop_ts, cur_ptr->newest_stop_ts);
         prev_ptr->newest_stop_txn = WT_MAX(prev_ptr->newest_stop_txn, cur_ptr->newest_stop_txn);
+        if (cur_ptr->prepare)
+            prev_ptr->prepare = true;
         dsk = r->cur_ptr->image.mem;
         memcpy((uint8_t *)r->prev_ptr->image.mem + prev_ptr->image.size,
           WT_PAGE_HEADER_BYTE(btree, dsk), cur_ptr->image.size - WT_PAGE_HEADER_BYTE_SIZE(btree));
@@ -1386,19 +1331,23 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         cur_ptr->recno = prev_ptr->min_recno;
         WT_RET(
           __wt_buf_set(session, &cur_ptr->key, prev_ptr->min_key.data, prev_ptr->min_key.size));
-        cur_ptr->start_durable_ts = WT_MAX(prev_ptr->start_durable_ts, cur_ptr->start_durable_ts);
+        cur_ptr->newest_start_durable_ts =
+          WT_MAX(prev_ptr->newest_start_durable_ts, cur_ptr->newest_start_durable_ts);
         cur_ptr->oldest_start_ts = WT_MIN(prev_ptr->oldest_start_ts, cur_ptr->oldest_start_ts);
         cur_ptr->oldest_start_txn = WT_MIN(prev_ptr->oldest_start_txn, cur_ptr->oldest_start_txn);
-        cur_ptr->stop_durable_ts = WT_MAX(prev_ptr->stop_durable_ts, cur_ptr->stop_durable_ts);
+        cur_ptr->newest_stop_durable_ts =
+          WT_MAX(prev_ptr->newest_stop_durable_ts, cur_ptr->newest_stop_durable_ts);
         cur_ptr->newest_stop_ts = WT_MAX(prev_ptr->newest_stop_ts, cur_ptr->newest_stop_ts);
         cur_ptr->newest_stop_txn = WT_MAX(prev_ptr->newest_stop_txn, cur_ptr->newest_stop_txn);
+        if (prev_ptr->prepare)
+            cur_ptr->prepare = true;
         cur_ptr->image.size += len_to_move;
 
         prev_ptr->entries = prev_ptr->min_entries;
-        prev_ptr->start_durable_ts = prev_ptr->min_start_durable_ts;
+        prev_ptr->newest_start_durable_ts = prev_ptr->min_newest_start_durable_ts;
         prev_ptr->oldest_start_ts = prev_ptr->min_oldest_start_ts;
         prev_ptr->oldest_start_txn = prev_ptr->min_oldest_start_txn;
-        prev_ptr->stop_durable_ts = prev_ptr->min_stop_durable_ts;
+        prev_ptr->newest_stop_durable_ts = prev_ptr->min_newest_stop_durable_ts;
         prev_ptr->newest_stop_ts = prev_ptr->min_newest_stop_ts;
         prev_ptr->newest_stop_txn = prev_ptr->min_newest_stop_txn;
         prev_ptr->image.size -= len_to_move;
@@ -1628,12 +1577,11 @@ __rec_split_write_reuse(
         return (false);
 
     /*
-     * Quit if evicting with no previously written block to compare against.
-     * (In other words, if there's eviction pressure and the page was never
-     * written by a checkpoint, calculating a checksum is worthless.)
+     * Quit if evicting with no previously written block to compare against. (In other words, if
+     * there's eviction pressure and the page was never written by a checkpoint, calculating a
+     * checksum is worthless.)
      *
-     * Quit if evicting and a previous check failed, once there's a miss no
-     * future block will match.
+     * Quit if evicting and a previous check failed, once there's a miss no future block will match.
      */
     if (F_ISSET(r, WT_REC_EVICT)) {
         if (mod->rec_result != WT_PM_REC_MULTIBLOCK || mod->mod_multi_entries < r->multi_next)
@@ -1782,10 +1730,10 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     multi = &r->multi[r->multi_next++];
 
     /* Initialize the address (set the addr type for the parent). */
-    multi->addr.start_durable_ts = chunk->start_durable_ts;
+    multi->addr.newest_start_durable_ts = chunk->newest_start_durable_ts;
     multi->addr.oldest_start_ts = chunk->oldest_start_ts;
     multi->addr.oldest_start_txn = chunk->oldest_start_txn;
-    multi->addr.stop_durable_ts = chunk->stop_durable_ts;
+    multi->addr.newest_stop_durable_ts = chunk->newest_stop_durable_ts;
     multi->addr.newest_stop_ts = chunk->newest_stop_ts;
     multi->addr.newest_stop_txn = chunk->newest_stop_txn;
 
@@ -2222,9 +2170,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             mod->mod_disk_image = r->multi->disk_image;
             r->multi->disk_image = NULL;
         } else {
-            __wt_checkpoint_tree_reconcile_update(session, r->multi->addr.start_durable_ts,
+            __wt_checkpoint_tree_reconcile_update(session, r->multi->addr.newest_start_durable_ts,
               r->multi->addr.oldest_start_ts, r->multi->addr.oldest_start_txn,
-              r->multi->addr.stop_durable_ts, r->multi->addr.newest_stop_ts,
+              r->multi->addr.newest_stop_durable_ts, r->multi->addr.newest_stop_ts,
               r->multi->addr.newest_stop_txn);
             WT_RET(__wt_bt_write(session, r->wrapup_checkpoint, NULL, NULL, NULL, true,
               F_ISSET(r, WT_REC_CHECKPOINT), r->wrapup_checkpoint_compressed));
@@ -2347,7 +2295,8 @@ err:
 int
 __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
   wt_timestamp_t start_durable_ts, wt_timestamp_t start_ts, uint64_t start_txn,
-  wt_timestamp_t stop_durable_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
+  wt_timestamp_t stop_durable_ts, wt_timestamp_t stop_ts, uint64_t stop_txn, bool prepare,
+  uint64_t rle)
 {
     WT_BM *bm;
     WT_BTREE *btree;
@@ -2403,7 +2352,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
 
     /* Build the cell and return. */
     kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, start_durable_ts, start_ts,
-      start_txn, stop_durable_ts, stop_ts, stop_txn, rle, kv->buf.size);
+      start_txn, stop_durable_ts, stop_ts, stop_txn, prepare, rle, kv->buf.size);
     kv->len = kv->cell_len + kv->buf.size;
 
 err:

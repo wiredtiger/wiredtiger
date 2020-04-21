@@ -25,10 +25,7 @@ struct __wt_reconcile {
     uint64_t orig_btree_checkpoint_gen;
     uint64_t orig_txn_checkpoint_gen;
 
-    /*
-     * Track the oldest running transaction and whether to skew history store to the newest update.
-     */
-    bool hs_skew_newest;
+    /* Track the oldest running transaction. */
     uint64_t last_running;
 
     /* Track the page's min/maximum transactions. */
@@ -36,12 +33,6 @@ struct __wt_reconcile {
     wt_timestamp_t max_ts;
     wt_timestamp_t max_ondisk_ts;
     wt_timestamp_t min_skipped_ts;
-
-    /*
-     * FIXME: temporarily track the stable timestamp when reconciliation starts. Remove it when
-     * PM-1524 completes.
-     */
-    wt_timestamp_t stable_ts;
 
     u_int updates_seen;     /* Count of updates seen. */
     u_int updates_unstable; /* Count of updates not visible_all. */
@@ -120,21 +111,22 @@ struct __wt_reconcile {
         uint32_t entries;
         uint64_t recno;
         WT_ITEM key;
-        wt_timestamp_t start_durable_ts;
+        wt_timestamp_t newest_start_durable_ts;
         wt_timestamp_t oldest_start_ts;
         uint64_t oldest_start_txn;
-        wt_timestamp_t stop_durable_ts;
+        wt_timestamp_t newest_stop_durable_ts;
         wt_timestamp_t newest_stop_ts;
         uint64_t newest_stop_txn;
+        bool prepare;
 
         /* Saved minimum split-size boundary information. */
         uint32_t min_entries;
         uint64_t min_recno;
         WT_ITEM min_key;
-        wt_timestamp_t min_start_durable_ts;
+        wt_timestamp_t min_newest_start_durable_ts;
         wt_timestamp_t min_oldest_start_ts;
         uint64_t min_oldest_start_txn;
-        wt_timestamp_t min_stop_durable_ts;
+        wt_timestamp_t min_newest_stop_durable_ts;
         wt_timestamp_t min_newest_stop_ts;
         uint64_t min_newest_stop_txn;
 
@@ -255,6 +247,7 @@ typedef struct {
     wt_timestamp_t stop_durable_ts;
     wt_timestamp_t stop_ts;
     uint64_t stop_txn;
+    bool prepare;
 } WT_UPDATE_SELECT;
 
 /*
