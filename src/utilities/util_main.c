@@ -25,85 +25,31 @@ static const char *command; /* Command name */
 static void
 usage(void)
 {
-    fprintf(stderr, "WiredTiger Data Engine (version %d.%d)\n", WIREDTIGER_VERSION_MAJOR,
-      WIREDTIGER_VERSION_MINOR);
-    fprintf(stderr,
-      "global options:\n"
-      "\t"
-      "-C\t"
-      "wiredtiger_open configuration\n"
-      "\t"
-      "-E\t"
-      "secret encryption key\n"
-      "\t"
-      "-h\t"
-      "database directory\n"
-      "\t"
-      "-L\t"
-      "turn logging off for debug-mode\n"
-      "\t"
-      "-R\t"
-      "run recovery (if recovery configured)\n"
-      "\t"
-      "-r\t"
-      "access the database via a readonly connection\n"
-      "\t"
-      "-S\t"
-      "run salvage recovery (if recovery configured)\n"
-      "\t"
-      "-V\t"
-      "display library version and exit\n"
-      "\t"
-      "-v\t"
-      "verbose\n");
-    fprintf(stderr,
-      "commands:\n"
-      "\t"
-      "alter\t  alter an object\n"
-      "\t"
-      "backup\t  database backup\n"
-      "\t"
-      "compact\t  compact an object\n"
-      "\t"
-      "copyright copyright information\n"
-      "\t"
-      "create\t  create an object\n"
-      "\t"
-      "downgrade downgrade a database\n"
-      "\t"
-      "drop\t  drop an object\n"
-      "\t"
-      "dump\t  dump an object\n"
+    static const char *options[] = {"-C config", "wiredtiger_open configuration", "-E key",
+      "secret encryption key", "-h home", "database directory", "-L",
+      "turn logging off for debug-mode", "-R", "run recovery (if recovery configured)", "-r",
+      "access the database via a readonly connection", "-S",
+      "run salvage recovery (if recovery configured)", "-V", "display library version and exit",
+      "-v", "verbose", NULL, NULL};
+    static const char *commands[] = {"alter", "alter an object", "backup", "database backup",
+      "compact", "compact an object", "copyright", "display copyright information", "create",
+      "create an object", "downgrade", "downgrade a database", "drop", "drop an object", "dump",
+      "dump an object",
       /*
        * Import is not documented.
-       * "\t" "import\t  import an object\n"
+       * "import", "import an object"
        */
-      "\t"
-      "list\t  list database objects\n"
-      "\t"
-      "load\t  load an object\n"
-      "\t"
-      "loadtext  load an object from a text file\n"
-      "\t"
-      "printlog  display the database log\n"
-      "\t"
-      "read\t  read values from an object\n"
-      "\t"
-      "rebalance rebalance an object\n"
-      "\t"
-      "rename\t  rename an object\n"
-      "\t"
-      "salvage\t  salvage a file\n"
-      "\t"
-      "stat\t  display statistics for an object\n"
-      "\t"
-      "truncate  truncate an object, removing all content\n"
-      "\t"
-      "upgrade\t  upgrade an object\n"
-      "\t"
-      "verify\t  verify an object\n"
-      "\t"
-      "write\t  write values to an object\n");
+      "list", "list database objects", "load", "load an object", "loadtext",
+      "load an object from a text file", "printlog", "display the database log", "read",
+      "read values from an object", "rebalance", "rebalance an object", "rename",
+      "rename an object", "salvage", "salvage a file", "stat", "display statistics for an object",
+      "truncate", "truncate an object, removing all content", "upgrade", "upgrade an object",
+      "verify", "verify an object", "write", "write values to an object", NULL, NULL};
+
+    fprintf(stderr, "WiredTiger Data Engine (version %d.%d)\n", WIREDTIGER_VERSION_MAJOR,
+      WIREDTIGER_VERSION_MINOR);
+    util_usage(NULL, "global_options:", options);
+    util_usage(NULL, "commands:", commands);
 }
 
 int
