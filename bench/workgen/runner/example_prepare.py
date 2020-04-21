@@ -89,6 +89,6 @@ run_time = end_time - start_time
 
 print('Workload took %d minutes' %(run_time//60))
 
-latency_filename = "WT_TEST" + "/latency.out"
+latency_filename = os.path.join(context.args.home, "latency.out")
 latency.workload_latency(workload, latency_filename)
 conn.close()

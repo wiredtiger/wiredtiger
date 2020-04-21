@@ -343,7 +343,7 @@ struct ThreadOptions {
 	os << "throttle " << throttle;
 	os << ", throttle_burst " << throttle_burst;
 	os << ", synchronized " << synchronized;
-    os << ", session_config " << session_config;
+	os << ", session_config " << session_config;
     }
 
     std::string help() const { return _options.help(); }
