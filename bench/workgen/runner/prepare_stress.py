@@ -103,7 +103,7 @@ wtperf_table_config = "key_format=S,value_format=S," +\
 compress_table_config = ""
 table_config = "type=file"
 tables = []
-table_count = 10
+table_count = 1
 for i in range(0, table_count):
     tname = "table:test" + str(i)
     table = Table(tname)
