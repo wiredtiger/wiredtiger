@@ -513,9 +513,7 @@ int ThreadRunner::create_all(WT_CONNECTION *conn) {
     ASSERT(_session == NULL);
     if (_thread->options.synchronized)
         _thread->_op.synchronized_check();
-
     WT_RET(conn->open_session(conn, NULL, _thread->options.session_config.c_str(), &_session));
-
     _table_usage.clear();
     _stats.track_latency(_workload->options.sample_interval_ms > 0);
     WT_RET(workgen_random_alloc(_session, &_rand_state));
