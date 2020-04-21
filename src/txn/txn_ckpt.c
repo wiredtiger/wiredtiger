@@ -463,7 +463,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 
     if (msec > conn->ckpt_time_max)
         conn->ckpt_time_max = msec;
-    if (conn->ckpt_time_min == 0 || msec < conn->ckpt_time_min)
+    if (msec < conn->ckpt_time_min)
         conn->ckpt_time_min = msec;
     conn->ckpt_time_recent = msec;
     conn->ckpt_time_total += msec;
@@ -473,7 +473,7 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 
     if (msec > conn->ckpt_prep_max)
         conn->ckpt_prep_max = msec;
-    if (conn->ckpt_prep_min == 0 || msec < conn->ckpt_prep_min)
+    if (msec < conn->ckpt_prep_min)
         conn->ckpt_prep_min = msec;
     conn->ckpt_prep_recent = msec;
     conn->ckpt_prep_total += msec;
