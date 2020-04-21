@@ -156,13 +156,15 @@ thread_run(void *arg)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-    /*
-     * Make sure that alternative threads operate on column-store table
-     *
-     * FIXME: Temporarily turn off column store test.
-     */
-    // if (td->id % 2 != 0)
-    //     columnar_table = true;
+/*
+ * Make sure that alternative threads operate on column-store table
+ *
+ * FIXME: Temporarily turn off column store test.
+ */
+#if 0
+    if (td->id % 2 != 0)
+        columnar_table = true;
+#endif
 
     if (columnar_table)
         testutil_check(session->open_cursor(session, col_uri, NULL, NULL, &cursor));
@@ -379,13 +381,17 @@ recover_and_verify(uint32_t nthreads)
          *
          * FIXME: Temporarily turn off column store test.
          */
-        // if (i % 2 != 0) {
-        //     columnar_table = true;
-        //     cursor = col_cursor;
-        // } else {
         columnar_table = false;
         cursor = row_cursor;
-        // }
+#if 0
+        if (i % 2 != 0) {
+            columnar_table = true;
+            cursor = col_cursor;
+        } else {
+            columnar_table = false;
+            cursor = row_cursor;
+        }
+#endif
 
         middle = 0;
         testutil_check(__wt_snprintf(fname[DELETE_RECORD_FILE_ID],
