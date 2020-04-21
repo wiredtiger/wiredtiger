@@ -1385,6 +1385,7 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
     cursor = session->hs_cursor;
     ret = cursor->next(cursor);
     stop = ret == WT_NOTFOUND ? true : false;
+    ret = 0;
 
     /*
      * We have the history store cursor positioned at the first record that we want to verify. The

@@ -172,7 +172,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     uint32_t session_flags;
     uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
     const char *name;
-    bool bm_start, is_owner, quit;
+    bool bm_start, is_owner, quit, skip_hs;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -181,6 +181,11 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     name = session->dhandle->name;
     bm_start = false;
     is_owner = false; /* -Wuninitialized */
+    /* Skip the history store explicit call if we're performing a metadata verification. */
+    if (strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0)
+        skip_hs = true;
+    else
+        skip_hs = false;
 
     WT_CLEAR(_vstuff);
     vs = &_vstuff;
@@ -208,9 +213,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         ret = 0;
         goto done;
     }
-
-    /* Open a history store cursor. */
-    WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
 
     /* Inform the underlying block manager we're verifying. */
     WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
@@ -272,8 +274,12 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
              * this is the most recent checkpoint, verify the history store against it.
              */
-            if (ret == 0 && (ckpt + 1)->name == NULL)
+            if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
+                /* Open a history store cursor. */
+                WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
                 WT_TRET(__wt_history_store_verify_one(session));
+                WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
+            }
 
             /*
              * We have an exclusive lock on the handle, but we're swapping root pages in-and-out of
@@ -309,8 +315,6 @@ err:
     /* Inform the underlying block manager we're done. */
     if (bm_start)
         WT_TRET(bm->verify_end(bm, session));
-
-    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     /* Discard the list of checkpoints. */
     if (ckptbase != NULL)
