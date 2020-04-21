@@ -1361,12 +1361,14 @@ err:
  *     latest value for the respective key in the data store.
  */
 int
-__wt_history_store_verify(WT_SESSION_IMPL *session)
+__wt_history_store_verify(WT_CONNECTION_IMPL *conn)
 {
     WT_CURSOR *cursor, *data_cursor;
     WT_DECL_ITEM(buf);
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
+    WT_SESSION *wt_session;
+    WT_SESSION_IMPL *session;
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t btree_id, session_flags;
@@ -1379,6 +1381,7 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
     uri_data = NULL;
     is_owner = false; /* [-Wconditional-uninitialized] */
 
+    WT_RET(__wt_open_internal_session(conn, "hs-verify", true, 0, &session));
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
@@ -1415,5 +1418,7 @@ err:
     __wt_scr_free(session, &buf);
     __wt_scr_free(session, &hs_key);
     __wt_free(session, uri_data);
+    wt_session = &session->iface;
+    WT_TRET(wt_session->close(wt_session, NULL));
     return (ret);
 }

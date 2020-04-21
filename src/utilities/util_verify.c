@@ -110,6 +110,6 @@ usage(void)
       "verify %s\n",
       progname, usage_prefix,
       "[-d dump_address | dump_blocks | dump_history | dump_layout | "
-      "dump_offsets=#,# | dump_pages] [-s] -a|uri");
+      "dump_offsets=#,# | dump_pages] [-s] uri");
     return (1);
 }
