@@ -8,7 +8,20 @@
 
 #include "util.h"
 
-static int usage(void);
+static int
+usage(void)
+{
+    static const char *options[] = {"-a", "verify the history store", "-d config",
+      "display underlying information during verification", "-s",
+      "verify against the specified timestamp", NULL, NULL};
+
+    util_usage(
+      "verify [-as] [-d dump_address | dump_blocks | dump_history | dump_layout | dump_offsets=#,# "
+      "| dump_pages] [uri]",
+      "options:", options);
+
+    return (1);
+}
 
 int
 util_verify(WT_SESSION *session, int argc, char *argv[])
@@ -114,16 +127,4 @@ err:
     free(config);
     free(uri);
     return (ret);
-}
-
-static int
-usage(void)
-{
-    (void)fprintf(stderr,
-      "usage: %s %s "
-      "verify %s\n",
-      progname, usage_prefix,
-      "[-d dump_address | dump_blocks | dump_history | dump_layout | "
-      "dump_offsets=#,# | dump_pages] [-s] -a|uri");
-    return (1);
 }
