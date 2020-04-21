@@ -1340,6 +1340,15 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
         if (WT_IS_METADATA(op->btree->dhandle))
             continue;
 
+        /*
+         * Logged table updates should never be prepared. As these updates are immediate durable, it
+         * is not possible to rollback them in case if the prepared transaction is rollback-ed.
+         */
+        if (F_ISSET(op->btree, WT_BTREE_NO_LOGGING) &&
+          (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) ||
+              F_ISSET(S2C(session), WT_CONN_IN_MEMORY)))
+            WT_RET_MSG(session, EINVAL, "prepare timestamp is not supported on logged tables");
+
         switch (op->type) {
         case WT_TXN_OP_NONE:
             break;
