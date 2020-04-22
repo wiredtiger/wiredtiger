@@ -57,7 +57,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
 
     /* If we can do an in-memory split, do it. */
-    if (__wt_leaf_page_can_split(session, ref, page))
+    if (__wt_leaf_page_can_split(session, ref))
         return (true);
     if (footprint < btree->maxmempage)
         return (false);
@@ -330,7 +330,7 @@ read:
              * skip forced eviction if the page can't split.
              */
             if (F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
-              !__wt_leaf_page_can_split(session, ref, ref->page))
+              !__wt_leaf_page_can_split(session, ref))
                 goto skip_evict;
 
             /*
