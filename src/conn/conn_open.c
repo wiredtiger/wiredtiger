@@ -199,6 +199,7 @@ int
 __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_DECL_RET;
+
     /*
      * Start the optional statistics thread. Start statistics first so that other optional threads
      * can know if statistics are enabled or not.
