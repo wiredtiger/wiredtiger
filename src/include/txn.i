@@ -769,12 +769,12 @@ __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp, size_t *siz
  *     Get the first visible update in a list (or NULL if none are visible).
  */
 static inline int
-__wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **updp)
+__wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE_VIEW *upd_view)
 {
     WT_VISIBLE_TYPE upd_visible;
     uint8_t type;
 
-    *updp = NULL;
+    WT_CLEAR(*upd_view);
 
     for (; upd != NULL; upd = upd->next) {
         WT_ORDERED_READ(type, upd->type);
@@ -791,7 +791,10 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
               F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE) &&
               (upd->start_ts != WT_TS_NONE || upd->txnid != WT_TXN_NONE))
                 continue;
-            *updp = upd;
+            /* Don't own the memory. */
+            upd_view->buf.data = upd->data;
+            upd_view->buf.size = upd->size;
+            upd_view->type = upd->type;
             return (0);
         }
         if (upd_visible == WT_VISIBLE_PREPARE)
@@ -809,20 +812,22 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
  */
 static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno,
-  WT_UPDATE *upd, WT_CELL_UNPACK *vpack, WT_UPDATE **updp)
+  WT_UPDATE *upd, WT_CELL_UNPACK *vpack, WT_UPDATE_VIEW *upd_view)
 {
     WT_DECL_RET;
     WT_ITEM buf;
     WT_TIME_PAIR start, stop;
 
-    *updp = NULL;
-    WT_RET(__wt_txn_read_upd_list(session, upd, updp));
-    if (*updp != NULL)
+    WT_CLEAR(*upd_view);
+    WT_RET(__wt_txn_read_upd_list(session, upd, upd_view));
+    if (upd_view->buf.data != NULL || upd_view->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
     /* If there is no ondisk value, there can't be anything in the history store either. */
-    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX)
-        return (__wt_upd_alloc_tombstone(session, updp, NULL));
+    if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
+        upd_view->type = WT_UPDATE_TOMBSTONE;
+        return (0);
+    }
 
     buf.data = NULL;
     buf.size = 0;
@@ -855,43 +860,27 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
       (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE)) &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
         __wt_buf_free(session, &buf);
-        WT_RET(__wt_upd_alloc_tombstone(session, updp, NULL));
-        (*updp)->txnid = stop.txnid;
-        /* FIXME: Reevaluate this as part of PM-1524. */
-        (*updp)->durable_ts = (*updp)->start_ts = stop.timestamp;
-        F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
+        upd_view->type = WT_UPDATE_TOMBSTONE;
         return (0);
     }
 
-    /*
-     * If the start time pair is visible then we need to return the ondisk value.
-     *
-     * FIXME-PM-1521: This should be probably be re-factored to return a buffer of bytes rather than
-     * an update. This allocation is expensive and doesn't serve a purpose other than to work within
-     * the current system.
-     */
+    /* If the start time pair is visible then we need to return the ondisk value. */
     if (__wt_txn_visible(session, start.txnid, start.timestamp)) {
-        ret = __wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, updp, NULL);
-        __wt_buf_free(session, &buf);
-        WT_RET(ret);
-        (*updp)->txnid = start.txnid;
-        (*updp)->start_ts = start.timestamp;
-        F_SET((*updp), WT_UPDATE_RESTORED_FROM_DISK);
+        upd_view->buf = buf;
+        upd_view->type = WT_UPDATE_STANDARD;
         return (0);
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS)) {
-        ret = __wt_find_hs_upd(session, key, recno, updp, false, &buf);
+        ret = __wt_find_hs_upd(session, key, recno, upd_view, false, &buf);
         __wt_buf_free(session, &buf);
         WT_RET_NOTFOUND_OK(ret);
     }
 
     __wt_buf_free(session, &buf);
-    /*
-     * Return null not tombstone if nothing is found in history store.
-     */
-    WT_ASSERT(session, (*updp) == NULL || (*updp)->type != WT_UPDATE_TOMBSTONE);
+    /* Return invalid not tombstone if nothing is found in history store. */
+    WT_ASSERT(session, upd_view->type != WT_UPDATE_TOMBSTONE);
 
     /*
      * FIXME-PM-1521: We call transaction read in a lot of places so we can't do this yet. When we

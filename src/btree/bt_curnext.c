@@ -16,7 +16,7 @@ static inline int
 __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
+    WT_UPDATE_VIEW upd_view;
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
 
@@ -58,28 +58,13 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->iface.value.data = &cbt->v;
     } else {
 restart_read:
-        WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd));
-        if (upd == NULL) {
+        WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd_view));
+        if (upd_view.type == WT_UPDATE_INVALID) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
-        } else {
-            /*
-             * If this update has been restored from the disk, it needs to be freed after copying it
-             * to the user cursor.
-             */
-            if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK)) {
-                switch (upd->type) {
-                case WT_UPDATE_TOMBSTONE:
-                    cbt->iface.value.data = upd->data;
-                    __wt_free_update_list(session, &upd);
-                    break;
-                default:
-                    return (__wt_value_return(cbt, upd));
-                }
-            }
-            if (upd != NULL)
-                cbt->iface.value.data = upd->data;
-        }
+        } else
+            /* Ownership should get transferred here. */
+            cbt->iface.value = upd_view.buf;
     }
     cbt->iface.value.size = 1;
     return (0);

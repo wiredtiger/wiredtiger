@@ -354,10 +354,10 @@ __wt_cursor_disable_bulk(WT_SESSION_IMPL *session)
  *     Return a page referenced key/value pair to the application.
  */
 static inline int
-__cursor_kv_return(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__cursor_kv_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
 {
     WT_RET(__wt_key_return(cbt));
-    WT_RET(__wt_value_return(cbt, upd));
+    WT_RET(__wt_value_return(cbt, upd_view));
 
     return (0);
 }

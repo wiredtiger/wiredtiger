@@ -865,7 +865,7 @@ __hs_restore_read_timestamp(WT_SESSION_IMPL *session)
  *     prepare conflict will be returned upon reading a prepared update.
  */
 int
-__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDATE **updp,
+__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDATE_VIEW *upd_view,
   bool allow_prepare, WT_ITEM *on_disk_buf)
 {
     WT_CURSOR *hs_cursor;
@@ -885,7 +885,9 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     int cmp;
     bool is_owner, modify;
 
-    *updp = NULL;
+    // tetsuo-cpp: Just assert this with a macro instead. One of the hotspots was memset so try not
+    // to do this all the time.
+    WT_CLEAR(*upd_view);
 
     hs_cursor = NULL;
     mod_upd = upd = NULL;
@@ -1031,19 +1033,12 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
         WT_STAT_CONN_INCR(session, cache_hs_read_squash);
     }
 
-    /* Allocate an update structure for the record found. */
-    WT_ERR(__wt_upd_alloc(session, hs_value, upd_type, &upd, NULL));
-    upd->txnid = WT_TXN_NONE;
-    upd->durable_ts = durable_timestamp;
-    upd->start_ts = hs_start_ts;
-    upd->prepare_state = upd->start_ts == upd->durable_ts ? WT_PREPARE_INIT : WT_PREPARE_RESOLVED;
-
     /*
-     * We're not keeping this in our update list as we want to get rid of it after the read has been
-     * dealt with. Mark this update as external and to be discarded when not needed.
+     * tetsuo-cpp: Remove this memcpy. Shouldn't be hard, just need to fiddle with the handling
+     * beneath the error tag.
      */
-    F_SET(upd, WT_UPDATE_RESTORED_FROM_DISK);
-    *updp = upd;
+    WT_ERR(__wt_buf_set(session, &upd_view->buf, hs_value->data, hs_value->size));
+    upd_view->type = upd_type;
 
 done:
 err:

@@ -1122,6 +1122,17 @@ struct __wt_update {
 #define WT_UPDATE_MEMSIZE(upd) WT_ALIGN(WT_UPDATE_SIZE + (upd)->size, 32)
 
 /*
+ * WT_UPDATE_VIEW --
+ *
+ * Think of a good name. I may be able to just use WT_ITEM if I do squashing within the transaction
+ * read boundary. Let's revisit that when we've got things working.
+ */
+struct __wt_update_view {
+    WT_ITEM buf;
+    uint8_t type;
+};
+
+/*
  * WT_MAX_MODIFY_UPDATE, WT_MODIFY_VECTOR_STACK_SIZE
  *	Limit update chains value to avoid penalizing reads and permit truncation. Having a smaller
  * value will penalize the cases when history has to be maintained, resulting in multiplying cache

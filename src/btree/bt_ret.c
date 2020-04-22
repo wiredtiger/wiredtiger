@@ -240,7 +240,7 @@ __value_return(WT_CURSOR_BTREE *cbt)
  *     Change the cursor to reference an internal update structure return value.
  */
 int
-__wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -258,19 +258,15 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
      *
      * Fast path if it's a standard item, assert our caller's behavior.
      */
-    if (upd->type == WT_UPDATE_STANDARD) {
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK)) {
-            /* Copy an external update, and delete after using it */
-            WT_RET(__wt_buf_set(session, &cursor->value, upd->data, upd->size));
-            __wt_free_update_list(session, &upd);
-        } else {
-            cursor->value.data = upd->data;
-            cursor->value.size = upd->size;
-        }
+    if (upd_view->type == WT_UPDATE_STANDARD) {
+        /* Ownership should get transferred as appropriate. */
+        cursor->value = upd_view->buf;
         return (0);
     }
-    WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
+    WT_ASSERT(session, upd_view->type == WT_UPDATE_MODIFY);
 
+/* tetsuo-cpp: This all needs to happen within the __wt_txn_read boundary. */
+#if 0
     /*
      * Find a complete update.
      */
@@ -320,6 +316,7 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 
 err:
     __wt_modify_vector_free(&modifies);
+#endif
     return (ret);
 }
 
@@ -355,17 +352,18 @@ __wt_key_return(WT_CURSOR_BTREE *cbt)
  *     Change the cursor to reference an internal return value.
  */
 int
-__wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
 {
     WT_CURSOR *cursor;
 
     cursor = &cbt->iface;
 
     F_CLR(cursor, WT_CURSTD_VALUE_EXT);
-    if (upd == NULL)
+    /* tetsuo-cpp: Do we even need this code path? Maybe just start returning tombstones. */
+    if (upd_view->type == WT_UPDATE_INVALID)
         WT_RET(__value_return(cbt));
     else
-        WT_RET(__wt_value_return_upd(cbt, upd));
+        WT_RET(__wt_value_return_upd(cbt, upd_view));
     F_SET(cursor, WT_CURSTD_VALUE_INT);
     return (0);
 }
