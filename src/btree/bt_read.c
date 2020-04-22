@@ -135,8 +135,8 @@ __row_page_prepare_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
         if (unpack.newest_stop_ts == WT_TS_MAX && unpack.newest_stop_txn == WT_TXN_MAX) {
             /*
-             * If a value is simple(no compression), and is globally visible at the time of reading a
-             * page into cache, we encode its location into the WT_ROW.
+             * If a value is simple(no compression), and is globally visible at the time of reading
+             * a page into cache, we encode its location into the WT_ROW.
              */
             if (!__wt_row_leaf_value(page, rip, &buf))
                 /* Take the value from the original page cell. */
@@ -147,7 +147,7 @@ __row_page_prepare_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
             upd->start_ts = unpack.start_ts;
             upd->txnid = unpack.start_txn;
         } else {
-            WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &upd, &size));
+            WT_ERR(__wt_upd_alloc_tombstone(session, &upd, &size));
             upd->durable_ts = unpack.durable_stop_ts;
             upd->start_ts = unpack.stop_ts;
             upd->txnid = unpack.stop_txn;

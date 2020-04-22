@@ -676,9 +676,10 @@ __txn_fixup_history_store(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *cu
      * Otherwise remove the key by adding a tombstone.
      */
     if (commit) {
-        WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &hs_upd, NULL));
+        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         hs_upd->durable_ts = hs_upd->start_ts = txn->durable_timestamp;
         WT_ERR(__wt_hs_modify(hs_cbt, hs_upd));
+        hs_upd = NULL;
     } else {
         WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, NULL));
 
@@ -1345,7 +1346,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
          */
         if (!F_ISSET(op->btree, WT_BTREE_NO_LOGGING) &&
           (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) ||
-              F_ISSET(S2C(session), WT_CONN_IN_MEMORY)))
+            F_ISSET(S2C(session), WT_CONN_IN_MEMORY)))
             WT_RET_MSG(session, EINVAL, "prepare timestamp is not supported on logged tables");
 
         switch (op->type) {

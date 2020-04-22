@@ -9,16 +9,17 @@
 #include "wt_internal.h"
 
 /*
- * __rec_update_stable --
- *     Return whether an update is stable or not.
+ * __rec_update_stable_or_prepared --
+ *     Return whether an update is stable or prepared or not.
  */
 static inline bool
-__rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
+__rec_update_stable_or_prepared(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
 {
     return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
         __wt_txn_upd_visible_all(session, upd) :
-        __wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE &&
-          __wt_txn_visible(session, upd->txnid, upd->start_ts));
+        (__wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_PREPARE ||
+          (__wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE &&
+            __wt_txn_visible(session, upd->txnid, upd->start_ts))));
 }
 
 /*
@@ -251,7 +252,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 
-        if (!__rec_update_stable(session, r, upd)) {
+        if (!__rec_update_stable_or_prepared(session, r, upd)) {
             if (F_ISSET(r, WT_REC_EVICT))
                 ++r->updates_unstable;
 
@@ -437,7 +438,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      *
      * Additionally history store reconciliation is not set skip saving an update.
      */
-    if (__rec_need_save_upd(session, r, upd_select, has_newer_updates)) {
+    if (upd_select->prepare || __rec_need_save_upd(session, r, upd_select, has_newer_updates)) {
         /*
          * We should restore the update chains to the new disk image if there are newer updates in
          * eviction, or for cases that don't support history store, such as in-memory database and
