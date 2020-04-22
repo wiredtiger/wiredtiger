@@ -1348,7 +1348,7 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
         __wt_btcur_open(&cbt);
         ret = __verify_history_store_id(session, &cbt, btree_id);
         WT_TRET(__wt_btcur_close(&cbt, false));
-        WT_ERR(ret);
+        WT_ERR_NOTFOUND_OK(ret, false);
     }
     ret = 0;
 err:
