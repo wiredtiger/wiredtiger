@@ -613,7 +613,7 @@ __txn_fixup_history_store(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *cu
     WT_UPDATE *hs_upd, *upd;
     wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts;
     uint64_t hs_counter, type_full;
-    uint32_t hs_btree_id, session_flags;
+    uint32_t hs_btree_id, session_flags, txn_flags;
     int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool is_owner;
@@ -626,6 +626,13 @@ __txn_fixup_history_store(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *cu
     hs_btree_id = S2BT(session)->id;
     session_flags = 0;
     is_owner = false;
+
+    /*
+     * Transaction error and prepare are cleared temporarily as cursor functions are not allowed
+     * after an error or a prepared transaction.
+     */
+    txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR | WT_TXN_PREPARE);
+    F_CLR(txn, txn_flags);
 
     /* Allocate buffers for the data store and history store key. */
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
@@ -719,6 +726,7 @@ err:
     __wt_free(session, hs_upd);
     __wt_free(session, upd);
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
+    F_SET(txn, txn_flags);
 
     return (ret);
 }
