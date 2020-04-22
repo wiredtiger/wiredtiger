@@ -612,7 +612,6 @@ __txn_fixup_history_store(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *cu
     WT_TXN *txn;
     WT_UPDATE *hs_upd, *upd;
     wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts;
-    size_t size;
     uint64_t hs_counter, type_full;
     uint32_t hs_btree_id, session_flags;
     int cmp;
@@ -677,11 +676,11 @@ __txn_fixup_history_store(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *cu
      * Otherwise remove the key by adding a tombstone.
      */
     if (commit) {
-        WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &size, WT_UPDATE_TOMBSTONE));
+        WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &hs_upd, NULL));
         hs_upd->durable_ts = hs_upd->start_ts = txn->durable_timestamp;
         WT_ERR(__wt_hs_modify(hs_cbt, hs_upd));
     } else {
-        WT_ERR(__wt_update_alloc(session, hs_value, &upd, &size, WT_UPDATE_STANDARD));
+        WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, NULL));
 
         upd->txnid = WT_TXN_NONE;
         upd->durable_ts = durable_ts;
@@ -708,7 +707,7 @@ __txn_fixup_history_store(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *cu
         upd = NULL;
 
         /* Remove the restored update from history store. */
-        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
+        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(hs_cbt, hs_upd));
         hs_upd = NULL;
     }

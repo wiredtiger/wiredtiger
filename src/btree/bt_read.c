@@ -142,12 +142,12 @@ __row_page_prepare_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 /* Take the value from the original page cell. */
                 WT_ERR(__wt_page_cell_data_ref(session, page, &unpack, &buf));
 
-            WT_ERR(__wt_update_alloc(session, &buf, &upd, &size, WT_UPDATE_STANDARD));
+            WT_ERR(__wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, &upd, &size));
             upd->durable_ts = unpack.durable_start_ts;
             upd->start_ts = unpack.start_ts;
             upd->txnid = unpack.start_txn;
         } else {
-            WT_ERR(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
+            WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &upd, &size));
             upd->durable_ts = unpack.durable_stop_ts;
             upd->start_ts = unpack.stop_ts;
             upd->txnid = unpack.stop_txn;
