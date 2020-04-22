@@ -279,9 +279,6 @@ struct __wt_page_modify {
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
-    /* Stable timestamp at last reconciliation. */
-    wt_timestamp_t last_stable_timestamp;
-
     /* The largest update transaction ID (approximate). */
     uint64_t update_txn;
 

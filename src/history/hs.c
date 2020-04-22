@@ -362,7 +362,6 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_UPDATE *hs_upd, *upd_local;
-    size_t notused;
     uint32_t session_flags;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
@@ -382,7 +381,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
          * Insert a delete record to represent stop time pair for the actual record to be inserted.
          * Set the stop time pair as the commit time pair of the history store delete record.
          */
-        WT_ERR(__wt_update_alloc(session, NULL, &hs_upd, &notused, WT_UPDATE_TOMBSTONE));
+        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         hs_upd->start_ts = stop_ts_pair.timestamp;
         hs_upd->durable_ts = stop_ts_pair.timestamp;
         hs_upd->txnid = stop_ts_pair.txnid;
@@ -392,7 +391,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
      * Append to the delete record, the actual record to be inserted into the history store. Set the
      * current update start time pair as the commit time pair to the history store record.
      */
-    WT_ERR(__wt_update_alloc(session, &cursor->value, &upd_local, &notused, WT_UPDATE_STANDARD));
+    WT_ERR(__wt_upd_alloc(session, &cursor->value, WT_UPDATE_STANDARD, &upd_local, NULL));
     upd_local->start_ts = upd->start_ts;
     upd_local->durable_ts = upd->durable_ts;
     upd_local->txnid = upd->txnid;
@@ -902,7 +901,6 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, hs_start_ts, hs_start_ts_tmp;
     wt_timestamp_t hs_stop_ts, hs_stop_ts_tmp, read_timestamp;
-    size_t notused, size;
     uint64_t hs_counter, hs_counter_tmp, upd_type_full;
     uint32_t hs_btree_id, session_flags;
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
@@ -916,7 +914,6 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     orig_hs_value_buf = NULL;
     __wt_modify_vector_init(session, &modifies);
     txn = session->txn;
-    notused = size = 0;
     hs_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     WT_NOT_READ(modify, false);
@@ -991,7 +988,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
         /* Store this so that we don't have to make a special case for the first modify. */
         hs_stop_ts_tmp = hs_stop_ts;
         while (upd_type == WT_UPDATE_MODIFY) {
-            WT_ERR(__wt_update_alloc(session, hs_value, &mod_upd, &notused, upd_type));
+            WT_ERR(__wt_upd_alloc(session, hs_value, upd_type, &mod_upd, NULL));
             WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
             mod_upd = NULL;
 
@@ -1057,7 +1054,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     }
 
     /* Allocate an update structure for the record found. */
-    WT_ERR(__wt_update_alloc(session, hs_value, &upd, &size, upd_type));
+    WT_ERR(__wt_upd_alloc(session, hs_value, upd_type, &upd, NULL));
     upd->txnid = WT_TXN_NONE;
     upd->durable_ts = durable_timestamp;
     upd->start_ts = hs_start_ts;
@@ -1218,7 +1215,6 @@ __hs_delete_key_from_pos(
     WT_ITEM hs_key;
     WT_UPDATE *upd;
     wt_timestamp_t hs_start_ts;
-    size_t size;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
     int cmp;
@@ -1247,7 +1243,7 @@ __hs_delete_key_from_pos(
          * Append a globally visible tombstone to the update list. This will effectively make the
          * value invisible and the key itself will eventually get removed during reconciliation.
          */
-        WT_RET(__wt_update_alloc(session, NULL, &upd, &size, WT_UPDATE_TOMBSTONE));
+        WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
         upd->txnid = WT_TXN_NONE;
         upd->start_ts = upd->durable_ts = WT_TS_NONE;
         WT_ERR(__wt_hs_modify(hs_cbt, upd));
