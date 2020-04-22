@@ -209,7 +209,7 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /* Initialize metadata tracking, required before creating tables. */
     WT_RET(__wt_meta_track_init(session));
 
-    /* Create the history store table. */
+    /* Try to create the history store table. */
     ret = __wt_hs_create(session, cfg);
 
     if (ret != 0 && ret != ENOENT && ret != WT_NOTFOUND)
@@ -222,7 +222,7 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_txn_recover(session));
 
-    /* Create the history store table if we fail to create before recovery. */
+    /* Try to create the history store table if we failed to create it before recovery. */
     if (ret != 0)
         WT_RET(__wt_hs_create(session, cfg));
 
