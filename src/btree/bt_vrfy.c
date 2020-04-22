@@ -295,7 +295,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * the loop and re-acquire it here.
              */
             WT_TRET(__wt_evict_file_exclusive_on(session));
-
             WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
         }
 
