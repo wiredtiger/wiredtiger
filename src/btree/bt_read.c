@@ -127,10 +127,21 @@ __row_page_prepare_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Ignore retrieving the updates that are not prepared. */
         if (!F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE))
             continue;
+        /*
+         * Clear the remove operation from the key by inserting the original on-disk value as a
+         * standard update.
+         */
+        WT_CLEAR(buf);
 
         if (unpack.newest_stop_ts == WT_TS_MAX && unpack.newest_stop_txn == WT_TXN_MAX) {
-            buf.data = unpack.data;
-            buf.size = unpack.size;
+            /*
+             * If a value is simple(no compression), and is globally visible at the time of reading a
+             * page into cache, we encode its location into the WT_ROW.
+             */
+            if (!__wt_row_leaf_value(page, rip, &buf))
+                /* Take the value from the original page cell. */
+                WT_ERR(__wt_page_cell_data_ref(session, page, &unpack, &buf));
+
             WT_ERR(__wt_update_alloc(session, &buf, &upd, &size, WT_UPDATE_STANDARD));
             upd->durable_ts = unpack.durable_start_ts;
             upd->start_ts = unpack.start_ts;
