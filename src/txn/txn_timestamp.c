@@ -417,7 +417,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG_ITEM cval;
     WT_CONFIG_ITEM durable_cval, oldest_cval, stable_cval;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t durable_ts, oldest_ts, stable_ts;
+    wt_timestamp_t durable_ts, oldest_ts, oldest_ckpt_ts, stable_ts;
     wt_timestamp_t last_oldest_ts, last_stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool force, has_durable, has_oldest, has_stable;
@@ -442,8 +442,13 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
             WT_STAT_CONN_INCR(session, txn_set_ts_durable);
     }
 
+    /*
+     * The minimum valid oldest timestamp is the oldest start timestamp in the history store
+     * checkpoint list.
+     */
     WT_RET(__wt_config_gets_def(session, cfg, "oldest_timestamp", 0, &oldest_cval));
-    has_oldest = oldest_cval.len != 0;
+    WT_RET_NOTFOUND_OK(__wt_meta_get_oldest_ckpt_timestamp(session, WT_HS_URI, &oldest_ckpt_ts));
+    has_oldest = oldest_cval.len != 0 || oldest_ckpt_ts != WT_TS_NONE;
     if (has_oldest)
         WT_STAT_CONN_INCR(session, txn_set_ts_oldest);
 
@@ -462,6 +467,20 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_txn_parse_timestamp(session, "durable", &durable_ts, &durable_cval));
     WT_RET(__wt_txn_parse_timestamp(session, "oldest", &oldest_ts, &oldest_cval));
     WT_RET(__wt_txn_parse_timestamp(session, "stable", &stable_ts, &stable_cval));
+
+    /*
+     * Set the global oldest timestamp to the greater of the supplied oldest timestamp and the
+     * oldest timestamp in the history store checkpoint list. If the checkpoint oldest timestamp is
+     * used, ensure the stable timestamp is at least as large.
+     */
+    if (oldest_ckpt_ts > oldest_ts) {
+        oldest_ts = oldest_ckpt_ts;
+        stable_ts = WT_MAX(stable_ts, oldest_ts);
+        __wt_verbose(session, WT_VERB_TIMESTAMP,
+          "supplied oldest timestamp %s set to checkpoint oldest timestamp %s",
+          __wt_timestamp_to_string(oldest_ts, ts_string[0]),
+          __wt_timestamp_to_string(oldest_ckpt_ts, ts_string[1]));
+    }
 
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;
