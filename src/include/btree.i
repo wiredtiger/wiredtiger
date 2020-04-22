@@ -1215,22 +1215,20 @@ __wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
  *     Check whether a page can be split in memory.
  */
 static inline bool
-__wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page)
 {
     WT_BTREE *btree;
     WT_INSERT *ins;
     WT_INSERT_HEAD *ins_head;
-    WT_REF *ref;
     size_t size;
     int count;
 
     btree = S2BT(session);
 
-    ref = page->pg_intl_parent_ref;
     /*
      * We can avoid splitting a page if the page has already been marked to be deleted.
      */
-    if (ref != NULL && ref->page_del != NULL)
+    if (ref->page_del != NULL)
         return (false);
 
     /*
@@ -1398,7 +1396,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * return success immediately and skip more detailed eviction tests. We don't need further tests
      * since the page won't be written or discarded from the cache.
      */
-    if (__wt_leaf_page_can_split(session, page)) {
+    if (__wt_leaf_page_can_split(session, ref, page)) {
         if (inmem_splitp != NULL)
             *inmem_splitp = true;
         return (true);
