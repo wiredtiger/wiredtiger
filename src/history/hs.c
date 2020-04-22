@@ -205,8 +205,6 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
 int
 __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags, bool *is_owner)
 {
-    /* We should never reach here if working in context of the default session. */
-    WT_ASSERT(session, S2C(session)->default_session != session);
 
     /*
      * We don't want to get tapped for eviction after we start using the history store cursor; save
@@ -1292,12 +1290,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         WT_ERR(__cursor_reset(cbt));
 
         if (!found)
-            /*
-             * Although WT_NOTFOUND makes sense, it is already in use when we reach the end of the
-             * table and callers use that for that purpose. If we find an inconsistency here,
-             * return a different error instead.
-             */
-            WT_ERR_MSG(session, WT_ERROR,
+            WT_ERR_MSG(session, WT_PANIC,
               "the associated history store key %s was not found in the data store %s",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key),
               session->dhandle->name);
@@ -1339,9 +1332,9 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
     memset(&hs_key, 0, sizeof(hs_key));
     cursor->set_key(cursor, btree_id, &hs_key, 0, 0, 0, 0);
     ret = cursor->search_near(cursor, &exact);
-    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret == 0 && exact < 0)
         ret = cursor->next(cursor);
+    WT_ERR_NOTFOUND_OK(ret, true);
 
     /* If we positioned the cursor there is something to verify. */
     if (ret != WT_NOTFOUND) {
@@ -1374,6 +1367,9 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
     char *uri_data;
     bool is_owner, stop;
 
+    /* We should never reach here if working in context of the default session. */
+    WT_ASSERT(session, S2C(session)->default_session != session);
+
     cursor = data_cursor = NULL;
     btree_id = WT_BTREE_ID_INVALID;
     session_flags = 0; /* [-Wconditional-uninitialized] */
@@ -1385,6 +1381,7 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
     WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
     cursor = session->hs_cursor;
     ret = cursor->next(cursor);
+    WT_ERR_NOTFOUND_OK(ret, true);
     stop = ret == WT_NOTFOUND ? true : false;
     ret = 0;
 
@@ -1399,7 +1396,7 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
          */
         WT_ERR(cursor->get_key(cursor, &btree_id, hs_key, &hs_start_ts, &hs_counter));
         if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0)
-            WT_ERR_MSG(session, ret,
+            WT_ERR_MSG(session, WT_PANIC,
               "Unable to find btree id %" PRIu32
               " in the metadata file for the associated history store key %s",
               btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, buf));

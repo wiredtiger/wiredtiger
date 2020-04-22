@@ -286,7 +286,6 @@ open:
     }
     config = p;
 
-    /* Open the database and a session. */
     if ((ret = wiredtiger_open(home, verbose ? verbose_handler : NULL, config, &conn)) != 0) {
         (void)util_err(NULL, ret, NULL);
         goto err;
@@ -301,7 +300,7 @@ open:
         goto err;
     }
 
-    /* Call the function. */
+    /* Call the function after opening the database and session. */
     ret = func(session, argc, argv);
 
     if (0) {

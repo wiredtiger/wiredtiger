@@ -187,10 +187,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * metadata file is verified before we verify the history store, and it makes no sense to verify
      * the history store against itself.
      */
-    if (strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0)
-        skip_hs = true;
-    else
-        skip_hs = false;
+    skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0;
 
     WT_CLEAR(_vstuff);
     vs = &_vstuff;
@@ -284,6 +281,11 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
                 WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
                 WT_TRET(__wt_history_store_verify_one(session));
                 WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
+                /*
+                 * We cannot error out here. If we got an error verifying the history store, we need
+                 * to follow through with reacquiring the exclusive call below. We'll error out
+                 * after that and unloading this checkpoint.
+                 */
             }
 
             /*

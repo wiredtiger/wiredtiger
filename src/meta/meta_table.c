@@ -322,46 +322,6 @@ err:
 }
 
 /*
- * __wt_metadata_salvage --
- *     Salvage the metadata file. This is a destructive operation. Save a copy of the original
- *     metadata.
- */
-int
-__wt_metadata_salvage(WT_SESSION_IMPL *session)
-{
-    WT_SESSION *wt_session;
-
-    wt_session = &session->iface;
-    /*
-     * Copy the original metadata.
-     */
-    WT_RET(__wt_copy_and_sync(wt_session, WT_METAFILE, WT_METAFILE_SLVG));
-
-    /*
-     * Now salvage the metadata. We know we're in wiredtiger_open and single threaded.
-     */
-    WT_RET(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
-    return (0);
-}
-
-/*
- * __wt_metadata_verify --
- *     Verify the metadata file.
- */
-int
-__wt_metadata_verify(WT_SESSION_IMPL *session)
-{
-    WT_SESSION *wt_session;
-
-    wt_session = &session->iface;
-    /*
-     * Now verify the metadata. We know we're in wiredtiger_open and single threaded.
-     */
-    WT_RET(wt_session->verify(wt_session, WT_METAFILE_URI, NULL));
-    return (0);
-}
-
-/*
  * __wt_metadata_btree_id_to_uri --
  *     Given a btree id, find the matching entry in the metadata and return a copy of the uri. The
  *     caller has to free the returned uri.
