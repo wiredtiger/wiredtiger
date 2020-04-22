@@ -28,7 +28,7 @@
 
 import string, os, sys, random
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest, unittest
+import wiredtiger, wttest
 
 _python3 = (sys.version_info >= (3, 0, 0))
 
