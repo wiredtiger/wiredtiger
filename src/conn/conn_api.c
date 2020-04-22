@@ -2678,8 +2678,17 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     WT_ERR(__wt_metadata_cursor(session, NULL));
     /*
+     * Load any incremental backup information. This reads the metadata so must be done after the
+     * turtle file is initialized.
+     */
+    WT_ERR(__wt_backup_open(session));
+
+    /* Start the worker threads and run recovery. */
+    WT_ERR(__wt_connection_workers(session, cfg));
+
+    /*
      * If the user wants to verify WiredTiger metadata, verify the history store now that the
-     * metadata table may have been salvaged.
+     * metadata table may have been salvaged and eviction has been started and recovery run.
      */
     if (verify_meta) {
         WT_ERR(__wt_open_internal_session(conn, "verify hs", false, 0, &verify_session));
@@ -2688,15 +2697,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_TRET(wt_session->close(wt_session, NULL));
         WT_ERR(ret);
     }
-
-    /*
-     * Load any incremental backup information. This reads the metadata so must be done after the
-     * turtle file is initialized.
-     */
-    WT_ERR(__wt_backup_open(session));
-
-    /* Start the worker threads and run recovery. */
-    WT_ERR(__wt_connection_workers(session, cfg));
 
     /*
      * The default session should not open data handles after this point: since it can be shared
