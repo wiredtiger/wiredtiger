@@ -198,12 +198,22 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 int
 __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_DECL_RET;
     /*
      * Start the optional statistics thread. Start statistics first so that other optional threads
      * can know if statistics are enabled or not.
      */
     WT_RET(__wt_statlog_create(session, cfg));
     WT_RET(__wt_logmgr_create(session, cfg));
+
+    /* Initialize metadata tracking, required before creating tables. */
+    WT_RET(__wt_meta_track_init(session));
+
+    /* Create the history store table. */
+    ret = __wt_hs_create(session, cfg);
+
+    if (ret != 0 && ret != ENOENT && ret != WT_NOTFOUND)
+        return (ret);
 
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
@@ -212,18 +222,16 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_txn_recover(session));
 
+    /* Create the history store table if we fail to create before recovery. */
+    if (ret != 0)
+        WT_RET(__wt_hs_create(session, cfg));
+
     /*
      * Start the optional logging/archive threads. NOTE: The log manager must be started before
      * checkpoints so that the checkpoint server knows if logging is enabled. It must also be
      * started before any operation that can commit, or the commit can block.
      */
     WT_RET(__wt_logmgr_open(session));
-
-    /* Initialize metadata tracking, required before creating tables. */
-    WT_RET(__wt_meta_track_init(session));
-
-    /* Create the history store table. */
-    WT_RET(__wt_hs_create(session, cfg));
 
     /*
      * Start eviction threads. NOTE: Eviction must be started after the history store table is

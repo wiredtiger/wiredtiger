@@ -390,23 +390,27 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     # In many cases, wiredtiger_open without any salvage options will
     # just work.  We list those cases here.
     openable = [
+        "removal:WiredTigerHS.wt",
         "removal:WiredTiger.basecfg",
         "removal:WiredTiger.turtle",
         "truncate:WiredTiger",
+        "truncate:WiredTigerHS.wt",
         "truncate:WiredTiger.basecfg",
         "truncate-middle:WiredTiger",
+        "truncate-middle:WiredTigerHS.wt",
         "truncate-middle:WiredTiger.basecfg",
         "truncate-middle:WiredTiger.turtle",
         "truncate-middle:WiredTiger.wt",
-        "truncate-middle:WiredTigerHS.wt",
         "zero:WiredTiger",
+        "zero:WiredTigerHS.wt",
         "zero:WiredTiger.basecfg",
         "zero-end:WiredTiger",
+        "zero-end:WiredTigerHS.wt",
         "zero-end:WiredTiger.basecfg",
         "zero-end:WiredTiger.turtle",
         "zero-end:WiredTiger.wt",
-        "zero-end:WiredTigerHS.wt",
         "garbage-begin:WiredTiger",
+        "garbage-begin:WiredTigerHS.wt",
         "garbage-middle:WiredTiger",
         "garbage-middle:WiredTiger.basecfg",
         "garbage-middle:WiredTiger.turtle",
@@ -423,14 +427,10 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     not_salvageable = [
         "removal:WiredTiger.turtle",
         "removal:WiredTiger.wt",
-        "removal:WiredTigerHS.wt",
         "truncate:WiredTiger.wt",
-        "truncate:WiredTigerHS.wt",
         "zero:WiredTiger.wt",
-        "zero:WiredTigerHS.wt",
         "garbage-begin:WiredTiger.basecfg",
         "garbage-begin:WiredTiger.wt",
-        "garbage-begin:WiredTigerHS.wt",
         "garbage-end:WiredTiger.basecfg",
     ]
 
@@ -482,13 +482,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
             closeconn=False)
 
         if expect_fail:
-            errmsg = 'WT_TRY_SALVAGE: database corruption detected'
-            if self.filename == 'WiredTigerHS.wt':
-                if self.kind == 'removal':
-                    errmsg = 'handle-open'
-                elif self.kind == 'truncate':
-                    errmsg = 'file size=0, alloc size=4096'
-            self.check_file_contains_one_of(errfile, [errmsg])
+            self.check_file_contains_one_of(errfile, ['WT_TRY_SALVAGE: database corruption detected'])
 
     def test_corrupt_meta(self):
         errfile = 'list.err'
@@ -547,13 +541,10 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
                 # an error during the wiredtiger_open.  But the nature of the
                 # messages produced during the error is variable by which case
                 # it is, and even variable from system to system.
-                if self.filename == "WiredTigerHS.wt":
-                    self.run_wt_and_check(salvagedir, salvagedir + '_' + errfile, salvagedir + '_' + outfile, True)
-                else:
-                    with self.expectedStdoutPattern('.'):
-                        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                            lambda: self.reopen_conn(salvagedir, salvage_config),
-                            '/.*/')
+                with self.expectedStdoutPattern('.'):
+                    self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                        lambda: self.reopen_conn(salvagedir, salvage_config),
+                        '/.*/')
 
 if __name__ == '__main__':
     wttest.run()
