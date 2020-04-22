@@ -1306,7 +1306,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         hs_key = prev_hs_key;
         prev_hs_key = tmp;
     }
-    WT_ERR_NOTFOUND_OK(ret, false);
+    WT_ERR_NOTFOUND_OK(ret, true);
 err:
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &prev_hs_key);
@@ -1399,7 +1399,7 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
         WT_ERR(cursor->get_key(cursor, &btree_id, hs_key, &hs_start_ts, &hs_counter));
         if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0)
             WT_ERR_MSG(session, ret,
-              "Unable to find btree-id %" PRIu32
+              "Unable to find btree id %" PRIu32
               " in the metadata file for the associated history store key %s",
               btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, buf));
         WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &data_cursor));

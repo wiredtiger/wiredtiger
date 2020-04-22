@@ -181,7 +181,12 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     name = session->dhandle->name;
     bm_start = false;
     is_owner = false; /* -Wuninitialized */
-    /* Skip the history store explicit call if we're performing a metadata verification. */
+
+    /*
+     * Skip the history store explicit call if we're performing a metadata verification. The
+     * metadata file is verified before we verify the history store, and it makes no sense to verify
+     * the history store against itself.
+     */
     if (strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0)
         skip_hs = true;
     else

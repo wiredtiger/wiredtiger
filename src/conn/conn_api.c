@@ -2285,7 +2285,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_verify_session;
     WT_SESSION_IMPL *session, *verify_session;
-    bool config_base_set, try_salvage;
+    bool config_base_set, try_salvage, verify_meta;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
 
@@ -2656,11 +2656,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_turtle_init(session));
     WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
-    if (cval.val) {
+    verify_meta = cval.val;
+
+    /* Only verify the metadata file first. We will verify the history store table later.  */
+    if (verify_meta) {
         WT_ERR(__wt_open_internal_session(conn, "verify", false, 0, &verify_session));
         ret = __wt_metadata_verify(verify_session);
-        if (ret == 0)
-            ret = __wt_history_store_verify(verify_session);
         wt_verify_session = &verify_session->iface;
         WT_TRET(wt_verify_session->close(wt_verify_session, NULL));
         WT_ERR(ret);
@@ -2678,6 +2679,17 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_metadata_init_base_write_gen(session));
 
     WT_ERR(__wt_metadata_cursor(session, NULL));
+    /*
+     * If the user wants to verify WiredTiger tables, verify the history store now that the metadata
+     * table may have been salvaged.
+     */
+    if (verify_meta) {
+        WT_ERR(__wt_open_internal_session(conn, "verify hs", false, 0, &verify_session));
+        ret = __wt_history_store_verify(verify_session);
+        wt_verify_session = &verify_session->iface;
+        WT_TRET(wt_verify_session->close(wt_verify_session, NULL));
+        WT_ERR(ret);
+    }
 
     /*
      * Load any incremental backup information. This reads the metadata so must be done after the
