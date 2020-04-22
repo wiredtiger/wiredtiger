@@ -1295,9 +1295,9 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
             /*
              * Although WT_NOTFOUND makes sense, it is already in use when we reach the end of the
              * table and callers use that for that purpose. If we find an inconsistency here,
-             * return EINVAL instead.
+             * return a different error instead.
              */
-            WT_ERR_MSG(session, EINVAL,
+            WT_ERR_MSG(session, WT_ERROR,
               "the associated history store key %s was not found in the data store %s",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key),
               session->dhandle->name);
