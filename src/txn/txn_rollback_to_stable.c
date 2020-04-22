@@ -152,7 +152,6 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_ITEM full_value;
     WT_UPDATE *hs_upd, *upd;
     wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts, newer_hs_ts;
-    size_t size;
     uint64_t hs_counter, type_full;
     uint32_t hs_btree_id, session_flags;
     uint8_t type;
@@ -276,7 +275,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * Save it to verify against previous record.
          */
         newer_hs_ts = durable_ts;
-        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
+        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
@@ -288,7 +287,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * list. Otherwise remove the key by adding a tombstone.
          */
         if (valid_update_found) {
-            WT_ERR(__wt_update_alloc(session, &full_value, &upd, &size, WT_UPDATE_STANDARD));
+            WT_ERR(__wt_upd_alloc(session, &full_value, WT_UPDATE_STANDARD, &upd, NULL));
 
             upd->txnid = WT_TXN_NONE;
             upd->durable_ts = durable_ts;
@@ -304,7 +303,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
              */
             F_SET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK);
         } else {
-            WT_ERR(__wt_upd_alloc_tombstone(session, &upd));
+            WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
             __wt_verbose(session, WT_VERB_RTS, "%p: key removed", (void *)key);
         }
@@ -315,7 +314,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
     /* Finally remove that update from history store. */
     if (valid_update_found) {
-        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
+        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
@@ -345,7 +344,6 @@ __rollback_abort_row_ondisk_kv(
     WT_DECL_RET;
     WT_ITEM buf;
     WT_UPDATE *upd;
-    size_t size;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
 
     vpack = &_vpack;
@@ -365,7 +363,7 @@ __rollback_abort_row_ondisk_kv(
              * In-memory database don't have a history store to provide a stable update, so remove
              * the key.
              */
-            WT_RET(__wt_upd_alloc_tombstone(session, &upd));
+            WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
         }
     } else if (vpack->durable_stop_ts != WT_TS_NONE &&
@@ -384,7 +382,7 @@ __rollback_abort_row_ondisk_kv(
             /* Take the value from the original page cell. */
             WT_RET(__wt_page_cell_data_ref(session, page, vpack, &buf));
 
-        WT_RET(__wt_update_alloc(session, &buf, &upd, &size, WT_UPDATE_STANDARD));
+        WT_RET(__wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, &upd, NULL));
         upd->txnid = vpack->start_txn;
         upd->durable_ts = vpack->durable_start_ts;
         upd->start_ts = vpack->start_ts;
@@ -957,7 +955,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
           "rollback to stable history store cleanup of update with start timestamp: %s",
           __wt_timestamp_to_string(hs_start_ts, ts_string));
 
-        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd));
+        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
@@ -1131,9 +1129,14 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
     WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true,
       F_MASK(session, WT_SESSION_NO_LOGGING), &session));
 
-    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS);
+    /*
+     * Rollback to stable should ignore tombstones in the history store since it needs to scan the
+     * entire table sequentially.
+     */
+    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE | WT_SESSION_IGNORE_HS_TOMBSTONE);
     ret = __rollback_to_stable(session, cfg);
-    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS);
+    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE | WT_SESSION_IGNORE_HS_TOMBSTONE);
+    WT_RET(ret);
 
     /*
      * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to

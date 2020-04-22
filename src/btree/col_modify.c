@@ -39,22 +39,30 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
     append = logged = false;
 
     /*
-     * We should have EITHER:
-     * - A full update list to instantiate with.
-     * - An update to append the existing update list with.
+     * We should have one of the following:
+     * - A full update list to instantiate.
+     * - An update to append to the existing update list.
      * - A key/value pair to create an update with and append to the update list.
+     * - A key with no value to create a reserved or tombstone update to append to the update list.
+     *
+     * A "full update list" is distinguished from "an update" by checking whether it has a "next"
+     * update.
      */
-    WT_ASSERT(session, (value == NULL && upd_arg != NULL) || (value != NULL && upd_arg == NULL));
+    WT_ASSERT(
+      session, ((modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) &&
+                 value == NULL && upd_arg == NULL) ||
+        (!(modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) &&
+                 ((value == NULL && upd_arg != NULL) || (value != NULL && upd_arg == NULL))));
+
+    /* If we don't yet have a modify structure, we'll need one. */
+    WT_RET(__wt_page_modify_init(session, page));
+    mod = page->modify;
 
     if (upd_arg == NULL) {
-        if (modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) {
-            /*
-             * Fixed-size column-store doesn't have on-page deleted values, it's a nul byte.
-             */
-            if (modify_type == WT_UPDATE_TOMBSTONE && btree->type == BTREE_COL_FIX) {
-                modify_type = WT_UPDATE_STANDARD;
-                value = &col_fix_remove;
-            }
+        /* Fixed-size column-store doesn't have on-page deleted values, it's a nul byte. */
+        if (modify_type == WT_UPDATE_TOMBSTONE && btree->type == BTREE_COL_FIX) {
+            modify_type = WT_UPDATE_STANDARD;
+            value = &col_fix_remove;
         }
 
         /*
@@ -74,28 +82,19 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         }
     }
 
-    /* If we don't yet have a modify structure, we'll need one. */
-    WT_RET(__wt_page_modify_init(session, page));
-    mod = page->modify;
-
     /*
-     * If modifying a record not previously modified, but which is in the
-     * same update slot as a previously modified record, cursor.ins will
-     * not be set because there's no list of update records for this recno,
-     * but cursor.ins_head will be set to point to the correct update slot.
-     * Acquire the necessary insert information, then create a new update
-     * entry and link it into the existing list. We get here if a page has
-     * a single cell representing multiple records (the records have the
-     * same value), and then a record in the cell is updated or removed,
-     * creating the update list for the cell, and then a cursor iterates
-     * into that same cell to update/remove a different record. We find the
-     * correct slot in the update array, but we don't find an update list
-     * (because it doesn't exist), and don't have the information we need
-     * to do the insert. Normally, we wouldn't care (we could fail and do
-     * a search for the record which would configure everything for the
-     * insert), but range truncation does this pattern for every record in
-     * the cell, and the performance is terrible. For that reason, catch it
-     * here.
+     * If modifying a record not previously modified, but which is in the same update slot as a
+     * previously modified record, cursor.ins will not be set because there's no list of update
+     * records for this recno, but cursor.ins_head will be set to point to the correct update slot.
+     * Acquire the necessary insert information, then create a new update entry and link it into the
+     * existing list. We get here if a page has a single cell representing multiple records (the
+     * records have the same value), and then a record in the cell is updated or removed, creating
+     * the update list for the cell, and then a cursor iterates into that same cell to update/remove
+     * a different record. We find the correct slot in the update array, but we don't find an update
+     * list (because it doesn't exist), and don't have the information we need to do the insert.
+     * Normally, we wouldn't care (we could fail and do a search for the record which would
+     * configure everything for the insert), but range truncation does this pattern for every record
+     * in the cell, and the performance is terrible. For that reason, catch it here.
      */
     if (cbt->ins == NULL && cbt->ins_head != NULL) {
         cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno);
@@ -129,7 +128,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
             WT_ERR(__wt_txn_update_check(session, cbt, old_upd));
 
             /* Allocate a WT_UPDATE structure and transaction ID. */
-            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
+            WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;
         } else {
@@ -184,7 +183,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
             (recno != WT_RECNO_OOB && mod->mod_col_split_recno > recno));
 
         if (upd_arg == NULL) {
-            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
+            WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;
 

@@ -25,30 +25,47 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
 
-import os
-from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+from runner import *
+from wiredtiger import *
+from workgen import *
 
-# test_util04.py
-#    Utilities: wt drop
-class test_util04(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_util04.a'
-    nentries = 1000
+def show(tname, s):
+    print('')
+    print('<><><><> ' + tname + ' <><><><>')
+    c = s.open_cursor(tname, None)
+    for k,v in c:
+        print('key: ' + k)
+        print('value: ' + v)
+    print('<><><><><><><><><><><><>')
+    c.close()
 
-    def test_drop_process(self):
-        """
-        Test drop in a 'wt' process
-        """
-        params = 'key_format=S,value_format=S'
-        self.session.create('table:' + self.tablename, params)
+def create_compat_config(args):
+    if args.release == "4.4":
+        return ',compatibility=(release="3.3", require_min="3.2.0")'
+    elif args.release == "4.2":
+        return ',compatibility=(release="3.2", require_max="3.3.0")'
+    else:
+        return ''
 
-        self.assertTrue(os.path.exists(self.tablename + ".wt"))
-        self.runWt(["drop", "table:" + self.tablename])
+context = Context()
+context.parser.add_argument("--release", dest="release", type=str,
+  choices=["4.2", "4.4"], help="The WiredTiger version")
+context.initialize()   # parse the arguments.
+conn = context.wiredtiger_open("create,cache_size=1G," + create_compat_config(context.args))
 
-        self.assertFalse(os.path.exists(self.tablename + ".wt"))
-        self.assertRaises(wiredtiger.WiredTigerError, lambda:
-            self.session.open_cursor('table:' + self.tablename, None, None))
+s = conn.open_session()
+tname = 'table:simple'
+s.create(tname, 'key_format=S,value_format=S')
 
-if __name__ == '__main__':
-    wttest.run()
+ops = Operation(Operation.OP_INSERT, Table(tname), Key(Key.KEYGEN_APPEND, 10), Value(40))
+thread = Thread(ops)
+workload = Workload(context, thread)
+workload.run(conn)
+show(tname, s)
+
+thread = Thread(ops * 5)
+workload = Workload(context, thread)
+workload.run(conn)
+show(tname, s)
