@@ -163,6 +163,7 @@ tinfo_init(WT_SESSION *session)
         tinfo->insert_list_cnt = 0;
 
         tinfo->state = TINFO_RUNNING;
+        tinfo->quit = false;
     }
 }
 
