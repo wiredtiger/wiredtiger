@@ -30,7 +30,7 @@
 #   Test that compact reduces the file size.
 #
 
-import time, unittest, wiredtiger, wttest
+import time, wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
