@@ -1227,8 +1227,12 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
     btree = S2BT(session);
 
     ref = page->pg_intl_parent_ref;
+    /*
+     * We can avoid splitting a page if the page has already been marked to be deleted.
+     */
     if (ref != NULL && ref->page_del != NULL)
         return (false);
+
     /*
      * Checkpoints can't do in-memory splits in the tree they are walking: that can lead to
      * corruption when the parent internal page is updated.
