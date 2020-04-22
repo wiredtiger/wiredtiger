@@ -1226,7 +1226,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_REF *ref)
 
     btree = S2BT(session);
     page = ref->page;
-    
+
     /*
      * We can avoid splitting a page if the page has already been marked to be deleted.
      */
