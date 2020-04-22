@@ -1220,11 +1220,15 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_BTREE *btree;
     WT_INSERT *ins;
     WT_INSERT_HEAD *ins_head;
+    WT_REF *ref;
     size_t size;
     int count;
 
     btree = S2BT(session);
 
+    ref = page->pg_intl_parent_ref;
+    if (ref != NULL && ref->page_del != NULL)
+        return (false);
     /*
      * Checkpoints can't do in-memory splits in the tree they are walking: that can lead to
      * corruption when the parent internal page is updated.
