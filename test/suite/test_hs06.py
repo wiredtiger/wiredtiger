@@ -47,7 +47,7 @@ class test_hs06(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
     key_format_values = [
-        ('column', dict(key_format='r')),
+        # ('column', dict(key_format='r')),
         ('integer', dict(key_format='i')),
         ('string', dict(key_format='S'))
     ]
@@ -239,6 +239,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         # Try to read every key of the prepared data again.
         # Ensure that we read the history store to find the prepared update and
         # return a prepare conflict as appropriate.
+        self.session.breakpoint()
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
         for i in range(1, 11):
             cursor.set_key(self.create_key(i))
