@@ -1334,19 +1334,15 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
     ret = cursor->search_near(cursor, &exact);
     if (ret == 0 && exact < 0)
         ret = cursor->next(cursor);
-    WT_ERR_NOTFOUND_OK(ret, true);
 
     /* If we positioned the cursor there is something to verify. */
-    if (ret != WT_NOTFOUND) {
+    if (ret == 0) {
         __wt_btcur_init(session, &cbt);
         __wt_btcur_open(&cbt);
         ret = __verify_history_store_id(session, &cbt, btree_id);
         WT_TRET(__wt_btcur_close(&cbt, false));
-        WT_ERR_NOTFOUND_OK(ret, false);
     }
-    ret = 0;
-err:
-    return (ret);
+    return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
 /*
