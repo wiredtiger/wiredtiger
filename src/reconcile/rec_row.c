@@ -569,6 +569,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
     WT_REC_KV *key, *val;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
+    WT_UPDATE_VIEW upd_view;
     wt_timestamp_t start_durable_ts, start_ts, stop_durable_ts, stop_ts;
     uint64_t start_txn, stop_txn;
     bool ovfl_key, prepare;
@@ -602,7 +603,10 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              * Impossible slot, there's no backing on-page item.
              */
             cbt->slot = UINT32_MAX;
-            WT_RET(__wt_value_return_upd(cbt, upd));
+            // tetsuo-cpp: Fix here.
+            upd_view.buf.data = upd->data;
+            upd_view.buf.size = upd->size;
+            WT_RET(__wt_value_return_upd(cbt, &upd_view));
             WT_RET(__wt_rec_cell_build_val(session, r, cbt->iface.value.data, cbt->iface.value.size,
               start_durable_ts, start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, prepare,
               0));
@@ -723,6 +727,7 @@ __wt_rec_row_leaf(
     WT_ROW *rip;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
+    WT_UPDATE_VIEW upd_view;
     wt_timestamp_t start_durable_ts, start_ts, stop_durable_ts, stop_ts;
     uint64_t slvg_skip, start_txn, stop_txn;
     uint32_t i;
@@ -884,7 +889,9 @@ __wt_rec_row_leaf(
             switch (upd->type) {
             case WT_UPDATE_MODIFY:
                 cbt->slot = WT_ROW_SLOT(page, rip);
-                WT_ERR(__wt_value_return_upd(cbt, upd));
+                upd_view.buf.data = upd->data;
+                upd_view.buf.size = upd->size;
+                WT_ERR(__wt_value_return_upd(cbt, &upd_view));
                 WT_ERR(__wt_rec_cell_build_val(session, r, cbt->iface.value.data,
                   cbt->iface.value.size, start_durable_ts, start_ts, start_txn, stop_durable_ts,
                   stop_ts, stop_txn, prepare, 0));

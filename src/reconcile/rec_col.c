@@ -623,6 +623,7 @@ __wt_rec_col_var(
     WT_PAGE *page;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
+    WT_UPDATE_VIEW upd_view;
     wt_timestamp_t start_durable_ts, start_ts, stop_durable_ts, stop_ts;
     uint64_t n, nrepeat, repeat_count, rle, skip, src_recno;
     uint64_t start_txn, stop_txn;
@@ -634,6 +635,7 @@ __wt_rec_col_var(
     vpack = &_vpack;
     page = pageref->page;
     upd = NULL;
+    WT_CLEAR(upd_view);
     size = 0;
     data = NULL;
 
@@ -870,7 +872,10 @@ record_loop:
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
                     cbt->slot = WT_COL_SLOT(page, cip);
-                    WT_ERR(__wt_value_return_upd(cbt, upd));
+                    // tetsuo-cpp: This is pretty bad. Let's fix this.
+                    upd_view.buf.data = upd->data;
+                    upd_view.buf.size = upd->size;
+                    WT_ERR(__wt_value_return_upd(cbt, &upd_view));
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
                     update_no_copy = false;
@@ -1071,7 +1076,10 @@ compare:
                      * Impossible slot, there's no backing on-page item.
                      */
                     cbt->slot = UINT32_MAX;
-                    WT_ERR(__wt_value_return_upd(cbt, upd));
+                    // tetsuo-cpp: And here.
+                    upd_view.buf.data = upd->data;
+                    upd_view.buf.size = upd->size;
+                    WT_ERR(__wt_value_return_upd(cbt, &upd_view));
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
                     update_no_copy = false;

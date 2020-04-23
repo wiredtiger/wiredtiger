@@ -171,17 +171,16 @@ __cursor_fix_implicit(WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
  *     Return if the cursor references an valid key/value pair.
  */
 int
-__wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE **updp, bool *valid)
+__wt_cursor_valid(
+  WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE_VIEW *upd_viewp, bool *valid)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_COL *cip;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
+    WT_UPDATE_VIEW upd_view;
 
-    if (updp != NULL)
-        *updp = NULL;
     *valid = false;
     btree = cbt->btree;
     page = cbt->ref->page;
@@ -232,16 +231,14 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE 
      * update that's been deleted is not a valid key/value pair).
      */
     if (cbt->ins != NULL) {
-        WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd));
-        if (upd != NULL) {
-            if (upd->type == WT_UPDATE_TOMBSTONE) {
-                WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK));
+        WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd_view));
+        if (upd_view.type != WT_UPDATE_INVALID) {
+            if (upd_view.type == WT_UPDATE_TOMBSTONE)
                 return (0);
-            }
-            if (updp != NULL)
-                *updp = upd;
-            else if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                __wt_free_update_list(session, &upd);
+            if (upd_viewp != NULL)
+                *upd_viewp = upd_view;
+            else
+                __wt_buf_free(session, &upd_view.buf);
             *valid = true;
             return (0);
         }
@@ -299,17 +296,14 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE 
          * Check for an update ondisk or in the history store. For column store, an insert object
          * can have the same key as an on-page or history store object.
          */
-        WT_RET(__wt_txn_read(session, cbt, key, recno, NULL, NULL, &upd));
-        if (upd != NULL) {
-            if (upd->type == WT_UPDATE_TOMBSTONE) {
-                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                    __wt_free_update_list(session, &upd);
+        WT_RET(__wt_txn_read(session, cbt, key, recno, NULL, NULL, &upd_view));
+        if (upd_view.type != WT_UPDATE_INVALID) {
+            if (upd_view.type == WT_UPDATE_TOMBSTONE)
                 return (0);
-            }
-            if (updp != NULL)
-                *updp = upd;
-            else if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                __wt_free_update_list(session, &upd);
+            if (upd_viewp != NULL)
+                *upd_viewp = upd_view;
+            else
+                __wt_buf_free(session, &upd_view.buf);
             *valid = true;
         }
         break;
@@ -335,17 +329,14 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE 
           (page->modify != NULL && page->modify->mod_row_update != NULL) ?
             page->modify->mod_row_update[cbt->slot] :
             NULL,
-          NULL, &upd));
-        if (upd != NULL) {
-            if (upd->type == WT_UPDATE_TOMBSTONE) {
-                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                    __wt_free_update_list(session, &upd);
+          NULL, &upd_view));
+        if (upd_view.type != WT_UPDATE_INVALID) {
+            if (upd_view.type == WT_UPDATE_TOMBSTONE)
                 return (0);
-            }
-            if (updp != NULL)
-                *updp = upd;
-            else if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                __wt_free_update_list(session, &upd);
+            if (upd_viewp != NULL)
+                *upd_viewp = upd_view;
+            else
+                __wt_buf_free(session, &upd_view.buf);
             *valid = true;
         }
         break;
@@ -522,13 +513,12 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
+    WT_UPDATE_VIEW upd_view;
     bool leaf_found, valid;
 
     btree = cbt->btree;
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cursor->session;
-    upd = NULL; /* -Wuninitialized */
 
     WT_STAT_CONN_INCR(session, cursor_search);
     WT_STAT_DATA_INCR(session, cursor_search);
@@ -557,11 +547,11 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
         if (btree->type == BTREE_ROW) {
             WT_ERR(__cursor_row_search(cbt, false, cbt->ref, &leaf_found));
             if (leaf_found && cbt->compare == 0)
-                WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &upd, &valid));
+                WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &upd_view, &valid));
         } else {
             WT_ERR(__cursor_col_search(cbt, cbt->ref, &leaf_found));
             if (leaf_found && cbt->compare == 0)
-                WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &upd, &valid));
+                WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &upd_view, &valid));
         }
     }
     if (!valid) {
@@ -570,16 +560,16 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
         if (btree->type == BTREE_ROW) {
             WT_ERR(__cursor_row_search(cbt, false, NULL, NULL));
             if (cbt->compare == 0)
-                WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &upd, &valid));
+                WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &upd_view, &valid));
         } else {
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
             if (cbt->compare == 0)
-                WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &upd, &valid));
+                WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &upd_view, &valid));
         }
     }
 
     if (valid)
-        ret = __cursor_kv_return(cbt, upd);
+        ret = __cursor_kv_return(cbt, &upd_view);
     else if (__cursor_fix_implicit(btree, cbt)) {
         /*
          * Creating a record past the end of the tree in a fixed-length column-store implicitly
@@ -619,14 +609,13 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
+    WT_UPDATE_VIEW upd_view;
     int exact;
     bool leaf_found, valid;
 
     btree = cbt->btree;
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cursor->session;
-    upd = NULL; /* -Wuninitialized */
     exact = 0;
 
     WT_STAT_CONN_INCR(session, cursor_search_near);
@@ -671,7 +660,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          */
         if (leaf_found &&
           (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
-            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &upd, &valid));
+            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &upd_view, &valid));
     }
     if (!valid) {
         WT_ERR(__cursor_func_init(cbt, true));
@@ -682,10 +671,10 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          */
         if (btree->type == BTREE_ROW) {
             WT_ERR(__cursor_row_search(cbt, true, NULL, NULL));
-            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &upd, &valid));
+            WT_ERR(__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &upd_view, &valid));
         } else {
             WT_ERR(__cursor_col_search(cbt, NULL, NULL));
-            WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &upd, &valid));
+            WT_ERR(__wt_cursor_valid(cbt, NULL, cbt->recno, &upd_view, &valid));
         }
     }
 
@@ -706,7 +695,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
      */
     if (valid) {
         exact = cbt->compare;
-        ret = __cursor_kv_return(cbt, upd);
+        ret = __cursor_kv_return(cbt, &upd_view);
     } else if (__cursor_fix_implicit(btree, cbt)) {
         cbt->recno = cursor->recno;
         cbt->v = 0;
@@ -1330,7 +1319,8 @@ done:
             /*
              * WT_CURSOR.update returns a key and a value.
              */
-            ret = __cursor_kv_return(cbt, cbt->modify_update);
+            // tetsuo-cpp: Probably store an UPDATE_VIEW on the cursor.
+            // ret = __cursor_kv_return(cbt, cbt->modify_update);
             break;
         case WT_UPDATE_RESERVE:
             /*

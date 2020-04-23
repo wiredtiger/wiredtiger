@@ -80,12 +80,11 @@ __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
+    WT_UPDATE_VIEW upd_view;
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     btree = S2BT(session);
     page = cbt->ref->page;
-    upd = NULL;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -117,28 +116,12 @@ new_page:
      */
     if (cbt->ins != NULL)
 restart_read:
-    WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins->upd, NULL, &upd));
-    if (upd == NULL) {
+    WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins->upd, NULL, &upd_view));
+    if (upd_view.type == WT_UPDATE_INVALID) {
         cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
         cbt->iface.value.data = &cbt->v;
-    } else {
-        /*
-         * If this update has been restored from the disk, it needs to be freed after copying it to
-         * the user cursor.
-         */
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK)) {
-            switch (upd->type) {
-            case WT_UPDATE_TOMBSTONE:
-                cbt->iface.value.data = upd->data;
-                __wt_free_update_list(session, &upd);
-                break;
-            default:
-                return (__wt_value_return(cbt, upd));
-            }
-        }
-        if (upd != NULL)
-            cbt->iface.value.data = upd->data;
-    }
+    } else
+        cbt->iface.value = upd_view.buf;
     cbt->iface.value.size = 1;
     return (0);
 }
@@ -151,7 +134,7 @@ static inline int
 __cursor_var_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
+    WT_UPDATE_VIEW upd_view;
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
 
@@ -172,18 +155,20 @@ new_page:
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 restart_read:
-        WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd));
+        WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd_view));
 
-        if (upd == NULL)
+        if (upd_view.type == WT_UPDATE_INVALID)
             continue;
-        if (upd->type == WT_UPDATE_TOMBSTONE) {
+        if (upd_view.type == WT_UPDATE_TOMBSTONE) {
+#if 0
             if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                 ++cbt->page_deleted_count;
             if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                 __wt_free_update_list(session, &upd);
+#endif
             continue;
         }
-        return (__wt_value_return(cbt, upd));
+        return (__wt_value_return(cbt, &upd_view));
     }
     /* NOTREACHED */
 }
@@ -201,7 +186,7 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_INSERT *ins;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
+    WT_UPDATE_VIEW upd_view;
     uint64_t rle, rle_start;
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -243,18 +228,19 @@ restart_read:
         /* Check any insert list for a matching record. */
         cbt->ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
         cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
-        upd = NULL;
         if (cbt->ins != NULL)
-            WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd));
-        if (upd != NULL) {
-            if (upd->type == WT_UPDATE_TOMBSTONE) {
+            WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd_view));
+        if (upd_view.type != WT_UPDATE_INVALID) {
+            if (upd_view.type == WT_UPDATE_TOMBSTONE) {
+#if 0
                 if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                     ++cbt->page_deleted_count;
                 if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                     __wt_free_update_list(session, &upd);
+#endif
                 continue;
             }
-            return (__wt_value_return(cbt, upd));
+            return (__wt_value_return(cbt, &upd_view));
         }
 
         /*
@@ -294,8 +280,9 @@ restart_read:
                 continue;
             }
 
-            WT_RET(__wt_bt_col_var_cursor_walk_txn_read(session, cbt, page, &unpack, cip, &upd));
-            if (upd == NULL)
+            WT_RET(
+              __wt_bt_col_var_cursor_walk_txn_read(session, cbt, page, &unpack, cip, &upd_view));
+            if (upd_view.type == WT_UPDATE_INVALID)
                 continue;
             return (0);
         }
@@ -319,7 +306,7 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
+    WT_UPDATE_VIEW upd_view;
     bool kpack_used;
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -371,17 +358,19 @@ restart_read_insert:
         if ((ins = cbt->ins) != NULL) {
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
-            WT_RET(__wt_txn_read_upd_list(session, ins->upd, &upd));
-            if (upd == NULL)
+            WT_RET(__wt_txn_read_upd_list(session, ins->upd, &upd_view));
+            if (upd_view.type == WT_UPDATE_INVALID)
                 continue;
-            if (upd->type == WT_UPDATE_TOMBSTONE) {
+            if (upd_view.type == WT_UPDATE_TOMBSTONE) {
+#if 0
                 if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                     ++cbt->page_deleted_count;
                 if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                     __wt_free_update_list(session, &upd);
+#endif
                 continue;
             }
-            return (__wt_value_return(cbt, upd));
+            return (__wt_value_return(cbt, &upd_view));
         }
 
         /* Check for the end of the page. */
@@ -407,17 +396,19 @@ restart_read_page:
         rip = &page->pg_row[cbt->slot];
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
         WT_RET(__wt_txn_read(
-          session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip), NULL, &upd));
-        if (upd == NULL)
+          session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip), NULL, &upd_view));
+        if (upd_view.type == WT_UPDATE_INVALID)
             continue;
-        if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
+        if (upd_view.type == WT_UPDATE_TOMBSTONE) {
+#if 0
             if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                 ++cbt->page_deleted_count;
             if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                 __wt_free_update_list(session, &upd);
+#endif
             continue;
         }
-        return (__wt_value_return(cbt, upd));
+        return (__wt_value_return(cbt, &upd_view));
     }
     /* NOTREACHED */
 }
