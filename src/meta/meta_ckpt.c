@@ -468,7 +468,7 @@ __wt_meta_get_oldest_ckpt_timestamp(
     config = NULL;
 
     /* Retrieve the metadata information for the file. */
-    WT_RET(__wt_metadata_search(session, fname, &config));
+    WT_ERR(__wt_metadata_search(session, fname, &config));
 
     /* Load any existing checkpoints into the array. */
     if ((ret = __wt_config_getones(session, config, "checkpoint", &v)) == 0) {
@@ -481,6 +481,7 @@ __wt_meta_get_oldest_ckpt_timestamp(
         }
     }
 
+err:
     *oldest_ckpt_ts = ts != WT_TS_MAX ? ts : WT_TS_NONE;
     __wt_free(session, config);
     return (ret);
