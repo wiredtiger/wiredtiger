@@ -774,7 +774,8 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE_VIEW 
     WT_VISIBLE_TYPE upd_visible;
     uint8_t type;
 
-    WT_CLEAR(*upd_view);
+    WT_ASSERT(session,
+      upd_view->type == WT_UPDATE_INVALID && upd_view->buf.data == NULL && upd_view->buf.size == 0);
 
     for (; upd != NULL; upd = upd->next) {
         WT_ORDERED_READ(type, upd->type);
@@ -818,7 +819,9 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     WT_ITEM buf;
     WT_TIME_PAIR start, stop;
 
-    WT_CLEAR(*upd_view);
+    WT_ASSERT(session,
+      upd_view->type == WT_UPDATE_INVALID && upd_view->buf.data == NULL && upd_view->buf.size == 0);
+
     WT_RET(__wt_txn_read_upd_list(session, upd, upd_view));
     if (upd_view->buf.data != NULL || upd_view->type == WT_UPDATE_TOMBSTONE)
         return (0);

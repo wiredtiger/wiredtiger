@@ -885,10 +885,6 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     int cmp;
     bool is_owner, modify;
 
-    // tetsuo-cpp: Just assert this with a macro instead. One of the hotspots was memset so try not
-    // to do this all the time.
-    WT_CLEAR(*upd_view);
-
     hs_cursor = NULL;
     mod_upd = upd = NULL;
     orig_hs_value_buf = NULL;

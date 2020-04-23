@@ -278,7 +278,6 @@ __cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_UPDATE_VIEW upd_view;
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
-    WT_CLEAR(upd_view);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -297,6 +296,7 @@ new_page:
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 restart_read:
+        WT_CLEAR(upd_view);
         WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd_view));
         if (upd_view.type == WT_UPDATE_INVALID)
             continue;
@@ -333,7 +333,6 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     page = cbt->ref->page;
-    WT_CLEAR(upd_view);
 
     rle_start = 0; /* -Werror=maybe-uninitialized */
 
@@ -372,6 +371,7 @@ restart_read:
         /* Check any insert list for a matching record. */
         cbt->ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
         cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
+        WT_CLEAR(upd_view);
         if (cbt->ins != NULL)
             WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd_view));
         if (upd_view.type != WT_UPDATE_INVALID) {
@@ -456,7 +456,6 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     page = cbt->ref->page;
     key = &cbt->iface.key;
-    WT_CLEAR(upd_view);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart) {
@@ -513,6 +512,7 @@ restart_read_insert:
         if ((ins = cbt->ins) != NULL) {
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
+            WT_CLEAR(upd_view);
             WT_RET(__wt_txn_read_upd_list(session, ins->upd, &upd_view));
             if (upd_view.type == WT_UPDATE_INVALID)
                 continue;
@@ -552,6 +552,7 @@ restart_read_insert:
 restart_read_page:
         rip = &page->pg_row[cbt->slot];
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
+        WT_CLEAR(upd_view);
         WT_RET(__wt_txn_read(
           session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip), NULL, &upd_view));
         if (upd_view.type == WT_UPDATE_INVALID)
