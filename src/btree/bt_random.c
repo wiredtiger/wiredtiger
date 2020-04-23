@@ -275,6 +275,7 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
 
     cursor = (WT_CURSOR *)cbt;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
+    WT_CLEAR(upd_view);
 
     /*
      * If the page has a sufficiently large number of disk-based entries, randomly select from them.

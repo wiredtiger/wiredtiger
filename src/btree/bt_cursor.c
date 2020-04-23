@@ -185,6 +185,7 @@ __wt_cursor_valid(
     btree = cbt->btree;
     page = cbt->ref->page;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
+    WT_CLEAR(upd_view);
 
     /*
      * We may be pointing to an insert object, and we may have a page with
@@ -519,6 +520,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     btree = cbt->btree;
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cursor->session;
+    WT_CLEAR(upd_view);
 
     WT_STAT_CONN_INCR(session, cursor_search);
     WT_STAT_DATA_INCR(session, cursor_search);
@@ -616,6 +618,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     btree = cbt->btree;
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cursor->session;
+    WT_CLEAR(upd_view);
     exact = 0;
 
     WT_STAT_CONN_INCR(session, cursor_search_near);

@@ -875,6 +875,7 @@ record_loop:
                     // tetsuo-cpp: This is pretty bad. Let's fix this.
                     upd_view.buf.data = upd->data;
                     upd_view.buf.size = upd->size;
+                    upd_view.type = upd->type;
                     WT_ERR(__wt_value_return_upd(cbt, &upd_view));
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
@@ -1079,6 +1080,7 @@ compare:
                     // tetsuo-cpp: And here.
                     upd_view.buf.data = upd->data;
                     upd_view.buf.size = upd->size;
+                    upd_view.type = upd->type;
                     WT_ERR(__wt_value_return_upd(cbt, &upd_view));
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;

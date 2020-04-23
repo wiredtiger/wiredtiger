@@ -583,6 +583,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
     val = &r->v;
 
     upd = NULL;
+    WT_CLEAR(upd_view);
 
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
         WT_RET(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
@@ -606,6 +607,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             // tetsuo-cpp: Fix here.
             upd_view.buf.data = upd->data;
             upd_view.buf.size = upd->size;
+            upd_view.type = upd->type;
             WT_RET(__wt_value_return_upd(cbt, &upd_view));
             WT_RET(__wt_rec_cell_build_val(session, r, cbt->iface.value.data, cbt->iface.value.size,
               start_durable_ts, start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, prepare,
@@ -747,6 +749,7 @@ __wt_rec_row_leaf(
     vpack = &_vpack;
 
     upd = NULL;
+    WT_CLEAR(upd_view);
 
     WT_RET(__wt_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp));
 
@@ -891,6 +894,7 @@ __wt_rec_row_leaf(
                 cbt->slot = WT_ROW_SLOT(page, rip);
                 upd_view.buf.data = upd->data;
                 upd_view.buf.size = upd->size;
+                upd_view.type = upd->type;
                 WT_ERR(__wt_value_return_upd(cbt, &upd_view));
                 WT_ERR(__wt_rec_cell_build_val(session, r, cbt->iface.value.data,
                   cbt->iface.value.size, start_durable_ts, start_ts, start_txn, stop_durable_ts,

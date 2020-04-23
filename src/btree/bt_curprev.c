@@ -126,6 +126,7 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_UPDATE_VIEW upd_view;
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
+    WT_CLEAR(upd_view);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -224,6 +225,7 @@ __cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     page = cbt->ref->page;
     btree = S2BT(session);
+    WT_CLEAR(upd_view);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -276,6 +278,7 @@ __cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_UPDATE_VIEW upd_view;
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
+    WT_CLEAR(upd_view);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -330,6 +333,7 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     page = cbt->ref->page;
+    WT_CLEAR(upd_view);
 
     rle_start = 0; /* -Werror=maybe-uninitialized */
 
@@ -452,6 +456,7 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     page = cbt->ref->page;
     key = &cbt->iface.key;
+    WT_CLEAR(upd_view);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart) {
