@@ -394,23 +394,30 @@ struct Transaction {
     std::string _commit_config;
     double read_timestamp_lag;
 
-    Transaction(const char *_config = NULL) : _rollback(false), use_commit_timestamp(false), use_prepare_timestamp(false), _begin_config(_config == NULL ? "" : _config), _commit_config(),
-    read_timestamp_lag(0.0)
-        {}
+    Transaction() : _rollback(false), use_commit_timestamp(false),
+      use_prepare_timestamp(false), _begin_config(""), _commit_config(), read_timestamp_lag(0.0)
+    {}
+
+    Transaction(const Transaction &other) : _rollback(other._rollback),
+      use_commit_timestamp(other.use_commit_timestamp),
+      use_prepare_timestamp(other.use_prepare_timestamp),
+      _begin_config(other._begin_config), _commit_config(other._commit_config),
+      read_timestamp_lag(other.read_timestamp_lag)
+    {}
 
     void describe(std::ostream &os) const {
 	os << "Transaction: ";
 	if (_rollback)
 	    os << "(rollback) ";
+	if (use_commit_timestamp)
+	    os << "(use_commit_timestamp) ";
+	if (use_prepare_timestamp)
+	    os << "(use_prepare_timestamp) ";
 	os << "begin_config: " << _begin_config;
 	if (!_commit_config.empty())
 	    os << ", commit_config: " << _commit_config;
-    if (use_commit_timestamp)
-	    os << "(use_commit_timestamp) ";
-    if (use_prepare_timestamp)
-	    os << "(use_prepare_timestamp) ";
-    if (read_timestamp_lag)
-        os << "(read_timestamp_lag)";
+	if (read_timestamp_lag != 0.0)
+	    os << ", read_timestamp_lag: " << read_timestamp_lag;
     }
 };
 
