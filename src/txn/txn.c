@@ -685,6 +685,7 @@ __txn_fixup_history_store(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *cu
     if (commit) {
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         hs_upd->durable_ts = hs_upd->start_ts = txn->durable_timestamp;
+        hs_upd->txnid = txn->id;
         WT_ERR(__wt_hs_modify(hs_cbt, hs_upd));
         hs_upd = NULL;
     } else {

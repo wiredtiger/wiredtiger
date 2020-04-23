@@ -544,13 +544,21 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_BTREE *btree;
     WT_CELL_UNPACK unpack;
+    WT_ITEM buf;
     WT_ROW *rip;
+    WT_UPDATE **upd_array, *upd;
+    size_t size;
+    uint32_t i;
+    bool prepare;
 
     btree = S2BT(session);
+    prepare = false;
 
     /* Walk the page, building indices. */
     rip = page->pg_row;
     WT_CELL_FOREACH_BEGIN (session, btree, page->dsk, unpack) {
+        if (F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE))
+            prepare = true;
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
             __wt_row_leaf_key_set_cell(page, rip, unpack.cell);
@@ -588,9 +596,49 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
     WT_CELL_FOREACH_END;
 
-    /*
-     * We do not currently instantiate keys on leaf pages when the page is loaded, they're
-     * instantiated on demand.
-     */
+    /* We do currently instantiate prepared updates on leaf pages when the page is loaded. */
+    if (prepare) {
+        /*
+         * Give the page a modify structure.
+         *
+         * Mark tree dirty, unless the handle is read-only.
+         */
+        WT_RET(__wt_page_modify_init(session, page));
+        if (!F_ISSET(btree, WT_BTREE_READONLY))
+            __wt_page_modify_set(session, page);
+
+        /* Allocate the per-page update array if one doesn't already exist. */
+        if (page->entries != 0 && page->modify->mod_row_update == NULL)
+            WT_RET(__wt_calloc_def(session, page->entries, &page->modify->mod_row_update));
+
+        /* For each entry in the page... */
+        size = 0;
+        upd_array = page->modify->mod_row_update;
+        WT_ROW_FOREACH (page, rip, i) {
+            /* Unpack the on-page value cell. */
+            __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
+            if (F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE)) {
+                if (unpack.newest_stop_ts == WT_TS_MAX && unpack.newest_stop_txn == WT_TXN_MAX) {
+                    /* Take the value from the original page cell. */
+                    WT_RET(__wt_page_cell_data_ref(session, page, &unpack, &buf));
+
+                    WT_RET(__wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, &upd, &size));
+                    upd->durable_ts = unpack.durable_start_ts;
+                    upd->start_ts = unpack.start_ts;
+                    upd->txnid = unpack.start_txn;
+                } else {
+                    WT_RET(__wt_upd_alloc_tombstone(session, &upd, &size));
+                    upd->durable_ts = unpack.durable_stop_ts;
+                    upd->start_ts = unpack.stop_ts;
+                    upd->txnid = unpack.stop_txn;
+                }
+                upd->prepare_state = WT_PREPARE_INPROGRESS;
+                upd_array[WT_ROW_SLOT(page, rip)] = upd;
+            }
+        }
+
+        __wt_cache_page_inmem_incr(session, page, size);
+    }
+
     return (0);
 }
