@@ -178,7 +178,7 @@ struct __wt_cursor_btree {
      * The update structure allocated by the row- and column-store modify functions, used to avoid a
      * data copy in the WT_CURSOR.update call.
      */
-    WT_UPDATE *modify_update;
+    WT_UPDATE_VIEW modify_update;
 
     /*
      * Fixed-length column-store items are a single byte, and it's simpler and cheaper to allocate

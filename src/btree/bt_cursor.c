@@ -1319,8 +1319,7 @@ done:
             /*
              * WT_CURSOR.update returns a key and a value.
              */
-            // tetsuo-cpp: Probably store an UPDATE_VIEW on the cursor.
-            // ret = __cursor_kv_return(cbt, cbt->modify_update);
+            ret = __cursor_kv_return(cbt, &cbt->modify_update);
             break;
         case WT_UPDATE_RESERVE:
             /*

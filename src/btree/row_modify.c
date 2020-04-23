@@ -109,7 +109,9 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             logged = true;
 
             /* Avoid WT_CURSOR.update data copy. */
-            cbt->modify_update = upd;
+            cbt->modify_update.buf.data = upd->data;
+            cbt->modify_update.buf.size = upd->size;
+            cbt->modify_update.type = upd->type;
         } else {
             upd_size = __wt_update_list_memsize(upd);
 
@@ -169,7 +171,9 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             logged = true;
 
             /* Avoid WT_CURSOR.update data copy. */
-            cbt->modify_update = upd;
+            cbt->modify_update.buf.data = upd->data;
+            cbt->modify_update.buf.size = upd->size;
+            cbt->modify_update.type = upd->type;
         } else
             upd_size = __wt_update_list_memsize(upd);
 
