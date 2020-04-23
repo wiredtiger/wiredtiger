@@ -156,12 +156,12 @@ thread_run(void *arg)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-/*
- * Make sure that alternative threads operate on column-store table
- *
- * FIXME: temporarily turn off column store test.
- */
 #if 0
+    /*
+     * Make sure that alternative threads operate on column-store table
+     *
+     * FIXME: temporarily turn off column store test.
+     */
     if (td->id % 2 != 0)
         columnar_table = true;
 #endif
@@ -377,11 +377,12 @@ recover_and_verify(uint32_t nthreads)
     absent = count = 0;
     fatal = false;
     for (i = 0; i < nthreads; ++i) {
-/*
- * Every alternative thread is operated on column-store table. Make sure that proper cursor is used
- * for verification of recovered records.
- */
+
 #if 0
+        /*
+         * Every alternative thread is operated on column-store table. Make sure that proper cursor
+         * is used for verification of recovered records.
+         */
         if (i % 2 != 0) {
             columnar_table = true;
             cursor = col_cursor;
