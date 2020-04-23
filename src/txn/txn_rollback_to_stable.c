@@ -151,7 +151,10 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_DECL_RET;
     WT_ITEM full_value;
     WT_UPDATE *hs_upd, *upd;
-    wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts, newer_hs_ts;
+    wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts;
+#ifdef HAVE_DIAGNOSTIC
+    wt_timestamp_t newer_hs_ts;
+#endif
     uint64_t hs_counter, type_full;
     uint32_t hs_btree_id, session_flags;
     uint8_t type;
@@ -161,7 +164,10 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
     hs_cursor = NULL;
     hs_upd = upd = NULL;
-    durable_ts = hs_start_ts = newer_hs_ts = WT_TS_NONE;
+    durable_ts = hs_start_ts = WT_TS_NONE;
+#ifdef HAVE_DIAGNOSTIC
+    newer_hs_ts = WT_TS_NONE;
+#endif
     hs_btree_id = S2BT(session)->id;
     session_flags = 0;
     is_owner = valid_update_found = false;
@@ -270,11 +276,13 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
           __wt_timestamp_to_string(hs_stop_ts, ts_string[2]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[3]));
 
+#ifdef HAVE_DIAGNOSTIC
         /*
          * Durable timestamp of the current record is used as stop timestamp of previous record.
          * Save it to verify against previous record.
          */
         newer_hs_ts = durable_ts;
+#endif
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);

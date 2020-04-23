@@ -22,6 +22,8 @@ Specify an encryption secret key for the ::wiredtiger_open function.
 Specify a database home directory.
 @par <code>-L</code>
 Forcibly turn off logging subsystem for debugging purposes.
+@par <code>-m</code>
+Verify the WiredTiger metadata as part of opening the database.
 @par <code>-R</code>
 Run recovery if the underlying database is configured to do so.
 @par <code>-r</code>
@@ -435,15 +437,10 @@ The \c verify command verifies the specified table, exiting success if
 the data source is correct, and failure if the data source is corrupted.
 
 @subsection util_verify_synopsis Synopsis
-<code>wt [-RrVv] [-C config] [-E secretkey ] [-h directory] verify [-as] [-d dump_address | dump_blocks | dump_history | dump_layout | dump_offsets=#,# | dump_pages ] [uri]</code>
+<code>wt [-RrVv] [-C config] [-E secretkey ] [-h directory] verify [-s] [-d dump_address | dump_blocks | dump_history | dump_layout | dump_offsets=#,# | dump_pages ] [uri]</code>
 
 @subsection util_verify_options Options
 The following are command-specific options for the \c verify command:
-
-<code>-a</code>
-This options allows you to verify the history store against the current state
-of the data store. A uri is not passed along with this option. See the WT_SESSION::verify
-configuration options.
 
 <code>-d [config]</code>
 This option allows you to specify values which you want to be displayed
