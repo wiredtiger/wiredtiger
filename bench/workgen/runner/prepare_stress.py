@@ -43,7 +43,7 @@
 #     transcation threads.
 
 # This file is derived from evict-btree-hs.py and below are the new configurations added
-# - Timestmap support for prepare transactions
+# - Timestamp support for prepare transactions
 # - Commit the transaction with prepare, commit and durable timestamp (use_prepare_timestamp).
 # - Commit the transaction with commit_timestamp (use_commit_timestamp).
 # - Read timestamp lag from the current time (read_timestamp_lag)
@@ -53,6 +53,8 @@
 # - Thread.options.session_config - Session configuration.
 
 ###################################################################################################
+# These wtperf constants were used to originally generate this python file, which has been since
+# edited. The table_count, icount, and other variables have been changed below.
 '''
 # wtperf options file: evict btree configuration
 conn_config="cache_size=40G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,
@@ -135,20 +137,20 @@ log_table = Table(log_name)
 
 # Read operation with read_timestamp_lag
 ops = Operation(Operation.OP_SEARCH, tables[0],Key(Key.KEYGEN_PARETO, 0, ParetoOptions(1)))
+ops = txn(ops, 'read_timestamp')
+ops.transaction.read_timestamp_lag = 2
 ops = op_multi_table(ops, tables, False)
 ops = op_log_like(ops, log_table, 0)
-read_txn = txn(ops, 'read_timestamp')
-read_txn.transaction.read_timestamp_lag = 2
-thread0 = Thread(read_txn)
+thread0 = Thread(ops)
 
 # Insert operations with snapshot isolation level and prepare_timestamp.
 ops = Operation(Operation.OP_INSERT, tables[0])
+ops = txn(ops, 'isolation=snapshot')
+# use_prepare_timestamp - Commit the transaction with prepare, commit and durable timestamp.
+ops.transaction.use_prepare_timestamp = True
 ops = op_multi_table(ops, tables, False)
 ops = op_log_like(ops, log_table, 0)
-write_txn = txn(ops, 'isolation=snapshot')
-# use_prepare_timestamp - Commit the transaction with prepare, commit and durable timestamp.
-write_txn.transaction.use_prepare_timestamp = True
-thread1 = Thread(write_txn)
+thread1 = Thread(ops)
 # Thread.options.session_config - Session configuration.
 thread1.options.session_config="isolation=snapshot"
 # These operations include log_like operations, which will increase the number
@@ -157,12 +159,12 @@ thread1.options.session_config="isolation=snapshot"
 
 # Insert operations with snapshot isolation level and sets commit timestamp.
 ops = Operation(Operation.OP_UPDATE, tables[0])
+ops = txn(ops, 'isolation=snapshot')
+# use_commit_timestamp - Commit the transaction with commit_timestamp.
+ops.transaction.use_commit_timestamp = True
 ops = op_multi_table(ops, tables, False)
 ops = op_log_like(ops, log_table, 0)
-update_txn = txn(ops, 'isolation=snapshot')
-# use_commit_timestamp - Commit the transaction with commit_timestamp.
-update_txn.transaction.use_commit_timestamp = True
-thread2 = Thread(update_txn)
+thread2 = Thread(ops)
 # Thread.options.session_config - Session configuration.
 thread2.options.session_config="isolation=snapshot"
 # These operations include log_like operations, which will increase the number
@@ -201,6 +203,6 @@ run_time = end_time - start_time
 
 print('Workload took %d minutes' %(run_time//60))
 
-latency_filename = "WT_TEST" + "/latency.out"
+latency_filename = os.path.join(context.args.home, "latency.out")
 latency.workload_latency(workload, latency_filename)
 conn.close()
