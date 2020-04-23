@@ -515,6 +515,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     uint64_t last_running;
 
+    WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
+
     last_running = 0;
     if (page->modify->page_state == WT_PAGE_CLEAN)
         last_running = S2C(session)->txn_global.last_running;
@@ -555,8 +557,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
 
     /* Check if this is the largest transaction ID to update the page. */
-    if (WT_TXNID_LT(page->modify->update_txn, session->txn.id))
-        page->modify->update_txn = session->txn.id;
+    if (WT_TXNID_LT(page->modify->update_txn, session->txn->id))
+        page->modify->update_txn = session->txn->id;
 }
 
 /*

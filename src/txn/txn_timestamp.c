@@ -312,7 +312,7 @@ __txn_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char 
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     WT_STAT_CONN_INCR(session, session_query_ts);
@@ -585,10 +585,13 @@ __txn_assert_after_reads(
   WT_SESSION_IMPL *session, const char *op, wt_timestamp_t ts, WT_TXN_SHARED **prev_sharedp)
 {
 #ifdef HAVE_DIAGNOSTIC
-    WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
-    WT_TXN_SHARED *prev_shared, *txn_shared = WT_SESSION_TXN_SHARED(session);
+    WT_TXN_GLOBAL *txn_global;
+    WT_TXN_SHARED *prev_shared, *txn_shared;
     wt_timestamp_t tmp_timestamp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+
+    txn_global = &S2C(session)->txn_global;
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     __wt_readlock(session, &txn_global->read_timestamp_rwlock);
     prev_shared = TAILQ_LAST(&txn_global->read_timestamph, __wt_txn_rts_qh);
@@ -637,11 +640,14 @@ __txn_assert_after_reads(
 int
 __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts)
 {
-    WT_TXN *txn = &session->txn;
-    WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
+    WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t oldest_ts, stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool has_oldest_ts, has_stable_ts;
+
+    txn = session->txn;
+    txn_global = &S2C(session)->txn_global;
 
     /* Added this redundant initialization to circumvent build failure. */
     oldest_ts = stable_ts = WT_TS_NONE;
@@ -743,11 +749,14 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
 int
 __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts)
 {
-    WT_TXN *txn = &session->txn;
-    WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
+    WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t oldest_ts, stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool has_oldest_ts, has_stable_ts;
+
+    txn = session->txn;
+    txn_global = &S2C(session)->txn_global;
 
     /* Added this redundant initialization to circumvent build failure. */
     oldest_ts = stable_ts = 0;
@@ -806,12 +815,14 @@ __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_
 int
 __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_ts)
 {
-    WT_TXN *txn = &session->txn;
-    WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
+    WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *prev_shared, *txn_shared;
     wt_timestamp_t oldest_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
+    txn = session->txn;
+    txn_global = &S2C(session)->txn_global;
     prev_shared = txn_shared = WT_SESSION_TXN_SHARED(session);
 
     WT_RET(__wt_txn_context_prepare_check(session));
@@ -868,13 +879,15 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
 int
 __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
 {
-    WT_TXN *txn = &session->txn;
-    WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
+    WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
     wt_timestamp_t ts_oldest;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool did_roundup_to_oldest;
 
+    txn = session->txn;
+    txn_global = &S2C(session)->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     WT_RET(__wt_txn_context_prepare_check(session));
@@ -1022,7 +1035,7 @@ __wt_txn_publish_durable_timestamp(WT_SESSION_IMPL *session)
     wt_timestamp_t tmpts, ts;
     uint64_t walked;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_global = &S2C(session)->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
@@ -1115,7 +1128,7 @@ __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     if (!F_ISSET(txn, WT_TXN_SHARED_TS_DURABLE))
@@ -1144,7 +1157,7 @@ __wt_txn_publish_read_timestamp(WT_SESSION_IMPL *session)
     wt_timestamp_t tmp_timestamp;
     uint64_t walked;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_global = &S2C(session)->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
@@ -1225,7 +1238,7 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
 
-    txn = &session->txn;
+    txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     if (F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {

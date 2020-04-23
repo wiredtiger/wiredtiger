@@ -1528,7 +1528,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     mod->last_eviction_timestamp = orig->modify->last_eviction_timestamp;
     mod->rec_max_txn = orig->modify->rec_max_txn;
     mod->rec_max_timestamp = orig->modify->rec_max_timestamp;
-    mod->last_stable_timestamp = orig->modify->last_stable_timestamp;
 
     /* Add the update/restore flag to any previous state. */
     mod->restore_state = orig->modify->restore_state;

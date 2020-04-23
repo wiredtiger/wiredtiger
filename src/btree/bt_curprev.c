@@ -413,11 +413,9 @@ restart_read:
         }
 
         /*
-         * If we're at the same slot as the last reference and there's
-         * no matching insert list item, re-use the return information
-         * (so encoded items with large repeat counts aren't repeatedly
-         * decoded).  Otherwise, unpack the cell and build the return
-         * information.
+         * If we're at the same slot as the last reference and there's no matching insert list item,
+         * re-use the return information (so encoded items with large repeat counts aren't
+         * repeatedly decoded). Otherwise, unpack the cell and build the return information.
          */
         if (cbt->cip_saved != cip) {
             cell = WT_COL_PTR(page, cip);
@@ -579,7 +577,7 @@ restart_read_page:
           session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip), NULL, &upd));
         if (upd == NULL)
             continue;
-        if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
+        if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                 ++cbt->page_deleted_count;
             if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))

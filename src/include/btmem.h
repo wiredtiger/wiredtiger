@@ -279,9 +279,6 @@ struct __wt_page_modify {
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
-    /* Stable timestamp at last reconciliation. */
-    wt_timestamp_t last_stable_timestamp;
-
     /* The largest update transaction ID (approximate). */
     uint64_t update_txn;
 
@@ -447,15 +444,6 @@ struct __wt_page_modify {
         WT_CELL **discard;
         size_t discard_entries;
         size_t discard_allocated;
-
-        /* Cached overflow value cell/update address pairs. */
-        struct {
-            WT_CELL *cell;
-            uint8_t *data;
-            size_t size;
-        } * remove;
-        size_t remove_allocated;
-        uint32_t remove_next;
     } * ovfl_track;
 
 #define WT_PAGE_LOCK(s, p) __wt_spin_lock((s), &(p)->modify->page_lock)
@@ -485,8 +473,7 @@ struct __wt_page_modify {
 #define WT_PM_REC_REPLACE 3    /* Reconciliation: single block */
     uint8_t rec_result;        /* Reconciliation state */
 
-#define WT_PAGE_RS_HS 0x1
-#define WT_PAGE_RS_RESTORED 0x2
+#define WT_PAGE_RS_RESTORED 0x1
     uint8_t restore_state; /* Created by restoring updates */
 };
 
