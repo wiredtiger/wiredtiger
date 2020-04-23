@@ -377,10 +377,10 @@ recover_and_verify(uint32_t nthreads)
     absent = count = 0;
     fatal = false;
     for (i = 0; i < nthreads; ++i) {
-        /*
-         * Every alternative thread is operated on column-store table. Make sure that proper cursor
-         * is used for verification of recovered records.
-         */
+/*
+ * Every alternative thread is operated on column-store table. Make sure that proper cursor is used
+ * for verification of recovered records.
+ */
 #if 0
         if (i % 2 != 0) {
             columnar_table = true;
