@@ -275,7 +275,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 
-        if (!__rec_update_stable(session, r, upd) && F_ISSET(r, WT_REC_EVICT))
+        if (F_ISSET(r, WT_REC_EVICT) && !__rec_update_stable(session, r, upd))
             ++r->updates_unstable;
         else if (!F_ISSET(r, WT_REC_EVICT))
             break;
