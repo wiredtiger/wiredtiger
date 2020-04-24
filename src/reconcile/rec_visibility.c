@@ -243,12 +243,21 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          */
         if (!is_hs_page && (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
                                                              !__txn_visible_id(session, txnid))) {
+            /*
+             * Rare case: when applications run at low isolation levels, eviction may see a
+             * committed update followed by uncommitted updates. Give up in that case because we
+             * can't move uncommitted updates to the history store.
+             */
+            if (upd_select->upd != NULL)
+                return (__wt_set_return(session, EBUSY));
+
             has_newer_updates = true;
             continue;
         }
 
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
+            WT_ASSERT(session, upd_select->upd == NULL);
             /* Ignore prepared updates if it is not eviction. */
             if (!F_ISSET(r, WT_REC_EVICT)) {
                 has_newer_updates = true;
@@ -273,19 +282,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 
-        if (!__rec_update_stable(session, r, upd)) {
-            if (F_ISSET(r, WT_REC_EVICT))
-                ++r->updates_unstable;
-
-            /*
-             * Rare case: when applications run at low isolation levels, update/restore eviction may
-             * see a stable update followed by an uncommitted update. Give up in that case: we need
-             * to discard updates from the stable update and older for correctness and we can't
-             * discard an uncommitted update.
-             */
-            if (upd_select->upd != NULL && has_newer_updates)
-                return (__wt_set_return(session, EBUSY));
-        } else if (!F_ISSET(r, WT_REC_EVICT))
+        if (F_ISSET(r, WT_REC_EVICT) && !__rec_update_stable(session, r, upd))
+            ++r->updates_unstable;
+        else if (!F_ISSET(r, WT_REC_EVICT))
             break;
     }
 
