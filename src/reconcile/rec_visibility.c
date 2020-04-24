@@ -242,7 +242,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             /*
              * Rare case: when applications run at low isolation levels, eviction may see a
              * committed update followed by uncommitted updates. Give up in that case because we
-             * can't move uncommitted update to the history store.
+             * can't move uncommitted updates to the history store.
              */
             if (upd_select->upd != NULL)
                 return (__wt_set_return(session, EBUSY));
