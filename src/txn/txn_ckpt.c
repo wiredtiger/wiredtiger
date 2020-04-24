@@ -746,7 +746,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_ISOLATION saved_isolation;
     wt_timestamp_t ckpt_tmp_ts;
     uint64_t fsync_duration_usecs, generation, time_start_fsync, time_stop_fsync;
-    uint64_t time_start_hs, time_stop_hs, hs_ckpt_duration_usecs;
+    uint64_t time_start_hs, time_stop_hs, hs_ckpt_duration_usecs, time_finish;
     u_int i;
     bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
     void *saved_meta_next;
@@ -988,6 +988,16 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
 err:
+
+    /*
+     * Save clock value marking end of checkpoint processing. Backup uses this to determine which
+     * checkpoints it must keep.
+     */
+    __wt_seconds(session, &time_finish);
+    /* Be defensive: time is only monotonic per session */
+    if (time_finish > conn->ckpt_finish_time)
+        conn->ckpt_finish_time = time_finish;
+
     /*
      * Reset the timer so that next checkpoint tracks the progress only if configured.
      */
@@ -1156,10 +1166,8 @@ __drop(WT_CKPT *ckptbase, const char *name, size_t len)
      */
     if (strncmp(WT_CHECKPOINT, name, len) == 0) {
         /*
-         * Currently, hot backup cursors block checkpoint drop, which means releasing a hot backup
-         * cursor can result in immediately attempting to drop lots of checkpoints, which involves a
-         * fair amount of work while holding locks. Limit the number of standard checkpoints dropped
-         * per checkpoint.
+         * Dropping a lot of checkpoints can result in a fair amount of work while holding locks.
+         * Limit the number of standard checkpoints dropped per checkpoint.
          */
         max_ckpt_drop = 0;
         WT_CKPT_FOREACH (ckptbase, ckpt)
@@ -1253,24 +1261,26 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
     conn = S2C(session);
 
     /*
-     * We can't delete checkpoints if a backup cursor is open. WiredTiger checkpoints are uniquely
-     * named and it's OK to have multiple of them in the system: clear the delete flag for them, and
-     * otherwise fail. Hold the lock until we're done (blocking hot backups from starting), we don't
-     * want to race with a future hot backup.
+     * WiredTiger checkpoints are uniquely named and it's OK to have multiple of them in the 
+     * system: clear the delete flag for them unless they are needed by an active hot backup, and 
+     * otherwise fail. Hold the lock until we're done (blocking hot backups from starting), we
+     * don't want to race with a future hot backup.
      */
-    if (conn->hot_backup)
+    if (conn->hot_backup_start != 0)
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             if (!F_ISSET(ckpt, WT_CKPT_DELETE))
                 continue;
-            if (WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
-                F_CLR(ckpt, WT_CKPT_DELETE);
-                continue;
+	    if (ckpt->sec <= conn->hot_backup_start) {
+		if (WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
+		    F_CLR(ckpt, WT_CKPT_DELETE);
+		    continue;
+		} 
+	        WT_RET_MSG(session, EBUSY,
+		  "checkpoint %s blocked by hot backup: it would"
+		  "delete an existing checkpoint, and checkpoints "
+		  "cannot be deleted during a hot backup",
+		  ckpt->name);
             }
-            WT_RET_MSG(session, EBUSY,
-              "checkpoint %s blocked by hot backup: it would"
-              "delete an existing checkpoint, and checkpoints "
-              "cannot be deleted during a hot backup",
-              ckpt->name);
         }
 
     /*
@@ -1291,6 +1301,7 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             if (!F_ISSET(ckpt, WT_CKPT_DELETE))
                 continue;
+	    WT_ASSERT(session, !WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT) || conn->hot_backup_start == 0 || ckpt->sec > conn->hot_backup_start);
             /*
              * We can't delete checkpoints referenced by a cursor. WiredTiger checkpoints are
              * uniquely named and it's OK to have multiple in the system: clear the delete flag for

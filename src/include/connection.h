@@ -150,10 +150,10 @@ struct __wt_named_extractor {
  * WT_CONN_HOTBACKUP_START --
  *	Macro to set connection data appropriately for when we commence hot backup.
  */
-#define WT_CONN_HOTBACKUP_START(conn)   \
-    do {                                \
-        (conn)->hot_backup = true;      \
-        (conn)->hot_backup_list = NULL; \
+#define WT_CONN_HOTBACKUP_START(conn)                        \
+    do {                                                     \
+        (conn)->hot_backup_start = (conn)->ckpt_finish_time; \
+        (conn)->hot_backup_list = NULL;                      \
     } while (0)
 
 /*
@@ -269,7 +269,7 @@ struct __wt_connection_impl {
     WT_TXN_GLOBAL txn_global; /* Global transaction state */
 
     WT_RWLOCK hot_backup_lock; /* Hot backup serialization */
-    bool hot_backup;           /* Hot backup in progress */
+    uint64_t hot_backup_start; /* Wall clock time when active hot backup started */
     char **hot_backup_list;    /* Hot backup file list */
 
     WT_SESSION_IMPL *ckpt_session; /* Checkpoint thread session */
@@ -289,6 +289,7 @@ struct __wt_connection_impl {
     uint64_t ckpt_time_min;
     uint64_t ckpt_time_recent; /* Checkpoint time recent/total */
     uint64_t ckpt_time_total;
+    uint64_t ckpt_finish_time; /* Time last checkpoint finished */
 
     /* Checkpoint stats and verbosity timers */
     struct timespec ckpt_prep_end;

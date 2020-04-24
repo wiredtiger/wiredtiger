@@ -512,6 +512,8 @@ __wt_meta_ckptlist_get(
         WT_CKPT_FOREACH (ckptbase, ckpt)
             if (ckpt->order > maxorder)
                 maxorder = ckpt->order;
+	WT_ASSERT(session, ckpt == &ckptbase[slot]);
+	WT_ASSERT(session, slot == 0 || ckptbase[slot-1].order == maxorder);
         ckpt->order = maxorder + 1;
         __wt_seconds(session, &ckpt->sec);
         /*
