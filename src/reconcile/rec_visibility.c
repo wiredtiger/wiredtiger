@@ -9,17 +9,16 @@
 #include "wt_internal.h"
 
 /*
- * __rec_update_stable_or_prepared --
- *     Return whether an update is stable or prepared or not.
+ * __rec_update_stable --
+ *     Return whether an update is stable or not.
  */
 static inline bool
-__rec_update_stable_or_prepared(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
+__rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
 {
     return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
         __wt_txn_upd_visible_all(session, upd) :
-        (__wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_PREPARE ||
-          (__wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE &&
-            __wt_txn_visible(session, upd->txnid, upd->start_ts))));
+        __wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE &&
+          __wt_txn_visible(session, upd->txnid, upd->start_ts));
 }
 
 /*
@@ -74,6 +73,10 @@ __rec_append_orig_value(
          * operation.
          */
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK))
+            return (0);
+
+        /* Prepared updates should already be in the update list. */
+        if (F_ISSET(unpack, WT_CELL_UNPACK_PREPARE))
             return (0);
 
         /* Done if the on page value already appears on the update list. */
@@ -270,7 +273,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 
-        if (!__rec_update_stable_or_prepared(session, r, upd)) {
+        if (!__rec_update_stable(session, r, upd)) {
             if (F_ISSET(r, WT_REC_EVICT))
                 ++r->updates_unstable;
 

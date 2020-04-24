@@ -859,8 +859,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         resolved = true;
     }
 
-    /* Fix the history store */
-    if (resolved && (upd == NULL || F_ISSET(upd, WT_UPDATE_HS)))
+    /* Fix the history store contents if exists. */
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && resolved &&
+      (upd == NULL || F_ISSET(upd, WT_UPDATE_HS)))
         __txn_fixup_history_store(session, op, *cursorp, commit);
 
     return (0);

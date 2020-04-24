@@ -21,6 +21,7 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     *stable_update_found = false;
+    nitems = 0;
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         /* Skip the updates that are aborted. */
         if (upd->txnid == WT_TXN_ABORTED) {

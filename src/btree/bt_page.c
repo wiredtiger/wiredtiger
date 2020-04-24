@@ -596,8 +596,11 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
     WT_CELL_FOREACH_END;
 
-    /* We do currently instantiate prepared updates on leaf pages when the page is loaded. */
-    if (prepare) {
+    /*
+     * We do currently instantiate prepared updates on leaf pages when the page is loaded. For
+     * in-memory databases, updates will get instantiated in a different function.
+     */
+    if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         /*
          * Give the page a modify structure.
          *
