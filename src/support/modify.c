@@ -523,3 +523,62 @@ __wt_modify_vector_free(WT_MODIFY_VECTOR *modifies)
         __wt_free(modifies->session, modifies->listp);
     __wt_modify_vector_init(modifies->session, modifies);
 }
+
+int
+__wt_modify_reconstruct_from_upd_list(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE_VIEW *upd_view)
+{
+    WT_DECL_RET;
+    WT_MODIFY_VECTOR modifies;
+    WT_TIME_PAIR start, stop;
+
+    /* Construct full update */
+    __wt_modify_vector_init(session, &modifies);
+    /* Find a complete update. */
+    for (; upd != NULL; upd = upd->next) {
+        if (upd->txnid == WT_TXN_ABORTED)
+            continue;
+
+        if (WT_UPDATE_DATA_VALUE(upd))
+            break;
+
+        if (upd->type == WT_UPDATE_MODIFY)
+            WT_ERR(__wt_modify_vector_push(&modifies, upd));
+    }
+    /*
+     * If there's no full update, the base item is the on-page item. If the update is a tombstone,
+     * the base item is an empty item.
+     */
+    if (upd == NULL) {
+        /*
+         * Callers of this function set the cursor slot to an impossible value to check we don't try
+         * and return on-page values when the update list should have been sufficient (which
+         * happens, for example, if an update list was truncated, deleting some standard update
+         * required by a previous modify update). Assert the case.
+         */
+        WT_ASSERT(session, cbt->slot != UINT32_MAX);
+
+        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &upd_view->buf, &start, &stop));
+        /*
+         * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
+         * the stop time pair should be unset.
+         */
+        WT_ASSERT(session, stop.txnid == WT_TXN_MAX && stop.timestamp == WT_TS_MAX);
+    } else {
+        /* The base update must not be a tombstone. */
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
+        WT_ERR(__wt_buf_set(session, &upd_view->buf, upd->data, upd->size));
+    }
+    /*
+     * Once we have a base item, roll forward through any visible modify updates.
+     */
+    while (modifies.size > 0) {
+        __wt_modify_vector_pop(&modifies, &upd);
+        WT_ERR(__wt_modify_apply_item(
+          session, &upd_view->buf, upd->data, ((WT_CURSOR *)cbt)->value_format[0] == 'S'));
+    }
+    upd_view->type = WT_UPDATE_STANDARD;
+err:
+    __wt_modify_vector_free(&modifies);
+    return (ret);
+}

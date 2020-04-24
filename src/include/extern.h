@@ -1094,6 +1094,8 @@ extern int __wt_modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, cons
   bool sformat) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_modify_pack(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries, WT_ITEM **modifyp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_modify_reconstruct_from_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
+  WT_UPDATE *upd, WT_UPDATE_VIEW *upd_view) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...)
@@ -2010,8 +2012,8 @@ static inline int __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *k
 static inline int __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key,
   uint64_t recno, WT_UPDATE *upd, WT_CELL_UNPACK *vpack, WT_UPDATE_VIEW *upd_view)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd,
-  WT_UPDATE_VIEW *upd_view) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
+  WT_UPDATE *upd, WT_UPDATE_VIEW *upd_view) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_search_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,

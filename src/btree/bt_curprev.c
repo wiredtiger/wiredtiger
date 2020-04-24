@@ -199,7 +199,7 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->iface.value.data = &cbt->v;
     } else {
 restart_read:
-        WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd_view));
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, &upd_view));
         if (upd_view.type == WT_UPDATE_INVALID) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
@@ -297,7 +297,7 @@ new_page:
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 restart_read:
         WT_CLEAR(upd_view);
-        WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd_view));
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, &upd_view));
         if (upd_view.type == WT_UPDATE_INVALID)
             continue;
         if (upd_view.type == WT_UPDATE_TOMBSTONE) {
@@ -373,7 +373,7 @@ restart_read:
         cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
         WT_CLEAR(upd_view);
         if (cbt->ins != NULL)
-            WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd_view));
+            WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, &upd_view));
         if (upd_view.type != WT_UPDATE_INVALID) {
             if (upd_view.type == WT_UPDATE_TOMBSTONE) {
 #if 0
@@ -513,7 +513,7 @@ restart_read_insert:
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
             WT_CLEAR(upd_view);
-            WT_RET(__wt_txn_read_upd_list(session, ins->upd, &upd_view));
+            WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd, &upd_view));
             if (upd_view.type == WT_UPDATE_INVALID)
                 continue;
             if (upd_view.type == WT_UPDATE_TOMBSTONE) {

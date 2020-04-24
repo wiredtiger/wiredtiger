@@ -872,10 +872,7 @@ record_loop:
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
                     cbt->slot = WT_COL_SLOT(page, cip);
-                    // tetsuo-cpp: This is pretty bad. Let's fix this.
-                    upd_view.buf.data = upd->data;
-                    upd_view.buf.size = upd->size;
-                    upd_view.type = upd->type;
+                    WT_ERR(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, &upd_view));
                     WT_ERR(__wt_value_return_upd(cbt, &upd_view));
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
@@ -1077,10 +1074,7 @@ compare:
                      * Impossible slot, there's no backing on-page item.
                      */
                     cbt->slot = UINT32_MAX;
-                    // tetsuo-cpp: And here.
-                    upd_view.buf.data = upd->data;
-                    upd_view.buf.size = upd->size;
-                    upd_view.type = upd->type;
+                    WT_ERR(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, &upd_view));
                     WT_ERR(__wt_value_return_upd(cbt, &upd_view));
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;

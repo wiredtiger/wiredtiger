@@ -232,7 +232,7 @@ __wt_cursor_valid(
      * update that's been deleted is not a valid key/value pair).
      */
     if (cbt->ins != NULL) {
-        WT_RET(__wt_txn_read_upd_list(session, cbt->ins->upd, &upd_view));
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, &upd_view));
         if (upd_view.type != WT_UPDATE_INVALID) {
             if (upd_view.type == WT_UPDATE_TOMBSTONE)
                 return (0);

@@ -769,7 +769,8 @@ __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp, size_t *siz
  *     Get the first visible update in a list (or NULL if none are visible).
  */
 static inline int
-__wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE_VIEW *upd_view)
+__wt_txn_read_upd_list(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE_VIEW *upd_view)
 {
     WT_VISIBLE_TYPE upd_visible;
     uint8_t type;
@@ -792,15 +793,26 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE_VIEW 
               F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE) &&
               (upd->start_ts != WT_TS_NONE || upd->txnid != WT_TXN_NONE))
                 continue;
-            /* Don't own the memory. */
-            upd_view->buf.data = upd->data;
-            upd_view->buf.size = upd->size;
-            upd_view->type = upd->type;
-            return (0);
+            break;
         }
         if (upd_visible == WT_VISIBLE_PREPARE)
             return (WT_PREPARE_CONFLICT);
     }
+    if (upd == NULL)
+        return (0);
+    /*
+     * Now assign to the update view. If it's not a modify, we're free to simply point the view at
+     * the update's value without owning it. If it is a modify, we need to reconstruct the full
+     * update now and make the view own the buffer. This means that when we free the view, it will
+     * free the reconstructed value with it since it does not exist organically in the update list.
+     */
+    if (upd->type != WT_UPDATE_MODIFY) {
+        /* Don't own the memory. */
+        upd_view->buf.data = upd->data;
+        upd_view->buf.size = upd->size;
+        upd_view->type = upd->type;
+    } else
+        WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, upd_view));
     return (0);
 }
 
@@ -822,7 +834,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     WT_ASSERT(session,
       upd_view->type == WT_UPDATE_INVALID && upd_view->buf.data == NULL && upd_view->buf.size == 0);
 
-    WT_RET(__wt_txn_read_upd_list(session, upd, upd_view));
+    WT_RET(__wt_txn_read_upd_list(session, cbt, upd, upd_view));
     if (upd_view->buf.data != NULL || upd_view->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
