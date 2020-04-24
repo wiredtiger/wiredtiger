@@ -135,6 +135,15 @@ __metadata_load_bulk(WT_SESSION_IMPL *session)
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    /*
+     * We want to explicitly close, not just release the metadata cursor here. We know we are in
+     * initialization and this open cursor holds a lock on the metadata and we may need to verify
+     * the metadata.
+     */
+    if (session->meta_cursor != NULL) {
+        WT_TRET(session->meta_cursor->close(session->meta_cursor));
+        session->meta_cursor = NULL;
+    }
     return (ret);
 }
 
