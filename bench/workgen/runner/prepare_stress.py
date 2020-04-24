@@ -123,9 +123,11 @@ start_time = time.time()
 # If there are multiple tables to be filled during populate,
 # the icount is split between them all.
 pop_ops = Operation(Operation.OP_INSERT, tables[0])
+pop_ops = txn(pop_ops, 'isolation=snapshot')
 pop_ops = op_multi_table(pop_ops, tables)
 nops_per_thread = icount // (populate_threads * table_count)
 pop_thread = Thread(pop_ops * nops_per_thread)
+pop_thread.options.session_config="isolation=snapshot"
 pop_workload = Workload(context, populate_threads * pop_thread)
 pop_workload.run(conn)
 
@@ -178,12 +180,15 @@ thread2.options.throttle_burst=1.0
 # least run for ~17 minutes.
 search_op = Operation(Operation.OP_SEARCH, tables[0], Key(Key.KEYGEN_PARETO, 0, ParetoOptions(1)))
 update_op = Operation(Operation.OP_UPDATE, tables[0], Key(Key.KEYGEN_PARETO, 0, ParetoOptions(1)))
-ops = txn(((search_op + update_op) * 1000 + sleep(0.1)) * 10000)
+ops = txn(((search_op + update_op) * 1000 + sleep(0.1)) * 10000, 'isolation=snapshot')
+ops.transaction.use_commit_timestamp = True
 thread3 = Thread(ops)
+thread3.options.session_config="isolation=snapshot"
 
 ops = Operation(Operation.OP_SLEEP, "0.1") + \
       Operation(Operation.OP_LOG_FLUSH, "")
 logging_thread = Thread(ops)
+logging_thread.options.session_config="isolation=snapshot"
 
 workload = Workload(context, 50 * thread0 + 50 * thread1 +\
                     10 * thread2 + 100 * thread3 + logging_thread)
