@@ -240,10 +240,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (!is_hs_page && (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
                                                              !__txn_visible_id(session, txnid))) {
             /*
-             * Rare case: when applications run at low isolation levels, update/restore eviction may
-             * see a stable update followed by an uncommitted update. Give up in that case: we need
-             * to discard updates from the stable update and older for correctness and we can't
-             * discard an uncommitted update.
+             * Rare case: when applications run at low isolation levels, eviction may see a
+             * committed update followed by uncommitted updates. Give up in that case because we
+             * can't move uncommitted update to the history store.
              */
             if (upd_select->upd != NULL)
                 return (__wt_set_return(session, EBUSY));
