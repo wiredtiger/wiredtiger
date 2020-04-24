@@ -522,11 +522,11 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
  */
 static inline int
 __hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDATE *upd,
-  const void *base_full_value, size_t size)
+  const void *base_full_value, size_t size, bool sformat)
 {
     if (upd->type == WT_UPDATE_MODIFY) {
         WT_RET(__wt_buf_set(session, full_value, base_full_value, size));
-        WT_RET(__wt_modify_apply_item(session, full_value, upd->data, false));
+        WT_RET(__wt_modify_apply_item(session, full_value, upd->data, sformat));
     } else {
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         full_value->data = upd->data;
@@ -562,11 +562,12 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     uint32_t i;
     uint8_t *p;
     int nentries;
-    bool squashed;
+    bool sformat, squashed;
 
     prev_upd = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
     insert_cnt = 0;
+    sformat = btree->value_format[0] == 'S';
     __wt_modify_vector_init(session, &modifies);
 
     if (!btree->hs_entries)
@@ -716,7 +717,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
                 prev_full_value->size = prev_upd->size;
             } else
                 WT_ERR(__hs_calculate_full_value(
-                  session, prev_full_value, prev_upd, full_value->data, full_value->size));
+                  session, prev_full_value, prev_upd, full_value->data, full_value->size, sformat));
 
             /*
              * Skip the updates have the same start timestamp and transaction id
@@ -881,7 +882,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     uint32_t hs_btree_id, session_flags;
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
-    bool is_owner, modify;
+    bool is_owner, modify, sformat;
 
     *updp = NULL;
 
@@ -894,6 +895,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     WT_NOT_READ(modify, false);
     is_owner = false;
+    sformat = S2BT(session)->value_format[0] == 'S';
 
     /*
      * We temporarily move the read timestamp forwards to read modify records in the history store.
@@ -1020,7 +1022,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
             __wt_modify_vector_pop(&modifies, &mod_upd);
-            WT_ERR(__wt_modify_apply_item(session, hs_value, mod_upd->data, false));
+            WT_ERR(__wt_modify_apply_item(session, hs_value, mod_upd->data, sformat));
             __wt_free_update_list(session, &mod_upd);
             mod_upd = NULL;
         }
