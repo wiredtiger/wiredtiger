@@ -1129,7 +1129,10 @@ struct __wt_update {
  */
 struct __wt_update_view {
     WT_ITEM buf;
+    wt_timestamp_t start_ts;
+    uint64_t txnid;
     uint8_t type;
+    uint8_t prepare_state;
 };
 
 /*

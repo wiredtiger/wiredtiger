@@ -584,6 +584,20 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 }
 
 /*
+ * __wt_txn_upd_view_visible_all --
+ *     Is the given update view visible to all (possible) readers?
+ */
+static inline bool
+__wt_txn_upd_view_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VIEW *upd_view)
+{
+    if (upd_view->prepare_state == WT_PREPARE_LOCKED ||
+      upd_view->prepare_state == WT_PREPARE_INPROGRESS)
+        return (false);
+
+    return (__wt_txn_visible_all(session, upd_view->txnid, upd_view->start_ts));
+}
+
+/*
  * __txn_visible_id --
  *     Can the current transaction see the given ID?
  */
@@ -807,10 +821,13 @@ __wt_txn_read_upd_list(
      * free the reconstructed value with it since it does not exist organically in the update list.
      */
     if (upd->type != WT_UPDATE_MODIFY) {
-        /* Don't own the memory. */
+        /* This update exists in the update list so don't take ownership of this memory. */
         upd_view->buf.data = upd->data;
         upd_view->buf.size = upd->size;
+        upd_view->start_ts = upd->start_ts;
+        upd_view->txnid = upd->txnid;
         upd_view->type = upd->type;
+        upd_view->prepare_state = upd->prepare_state;
     } else
         WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, upd_view));
     return (0);
@@ -882,7 +899,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     /* If the start time pair is visible then we need to return the ondisk value. */
     if (__wt_txn_visible(session, start.txnid, start.timestamp)) {
         upd_view->buf = buf;
+        upd_view->start_ts = start.timestamp;
+        upd_view->txnid = start.txnid;
         upd_view->type = WT_UPDATE_STANDARD;
+        upd_view->prepare_state = WT_PREPARE_INIT;
         return (0);
     }
 

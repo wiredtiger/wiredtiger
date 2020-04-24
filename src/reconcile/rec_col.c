@@ -873,7 +873,7 @@ record_loop:
                 case WT_UPDATE_MODIFY:
                     cbt->slot = WT_COL_SLOT(page, cip);
                     WT_ERR(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, &upd_view));
-                    WT_ERR(__wt_value_return_upd(cbt, &upd_view));
+                    __wt_value_return_upd(cbt, &upd_view);
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
                     update_no_copy = false;
@@ -1075,7 +1075,7 @@ compare:
                      */
                     cbt->slot = UINT32_MAX;
                     WT_ERR(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, &upd_view));
-                    WT_ERR(__wt_value_return_upd(cbt, &upd_view));
+                    __wt_value_return_upd(cbt, &upd_view);
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
                     update_no_copy = false;

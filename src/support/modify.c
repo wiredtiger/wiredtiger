@@ -524,13 +524,31 @@ __wt_modify_vector_free(WT_MODIFY_VECTOR *modifies)
     __wt_modify_vector_init(modifies->session, modifies);
 }
 
+/*
+ * __wt_modify_reconstruct_from_upd_list --
+ *     Takes an in-memory modify and populates an update view with the reconstructed full value.
+ *     Since the reconstructed update does not exist organically in the update list, the view is
+ *     tasked with owning the memory associated with this value.
+ */
 int
 __wt_modify_reconstruct_from_upd_list(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE_VIEW *upd_view)
 {
+    WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_MODIFY_VECTOR modifies;
     WT_TIME_PAIR start, stop;
+    bool sformat;
+
+    WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
+
+    cursor = (WT_CURSOR *)cbt;
+    sformat = (cursor->value_format[0] == 'S');
+
+    /* While we have a pointer to our original modify, grab this information. */
+    upd_view->start_ts = upd->start_ts;
+    upd_view->txnid = upd->txnid;
+    upd_view->prepare_state = upd->prepare_state;
 
     /* Construct full update */
     __wt_modify_vector_init(session, &modifies);
@@ -574,8 +592,7 @@ __wt_modify_reconstruct_from_upd_list(
      */
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &upd);
-        WT_ERR(__wt_modify_apply_item(
-          session, &upd_view->buf, upd->data, ((WT_CURSOR *)cbt)->value_format[0] == 'S'));
+        WT_ERR(__wt_modify_apply_item(session, &upd_view->buf, upd->data, sformat));
     }
     upd_view->type = WT_UPDATE_STANDARD;
 err:

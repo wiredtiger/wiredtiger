@@ -301,13 +301,8 @@ restart_read:
         if (upd_view.type == WT_UPDATE_INVALID)
             continue;
         if (upd_view.type == WT_UPDATE_TOMBSTONE) {
-// tetsuo-cpp: To maintain this stat below, maybe we'll need to pass more information out.
-#if 0
-            if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
+            if (upd_view.txnid != WT_TXN_NONE && __wt_txn_upd_view_visible_all(session, &upd_view))
                 ++cbt->page_deleted_count;
-            if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK) && upd->type != WT_UPDATE_TOMBSTONE)
-                __wt_free_update_list(session, &upd);
-#endif
             continue;
         }
         return (__wt_value_return(cbt, &upd_view));
@@ -376,12 +371,9 @@ restart_read:
             WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, &upd_view));
         if (upd_view.type != WT_UPDATE_INVALID) {
             if (upd_view.type == WT_UPDATE_TOMBSTONE) {
-#if 0
-                if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
+                if (upd_view.txnid != WT_TXN_NONE &&
+                  __wt_txn_upd_view_visible_all(session, &upd_view))
                     ++cbt->page_deleted_count;
-                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                    __wt_free_update_list(session, &upd);
-#endif
                 continue;
             }
             return (__wt_value_return(cbt, &upd_view));
@@ -517,12 +509,9 @@ restart_read_insert:
             if (upd_view.type == WT_UPDATE_INVALID)
                 continue;
             if (upd_view.type == WT_UPDATE_TOMBSTONE) {
-#if 0
-                if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
+                if (upd_view.txnid != WT_TXN_NONE &&
+                  __wt_txn_upd_view_visible_all(session, &upd_view))
                     ++cbt->page_deleted_count;
-                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                    __wt_free_update_list(session, &upd);
-#endif
                 continue;
             }
             return (__wt_value_return(cbt, &upd_view));
@@ -558,12 +547,8 @@ restart_read_page:
         if (upd_view.type == WT_UPDATE_INVALID)
             continue;
         if (upd_view.type == WT_UPDATE_TOMBSTONE) {
-#if 0
-            if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
+            if (upd_view.txnid != WT_TXN_NONE && __wt_txn_upd_view_visible_all(session, &upd_view))
                 ++cbt->page_deleted_count;
-            if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                __wt_free_update_list(session, &upd);
-#endif
             continue;
         }
         return (__wt_value_return(cbt, &upd_view));

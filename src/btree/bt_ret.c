@@ -239,7 +239,7 @@ __value_return(WT_CURSOR_BTREE *cbt)
  * __wt_value_return_upd --
  *     Change the cursor to reference an internal update structure return value.
  */
-int
+void
 __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
 {
     WT_CURSOR *cursor;
@@ -254,14 +254,9 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
      *
      * Fast path if it's a standard item, assert our caller's behavior.
      */
-    if (upd_view->type == WT_UPDATE_STANDARD) {
-        /* Ownership should get transferred as appropriate. */
-        cursor->value = upd_view->buf;
-        return (0);
-    }
-    // tetsuo-cpp: Modifies should be getting reconstructed by this point.
-    WT_ASSERT(session, upd_view->type != WT_UPDATE_MODIFY);
-    return (0);
+    WT_ASSERT(session, upd_view->type == WT_UPDATE_STANDARD);
+    /* Ownership should get transferred as appropriate. */
+    cursor->value = upd_view->buf;
 }
 
 /*
@@ -303,11 +298,10 @@ __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
     cursor = &cbt->iface;
 
     F_CLR(cursor, WT_CURSTD_VALUE_EXT);
-    /* tetsuo-cpp: Do we even need this code path? Maybe just start returning tombstones. */
     if (upd_view->type == WT_UPDATE_INVALID)
         WT_RET(__value_return(cbt));
     else
-        WT_RET(__wt_value_return_upd(cbt, upd_view));
+        __wt_value_return_upd(cbt, upd_view);
     F_SET(cursor, WT_CURSTD_VALUE_INT);
     return (0);
 }
