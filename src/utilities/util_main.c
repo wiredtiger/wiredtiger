@@ -11,7 +11,7 @@
 const char *home = "."; /* Home directory */
 const char *progname;   /* Program name */
                         /* Global arguments */
-const char *usage_prefix = "[-LRrSVv] [-C config] [-E secretkey] [-h home]";
+const char *usage_prefix = "[-LmRrSVv] [-C config] [-E secretkey] [-h home]";
 bool verbose = false; /* Verbose flag */
 
 static const char *command; /* Command name */
@@ -27,8 +27,8 @@ usage(void)
 {
     static const char *options[] = {"-B", "maintain release 3.3 log file compatibility",
       "-C config", "wiredtiger_open configuration", "-E key", "secret encryption key", "-h home",
-      "database directory", "-L", "turn logging off for debug-mode", "-R",
-      "run recovery (if recovery configured)", "-r",
+      "database directory", "-L", "turn logging off for debug-mode", "-m", "run verify on metadata",
+      "-R", "run recovery (if recovery configured)", "-r",
       "access the database via a readonly connection", "-S",
       "run salvage recovery (if recovery configured)", "-V", "display library version and exit",
       "-v", "verbose", NULL, NULL};
@@ -63,7 +63,7 @@ main(int argc, char *argv[])
     int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
     const char *cmd_config, *config, *p1, *p2, *p3, *readonly_config, *rec_config;
-    bool backward_compatible, logoff, readonly, recover, salvage;
+    bool backward_compatible, logoff, meta_verify, readonly, recover, salvage;
 
     conn = NULL;
     p = NULL;
@@ -92,9 +92,9 @@ main(int argc, char *argv[])
      * needed, the user can specify -R to run recovery.
      */
     rec_config = REC_ERROR;
-    backward_compatible = logoff = readonly = recover = salvage = false;
+    backward_compatible = logoff = meta_verify = readonly = recover = salvage = false;
     /* Check for standard options. */
-    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:LRrSVv")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:LmRrSVv")) != EOF)
         switch (ch) {
         case 'B': /* backward compatibility */
             backward_compatible = true;
@@ -116,6 +116,10 @@ main(int argc, char *argv[])
         case 'L': /* no logging */
             rec_config = REC_LOGOFF;
             logoff = true;
+            break;
+        case 'm': /* verify metadata on connection open */
+            cmd_config = "verify_metadata=true";
+            meta_verify = true;
             break;
         case 'R': /* recovery */
             rec_config = REC_RECOVER;
@@ -151,8 +155,11 @@ main(int argc, char *argv[])
     argc -= __wt_optind;
     argv += __wt_optind;
 
+    func = NULL;
     /* The next argument is the command name. */
     if (argc < 1) {
+        if (meta_verify)
+            goto open;
         usage();
         goto err;
     }
@@ -160,7 +167,6 @@ main(int argc, char *argv[])
 
     /* Reset getopt. */
     __wt_optreset = __wt_optind = 1;
-    func = NULL;
     switch (command[0]) {
     case 'a':
         if (strcmp(command, "alter") == 0)
@@ -250,6 +256,7 @@ main(int argc, char *argv[])
         goto err;
     }
 
+open:
     /* Build the configuration string. */
     len = 10; /* some slop */
     p1 = p2 = p3 = "";
@@ -279,17 +286,21 @@ main(int argc, char *argv[])
     }
     config = p;
 
-    /* Open the database and a session. */
     if ((ret = wiredtiger_open(home, verbose ? verbose_handler : NULL, config, &conn)) != 0) {
         (void)util_err(NULL, ret, NULL);
         goto err;
     }
+
+    /* If we only want to verify the metadata, that is done in wiredtiger_open. We're done. */
+    if (func == NULL && meta_verify)
+        goto done;
+
     if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0) {
         (void)util_err(NULL, ret, NULL);
         goto err;
     }
 
-    /* Call the function. */
+    /* Call the function after opening the database and session. */
     ret = func(session, argc, argv);
 
     if (0) {
