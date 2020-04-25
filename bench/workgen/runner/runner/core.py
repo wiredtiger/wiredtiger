@@ -161,20 +161,24 @@ def _op_get_group_list(op):
         result.extend(grouplist)
     return result
 
-# Recursive helper function for op_copy to modify the table or key.
+# This function is used by op_copy to modify a "tree" of operations to change the table
+# and/or key for each operation to a given value.  It operates on the current operation,
+# and recursively on any in its groiup list.
 def _op_copy_mod(op, table, key):
     if op._optype != Operation.OP_NONE:
         if table != None:
             op._table = table
         if key != None:
             op._key = key
-    else:
+    if op._group != None:
         newgroup = []
-        for subop in op._group:
+        for subop in _op_get_group_list(op):
             newgroup.append(_op_copy_mod(subop, table, key))
         op._group = OpList(newgroup)
     return op
 
+# This is a convenient function that copies an operation and all its
+# "sub-operations", as well as any attached transaction.
 def op_copy(src, table=None, key=None):
     # Copy constructor does a deep copy, including subordinate
     # operations and any attached transaction.
@@ -218,15 +222,13 @@ def _op_multi_table_as_list(ops_arg, tables, pareto_tables, multiplier):
                 for o in _op_multi_table_as_list(op, tables, pareto_tables, \
                                                  multiplier):
                     result.append(Operation(o))
+        elif pareto_tables <= 0:
+            entries = len(tables) * multiplier
+            for i in range(0, entries):
+                copy = op_copy(ops_arg, table=tables[i])
+                result.append(copy)
         else:
-            if pareto_tables <= 0:
-                entries = len(tables) * multiplier
-                #ops_result = [None] * entries
-                for i in range(0, entries):
-                    copy = op_copy(ops_arg, table=tables[i])
-                    result.append(copy)
-            else:
-                raise Exception('pareto + transactions not yet supported')
+            raise Exception('(pareto, range partition, transaction) combination not supported')
     return result
 
 # A convenient way to build a list of operations
