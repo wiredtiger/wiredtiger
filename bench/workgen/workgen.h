@@ -232,7 +232,7 @@ struct ParetoOptions {
     ~ParetoOptions();
 
     void describe(std::ostream &os) const {
-	os << "parameter " << param;
+	os << "Pareto: parameter " << param;
 	if (range_low != 0.0 || range_high != 1.0) {
 	    os << "range [" << range_low << "-" << range_high << "]";
 	}
@@ -266,7 +266,12 @@ struct Key {
     ~Key() {}
 
     void describe(std::ostream &os) const {
-	os << "Key: type " << _keytype << ", size " << _size; }
+	os << "Key: type " << _keytype << ", size " << _size;
+        if (_pareto.param != ParetoOptions::DEFAULT.param) {
+            os << ", ";
+            _pareto.describe(os);
+        }
+    }
 };
 
 struct Value {
