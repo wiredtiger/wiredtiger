@@ -26,31 +26,17 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-# This benchmark is designed to stress disk access to the history store file.
-# This is achieved through:
-#   - Long running transactions consisting of read and update operations.
-#   - Low cache size (~20%) for a reasonably sized WT table with large documents.
-#   - Pareto distribution for operations in long running transactions. This will cause
-#     skewed access for a selective set of keys in WT table.
-#   - Relatively large number of read operation threads to stress cache.
-
-# Benchmark is based on a wtperf config: wiredtiger/bench/wtperf/runners/evict-btree-scan.wtperf
-# There are number of changes made to original configs such as:
-#   - Reduced the number of documents inserts during initial warm-up phase.
-#   - Increased the sizes of key and value.
-#   - Reduced the WT cache size.
-#   - Added transaction based operations and repurposed some of the read threads as long-running
-#     transcation threads.
-
-# This file is derived from evict-btree-hs.py and below are the new configurations added
-# - Timestamp support for prepare transactions
-# - Commit the transaction with prepare, commit and durable timestamp (use_prepare_timestamp).
-# - Commit the transaction with commit_timestamp (use_commit_timestamp).
-# - Read timestamp lag from the current time (read_timestamp_lag)
-# - Number of seconds lag to the oldest_timestamp from current time (oldest_timestamp_lag).
-# - Number of seconds lag to the stable_timestamp from current time (stable_timestamp_lag).
-# - Number of seconds to wait before moving oldest and stable timestamp (timestamp_advance).
-# - Thread.options.session_config - Session configuration.
+# This file is derived from evict-btree-hs.py, see that file for its purpose and
+# derivation. This benchmark is designed to stress the cache effects of prepared transactions,
+# in particular eviction of data in general and prepared transactions in particular.
+# These are the ways that this workload differs from evict-btree-hs.py:
+# - Insert operations use a prepare call, and commit with a durable timestamp
+#   (see use_prepare_timestamp)
+# - Update operations commit with a commit timestamp (see_commit_timestamp).
+# - Read transactions use a "read_timestamp" that lags the current time (see read_timestamp_lag).
+# - The system-wide "oldest_timestamp" and "stable_timestamp" advance periodically, but lag the
+#   current time (see oldest_timestamp_lag and stable_timestamp_lag and timestamp_advance).
+# - Sessions and transactions use snapshot isolation.
 
 ###################################################################################################
 # These wtperf constants were used to originally generate this python file, which has been since
