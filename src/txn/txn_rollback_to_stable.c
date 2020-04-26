@@ -26,7 +26,8 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
         if (upd->txnid == WT_TXN_ABORTED) {
             if (upd == first_upd)
                 first_upd = upd->next;
-        } else if (rollback_timestamp < upd->durable_ts) {
+        } else if (rollback_timestamp < upd->durable_ts ||
+          upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED) {
             /*
              * If any updates are aborted, all newer updates better be aborted as well.
              *
@@ -40,23 +41,10 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
 
             __wt_verbose(session, WT_VERB_RTS,
               "rollback to stable update aborted with txnid: %" PRIu64
-              " durable timestamp: %s and stable timestamp: %s",
+              " durable timestamp: %s and stable timestamp: %s, prepared: %s",
               upd->txnid, __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
-              __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
-
-            upd->txnid = WT_TXN_ABORTED;
-            WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);
-            upd->durable_ts = upd->start_ts = WT_TS_NONE;
-        } else if (upd->prepare_state == WT_PREPARE_INPROGRESS ||
-          upd->prepare_state == WT_PREPARE_LOCKED) {
-            /* Abort the in-progress prepared updates */
-            first_upd = upd->next;
-
-            __wt_verbose(session, WT_VERB_RTS,
-              "rollback to stable prepared update aborted with txnid: %" PRIu64
-              " durable timestamp: %s and stable timestamp: %s",
-              upd->txnid, __wt_timestamp_to_string(upd->durable_ts, ts_string[0]),
-              __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
+              __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
+              rollback_timestamp < upd->durable_ts ? "false" : "true");
 
             upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_rts_upd_aborted);

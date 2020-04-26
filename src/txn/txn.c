@@ -598,11 +598,12 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_fixup_history_store --
- *     Fix the history store update when a prepared transaction is updated.
+ * __txn_fixup_prepared_update --
+ *     Fix/restore the history store update of a prepared datastore update based on transaction
+ *     status.
  */
 static int
-__txn_fixup_history_store(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *cursor, bool commit)
+__txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *cursor, bool commit)
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt, *hs_cbt;
@@ -686,8 +687,6 @@ __txn_fixup_history_store(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *cu
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         hs_upd->durable_ts = hs_upd->start_ts = txn->durable_timestamp;
         hs_upd->txnid = txn->id;
-        WT_ERR(__wt_hs_modify(hs_cbt, hs_upd));
-        hs_upd = NULL;
     } else {
         WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, NULL));
 
@@ -717,9 +716,10 @@ __txn_fixup_history_store(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *cu
 
         /* Remove the restored update from history store. */
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
-        WT_ERR(__wt_hs_modify(hs_cbt, hs_upd));
-        hs_upd = NULL;
     }
+
+    WT_ERR(__wt_hs_modify(hs_cbt, hs_upd));
+    hs_upd = NULL;
 
 err:
     __wt_scr_free(session, &hs_key);
@@ -859,10 +859,14 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         resolved = true;
     }
 
-    /* Fix the history store contents if exists. */
+    /*
+     * Fix the history store contents if they exist. Even when there are no more updates in the
+     * update list, it is possible that there may be some older updates that are moved into history
+     * store when the page gets evicted.
+     */
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && resolved &&
       (upd == NULL || F_ISSET(upd, WT_UPDATE_HS)))
-        __txn_fixup_history_store(session, op, *cursorp, commit);
+        __txn_fixup_prepared_update(session, op, *cursorp, commit);
 
     return (0);
 }
@@ -1351,13 +1355,13 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
             continue;
 
         /*
-         * Logged table updates should never be prepared. As these updates are immediate durable, it
-         * is not possible to rollback them in case if the prepared transaction is rollback-ed.
+         * Logged table updates should never be prepared. As these updates are immediately durable,
+         * it is not possible to roll them back if the prepared transaction is rolled back.
          */
         if (!F_ISSET(op->btree, WT_BTREE_NO_LOGGING) &&
           (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) ||
             F_ISSET(S2C(session), WT_CONN_IN_MEMORY)))
-            WT_RET_MSG(session, EINVAL, "prepare timestamp is not supported on logged tables");
+            WT_RET_MSG(session, EINVAL, "transaction prepare is not supported with logged tables");
 
         switch (op->type) {
         case WT_TXN_OP_NONE:

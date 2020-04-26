@@ -152,6 +152,9 @@ static inline bool
 __rec_need_save_upd(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select, bool has_newer_updates)
 {
+    if (upd_select->prepare)
+        return (true);
+
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
 
@@ -255,23 +258,21 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             continue;
         }
 
-        if (upd->prepare_state == WT_PREPARE_LOCKED ||
-          upd->prepare_state == WT_PREPARE_INPROGRESS) {
+        /* Ignore prepared updates if it is not eviction. */
+        if (!F_ISSET(r, WT_REC_EVICT) && (upd->prepare_state == WT_PREPARE_LOCKED ||
+                                           upd->prepare_state == WT_PREPARE_INPROGRESS)) {
             WT_ASSERT(session, upd_select->upd == NULL);
-            /* Ignore prepared updates if it is not eviction. */
-            if (!F_ISSET(r, WT_REC_EVICT)) {
-                has_newer_updates = true;
-                if (upd->start_ts > max_ts)
-                    max_ts = upd->start_ts;
+            has_newer_updates = true;
+            if (upd->start_ts > max_ts)
+                max_ts = upd->start_ts;
 
-                /*
-                 * Track the oldest update not on the page, used to decide whether reads can use the
-                 * page image, hence using the start rather than the durable timestamp.
-                 */
-                if (upd->start_ts < r->min_skipped_ts)
-                    r->min_skipped_ts = upd->start_ts;
-                continue;
-            }
+            /*
+             * Track the oldest update not on the page, used to decide whether reads can use the
+             * page image, hence using the start rather than the durable timestamp.
+             */
+            if (upd->start_ts < r->min_skipped_ts)
+                r->min_skipped_ts = upd->start_ts;
+            continue;
         }
 
         /* Track the first update with non-zero timestamp. */
@@ -347,11 +348,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * indicate that the value is visible to any timestamp/transaction id ahead of it.
          */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
-            upd_select->stop_durable_ts = upd_select->stop_ts = upd->start_ts;
             /*
              * Durable timestamp can be 0 for prepared updates, in those cases use the prepared
              * timestamp as durable timestamp.
              */
+            upd_select->stop_durable_ts = upd_select->stop_ts = upd->start_ts;
             if (upd->durable_ts != WT_TS_NONE)
                 upd_select->stop_durable_ts = upd->durable_ts;
             upd_select->stop_txn = upd->txnid;
@@ -367,12 +368,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             }
         }
         if (upd != NULL) {
-            /* The beginning of the validity window is the selected update's time pair. */
-            upd_select->start_durable_ts = upd_select->start_ts = upd->start_ts;
             /*
-             * Durable timestamp can be 0 for prepared updates, in those cases use the prepared
-             * timestamp as durable timestamp.
+             * The beginning of the validity window is the selected update's time pair. Durable
+             * timestamp can be 0 for prepared updates, in those cases use the prepared timestamp as
+             * durable timestamp.
              */
+            upd_select->start_durable_ts = upd_select->start_ts = upd->start_ts;
             if (upd->durable_ts != WT_TS_NONE)
                 upd_select->start_durable_ts = upd->durable_ts;
             upd_select->start_txn = upd->txnid;
@@ -458,7 +459,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      *
      * Additionally history store reconciliation is not set skip saving an update.
      */
-    if (upd_select->prepare || __rec_need_save_upd(session, r, upd_select, has_newer_updates)) {
+    if (__rec_need_save_upd(session, r, upd_select, has_newer_updates)) {
         /*
          * We should restore the update chains to the new disk image if there are newer updates in
          * eviction, or for cases that don't support history store, such as in-memory database and

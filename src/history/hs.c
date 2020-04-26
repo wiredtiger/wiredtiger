@@ -706,9 +706,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
 
             /*
              * For any uncommitted prepared updates written to disk, the stop timestamp of the last
-             * update moved into the history store should be with max visibility to protect it
-             * removing by the checkpoint garbage collection until the data store update is
-             * committed.
+             * update moved into the history store should be with max visibility to protect its
+             * removal by checkpoint garbage collection until the data store update is committed.
              */
             if (prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
               prev_upd->prepare_state == WT_PREPARE_LOCKED) {
@@ -718,7 +717,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
             } else {
                 /*
                  * Set the stop timestamp from durable timestamp instead of commit timestamp. The
-                 * Garbage collection of history store removes the history values once the stop
+                 * garbage collection of history store removes the history values once the stop
                  * timestamp is globally visible. i.e. durable timestamp of data store version.
                  */
                 WT_ASSERT(session, prev_upd->start_ts <= prev_upd->durable_ts);

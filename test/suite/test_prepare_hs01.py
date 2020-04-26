@@ -39,6 +39,19 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB'
 
+    def check(self, uri, ds, nrows, nsessions, nkeys, read_ts, expected_value, not_expected_value):
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        for i in range(1, nsessions * nkeys):
+            cursor.set_key(ds.key(nrows + i))
+            self.assertEquals(cursor.search(), 0)
+            # Correctness Test - commit_value should be visible
+            self.assertEquals(cursor.get_value(), expected_value)
+            # Correctness Test - prepare_value should NOT be visible
+            self.assertNotEquals(cursor.get_value(), not_expected_value)
+        cursor.close()
+        self.session.commit_transaction()
+
     def prepare_updates(self, uri, ds, nrows, nsessions, nkeys):
         # Update a large number of records in their individual transactions.
         # This will force eviction and start history store eviction of committed
@@ -86,17 +99,7 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
 
         # Re-read the original versions of all the data. This ensures reading
         # original versions from the history store
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
-        for i in range(1, nsessions * nkeys):
-            cursor.set_key(ds.key(nrows + i))
-            self.assertEquals(cursor.search(), 0)
-            # Correctness Test - commit_value should be visible
-            self.assertEquals(cursor.get_value(), bigvalue1)
-            # Correctness Test - prepare_value should NOT be visible
-            self.assertNotEquals(cursor.get_value(), bigvalue2)
-        cursor.close()
-        self.session.commit_transaction()
+        self.check(uri, ds, nrows, nsessions, nkeys, 1, bigvalue1, bigvalue2)
 
         # Close all cursors and sessions, this will cause prepared updates to be
         # rollback-ed
@@ -107,17 +110,7 @@ class test_prepare_hs01(wttest.WiredTigerTestCase):
         # Re-read the original versions of all the data. This ensures reading
         # original versions from the data store as the prepared updates are
         # aborted
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
-        for i in range(1, nsessions * nkeys):
-            cursor.set_key(ds.key(nrows + i))
-            self.assertEquals(cursor.search(), 0)
-            # Correctness Test - commit_value should be visible
-            self.assertEquals(cursor.get_value(), bigvalue1)
-            # Correctness Test - prepare_value should NOT be visible
-            self.assertNotEquals(cursor.get_value(), bigvalue2)
-        cursor.close()
-        self.session.commit_transaction()
+        self.check(uri, ds, nrows, nsessions, nkeys, 2, bigvalue1, bigvalue2)
 
     def test_prepare_hs(self):
         # Create a small table.

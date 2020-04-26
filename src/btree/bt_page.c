@@ -547,7 +547,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_ITEM buf;
     WT_ROW *rip;
     WT_UPDATE **upd_array, *upd;
-    size_t size;
+    size_t size, total_size;
     uint32_t i;
     bool prepare;
 
@@ -597,15 +597,10 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_CELL_FOREACH_END;
 
     /*
-     * We do currently instantiate prepared updates on leaf pages when the page is loaded. For
-     * in-memory databases, updates will get instantiated in a different function.
+     * Instantiate prepared updates on leaf pages when the page is loaded. For in-memory databases,
+     * All non obsolete updates will retain on the page as part of __split_multi_inmem function.
      */
     if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-        /*
-         * Give the page a modify structure.
-         *
-         * Mark tree dirty, unless the handle is read-only.
-         */
         WT_RET(__wt_page_modify_init(session, page));
         if (!F_ISSET(btree, WT_BTREE_READONLY))
             __wt_page_modify_set(session, page);
@@ -614,8 +609,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
         if (page->entries != 0 && page->modify->mod_row_update == NULL)
             WT_RET(__wt_calloc_def(session, page->entries, &page->modify->mod_row_update));
 
-        /* For each entry in the page... */
-        size = 0;
+        /* For each entry in the page */
+        size = total_size = 0;
         upd_array = page->modify->mod_row_update;
         WT_ROW_FOREACH (page, rip, i) {
             /* Unpack the on-page value cell. */
@@ -637,10 +632,11 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                 }
                 upd->prepare_state = WT_PREPARE_INPROGRESS;
                 upd_array[WT_ROW_SLOT(page, rip)] = upd;
+                total_size += size;
             }
         }
 
-        __wt_cache_page_inmem_incr(session, page, size);
+        __wt_cache_page_inmem_incr(session, page, total_size);
     }
 
     return (0);
