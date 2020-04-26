@@ -150,6 +150,10 @@ test_wt4891_meta_ckptlist_get_alloc_SOURCES=wt4891_meta_ckptlist_get_alloc/main.
 noinst_PROGRAMS += test_wt4891_meta_ckptlist_get_alloc
 all_TESTS += test_wt4891_meta_ckptlist_get_alloc
 
+test_wt5242_minimize_checkpoints_SOURCES=wt5242_minimize_checkpoints/main.c
+noinst_PROGRAMS += test_wt5242_minimize_checkpoints
+all_TESTS += test_wt5242_minimize_checkpoints
+
 # Run this during a "make check" smoke test.
 TESTS = $(all_TESTS)
 LOG_COMPILER = env top_builddir=$(top_builddir) top_srcdir=$(top_srcdir) $(TEST_WRAPPER)

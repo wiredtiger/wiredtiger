@@ -163,8 +163,8 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         self.assertEqual(i, total)
 
-    # Test that named checkpoints can't be deleted while backup cursors are
-    # open, but that normal checkpoints continue to work.
+    # Test that named checkpoints created before a backup cursor can't be deleted while
+    # the backup cursor is open, but that normal checkpoints continue to work.
     def test_checkpoint_delete(self):
         # You cannot name checkpoints including LSM tables, skip those.
         self.populate(1)
