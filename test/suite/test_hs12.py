@@ -31,9 +31,10 @@ import wiredtiger, wttest, time
 def timestamp_str(t):
     return '%x' % t
 
-# test_reverse_modify01.py
-# Verify reverse modify traversal after eviction
-class test_reverse_modify01(wttest.WiredTigerTestCase):
+# test_hs12.py
+# Verify we can correctly append modifies to the end of string values 
+
+class test_hs12(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB,statistics=(all),eviction=(threads_max=1)'
     session_config = 'isolation=snapshot'
 
@@ -76,18 +77,11 @@ class test_reverse_modify01(wttest.WiredTigerTestCase):
         # reset the cursor
         cursor2.reset()
 
-        # Insert two more values
+        # Insert one more value
         self.session.begin_transaction()
         cursor.set_key(1)
         cursor[1] = value3
         self.session.commit_transaction()
-
-        self.session.begin_transaction()
-        cursor.set_key(1)
-        cursor[1] = value4
-        self.session.commit_transaction()
-
-        self.session.checkpoint()
 
         # Insert a whole bunch of data into the table to force wiredtiger to evict data
         # from the previous table.
@@ -99,7 +93,6 @@ class test_reverse_modify01(wttest.WiredTigerTestCase):
         # Try to find the value we saw earlier
         cursor2.set_key(1)
         cursor2.search()
-        self.session.breakpoint()
         self.assertEquals(cursor2.get_value(), value1 + 'A')
 
 if __name__ == '__main__':
