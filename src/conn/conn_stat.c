@@ -135,15 +135,13 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
         FLD_SET(conn->stat_flags, WT_STAT_ON_CLOSE);
 
     /*
-     * We don't allow the log path to be reconfigured for security reasons.
-     * (Applications passing input strings directly to reconfigure would
-     * expose themselves to a potential security problem, the utility of
-     * reconfiguring a statistics log path isn't worth the security risk.)
+     * We don't allow the log path to be reconfigured for security reasons. (Applications passing
+     * input strings directly to reconfigure would expose themselves to a potential security
+     * problem, the utility of reconfiguring a statistics log path isn't worth the security risk.)
      *
-     * See above for the details, but during reconfiguration we're loading
-     * the path value from the saved configuration information, and it's
-     * required during reconfiguration because we potentially stopped and
-     * are restarting, the server.
+     * See above for the details, but during reconfiguration we're loading the path value from the
+     * saved configuration information, and it's required during reconfiguration because we
+     * potentially stopped and are restarting, the server.
      */
     WT_RET(__wt_config_gets(session, cfg, "statistics_log.path", &cval));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
@@ -154,7 +152,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
     __wt_config_subinit(session, &objectconf, &cval);
     for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt)
         ;
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
     if (cnt != 0) {
         WT_ERR(__wt_calloc_def(session, cnt + 1, &sources));
         __wt_config_subinit(session, &objectconf, &cval);
@@ -171,7 +169,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
                   "\"lsm\"");
             WT_ERR(__wt_strndup(session, k.str, k.len, &sources[cnt]));
         }
-        WT_ERR_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret, false);
 
         conn->stat_sources = sources;
         sources = NULL;
@@ -364,7 +362,7 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
             WT_ERR(__wt_fprintf(
               session, conn->stat_fs, "%s %" PRId64 " %s %s\n", conn->stat_stamp, val, name, desc));
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
     if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON))
         WT_ERR(__wt_fprintf(session, conn->stat_fs, "}}"));
 

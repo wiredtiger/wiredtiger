@@ -744,13 +744,11 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_TIME_PAIR start, stop;
     WT_UPDATE *upd;
     wt_timestamp_t hs_durable_ts;
-    size_t notused;
     uint64_t hs_upd_type_full;
     uint32_t hs_btree_id;
     uint8_t hs_prep_state, hs_upd_type;
 
     ds = &_ds;
-    notused = 0;
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
@@ -766,7 +764,7 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     hs_upd_type = (uint8_t)hs_upd_type_full;
     switch (hs_upd_type) {
     case WT_UPDATE_MODIFY:
-        WT_ERR(__wt_update_alloc(session, hs_value, &upd, &notused, hs_upd_type));
+        WT_ERR(__wt_upd_alloc(session, hs_value, hs_upd_type, &upd, NULL));
         WT_ERR(__debug_modify(ds, upd, "\tM "));
         break;
     case WT_UPDATE_STANDARD:
@@ -794,7 +792,8 @@ err:
  *     Dump information about a key and/or value.
  */
 int
-__wt_debug_key_value(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *value)
+__wt_debug_key_value(
+  WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, uint64_t rle, WT_CELL_UNPACK *value)
 {
     WT_DBG *ds, _ds;
     WT_DECL_RET;
@@ -803,17 +802,16 @@ __wt_debug_key_value(WT_SESSION_IMPL *session, WT_ITEM *key, WT_CELL_UNPACK *val
 
     WT_ERR(__debug_config(session, ds, NULL));
 
-    if (key != NULL)
+    if (key == NULL)
+        WT_ERR(ds->f(ds, "\tK {%" PRIu64 " %" PRIu64 "}", recno, rle));
+    else
         WT_ERR(__debug_item_key(ds, "K", key->data, key->size));
-    if (value != NULL) {
-        WT_ERR(__debug_time_pairs(
-          ds, "T", value->start_ts, value->start_txn, value->stop_ts, value->stop_txn));
-        WT_ERR(__debug_cell_data(ds, NULL, value != NULL ? value->type : 0, "V", value));
-    }
+    WT_ERR(__debug_time_pairs(
+      ds, "T", value->start_ts, value->start_txn, value->stop_ts, value->stop_txn));
+    WT_ERR(__debug_cell_data(ds, NULL, value != NULL ? value->type : 0, "V", value));
 
 err:
-    WT_RET(__debug_wrapup(ds));
-    return (ret);
+    return (__debug_wrapup(ds));
 }
 
 /*
@@ -1367,11 +1365,13 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
         WT_RET(ds->f(ds, ", %s", "reading"));
 
     if (__wt_ref_addr_copy(session, ref, &addr))
-        WT_RET(ds->f(ds, ", start/stop durable ts %s,%s, start/stop ts/txn %s,%s, %s",
-          __wt_timestamp_to_string(addr.start_durable_ts, ts_string[0]),
-          __wt_timestamp_to_string(addr.stop_durable_ts, ts_string[1]),
+        WT_RET(ds->f(ds,
+          ", start/stop durable ts %s,%s, start/stop ts/txn %s,%s, prepared updates: %s, %s",
+          __wt_timestamp_to_string(addr.newest_start_durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(addr.newest_stop_durable_ts, ts_string[1]),
           __wt_time_pair_to_string(addr.oldest_start_ts, addr.oldest_start_txn, tp_string[0]),
           __wt_time_pair_to_string(addr.newest_stop_ts, addr.newest_stop_txn, tp_string[1]),
+          addr.prepare ? "true" : "false",
           __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
     return (ds->f(ds, "\n"));
 }

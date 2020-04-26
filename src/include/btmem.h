@@ -79,6 +79,10 @@ struct __wt_page_header {
 
     /* A byte of padding, positioned to be added to the flags. */
     uint8_t unused; /* 26: unused padding */
+
+#define WT_PAGE_VERSION_ORIG 0 /* Original version */
+#define WT_PAGE_VERSION_TS 1   /* Timestamps added */
+    uint8_t version;           /* 27: version */
 };
 /*
  * WT_PAGE_HEADER_SIZE is the number of bytes we allocate for the structure: if the compiler inserts
@@ -123,12 +127,13 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  */
 struct __wt_addr {
     /* Validity window */
+    wt_timestamp_t newest_start_durable_ts;
     wt_timestamp_t oldest_start_ts;
     uint64_t oldest_start_txn;
-    wt_timestamp_t start_durable_ts;
+    wt_timestamp_t newest_stop_durable_ts;
     wt_timestamp_t newest_stop_ts;
     uint64_t newest_stop_txn;
-    wt_timestamp_t stop_durable_ts;
+    bool prepare;
 
     uint8_t *addr; /* Block-manager's cookie */
     uint8_t size;  /* Block-manager's cookie length */
@@ -155,12 +160,13 @@ struct __wt_addr {
  */
 struct __wt_addr_copy {
     /* Validity window */
+    wt_timestamp_t newest_start_durable_ts;
     wt_timestamp_t oldest_start_ts;
     uint64_t oldest_start_txn;
-    wt_timestamp_t start_durable_ts;
+    wt_timestamp_t newest_stop_durable_ts;
     wt_timestamp_t newest_stop_ts;
     uint64_t newest_stop_txn;
-    wt_timestamp_t stop_durable_ts;
+    bool prepare;
 
     uint8_t type;
 
@@ -272,9 +278,6 @@ struct __wt_page_modify {
     /* The largest transaction seen on the page by reconciliation. */
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
-
-    /* Stable timestamp at last reconciliation. */
-    wt_timestamp_t last_stable_timestamp;
 
     /* The largest update transaction ID (approximate). */
     uint64_t update_txn;
@@ -441,15 +444,6 @@ struct __wt_page_modify {
         WT_CELL **discard;
         size_t discard_entries;
         size_t discard_allocated;
-
-        /* Cached overflow value cell/update address pairs. */
-        struct {
-            WT_CELL *cell;
-            uint8_t *data;
-            size_t size;
-        } * remove;
-        size_t remove_allocated;
-        uint32_t remove_next;
     } * ovfl_track;
 
 #define WT_PAGE_LOCK(s, p) __wt_spin_lock((s), &(p)->modify->page_lock)
@@ -479,8 +473,7 @@ struct __wt_page_modify {
 #define WT_PM_REC_REPLACE 3    /* Reconciliation: single block */
     uint8_t rec_result;        /* Reconciliation state */
 
-#define WT_PAGE_RS_HS 0x1
-#define WT_PAGE_RS_RESTORED 0x2
+#define WT_PAGE_RS_RESTORED 0x1
     uint8_t restore_state; /* Created by restoring updates */
 };
 
@@ -1294,8 +1287,9 @@ struct __wt_insert_head {
     for ((i) = 0, (v) = (i) < (dsk)->u.entries ?                             \
            __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), 0, (btree)->bitcnt) : \
            0;                                                                \
-         (i) < (dsk)->u.entries;                                             \
-         ++(i), (v) = __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), i, (btree)->bitcnt))
+         (i) < (dsk)->u.entries; ++(i), (v) = (i) < (dsk)->u.entries ?       \
+           __bit_getv(WT_PAGE_HEADER_BYTE(btree, dsk), i, (btree)->bitcnt) : \
+           0)
 
 /*
  * Manage split generation numbers. Splits walk the list of sessions to check when it is safe to

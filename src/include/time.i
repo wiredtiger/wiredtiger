@@ -163,7 +163,7 @@ __wt_op_timer_start(WT_SESSION_IMPL *session)
     uint64_t timeout_us;
 
     /* Timer can be configured per-transaction, and defaults to per-connection. */
-    if ((timeout_us = session->txn.operation_timeout_us) == 0)
+    if (session->txn == NULL || (timeout_us = session->txn->operation_timeout_us) == 0)
         timeout_us = S2C(session)->operation_timeout_us;
     if (timeout_us == 0)
         session->operation_start_us = session->operation_timeout_us = 0;
@@ -171,15 +171,6 @@ __wt_op_timer_start(WT_SESSION_IMPL *session)
         session->operation_start_us = __wt_clock(session);
         session->operation_timeout_us = timeout_us;
     }
-
-#ifdef HAVE_DIAGNOSTIC
-    /*
-     * This is called at the beginning of each API call. We need to clear out any old values from
-     * this debugging field so that we don't leave a stale value in there that may then give a false
-     * positive.
-     */
-    session->op_5043_seconds = 0;
-#endif
 }
 
 /*

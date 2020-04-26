@@ -515,6 +515,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     uint64_t last_running;
 
+    WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
+
     last_running = 0;
     if (page->modify->page_state == WT_PAGE_CLEAN)
         last_running = S2C(session)->txn_global.last_running;
@@ -555,8 +557,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
 
     /* Check if this is the largest transaction ID to update the page. */
-    if (WT_TXNID_LT(page->modify->update_txn, session->txn.id))
-        page->modify->update_txn = session->txn.id;
+    if (WT_TXNID_LT(page->modify->update_txn, session->txn->id))
+        page->modify->update_txn = session->txn->id;
 }
 
 /*
@@ -1115,10 +1117,11 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     if (__wt_off_page(page, addr)) {
         copy->oldest_start_ts = addr->oldest_start_ts;
         copy->oldest_start_txn = addr->oldest_start_txn;
-        copy->start_durable_ts = addr->start_durable_ts;
+        copy->newest_start_durable_ts = addr->newest_start_durable_ts;
         copy->newest_stop_ts = addr->newest_stop_ts;
         copy->newest_stop_txn = addr->newest_stop_txn;
-        copy->stop_durable_ts = addr->stop_durable_ts;
+        copy->newest_stop_durable_ts = addr->newest_stop_durable_ts;
+        copy->prepare = addr->prepare;
         copy->type = addr->type;
         memcpy(copy->addr, addr->addr, copy->size = addr->size);
         return (true);
@@ -1128,10 +1131,11 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     __wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
     copy->oldest_start_ts = unpack->oldest_start_ts;
     copy->oldest_start_txn = unpack->oldest_start_txn;
-    copy->start_durable_ts = unpack->newest_start_durable_ts;
+    copy->newest_start_durable_ts = unpack->newest_start_durable_ts;
     copy->newest_stop_ts = unpack->newest_stop_ts;
     copy->newest_stop_txn = unpack->newest_stop_txn;
-    copy->stop_durable_ts = unpack->newest_stop_durable_ts;
+    copy->newest_stop_durable_ts = unpack->newest_stop_durable_ts;
+    copy->prepare = F_ISSET(unpack, WT_CELL_UNPACK_PREPARE);
     copy->type = 0; /* Avoid static analyzer uninitialized value complaints. */
     switch (unpack->raw) {
     case WT_CELL_ADDR_INT:

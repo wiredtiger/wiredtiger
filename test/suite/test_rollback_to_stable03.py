@@ -28,7 +28,7 @@
 
 import time
 from helper import copy_wiredtiger_home
-import unittest, wiredtiger, wttest
+import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -116,7 +116,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         self.assertEqual(calls, 1)
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
-        if self.in_memory or self.prepare:
+        if self.in_memory:
             self.assertEqual(hs_removed, 0)
         else:
             self.assertEqual(hs_removed, nrows)

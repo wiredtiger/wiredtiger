@@ -29,7 +29,9 @@
 #include "format.h"
 #include "config.h"
 
-static void config_backup(void);
+static void config(void);
+static void config_backup_incr(void);
+static void config_backward_compatible(void);
 static void config_cache(void);
 static void config_checkpoint(void);
 static void config_checksum(void);
@@ -60,11 +62,28 @@ static void config_transaction(void);
 #define DISABLE_RANDOM_LSM_TESTING 1
 
 /*
- * config_setup --
- *     Initialize configuration for a run.
+ * config_final --
+ *     Final run initialization.
  */
 void
-config_setup(void)
+config_final(void)
+{
+    config(); /* Finish up configuration and review it. */
+
+    config_print(false);
+
+    g.rows = g.c_rows; /* Set the key count. */
+
+    key_init(); /* Initialize key/value information. */
+    val_init();
+}
+
+/*
+ * config --
+ *     Initialize the configuration itself.
+ */
+static void
+config(void)
 {
     CONFIG *cp;
     char buf[128];
@@ -178,7 +197,7 @@ config_setup(void)
     config_transaction();
 
     /* Simple selection. */
-    config_backup();
+    config_backup_incr();
     config_checkpoint();
     config_checksum();
     config_compression("btree.compression");
@@ -190,11 +209,12 @@ config_setup(void)
     config_pct();
     config_cache();
 
-    /* Give in-memory and LSM configurations a final review. */
+    /* Give in-memory, LSM and backward compatible configurations a final review. */
     if (g.c_in_memory != 0)
         config_in_memory_reset();
     if (DATASOURCE("lsm"))
         config_lsm_reset();
+    config_backward_compatible();
 
     /*
      * Key/value minimum/maximum are related, correct unless specified by the configuration.
@@ -234,47 +254,100 @@ config_setup(void)
         else
             config_single("runs.timer=360", false);
     }
-
-    /* Reset the key count. */
-    g.key_cnt = 0;
 }
 
 /*
- * config_backup --
- *     Backup configuration.
+ * config_backup_incr --
+ *     Incremental backup configuration.
  */
 static void
-config_backup(void)
+config_backup_incr(void)
 {
-    const char *cstr;
+    /* Incremental backup requires backup. */
+    if (g.c_backups == 0)
+        return;
 
     /*
-     * Choose a type of incremental backup.
+     * Incremental backup using log files is incompatible with logging archival. Testing log file
+     * archival doesn't seem as useful as testing backup, let the backup configuration override.
      */
-    if (!config_is_perm("backup.incremental")) {
-        cstr = "backup.incremental=off";
-        switch (mmrand(NULL, 1, 10)) {
-        case 1: /* 30% full backup only */
-        case 2:
-        case 3:
-            break;
-        case 4: /* 40% block based incremental */
-        case 5:
-        case 6:
-        case 7:
-            cstr = "backup.incremental=block";
-            break;
-        case 8:
-        case 9:
-        case 10: /* 30% log based incremental */
-            if (!g.c_logging_archive)
-                cstr = "backup.incremental=log";
-            break;
+    if (config_is_perm("backup.incremental")) {
+        if (g.c_backup_incr_flag == INCREMENTAL_LOG) {
+            if (g.c_logging_archive && config_is_perm("logging.archive"))
+                testutil_die(EINVAL, "backup.incremental=log is incompatible with logging.archive");
+            if (g.c_logging_archive)
+                config_single("logging.archive=0", false);
         }
+        return;
+    }
 
-        config_single(cstr, false);
+    /*
+     * Choose a type of incremental backup, where the log archival setting can eliminate incremental
+     * backup based on log files.
+     */
+    switch (mmrand(NULL, 1, 10)) {
+    case 1: /* 30% full backup only */
+    case 2:
+    case 3:
+        config_single("backup.incremental=off", false);
+        break;
+    case 4: /* 30% log based incremental */
+    case 5:
+    case 6:
+        if (!g.c_logging_archive || !config_is_perm("logging.archive")) {
+            if (g.c_logging_archive)
+                config_single("logging.archive=0", false);
+            config_single("backup.incremental=log", false);
+        }
+    /* FALLTHROUGH */
+    case 7: /* 40% block based incremental */
+    case 8:
+    case 9:
+    case 10:
+        config_single("backup.incremental=block", false);
+        break;
     }
 }
+
+/*
+ * config_backward_compatible --
+ *     Backward compatibility configuration.
+ */
+static void
+config_backward_compatible(void)
+{
+    bool backward_compatible;
+
+    /*
+     * If built in a branch that doesn't support all current options, or creating a database for
+     * such an environment, strip out configurations that won't work.
+     */
+    backward_compatible = g.backward_compatible;
+#if WIREDTIGER_VERSION_MAJOR < 10
+    backward_compatible = true;
+#endif
+    if (!backward_compatible)
+        return;
+
+    if (g.c_backup_incr_flag != INCREMENTAL_OFF) {
+        if (config_is_perm("backup.incremental"))
+            testutil_die(EINVAL, "incremental backup not supported in backward compatibility mode");
+        config_single("backup.incremental=off", false);
+    }
+
+    if (g.c_mmap_all) {
+        if (config_is_perm("disk.mmap_all"))
+            testutil_die(EINVAL, "disk.mmap_all not supported in backward compatibility mode");
+        config_single("disk.mmap_all=off", false);
+    }
+
+    if (g.c_timing_stress_hs_sweep) {
+        if (config_is_perm("stress.hs_sweep"))
+            testutil_die(EINVAL, "stress.hs_sweep not supported in backward compatibility mode");
+        config_single("stress.hs_sweep=off", false);
+    }
+}
+
 /*
  * config_cache --
  *     Cache configuration.
@@ -747,67 +820,94 @@ config_pct(void)
 static void
 config_transaction(void)
 {
-    bool prepare_requires_ts;
+    /*
+     * WiredTiger cannot support relaxed isolation levels. Turn off everything but timestamps with
+     * snapshot isolation.
+     */
+    if ((!g.c_txn_timestamps && config_is_perm("transaction.timestamps")) ||
+      (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation")))
+        testutil_die(EINVAL, "format limited to timestamp and snapshot-isolation testing");
+    if (!g.c_txn_timestamps)
+        config_single("transaction.timestamps=on", false);
+    if (g.c_isolation_flag != ISOLATION_SNAPSHOT)
+        config_single("transaction.isolation=snapshot", false);
 
     /*
-     * We can't prepare a transaction if logging is configured or timestamps aren't configured.
-     * Further, for repeatable reads to work in timestamp testing, all updates must be within a
-     * snapshot-isolation transaction. Check for incompatible configurations, then let prepare and
-     * timestamp drive the remaining configuration.
+     * Check the permanent configuration. We can't prepare a transaction if logging is configured or
+     * timestamps aren't configured. For repeatable reads to work in timestamp testing, all updates
+     * must be done in a snapshot isolation transaction.
      */
-    prepare_requires_ts = false;
-    if (g.c_prepare) {
-        if (config_is_perm("ops.prepare")) {
-            if (g.c_logging && config_is_perm("logging"))
-                testutil_die(EINVAL, "prepare is incompatible with logging");
-            if (!g.c_txn_timestamps && config_is_perm("transaction.timestamps"))
-                testutil_die(EINVAL, "prepare requires transaction timestamps");
-        } else if ((g.c_logging && config_is_perm("logging")) ||
-          (!g.c_txn_timestamps && config_is_perm("transaction.timestamps")))
-            config_single("ops.prepare=off", false);
-        if (g.c_prepare) {
-            prepare_requires_ts = true;
-            if (g.c_logging)
-                config_single("logging=off", false);
-            if (!g.c_txn_timestamps)
-                config_single("transaction.timestamps=on", false);
-        }
+    if (g.c_prepare && config_is_perm("ops.prepare")) {
+        if (g.c_logging && config_is_perm("logging"))
+            testutil_die(EINVAL, "prepare is incompatible with logging");
+        if (!g.c_txn_timestamps && config_is_perm("transaction.timestamps"))
+            testutil_die(EINVAL, "prepare requires transaction timestamps");
+        if (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation"))
+            testutil_die(EINVAL, "prepare requires snapshot isolation");
+        if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
+            testutil_die(EINVAL, "prepare requires transaction frequency set to 100");
+    }
+    if (g.c_txn_timestamps && config_is_perm("transaction.timestamps")) {
+        if (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation"))
+            testutil_die(EINVAL, "timestamps require snapshot isolation");
+        if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
+            testutil_die(EINVAL, "timestamps require transaction frequency set to 100");
+    }
+    if (g.c_isolation_flag == ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation")) {
+        if (!g.c_txn_timestamps && config_is_perm("transaction.timestamps"))
+            testutil_die(EINVAL, "snapshot isolation requires timestamps");
+        if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
+            testutil_die(EINVAL, "snapshot isolation requires transaction frequency set to 100");
     }
 
-    if (g.c_txn_timestamps) {
-        if (prepare_requires_ts || config_is_perm("transaction.timestamps")) {
-            if (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation"))
-                testutil_die(
-                  EINVAL, "transaction_timestamps or prepare require isolation=snapshot");
-            if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
-                testutil_die(
-                  EINVAL, "transaction_timestamps or prepare require transaction-frequency=100");
-        } else if ((g.c_isolation_flag != ISOLATION_SNAPSHOT &&
-                     config_is_perm("transaction.isolation")) ||
-          (g.c_txn_freq != 100 && config_is_perm("transaction.frequency")))
-            config_single("transaction.timestamps=off", false);
+    /*
+     * The permanent configuration has no incompatible settings, adjust the temporary configuration
+     * as necessary. Prepare overrides timestamps, overrides isolation, for no reason other than
+     * prepare is the least configured and timestamps are the option we want to test the most.
+     */
+    if (g.c_prepare) {
+        if (g.c_logging)
+            config_single("logging=off", false);
+        if (!g.c_txn_timestamps)
+            config_single("transaction.timestamps=on", false);
+        if (g.c_isolation_flag != ISOLATION_SNAPSHOT)
+            config_single("transaction.isolation=snapshot", false);
+        if (g.c_txn_freq != 100)
+            config_single("transaction.frequency=100", false);
     }
     if (g.c_txn_timestamps) {
         if (g.c_isolation_flag != ISOLATION_SNAPSHOT)
             config_single("transaction.isolation=snapshot", false);
         if (g.c_txn_freq != 100)
             config_single("transaction.frequency=100", false);
-    } else if (!config_is_perm("transaction.isolation"))
-        switch (mmrand(NULL, 1, 4)) {
-        case 1:
+    }
+    if (g.c_isolation_flag == ISOLATION_NOT_SET) {
+        switch (mmrand(NULL, 1, 20)) {
+        case 1: /* 5% */
             config_single("transaction.isolation=random", false);
             break;
-        case 2:
+        case 2: /* 5% */
             config_single("transaction.isolation=read-uncommitted", false);
             break;
-        case 3:
+        case 3: /* 5% */
             config_single("transaction.isolation=read-committed", false);
             break;
-        case 4:
-        default:
+        default: /* 85% */
             config_single("transaction.isolation=snapshot", false);
             break;
         }
+        if (g.c_isolation_flag == ISOLATION_SNAPSHOT) {
+            if (!g.c_txn_timestamps)
+                config_single("transaction.timestamps=on", false);
+            if (g.c_txn_freq != 100)
+                config_single("transaction.frequency=100", false);
+        } else {
+            if (g.c_prepare)
+                config_single("ops.prepare=off", false);
+            if (g.c_txn_timestamps)
+                config_single("transaction.timestamps=off", false);
+        }
+    }
 }
 
 /*
@@ -818,6 +918,7 @@ void
 config_error(void)
 {
     CONFIG *cp;
+    size_t max_name;
 
     /* Display configuration names. */
     fprintf(stderr, "\n");
@@ -834,11 +935,10 @@ config_error(void)
     fprintf(stderr, "\n");
     fprintf(stderr, "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n");
     fprintf(stderr, "Configuration names:\n");
+    for (max_name = 0, cp = c; cp->name != NULL; ++cp)
+        max_name = WT_MAX(max_name, strlen(cp->name));
     for (cp = c; cp->name != NULL; ++cp)
-        if (strlen(cp->name) > 25)
-            fprintf(stderr, "%s: %s\n", cp->name, cp->desc);
-        else
-            fprintf(stderr, "%25s: %s\n", cp->name, cp->desc);
+        fprintf(stderr, "%*s: %s\n", (int)max_name, cp->name, cp->desc);
 }
 
 /*
@@ -850,6 +950,10 @@ config_print(bool error_display)
 {
     CONFIG *cp;
     FILE *fp;
+
+    /* Reopening or replaying an existing database should leave the existing CONFIG file. */
+    if (g.reopen || g.replay)
+        return;
 
     if (error_display)
         fp = stdout;
@@ -946,7 +1050,7 @@ config_reset(void)
     CONFIG *cp;
 
     if (!config_is_perm("transaction.isolation"))
-        g.c_isolation_flag = 0;
+        g.c_isolation_flag = ISOLATION_NOT_SET;
 
     /* Clear temporary allocated configuration data. */
     for (cp = c; cp->name != NULL; ++cp) {
@@ -1012,6 +1116,9 @@ config_single(const char *s, bool perm)
     uint32_t steps, v1, v2;
     u_int i;
     const char *equalp, *vp1, *vp2;
+
+    while (__wt_isspace((u_char)*s))
+        ++s;
 
     config_compat(&s);
 

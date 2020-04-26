@@ -1191,10 +1191,8 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      */
     if (create_log) {
         /*
-         * Increment the missed pre-allocated file counter only
-         * if a hot backup is not in progress. We are deliberately
-         * not using pre-allocated log files during backup
-         * (see comment above).
+         * Increment the missed pre-allocated file counter only if a hot backup is not in progress.
+         * We are deliberately not using pre-allocated log files during backup (see comment above).
          */
         if (!conn->hot_backup)
             log->prep_missed++;
@@ -1430,10 +1428,9 @@ __log_truncate(WT_SESSION_IMPL *session, WT_LSN *lsn, bool this_log, bool salvag
     /*
      * Truncate the log file to the given LSN.
      *
-     * It's possible the underlying file system doesn't support truncate
-     * (there are existing examples), which is fine, but we don't want to
-     * repeatedly do the setup work just to find that out every time. Check
-     * before doing work, and if there's a not-supported error, turn off
+     * It's possible the underlying file system doesn't support truncate (there are existing
+     * examples), which is fine, but we don't want to repeatedly do the setup work just to find that
+     * out every time. Check before doing work, and if there's a not-supported error, turn off
      * future truncates.
      */
     WT_ERR(__log_openfile(session, lsn->l.file, 0, &log_fh));
@@ -1570,6 +1567,33 @@ __wt_log_remove(WT_SESSION_IMPL *session, const char *file_prefix, uint32_t logn
     WT_ERR(__wt_fs_remove(session, path->data, false));
 err:
     __wt_scr_free(session, &path);
+    return (ret);
+}
+
+/*
+ * __wt_log_compat_verify --
+ *     Verify the last log when opening for the compatibility settings. This is separate because we
+ *     need to do it very early in the startup process.
+ */
+int
+__wt_log_compat_verify(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    uint32_t lastlog, lognum;
+    u_int i, logcount;
+    char **logfiles;
+
+    lastlog = 0;
+
+    WT_ERR(__log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
+    for (i = 0; i < logcount; i++) {
+        WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
+        lastlog = WT_MAX(lastlog, lognum);
+    }
+    if (lastlog != 0)
+        WT_ERR(__log_open_verify(session, lastlog, NULL, NULL, NULL, NULL));
+err:
+    WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
     return (ret);
 }
 
