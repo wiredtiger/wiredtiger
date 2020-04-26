@@ -253,8 +253,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     *updp = NULL;
 
     /*
-     * Check if the key is removed concurrently by another session if running with lower isolation
-     * levels.
+     * If running with lower isolation levels, check whether we race with another session that may
+     * have removed the same key.
      */
     ret = __check_valid_remove(session, upd, upd->next);
     if (ret != 0) {
@@ -273,8 +273,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     while (!__wt_atomic_cas_ptr(srch_upd, upd->next, upd)) {
         upd->next = *srch_upd;
         /*
-         * Check if the key is removed concurrently by another session if running with lower
-         * isolation levels.
+         * If running with lower isolation levels, check whether we race with another session that
+         * may have removed the same key.
          */
         if ((ret = __check_valid_remove(session, upd, upd->next)) != 0 ||
           (ret = __wt_txn_update_check(session, cbt, upd->next)) != 0) {
