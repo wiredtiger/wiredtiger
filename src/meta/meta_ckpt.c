@@ -508,7 +508,7 @@ __wt_meta_ckptlist_get(
 
         /* The caller may be adding a value, initialize it. */
         ckpt = &ckptbase[slot];
-        ckpt->order = ckptbase[slot - 1].order + 1;
+        ckpt->order = (slot == 0) ? 1 : ckptbase[slot - 1].order + 1;
         __wt_seconds(session, &ckpt->sec);
         /*
          * Load most recent checkpoint backup blocks to this checkpoint.
