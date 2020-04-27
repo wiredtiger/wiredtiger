@@ -780,7 +780,6 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            
             ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
 
   - name: csuite-scope-test
