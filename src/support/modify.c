@@ -527,8 +527,6 @@ __wt_modify_vector_free(WT_MODIFY_VECTOR *modifies)
 /*
  * __wt_modify_reconstruct_from_upd_list --
  *     Takes an in-memory modify and populates an update view with the reconstructed full value.
- *     Since the reconstructed update does not exist organically in the update list, the view is
- *     tasked with owning the memory associated with this value.
  */
 int
 __wt_modify_reconstruct_from_upd_list(

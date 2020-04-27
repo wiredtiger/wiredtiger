@@ -237,7 +237,7 @@ __value_return(WT_CURSOR_BTREE *cbt)
 
 /*
  * __wt_value_return_upd --
- *     Change the cursor to reference an internal update structure return value.
+ *     Change the cursor to reference an update view return value.
  */
 void
 __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
@@ -249,12 +249,25 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
     session = (WT_SESSION_IMPL *)cbt->iface.session;
 
     /*
-     * We're passed a "standard" or "modified" update that's visible to us. Our caller should have
-     * already checked for deleted items (we're too far down the call stack to return not-found).
-     *
-     * Fast path if it's a standard item, assert our caller's behavior.
+     * We're passed a "standard" update that's visible to us. Our caller should have already checked
+     * for deleted items (we're too far down the call stack to return not-found) and any modify
+     * updates should be have been reconstructed into a full standard update.
      */
     WT_ASSERT(session, upd_view->type == WT_UPDATE_STANDARD);
+    /*
+     * If the view actually owns memory (i.e. it's not pointing to something in an update list),
+     * then the cursor should free its current buffer and then claim the view's buffer as its own.
+     * The cursor will free this memory as part of the next operation.
+     *
+     * If the view is pointing at an in-memory update, then simply assign the pointer to the
+     * in-memory update but retain the memory that the cursor buffer owns. If we end up doing a
+     * "set" on the cursor later, that memory is going to be handy and will save an allocation.
+     *
+     * Potential optimization: Avoid this situation where we get back some allocated memory and have
+     * to free our cursor's buffer in order to replace it. If we pass the cursor's buffer all the
+     * way down and use it directly to store history store values, reconstruct modifies, etc, we can
+     * reduce allocations further.
+     */
     if (WT_DATA_IN_ITEM(&upd_view->buf)) {
         __wt_buf_free(session, &cursor->value);
         /* Ownership should get transferred as appropriate. */
@@ -294,7 +307,7 @@ __wt_key_return(WT_CURSOR_BTREE *cbt)
 
 /*
  * __wt_value_return --
- *     Change the cursor to reference an internal return value.
+ *     Change the cursor to reference an update view return value.
  */
 int
 __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)

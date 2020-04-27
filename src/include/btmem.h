@@ -1124,8 +1124,9 @@ struct __wt_update {
 /*
  * WT_UPDATE_VIEW --
  *
- * Think of a good name. I may be able to just use WT_ITEM if I do squashing within the transaction
- * read boundary. Let's revisit that when we've got things working.
+ * A transaction's view of an update's data. This structure is used to represent both in-memory
+ * updates and updates that don't already exist in-memory such as reconstructed modify updates,
+ * updates in the history store and onpage values.
  */
 struct __wt_update_view {
     WT_ITEM buf;

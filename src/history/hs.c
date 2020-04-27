@@ -1029,7 +1029,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
 
     /*
      * Potential optimization: We can likely get rid of this copy and the update allocation above.
-     * We already have buffers containing the modify values, there's no good reason to allocate an
+     * We already have buffers containing the modify values so there's no good reason to allocate an
      * update other than to work with our modify vector implementation.
      */
     WT_ERR(__wt_buf_set(session, &upd_view->buf, hs_value->data, hs_value->size));

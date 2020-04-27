@@ -817,8 +817,7 @@ __wt_txn_read_upd_list(
     /*
      * Now assign to the update view. If it's not a modify, we're free to simply point the view at
      * the update's value without owning it. If it is a modify, we need to reconstruct the full
-     * update now and make the view own the buffer. This means that when we free the view, it will
-     * free the reconstructed value with it since it does not exist organically in the update list.
+     * update now and make the view own the buffer.
      */
     if (upd->type != WT_UPDATE_MODIFY)
         __wt_upd_view_assign(upd_view, upd);
@@ -1270,8 +1269,7 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
 
 /*
  * __wt_upd_view_move --
- *     Transfer ownership from a buffer to our update view. We typically do this when we've
- *     retrieved an onpage and history store value that doesn't exist naturally in an update list.
+ *     Transfer ownership from a buffer to our update view.
  */
 static inline void
 __wt_upd_view_move(WT_UPDATE_VIEW *upd_view, WT_ITEM *buf)
@@ -1303,7 +1301,10 @@ __wt_upd_view_assign(WT_UPDATE_VIEW *upd_view, WT_UPDATE *upd)
 static inline void
 __wt_upd_view_free(WT_SESSION_IMPL *session, WT_UPDATE_VIEW *upd_view)
 {
-    /* If we don't own this memory, the memory pointers will be unset so we're safe to do this. */
+    /*
+     * If we don't own this memory, the relevant owning memory pointers will be unset so we don't
+     * need to be afraid to call this.
+     */
     __wt_buf_free(session, &upd_view->buf);
     WT_CLEAR(*upd_view);
 }
