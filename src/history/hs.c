@@ -1033,7 +1033,11 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
      * update other than to work with our modify vector implementation.
      */
     WT_ERR(__wt_buf_set(session, &upd_view->buf, hs_value->data, hs_value->size));
+    upd_view->start_ts = hs_start_ts;
+    upd_view->txnid = WT_TXN_NONE;
     upd_view->type = upd_type;
+    upd_view->prepare_state =
+      (hs_start_ts == durable_timestamp) ? WT_PREPARE_INIT : WT_PREPARE_RESOLVED;
 
 done:
 err:

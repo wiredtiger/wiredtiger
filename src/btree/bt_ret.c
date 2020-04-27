@@ -255,8 +255,14 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
      * Fast path if it's a standard item, assert our caller's behavior.
      */
     WT_ASSERT(session, upd_view->type == WT_UPDATE_STANDARD);
-    /* Ownership should get transferred as appropriate. */
-    cursor->value = upd_view->buf;
+    if (WT_DATA_IN_ITEM(&upd_view->buf)) {
+        __wt_buf_free(session, &cursor->value);
+        /* Ownership should get transferred as appropriate. */
+        cursor->value = upd_view->buf;
+    } else {
+        cursor->value.data = upd_view->buf.data;
+        cursor->value.size = upd_view->buf.size;
+    }
 }
 
 /*

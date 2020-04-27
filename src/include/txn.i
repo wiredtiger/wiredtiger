@@ -886,7 +886,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
       (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE)) &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
         __wt_buf_free(session, &buf);
+        upd_view->start_ts = stop.timestamp;
+        upd_view->txnid = stop.txnid;
         upd_view->type = WT_UPDATE_TOMBSTONE;
+        upd_view->prepare_state = WT_PREPARE_INIT;
         return (0);
     }
 

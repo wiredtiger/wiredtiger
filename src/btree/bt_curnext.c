@@ -63,7 +63,9 @@ restart_read:
         if (upd_view.type == WT_UPDATE_INVALID) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
-        } else
+        } else if (upd_view.type == WT_UPDATE_TOMBSTONE)
+            cbt->iface.value.data = upd_view.buf.data;
+        else
             WT_RET(__wt_value_return(cbt, &upd_view));
     }
     cbt->iface.value.size = 1;
@@ -121,7 +123,9 @@ restart_read:
     if (upd_view.type == WT_UPDATE_INVALID) {
         cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
         cbt->iface.value.data = &cbt->v;
-    } else
+    } else if (upd_view.type == WT_UPDATE_TOMBSTONE)
+        cbt->iface.value.data = upd_view.buf.data;
+    else
         WT_RET(__wt_value_return(cbt, &upd_view));
     cbt->iface.value.size = 1;
     return (0);
