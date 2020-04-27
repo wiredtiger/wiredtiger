@@ -707,6 +707,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+
             ${test_env_vars|} $(pwd)/../test/csuite/import/smoke.sh 2>&1
 
   - name: csuite-incr-backup-test
@@ -749,6 +750,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+
             ${test_env_vars|} $(pwd)/../test/csuite/random_directio/smoke.sh 2>&1
 
   - name: csuite-schema-abort-test
@@ -763,6 +765,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+
             ${test_env_vars|} $(pwd)/../test/csuite/schema_abort/smoke.sh 2>&1
 
   - name: csuite-timestamp-abort-test
@@ -777,6 +780,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+            
             ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
 
   - name: csuite-scope-test
