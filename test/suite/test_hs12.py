@@ -32,7 +32,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_hs12.py
-# Verify we can correctly append modifies to the end of string values 
+# Verify we can correctly append modifies to the end of string values
 class test_hs12(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB,statistics=(all),eviction=(threads_max=1)'
     session_config = 'isolation=snapshot'
