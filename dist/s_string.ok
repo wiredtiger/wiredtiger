@@ -43,7 +43,7 @@ Barack
 BerkeleyDB
 Bitfield
 Bitwise
-Blqr
+BlqRr
 Brueckner
 Bsearch
 Btree
@@ -220,7 +220,6 @@ LOGREC
 LOGSCAN
 LOOKASIDE
 LRU
-LRrSVv
 LSB
 LSM
 LSN
@@ -232,6 +231,7 @@ LZO
 LeafGreen
 LevelDB
 Levyx
+LmRrSVv
 LmT
 LoadLoad
 LockFile
@@ -323,6 +323,7 @@ RCS
 RDNOLOCK
 RDONLY
 READONLY
+REBALANCE
 RECNO
 REF's
 REFs
@@ -914,6 +915,7 @@ kb
 kbits
 keycmp
 keyid
+keylen
 keyv
 kv
 kvraw
@@ -960,7 +962,7 @@ lookaside
 lookup
 lookups
 lossy
-lqrt
+lqRrt
 lr
 lrt
 lru
@@ -1164,6 +1166,7 @@ rduppo
 readlock
 readonly
 readunlock
+readv
 realloc
 rebalance
 rebalanced

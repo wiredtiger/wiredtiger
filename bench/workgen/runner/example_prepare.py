@@ -30,8 +30,10 @@
 from runner import *
 from wiredtiger import *
 from workgen import *
+import time
 
-conn = wiredtiger_open("WT_TEST", "create,cache_size=500MB")
+context = Context()
+conn = context.wiredtiger_open("create,cache_size=500MB")
 s = conn.open_session()
 tname = "table:test"
 config = "key_format=S,value_format=S,"
@@ -40,7 +42,8 @@ table = Table(tname)
 table.options.key_size = 20
 table.options.value_size = 10
 
-context = Context()
+start_time = time.time()
+
 op = Operation(Operation.OP_INSERT, table)
 thread = Thread(op * 5000)
 pop_workload = Workload(context, thread)
@@ -48,24 +51,28 @@ print('populate:')
 pop_workload.run(conn)
 
 opread = Operation(Operation.OP_SEARCH, table)
-read_txn = txn(opread * 10, 'read_timestamp')
+read_txn = txn(opread * 5, 'read_timestamp')
 # read_timestamp_lag is the lag to the read_timestamp from current time
-read_txn.transaction.read_timestamp_lag = 5
+read_txn.transaction.read_timestamp_lag = 2
 treader = Thread(read_txn)
 
 opwrite = Operation(Operation.OP_INSERT, table)
-write_txn = txn(opwrite * 10, 'isolation=snapshot')
+write_txn = txn(opwrite * 5, 'isolation=snapshot')
 # use_prepare_timestamp - Commit the transaction with stable_timestamp.
 write_txn.transaction.use_prepare_timestamp = True
 twriter = Thread(write_txn)
+# Thread.options.session_config - Session configuration.
+twriter.options.session_config="isolation=snapshot"
 
 opupdate = Operation(Operation.OP_UPDATE, table)
-update_txn = txn(opupdate * 10, 'isolation=snapshot')
+update_txn = txn(opupdate * 5, 'isolation=snapshot')
 # use_commit_timestamp - Commit the transaction with commit_timestamp.
 update_txn.transaction.use_commit_timestamp = True
 tupdate = Thread(update_txn)
+# Thread.options.session_config - Session configuration.
+tupdate.options.session_config="isolation=snapshot"
 
-workload = Workload(context, 10 * twriter + 10 * tupdate + 10 * treader)
+workload = Workload(context, 30 * twriter + 30 * tupdate + 30 * treader)
 workload.options.run_time = 50
 workload.options.report_interval=500
 # read_timestamp_lag - Number of seconds lag to the oldest_timestamp from current time.
@@ -76,3 +83,12 @@ workload.options.stable_timestamp_lag=10
 workload.options.timestamp_advance=1
 print('transactional prepare workload:')
 workload.run(conn)
+
+end_time = time.time()
+run_time = end_time - start_time
+
+print('Workload took %d minutes' %(run_time//60))
+
+latency_filename = os.path.join(context.args.home, "latency.out")
+latency.workload_latency(workload, latency_filename)
+conn.close()

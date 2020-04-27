@@ -112,7 +112,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     WT_DECL_RET;
     WT_ITEM key, start_key, stop_key, value;
     WT_SESSION_IMPL *session;
-    wt_timestamp_t commit, durable, first, prepare, read;
+    wt_timestamp_t commit, durable, first_commit, pinned_read, prepare, read;
     uint64_t recno, start_recno, stop_recno, t_nsec, t_sec;
     uint32_t fileid, mode, optype, opsize;
 
@@ -138,12 +138,11 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
         cursor->set_key(cursor, recno);
         if ((ret = cursor->search(cursor)) != 0)
-            WT_ERR_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, false);
         else {
             /*
-             * Build/insert a complete value during recovery rather
-             * than using cursor modify to create a partial update
-             * (for no particular reason than simplicity).
+             * Build/insert a complete value during recovery rather than using cursor modify to
+             * create a partial update (for no particular reason than simplicity).
              */
             WT_ERR(__wt_modify_apply(cursor, value.data));
             WT_ERR(cursor->insert(cursor));
@@ -200,12 +199,11 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
         __wt_cursor_set_raw_key(cursor, &key);
         if ((ret = cursor->search(cursor)) != 0)
-            WT_ERR_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, false);
         else {
             /*
-             * Build/insert a complete value during recovery rather
-             * than using cursor modify to create a partial update
-             * (for no particular reason than simplicity).
+             * Build/insert a complete value during recovery rather than using cursor modify to
+             * create a partial update (for no particular reason than simplicity).
              */
             WT_ERR(__wt_modify_apply(cursor, value.data));
             WT_ERR(cursor->insert(cursor));
@@ -268,8 +266,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
          * Timestamp records are informational only. We have to unpack it to properly move forward
          * in the log record to the next operation, but otherwise ignore.
          */
-        WT_ERR(__wt_logop_txn_timestamp_unpack(
-          session, pp, end, &t_sec, &t_nsec, &commit, &durable, &first, &prepare, &read));
+        WT_ERR(__wt_logop_txn_timestamp_unpack(session, pp, end, &t_sec, &t_nsec, &commit, &durable,
+          &first_commit, &prepare, &read, &pinned_read));
         break;
     default:
         WT_ERR(__wt_illegal_value(session, optype));
@@ -374,10 +372,11 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
     ckpt_timestamp = 0;
 
     /* Search in the metadata for the system information. */
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, WT_SYSTEM_CKPT_URI, &sys_config));
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, WT_SYSTEM_CKPT_URI, &sys_config), false);
     if (sys_config != NULL) {
         WT_CLEAR(cval);
-        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, sys_config, "checkpoint_timestamp", &cval));
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_getones(session, sys_config, "checkpoint_timestamp", &cval), false);
         if (cval.len != 0) {
             __wt_verbose(
               session, WT_VERB_RECOVERY, "Recovery timestamp %.*s", (int)cval.len, cval.str);
@@ -554,10 +553,9 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
      * an older version.
      */
     metac->set_key(metac, WT_HS_URI);
-    ret = metac->search(metac);
+    WT_ERR_NOTFOUND_OK(metac->search(metac), true);
     if (ret == WT_NOTFOUND)
         hs_exists = false;
-    WT_ERR_NOTFOUND_OK(ret);
     /* Unpin the page from cache. */
     WT_ERR(metac->reset(metac));
 

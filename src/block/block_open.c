@@ -44,7 +44,7 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
         if ((ret = __wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA,
                WT_FS_OPEN_CREATE | WT_FS_OPEN_DURABLE | WT_FS_OPEN_EXCLUSIVE, &fh)) == 0)
             break;
-        WT_ERR_TEST(ret != EEXIST, ret);
+        WT_ERR_TEST(ret != EEXIST, ret, false);
 
         if (tmp == NULL)
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
@@ -334,12 +334,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
      * to be returning across the API boundary.
      */
     if (block->size < allocsize) {
-        /*
-         * We use the "ignore history store tombstone" flag as of verify so we need to check that
-         * we're not performing a verify.
-         */
-        if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS) &&
-          !F_ISSET(S2BT(session), WT_BTREE_VERIFY))
+        if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
             ret = ENOENT;
         else {
             ret = WT_ERROR;

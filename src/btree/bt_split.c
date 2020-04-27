@@ -249,12 +249,13 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
     if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
         __wt_cell_unpack(session, from_home, (WT_CELL *)ref_addr, &unpack);
         WT_RET(__wt_calloc_one(session, &addr));
-        addr->start_durable_ts = unpack.newest_start_durable_ts;
-        addr->stop_durable_ts = unpack.newest_stop_durable_ts;
         addr->oldest_start_ts = unpack.oldest_start_ts;
         addr->oldest_start_txn = unpack.oldest_start_txn;
+        addr->newest_start_durable_ts = unpack.newest_start_durable_ts;
         addr->newest_stop_ts = unpack.newest_stop_ts;
         addr->newest_stop_txn = unpack.newest_stop_txn;
+        addr->newest_stop_durable_ts = unpack.newest_stop_durable_ts;
+        addr->prepare = F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE);
         WT_ERR(__wt_memdup(session, unpack.data, unpack.size, &addr->addr));
         addr->size = (uint8_t)unpack.size;
         switch (unpack.raw) {
@@ -1527,7 +1528,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     mod->last_eviction_timestamp = orig->modify->last_eviction_timestamp;
     mod->rec_max_txn = orig->modify->rec_max_txn;
     mod->rec_max_timestamp = orig->modify->rec_max_timestamp;
-    mod->last_stable_timestamp = orig->modify->last_stable_timestamp;
 
     /* Add the update/restore flag to any previous state. */
     mod->restore_state = orig->modify->restore_state;
@@ -1704,12 +1704,13 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     if (multi->addr.addr != NULL) {
         WT_RET(__wt_calloc_one(session, &addr));
         ref->addr = addr;
-        addr->start_durable_ts = multi->addr.start_durable_ts;
-        addr->stop_durable_ts = multi->addr.stop_durable_ts;
         addr->oldest_start_ts = multi->addr.oldest_start_ts;
         addr->oldest_start_txn = multi->addr.oldest_start_txn;
+        addr->newest_start_durable_ts = multi->addr.newest_start_durable_ts;
         addr->newest_stop_ts = multi->addr.newest_stop_ts;
         addr->newest_stop_txn = multi->addr.newest_stop_txn;
+        addr->newest_stop_durable_ts = multi->addr.newest_stop_durable_ts;
+        addr->prepare = multi->addr.prepare;
         WT_RET(__wt_memdup(session, multi->addr.addr, multi->addr.size, &addr->addr));
         addr->size = multi->addr.size;
         addr->type = multi->addr.type;
@@ -1765,6 +1766,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     WT_ASSERT(session, __wt_leaf_page_can_split(session, page));
     WT_ASSERT(session, __wt_page_is_modified(page));
+    WT_ASSERT(session, __wt_page_del_active(session, ref, true) == false);
     F_SET_ATOMIC(page, WT_PAGE_SPLIT_INSERT);
 
     /* Find the last item on the page. */
@@ -1794,9 +1796,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->addr = ref->addr;
     F_SET(child, WT_REF_FLAG_LEAF);
     child->state = WT_REF_MEM;
-
-    WT_ERR_ASSERT(session, ref->page_del == NULL, WT_PANIC,
-      "unexpected page-delete structure when splitting a page");
 
     /*
      * The address has moved to the replacement WT_REF. Make sure it isn't freed when the original
