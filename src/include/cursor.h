@@ -35,8 +35,9 @@
 struct __wt_cursor_backup {
     WT_CURSOR iface;
 
-    size_t next;     /* Cursor position */
-    WT_FSTREAM *bfs; /* Backup file stream */
+    size_t next;                  /* Cursor position */
+    WT_FSTREAM *bfs;              /* Backup file stream */
+    uint64_t session_cache_flags; /* Original session cache flags */
 
 #define WT_CURSOR_BACKUP_ID(cursor) (((WT_CURSOR_BACKUP *)(cursor))->maxid)
     uint32_t maxid; /* Maximum log file ID seen */
