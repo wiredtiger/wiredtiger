@@ -532,6 +532,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     config = NULL;
     do_checkpoint = hs_exists = true;
     eviction_started = false;
+    oldest_ts = WT_TS_NONE;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
     /* We need a real session for recovery. */
@@ -539,7 +540,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     r.session = session;
     WT_MAX_LSN(&r.max_ckpt_lsn);
     WT_MAX_LSN(&r.max_rec_lsn);
-    conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp = WT_TS_NONE;
+    conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp =
+      conn->txn_global.oldest_ckpt_hs_timestamp = WT_TS_NONE;
 
     F_SET(conn, WT_CONN_RECOVERING);
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
@@ -567,8 +569,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
         WT_ERR_NOTFOUND_OK(
           __wt_meta_get_oldest_ckpt_timestamp(session, WT_HS_URI, &oldest_ts), true);
         conn->txn_global.oldest_ckpt_hs_timestamp = oldest_ts;
-    } else
-        conn->txn_global.oldest_ckpt_hs_timestamp = WT_TS_NONE;
+    }
 
     /*
      * If no log was found (including if logging is disabled), or if the last checkpoint was done
