@@ -156,12 +156,12 @@ thread_run(void *arg)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-/*
- * Make sure that alternative threads operate on column-store table
- *
- * FIXME: Temporarily turn off column store test.
- */
 #if 0
+    /*
+     * Make sure that alternative threads operate on column-store table
+     *
+     * FIXME: temporarily turn off column store test.
+     */
     if (td->id % 2 != 0)
         columnar_table = true;
 #endif
@@ -180,7 +180,7 @@ thread_run(void *arg)
         if (i == 0)
             i++;
 
-        /* FIXME: Temporarily turn off tests for lower isolation levels. */
+        /* FIXME: temporarily turn off tests for lower isolation levels. */
         testutil_check(session->begin_transaction(session, "isolation=snapshot"));
 
         /*
@@ -208,6 +208,7 @@ thread_run(void *arg)
         cursor->set_value(cursor, &data);
         testutil_check(cursor->insert(cursor));
 
+        /* FIXME: temporarily turn off tests for lower isolation levels. */
         testutil_check(session->commit_transaction(session, NULL));
 
         /*
@@ -220,7 +221,7 @@ thread_run(void *arg)
          * Decide what kind of operation can be performed on the already inserted data.
          */
         if (i % MAX_NUM_OPS == OP_TYPE_DELETE) {
-            /* FIXME: Temporarily turn off tests for lower isolation levels. */
+            /* FIXME: temporarily turn off tests for lower isolation levels. */
             testutil_check(session->begin_transaction(session, "isolation=snapshot"));
 
             if (columnar_table)
@@ -230,6 +231,7 @@ thread_run(void *arg)
 
             testutil_check(cursor->remove(cursor));
 
+            /* FIXME: temporarily turn off tests for lower isolation levels. */
             testutil_check(session->commit_transaction(session, NULL));
 
             /* Save the key separately for checking later.*/
@@ -375,15 +377,12 @@ recover_and_verify(uint32_t nthreads)
     absent = count = 0;
     fatal = false;
     for (i = 0; i < nthreads; ++i) {
+
+#if 0
         /*
          * Every alternative thread is operated on column-store table. Make sure that proper cursor
          * is used for verification of recovered records.
-         *
-         * FIXME: Temporarily turn off column store test.
          */
-        columnar_table = false;
-        cursor = row_cursor;
-#if 0
         if (i % 2 != 0) {
             columnar_table = true;
             cursor = col_cursor;
@@ -391,6 +390,10 @@ recover_and_verify(uint32_t nthreads)
             columnar_table = false;
             cursor = row_cursor;
         }
+#else
+        /* FIXME: temporarily turn off column store test. */
+        columnar_table = false;
+        cursor = row_cursor;
 #endif
 
         middle = 0;
