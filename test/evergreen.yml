@@ -780,7 +780,8 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
+
+            ${test_env_vars|} $(pwd)/../test/csuite/schema_abort/smoke.sh 2>&1
 
   - name: csuite-scope-test
     tags: ["pull_request"]
