@@ -536,9 +536,9 @@ __wt_modify_reconstruct_from_upd_list(
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_ITEM buf;
     WT_MODIFY_VECTOR modifies;
     WT_TIME_PAIR start, stop;
-    WT_ITEM buf;
     bool sformat;
 
     WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);

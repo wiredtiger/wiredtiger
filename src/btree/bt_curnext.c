@@ -64,7 +64,7 @@ restart_read:
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
         } else
-            cbt->iface.value = upd_view.buf;
+            WT_RET(__wt_value_return(cbt, &upd_view));
     }
     cbt->iface.value.size = 1;
     return (0);

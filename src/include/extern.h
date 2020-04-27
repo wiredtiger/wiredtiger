@@ -2210,4 +2210,5 @@ static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 static inline void __wt_txn_timestamp_flags(WT_SESSION_IMPL *session);
 static inline void __wt_txn_unmodify(WT_SESSION_IMPL *session);
 static inline void __wt_upd_view_assign(WT_UPDATE_VIEW *upd_view, WT_UPDATE *upd);
+static inline void __wt_upd_view_free(WT_SESSION_IMPL *session, WT_UPDATE_VIEW *upd_view);
 static inline void __wt_upd_view_move(WT_UPDATE_VIEW *upd_view, WT_ITEM *buf);
