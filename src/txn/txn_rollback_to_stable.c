@@ -27,7 +27,7 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
             if (upd == first_upd)
                 first_upd = upd->next;
         } else if (rollback_timestamp < upd->durable_ts ||
-          upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED) {
+          upd->prepare_state == WT_PREPARE_INPROGRESS) {
             /*
              * If any updates are aborted, all newer updates better be aborted as well.
              *

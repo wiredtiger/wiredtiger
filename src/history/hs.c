@@ -709,8 +709,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
              * update moved into the history store should be with max visibility to protect its
              * removal by checkpoint garbage collection until the data store update is committed.
              */
-            if (prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
-              prev_upd->prepare_state == WT_PREPARE_LOCKED) {
+            if (prev_upd->prepare_state == WT_PREPARE_INPROGRESS) {
                 WT_ASSERT(session, list->onpage_upd == prev_upd);
                 stop_ts_pair.timestamp = WT_TS_MAX;
                 stop_ts_pair.txnid = WT_TXN_MAX;
