@@ -237,8 +237,8 @@ static int
 __compact_internal(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_DECL_RET;
-    WT_REF *ref;
-    bool overall_progress, progress;
+    WT_REF *ref, *saved_ref;
+    bool progress;
 
     /*
      * We could corrupt a checkpoint if we moved a block that's part of the checkpoint, that is, if
@@ -249,19 +249,19 @@ __compact_internal(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_RET(__wt_spin_trylock(session, &S2BT(session)->flush_lock));
 
     /* Walk the internal page and check any leaf pages it references. */
-    overall_progress = false;
+    saved_ref = NULL;
     WT_INTL_FOREACH_BEGIN (session, parent->page, ref) {
         if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
             WT_ERR(__compact_leaf(session, ref, &progress));
             if (progress)
-                overall_progress = true;
+                saved_ref = ref;
         }
     }
     WT_INTL_FOREACH_END;
 
-    /* If we rewrote a page, mark the parent and tree dirty. */
-    if (overall_progress) {
-        WT_TRET(__wt_page_parent_modify_set(session, ref, false));
+    /* If we rewrote a page, mark the parent and tree dirty using a saved reference. */
+    if (saved_ref != NULL) {
+        WT_TRET(__wt_page_parent_modify_set(session, saved_ref, false));
         session->compact_state = WT_COMPACT_SUCCESS;
     }
 
