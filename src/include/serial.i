@@ -222,7 +222,7 @@ __check_valid_remove(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE *old_up
 {
     WT_UPDATE *first_upd;
 
-    if (session->txn.isolation != WT_ISO_SNAPSHOT && upd->type == WT_UPDATE_TOMBSTONE) {
+    if (session->txn->isolation != WT_ISO_SNAPSHOT && upd->type == WT_UPDATE_TOMBSTONE) {
         for (first_upd = old_upd; first_upd != NULL && first_upd->txnid != WT_TXN_ABORTED;
              first_upd = first_upd->next)
             ;
