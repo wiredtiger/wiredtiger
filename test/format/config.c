@@ -878,6 +878,11 @@ config_transaction(void)
     if (g.c_txn_rollback_to_stable) {
         if (!g.c_txn_timestamps)
             config_single("transaction.timestamps=on", false);
+        /*
+         * XXX WT-6043 Rebalance fails when rollback_to_stable is used, so disable it.
+         */
+        if (g.c_rebalance)
+            config_single("rebalance=off", false);
     }
     if (g.c_txn_timestamps) {
         if (g.c_isolation_flag != ISOLATION_SNAPSHOT)

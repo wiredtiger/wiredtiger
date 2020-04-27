@@ -329,7 +329,8 @@ static CONFIG c[] = {
     "isolation level (random | read-uncommitted | read-committed | snapshot)", C_IGNORE | C_STRING,
     0, 0, 0, NULL, &g.c_isolation},
 
-  {"transaction.rollback_to_stable", "if rollback_to_stable should be called", C_BOOL, 0, 0, 0,
+  /* 60% */
+  {"transaction.rollback_to_stable", "if rollback_to_stable should be called", C_BOOL, 60, 0, 0,
     &g.c_txn_rollback_to_stable, NULL},
 
   /* 70% */
