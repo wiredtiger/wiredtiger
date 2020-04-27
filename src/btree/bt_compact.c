@@ -173,7 +173,6 @@ __compact_leaf(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_DECL_RET;
     size_t addr_size;
     uint8_t previous_state;
-    bool locked;
 
     *skipp = true; /* Default skip. */
 
@@ -193,7 +192,6 @@ __compact_leaf(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * it.
      */
     WT_REF_LOCK(session, ref, &previous_state);
-    locked = true;
     if (previous_state == WT_REF_DISK && __wt_ref_addr_copy(session, ref, &copy)) {
         bm = S2BT(session)->bm;
         WT_ERR(bm->compact_page_rewrite(bm, session, copy.addr, &addr_size, skipp));
@@ -205,7 +203,6 @@ __compact_leaf(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         }
     }
     WT_REF_UNLOCK(ref, previous_state);
-    locked = false;
 
     /*
      * Ignore pages that aren't in-memory for some reason other than they're on-disk, for example,
@@ -224,8 +221,7 @@ __compact_leaf(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     return (__compact_leaf_inmem(session, ref, skipp));
 
 err:
-    if (locked)
-        WT_REF_UNLOCK(ref, previous_state);
+    WT_REF_UNLOCK(ref, previous_state);
     return (ret);
 }
 
