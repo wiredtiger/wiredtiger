@@ -710,8 +710,10 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
         else if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
             upd->next = cbt->ref->page->modify->mod_row_update[cbt->slot];
 
+        WT_ASSERT(session, upd->next != NULL);
         WT_WITH_BTREE(session, cbt->btree,
           ret = __wt_row_modify(cbt, &cbt->iface.key, NULL, upd, WT_UPDATE_INVALID, true));
+        WT_ERR(ret);
         upd = NULL;
 
         /* Remove the restored update from history store. */

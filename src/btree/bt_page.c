@@ -598,7 +598,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /*
      * Instantiate prepared updates on leaf pages when the page is loaded. For in-memory databases,
-     * All non obsolete updates will retain on the page as part of __split_multi_inmem function.
+     * all non obsolete updates will retain on the page as part of __split_multi_inmem function.
      */
     if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_RET(__wt_page_modify_init(session, page));
