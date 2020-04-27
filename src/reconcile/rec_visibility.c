@@ -338,7 +338,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * stable.
      */
     if (upd != NULL) {
-        /* Mark the prepare flag if the selected update is an uncommitted prepare. */
+        /*
+         * Mark the prepare flag if the selected update is an uncommitted prepare. As tombstone
+         * updates are never returned to write, set this flag before we move into the previous
+         * update to write.
+         */
         if (upd->prepare_state == WT_PREPARE_INPROGRESS)
             upd_select->prepare = true;
 

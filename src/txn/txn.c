@@ -704,13 +704,17 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
          */
         F_SET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK);
 
-        /* If there are existing updates, append them after the new update. */
+        /*
+         * There should be only one aborted prepared update in the list, append it after the new
+         * update.
+         */
         if (cbt->ins != NULL)
             upd->next = cbt->ins->upd;
         else if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
             upd->next = cbt->ref->page->modify->mod_row_update[cbt->slot];
+        WT_ASSERT(session,
+          upd->next != NULL && upd->next->next == NULL && upd->next->txnid == WT_TXN_ABORTED);
 
-        WT_ASSERT(session, upd->next != NULL);
         WT_WITH_BTREE(session, cbt->btree,
           ret = __wt_row_modify(cbt, &cbt->iface.key, NULL, upd, WT_UPDATE_INVALID, true));
         WT_ERR(ret);
@@ -862,13 +866,14 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     }
 
     /*
-     * Fix the history store contents if they exist. Even when there are no more updates in the
-     * update list, it is possible that there may be some older updates that are moved into history
-     * store when the page gets evicted.
+     * Fix the history store contents if they exist, when there are no more updates in the update
+     * list. Only in eviction, it is possible to write an unfinished history store update when the
+     * prepared updates are written to the data store. When the page is read back into memory, there
+     * will be only one uncommitted prepared update. There can be a false positive of fixing history
+     * store when handling prepared inserts, but it doesn't cost much.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && resolved &&
-      (upd == NULL || F_ISSET(upd, WT_UPDATE_HS)))
-        __txn_fixup_prepared_update(session, op, *cursorp, commit);
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && resolved && upd == NULL)
+        WT_RET(__txn_fixup_prepared_update(session, op, *cursorp, commit));
 
     return (0);
 }
