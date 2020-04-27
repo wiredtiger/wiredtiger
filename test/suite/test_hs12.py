@@ -33,18 +33,15 @@ def timestamp_str(t):
 
 # test_hs12.py
 # Verify we can correctly append modifies to the end of string values 
-
 class test_hs12(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB,statistics=(all),eviction=(threads_max=1)'
     session_config = 'isolation=snapshot'
 
-    def test_reverse_modifies_fails_visibility_check_without_timestamps(self):
+    def test_modify_append_to_string(self):
         uri = "table:test_reverse_modify01_notimestamp"
         create_params = 'value_format=S,key_format=i'
         value1 = 'abcedfghijklmnopqrstuvwxyz' * 5
         value2 = 'b' * 100
-        value3 = 'c' * 100
-        value4 = 'd' * 100
         valuebig = 'e' * 1000
         self.session.create(uri, create_params)
         cursor = self.session.open_cursor(uri)
@@ -71,7 +68,7 @@ class test_hs12(wttest.WiredTigerTestCase):
         self.assertEquals(cursor2.get_value(),  value1 + 'A')
         session2.commit_transaction()
 
-        # Begin transaction on session 2 so it sees and current snap_min snap_max
+        # Begin transaction on session 2 so it sees the current snap_min and snap_max
         session2.begin_transaction()
 
         # reset the cursor
@@ -80,7 +77,7 @@ class test_hs12(wttest.WiredTigerTestCase):
         # Insert one more value
         self.session.begin_transaction()
         cursor.set_key(1)
-        cursor[1] = value3
+        cursor[1] = value2
         self.session.commit_transaction()
 
         # Insert a whole bunch of data into the table to force wiredtiger to evict data
