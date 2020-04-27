@@ -128,14 +128,14 @@ __compact_leaf_replace_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY 
         __wt_free(session, addr->addr);
     else {
         __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &unpack);
-
         WT_RET(__wt_calloc_one(session, &addr));
-        addr->start_durable_ts = unpack.newest_start_durable_ts;
-        addr->stop_durable_ts = unpack.newest_stop_durable_ts;
         addr->oldest_start_ts = unpack.oldest_start_ts;
         addr->oldest_start_txn = unpack.oldest_start_txn;
+        addr->newest_start_durable_ts = unpack.newest_start_durable_ts;
         addr->newest_stop_ts = unpack.newest_stop_ts;
         addr->newest_stop_txn = unpack.newest_stop_txn;
+        addr->newest_stop_durable_ts = unpack.newest_stop_durable_ts;
+        addr->prepare = F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE);
         switch (unpack.raw) {
         case WT_CELL_ADDR_INT:
             addr->type = WT_ADDR_INT;
