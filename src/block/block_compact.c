@@ -213,6 +213,7 @@ __wt_block_compact_page_rewrite(
     *skipp = true; /* Return a default skip. */
 
     discard_block = false;
+    new_offset = 0; /* [-Wconditional-uninitialized] */
 
     /* Crack the cookie. */
     WT_ERR(__wt_block_buffer_to_addr(block, addr, &offset, &size, &checksum));
