@@ -103,7 +103,7 @@ __rec_append_orig_value(
     /* We need the original on-page value for some reader: get a copy. */
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
-    WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
+    WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
     total_size += size;
     append->txnid = unpack->start_txn;
     append->start_ts = unpack->start_ts;
@@ -116,7 +116,7 @@ __rec_append_orig_value(
      * the tombstone to tell us there is no value between 10 and 20.
      */
     if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
-        WT_ERR(__wt_update_alloc(session, NULL, &tombstone, &size, WT_UPDATE_TOMBSTONE));
+        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
         total_size += size;
         tombstone->txnid = unpack->stop_txn;
         tombstone->start_ts = unpack->stop_ts;
@@ -239,11 +239,21 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          */
         if (!is_hs_page && (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
                                                              !__txn_visible_id(session, txnid))) {
+            /*
+             * Rare case: when applications run at low isolation levels, eviction may see a
+             * committed update followed by uncommitted updates. Give up in that case because we
+             * can't move uncommitted updates to the history store.
+             */
+            if (upd_select->upd != NULL)
+                return (__wt_set_return(session, EBUSY));
+
             has_newer_updates = true;
             continue;
         }
+
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
+            WT_ASSERT(session, upd_select->upd == NULL);
             has_newer_updates = true;
             if (upd->start_ts > max_ts)
                 max_ts = upd->start_ts;
@@ -265,19 +275,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 
-        if (!__rec_update_stable(session, r, upd)) {
-            if (F_ISSET(r, WT_REC_EVICT))
-                ++r->updates_unstable;
-
-            /*
-             * Rare case: when applications run at low isolation levels, update/restore eviction may
-             * see a stable update followed by an uncommitted update. Give up in that case: we need
-             * to discard updates from the stable update and older for correctness and we can't
-             * discard an uncommitted update.
-             */
-            if (upd_select->upd != NULL && has_newer_updates)
-                return (__wt_set_return(session, EBUSY));
-        } else if (!F_ISSET(r, WT_REC_EVICT))
+        if (F_ISSET(r, WT_REC_EVICT) && !__rec_update_stable(session, r, upd))
+            ++r->updates_unstable;
+        else if (!F_ISSET(r, WT_REC_EVICT))
             break;
     }
 
@@ -379,7 +379,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              */
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));
-            WT_ERR(__wt_update_alloc(session, tmp, &upd, &size, WT_UPDATE_STANDARD));
+            WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &upd, &size));
             upd->durable_ts = vpack->durable_start_ts;
             upd->start_ts = vpack->start_ts;
             upd->txnid = vpack->start_txn;
