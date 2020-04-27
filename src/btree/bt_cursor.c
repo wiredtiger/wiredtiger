@@ -239,7 +239,7 @@ __wt_cursor_valid(
             if (upd_viewp != NULL)
                 *upd_viewp = upd_view;
             else
-                __wt_buf_free(session, &upd_view.buf);
+                __wt_upd_view_free(session, &upd_view);
             *valid = true;
             return (0);
         }
@@ -304,7 +304,7 @@ __wt_cursor_valid(
             if (upd_viewp != NULL)
                 *upd_viewp = upd_view;
             else
-                __wt_buf_free(session, &upd_view.buf);
+                __wt_upd_view_free(session, &upd_view);
             *valid = true;
         }
         break;
@@ -337,7 +337,7 @@ __wt_cursor_valid(
             if (upd_viewp != NULL)
                 *upd_viewp = upd_view;
             else
-                __wt_buf_free(session, &upd_view.buf);
+                __wt_upd_view_free(session, &upd_view);
             *valid = true;
         }
         break;

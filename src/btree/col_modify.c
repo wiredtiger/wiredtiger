@@ -137,9 +137,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         }
 
         /* Avoid a data copy in WT_CURSOR.update. */
-        cbt->modify_update.buf.data = upd->data;
-        cbt->modify_update.buf.size = upd->size;
-        cbt->modify_update.type = upd->type;
+        __wt_upd_view_assign(&cbt->modify_update, upd);
 
         /*
          * Point the new WT_UPDATE item to the next element in the list. If we get it right, the
@@ -190,9 +188,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
             logged = true;
 
             /* Avoid a data copy in WT_CURSOR.update. */
-            cbt->modify_update.buf.data = upd->data;
-            cbt->modify_update.buf.size = upd->size;
-            cbt->modify_update.type = upd->type;
+            __wt_upd_view_assign(&cbt->modify_update, upd);
         } else
             upd_size = __wt_update_list_memsize(upd);
         ins->upd = upd;

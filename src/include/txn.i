@@ -820,15 +820,9 @@ __wt_txn_read_upd_list(
      * update now and make the view own the buffer. This means that when we free the view, it will
      * free the reconstructed value with it since it does not exist organically in the update list.
      */
-    if (upd->type != WT_UPDATE_MODIFY) {
-        /* This update exists in the update list so don't take ownership of this memory. */
-        upd_view->buf.data = upd->data;
-        upd_view->buf.size = upd->size;
-        upd_view->start_ts = upd->start_ts;
-        upd_view->txnid = upd->txnid;
-        upd_view->type = upd->type;
-        upd_view->prepare_state = upd->prepare_state;
-    } else
+    if (upd->type != WT_UPDATE_MODIFY)
+        __wt_upd_view_assign(upd_view, upd);
+    else
         WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, upd_view));
     return (0);
 }
@@ -898,7 +892,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
 
     /* If the start time pair is visible then we need to return the ondisk value. */
     if (__wt_txn_visible(session, start.txnid, start.timestamp)) {
-        upd_view->buf = buf;
+        __wt_upd_view_move(upd_view, &buf);
         upd_view->start_ts = start.timestamp;
         upd_view->txnid = start.txnid;
         upd_view->type = WT_UPDATE_STANDARD;
@@ -1269,4 +1263,44 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
       txn_global->metadata_pinned != txn_global->current);
 
     return (0);
+}
+
+/*
+ * __wt_upd_view_move --
+ *     Transfer ownership from a buffer to our update view. We typically do this when we've
+ *     retrieved an onpage and history store value that doesn't exist naturally in an update list.
+ */
+static inline void
+__wt_upd_view_move(WT_UPDATE_VIEW *upd_view, WT_ITEM *buf)
+{
+    upd_view->buf = *buf;
+    WT_CLEAR(*buf);
+}
+
+/*
+ * __wt_upd_view_assign --
+ *     Point an update view at a given update. We're specifically not getting the view to own the
+ *     memory since this exists in an update list somewhere.
+ */
+static inline void
+__wt_upd_view_assign(WT_UPDATE_VIEW *upd_view, WT_UPDATE *upd)
+{
+    upd_view->buf.data = upd->data;
+    upd_view->buf.size = upd->size;
+    upd_view->start_ts = upd->start_ts;
+    upd_view->txnid = upd->txnid;
+    upd_view->type = upd->type;
+    upd_view->prepare_state = upd->prepare_state;
+}
+
+/*
+ * __wt_upd_view_free --
+ *     Clear the update view and free any associated memory.
+ */
+static inline void
+__wt_upd_view_free(WT_SESSION_IMPL *session, WT_UPDATE_VIEW *upd_view)
+{
+    /* If we don't own this memory, the memory pointers will be unset so we're safe to do this. */
+    __wt_buf_free(session, &upd_view->buf);
+    WT_CLEAR(*upd_view);
 }
