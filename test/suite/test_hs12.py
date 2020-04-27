@@ -53,12 +53,15 @@ class test_hs12(wttest.WiredTigerTestCase):
         # Insert a full value.
         self.session.begin_transaction()
         cursor[1] = value1
+        cursor[2] = value1
         self.session.commit_transaction()
 
         # Insert a modify
         self.session.begin_transaction()
         cursor.set_key(1)
         cursor.modify([wiredtiger.Modify('A', 130, 1)])
+        cursor.set_key(2)
+        cursor.modify([wiredtiger.Modify('AB', 130, 1)])
         self.session.commit_transaction()
 
         # Validate that we do see the correct value.
@@ -66,6 +69,9 @@ class test_hs12(wttest.WiredTigerTestCase):
         cursor2.set_key(1)
         cursor2.search()
         self.assertEquals(cursor2.get_value(),  value1 + 'A')
+        cursor2.set_key(2)
+        cursor2.search()
+        self.assertEquals(cursor2.get_value(),  value1 + 'AB')
         session2.commit_transaction()
 
         # Begin transaction on session 2 so it sees the current snap_min and snap_max
@@ -91,6 +97,9 @@ class test_hs12(wttest.WiredTigerTestCase):
         cursor2.set_key(1)
         cursor2.search()
         self.assertEquals(cursor2.get_value(), value1 + 'A')
+        cursor2.set_key(2)
+        cursor2.search()
+        self.assertEquals(cursor2.get_value(), value1 + 'AB')
 
 if __name__ == '__main__':
     wttest.run()
