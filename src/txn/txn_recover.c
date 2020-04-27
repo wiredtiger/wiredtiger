@@ -521,6 +521,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
+    wt_timestamp_t oldest_ts;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
@@ -558,6 +559,16 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
         hs_exists = false;
     /* Unpin the page from cache. */
     WT_ERR(metac->reset(metac));
+
+    /* If found, save the oldest start timestamp in the checkpoint list of the history store. This
+     * will be the minimum valid oldest timestamp at restart.
+     */
+    if (hs_exists) {
+        WT_ERR_NOTFOUND_OK(
+          __wt_meta_get_oldest_ckpt_timestamp(session, WT_HS_URI, &oldest_ts), true);
+        conn->txn_global.oldest_ckpt_hs_timestamp = oldest_ts;
+    } else
+        conn->txn_global.oldest_ckpt_hs_timestamp = WT_TS_NONE;
 
     /*
      * If no log was found (including if logging is disabled), or if the last checkpoint was done

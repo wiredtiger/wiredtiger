@@ -85,6 +85,18 @@ class test_timestamp19(wttest.WiredTigerTestCase):
         # Perform a checkpoint.
         self.session.checkpoint('use_timestamp=true')
 
+        # Close and reopen the connection.
+        self.close_conn()
+        self.conn = self.setUpConnectionOpen('.')
+        self.session = self.setUpSessionOpen(self.conn)
+
+        # Set the oldest timestamp to 10.
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10))
+
+        # Validate the oldest timestamp was set from the history store checkpoint.
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=oldest'), timestamp_str(40))
+
         # Move the oldest timestamp to 70.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(70))
 
@@ -96,14 +108,7 @@ class test_timestamp19(wttest.WiredTigerTestCase):
         # Perform a checkpoint.
         self.session.checkpoint('use_timestamp=true')
 
-        # Close and reopen the connection.
-        self.close_conn()
-        self.conn = self.setUpConnectionOpen('.')
-        self.session = self.setUpSessionOpen(self.conn)
-
-        # Set the oldest timestamp to 10.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10))
-
+        # Validate the oldest timestamp was set by the call to set_timestamp.
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=oldest'), timestamp_str(70))
 
