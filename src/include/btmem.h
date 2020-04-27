@@ -1124,9 +1124,9 @@ struct __wt_update {
 /*
  * WT_UPDATE_VIEW --
  *
- * A transaction's view of an update's data. This structure is used to represent both in-memory
- * updates and updates that don't already exist in-memory such as reconstructed modify updates,
- * updates in the history store and onpage values.
+ * A generic view of an update's value regardless of where it exists. This structure is used to
+ * represent both in-memory updates and updates that don't exist in an update list such as
+ * reconstructed modify updates, updates in the history store and onpage values.
  */
 struct __wt_update_view {
     WT_ITEM buf;
