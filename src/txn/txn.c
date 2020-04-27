@@ -873,7 +873,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * store when handling prepared inserts, but it doesn't cost much.
      */
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && resolved && upd == NULL)
-        WT_RET(__txn_fixup_prepared_update(session, op, *cursorp, commit));
+        WT_RET_NOTFOUND_OK(__txn_fixup_prepared_update(session, op, *cursorp, commit));
 
     return (0);
 }
