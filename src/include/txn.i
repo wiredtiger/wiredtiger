@@ -789,7 +789,8 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **upd
              */
             if (type == WT_UPDATE_TOMBSTONE && WT_IS_HS(S2BT(session)) &&
               F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE) &&
-              (upd->start_ts != WT_TS_NONE || upd->txnid != WT_TXN_NONE))
+              (upd->start_ts != WT_TS_NONE || upd->txnid != WT_TXN_NONE) &&
+              !__wt_txn_upd_visible_all(session, upd))
                 continue;
             *updp = upd;
             return (0);
