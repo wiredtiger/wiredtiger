@@ -33,7 +33,7 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
 {
     static size_t lastlen = 0;
     size_t len;
-    char msg[128];
+    char msg[128], stable_msg[64];
 
     if (g.c_quiet || tag == NULL)
         return;
@@ -44,12 +44,16 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
     else if (tinfo == NULL)
         testutil_check(__wt_snprintf_len_set(
           msg, sizeof(msg), &len, "%4" PRIu32 ": %s: %" PRIu64, g.run_cnt, tag, cnt));
-    else
+    else {
+        stable_msg[0] = '\0';
+        if (g.c_txn_rollback_to_stable)
+            testutil_check(__wt_snprintf(stable_msg, sizeof(stable_msg), " stable_ts %" PRIx64,
+                g.stable_timestamp));
         testutil_check(__wt_snprintf_len_set(msg, sizeof(msg), &len, "%4" PRIu32 ": %s: "
                                                                      "search %" PRIu64 "%s, "
                                                                      "insert %" PRIu64 "%s, "
                                                                      "update %" PRIu64 "%s, "
-                                                                     "remove %" PRIu64 "%s",
+                                                                     "remove %" PRIu64 "%s%s",
           g.run_cnt, tag, tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search,
           tinfo->search > M(9) ? "M" : "",
           tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert,
@@ -57,8 +61,8 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
           tinfo->update > M(9) ? tinfo->update / M(1) : tinfo->update,
           tinfo->update > M(9) ? "M" : "",
           tinfo->remove > M(9) ? tinfo->remove / M(1) : tinfo->remove,
-          tinfo->remove > M(9) ? "M" : ""));
-
+          tinfo->remove > M(9) ? "M" : "", stable_msg));
+    }
     if (lastlen > len) {
         memset(msg + len, ' ', (size_t)(lastlen - len));
         msg[lastlen] = '\0';
@@ -258,14 +262,15 @@ timestamp_once(WT_SESSION *session)
     if (ret == 0) {
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s", oldest_timestamp_str, tsbuf));
         /*
-         * When we're doing rollback to stable operations, we'll advance the stable timestamp too,
-         * in lockstep with the oldest timestamp.
+         * When we're doing rollback to stable operations, we'll advance the stable timestamp to the
+         * current timestamp value.
          */
         if (g.c_txn_rollback_to_stable) {
+            g.stable_timestamp = g.timestamp;
             len = strlen(buf);
             WT_ASSERT((WT_SESSION_IMPL *)session, len < sizeof(buf));
-            testutil_check(
-              __wt_snprintf(buf + len, sizeof(buf) - len, ",%s%s", stable_timestamp_str, tsbuf));
+            testutil_check(__wt_snprintf(buf + len, sizeof(buf) - len, ",%s%" PRIx64,
+              stable_timestamp_str, g.stable_timestamp));
         }
         testutil_check(conn->set_timestamp(conn, buf));
     }

@@ -120,7 +120,8 @@ typedef struct {
      */
     RWLOCK ts_lock;
 
-    uint64_t timestamp; /* Counter for timestamps */
+    uint64_t timestamp;        /* Counter for timestamps */
+    uint64_t stable_timestamp; /* Last timestamp used for stable */
 
     uint64_t truncate_cnt; /* Counter for truncation */
 
