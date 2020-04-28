@@ -473,9 +473,9 @@ __wt_meta_get_oldest_ckpt_timestamp(
     /* Load any existing checkpoints into the array. */
     if ((ret = __wt_config_getones(session, config, "checkpoint", &v)) == 0) {
         __wt_config_subinit(session, &ckptconf, &v);
-        /* 
-         * There may be multiple checkpoints for the file. Loop through to find the minimum
-         * oldest start timestamp over all of them.
+        /*
+         * There may be multiple checkpoints for the file. Loop through to find the minimum oldest
+         * start timestamp over all of them.
          */
         for (; (ret = __wt_config_next(&ckptconf, &k, &v)) == 0;) {
             if (__wt_config_subgets(session, &v, "oldest_start_ts", &a) == 0 && a.len != 0 &&
