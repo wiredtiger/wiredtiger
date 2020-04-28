@@ -191,9 +191,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd;
+    WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd, *tombstone;
     wt_timestamp_t max_ts;
-    size_t size, upd_memsize;
+    size_t upd_memsize;
     uint64_t max_txn, txnid;
     bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
 
@@ -211,7 +211,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_select->prepare = false;
 
     page = r->page;
-    first_txn_upd = upd = last_upd = NULL;
+    first_txn_upd = upd = last_upd = tombstone = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
@@ -352,6 +352,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             upd_select->stop_ts = upd->start_ts;
             upd_select->stop_txn = upd->txnid;
             upd_select->stop_durable_ts = upd->durable_ts;
+            tombstone = upd;
 
             /* Find the update this tombstone applies to. */
             if (!__wt_txn_visible_all(session, upd->txnid, upd->start_ts)) {
@@ -370,36 +371,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             upd_select->start_txn = upd->txnid;
         } else if (upd_select->stop_ts != WT_TS_NONE || upd_select->stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
-            WT_ASSERT(session, vpack != NULL);
-            /*
-             * It's possible to have a tombstone as the only update in the update list. If we
-             * reconciled before with only a single update and then read the page back into cache,
-             * we'll have an empty update list. And applying a delete on top of that will result in
-             * ONLY a tombstone in the update list.
-             *
-             * In this case, we should leave the selected update unset to indicate that we want to
-             * keep the same on-disk value but set the stop time pair to indicate that the validity
-             * window ends when this tombstone started.
-             */
-            upd_select->start_ts = vpack->start_ts;
-            upd_select->start_durable_ts = vpack->durable_start_ts;
-            upd_select->start_txn = vpack->start_txn;
-
-            /*
-             * Leaving the update unset means that we can skip reconciling. If we've set the stop
-             * time pair because of a tombstone after the on-disk value, we still have work to do so
-             * that is NOT ok. Let's append the on-disk value to the chain.
-             */
-            WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-            WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));
-            WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &upd, &size));
-            upd->durable_ts = vpack->durable_start_ts;
-            upd->start_ts = vpack->start_ts;
-            upd->txnid = vpack->start_txn;
-            WT_PUBLISH(last_upd->next, upd);
-            /* This is going in our update list so it should be accounted for in cache usage. */
-            __wt_cache_page_inmem_incr(session, page, size);
-            upd_select->upd = upd;
+            WT_ASSERT(session, vpack != NULL && tombstone != NULL);
+            WT_ERR(__rec_append_orig_value(session, page, tombstone, vpack));
+            WT_ASSERT(session, last_upd->next != NULL);
+            upd_select->upd = last_upd->next;
         }
     }
 
