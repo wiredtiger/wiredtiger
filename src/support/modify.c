@@ -346,27 +346,11 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const size_t
 }
 
 /*
- * __wt_modify_apply --
- *     Apply a single set of WT_MODIFY changes to a cursor buffer.
- */
-int
-__wt_modify_apply(WT_CURSOR *cursor, const void *modify)
-{
-    WT_SESSION_IMPL *session;
-    bool sformat;
-
-    session = (WT_SESSION_IMPL *)cursor->session;
-    sformat = cursor->value_format[0] == 'S';
-
-    return (__wt_modify_apply_item(session, &cursor->value, modify, sformat));
-}
-
-/*
- * __wt_modify_apply_item --
+ * __modify_apply_item --
  *     Apply a single set of WT_MODIFY changes to a WT_ITEM buffer.
  */
-int
-__wt_modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify, bool sformat)
+static int
+__modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify, bool sformat)
 {
     WT_MODIFY mod;
     size_t datasz, destsz, item_offset, tmp;
@@ -423,6 +407,36 @@ done: /* Restore the trailing nul. */
         ((char *)value->data)[value->size++] = '\0';
 
     return (0);
+}
+
+/*
+ * __wt_modify_apply_buf --
+ *     Apply a single set of WT_MODIFY changes to a buffer.
+ */
+int
+__wt_modify_apply_buf(WT_SESSION_IMPL *session, WT_ITEM *buf, const void *modify)
+{
+    bool sformat;
+
+    sformat = S2BT(session)->value_format[0] == 'S';
+
+    return (__modify_apply_item(session, buf, modify, sformat));
+}
+
+/*
+ * __wt_modify_apply --
+ *     Apply a single set of WT_MODIFY changes to a cursor buffer.
+ */
+int
+__wt_modify_apply(WT_CURSOR *cursor, const void *modify)
+{
+    WT_SESSION_IMPL *session;
+    bool sformat;
+
+    session = (WT_SESSION_IMPL *)cursor->session;
+    sformat = cursor->value_format[0] == 'S';
+
+    return (__modify_apply_item(session, &cursor->value, modify, sformat));
 }
 
 /*
