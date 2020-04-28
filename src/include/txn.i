@@ -870,7 +870,14 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
      * an update. This allocation is expensive and doesn't serve a purpose other than to work within
      * the current system.
      */
-    if (__wt_txn_visible(session, start.txnid, start.timestamp)) {
+    if (__wt_txn_visible(session, start.txnid, start.timestamp) ||
+      F_ISSET(session, WT_SESSION_RESOLVING_MODIFY)) {
+
+        /* If we are resolving a modify then the btree must be the history store. */
+        WT_ASSERT(
+          session, (F_ISSET(session, WT_SESSION_RESOLVING_MODIFY) && WT_IS_HS(S2BT(session))) ||
+            !F_ISSET(session, WT_SESSION_RESOLVING_MODIFY));
+
         ret = __wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, updp, NULL);
         __wt_buf_free(session, &buf);
         WT_RET(ret);
