@@ -75,7 +75,11 @@ __rec_append_orig_value(
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK))
             return (0);
 
-        /* Done if the on page value already appears on the update list. */
+        /* 
+         * Done if the on page value already appears on the update list. We can't do the same check
+         * for stop time pair because we may still need to append the onpage value if only the
+         * tombstone is on the update chain.
+         */
         if (unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid &&
           upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
