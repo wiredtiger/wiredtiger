@@ -892,11 +892,6 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
 
     /* Return invalid not tombstone if nothing is found in history store. */
     WT_ASSERT(session, cbt->upd_view.type != WT_UPDATE_TOMBSTONE);
-
-    /*
-     * FIXME-PM-1521: We call transaction read in a lot of places so we can't do this yet. When we
-     * re-factor this function to return a byte array, we should tackle this at the same time.
-     */
     return (0);
 }
 
