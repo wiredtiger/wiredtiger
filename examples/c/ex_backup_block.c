@@ -383,7 +383,7 @@ take_incr_backup(WT_SESSION *session, int i)
                     error_sys_check(rfd = open(buf, O_RDONLY, 0));
                     (void)snprintf(h, sizeof(h), "%s.%d", home_incr, i);
                     (void)snprintf(buf, sizeof(buf), "%s/%s", h, filename);
-                    error_sys_check(wfd = open(buf, O_WRONLY, 0));
+                    error_sys_check(wfd = open(buf, O_WRONLY | O_CREAT, 0));
                     first = false;
                 }
 
