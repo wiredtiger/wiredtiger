@@ -173,7 +173,6 @@ void
 __wt_curbackup_free_incr(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 {
     __wt_free(session, cb->incr_file);
-    F_SET(session, cb->session_cache_flags);
     if (cb->incr_cursor != NULL)
         cb->incr_cursor->close(cb->incr_cursor);
     __wt_buf_free(session, &cb->bitstring);
@@ -190,17 +189,12 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     WT_CURSOR_BACKUP *cb, *other_cb;
     WT_DECL_ITEM(open_uri);
     WT_DECL_RET;
+    uint64_t session_cache_flags;
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     other_cb = (WT_CURSOR_BACKUP *)other;
     cursor->key_format = WT_UNCHECKED_STRING(qqq);
     cursor->value_format = "";
-    /*
-     * Incremental cursors use file cursors, but in a non-standard way. Turn off cursor caching.
-     * Retain the session's original setting and then restore it when we're done.
-     */
-    cb->session_cache_flags = F_ISSET(session, WT_SESSION_CACHE_CURSORS);
-    F_CLR(session, WT_SESSION_CACHE_CURSORS);
 
     WT_ASSERT(session, other_cb->incr_src != NULL);
 
@@ -226,7 +220,14 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     if (!F_ISSET(cb, WT_CURBACKUP_FORCE_FULL)) {
         WT_ERR(__wt_scr_alloc(session, 0, &open_uri));
         WT_ERR(__wt_buf_fmt(session, open_uri, "file:%s", cb->incr_file));
+        /*
+         * Incremental cursors use file cursors, but in a non-standard way. Turn off cursor caching
+         * as we open the cursor.
+         */
+        session_cache_flags = F_ISSET(session, WT_SESSION_CACHE_CURSORS);
+        F_CLR(session, WT_SESSION_CACHE_CURSORS);
         WT_ERR(__wt_curfile_open(session, open_uri->data, NULL, cfg, &cb->incr_cursor));
+        F_SET(session, session_cache_flags);
     }
     WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
 
