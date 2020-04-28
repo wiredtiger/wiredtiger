@@ -373,7 +373,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL && tombstone != NULL);
             WT_ERR(__rec_append_orig_value(session, page, tombstone, vpack));
-            WT_ASSERT(session, last_upd->next != NULL && last_upd->next->next == NULL);
+            WT_ASSERT(session, last_upd->next != NULL &&
+                last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL);
             upd_select->upd = last_upd->next;
         }
     }
