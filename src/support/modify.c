@@ -416,11 +416,7 @@ done: /* Restore the trailing nul. */
 int
 __wt_modify_apply_buf(WT_SESSION_IMPL *session, WT_ITEM *buf, const void *modify)
 {
-    bool sformat;
-
-    sformat = S2BT(session)->value_format[0] == 'S';
-
-    return (__modify_apply_item(session, buf, modify, sformat));
+    return (__modify_apply_item(session, buf, modify, S2BT(session)->value_format[0] == 'S'));
 }
 
 /*
