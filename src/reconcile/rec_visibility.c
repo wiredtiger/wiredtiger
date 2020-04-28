@@ -58,12 +58,12 @@ __rec_append_orig_value(
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_UPDATE *append, *tombstone;
+    WT_UPDATE *append, *oldest_upd, *tombstone;
     size_t size, total_size;
 
     WT_ASSERT(session, upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL);
 
-    append = tombstone = NULL;
+    append = oldest_upd = tombstone = NULL;
     total_size = 0;
 
     /* Review the current update list, checking conditions that mean no work is needed. */
@@ -76,7 +76,8 @@ __rec_append_orig_value(
             return (0);
 
         /* Done if the on page value already appears on the update list. */
-        if (unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid)
+        if (unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid &&
+          upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
         /*
@@ -89,6 +90,9 @@ __rec_append_orig_value(
          */
         if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
             return (0);
+
+        if (upd->txnid != WT_TXN_ABORTED)
+            oldest_upd = upd;
 
         /* Leave reference pointing to the last item in the update list. */
         if (upd->next == NULL)
@@ -116,14 +120,19 @@ __rec_append_orig_value(
      * the tombstone to tell us there is no value between 10 and 20.
      */
     if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
-        WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
-        total_size += size;
-        tombstone->txnid = unpack->stop_txn;
-        tombstone->start_ts = unpack->stop_ts;
-        tombstone->durable_ts = unpack->durable_stop_ts;
+        /* No need to append the tombstone if it is already in the update chain. */
+        if (oldest_upd->type != WT_UPDATE_TOMBSTONE) {
+            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
+            total_size += size;
+            tombstone->txnid = unpack->stop_txn;
+            tombstone->start_ts = unpack->stop_ts;
+            tombstone->durable_ts = unpack->durable_stop_ts;
 
-        tombstone->next = append;
-        append = tombstone;
+            tombstone->next = append;
+            append = tombstone;
+        } else
+            WT_ASSERT(session,
+              unpack->stop_ts == oldest_upd->start_ts && unpack->stop_txn == oldest_upd->txnid);
     }
 
     /* Append the new entry into the update list. */
