@@ -224,6 +224,7 @@ restart_read:
         /* Check any insert list for a matching record. */
         cbt->ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
         cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
+        __wt_upd_value_clear(&cbt->upd_value);
         if (cbt->ins != NULL)
             WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value.type != WT_UPDATE_INVALID) {
