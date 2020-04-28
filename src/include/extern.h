@@ -1762,7 +1762,6 @@ extern void __wt_txn_release_resources(WT_SESSION_IMPL *session);
 extern void __wt_txn_release_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_txn_truncate_end(WT_SESSION_IMPL *session);
-extern void __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view);
 extern void __wt_verbose_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t ts, const char *msg);
 extern void __wt_verbose_worker(WT_SESSION_IMPL *session, const char *fmt, ...)
   WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 2, 3))) WT_GCC_FUNC_DECL_ATTRIBUTE((cold));

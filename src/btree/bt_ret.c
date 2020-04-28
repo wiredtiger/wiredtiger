@@ -236,43 +236,6 @@ __value_return(WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_value_return_upd --
- *     Change the cursor to reference an update view return value.
- */
-void
-__wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
-{
-    WT_CURSOR *cursor;
-    WT_SESSION_IMPL *session;
-
-    cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
-
-    /*
-     * We're passed a "standard" update that's visible to us. Our caller should have already checked
-     * for deleted items (we're too far down the call stack to return not-found) and any modify
-     * updates should be have been reconstructed into a full standard update.
-     */
-    WT_ASSERT(session, upd_view->type == WT_UPDATE_STANDARD);
-    /*
-     * If the view actually owns memory (i.e. it's not pointing to something in an update list),
-     * then the cursor should free its current buffer and then claim the view's buffer as its own.
-     * The cursor will free this memory as part of the next operation.
-     *
-     * If the view is pointing at an in-memory update, then simply assign the pointer to the
-     * in-memory update but retain the memory that the cursor buffer owns. If we end up doing a
-     * "set" on the cursor later, that memory is going to be handy and will save an allocation.
-     *
-     * Potential optimization: Avoid this situation where we get back some allocated memory and have
-     * to free our cursor's buffer in order to replace it. If we pass the cursor's buffer all the
-     * way down and use it directly to store history store values, reconstruct modifies, etc, we can
-     * reduce allocations further.
-     */
-    cursor->value.data = upd_view->buf.data;
-    cursor->value.size = upd_view->buf.size;
-}
-
-/*
  * __wt_key_return --
  *     Change the cursor to reference an internal return key.
  */
@@ -307,14 +270,24 @@ int
 __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
 {
     WT_CURSOR *cursor;
+    WT_SESSION_IMPL *session;
 
     cursor = &cbt->iface;
+    session = (WT_SESSION_IMPL *)cbt->iface.session;
 
     F_CLR(cursor, WT_CURSTD_VALUE_EXT);
     if (upd_view->type == WT_UPDATE_INVALID)
         WT_RET(__value_return(cbt));
-    else
-        __wt_value_return_upd(cbt, upd_view);
+    else {
+        /*
+         * We're passed a "standard" update that's visible to us. Our caller should have already
+         * checked for deleted items (we're too far down the call stack to return not-found) and any
+         * modify updates should be have been reconstructed into a full standard update.
+         */
+        WT_ASSERT(session, upd_view->type == WT_UPDATE_STANDARD);
+        cursor->value.data = upd_view->buf.data;
+        cursor->value.size = upd_view->buf.size;
+    }
     F_SET(cursor, WT_CURSTD_VALUE_INT);
     return (0);
 }
