@@ -1308,6 +1308,44 @@ err:
 }
 
 /*
+ * __wt_history_store_verify_one --
+ *     Verify the history store for the btree that is set up in this session. This must be called
+ *     when we are known to have exclusive access to the btree.
+ */
+int
+__wt_history_store_verify_one(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *cursor;
+    WT_CURSOR_BTREE cbt;
+    WT_DECL_RET;
+    WT_ITEM hs_key;
+    uint32_t btree_id;
+    int exact;
+
+    cursor = session->hs_cursor;
+    btree_id = S2BT(session)->id;
+
+    /*
+     * We are required to position the history store cursor. Set it to the first record of our btree
+     * in the history store.
+     */
+    memset(&hs_key, 0, sizeof(hs_key));
+    cursor->set_key(cursor, btree_id, &hs_key, 0, 0, 0, 0);
+    ret = cursor->search_near(cursor, &exact);
+    if (ret == 0 && exact < 0)
+        ret = cursor->next(cursor);
+
+    /* If we positioned the cursor there is something to verify. */
+    if (ret == 0) {
+        __wt_btcur_init(session, &cbt);
+        __wt_btcur_open(&cbt);
+        ret = __verify_history_store_id(session, &cbt, btree_id);
+        WT_TRET(__wt_btcur_close(&cbt, false));
+    }
+    return (ret == WT_NOTFOUND ? 0 : ret);
+}
+
+/*
  * __wt_history_store_verify --
  *     Verify the history store. There can't be an entry in the history store without having the
  *     latest value for the respective key in the data store.
