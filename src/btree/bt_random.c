@@ -281,13 +281,13 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
     if (cbt->ref->page->entries > WT_RANDOM_DISK_ENOUGH) {
         WT_RET(__random_leaf_disk(cbt, &valid));
         if (valid)
-            return (__cursor_kv_return(cbt, &cbt->upd_view));
+            return (__cursor_kv_return(cbt, &cbt->upd_value));
     }
 
     /* Look for any large insert list and select from it. */
     WT_RET(__random_leaf_insert(cbt, &valid));
     if (valid)
-        return (__cursor_kv_return(cbt, &cbt->upd_view));
+        return (__cursor_kv_return(cbt, &cbt->upd_value));
 
     /*
      * Try again if there are at least a few hundred disk-based entries: this may be a normal leaf
@@ -296,7 +296,7 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
     if (cbt->ref->page->entries > WT_RANDOM_DISK_ENOUGH / 2) {
         WT_RET(__random_leaf_disk(cbt, &valid));
         if (valid)
-            return (__cursor_kv_return(cbt, &cbt->upd_view));
+            return (__cursor_kv_return(cbt, &cbt->upd_value));
     }
 
     /*

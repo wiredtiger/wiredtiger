@@ -230,8 +230,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
      */
     if (cbt->ins != NULL) {
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
-        if (cbt->upd_view.type != WT_UPDATE_INVALID) {
-            if (cbt->upd_view.type == WT_UPDATE_TOMBSTONE)
+        if (cbt->upd_value.type != WT_UPDATE_INVALID) {
+            if (cbt->upd_value.type == WT_UPDATE_TOMBSTONE)
                 return (0);
             *valid = true;
             return (0);
@@ -291,8 +291,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
          * can have the same key as an on-page or history store object.
          */
         WT_RET(__wt_txn_read(session, cbt, key, recno, NULL, NULL));
-        if (cbt->upd_view.type != WT_UPDATE_INVALID) {
-            if (cbt->upd_view.type == WT_UPDATE_TOMBSTONE)
+        if (cbt->upd_value.type != WT_UPDATE_INVALID) {
+            if (cbt->upd_value.type == WT_UPDATE_TOMBSTONE)
                 return (0);
             *valid = true;
         }
@@ -320,8 +320,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
             page->modify->mod_row_update[cbt->slot] :
             NULL,
           NULL));
-        if (cbt->upd_view.type != WT_UPDATE_INVALID) {
-            if (cbt->upd_view.type == WT_UPDATE_TOMBSTONE)
+        if (cbt->upd_value.type != WT_UPDATE_INVALID) {
+            if (cbt->upd_value.type == WT_UPDATE_TOMBSTONE)
                 return (0);
             *valid = true;
         }
@@ -554,7 +554,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     }
 
     if (valid)
-        ret = __cursor_kv_return(cbt, &cbt->upd_view);
+        ret = __cursor_kv_return(cbt, &cbt->upd_value);
     else if (__cursor_fix_implicit(btree, cbt)) {
         /*
          * Creating a record past the end of the tree in a fixed-length column-store implicitly
@@ -679,7 +679,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
      */
     if (valid) {
         exact = cbt->compare;
-        ret = __cursor_kv_return(cbt, &cbt->upd_view);
+        ret = __cursor_kv_return(cbt, &cbt->upd_value);
     } else if (__cursor_fix_implicit(btree, cbt)) {
         cbt->recno = cursor->recno;
         cbt->v = 0;
@@ -1853,7 +1853,7 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
         ret = __cursor_reset(cbt);
 
     __wt_buf_free(session, &cbt->modify_update.buf);
-    __wt_buf_free(session, &cbt->upd_view.buf);
+    __wt_buf_free(session, &cbt->upd_value.buf);
     __wt_buf_free(session, &cbt->_row_key);
     __wt_buf_free(session, &cbt->_tmp);
 #ifdef HAVE_DIAGNOSTIC

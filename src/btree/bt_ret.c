@@ -264,10 +264,10 @@ __wt_key_return(WT_CURSOR_BTREE *cbt)
 
 /*
  * __wt_value_return --
- *     Change the cursor to reference an update view return value.
+ *     Change the cursor to reference an update return value.
  */
 int
-__wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
+__wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
 {
     WT_CURSOR *cursor;
     WT_SESSION_IMPL *session;
@@ -276,7 +276,7 @@ __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
     session = (WT_SESSION_IMPL *)cbt->iface.session;
 
     F_CLR(cursor, WT_CURSTD_VALUE_EXT);
-    if (upd_view->type == WT_UPDATE_INVALID)
+    if (upd_value->type == WT_UPDATE_INVALID)
         WT_RET(__value_return(cbt));
     else {
         /*
@@ -284,9 +284,9 @@ __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
          * checked for deleted items (we're too far down the call stack to return not-found) and any
          * modify updates should be have been reconstructed into a full standard update.
          */
-        WT_ASSERT(session, upd_view->type == WT_UPDATE_STANDARD);
-        cursor->value.data = upd_view->buf.data;
-        cursor->value.size = upd_view->buf.size;
+        WT_ASSERT(session, upd_value->type == WT_UPDATE_STANDARD);
+        cursor->value.data = upd_value->buf.data;
+        cursor->value.size = upd_value->buf.size;
     }
     F_SET(cursor, WT_CURSTD_VALUE_INT);
     return (0);

@@ -1122,13 +1122,13 @@ struct __wt_update {
 #define WT_UPDATE_MEMSIZE(upd) WT_ALIGN(WT_UPDATE_SIZE + (upd)->size, 32)
 
 /*
- * WT_UPDATE_VIEW --
+ * WT_UPDATE_VALUE --
  *
- * A generic view of an update's value regardless of where it exists. This structure is used to
- * represent both in-memory updates and updates that don't exist in an update list such as
+ * A generic representation of an update's value regardless of where it exists. This structure is
+ * used to represent both in-memory updates and updates that don't exist in an update list such as
  * reconstructed modify updates, updates in the history store and onpage values.
  */
-struct __wt_update_view {
+struct __wt_update_value {
     WT_ITEM buf;
     wt_timestamp_t start_ts;
     uint64_t txnid;

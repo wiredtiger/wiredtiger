@@ -1712,10 +1712,10 @@ __wt_bt_col_var_cursor_walk_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *
 {
     cbt->slot = WT_COL_SLOT(page, cip);
     WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, NULL, unpack));
-    if (cbt->upd_view.type == WT_UPDATE_INVALID || cbt->upd_view.type == WT_UPDATE_TOMBSTONE)
+    if (cbt->upd_value.type == WT_UPDATE_INVALID || cbt->upd_value.type == WT_UPDATE_TOMBSTONE)
         return (0);
 
-    WT_RET(__wt_value_return(cbt, &cbt->upd_view));
+    WT_RET(__wt_value_return(cbt, &cbt->upd_value));
 
     cbt->tmp->data = cbt->iface.value.data;
     cbt->tmp->size = cbt->iface.value.size;
