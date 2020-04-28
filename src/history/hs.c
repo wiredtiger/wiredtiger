@@ -1251,7 +1251,9 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     uint64_t hs_counter;
     uint32_t btree_id;
     int cmp;
+#if 0
     bool found;
+#endif
 
     cursor = session->hs_cursor;
 
@@ -1286,6 +1288,8 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, hs_key, false, NULL, false, NULL));
         WT_ERR(ret);
 
+/* FIXME: temporarily disable hs verification. */
+#if 0
         found = cbt->compare == 0;
         WT_ERR(__cursor_reset(cbt));
 
@@ -1294,7 +1298,9 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
               "the associated history store key %s was not found in the data store %s",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key),
               session->dhandle->name);
-
+#else
+        WT_ERR(__cursor_reset(cbt));
+#endif
         /* Swap current/previous buffers. */
         tmp = hs_key;
         hs_key = prev_hs_key;
