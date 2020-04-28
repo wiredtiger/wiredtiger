@@ -148,10 +148,10 @@ __curbackup_incr_next(WT_CURSOR *cursor)
              * file without any checkpoint information. Return the whole file information.
              */
             if (cb->bitstring.mem == NULL) {
-               WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
-               cb->incr_init = true;
-               __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
-               goto done;
+                WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
+                cb->incr_init = true;
+                __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
+                goto done;
             }
         }
         __wt_cursor_set_key(cursor, cb->offset + cb->granularity * cb->bit_offset++,
