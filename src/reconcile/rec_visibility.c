@@ -372,6 +372,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         } else if (upd_select->stop_ts != WT_TS_NONE || upd_select->stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL && tombstone != NULL);
+            /*
+             * It's possible to have a tombstone as the only update in the update list. If we
+             * reconciled before with only a single update and then read the page back into cache,
+             * we'll have an empty update list. And applying a delete on top of that will result in
+             * ONLY a tombstone in the update list.
+             *
+             * In this case, we should leave the selected update unset to indicate that we want to
+             * keep the same on-disk value but set the stop time pair to indicate that the validity
+             * window ends when this tombstone started.
+             */
             WT_ERR(__rec_append_orig_value(session, page, tombstone, vpack));
             WT_ASSERT(session, last_upd->next != NULL &&
                 last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL);
