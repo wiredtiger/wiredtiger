@@ -169,25 +169,15 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     WT_VSTUFF *vs, _vstuff;
     size_t root_addr_size;
-    uint32_t session_flags;
     uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
     const char *name;
-    bool bm_start, is_owner, quit, skip_hs;
+    bool bm_start, quit;
 
     btree = S2BT(session);
     bm = btree->bm;
     ckptbase = NULL;
-    session_flags = 0; /* -Wuninitialized */
     name = session->dhandle->name;
     bm_start = false;
-    is_owner = false; /* -Wuninitialized */
-
-    /*
-     * Skip the history store explicit call if we're performing a metadata verification. The
-     * metadata file is verified before we verify the history store, and it makes no sense to verify
-     * the history store against itself.
-     */
-    skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0;
 
     WT_CLEAR(_vstuff);
     vs = &_vstuff;
@@ -271,25 +261,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Verify the tree. */
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
-
-/* FIXME: temporarily disable hs verification. */
-#ifdef 0
-            /*
-             * The checkpoints are in time-order, so the last one in the list is the most recent. If
-             * this is the most recent checkpoint, verify the history store against it.
-             */
-            if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
-                /* Open a history store cursor. */
-                WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
-                WT_TRET(__wt_history_store_verify_one(session));
-                WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
-                /*
-                 * We cannot error out here. If we got an error verifying the history store, we need
-                 * to follow through with reacquiring the exclusive call below. We'll error out
-                 * after that and unloading this checkpoint.
-                 */
-            }
-#endif
 
             /*
              * We have an exclusive lock on the handle, but we're swapping root pages in-and-out of
