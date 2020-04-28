@@ -1053,6 +1053,8 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
 
 done:
 err:
+    F_CLR(session, WT_SESSION_RESOLVING_MODIFY);
+
     if (orig_hs_value_buf != NULL)
         __wt_scr_free(session, &orig_hs_value_buf);
     else
