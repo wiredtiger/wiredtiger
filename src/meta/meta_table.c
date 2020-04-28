@@ -134,6 +134,21 @@ __wt_metadata_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
 }
 
 /*
+ * __wt_metadata_cursor_close --
+ *     Close a metadata cursor.
+ */
+int
+__wt_metadata_cursor_close(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+
+    if (session->meta_cursor != NULL)
+        ret = session->meta_cursor->close(session->meta_cursor);
+    session->meta_cursor = NULL;
+    return (ret);
+}
+
+/*
  * __wt_metadata_cursor_release --
  *     Release a metadata cursor.
  */

@@ -877,7 +877,14 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     }
 
     /* If the start time pair is visible then we need to return the ondisk value. */
-    if (__wt_txn_visible(session, start.txnid, start.timestamp)) {
+    if (__wt_txn_visible(session, start.txnid, start.timestamp) ||
+      F_ISSET(session, WT_SESSION_RESOLVING_MODIFY)) {
+
+        /* If we are resolving a modify then the btree must be the history store. */
+        WT_ASSERT(
+          session, (F_ISSET(session, WT_SESSION_RESOLVING_MODIFY) && WT_IS_HS(S2BT(session))) ||
+            !F_ISSET(session, WT_SESSION_RESOLVING_MODIFY));
+
         cbt->upd_view.start_ts = start.timestamp;
         cbt->upd_view.txnid = start.txnid;
         cbt->upd_view.type = WT_UPDATE_STANDARD;
