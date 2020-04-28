@@ -413,6 +413,23 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
           "transaction (%" PRIu64 ")",
           __verify_addr_string(session, ref, vs->tmp1), unpack->oldest_start_txn,
           unpack->newest_stop_txn);
+    if (unpack->oldest_start_ts > unpack->newest_start_durable_ts)
+        WT_RET_MSG(session, WT_ERROR,
+          "internal page reference at %s has an oldest start "
+          "timestamp (%" PRIu64
+          ") newer than its newest start durable "
+          "timestamp (%" PRIu64 ")",
+          __verify_addr_string(session, ref, vs->tmp1), unpack->oldest_start_ts,
+          unpack->newest_start_durable_ts);
+    if (unpack->newest_stop_ts != WT_TS_MAX &&
+      unpack->newest_stop_ts > unpack->newest_stop_durable_ts)
+        WT_RET_MSG(session, WT_ERROR,
+          "internal page reference at %s has an newest stop "
+          "timestamp (%" PRIu64
+          ") newer than its newest stop durable "
+          "timestamp (%" PRIu64 ")",
+          __verify_addr_string(session, ref, vs->tmp1), unpack->newest_stop_ts,
+          unpack->newest_stop_durable_ts);
     return (0);
 }
 
@@ -1005,7 +1022,7 @@ __verify_page_content(
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
                   __wt_timestamp_to_string(unpack.oldest_start_ts, ts_string[0]),
                   __wt_timestamp_to_string(unpack.newest_stop_ts, ts_string[1]));
-            if (unpack.oldest_start_txn > unpack.newest_stop_txn) {
+            if (unpack.oldest_start_txn > unpack.newest_stop_txn)
                 WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
                                               " on page at %s has an "
                                               "oldest start transaction (%" PRIu64
@@ -1014,28 +1031,36 @@ __verify_page_content(
                                               "(%" PRIu64 ")",
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
                   unpack.oldest_start_txn, unpack.newest_stop_txn);
-            }
+            if (unpack.oldest_start_ts > unpack.newest_start_durable_ts)
+                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
+                                              " on page at %s has an "
+                                              "oldest start timestamp %s newer than "
+                                              "its newest start durable timestamp %s",
+                  cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
+                  __wt_timestamp_to_string(unpack.oldest_start_ts, ts_string[0]),
+                  __wt_timestamp_to_string(unpack.newest_start_durable_ts, ts_string[1]));
+            if (unpack.newest_stop_ts != WT_TS_MAX &&
+              unpack.newest_stop_ts > unpack.newest_stop_durable_ts)
+                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
+                                              " on page at %s has an "
+                                              "newest stop timestamp %s newer than "
+                                              "its newest stop durable timestamp %s",
+                  cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
+                  __wt_timestamp_to_string(unpack.newest_stop_ts, ts_string[0]),
+                  __wt_timestamp_to_string(unpack.newest_stop_durable_ts, ts_string[1]));
 
-            /*
-             * FIXME-prepare-support: Enable verification once all durable is finished.
-             *
-             * WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start durable",
-             * unpack.newest_start_durable_ts, "start durable",
-             * addr_unpack->newest_start_durable_ts, false, vs));
-             */
+            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start durable",
+              unpack.newest_start_durable_ts, "start durable", addr_unpack->newest_start_durable_ts,
+              true, vs));
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "oldest start",
               unpack.oldest_start_ts, "oldest start", addr_unpack->oldest_start_ts, true, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "oldest start",
               unpack.oldest_start_txn, "oldest start", addr_unpack->oldest_start_txn, true, dsk,
               vs));
 
-            /*
-             * FIXME-prepare-support: Enable verification once all durable is finished.
-             *
-             * WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "stop durable",
-             * unpack.newest_stop_durable_ts, "stop durable", addr_unpack->newest_stop_durable_ts,
-             * false, vs));
-             */
+            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "stop durable",
+              unpack.newest_stop_durable_ts, "stop durable", addr_unpack->newest_stop_durable_ts,
+              false, vs));
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "newest stop",
               unpack.newest_stop_ts, "newest stop", addr_unpack->newest_stop_ts, false, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "newest stop",
@@ -1069,25 +1094,34 @@ __verify_page_content(
                                               "its stop transaction %" PRIu64,
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1), unpack.start_txn,
                   unpack.stop_txn);
+            if (unpack.start_ts > unpack.durable_start_ts)
+                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
+                                              " on page at %s has a "
+                                              "start timestamp %s newer than its start durable "
+                                              "timestamp %s",
+                  cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
+                  __wt_timestamp_to_string(unpack.start_ts, ts_string[0]),
+                  __wt_timestamp_to_string(unpack.durable_start_ts, ts_string[1]));
+            if (unpack.stop_ts != WT_TS_MAX && unpack.stop_ts > unpack.durable_stop_ts)
+                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
+                                              " on page at %s has a "
+                                              "stop timestamp %s newer than its stop durable "
+                                              "timestamp %s",
+                  cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
+                  __wt_timestamp_to_string(unpack.stop_ts, ts_string[0]),
+                  __wt_timestamp_to_string(unpack.durable_stop_ts, ts_string[1]));
 
-            /*
-             * FIXME-prepare-support: Enable verification once all durable is finished.
-             *
-             * WT_RET(
-             * __verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.durable_start_ts,
-             *   "durable start", addr_unpack->newest_start_durable_ts, true, vs));
-             */
+            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start durable",
+              unpack.durable_start_ts, "newest durable start", addr_unpack->newest_start_durable_ts,
+              false, vs));
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_ts,
               "oldest start", addr_unpack->oldest_start_ts, true, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_txn,
               "oldest start", addr_unpack->oldest_start_txn, true, dsk, vs));
-            /*
-             * FIXME-prepare-support: Enable verification once all durable is finished.
-             *
-             * WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start",
-             * unpack.durable_stop_ts,
-             *  "durable stop", addr_unpack->newest_stop_durable_ts, true, vs));
-             */
+            if (unpack.stop_ts != WT_TS_MAX)
+                WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "stop durable",
+                  unpack.durable_stop_ts, "newest durable stop",
+                  addr_unpack->newest_stop_durable_ts, false, vs));
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_ts,
               "newest stop", addr_unpack->newest_stop_ts, false, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_txn,

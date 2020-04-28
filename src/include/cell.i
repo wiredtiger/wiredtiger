@@ -213,11 +213,8 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
     }
     if (start_durable_ts != WT_TS_NONE) {
         /* Store differences, not absolutes. */
-        /*
-         * FIXME-prepare-support:
-         * WT_ASSERT(
-         *  session, oldest_start_ts != WT_TS_NONE && oldest_start_ts <= start_durable_ts);
-         */
+        WT_ASSERT(session, oldest_start_ts <= start_durable_ts);
+
         /*
          * Unlike value cell, we store the durable start timestamp even the difference is zero
          * compared to oldest commit timestamp. The difference can only be zero when the page
@@ -240,11 +237,8 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
     }
     if (stop_durable_ts != WT_TS_NONE) {
         /* Store differences, not absolutes. */
-        /*
-         * FIXME-prepare-support:
-         * WT_ASSERT(session,
-         *   newest_stop_ts != WT_TS_MAX && newest_stop_ts <= stop_durable__ts);
-         */
+        WT_ASSERT(session, newest_stop_ts != WT_TS_MAX && newest_stop_ts <= stop_durable_ts);
+
         /*
          * Unlike value cell, we store the durable stop timestamp even the difference is zero
          * compared to newest commit timestamp. The difference can only be zero when the page

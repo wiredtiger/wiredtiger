@@ -160,12 +160,16 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
  *     Dump a set of start and stop time pairs, with an optional tag.
  */
 static inline int
-__debug_time_pairs(WT_DBG *ds, const char *tag, wt_timestamp_t start_ts, uint64_t start_txn,
+__debug_time_pairs(WT_DBG *ds, const char *tag, wt_timestamp_t durable_start_ts,
+  wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t durable_stop_ts,
   wt_timestamp_t stop_ts, uint64_t stop_txn)
 {
     char tp_string[2][WT_TP_STRING_SIZE];
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    return (ds->f(ds, "\t%s%s%s,%s\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
+    return (ds->f(ds, "\t%s%s%s,%s,%s,%s\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
+      __wt_timestamp_to_string(durable_start_ts, ts_string[0]),
+      __wt_timestamp_to_string(durable_stop_ts, ts_string[1]),
       __wt_time_pair_to_string(start_ts, start_txn, tp_string[0]),
       __wt_time_pair_to_string(stop_ts, stop_txn, tp_string[1])));
 }
@@ -757,7 +761,12 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &start.timestamp, &start.txnid,
       &stop.timestamp, &stop.txnid));
 
-    WT_ERR(__debug_time_pairs(ds, "T", start.timestamp, start.txnid, stop.timestamp, stop.txnid));
+    /*
+     * FIXME: Currently, this function is not called anywhere in the code. In future if it is used,
+     * it needs some fixes related to accessing the proper key and value of history store.
+     */
+    // WT_ERR(__debug_time_pairs(ds, "T", start.timestamp, start.txnid, stop.timestamp,
+    // stop.txnid));
 
     WT_ERR(
       hs_cursor->get_value(hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type_full, hs_value));
@@ -806,8 +815,8 @@ __wt_debug_key_value(
         WT_ERR(ds->f(ds, "\tK {%" PRIu64 " %" PRIu64 "}", recno, rle));
     else
         WT_ERR(__debug_item_key(ds, "K", key->data, key->size));
-    WT_ERR(__debug_time_pairs(
-      ds, "T", value->start_ts, value->start_txn, value->stop_ts, value->stop_txn));
+    WT_ERR(__debug_time_pairs(ds, "T", value->durable_start_ts, value->start_ts, value->start_txn,
+      value->durable_stop_ts, value->stop_ts, value->stop_txn));
     WT_ERR(__debug_cell_data(ds, NULL, value != NULL ? value->type : 0, "V", value));
 
 err:
@@ -1441,7 +1450,9 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
     case WT_CELL_VALUE_SHORT:
-        WT_RET(ds->f(ds, ", ts/txn %s,%s",
+        WT_RET(ds->f(ds, ", ts/txn %s,%s,%s,%s",
+          __wt_timestamp_to_string(unpack->durable_start_ts, ts_string[0]),
+          __wt_timestamp_to_string(unpack->durable_stop_ts, ts_string[1]),
           __wt_time_pair_to_string(unpack->start_ts, unpack->start_txn, tp_string[0]),
           __wt_time_pair_to_string(unpack->stop_ts, unpack->stop_txn, tp_string[1])));
         break;
