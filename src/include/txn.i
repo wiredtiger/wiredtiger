@@ -783,14 +783,12 @@ __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp, size_t *siz
  *     Get the first visible update in a list (or NULL if none are visible).
  */
 static inline int
-__wt_txn_read_upd_list(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE_VIEW *upd_view)
+__wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
     WT_VISIBLE_TYPE upd_visible;
     uint8_t type;
 
-    WT_ASSERT(session,
-      upd_view->type == WT_UPDATE_INVALID && upd_view->buf.data == NULL && upd_view->buf.size == 0);
+    __wt_upd_view_clear(&cbt->upd_view);
 
     for (; upd != NULL; upd = upd->next) {
         WT_ORDERED_READ(type, upd->type);
@@ -820,9 +818,9 @@ __wt_txn_read_upd_list(
      * update now and make the view own the buffer.
      */
     if (upd->type != WT_UPDATE_MODIFY)
-        __wt_upd_view_assign(upd_view, upd);
+        __wt_upd_view_assign(&cbt->upd_view, upd);
     else
-        WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, upd_view));
+        WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, &cbt->upd_view));
     return (0);
 }
 
@@ -835,45 +833,30 @@ __wt_txn_read_upd_list(
  */
 static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno,
-  WT_UPDATE *upd, WT_CELL_UNPACK *vpack, WT_UPDATE_VIEW *upd_view)
+  WT_UPDATE *upd, WT_CELL_UNPACK *vpack)
 {
-    WT_DECL_RET;
-    WT_ITEM buf;
     WT_TIME_PAIR start, stop;
 
-    WT_ASSERT(session,
-      upd_view->type == WT_UPDATE_INVALID && upd_view->buf.data == NULL && upd_view->buf.size == 0);
-
-    WT_RET(__wt_txn_read_upd_list(session, cbt, upd, upd_view));
-    if (upd_view->buf.data != NULL || upd_view->type == WT_UPDATE_TOMBSTONE)
+    WT_RET(__wt_txn_read_upd_list(session, cbt, upd));
+    if (cbt->upd_view.buf.data != NULL || cbt->upd_view.type == WT_UPDATE_TOMBSTONE)
         return (0);
 
     /* If there is no ondisk value, there can't be anything in the history store either. */
     if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
-        upd_view->type = WT_UPDATE_TOMBSTONE;
+        cbt->upd_view.type = WT_UPDATE_TOMBSTONE;
         return (0);
     }
 
-    buf.data = NULL;
-    buf.size = 0;
-    buf.mem = NULL;
-    buf.memsize = 0;
-    buf.flags = 0;
-
     /* Check the ondisk value. */
-    if (vpack == NULL) {
-        ret = __wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop);
-        if (ret != 0) {
-            __wt_buf_free(session, &buf);
-            return (ret);
-        }
-    } else {
+    if (vpack == NULL)
+        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_view.buf, &start, &stop));
+    else {
         start.timestamp = vpack->start_ts;
         start.txnid = vpack->start_txn;
         stop.timestamp = vpack->stop_ts;
         stop.txnid = vpack->start_txn;
-        buf.data = vpack->data;
-        buf.size = vpack->size;
+        cbt->upd_view.buf.data = vpack->data;
+        cbt->upd_view.buf.size = vpack->size;
     }
 
     /*
@@ -884,34 +867,31 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
       (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE)) &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
-        __wt_buf_free(session, &buf);
-        upd_view->start_ts = stop.timestamp;
-        upd_view->txnid = stop.txnid;
-        upd_view->type = WT_UPDATE_TOMBSTONE;
-        upd_view->prepare_state = WT_PREPARE_INIT;
+        cbt->upd_view.buf.data = NULL;
+        cbt->upd_view.buf.size = 0;
+        cbt->upd_view.start_ts = stop.timestamp;
+        cbt->upd_view.txnid = stop.txnid;
+        cbt->upd_view.type = WT_UPDATE_TOMBSTONE;
+        cbt->upd_view.prepare_state = WT_PREPARE_INIT;
         return (0);
     }
 
     /* If the start time pair is visible then we need to return the ondisk value. */
     if (__wt_txn_visible(session, start.txnid, start.timestamp)) {
-        __wt_upd_view_move(upd_view, &buf);
-        upd_view->start_ts = start.timestamp;
-        upd_view->txnid = start.txnid;
-        upd_view->type = WT_UPDATE_STANDARD;
-        upd_view->prepare_state = WT_PREPARE_INIT;
+        cbt->upd_view.start_ts = start.timestamp;
+        cbt->upd_view.txnid = start.txnid;
+        cbt->upd_view.type = WT_UPDATE_STANDARD;
+        cbt->upd_view.prepare_state = WT_PREPARE_INIT;
         return (0);
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS)) {
-        ret = __wt_find_hs_upd(session, key, recno, upd_view, false, &buf);
-        __wt_buf_free(session, &buf);
-        WT_RET_NOTFOUND_OK(ret);
-    }
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
+        WT_RET_NOTFOUND_OK(
+          __wt_find_hs_upd(session, key, recno, &cbt->upd_view, false, &cbt->upd_view.buf));
 
-    __wt_buf_free(session, &buf);
     /* Return invalid not tombstone if nothing is found in history store. */
-    WT_ASSERT(session, upd_view->type != WT_UPDATE_TOMBSTONE);
+    WT_ASSERT(session, cbt->upd_view.type != WT_UPDATE_TOMBSTONE);
 
     /*
      * FIXME-PM-1521: We call transaction read in a lot of places so we can't do this yet. When we
@@ -1268,17 +1248,6 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
 }
 
 /*
- * __wt_upd_view_move --
- *     Transfer ownership from a buffer to our update view.
- */
-static inline void
-__wt_upd_view_move(WT_UPDATE_VIEW *upd_view, WT_ITEM *buf)
-{
-    upd_view->buf = *buf;
-    WT_CLEAR(*buf);
-}
-
-/*
  * __wt_upd_view_assign --
  *     Point an update view at a given update. We're specifically not getting the view to own the
  *     memory since this exists in an update list somewhere.
@@ -1295,16 +1264,20 @@ __wt_upd_view_assign(WT_UPDATE_VIEW *upd_view, WT_UPDATE *upd)
 }
 
 /*
- * __wt_upd_view_free --
- *     Clear the update view and free any associated memory.
+ * __wt_upd_view_clear --
+ *     Clear an update view to its default value.
  */
 static inline void
-__wt_upd_view_free(WT_SESSION_IMPL *session, WT_UPDATE_VIEW *upd_view)
+__wt_upd_view_clear(WT_UPDATE_VIEW *upd_view)
 {
     /*
-     * If we don't own this memory, the relevant owning memory pointers will be unset so we don't
-     * need to be afraid to call this.
+     * Make sure we don't touch the memory pointers here. If we have some allocated memory, that
+     * could come in handy next time we need to write to the buffer.
      */
-    __wt_buf_free(session, &upd_view->buf);
-    WT_CLEAR(*upd_view);
+    upd_view->buf.data = NULL;
+    upd_view->buf.size = 0;
+    upd_view->start_ts = WT_TS_NONE;
+    upd_view->txnid = WT_TXN_NONE;
+    upd_view->type = WT_UPDATE_INVALID;
+    upd_view->prepare_state = WT_PREPARE_INIT;
 }

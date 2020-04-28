@@ -13,8 +13,7 @@
  *     Check if the inserted key/value pair is valid.
  */
 static int
-__random_insert_valid(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_INSERT *ins,
-  WT_UPDATE_VIEW *upd_viewp, bool *validp)
+__random_insert_valid(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_INSERT *ins, bool *validp)
 {
     *validp = false;
 
@@ -26,7 +25,7 @@ __random_insert_valid(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_INSERT 
     cbt->tmp->data = WT_INSERT_KEY(ins);
     cbt->tmp->size = WT_INSERT_KEY_SIZE(ins);
 
-    return (__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, upd_viewp, validp));
+    return (__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, validp));
 }
 
 /*
@@ -34,7 +33,7 @@ __random_insert_valid(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_INSERT 
  *     Check if the slot key/value pair is valid.
  */
 static int
-__random_slot_valid(WT_CURSOR_BTREE *cbt, uint32_t slot, WT_UPDATE_VIEW *upd_viewp, bool *validp)
+__random_slot_valid(WT_CURSOR_BTREE *cbt, uint32_t slot, bool *validp)
 {
     *validp = false;
 
@@ -42,7 +41,7 @@ __random_slot_valid(WT_CURSOR_BTREE *cbt, uint32_t slot, WT_UPDATE_VIEW *upd_vie
     cbt->slot = slot;
     cbt->compare = 0;
 
-    return (__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, upd_viewp, validp));
+    return (__wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, validp));
 }
 
 /* Magic constant: 5000 entries in a skip list is enough to forcibly evict. */
@@ -104,8 +103,7 @@ __random_skip_entries(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head)
  *     Return a random key/value from a skip list.
  */
 static int
-__random_leaf_skip(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, uint32_t entries,
-  WT_UPDATE_VIEW *upd_viewp, bool *validp)
+__random_leaf_skip(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, uint32_t entries, bool *validp)
 {
     WT_INSERT *ins, *saved_ins;
     WT_SESSION_IMPL *session;
@@ -133,7 +131,7 @@ __random_leaf_skip(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, uint32_t entr
 
         /* Try and return our selected record. */
         if (ins != NULL) {
-            WT_RET(__random_insert_valid(cbt, ins_head, ins, upd_viewp, validp));
+            WT_RET(__random_insert_valid(cbt, ins_head, ins, validp));
             if (*validp)
                 return (0);
         }
@@ -145,7 +143,7 @@ __random_leaf_skip(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, uint32_t entr
             ins = saved_ins;
         }
         for (; --i > 0 && ins != NULL; ins = WT_SKIP_NEXT(ins)) {
-            WT_RET(__random_insert_valid(cbt, ins_head, ins, upd_viewp, validp));
+            WT_RET(__random_insert_valid(cbt, ins_head, ins, validp));
             if (*validp)
                 return (0);
         }
@@ -163,7 +161,7 @@ __random_leaf_skip(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, uint32_t entr
  *     Look for a large insert list from which we can select a random item.
  */
 static int
-__random_leaf_insert(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_viewp, bool *validp)
+__random_leaf_insert(WT_CURSOR_BTREE *cbt, bool *validp)
 {
     WT_INSERT_HEAD *ins_head;
     WT_PAGE *page;
@@ -179,7 +177,7 @@ __random_leaf_insert(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_viewp, bool *vali
     ins_head = WT_ROW_INSERT_SMALLEST(page);
     entries = __random_skip_entries(cbt, ins_head);
     if (entries >= WT_RANDOM_SKIP_INSERT_SMALLEST_ENOUGH) {
-        WT_RET(__random_leaf_skip(cbt, ins_head, entries, upd_viewp, validp));
+        WT_RET(__random_leaf_skip(cbt, ins_head, entries, validp));
         if (*validp)
             return (0);
     }
@@ -195,7 +193,7 @@ __random_leaf_insert(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_viewp, bool *vali
             ins_head = WT_ROW_INSERT(page, &page->pg_row[slot]);
             entries = __random_skip_entries(cbt, ins_head);
             if (entries >= WT_RANDOM_SKIP_INSERT_ENOUGH) {
-                WT_RET(__random_leaf_skip(cbt, ins_head, entries, upd_viewp, validp));
+                WT_RET(__random_leaf_skip(cbt, ins_head, entries, validp));
                 if (*validp)
                     return (0);
             }
@@ -204,7 +202,7 @@ __random_leaf_insert(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_viewp, bool *vali
             ins_head = WT_ROW_INSERT(page, &page->pg_row[slot]);
             entries = __random_skip_entries(cbt, ins_head);
             if (entries >= WT_RANDOM_SKIP_INSERT_ENOUGH) {
-                WT_RET(__random_leaf_skip(cbt, ins_head, entries, upd_viewp, validp));
+                WT_RET(__random_leaf_skip(cbt, ins_head, entries, validp));
                 if (*validp)
                     return (0);
             }
@@ -215,7 +213,7 @@ __random_leaf_insert(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_viewp, bool *vali
     ins_head = WT_ROW_INSERT_SMALLEST(page);
     entries = __random_skip_entries(cbt, ins_head);
     if (entries >= WT_RANDOM_SKIP_INSERT_ENOUGH) {
-        WT_RET(__random_leaf_skip(cbt, ins_head, entries, upd_viewp, validp));
+        WT_RET(__random_leaf_skip(cbt, ins_head, entries, validp));
         if (*validp)
             return (0);
     }
@@ -230,7 +228,7 @@ __random_leaf_insert(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_viewp, bool *vali
  *     Return a random key/value from a page's on-disk entries.
  */
 static int
-__random_leaf_disk(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_viewp, bool *validp)
+__random_leaf_disk(WT_CURSOR_BTREE *cbt, bool *validp)
 {
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
@@ -247,7 +245,7 @@ __random_leaf_disk(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_viewp, bool *validp
     for (retry = 0; retry < WT_RANDOM_DISK_RETRY; ++retry) {
         slot = __wt_random(&session->rnd) % entries;
         WT_RET(__wt_row_leaf_key(session, page, page->pg_row + slot, cbt->tmp, false));
-        WT_RET(__random_slot_valid(cbt, slot, upd_viewp, validp));
+        WT_RET(__random_slot_valid(cbt, slot, validp));
         if (*validp)
             break;
     }
@@ -269,13 +267,11 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    WT_UPDATE_VIEW upd_view;
     uint32_t i;
     bool next, valid;
 
     cursor = (WT_CURSOR *)cbt;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
-    WT_CLEAR(upd_view);
 
     /*
      * If the page has a sufficiently large number of disk-based entries, randomly select from them.
@@ -283,24 +279,24 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
      * a reasonable chunk of the name space.
      */
     if (cbt->ref->page->entries > WT_RANDOM_DISK_ENOUGH) {
-        WT_RET(__random_leaf_disk(cbt, &upd_view, &valid));
+        WT_RET(__random_leaf_disk(cbt, &valid));
         if (valid)
-            return (__cursor_kv_return(cbt, &upd_view));
+            return (__cursor_kv_return(cbt, &cbt->upd_view));
     }
 
     /* Look for any large insert list and select from it. */
-    WT_RET(__random_leaf_insert(cbt, &upd_view, &valid));
+    WT_RET(__random_leaf_insert(cbt, &valid));
     if (valid)
-        return (__cursor_kv_return(cbt, &upd_view));
+        return (__cursor_kv_return(cbt, &cbt->upd_view));
 
     /*
      * Try again if there are at least a few hundred disk-based entries: this may be a normal leaf
      * page with big items.
      */
     if (cbt->ref->page->entries > WT_RANDOM_DISK_ENOUGH / 2) {
-        WT_RET(__random_leaf_disk(cbt, &upd_view, &valid));
+        WT_RET(__random_leaf_disk(cbt, &valid));
         if (valid)
-            return (__cursor_kv_return(cbt, &upd_view));
+            return (__cursor_kv_return(cbt, &cbt->upd_view));
     }
 
     /*

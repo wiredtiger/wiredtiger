@@ -180,6 +180,9 @@ struct __wt_cursor_btree {
      */
     WT_UPDATE_VIEW modify_update;
 
+    /* An intermediate structure to hold the update value to be assigned to the cursor buffer. */
+    WT_UPDATE_VIEW upd_view;
+
     /*
      * Fixed-length column-store items are a single byte, and it's simpler and cheaper to allocate
      * the space for it now than keep checking to see if we need to grow the buffer.

@@ -669,6 +669,7 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
     __wt_buf_free(session, &r->_last);
 
     __wt_buf_free(session, &r->update_modify_cbt.iface.value);
+    __wt_buf_free(session, &r->update_modify_cbt.upd_view.buf);
 
     __wt_free(session, r);
 }

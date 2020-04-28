@@ -268,14 +268,8 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE_VIEW *upd_view)
      * way down and use it directly to store history store values, reconstruct modifies, etc, we can
      * reduce allocations further.
      */
-    if (WT_DATA_IN_ITEM(&upd_view->buf)) {
-        __wt_buf_free(session, &cursor->value);
-        /* Ownership should get transferred as appropriate. */
-        cursor->value = upd_view->buf;
-    } else {
-        cursor->value.data = upd_view->buf.data;
-        cursor->value.size = upd_view->buf.size;
-    }
+    cursor->value.data = upd_view->buf.data;
+    cursor->value.size = upd_view->buf.size;
 }
 
 /*
