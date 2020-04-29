@@ -113,6 +113,7 @@ new_page:
      * FIXME-PM-1523: Now we only do transaction read if we have an update chain and it doesn't work
      * in durable history. Review this when we have a plan for fixed-length column store.
      */
+    __wt_upd_value_clear(&cbt->upd_value);
     if (cbt->ins != NULL)
 restart_read:
     WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins->upd, NULL));
@@ -275,7 +276,8 @@ restart_read:
             }
 
             WT_RET(__wt_bt_col_var_cursor_walk_txn_read(session, cbt, page, &unpack, cip));
-            if (cbt->upd_value.type == WT_UPDATE_INVALID)
+            if (cbt->upd_value.type == WT_UPDATE_INVALID ||
+              cbt->upd_value.type == WT_UPDATE_TOMBSTONE)
                 continue;
             return (0);
         }
