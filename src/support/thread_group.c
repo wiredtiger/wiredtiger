@@ -258,7 +258,7 @@ __wt_thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint3
  */
 int
 __wt_thread_group_create(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, const char *name,
-  uint32_t min, uint32_t max, uint32_t flags, bool (*chk_func)(WT_SESSION_IMPL *session),
+  uint32_t min, uint32_t max, uint64_t flags, bool (*chk_func)(WT_SESSION_IMPL *session),
   int (*run_func)(WT_SESSION_IMPL *session, WT_THREAD *context),
   int (*stop_func)(WT_SESSION_IMPL *session, WT_THREAD *context))
 {

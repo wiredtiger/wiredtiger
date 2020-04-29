@@ -1408,7 +1408,7 @@ extern int __wt_table_check(WT_SESSION_IMPL *session, WT_TABLE *table)
 extern int __wt_table_range_truncate(WT_CURSOR_TABLE *start, WT_CURSOR_TABLE *stop)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_thread_group_create(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
-  const char *name, uint32_t min, uint32_t max, uint32_t flags,
+  const char *name, uint32_t min, uint32_t max, uint64_t flags,
   bool (*chk_func)(WT_SESSION_IMPL *session),
   int (*run_func)(WT_SESSION_IMPL *session, WT_THREAD *context),
   int (*stop_func)(WT_SESSION_IMPL *session, WT_THREAD *context))
