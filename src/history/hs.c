@@ -983,6 +983,14 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
         WT_NOT_READ(modify, true);
         /* Store this so that we don't have to make a special case for the first modify. */
         hs_stop_ts_tmp = hs_stop_ts;
+
+        /*
+         * Resolving update chains of reverse deltas requires the current transaction to look beyond
+         * its current snapshot in certain scenarios. This flag allows us to ignore transaction
+         * visibility checks when reading in order to construct the modify chain, so we can create
+         * the value we expect.
+         */
+        F_SET(session, WT_SESSION_RESOLVING_MODIFY);
         while (upd_type == WT_UPDATE_MODIFY) {
             WT_ERR(__wt_upd_alloc(session, hs_value, upd_type, &mod_upd, NULL));
             WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
@@ -1036,7 +1044,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
               hs_cursor, &hs_stop_ts_tmp, &durable_timestamp_tmp, &upd_type_full, hs_value));
             upd_type = (uint8_t)upd_type_full;
         }
-
+        F_CLR(session, WT_SESSION_RESOLVING_MODIFY);
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
             __wt_modify_vector_pop(&modifies, &mod_upd);
@@ -1065,6 +1073,8 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
 
 done:
 err:
+    F_CLR(session, WT_SESSION_RESOLVING_MODIFY);
+
     if (orig_hs_value_buf != NULL)
         __wt_scr_free(session, &orig_hs_value_buf);
     else
