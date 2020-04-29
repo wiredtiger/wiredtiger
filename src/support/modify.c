@@ -350,13 +350,16 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const size_t
  *     Apply a single set of WT_MODIFY changes to a WT_ITEM buffer.
  */
 int
-__wt_modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify)
+__wt_modify_apply_item(WT_CURSOR *cursor, WT_ITEM *value, const void *modify)
 {
     WT_MODIFY mod;
+    WT_SESSION_IMPL *session;
     size_t datasz, destsz, item_offset, tmp;
     const size_t *p;
     int napplied, nentries;
     bool overlap, sformat;
+
+    session = (WT_SESSION_IMPL *)cursor->session;
 
     /*
      * Get the number of modify entries and set a second pointer to reference the replacement data.
@@ -366,8 +369,7 @@ __wt_modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, const void *mod
     nentries = (int)tmp;
 
     /* Make sure we are not applying modifies to schema with multiple value fields. */
-    WT_ASSERT(session, S2BT(session)->value_format[1] == '\0');
-    sformat = S2BT(session)->value_format[0] == 'S';
+    sformat = cursor->value_format[0] == 'S';
 
     /*
      * Grow the buffer first. This function is often called using a cursor buffer referencing
@@ -425,8 +427,7 @@ __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_DECL_RET;
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
-    WT_ERR(
-      __wt_modify_apply_item((WT_SESSION_IMPL *)cursor->session, &cursor->value, modify->data));
+    WT_ERR(__wt_modify_apply_item(cursor, &cursor->value, modify->data));
 
 err:
     __wt_scr_free((WT_SESSION_IMPL *)cursor->session, &modify);

@@ -1465,7 +1465,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
 
     orig = cursor->value.size;
-    WT_ERR(__wt_modify_apply_item(session, &cursor->value, modify->data));
+    WT_ERR(__wt_modify_apply_item(cursor, &cursor->value, modify->data));
     new = cursor->value.size;
     WT_ERR(__cursor_size_chk(session, &cursor->value));
 

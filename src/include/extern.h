@@ -1090,7 +1090,7 @@ extern int __wt_metadata_update_base_write_gen(WT_SESSION_IMPL *session, const c
 extern int __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify)
+extern int __wt_modify_apply_item(WT_CURSOR *cursor, WT_ITEM *value, const void *modify)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_modify_pack(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries, WT_ITEM **modifyp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

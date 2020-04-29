@@ -521,12 +521,16 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
  *     Calculate the full value of an update.
  */
 static inline int
-__hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDATE *upd,
-  const void *base_full_value, size_t size)
+__hs_calculate_full_value(
+  WT_CURSOR *cursor, WT_ITEM *full_value, WT_UPDATE *upd, const void *base_full_value, size_t size)
 {
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)cursor->session;
+
     if (upd->type == WT_UPDATE_MODIFY) {
         WT_RET(__wt_buf_set(session, full_value, base_full_value, size));
-        WT_RET(__wt_modify_apply_item(session, full_value, upd->data));
+        WT_RET(__wt_modify_apply_item(cursor, full_value, upd->data));
     } else {
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         full_value->data = upd->data;
@@ -720,7 +724,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 prev_full_value->size = prev_upd->size;
             } else
                 WT_ERR(__hs_calculate_full_value(
-                  session, prev_full_value, prev_upd, full_value->data, full_value->size));
+                  cursor, prev_full_value, prev_upd, full_value->data, full_value->size));
 
             /*
              * Skip the updates have the same start timestamp and transaction id
@@ -1024,7 +1028,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
             __wt_modify_vector_pop(&modifies, &mod_upd);
-            WT_ERR(__wt_modify_apply_item(session, hs_value, mod_upd->data));
+            WT_ERR(__wt_modify_apply_item(hs_cursor, hs_value, mod_upd->data));
             __wt_free_update_list(session, &mod_upd);
             mod_upd = NULL;
         }
