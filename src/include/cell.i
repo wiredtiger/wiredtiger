@@ -91,7 +91,7 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_
         LF_SET(WT_CELL_TXN_START);
     }
     if (durable_start_ts != WT_TS_NONE) {
-        WT_ASSERT(session, start_ts != WT_TS_NONE && start_ts <= durable_start_ts);
+        WT_ASSERT(session, start_ts <= durable_start_ts);
         /* Store differences if any, not absolutes. */
         if (durable_start_ts - start_ts > 0) {
             WT_IGNORE_RET(__wt_vpack_uint(pp, 0, durable_start_ts - start_ts));
@@ -109,7 +109,7 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_
         LF_SET(WT_CELL_TXN_STOP);
     }
     if (durable_stop_ts != WT_TS_NONE) {
-        WT_ASSERT(session, stop_ts != WT_TS_MAX && stop_ts <= durable_stop_ts);
+        WT_ASSERT(session, stop_ts <= durable_stop_ts);
         /* Store differences if any, not absolutes. */
         if (durable_stop_ts - stop_ts > 0) {
             WT_IGNORE_RET(__wt_vpack_uint(pp, 0, durable_stop_ts - stop_ts));
@@ -237,7 +237,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, wt_timestamp_t
     }
     if (stop_durable_ts != WT_TS_NONE) {
         /* Store differences, not absolutes. */
-        WT_ASSERT(session, newest_stop_ts != WT_TS_MAX && newest_stop_ts <= stop_durable_ts);
+        WT_ASSERT(session, newest_stop_ts == WT_TS_MAX || newest_stop_ts <= stop_durable_ts);
 
         /*
          * Unlike value cell, we store the durable stop timestamp even the difference is zero
