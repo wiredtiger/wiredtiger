@@ -272,7 +272,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint32_t session_flags;
+    uint64_t session_flags;
     bool did_work, was_intr;
     bool is_owner;
 
@@ -475,7 +475,7 @@ int
 __wt_evict_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    uint32_t session_flags;
+    uint64_t session_flags;
 
     conn = S2C(session);
 

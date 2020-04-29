@@ -232,7 +232,7 @@ __wt_conn_cache_pool_open(WT_SESSION_IMPL *session)
     WT_CACHE_POOL *cp;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint32_t session_flags;
+    uint64_t session_flags;
 
     conn = S2C(session);
     cache = conn->cache;

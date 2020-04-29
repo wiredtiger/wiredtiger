@@ -94,8 +94,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    uint64_t time_start, time_stop;
-    uint32_t session_flags;
+    uint64_t time_start, time_stop, session_flags;
     bool clean_page, closing, inmem_split, is_owner, local_gen, tree_dead;
 
     conn = S2C(session);

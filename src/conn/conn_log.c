@@ -1018,7 +1018,7 @@ int
 __wt_logmgr_open(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    uint32_t session_flags;
+    uint64_t session_flags;
 
     conn = S2C(session);
 

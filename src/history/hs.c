@@ -49,7 +49,7 @@ int
 __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 {
     WT_DECL_RET;
-    uint32_t session_flags;
+    uint64_t session_flags;
     bool is_owner;
 
     *hs_btreep = NULL;
@@ -203,7 +203,7 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
  *     Return a history store cursor, open one if not already open.
  */
 int
-__wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags, bool *is_owner)
+__wt_hs_cursor(WT_SESSION_IMPL *session, uint64_t *session_flags, bool *is_owner)
 {
 
     /*
@@ -236,7 +236,7 @@ __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags, bool *is_owner
  *     Discard a history store cursor.
  */
 int
-__wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags, bool is_owner)
+__wt_hs_cursor_close(WT_SESSION_IMPL *session, uint64_t session_flags, bool is_owner)
 {
     /* Nothing to do if the session doesn't have a HS cursor opened. */
     if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
@@ -360,7 +360,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_UPDATE *hs_upd;
-    uint32_t session_flags;
+    uint64_t session_flags;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = NULL;
@@ -877,8 +877,8 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, hs_start_ts, hs_start_ts_tmp;
     wt_timestamp_t hs_stop_ts, hs_stop_ts_tmp, read_timestamp;
-    uint64_t hs_counter, hs_counter_tmp, upd_type_full;
-    uint32_t hs_btree_id, session_flags;
+    uint64_t hs_counter, hs_counter_tmp, session_flags, upd_type_full;
+    uint32_t hs_btree_id;
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
     bool is_owner, modify;
@@ -1158,7 +1158,7 @@ int
 __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key)
 {
     WT_DECL_RET;
-    uint32_t session_flags;
+    uint64_t session_flags;
     bool is_owner;
 
     session_flags = session->flags;
@@ -1377,8 +1377,8 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
     wt_timestamp_t hs_start_ts;
-    uint64_t hs_counter;
-    uint32_t btree_id, session_flags;
+    uint64_t hs_counter, session_flags;
+    uint32_t btree_id;
     char *uri_data;
     bool is_owner, stop;
 

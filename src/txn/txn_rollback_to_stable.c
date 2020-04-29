@@ -155,8 +155,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 #ifdef HAVE_DIAGNOSTIC
     wt_timestamp_t newer_hs_ts;
 #endif
-    uint64_t hs_counter, type_full;
-    uint32_t hs_btree_id, session_flags;
+    uint64_t hs_counter, session_flags, type_full;
+    uint32_t hs_btree_id;
     uint8_t type;
     int cmp;
     char ts_string[4][WT_TS_INT_STRING_SIZE];
@@ -919,8 +919,8 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     WT_ITEM key;
     WT_UPDATE *hs_upd;
     wt_timestamp_t hs_start_ts;
-    uint64_t hs_counter;
-    uint32_t hs_btree_id, session_flags;
+    uint64_t hs_counter, session_flags;
+    uint32_t hs_btree_id;
     int exact;
     char ts_string[WT_TS_INT_STRING_SIZE];
     bool is_owner;

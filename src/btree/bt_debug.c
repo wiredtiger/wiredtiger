@@ -715,7 +715,7 @@ __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint32_t session_flags;
+    uint64_t session_flags;
     bool is_owner;
 
     cursor = cursor_arg;

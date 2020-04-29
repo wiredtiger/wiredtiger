@@ -2253,7 +2253,8 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_DECL_RET;
     WT_MULTI *multi;
-    uint32_t i, session_flags;
+    uint64_t session_flags;
+    uint32_t i;
     bool is_owner;
 
     /* Check if there's work to do. */

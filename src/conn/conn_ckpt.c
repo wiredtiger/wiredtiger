@@ -129,7 +129,7 @@ static int
 __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 {
     WT_SESSION_IMPL *session;
-    uint32_t session_flags;
+    uint64_t session_flags;
 
     /* Nothing to do if the server is already running. */
     if (conn->ckpt_session != NULL)
