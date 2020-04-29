@@ -386,6 +386,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_ASSERT(session, last_upd->next != NULL && last_upd->next->txnid != WT_TXN_ABORTED &&
                 last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL);
             upd_select->upd = last_upd->next;
+            upd_select->start_ts = last_upd->next->start_ts;
+            upd_select->start_durable_ts = last_upd->next->durable_start_ts;
+            upd_select->start_txn = last_upd->next->start_txn;
         }
     }
 
