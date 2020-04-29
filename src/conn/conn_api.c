@@ -1912,7 +1912,7 @@ __wt_verbose_dump_sessions(WT_SESSION_IMPL *session, bool show_cursors)
             WT_ERR(__wt_msg(session, "  Compact state: %s", s->compact_state == WT_COMPACT_NONE ?
                 "none" :
                 (s->compact_state == WT_COMPACT_RUNNING ? "running" : "success")));
-            WT_ERR(__wt_msg(session, "  Flags: 0x%" PRIx32, s->flags));
+            WT_ERR(__wt_msg(session, "  Flags: 0x%" PRIx64, s->flags));
             WT_ERR(
               __wt_msg(session, "  Isolation level: %s", s->isolation == WT_ISO_READ_COMMITTED ?
                   "read-committed" :

@@ -1269,6 +1269,13 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     WT_ERR(__wt_scr_alloc(session, 0, &prev_hs_key));
 
     /*
+     * We need to ignore all the non-globally visible tombstones in both data stores and history
+     * stores including the stop time pair in the cell to verify there are associated keys of each
+     * history store in the data store.
+     */
+    F_SET(session, WT_SESSION_IGNORE_TOMBSTONE);
+
+    /*
      * The caller is responsible for positioning the history store cursor at the first record to
      * verify. When we return after moving to a new key the caller is responsible for keeping the
      * cursor there or deciding they're done.
@@ -1312,6 +1319,8 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     }
     WT_ERR_NOTFOUND_OK(ret, true);
 err:
+    F_CLR(session, WT_SESSION_IGNORE_TOMBSTONE);
+
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &prev_hs_key);
     return (ret);

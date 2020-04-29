@@ -221,7 +221,8 @@ __async_start(WT_SESSION_IMPL *session)
 {
     WT_ASYNC *async;
     WT_CONNECTION_IMPL *conn;
-    uint32_t i, session_flags;
+    uint32_t i;
+    uint64_t session_flags;
 
     conn = S2C(session);
     conn->async_cfg = true;
@@ -293,7 +294,8 @@ __wt_async_reconfig(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONNECTION_IMPL *conn, tmp_conn;
     WT_DECL_RET;
     WT_SESSION *wt_session;
-    uint32_t i, session_flags;
+    uint32_t i;
+    uint64_t session_flags;
     bool run;
 
     conn = S2C(session);
