@@ -749,7 +749,7 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_ts;
     uint64_t hs_counter, hs_upd_type_full;
     uint32_t hs_btree_id;
-    uint8_t hs_prep_state, hs_upd_type;
+    uint8_t hs_upd_type;
 
     ds = &_ds;
 
