@@ -121,6 +121,7 @@ typedef struct {
     RWLOCK ts_lock;
 
     uint64_t timestamp;        /* Counter for timestamps */
+    uint64_t oldest_timestamp; /* Last timestamp used for oldest */
     uint64_t stable_timestamp; /* Last timestamp used for stable */
 
     uint64_t truncate_cnt; /* Counter for truncation */
@@ -388,7 +389,8 @@ int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
 WT_THREAD_RET timestamp(void *);
-void timestamp_once(WT_SESSION *);
+void timestamp_once(WT_SESSION *, bool);
+void timestamp_parse(WT_SESSION *, const char *, uint64_t *);
 void track(const char *, uint64_t, TINFO *);
 void val_gen(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void val_gen_init(WT_ITEM *);

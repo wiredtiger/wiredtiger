@@ -28,12 +28,34 @@
 
 #include "format.h"
 
+static void
+track_ts(char *buf, size_t buf_size, const char *name, uint64_t old_ts, uint64_t this_ts)
+{
+    uint64_t diff;
+    size_t len;
+    const char *indicator;
+
+    len = strlen(buf);
+    if (old_ts <= this_ts) {
+        diff = this_ts - old_ts;
+        if (diff > 0xFFFFFF) {
+            diff = diff & 0xFFFFFF;
+            indicator = "*";
+        } else
+            indicator = "+";
+        testutil_check(__wt_snprintf(&buf[len], buf_size - len, " %s %s0x%" PRIx64, name,
+            indicator, diff));
+    } else
+        testutil_check(__wt_snprintf(&buf[len], buf_size - len, " %s [< old]", name));
+}
+
 void
 track(const char *tag, uint64_t cnt, TINFO *tinfo)
 {
     static size_t lastlen = 0;
     size_t len;
-    char msg[128], stable_msg[64];
+    uint64_t cur_ts, old_ts, stable_ts;
+    char msg[128], ts_msg[64];
 
     if (g.c_quiet || tag == NULL)
         return;
@@ -45,10 +67,20 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
         testutil_check(__wt_snprintf_len_set(
           msg, sizeof(msg), &len, "%4" PRIu32 ": %s: %" PRIu64, g.run_cnt, tag, cnt));
     else {
-        stable_msg[0] = '\0';
-        if (g.c_txn_rollback_to_stable)
-            testutil_check(__wt_snprintf(stable_msg, sizeof(stable_msg), " stable_ts %" PRIx64,
-                g.stable_timestamp));
+        ts_msg[0] = '\0';
+        if (g.c_txn_timestamps) {
+            /*
+             * Don't worry about having a completely consistent set of timestamps.
+             */
+            old_ts = g.oldest_timestamp;
+            stable_ts = g.stable_timestamp;
+            cur_ts = g.timestamp;
+
+            testutil_check(__wt_snprintf(ts_msg, sizeof(ts_msg), " old 0x%" PRIx64, old_ts));
+            if (g.c_txn_rollback_to_stable)
+                track_ts(ts_msg, sizeof(ts_msg), "stable", old_ts, stable_ts);
+            track_ts(ts_msg, sizeof(ts_msg), "cur", old_ts, cur_ts);
+        }
         testutil_check(__wt_snprintf_len_set(msg, sizeof(msg), &len, "%4" PRIu32 ": %s: "
                                                                      "search %" PRIu64 "%s, "
                                                                      "insert %" PRIu64 "%s, "
@@ -61,7 +93,7 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
           tinfo->update > M(9) ? tinfo->update / M(1) : tinfo->update,
           tinfo->update > M(9) ? "M" : "",
           tinfo->remove > M(9) ? tinfo->remove / M(1) : tinfo->remove,
-          tinfo->remove > M(9) ? "M" : "", stable_msg));
+          tinfo->remove > M(9) ? "M" : "", ts_msg));
     }
     if (lastlen > len) {
         memset(msg + len, ' ', (size_t)(lastlen - len));
@@ -237,13 +269,14 @@ fclose_and_clear(FILE **fpp)
  *     Update the timestamp once.
  */
 void
-timestamp_once(WT_SESSION *session)
+timestamp_once(WT_SESSION *session, bool no_lag)
 {
     static const char *oldest_timestamp_str = "oldest_timestamp=";
     static const char *stable_timestamp_str = "stable_timestamp=";
     WT_CONNECTION *conn;
     WT_DECL_RET;
     size_t len;
+    uint64_t all_durable;
     char buf[WT_TS_HEX_STRING_SIZE * 2 + 64], tsbuf[WT_TS_HEX_STRING_SIZE];
 
     conn = g.wts_conn;
@@ -259,6 +292,16 @@ timestamp_once(WT_SESSION *session)
 
     ret = conn->query_timestamp(conn, tsbuf, "get=all_durable");
     testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+    timestamp_parse(session, tsbuf, &all_durable);
+
+    /*
+     * If a lag is permitted, move the oldest timestamp half the way to the current
+     * "all_durable" timestamp.
+     */
+    if (no_lag)
+        g.oldest_timestamp = all_durable;
+    else
+        g.oldest_timestamp = (all_durable + g.oldest_timestamp) / 2;
     if (ret == 0) {
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s", oldest_timestamp_str, tsbuf));
         /*
@@ -277,6 +320,18 @@ timestamp_once(WT_SESSION *session)
 
     if (LOCK_INITIALIZED(&g.ts_lock))
         lock_writeunlock(session, &g.ts_lock);
+}
+
+/*
+ * timestamp_parse --
+ *     Parse a timestamp to an integral value.
+ */
+void timestamp_parse(WT_SESSION *session, const char *str, uint64_t *tsp)
+{
+    char *p;
+
+    *tsp = strtoull(str, &p, 16);
+    WT_ASSERT((WT_SESSION_IMPL *)session, p - str <= 16);
 }
 
 /*
@@ -308,7 +363,7 @@ timestamp(void *arg)
         else
             random_sleep(&g.rnd, 15);
 
-        timestamp_once(session);
+        timestamp_once(session, done);
 
     } while (!done);
 
