@@ -160,14 +160,13 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
  *     Dump a set of start and stop time pairs, with an optional tag.
  */
 static inline int
-__debug_time_pairs(WT_DBG *ds, const char *tag, wt_timestamp_t start_ts, uint64_t start_txn,
-  wt_timestamp_t stop_ts, uint64_t stop_txn)
+__debug_time_pairs(WT_DBG *ds, const char *tag, WT_TIME_WINDOW *tw)
 {
     char tp_string[2][WT_TP_STRING_SIZE];
 
     return (ds->f(ds, "\t%s%s%s,%s\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
-      __wt_time_pair_to_string(start_ts, start_txn, tp_string[0]),
-      __wt_time_pair_to_string(stop_ts, stop_txn, tp_string[1])));
+      __wt_time_pair_to_string(tw->start_ts, tw->start_txn, tp_string[0]),
+      __wt_time_pair_to_string(tw->stop_ts, tw->stop_txn, tp_string[1])));
 }
 
 /*
@@ -741,6 +740,7 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
+    WT_TIME_WINDOW tw;
     WT_TIME_PAIR start, stop;
     WT_UPDATE *upd;
     wt_timestamp_t hs_durable_ts;
@@ -749,15 +749,16 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     uint8_t hs_prep_state, hs_upd_type;
 
     ds = &_ds;
+    __wt_time_window_init(&tw);
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
     WT_ERR(__debug_config(session, ds, NULL));
 
-    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &start.timestamp, &start.txnid,
-      &stop.timestamp, &stop.txnid));
+    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &tw.start_ts, &tw.start_txn,
+      &tw.stop_ts, &tw.stop_txn));
 
-    WT_ERR(__debug_time_pairs(ds, "T", start.timestamp, start.txnid, stop.timestamp, stop.txnid));
+    WT_ERR(__debug_time_pairs(ds, "T", &tw));
 
     WT_ERR(
       hs_cursor->get_value(hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type_full, hs_value));

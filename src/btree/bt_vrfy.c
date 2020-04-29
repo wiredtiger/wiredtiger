@@ -1074,7 +1074,7 @@ __verify_page_content(
              * FIXME-prepare-support: Enable verification once all durable is finished.
              *
              * WT_RET(
-             * __verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.durable_start_ts,
+             * __verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_durable_ts,
              *   "durable start", addr_unpack->newest_start_durable_ts, true, vs));
              */
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_ts,
@@ -1085,7 +1085,7 @@ __verify_page_content(
              * FIXME-prepare-support: Enable verification once all durable is finished.
              *
              * WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start",
-             * unpack.durable_stop_ts,
+             * unpack.stop_durable_ts,
              *  "durable stop", addr_unpack->newest_stop_durable_ts, true, vs));
              */
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_ts,

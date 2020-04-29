@@ -315,8 +315,12 @@ struct __wt_thread;
 typedef struct __wt_thread WT_THREAD;
 struct __wt_thread_group;
 typedef struct __wt_thread_group WT_THREAD_GROUP;
+struct __wt_time_aggregate;
+typedef struct __wt_time_aggregate WT_TIME_AGGREGATE;
 struct __wt_time_pair;
 typedef struct __wt_time_pair WT_TIME_PAIR;
+struct __wt_time_window;
+typedef struct __wt_time_window WT_TIME_WINDOW;
 struct __wt_txn;
 typedef struct __wt_txn WT_TXN;
 struct __wt_txn_global;
@@ -400,6 +404,7 @@ typedef uint64_t wt_timestamp_t;
 #include "reconcile.h"
 #include "schema.h"
 #include "thread_group.h"
+#include "timestamp.h"
 #include "txn.h"
 
 #include "session.h" /* required by connection.h */
@@ -418,10 +423,11 @@ typedef uint64_t wt_timestamp_t;
 #include "intpack.i" /* required by cell.i, packing.i */
 #include "misc.i"    /* required by mutex.i */
 
-#include "buf.i"   /* required by cell.i */
-#include "cell.i"  /* required by btree.i */
-#include "mutex.i" /* required by btree.i */
-#include "txn.i"   /* required by btree.i */
+#include "buf.i"       /* required by cell.i */
+#include "timestamp.i" /* required by btree.i */
+#include "cell.i"      /* required by btree.i */
+#include "mutex.i"     /* required by btree.i */
+#include "txn.i"       /* required by btree.i */
 
 #include "bitstring.i"
 #include "block.i"

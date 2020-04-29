@@ -80,7 +80,7 @@ __rec_append_orig_value(
          * for stop time pair because we may still need to append the onpage value if only the
          * tombstone is on the update chain.
          */
-        if (unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid &&
+        if (unpack->tw.start_ts == upd->start_ts && unpack->start_txn == upd->txnid &&
           upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
@@ -115,7 +115,7 @@ __rec_append_orig_value(
     total_size += size;
     append->txnid = unpack->start_txn;
     append->start_ts = unpack->start_ts;
-    append->durable_ts = unpack->durable_start_ts;
+    append->durable_ts = unpack->start_durable_ts;
 
     /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
@@ -130,7 +130,7 @@ __rec_append_orig_value(
             total_size += size;
             tombstone->txnid = unpack->stop_txn;
             tombstone->start_ts = unpack->stop_ts;
-            tombstone->durable_ts = unpack->durable_stop_ts;
+            tombstone->durable_ts = unpack->stop_durable_ts;
 
             tombstone->next = append;
             append = tombstone;
@@ -191,6 +191,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_TIME_WINDOW *select_tw;
     WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd, *tombstone;
     wt_timestamp_t max_ts;
     size_t upd_memsize;
@@ -202,13 +203,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * both must be initialized.
      */
     upd_select->upd = NULL;
-    upd_select->start_durable_ts = WT_TS_NONE;
-    upd_select->start_ts = WT_TS_NONE;
-    upd_select->start_txn = WT_TXN_NONE;
-    upd_select->stop_durable_ts = WT_TS_NONE;
-    upd_select->stop_ts = WT_TS_MAX;
-    upd_select->stop_txn = WT_TXN_MAX;
-    upd_select->prepare = false;
+    __wt_time_window_init(&upd_select->tw);
 
     page = r->page;
     first_txn_upd = upd = last_upd = tombstone = NULL;
@@ -340,6 +335,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * stable.
      */
     if (upd != NULL) {
+        select_tw = &upd_select->tw;
         /*
          * If the newest is a tombstone then select the update before it and set the end of the
          * visibility window to its time pair as appropriate to indicate that we should return "not
@@ -349,9 +345,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * indicate that the value is visible to any timestamp/transaction id ahead of it.
          */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
-            upd_select->stop_ts = upd->start_ts;
-            upd_select->stop_txn = upd->txnid;
-            upd_select->stop_durable_ts = upd->durable_ts;
+            __wt_time_window_set_stop(select_tw, upd);
             tombstone = upd;
 
             /* Find the update this tombstone applies to. */
@@ -366,10 +360,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
         if (upd != NULL) {
             /* The beginning of the validity window is the selected update's time pair. */
-            upd_select->start_ts = upd->start_ts;
-            upd_select->start_durable_ts = upd->durable_ts;
-            upd_select->start_txn = upd->txnid;
-        } else if (upd_select->stop_ts != WT_TS_NONE || upd_select->stop_txn != WT_TXN_NONE) {
+            __wt_time_window_set_start(select_tw, upd);
+        } else if (select_tw->stop_ts != WT_TS_NONE || selecttw.stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL && tombstone != NULL);
             /*
@@ -388,9 +380,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 last_upd->next->start_ts == vpack->start_ts &&
                 last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL);
             upd_select->upd = last_upd->next;
-            upd_select->start_ts = last_upd->next->start_ts;
-            upd_select->start_durable_ts = last_upd->next->durable_ts;
-            upd_select->start_txn = last_upd->next->txnid;
+            __wt_time_window_set_start(select_tw, last_upd->next);
         }
     }
 
@@ -405,17 +395,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * time pair. While unusual, it is permitted for a single transaction to insert and then remove
      * a record. We don't want to generate a warning in that case.
      */
-    if (upd_select->stop_ts < upd_select->start_ts ||
-      (upd_select->stop_ts == upd_select->start_ts &&
-          upd_select->stop_txn < upd_select->start_txn)) {
+    if (select_tw->stop_ts < select_tw->start_ts ||
+      (select_tw->stop_ts == select_tw->start_ts && select_tw->stop_txn < select_tw->start_txn)) {
         char ts_string[2][WT_TS_INT_STRING_SIZE];
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "Warning: fixing out-of-order timestamps remove at %s earlier than value at %s",
-          __wt_timestamp_to_string(upd_select->stop_ts, ts_string[0]),
-          __wt_timestamp_to_string(upd_select->start_ts, ts_string[1]));
-        upd_select->start_durable_ts = upd_select->stop_durable_ts;
-        upd_select->start_ts = upd_select->stop_ts;
-        upd_select->start_txn = upd_select->stop_txn;
+          __wt_timestamp_to_string(select_tw->stop_ts, ts_string[0]),
+          __wt_timestamp_to_string(select_tw->start_ts, ts_string[1]));
+        select_tw->start_durable_ts = select_tw->stop_durable_ts;
+        select_tw->start_ts = select_tw->stop_ts;
+        select_tw->start_txn = select_tw->stop_txn;
     }
 
     /*
