@@ -851,9 +851,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
      * "not found", except for history store scan during rollback to stable.
      */
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
-      (!F_ISSET(session, WT_SESSION_IGNORE_TOMBSTONE) || !WT_IS_HS(S2BT(session)) ||
-          !F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE)) &&
-      __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
+      __wt_txn_visible(session, stop.txnid, stop.timestamp) &&
+      ((!F_ISSET(session, WT_SESSION_IGNORE_TOMBSTONE) &&
+         (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE))) ||
+          __wt_txn_visible_all(session, stop.txnid, stop.timestamp))) {
         __wt_buf_free(session, &buf);
         WT_RET(__wt_upd_alloc_tombstone(session, updp, NULL));
         (*updp)->txnid = stop.txnid;
