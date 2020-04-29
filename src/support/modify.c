@@ -346,17 +346,17 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const size_t
 }
 
 /*
- * __modify_apply_item --
+ * __wt_modify_apply_item --
  *     Apply a single set of WT_MODIFY changes to a WT_ITEM buffer.
  */
-static int
-__modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify, bool sformat)
+int
+__wt_modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify)
 {
     WT_MODIFY mod;
     size_t datasz, destsz, item_offset, tmp;
     const size_t *p;
     int napplied, nentries;
-    bool overlap;
+    bool overlap, sformat;
 
     /*
      * Get the number of modify entries and set a second pointer to reference the replacement data.
@@ -364,6 +364,10 @@ __modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify
     p = modify;
     memcpy(&tmp, p++, sizeof(size_t));
     nentries = (int)tmp;
+
+    /* Make sure we are not applying modifies to schema with multiple value fields. */
+    WT_ASSERT(session, S2BT(session)->value_format[1] == '\0');
+    sformat = S2BT(session)->value_format[0] == 'S';
 
     /*
      * Grow the buffer first. This function is often called using a cursor buffer referencing
@@ -410,32 +414,6 @@ done: /* Restore the trailing nul. */
 }
 
 /*
- * __wt_modify_apply_buf --
- *     Apply a single set of WT_MODIFY changes to a buffer.
- */
-int
-__wt_modify_apply_buf(WT_SESSION_IMPL *session, WT_ITEM *buf, const void *modify)
-{
-    return (__modify_apply_item(session, buf, modify, S2BT(session)->value_format[0] == 'S'));
-}
-
-/*
- * __wt_modify_apply --
- *     Apply a single set of WT_MODIFY changes to a cursor buffer.
- */
-int
-__wt_modify_apply(WT_CURSOR *cursor, const void *modify)
-{
-    WT_SESSION_IMPL *session;
-    bool sformat;
-
-    session = (WT_SESSION_IMPL *)cursor->session;
-    sformat = cursor->value_format[0] == 'S';
-
-    return (__modify_apply_item(session, &cursor->value, modify, sformat));
-}
-
-/*
  * __wt_modify_apply_api --
  *     Apply a single set of WT_MODIFY changes to a buffer, the cursor API interface.
  */
@@ -447,7 +425,8 @@ __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_DECL_RET;
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
-    WT_ERR(__wt_modify_apply(cursor, modify->data));
+    WT_ERR(
+      __wt_modify_apply_item((WT_SESSION_IMPL *)cursor->session, &cursor->value, modify->data));
 
 err:
     __wt_scr_free((WT_SESSION_IMPL *)cursor->session, &modify);

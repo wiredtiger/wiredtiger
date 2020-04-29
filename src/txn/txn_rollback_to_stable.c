@@ -229,7 +229,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type_full, hs_value));
         type = (uint8_t)type_full;
         if (type == WT_UPDATE_MODIFY)
-            WT_ERR(__wt_modify_apply_buf(session, &full_value, hs_value->data));
+            WT_ERR(__wt_modify_apply_item(session, &full_value, hs_value->data));
         else {
             WT_ASSERT(session, type == WT_UPDATE_STANDARD);
             WT_ERR(__wt_buf_set(session, &full_value, hs_value->data, hs_value->size));

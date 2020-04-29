@@ -315,7 +315,7 @@ __wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
      */
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &upd);
-        WT_ERR(__wt_modify_apply(cursor, upd->data));
+        WT_ERR(__wt_modify_apply_item(session, &cursor->value, upd->data));
     }
 
 err:
