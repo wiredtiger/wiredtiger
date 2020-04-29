@@ -745,10 +745,9 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
-    WT_TIME_PAIR start, stop;
     WT_UPDATE *upd;
-    wt_timestamp_t hs_durable_ts;
-    uint64_t hs_upd_type_full;
+    wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_ts;
+    uint64_t hs_counter, hs_upd_type_full;
     uint32_t hs_btree_id;
     uint8_t hs_prep_state, hs_upd_type;
 
@@ -758,18 +757,11 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
     WT_ERR(__debug_config(session, ds, NULL));
 
-    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &start.timestamp, &start.txnid,
-      &stop.timestamp, &stop.txnid));
-
-    /*
-     * FIXME: Currently, this function is not called anywhere in the code. In future if it is used,
-     * it needs some fixes related to accessing the proper key and value of history store.
-     */
-    // WT_ERR(__debug_time_pairs(ds, "T", start.timestamp, start.txnid, stop.timestamp,
-    // stop.txnid));
-
+    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
     WT_ERR(
-      hs_cursor->get_value(hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type_full, hs_value));
+      hs_cursor->get_value(hs_cursor, &hs_stop_ts, &hs_durable_ts, &hs_upd_type_full, hs_value));
+    WT_ERR(__debug_time_pairs(
+      ds, "T", hs_durable_ts, hs_start_ts, WT_TS_NONE, hs_stop_ts, hs_stop_ts, WT_TS_MAX));
     hs_upd_type = (uint8_t)hs_upd_type_full;
     switch (hs_upd_type) {
     case WT_UPDATE_MODIFY:
