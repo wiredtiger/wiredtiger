@@ -127,7 +127,7 @@ __thread_group_shrink(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
  */
 static int
 __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t new_min,
-  uint32_t new_max, uint32_t flags)
+  uint32_t new_max, uint64_t flags)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
