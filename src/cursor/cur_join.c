@@ -35,7 +35,7 @@ __wt_curjoin_joined(WT_CURSOR *cursor) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = C2S(cursor);
 
     WT_RET_MSG(session, ENOTSUP, "cursor is being used in a join");
 }

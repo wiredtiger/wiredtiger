@@ -34,7 +34,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
     btree = cbt->btree;
     ins = NULL;
     page = cbt->ref->page;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = C2S(cbt);
     upd = upd_arg;
     append = logged = false;
 
