@@ -857,7 +857,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
         WT_RET(__wt_upd_alloc_tombstone(session, updp, NULL));
         (*updp)->txnid = tw.stop_txn;
         /* FIXME: Reevaluate this as part of PM-1524. */
-        (*updp)->tw.durable_ts = (*updp)->tw.start_ts = tw.stop_ts;
+        (*updp)->durable_ts = (*updp)->start_ts = tw.stop_ts;
         F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
         return (0);
     }
@@ -1106,7 +1106,7 @@ static inline int
 __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
     WT_DECL_RET;
-    WT_TIME_PAIR start, stop;
+    WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     bool ignore_prepare_set, rollback;
@@ -1143,11 +1143,11 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
      */
     if (!rollback && upd == NULL && cbt != NULL && cbt->btree->type != BTREE_COL_FIX &&
       cbt->ins == NULL) {
-        __wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop);
-        if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX)
-            rollback = !__wt_txn_visible(session, stop.txnid, stop.timestamp);
+        __wt_read_cell_time_window(cbt, cbt->ref, &tw);
+        if (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX)
+            rollback = !__wt_txn_visible(session, tw.stop_txn, tw.stop_ts);
         else
-            rollback = !__wt_txn_visible(session, start.txnid, start.timestamp);
+            rollback = !__wt_txn_visible(session, tw.start_txn, tw.start_ts);
     }
 
     if (rollback) {

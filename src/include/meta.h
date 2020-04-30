@@ -133,6 +133,7 @@ struct __wt_ckpt {
 
     WT_BLOCK_MODS backup_blocks[WT_BLKINCR_MAX];
 
+    WT_TIME_AGGREGATE ta;
     /* Validity window */
     wt_timestamp_t start_durable_ts;
     wt_timestamp_t oldest_start_ts;

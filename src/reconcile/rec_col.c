@@ -138,7 +138,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     if (btree->dictionary)
         WT_RET(__wt_rec_dict_replace(session, r, &tw, cbulk->rle, val));
     __wt_rec_image_copy(session, r, val);
-    __wt_rec_addr_ts_update(r, &tw, false);
+    __wt_rec_addr_ts_update_window(r, &tw);
 
     /* Update the starting record number in case we split. */
     r->recno += cbulk->rle;
@@ -561,7 +561,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
     if (!deleted && !overflow_type && btree->dictionary)
         WT_RET(__wt_rec_dict_replace(session, r, tw, rle, val));
     __wt_rec_image_copy(session, r, val);
-    __wt_rec_addr_ts_update(r, tw);
+    __wt_rec_addr_ts_update_window(r, tw);
 
     /* Update the starting record number in case we split. */
     r->recno += rle;
@@ -606,7 +606,7 @@ __wt_rec_col_var(
     upd = NULL;
     size = 0;
     data = NULL;
-    __wt_time_window_ini(&default_tw);
+    __wt_time_window_init(&default_tw);
 
     cbt = &r->update_modify_cbt;
     cbt->iface.session = (WT_SESSION *)session;
@@ -795,7 +795,7 @@ record_loop:
                     break;
                 }
             } else {
-                __wt_time_window_copy(&tw, &upd_select->tw);
+                __wt_time_window_copy(&tw, &upd_select.tw);
 
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
@@ -826,7 +826,7 @@ compare:
              * record number, we've been doing that all along.
              */
             if (rle != 0) {
-                if (__wt_time_windows_equal(&tw, &last) &&
+                if (__wt_time_windows_equal(&tw, &last.tw) &&
                   ((deleted && last.deleted) ||
                       (!deleted && !last.deleted && last.value->size == size &&
                         memcmp(last.value->data, data, size) == 0))) {
@@ -837,7 +837,7 @@ compare:
                      * visible.
                      */
                     WT_ASSERT(
-                      session, (!deleted && !last.deleted) || __wt_time_window_is_empty(&last));
+                      session, (!deleted && !last.deleted) || __wt_time_window_is_empty(&last.tw));
                     rle += repeat_count;
                     continue;
                 }
@@ -870,7 +870,7 @@ compare:
             if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                 __wt_free_update_list(session, &upd);
 
-            __wt_time_window_copy(&last, &tw);
+            __wt_time_window_copy(&last.tw, &tw);
             last.deleted = deleted;
             rle = repeat_count;
         }
@@ -934,7 +934,7 @@ compare:
                      * tombstone to write to disk and the deletion of the keys must be globally
                      * visible.
                      */
-                    WT_ASSERT(session, __wt_time_window_is_empty(&last));
+                    WT_ASSERT(session, __wt_time_window_is_empty(&last.tw));
                     /*
                      * The record adjustment is decremented by one so we can naturally fall into the
                      * RLE accounting below, where we increment rle by one, then continue in the
@@ -986,7 +986,7 @@ compare:
                 /*
                  * FIXME-PM-1521: Follow up issue with clang in WT-5341.
                  */
-                if (__wt_time_window_equals(&last.tw, &tw) &&
+                if (__wt_time_windows_equal(&last.tw, &tw) &&
                   ((deleted && last.deleted) ||
                       (!deleted && !last.deleted && last.value->size == size &&
                         memcmp(last.value->data, data, size) == 0))) {

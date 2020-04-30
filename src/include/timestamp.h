@@ -46,6 +46,7 @@ struct __wt_time_window {
 
 /* The set of time pairs that define an aggregated time window */
 struct __wt_time_aggregate {
+    wt_timestamp_t newest_start_durable_ts;
 
     wt_timestamp_t newest_stop_durable_ts;
     wt_timestamp_t newest_stop_ts;

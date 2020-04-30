@@ -237,7 +237,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
             WT_RET(__wt_rec_dict_replace(session, r, &tw, 0, val));
         __wt_rec_image_copy(session, r, val);
     }
-    __wt_rec_addr_ts_update(r, &tw);
+    __wt_rec_addr_ts_update_window(r, &tw);
 
     /* Update compression state. */
     __rec_key_state_update(r, ovfl_key);
@@ -458,8 +458,6 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 val->len = val->buf.size;
             }
             __wt_time_aggregate_copy(&ta, &vpack->ta);
-            /* TODO: Should we add a prepare bool to the vpack structure? */
-            ta->prepare = F_ISSET(vpack, WT_CELL_UNPACK_PREPARE);
         }
         WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
@@ -533,15 +531,16 @@ err:
  *     Return if a zero-length item can be written.
  */
 static bool
-__rec_row_zero_len(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, uint64_t start_txn,
-  wt_timestamp_t stop_ts, uint64_t stop_txn)
+__rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     /*
-     * The item must be globally visible because we're not writing anything on the page.
+     * The item must be globally visible because we're not writing anything on the page. Don't be
+     * tempted to check the time window against the default here - the check is subtly different
+     * due to the grouping.
      */
-    return ((stop_ts == WT_TS_MAX && stop_txn == WT_TXN_MAX) &&
-      ((start_ts == WT_TS_NONE && start_txn == WT_TXN_NONE) ||
-              __wt_txn_visible_all(session, start_txn, start_ts)));
+    return ((tw->stop_ts == WT_TS_MAX && tw->stop_txn == WT_TXN_MAX) &&
+      ((tw->start_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE) ||
+              __wt_txn_visible_all(session, tw->start_txn, tw->start_ts)));
 }
 
 /*
@@ -630,7 +629,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
                 WT_ERR(__wt_rec_dict_replace(session, r, &tw, 0, val));
             __wt_rec_image_copy(session, r, val);
         }
-        __wt_rec_addr_ts_update(r, &tw);
+        __wt_rec_addr_ts_update_window(r, &tw);
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
@@ -782,8 +781,8 @@ __wt_rec_row_leaf(
          * If we reconcile an on disk key with a globally visible stop time pair and there are no
          * new updates for that key, skip writing that key.
          */
-        if (upd == NULL && (stop_txn != WT_TXN_MAX || stop_ts != WT_TS_MAX) &&
-          __wt_txn_visible_all(session, stop_txn, stop_ts))
+        if (upd == NULL && (tw.stop_txn != WT_TXN_MAX || tw.stop_ts != WT_TS_MAX) &&
+          __wt_txn_visible_all(session, tw.stop_txn, tw.stop_ts))
             upd = &upd_tombstone;
 
         /* Build value cell. */
@@ -974,7 +973,7 @@ build:
 
         /* Copy the key/value pair onto the page. */
         __wt_rec_image_copy(session, r, key);
-        if (val->len == 0 && __rec_row_zero_len(session, start_ts, start_txn, stop_ts, stop_txn))
+        if (val->len == 0 && __rec_row_zero_len(session, &tw))
             r->any_empty_value = true;
         else {
             r->all_empty_value = false;
@@ -982,7 +981,7 @@ build:
                 WT_ERR(__wt_rec_dict_replace(session, r, &tw, 0, val));
             __wt_rec_image_copy(session, r, val);
         }
-        __wt_rec_addr_ts_update(r, &tw);
+        __wt_rec_addr_ts_update_window(r, &tw);
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);

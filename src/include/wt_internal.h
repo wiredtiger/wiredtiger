@@ -381,6 +381,7 @@ typedef uint64_t wt_timestamp_t;
 
 #include "stat.h"    /* required by dhandle.h */
 #include "dhandle.h" /* required by btree.h */
+#include "timestamp.h" /* required by reconcile.h */
 
 #include "api.h"
 #include "async.h"
@@ -404,7 +405,6 @@ typedef uint64_t wt_timestamp_t;
 #include "reconcile.h"
 #include "schema.h"
 #include "thread_group.h"
-#include "timestamp.h"
 #include "txn.h"
 
 #include "session.h" /* required by connection.h */

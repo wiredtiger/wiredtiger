@@ -76,10 +76,10 @@ __wt_time_window_is_empty(WT_TIME_WINDOW *tw)
 static inline bool
 __wt_time_windows_equal(WT_TIME_WINDOW *tw1, WT_TIME_WINDOW *tw2)
 {
-    if (tw1 > start_durable_ts == tw2 > start_durable_ts &&
-      tw1 > stop_durable_ts == tw2 > stop_durable_ts && tw1 > start_ts == tw2 > start_ts &&
-      tw1 > start_txn == tw2 > start_txn && tw1 > stop_ts == tw2 > stop_ts &&
-      tw1 > stop_txn == tw2 > stop_txn && tw1 > prepare == tw2 > prepare)
+    if (tw1->start_durable_ts == tw2->start_durable_ts &&
+      tw1->stop_durable_ts == tw2->stop_durable_ts && tw1->start_ts == tw2->start_ts &&
+      tw1->start_txn == tw2->start_txn && tw1->stop_ts == tw2->stop_ts &&
+      tw1->stop_txn == tw2->stop_txn && tw1->prepare == tw2->prepare)
         return (true);
     return (false);
 }
@@ -144,6 +144,24 @@ __wt_time_aggregate_init_max(WT_TIME_AGGREGATE *ta)
 }
 
 /*
+ * __wt_time_aggregate_is_empty --
+ *     Return true if the time aggregate is equivalent to the default time aggregate.
+ */
+static inline bool
+__wt_time_aggregate_is_empty(WT_TIME_AGGREGATE *ta)
+{
+    if (ta->newest_start_durable_ts == WT_TS_NONE &&
+        ta->newest_stop_durable_ts == WT_TS_NONE &&
+        ta->newest_stop_ts == WT_TS_NONE &&
+        ta->newest_stop_txn == WT_TXN_NONE &&
+        ta->oldest_start_ts == WT_TS_MAX &&
+        ta->oldest_start_txn == WT_TXN_MAX &&
+        ta->prepare == false)
+        return (true);
+    return (false);
+}
+
+/*
  * __wt_time_aggregate_copy --
  *     Copy the values from one time aggregate structure to another.
  */
@@ -166,11 +184,11 @@ static inline void
 __wt_time_aggregate_update(WT_TIME_AGGREGATE *ta, WT_TIME_WINDOW *tw)
 {
     ta->newest_start_durable_ts = WT_MAX(tw->start_durable_ts, ta->newest_start_durable_ts);
-    ta->oldest_start_ts = WT_MIN(tw->oldest_start_ts, ta->oldest_start_ts);
-    ta->oldest_start_txn = WT_MIN(tw->oldest_start_txn, ta->oldest_start_txn);
+    ta->oldest_start_ts = WT_MIN(tw->start_ts, ta->oldest_start_ts);
+    ta->oldest_start_txn = WT_MIN(tw->start_txn, ta->oldest_start_txn);
     ta->newest_stop_durable_ts = WT_MAX(tw->stop_durable_ts, ta->newest_stop_durable_ts);
-    ta->newest_stop_ts = WT_MAX(tw->newest_stop_ts, ta->newest_stop_ts);
-    ta->newest_stop_txn = WT_MAX(tw->newest_stop_txn, ta->newest_stop_txn);
+    ta->newest_stop_ts = WT_MAX(tw->stop_ts, ta->newest_stop_ts);
+    ta->newest_stop_txn = WT_MAX(tw->stop_txn, ta->newest_stop_txn);
     if (tw->prepare)
         ta->prepare = true;
 }

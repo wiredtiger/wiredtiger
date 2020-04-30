@@ -111,13 +111,13 @@ struct __wt_reconcile {
         uint32_t entries;
         uint64_t recno;
         WT_ITEM key;
-        WT_TIME_AGGREGATE *ta;
+        WT_TIME_AGGREGATE ta;
 
         /* Saved minimum split-size boundary information. */
         uint32_t min_entries;
         uint64_t min_recno;
         WT_ITEM min_key;
-        WT_TIME_AGGREGATE *ta_min;
+        WT_TIME_AGGREGATE ta_min;
 
         size_t min_offset; /* byte offset */
 

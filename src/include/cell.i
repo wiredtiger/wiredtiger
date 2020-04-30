@@ -167,15 +167,12 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
     uint8_t flags, *flagsp;
 
     /* Globally visible values have no associated validity window. */
-    if (ta > newest_start_durable_ts == WT_TS_NONE && ta > newest_stop_durable_ts == WT_TS_NONE &&
-      ta->oldest_start_ts == WT_TS_NONE && ta->oldest_start_txn == WT_TXN_NONE &&
-      ta->newest_stop_ts == WT_TS_MAX && ta->newest_stop_txn == WT_TXN_MAX) {
+    if (__wt_time_aggregate_is_empty(ta)) {
         ++*pp;
         return;
     }
 
-    __wt_check_addr_validity(session, ta > newest_start_durable_ts, ta->oldest_start_ts,
-      ta->oldest_start_txn, ta > newest_stop_durable_ts, ta->newest_stop_ts, ta->newest_stop_txn);
+    __wt_check_addr_validity(session, ta);
 
     **pp |= WT_CELL_SECOND_DESC;
     ++*pp;
@@ -191,7 +188,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->oldest_start_txn));
         LF_SET(WT_CELL_TXN_START);
     }
-    if (ta > newest_start_durable_ts != WT_TS_NONE) {
+    if (ta->newest_start_durable_ts != WT_TS_NONE) {
         /* Store differences, not absolutes. */
         /*
          * FIXME-prepare-support:
@@ -206,7 +203,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
          * having that check to find out whether it is zero or not will unnecessarily add overhead
          * than benefit.
          */
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta > newest_start_durable_ts - ta->oldest_start_ts));
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_start_durable_ts - ta->oldest_start_ts));
         LF_SET(WT_CELL_TS_DURABLE_START);
     }
     if (ta->newest_stop_ts != WT_TS_MAX) {
@@ -233,7 +230,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
          * having that check to find out whether it is zero or not will unnecessarily add overhead
          * than benefit.
          */
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta > newest_stop_durable_ts - ta->newest_stop_ts));
+        WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_stop_durable_ts - ta->newest_stop_ts));
         LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
     /*
@@ -711,15 +708,17 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         uint32_t len;
     } copy;
     WT_TIME_AGGREGATE *ta;
+    WT_TIME_WINDOW *tw;
     uint64_t v;
     const uint8_t *p;
     uint8_t flags;
 
     copy.v = 0; /* -Werror=maybe-uninitialized */
-    __wt_time_window_init(&copy.tw) copy.len = 0;
+    __wt_time_window_init(&copy.tw);
+    copy.len = 0;
     /* Save ourselves from always having to indirect through the unpack structure. */
-    tw = &unpack.tw;
-    ta = &unpack.ta;
+    tw = &unpack->tw;
+    ta = &unpack->ta;
 
 /*
  * The verification code specifies an end argument, a pointer to 1B past the end-of-page. In which
@@ -750,8 +749,8 @@ restart:
      * following switch. All validity windows default to durability.
      */
     unpack->v = 0;
-    __wt_time_window_init(&unpack.tw);
-    __wt_time_aggreagate_init(&unpack.ta);
+    __wt_time_window_init(&unpack->tw);
+    __wt_time_aggregate_init(&unpack->ta);
     unpack->raw = (uint8_t)__wt_cell_type_raw(cell);
     unpack->type = (uint8_t)__wt_cell_type(cell);
     unpack->flags = 0;
@@ -833,9 +832,7 @@ restart:
             ta->newest_stop_durable_ts += ta->newest_stop_ts;
         }
 
-        __wt_check_addr_validity(session, ta->newest_start_durable_ts, ta->oldest_start_ts,
-          ta->oldest_start_txn, ta->newest_stop_durable_ts, ta->newest_stop_ts,
-          ta->newest_stop_txn);
+        __wt_check_addr_validity(session, ta);
         break;
     case WT_CELL_DEL:
     case WT_CELL_VALUE:
@@ -957,7 +954,7 @@ done:
     if (copy.len != 0) {
         unpack->raw = WT_CELL_VALUE_COPY;
         unpack->v = copy.v;
-        __wt_time_window_copy(tw, copy.tw);
+        __wt_time_window_copy(tw, &copy.tw);
         unpack->__len = copy.len;
     }
 
@@ -975,8 +972,8 @@ __wt_cell_unpack_dsk(
     WT_TIME_AGGREGATE *ta;
     WT_TIME_WINDOW *tw;
 
-    ta = &unpack.ta;
-    tw = &unpack.tw;
+    ta = &unpack->ta;
+    tw = &unpack->tw;
 
     /*
      * Row-store doesn't store zero-length values on pages, but this allows us to pretend.
