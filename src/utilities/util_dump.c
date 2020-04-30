@@ -155,7 +155,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
          * case, we're specifically interested in what is visible at a given read timestamp.
          */
         if (WT_STREQ(simpleuri, WT_HS_URI) && timestamp == NULL)
-            F_SET(session_impl, WT_SESSION_IGNORE_HS_TOMBSTONE);
+            F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
         if (dump_config(session, simpleuri, cursor, hex, json) != 0)
             goto err;
 
@@ -179,7 +179,7 @@ err:
         ret = 1;
     }
 
-    F_CLR(session_impl, WT_SESSION_IGNORE_HS_TOMBSTONE);
+    F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     if (cursor != NULL && (ret = cursor->close(cursor)) != 0)
         ret = util_err(session, ret, NULL);
     if (ofile != NULL && (ret = fclose(fp)) != 0)
