@@ -159,9 +159,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     page_flags = WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
     if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
-    F_SET(session, WT_SESSION_INSTANTIATE_PREPARED);
     WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused));
-    F_CLR(session, WT_SESSION_INSTANTIATE_PREPARED);
     tmp.mem = NULL;
 
 skip_read:
@@ -179,7 +177,6 @@ skip_read:
     return (0);
 
 err:
-    F_CLR(session, WT_SESSION_INSTANTIATE_PREPARED);
     /*
      * If the function building an in-memory version of the page failed, it discarded the page, but
      * not the disk image. Discard the page and separately discard the disk image in all cases.
