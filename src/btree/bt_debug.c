@@ -167,7 +167,8 @@ __debug_time_pairs(WT_DBG *ds, const char *tag, wt_timestamp_t durable_start_ts,
     char tp_string[2][WT_TP_STRING_SIZE];
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    return (ds->f(ds, "\t%s%s%s,%s,%s,%s\n", tag == NULL ? "" : tag, tag == NULL ? "" : " ",
+    return (ds->f(ds, "\t%s%s%s,%s start/stop ts/txn %s,%s\n", tag == NULL ? "" : tag,
+      tag == NULL ? "durable start/stop ts " : " durable start/stop ts ",
       __wt_timestamp_to_string(durable_start_ts, ts_string[0]),
       __wt_timestamp_to_string(durable_stop_ts, ts_string[1]),
       __wt_time_pair_to_string(start_ts, start_txn, tp_string[0]),
@@ -1430,7 +1431,7 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        WT_RET(ds->f(ds, ", ts/txn %s,%s,%s,%s",
+        WT_RET(ds->f(ds, ", newest durable start/stop ts: %s,%s start/stop ts/txn %s,%s",
           __wt_timestamp_to_string(unpack->newest_start_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(unpack->newest_stop_durable_ts, ts_string[1]),
           __wt_time_pair_to_string(unpack->oldest_start_ts, unpack->oldest_start_txn, tp_string[0]),
@@ -1442,7 +1443,7 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
     case WT_CELL_VALUE_SHORT:
-        WT_RET(ds->f(ds, ", ts/txn %s,%s,%s,%s",
+        WT_RET(ds->f(ds, ", durable start/stop ts: %s,%s start/stop ts/txn %s,%s",
           __wt_timestamp_to_string(unpack->durable_start_ts, ts_string[0]),
           __wt_timestamp_to_string(unpack->durable_stop_ts, ts_string[1]),
           __wt_time_pair_to_string(unpack->start_ts, unpack->start_txn, tp_string[0]),
