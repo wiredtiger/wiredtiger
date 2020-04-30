@@ -147,7 +147,7 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 err:
     /* Something really bad just happened. */
-    WT_PANIC_RET(session, ret, "fatal error during page split");
+    WT_RET_PANIC(session, ret, "fatal error during page split");
 }
 #endif
 

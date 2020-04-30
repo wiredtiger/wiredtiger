@@ -1658,7 +1658,7 @@ err:
         F_CLR(session, WT_SESSION_RESOLVING_TXN);
     } else if (F_ISSET(txn, WT_TXN_RUNNING)) {
         if (F_ISSET(txn, WT_TXN_PREPARE))
-            WT_PANIC_RET(session, ret, "failed to commit prepared transaction, failing the system");
+            WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
 
         WT_TRET(__wt_session_reset_cursors(session, false));
         F_SET(session, WT_SESSION_RESOLVING_TXN);

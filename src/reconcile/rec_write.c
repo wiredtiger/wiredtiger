@@ -1111,7 +1111,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len, bool 
      * page.
      */
     if (r->salvage != NULL)
-        WT_PANIC_RET(session, WT_PANIC, "%s page too large, attempted split during salvage",
+        WT_RET_PANIC(session, WT_PANIC, "%s page too large, attempted split during salvage",
           __wt_page_type_string(r->page->type));
 
     /*

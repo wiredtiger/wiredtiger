@@ -232,7 +232,7 @@ err:
     group->min = new_min;
     WT_TRET(__wt_thread_group_destroy(session, group));
 
-    WT_PANIC_RET(session, ret, "Error while resizing thread group");
+    WT_RET_PANIC(session, ret, "Error while resizing thread group");
 }
 
 /*

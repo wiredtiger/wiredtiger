@@ -1144,7 +1144,7 @@ err:
      * a prepared transaction.
      */
     if (prepare)
-        WT_PANIC_RET(session, ret, "failed to commit prepared transaction, failing the system");
+        WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
 
     WT_TRET(__wt_txn_rollback(session, cfg));
     return (ret);

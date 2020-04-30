@@ -50,7 +50,7 @@
 #define WT_ERR_NOTFOUND_OK(a, keep) WT_ERR_ERROR_OK(a, WT_NOTFOUND, keep)
 
 /* Return WT_PANIC regardless of earlier return codes. */
-#define WT_PANIC_ERR(session, v, ...) WT_ERR(__wt_panic(session, v, __VA_ARGS__))
+#define WT_ERR_PANIC(session, v, ...) WT_ERR(__wt_panic(session, v, __VA_ARGS__))
 
 /* Return tests. */
 #define WT_RET(a)               \
@@ -105,7 +105,7 @@
 #define WT_TRET_NOTFOUND_OK(a) WT_TRET_ERROR_OK(a, WT_NOTFOUND)
 
 /* Return WT_PANIC regardless of earlier return codes. */
-#define WT_PANIC_RET(session, v, ...) return (__wt_panic(session, v, __VA_ARGS__))
+#define WT_RET_PANIC(session, v, ...) return (__wt_panic(session, v, __VA_ARGS__))
 
 /* Called on unexpected code path: locate the failure. */
 #define __wt_illegal_value(session, v)             \

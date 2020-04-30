@@ -461,7 +461,7 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
         return (0);
     }
 
-    WT_PANIC_RET(session, EINVAL, "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64
+    WT_RET_PANIC(session, EINVAL, "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64
                                   " then "
                                   "key %" PRIu64,
       next ? "next" : "prev", cbt->lastrecno, cbt->recno);
@@ -494,7 +494,7 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     WT_ERR(__wt_scr_alloc(session, 512, &a));
     WT_ERR(__wt_scr_alloc(session, 512, &b));
 
-    WT_PANIC_ERR(session, EINVAL,
+    WT_ERR_PANIC(session, EINVAL,
       "WT_CURSOR.%s out-of-order returns: returned key %.1024s then "
       "key %.1024s",
       next ? "next" : "prev", __wt_buf_set_printable_format(session, cbt->lastkey->data,

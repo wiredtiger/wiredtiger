@@ -334,7 +334,7 @@ __block_off_remove(
         __block_size_srch(el->sz, ext->size, sstack);
         szp = *sstack[0];
         if (szp == NULL || szp->size != ext->size)
-            WT_PANIC_RET(session, EINVAL, "extent not found in by-size list during remove");
+            WT_RET_PANIC(session, EINVAL, "extent not found in by-size list during remove");
         __block_off_srch(szp->off, off, astack, true);
         ext = *astack[0];
         if (ext == NULL || ext->off != off)
@@ -641,7 +641,7 @@ __wt_block_extlist_check(WT_SESSION_IMPL *session, WT_EXTLIST *al, WT_EXTLIST *b
             b = b->next[0];
             continue;
         }
-        WT_PANIC_RET(session, EINVAL, "checkpoint merge check: %s list overlaps the %s list",
+        WT_RET_PANIC(session, EINVAL, "checkpoint merge check: %s list overlaps the %s list",
           al->name, bl->name);
     }
     return (0);
