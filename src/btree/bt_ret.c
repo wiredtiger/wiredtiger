@@ -276,9 +276,16 @@ __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
     session = (WT_SESSION_IMPL *)cbt->iface.session;
 
     F_CLR(cursor, WT_CURSTD_VALUE_EXT);
-    if (upd_value->type == WT_UPDATE_INVALID)
+    if (upd_value->type == WT_UPDATE_INVALID) {
+        /*
+         * FIXME: This is a holdover from the pre-durable history read logic where we used to
+         * fallback to the on-page value if we didn't find a visible update elsewhere. This is still
+         * required for fixed length column store as we have issues with this table type in durable
+         * history which we're planning to address in PM-1814.
+         */
+        WT_ASSERT(session, cbt->btree->type == BTREE_COL_FIX);
         WT_RET(__value_return(cbt));
-    else {
+    } else {
         /*
          * We're passed a "standard" update that's visible to us. Our caller should have already
          * checked for deleted items (we're too far down the call stack to return not-found) and any

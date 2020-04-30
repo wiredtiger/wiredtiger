@@ -838,7 +838,7 @@ retry:
          * If not overwriting, fail if the key exists, else insert the key/value pair.
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) && cbt->compare == 0) {
-            WT_WITH_UPD_VALUE_SKIP_BUF(
+            WT_WITH_UPDATE_VALUE_SKIP_BUF(
               ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
             WT_ERR(ret);
             if (valid)
@@ -866,7 +866,8 @@ retry:
          */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
             if (cbt->compare == 0) {
-                WT_WITH_UPD_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+                WT_WITH_UPDATE_VALUE_SKIP_BUF(
+                  ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
                 WT_ERR(ret);
                 if (valid)
                     WT_ERR(WT_DUPLICATE_KEY);
@@ -1067,7 +1068,7 @@ retry:
 
         if (cbt->compare != 0)
             goto search_notfound;
-        WT_WITH_UPD_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+        WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
         WT_ERR(ret);
         if (!valid)
             goto search_notfound;
@@ -1087,7 +1088,7 @@ retry:
         /* Remove the record if it exists. */
         valid = false;
         if (cbt->compare == 0) {
-            WT_WITH_UPD_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+            WT_WITH_UPDATE_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
             WT_ERR(ret);
         }
         if (cbt->compare != 0 || !valid) {
@@ -1272,7 +1273,7 @@ update_local:
             WT_ERR(__curfile_update_check(cbt));
             if (cbt->compare != 0)
                 WT_ERR(WT_NOTFOUND);
-            WT_WITH_UPD_VALUE_SKIP_BUF(
+            WT_WITH_UPDATE_VALUE_SKIP_BUF(
               ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
             WT_ERR(ret);
             if (!valid)
@@ -1290,7 +1291,8 @@ update_local:
             WT_ERR(__curfile_update_check(cbt));
             valid = false;
             if (cbt->compare == 0) {
-                WT_WITH_UPD_VALUE_SKIP_BUF(ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+                WT_WITH_UPDATE_VALUE_SKIP_BUF(
+                  ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
                 WT_ERR(ret);
             }
             if ((cbt->compare != 0 || !valid) && !__cursor_fix_implicit(btree, cbt))

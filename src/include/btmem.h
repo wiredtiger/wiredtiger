@@ -1141,7 +1141,13 @@ struct __wt_update_value {
     bool skip_buf;
 };
 
-#define WT_WITH_UPD_VALUE_SKIP_BUF(op)    \
+/*
+ * WT_WITH_UPDATE_VALUE_SKIP_BUF --
+ *
+ * A helper macro to use for calling read functions when we're checking for the existence of a given
+ * key. This means that read functions can avoid the performance penalty of reconstructing modifies.
+ */
+#define WT_WITH_UPDATE_VALUE_SKIP_BUF(op) \
     do {                                  \
         cbt->upd_value->skip_buf = true;  \
         op;                               \
