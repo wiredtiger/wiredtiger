@@ -557,7 +557,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     /* Walk the page, building indices. */
     rip = page->pg_row;
     WT_CELL_FOREACH_BEGIN (session, btree, page->dsk, unpack) {
-        if (F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE))
+        if (F_ISSET_ATOMIC(page, WT_PAGE_INSTANTIATE_PREPARE_UPDATE) &&
+          F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE))
             prepare = true;
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
@@ -601,6 +602,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
      * all non obsolete updates will retain on the page as part of __split_multi_inmem function.
      */
     if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+        __wt_verbose(session, WT_VERB_RTS, "instantiate prepared updates for a page: %p", page);
+
         WT_RET(__wt_page_modify_init(session, page));
         if (!F_ISSET(btree, WT_BTREE_READONLY))
             __wt_page_modify_set(session, page);
@@ -621,12 +624,12 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                     WT_RET(__wt_page_cell_data_ref(session, page, &unpack, &buf));
 
                     WT_RET(__wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, &upd, &size));
-                    upd->durable_ts = unpack.durable_start_ts;
+                    upd->durable_ts = WT_TS_NONE;
                     upd->start_ts = unpack.start_ts;
                     upd->txnid = unpack.start_txn;
                 } else {
                     WT_RET(__wt_upd_alloc_tombstone(session, &upd, &size));
-                    upd->durable_ts = unpack.durable_stop_ts;
+                    upd->durable_ts = WT_TS_NONE;
                     upd->start_ts = unpack.stop_ts;
                     upd->txnid = unpack.stop_txn;
                 }
