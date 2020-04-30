@@ -816,8 +816,11 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
      * Now assign to the update value. If it's not a modify, we're free to simply point the value at
      * the update's memory without owning it. If it is a modify, we need to reconstruct the full
      * update now and make the value own the buffer.
+     *
+     * If the caller has specifically asked us to skip assigning the buffer, we shouldn't bother
+     * reconstructing the modify.
      */
-    if (upd->type != WT_UPDATE_MODIFY)
+    if (upd->type != WT_UPDATE_MODIFY || cbt->upd_value->skip_buf)
         __wt_upd_value_assign(cbt->upd_value, upd);
     else
         WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
@@ -838,8 +841,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     WT_TIME_PAIR start, stop;
 
     WT_RET(__wt_txn_read_upd_list(session, cbt, upd));
-    if (cbt->upd_value->buf.data != NULL || cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
+    if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
+      (cbt->upd_value->type == WT_UPDATE_MODIFY && cbt->upd_value->skip_buf))
         return (0);
+    WT_ASSERT(session, cbt->upd_value->type == WT_UPDATE_INVALID);
 
     /* If there is no ondisk value, there can't be anything in the history store either. */
     if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
@@ -885,6 +890,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
           session, (F_ISSET(session, WT_SESSION_RESOLVING_MODIFY) && WT_IS_HS(S2BT(session))) ||
             !F_ISSET(session, WT_SESSION_RESOLVING_MODIFY));
 
+        if (cbt->upd_value->skip_buf) {
+            cbt->upd_value->buf.data = NULL;
+            cbt->upd_value->buf.size = 0;
+        }
         cbt->upd_value->start_ts = start.timestamp;
         cbt->upd_value->txnid = start.txnid;
         cbt->upd_value->type = WT_UPDATE_STANDARD;
@@ -1257,8 +1266,10 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
 static inline void
 __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
 {
-    upd_value->buf.data = upd->data;
-    upd_value->buf.size = upd->size;
+    if (!upd_value->skip_buf) {
+        upd_value->buf.data = upd->data;
+        upd_value->buf.size = upd->size;
+    }
     upd_value->start_ts = upd->start_ts;
     upd_value->txnid = upd->txnid;
     upd_value->type = upd->type;

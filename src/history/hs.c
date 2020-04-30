@@ -954,6 +954,13 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     WT_ASSERT(session, upd_type != WT_UPDATE_TOMBSTONE);
 
     /*
+     * If the caller has signalled they don't need the value buffer, don't bother reconstructing a
+     * modify update or copying the contents into the value buffer.
+     */
+    if (upd_value->skip_buf)
+        goto skip_buf;
+
+    /*
      * Keep walking until we get a non-modify update. Once we get to that point, squash the updates
      * together.
      */
@@ -1041,6 +1048,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
      * update other than to work with our modify vector implementation.
      */
     WT_ERR(__wt_buf_set(session, &upd_value->buf, hs_value->data, hs_value->size));
+skip_buf:
     upd_value->start_ts = hs_start_ts;
     upd_value->txnid = WT_TXN_NONE;
     upd_value->type = upd_type;
