@@ -164,6 +164,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (json && dump_json_table_end(session) != 0)
             goto err;
 
+        F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
         ret = cursor->close(cursor);
         cursor = NULL;
         if (ret != 0) {
@@ -179,7 +180,8 @@ err:
         ret = 1;
     }
 
-    F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+    if (cursor != NULL)
+        F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     if (cursor != NULL && (ret = cursor->close(cursor)) != 0)
         ret = util_err(session, ret, NULL);
     if (ofile != NULL && (ret = fclose(fp)) != 0)
