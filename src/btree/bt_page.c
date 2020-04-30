@@ -602,8 +602,6 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
      * all non obsolete updates will retain on the page as part of __split_multi_inmem function.
      */
     if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-        __wt_verbose(session, WT_VERB_RTS, "instantiate prepared updates for a page: %p", page);
-
         WT_RET(__wt_page_modify_init(session, page));
         if (!F_ISSET(btree, WT_BTREE_READONLY))
             __wt_page_modify_set(session, page);
