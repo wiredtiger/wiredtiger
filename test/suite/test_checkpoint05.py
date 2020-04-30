@@ -28,7 +28,7 @@
 #
 # test_checkpoint05.py
 # Verify that we don't accumulate a lot of checkpoints while a backup
-# cursor is open. WiredTiger checkpoints created after the backup cursor 
+# cursor is open. WiredTiger checkpoints created after the backup cursor
 # should get deleted as usual.
 
 import time
@@ -74,7 +74,7 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
 
 	# Insert some data and take checkpoints
 	self.do_updates(0)
-    
+
 	backup_cursor = self.session.open_cursor('backup:', None, None)
 	initial_count = self.count_checkpoints()
 

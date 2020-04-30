@@ -986,16 +986,15 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         } else
             conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
 
-	/*
-	 * Save clock value marking end of checkpoint processing.  If a hot backup starts before
-	 * the next checkpoint, we will need to keep all checkpoints up to this clock value until
-	 * the backup completes.
-	 */
-	__wt_seconds(session, &finish_secs);
-	/* Be defensive: time is only monotonic per session */
-	if (finish_secs > conn->ckpt_finish_secs)
-	    conn->ckpt_finish_secs = finish_secs;
-
+        /*
+         * Save clock value marking end of checkpoint processing. If a hot backup starts before the
+         * next checkpoint, we will need to keep all checkpoints up to this clock value until the
+         * backup completes.
+         */
+        __wt_seconds(session, &finish_secs);
+        /* Be defensive: time is only monotonic per session */
+        if (finish_secs > conn->ckpt_finish_secs)
+            conn->ckpt_finish_secs = finish_secs;
     }
 
 err:
@@ -1262,9 +1261,9 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
         is_wt_ckpt = WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT);
 
         /*
-         * If there is a hot backup, don't delete any WiredTiger checkpoint that could possibly
-         * have been created before the backup started. Fail if trying to delete any other 
-	 * named checkpoint.
+         * If there is a hot backup, don't delete any WiredTiger checkpoint that could possibly have
+         * been created before the backup started. Fail if trying to delete any other named
+         * checkpoint.
          */
         if (conn->hot_backup_start != 0 && ckpt->sec <= conn->hot_backup_start) {
             if (is_wt_ckpt) {
