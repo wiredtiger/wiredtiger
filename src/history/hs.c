@@ -360,7 +360,6 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_UPDATE *hs_upd;
-    uint32_t cursor_flags;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = NULL;
@@ -425,7 +424,6 @@ err:
          */
         WT_TRET(__wt_cursor_key_order_init(cbt));
 #endif
-        cursor_flags = cursor->flags;
         F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
         /* We're pointing at the newly inserted update. Iterate once more to avoid deleting it. */
         ret = cursor->next(cursor);
@@ -435,8 +433,7 @@ err:
             WT_TRET(__hs_delete_key_from_pos(session, cursor, btree->id, key));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
         }
-        if (!FLD_ISSET(cursor_flags, WT_CURSTD_IGNORE_TOMBSTONE))
-            F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+        F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     }
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
@@ -1158,7 +1155,7 @@ int
 __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key)
 {
     WT_DECL_RET;
-    uint32_t cursor_flags, session_flags;
+    uint32_t session_flags;
     bool is_owner;
 
     session_flags = session->flags;
@@ -1177,15 +1174,13 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
      * In order to delete a key range, we need to be able to inspect all history store records
      * regardless of their stop time pairs.
      */
-    cursor_flags = session->hs_cursor->flags;
     F_SET(session->hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
 
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_delete_key_int(session, btree_id, key)) == WT_RESTART)
         ;
 
-    if (!FLD_ISSET(cursor_flags, WT_CURSTD_IGNORE_TOMBSTONE))
-        F_CLR(session->hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+    F_CLR(session->hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
 
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
     return (ret);
