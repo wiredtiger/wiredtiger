@@ -10,9 +10,9 @@
 
 /*
  * When an operation is accessing the history store table, it should ignore the cache size (since
- * the cache is already full), and the operation can't reenter reconciliation.
+ * the cache is already full).
  */
-#define WT_HS_SESSION_FLAGS (WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_NO_RECONCILE)
+#define WT_HS_SESSION_FLAGS WT_SESSION_IGNORE_CACHE_SIZE
 
 static int __hs_delete_key_from_pos(
   WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key);
