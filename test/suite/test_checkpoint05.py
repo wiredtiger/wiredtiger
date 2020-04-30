@@ -51,7 +51,7 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
         ckpt_freq = 10
 
         cursor = self.session.open_cursor(self.uri, None)
-        for i in xrange(n * nops, (n + 1) * nops - 1):
+        for i in range(n * nops, (n + 1) * nops - 1):
             cursor[self.make_key(i)] = self.make_value(i)
             if i % ckpt_freq == 0:
                 self.session.checkpoint(None)
