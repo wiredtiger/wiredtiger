@@ -1588,7 +1588,7 @@ extern void __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 extern void __wt_block_configure_first_fit(WT_BLOCK *block, bool on);
 extern void __wt_block_ext_free(WT_SESSION_IMPL *session, WT_EXT *ext);
 extern void __wt_block_extlist_free(WT_SESSION_IMPL *session, WT_EXTLIST *el);
-extern void __wt_block_panic(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((cold));
+extern void __wt_block_set_readonly(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((cold));
 extern void __wt_block_size_free(WT_SESSION_IMPL *session, WT_SIZE *sz);
 extern void __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats);
 extern void __wt_bloom_hash(WT_BLOOM *bloom, WT_ITEM *key, WT_BLOOM_HASH *bhash);

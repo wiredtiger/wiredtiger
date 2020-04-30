@@ -630,11 +630,11 @@ err:
 }
 
 /*
- * __wt_block_panic --
+ * __wt_block_set_readonly --
  *     Set the block API to read-only.
  */
 void
-__wt_block_panic(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((cold))
+__wt_block_set_readonly(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     /* Switch the handle into read-only mode. */
     __bm_method_set(S2BT(session)->bm, true);
