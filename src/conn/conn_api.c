@@ -2283,7 +2283,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session, *verify_session;
-    bool config_base_set, try_salvage, verify_meta;
+    bool config_base_set, try_salvage;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
 
@@ -2387,11 +2387,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     /* Make sure no other thread of control already owns this database. */
     WT_ERR(__conn_single(session, cfg));
 
-    /*
-     * Set compatibility versions early so that any subsystem sees it. Call after we own the
-     * database so that we can know if the database is new or not. Compatibility testing needs to
-     * know if salvage has been set, so parse that early.
-     */
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
         if (F_ISSET(conn, WT_CONN_READONLY))
@@ -2399,6 +2394,11 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         F_SET(conn, WT_CONN_SALVAGE);
     }
 
+    /*
+     * Set compatibility versions early so that any subsystem sees it. Call after we own the
+     * database so that we can know if the database is new or not. Compatibility testing needs to
+     * know if salvage has been set, so parse that early.
+     */
     WT_ERR(__wt_conn_compat_config(session, cfg, false));
 
     /*
@@ -2653,13 +2653,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_turtle_init(session));
     WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
-    verify_meta = cval.val;
+    if (cval.val)
+        F_SET(conn, WT_CONN_VERIFY_METADATA);
 
     /* Only verify the metadata file first. We will verify the history store table later.  */
-    if (verify_meta) {
+    if (F_ISSET(conn, WT_CONN_VERIFY_METADATA)) {
         wt_session = &session->iface;
-        ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
-        WT_ERR(ret);
+        WT_ERR(wt_session->verify(wt_session, WT_METAFILE_URI, NULL));
     }
 
     /*
@@ -2687,17 +2687,16 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_connection_workers(session, cfg));
 
     /*
-     * If the user wants to verify WiredTiger metadata, verify the history store now that the
-     * metadata table may have been salvaged and eviction has been started and recovery run.
+     * If the user wants to verify WiredTiger metadata, verify the history store relationships now
+     * that the metadata table may have been salvaged, eviction has been started and recovery run.
      */
-    if (verify_meta) {
+    if (F_ISSET(conn, WT_CONN_VERIFY_METADATA)) {
         WT_ERR(__wt_open_internal_session(conn, "verify hs", false, 0, &verify_session));
         ret = __wt_history_store_verify(verify_session);
         wt_session = &verify_session->iface;
         WT_TRET(wt_session->close(wt_session, NULL));
         WT_ERR(ret);
     }
-
     /*
      * The default session should not open data handles after this point: since it can be shared
      * between threads, relying on session->dhandle is not safe.

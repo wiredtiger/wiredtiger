@@ -353,10 +353,11 @@ __wt_evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_WITH_PASS_LOCK(session, ret = __evict_clear_all_walks(session));
     WT_ERR(ret);
     /*
-     * The only two cases when the eviction server is expected to stop are when recovery is finished
-     * or when the connection is closing.
+     * The only cases when the eviction server is expected to stop are when recovery is finished,
+     * when the connection is closing or when verifying metadata (in particular the history store).
      */
-    WT_ASSERT(session, F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_RECOVERING));
+    WT_ASSERT(
+      session, F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_RECOVERING | WT_CONN_VERIFY_METADATA));
 
     __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "cache eviction thread exiting");
 
@@ -2315,9 +2316,11 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     for (initial_progress = cache->eviction_progress;; ret = 0) {
         /*
          * If eviction is stuck, check if this thread is likely causing problems and should be
-         * rolled back. Ignore if in recovery, those transactions can't be rolled back.
+         * rolled back. Ignore if in recovery or verifying metadata, those transactions can't be
+         * rolled back.
          */
-        if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_cache_stuck(session)) {
+        if (!F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_VERIFY_METADATA) &&
+          __wt_cache_stuck(session)) {
             ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
                 --cache->evict_aggressive_score;

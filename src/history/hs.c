@@ -142,9 +142,13 @@ __wt_hs_create(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_SESSION *wt_session;
+    WT_SESSION_IMPL *verify_session;
     const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
+    bool evict_started, exists;
 
     conn = S2C(session);
+    evict_started = false;
 
     /* Read-only and in-memory configurations don't need the history store table. */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
@@ -155,16 +159,39 @@ __wt_hs_create(WT_SESSION_IMPL *session, const char **cfg)
       session, ret = __wt_schema_drop(session, "file:WiredTigerLAS.wt", drop_cfg));
     WT_RET(ret);
 
-    /* Re-create the table. */
-    WT_RET(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
+    WT_RET(__wt_fs_exist(session, WT_HS_FILE, &exists));
+    if (!exists)
+        /* Re-create the table. */
+        WT_RET(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
+    else if (F_ISSET(conn, WT_CONN_VERIFY_METADATA)) {
+        /*
+         * If the user asked to verify the metadata, verify the history store table now. That has
+         * two parts. First call verify on the table itself. We do that here when we know we have
+         * exclusive access. The second part is done after recovery is run so that the history store
+         * and tables are recovered.
+         *
+         * Start and stop eviction here because the history store can be very large, larger than the
+         * cache. We then stop it when done.
+         */
+        WT_RET(__wt_evict_create(session));
+        evict_started = true;
+        WT_ERR(__wt_open_internal_session(conn, "verify hs", false, 0, &verify_session));
+        wt_session = &verify_session->iface;
+        ret = wt_session->verify(wt_session, WT_HS_URI, NULL);
+        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_ERR(ret);
+    }
 
-    WT_RET(__wt_hs_config(session, cfg));
+    WT_ERR(__wt_hs_config(session, cfg));
 
     /* The statistics server is already running, make sure we don't race. */
     WT_WRITE_BARRIER();
     F_SET(conn, WT_CONN_HS_OPEN);
+err:
+    if (evict_started)
+        WT_TRET(__wt_evict_destroy(session));
 
-    return (0);
+    return (ret);
 }
 
 /*
@@ -1304,11 +1331,13 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
 #endif
         WT_ERR(__cursor_reset(cbt));
 
-        if (!found)
+        if (!found) {
+            F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_MSG(session, WT_PANIC,
               "the associated history store key %s was not found in the data store %s",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key),
               session->dhandle->name);
+        }
 
         /* Swap current/previous buffers. */
         tmp = hs_key;
@@ -1406,11 +1435,13 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
          * first key of a new btree id.
          */
         WT_ERR(cursor->get_key(cursor, &btree_id, hs_key, &hs_start_ts, &hs_counter));
-        if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0)
+        if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0) {
+            F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_MSG(session, WT_PANIC,
               "Unable to find btree id %" PRIu32
               " in the metadata file for the associated history store key %s",
               btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, buf));
+        }
         WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &data_cursor));
         F_SET(data_cursor, WT_CURSOR_RAW_OK);
         ret = __verify_history_store_id(session, (WT_CURSOR_BTREE *)data_cursor, btree_id);

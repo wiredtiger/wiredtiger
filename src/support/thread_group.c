@@ -43,12 +43,12 @@ err:
 
     /*
      * The three cases when threads are expected to stop are:
-     * 1.  When recovery is done.
+     * 1.  When recovery or verifying metadata is done.
      * 2.  When the connection is closing.
      * 3.  When a shutdown has been requested via clearing the run flag.
      */
     WT_ASSERT(session, !F_ISSET(thread, WT_THREAD_RUN) ||
-        F_ISSET(S2C(session), WT_CONN_CLOSING | WT_CONN_RECOVERING));
+        F_ISSET(S2C(session), WT_CONN_CLOSING | WT_CONN_RECOVERING | WT_CONN_VERIFY_METADATA));
 
     return (WT_THREAD_RET_VALUE);
 }
