@@ -784,6 +784,9 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     session = (WT_SESSION_IMPL *)cursor->session;
     yield_count = sleep_usecs = 0;
 
+    WT_RET_PANIC_ASSERT(
+      session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
+
     WT_STAT_CONN_INCR(session, cursor_insert);
     WT_STAT_DATA_INCR(session, cursor_insert);
     WT_STAT_CONN_INCRV(session, cursor_insert_bytes, insert_bytes);
@@ -792,9 +795,6 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
-
-    WT_RET_ASSERT(
-      session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
 
     /* It's no longer possible to bulk-load into the tree. */
     __wt_cursor_disable_bulk(session);
@@ -1206,7 +1206,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     session = (WT_SESSION_IMPL *)cursor->session;
     yield_count = sleep_usecs = 0;
 
-    WT_RET_ASSERT(
+    WT_RET_PANIC_ASSERT(
       session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
 
     /* It's no longer possible to bulk-load into the tree. */

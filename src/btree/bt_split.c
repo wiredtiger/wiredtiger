@@ -574,17 +574,18 @@ err:
     case WT_ERR_RETURN:
         __wt_free_ref_index(session, root, alloc_index, true);
         break;
-    case WT_ERR_PANIC:
-        __wt_err(session, ret, "fatal error during root page split to deepen the tree");
-        ret = WT_PANIC;
-        break;
     case WT_ERR_IGNORE:
-        if (ret != 0 && ret != WT_PANIC) {
-            __wt_err(session, ret,
-              "ignoring not-fatal error during root page split "
-              "to deepen the tree");
+        if (ret == 0)
+            break;
+        if (ret != WT_PANIC) {
+            __wt_err(
+              session, ret, "ignoring not-fatal error during root page split to deepen the tree");
             ret = 0;
+            break;
         }
+    /* FALLTHROUGH */
+    case WT_ERR_PANIC:
+        ret = __wt_panic(session, ret, "fatal error during root page split to deepen the tree");
         break;
     }
     return (ret);
@@ -877,17 +878,17 @@ err:
         if (empty_parent)
             ret = __wt_set_return(session, EBUSY);
         break;
-    case WT_ERR_PANIC:
-        __wt_err(session, ret, "fatal error during parent page split");
-        ret = WT_PANIC;
-        break;
     case WT_ERR_IGNORE:
-        if (ret != 0 && ret != WT_PANIC) {
-            __wt_err(session, ret,
-              "ignoring not-fatal error during parent page "
-              "split");
+        if (ret == 0)
+            break;
+        if (ret != WT_PANIC) {
+            __wt_err(session, ret, "ignoring not-fatal error during parent page split");
             ret = 0;
+            break;
         }
+    /* FALLTHROUGH */
+    case WT_ERR_PANIC:
+        ret = __wt_panic(session, ret, "fatal error during parent page split");
         break;
     }
     __wt_scr_free(session, &scr);
@@ -1154,17 +1155,17 @@ err:
         }
         __wt_free_ref_index(session, page, alloc_index, true);
         break;
-    case WT_ERR_PANIC:
-        __wt_err(session, ret, "fatal error during internal page split");
-        ret = WT_PANIC;
-        break;
     case WT_ERR_IGNORE:
-        if (ret != 0 && ret != WT_PANIC) {
-            __wt_err(session, ret,
-              "ignoring not-fatal error during internal page "
-              "split");
+        if (ret == 0)
+            break;
+        if (ret != WT_PANIC) {
+            __wt_err(session, ret, "ignoring not-fatal error during internal page split");
             ret = 0;
+            break;
         }
+    /* FALLTHROUGH */
+    case WT_ERR_PANIC:
+        ret = __wt_panic(session, ret, "fatal error during internal page split");
         break;
     }
     return (ret);

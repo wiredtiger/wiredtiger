@@ -59,8 +59,8 @@ __wt_txn_err_set(WT_SESSION_IMPL *session, int ret)
      * a prepared transaction.
      */
     if (F_ISSET(txn, WT_TXN_PREPARE))
-        WT_PANIC_MSG(session, ret,
-          "transactional error logged after transaction was prepared, failing the system");
+        WT_IGNORE_RET(__wt_panic(session, ret,
+          "transactional error logged after transaction was prepared, failing the system"));
 }
 
 /*

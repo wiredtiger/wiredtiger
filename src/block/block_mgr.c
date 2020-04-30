@@ -631,13 +631,11 @@ err:
 
 /*
  * __wt_block_panic --
- *     Report an error, then panic the handle and the system.
+ *     Set the block API to read-only.
  */
-int
+void
 __wt_block_panic(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     /* Switch the handle into read-only mode. */
     __bm_method_set(S2BT(session)->bm, true);
-
-    return (__wt_panic(session));
 }

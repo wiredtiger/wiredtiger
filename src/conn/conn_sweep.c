@@ -325,7 +325,7 @@ __sweep_server(void *arg)
 
     if (0) {
 err:
-        WT_PANIC_MSG(session, ret, "handle sweep server error");
+        ret = __wt_panic(session, ret, "handle sweep server error");
     }
     return (WT_THREAD_RET_VALUE);
 }

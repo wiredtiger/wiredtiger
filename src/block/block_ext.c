@@ -13,11 +13,12 @@
  *	Handle extension list errors that would normally panic the system but
  * which should fail gracefully when verifying.
  */
-#define WT_BLOCK_RET(session, block, v, ...)                    \
-    do {                                                        \
-        int __ret = (v);                                        \
-        __wt_err(session, __ret, __VA_ARGS__);                  \
-        return ((block)->verify ? __ret : __wt_panic(session)); \
+#define WT_BLOCK_RET(session, block, v, ...)                                          \
+    do {                                                                              \
+        int __ret = (v);                                                              \
+        __wt_err(session, __ret, __VA_ARGS__);                                        \
+        return ((block)->verify ? __ret : __wt_panic(session, WT_PANIC,               \
+                                            "block manager extension list failure")); \
     } while (0)
 
 static int __block_append(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
@@ -297,13 +298,10 @@ __wt_block_misplaced(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *list
     else if (live && __block_off_match(&block->live.discard, offset, size))
         name = "discard";
     __wt_spin_unlock(session, &block->live_lock);
-    if (name != NULL) {
-        __wt_errx(session, "%s failed: %" PRIuMAX "/%" PRIu32
-                           " is on the %s list "
-                           "(%s, %d)",
-          list, (uintmax_t)offset, size, name, func, line);
-        return (__wt_panic(session));
-    }
+    if (name != NULL)
+        return (__wt_panic(session, WT_PANIC,
+          "%s failed: %" PRIuMAX "/%" PRIu32 " is on the %s list (%s, %d)", list, (uintmax_t)offset,
+          size, name, func, line));
     return (0);
 }
 #endif

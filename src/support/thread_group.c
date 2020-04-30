@@ -39,7 +39,7 @@ err:
         ret = thread->stop_func(session, thread);
 
     if (ret != 0 && F_ISSET(thread, WT_THREAD_PANIC_FAIL))
-        WT_PANIC_MSG(session, ret, "Unrecoverable utility thread error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "Unrecoverable utility thread error"));
 
     /*
      * The three cases when threads are expected to stop are:
