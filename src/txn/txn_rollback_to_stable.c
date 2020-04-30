@@ -354,7 +354,7 @@ __rollback_abort_row_ondisk_kv(
     WT_DECL_RET;
     WT_ITEM buf;
     WT_UPDATE *upd;
-    char ts_string[3][WT_TS_INT_STRING_SIZE];
+    char ts_string[4][WT_TS_INT_STRING_SIZE];
     bool prepared;
 
     vpack = &_vpack;
@@ -364,10 +364,10 @@ __rollback_abort_row_ondisk_kv(
     if (vpack->durable_start_ts > rollback_timestamp ||
       (vpack->durable_stop_ts == WT_TS_NONE && prepared)) {
         __wt_verbose(session, WT_VERB_RTS,
-          "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s and "
-          "stable timestamp: %s",
+          "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s, "
+          "prepared: %s and stable timestamp: %s",
           __wt_timestamp_to_string(vpack->durable_start_ts, ts_string[0]),
-          __wt_timestamp_to_string(vpack->start_ts, ts_string[1]),
+          __wt_timestamp_to_string(vpack->start_ts, ts_string[1]), prepared ? "true" : "false",
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             return (__rollback_row_ondisk_fixup_key(session, page, rip, rollback_timestamp, true));
@@ -379,9 +379,8 @@ __rollback_abort_row_ondisk_kv(
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
         }
-    } else if ((vpack->durable_stop_ts != WT_TS_NONE &&
-                 vpack->durable_stop_ts > rollback_timestamp) ||
-      prepared) {
+    } else if (vpack->durable_stop_ts != WT_TS_NONE &&
+      (vpack->durable_stop_ts > rollback_timestamp || prepared)) {
         /*
          * Clear the remove operation from the key by inserting the original on-disk value as a
          * standard update.
@@ -402,9 +401,14 @@ __rollback_abort_row_ondisk_kv(
         upd->start_ts = vpack->start_ts;
         WT_STAT_CONN_INCR(session, txn_rts_keys_restored);
         __wt_verbose(session, WT_VERB_RTS,
-          "key restored (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s", upd->txnid,
+          "key restored with commit timestamp: %s, durable timestamp: %s txnid: %" PRIu64
+          "and removed commit timestamp: %s, durable timestamp: %s, txnid: %" PRIu64
+          ", prepared: %s",
           __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
-          __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
+          __wt_timestamp_to_string(upd->durable_ts, ts_string[1]), upd->txnid,
+          __wt_timestamp_to_string(vpack->newest_stop_ts, ts_string[2]),
+          __wt_timestamp_to_string(vpack->durable_stop_ts, ts_string[3]), vpack->newest_stop_txn,
+          prepared ? "true" : "false");
     } else
         /* Stable version according to the timestamp. */
         return (0);
