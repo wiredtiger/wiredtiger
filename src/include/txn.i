@@ -788,7 +788,7 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
     WT_VISIBLE_TYPE upd_visible;
     uint8_t type;
 
-    __wt_upd_value_clear(&cbt->upd_value);
+    __wt_upd_value_clear(cbt->upd_value);
 
     for (; upd != NULL; upd = upd->next) {
         WT_ORDERED_READ(type, upd->type);
@@ -818,9 +818,9 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
      * update now and make the value own the buffer.
      */
     if (upd->type != WT_UPDATE_MODIFY)
-        __wt_upd_value_assign(&cbt->upd_value, upd);
+        __wt_upd_value_assign(cbt->upd_value, upd);
     else
-        WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, &cbt->upd_value));
+        WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
     return (0);
 }
 
@@ -838,25 +838,25 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     WT_TIME_PAIR start, stop;
 
     WT_RET(__wt_txn_read_upd_list(session, cbt, upd));
-    if (cbt->upd_value.buf.data != NULL || cbt->upd_value.type == WT_UPDATE_TOMBSTONE)
+    if (cbt->upd_value->buf.data != NULL || cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
         return (0);
 
     /* If there is no ondisk value, there can't be anything in the history store either. */
     if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
-        cbt->upd_value.type = WT_UPDATE_TOMBSTONE;
+        cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
         return (0);
     }
 
     /* Check the ondisk value. */
     if (vpack == NULL)
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value.buf, &start, &stop));
+        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &start, &stop));
     else {
         start.timestamp = vpack->start_ts;
         start.txnid = vpack->start_txn;
         stop.timestamp = vpack->stop_ts;
         stop.txnid = vpack->start_txn;
-        cbt->upd_value.buf.data = vpack->data;
-        cbt->upd_value.buf.size = vpack->size;
+        cbt->upd_value->buf.data = vpack->data;
+        cbt->upd_value->buf.size = vpack->size;
     }
 
     /*
@@ -867,12 +867,12 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
       (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE)) &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
-        cbt->upd_value.buf.data = NULL;
-        cbt->upd_value.buf.size = 0;
-        cbt->upd_value.start_ts = stop.timestamp;
-        cbt->upd_value.txnid = stop.txnid;
-        cbt->upd_value.type = WT_UPDATE_TOMBSTONE;
-        cbt->upd_value.prepare_state = WT_PREPARE_INIT;
+        cbt->upd_value->buf.data = NULL;
+        cbt->upd_value->buf.size = 0;
+        cbt->upd_value->start_ts = stop.timestamp;
+        cbt->upd_value->txnid = stop.txnid;
+        cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
+        cbt->upd_value->prepare_state = WT_PREPARE_INIT;
         return (0);
     }
 
@@ -885,20 +885,20 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
           session, (F_ISSET(session, WT_SESSION_RESOLVING_MODIFY) && WT_IS_HS(S2BT(session))) ||
             !F_ISSET(session, WT_SESSION_RESOLVING_MODIFY));
 
-        cbt->upd_value.start_ts = start.timestamp;
-        cbt->upd_value.txnid = start.txnid;
-        cbt->upd_value.type = WT_UPDATE_STANDARD;
-        cbt->upd_value.prepare_state = WT_PREPARE_INIT;
+        cbt->upd_value->start_ts = start.timestamp;
+        cbt->upd_value->txnid = start.txnid;
+        cbt->upd_value->type = WT_UPDATE_STANDARD;
+        cbt->upd_value->prepare_state = WT_PREPARE_INIT;
         return (0);
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
         WT_RET_NOTFOUND_OK(
-          __wt_find_hs_upd(session, key, recno, &cbt->upd_value, false, &cbt->upd_value.buf));
+          __wt_find_hs_upd(session, key, recno, cbt->upd_value, false, &cbt->upd_value->buf));
 
     /* Return invalid not tombstone if nothing is found in history store. */
-    WT_ASSERT(session, cbt->upd_value.type != WT_UPDATE_TOMBSTONE);
+    WT_ASSERT(session, cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
     return (0);
 }
 
