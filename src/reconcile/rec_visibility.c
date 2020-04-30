@@ -274,7 +274,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         /* Ignore prepared updates if it is not eviction. */
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            WT_ASSERT(session, upd_select->upd == NULL);
+            WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid);
             if (!F_ISSET(r, WT_REC_EVICT)) {
                 has_newer_updates = true;
                 if (upd->start_ts > max_ts)
