@@ -344,6 +344,8 @@ __win_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     if (win_fh->filehandle == INVALID_HANDLE_VALUE)
         return (0);
 
+/* XXX - disable windows FlushFileBuffers to see the effect on test run times. */
+#define FlushFileBuffers(x)	(TRUE)
     if (FlushFileBuffers(win_fh->filehandle) == FALSE) {
         windows_error = __wt_getlasterror();
         ret = __wt_map_windows_error(windows_error);
