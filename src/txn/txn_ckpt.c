@@ -746,7 +746,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_ISOLATION saved_isolation;
     wt_timestamp_t ckpt_tmp_ts;
     uint64_t fsync_duration_usecs, generation, time_start_fsync, time_stop_fsync;
-    uint64_t time_start_hs, time_stop_hs, hs_ckpt_duration_usecs, time_finish;
+    uint64_t time_start_hs, time_stop_hs, hs_ckpt_duration_usecs, finish_secs;
     u_int i;
     bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
     void *saved_meta_next;
@@ -985,18 +985,20 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
                 conn->txn_global.last_ckpt_timestamp = conn->txn_global.recovery_timestamp;
         } else
             conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
+
+	/*
+	 * Save clock value marking end of checkpoint processing.  If a hot backup starts before
+	 * the next checkpoint, we will need to keep all checkpoints up to this clock value until
+	 * the backup completes.
+	 */
+	__wt_seconds(session, &finish_secs);
+	/* Be defensive: time is only monotonic per session */
+	if (finish_secs > conn->ckpt_finish_secs)
+	    conn->ckpt_finish_secs = finish_secs;
+
     }
 
 err:
-
-    /*
-     * Save clock value marking end of checkpoint processing. Backup uses this to determine which
-     * checkpoints it must keep.
-     */
-    __wt_seconds(session, &time_finish);
-    /* Be defensive: time is only monotonic per session */
-    if (time_finish > conn->ckpt_finish_time)
-        conn->ckpt_finish_time = time_finish;
 
     /*
      * Reset the timer so that next checkpoint tracks the progress only if configured.
@@ -1260,9 +1262,9 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
         is_wt_ckpt = WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT);
 
         /*
-         * If there is a hot backup, don't delete any checkpoint that was created (or might have
-         * been created) before the backup started. Those checkpoints must appear in the backup.
-         * Silently keep such WiredTiger checkpoints. Fail if trying to delete any other checkpoint.
+         * If there is a hot backup, don't delete any WiredTiger checkpoint that could possibly
+         * have been created before the backup started. Fail if trying to delete any other 
+	 * named checkpoint.
          */
         if (conn->hot_backup_start != 0 && ckpt->sec <= conn->hot_backup_start) {
             if (is_wt_ckpt) {

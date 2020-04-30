@@ -1220,21 +1220,6 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt4333_handle_locks 2>&1
 
-  - name: csuite-wt5242-minimize-checkpoints-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/test/csuite"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/wt5242_minimize_checkpoints/test_wt5242_minimize_checkpoints 2>&1
-
   # End of csuite test tasks
 
   # Start of Python unit test tasks

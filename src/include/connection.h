@@ -152,7 +152,7 @@ struct __wt_named_extractor {
  */
 #define WT_CONN_HOTBACKUP_START(conn)                        \
     do {                                                     \
-        (conn)->hot_backup_start = (conn)->ckpt_finish_time; \
+        (conn)->hot_backup_start = (conn)->ckpt_finish_secs; \
         (conn)->hot_backup_list = NULL;                      \
     } while (0)
 
@@ -269,13 +269,14 @@ struct __wt_connection_impl {
     WT_TXN_GLOBAL txn_global; /* Global transaction state */
 
     WT_RWLOCK hot_backup_lock; /* Hot backup serialization */
-    uint64_t hot_backup_start; /* Wall clock time when active hot backup started */
+    uint64_t hot_backup_start; /* Clock value of most recent checkpoint needed by hot backup */
     char **hot_backup_list;    /* Hot backup file list */
 
     WT_SESSION_IMPL *ckpt_session; /* Checkpoint thread session */
     wt_thread_t ckpt_tid;          /* Checkpoint thread */
     bool ckpt_tid_set;             /* Checkpoint thread set */
     WT_CONDVAR *ckpt_cond;         /* Checkpoint wait mutex */
+    uint64_t ckpt_finish_secs;     /* Clock value of last completed checkpoint */
 #define WT_CKPT_LOGSIZE(conn) ((conn)->ckpt_logsize != 0)
     wt_off_t ckpt_logsize; /* Checkpoint log size period */
     bool ckpt_signalled;   /* Checkpoint signalled */
@@ -289,7 +290,6 @@ struct __wt_connection_impl {
     uint64_t ckpt_time_min;
     uint64_t ckpt_time_recent; /* Checkpoint time recent/total */
     uint64_t ckpt_time_total;
-    uint64_t ckpt_finish_time; /* Time last checkpoint finished */
 
     /* Checkpoint stats and verbosity timers */
     struct timespec ckpt_prep_end;

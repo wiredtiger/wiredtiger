@@ -39,7 +39,7 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
      */
     conn->default_session = session;
 
-    __wt_seconds(session, &conn->ckpt_finish_time);
+    __wt_seconds(session, &conn->ckpt_finish_secs);
 
     /*
      * Publish: there must be a barrier to ensure the connection structure fields are set before
