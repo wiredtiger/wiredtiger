@@ -23,6 +23,42 @@ __wt_time_pair_to_string(wt_timestamp_t timestamp, uint64_t txn_id, char *tp_str
 }
 
 /*
+ * __wt_time_window_to_string --
+ *     Converts a time window to a standard string representation.
+ */
+char *
+__wt_time_window_to_string(WT_TIME_WINDOW *tw, char *tw_string)
+{
+    char ts_string[WT_TS_INT_STRING_SIZE][4];
+
+    WT_IGNORE_RET(__wt_snprintf(tw_string, WT_TIME_STRING_SIZE,
+      "start: %s/%s/%" PRIu64 " stop: %s/%s/%" PRIu64 " prepare:  %s",
+      __wt_timestamp_to_string(tw.start_durable_ts, ts_string[0]),
+      __wt_timestamp_to_string(tw.start_ts, ts_string[1]), tw.start_txn,
+      __wt_timestamp_to_string(tw.stop_durable_ts, ts_string[2]),
+      __wt_timestamp_to_string(tw.stop_ts, ts_string[3]), tw.stop_txn, tw.prepare ? "yes" : "no"));
+    return (tw_string);
+}
+
+/*
+ * __wt_time_aggregate_to_string --
+ *     Converts a time aggregate to a standard string representation.
+ */
+char *
+__wt_time_aggregate_to_string(WT_TIME_AGGREGATE *ta, char *ta_string)
+{
+    char ts_string[WT_TS_INT_STRING_SIZE][3];
+
+    WT_IGNORE_RET(__wt_snprintf(tw_string, WT_TIME_STRING_SIZE,
+      "newest stop: %s/%s/%" PRIu64 " oldest start: %s/%" PRIu64 " prepare:  %s",
+      __wt_timestamp_to_string(ta.newest_stop_durable_ts),
+      __wt_timestamp_to_string(ta.newest_stop_ts), ta.newest_stop_txn,
+      __wt_timestamp_to_string(ta.oldest_start_ts), ta.oldest_start_txn,
+      ta.prepare ? "yes" : "no"));
+    return (ta_string);
+}
+
+/*
  * __wt_timestamp_to_string --
  *     Convert a timestamp to the MongoDB string representation.
  */

@@ -219,7 +219,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_stop_txn - ta->oldest_start_txn));
         LF_SET(WT_CELL_TXN_STOP);
     }
-    if (ta > newest_stop_durable_ts != WT_TS_NONE) {
+    if (ta->newest_stop_durable_ts != WT_TS_NONE) {
         /* Store differences, not absolutes. */
         /*
          * FIXME-prepare-support:

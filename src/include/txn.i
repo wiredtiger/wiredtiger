@@ -813,9 +813,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
 {
     WT_DECL_RET;
     WT_ITEM buf;
-    WT_TIME_PAIR start, stop;
+    WT_TIME_WINDOW tw;
 
     *updp = NULL;
+    __wt_time_window_init(&tw);
     WT_RET(__wt_txn_read_upd_list(session, upd, updp));
     if (*updp != NULL)
         return (0);
@@ -832,16 +833,14 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
 
     /* Check the ondisk value. */
     if (vpack == NULL) {
-        ret = __wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop);
+        ret = __wt_value_return_buf(cbt, cbt->ref, &buf, &tw);
         if (ret != 0) {
             __wt_buf_free(session, &buf);
             return (ret);
         }
     } else {
-        start.timestamp = vpack->start_ts;
-        start.txnid = vpack->start_txn;
-        stop.timestamp = vpack->stop_ts;
-        stop.txnid = vpack->start_txn;
+        /* TODO: There was a bug in here - start txn was being copied to stop */
+        __wt_time_window_copy(&tw, &vpack->tw);
         buf.data = vpack->data;
         buf.size = vpack->size;
     }
@@ -851,14 +850,14 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
      * pair is visible to our txn then that means we've just spotted a tombstone and should return
      * "not found", except for history store scan during rollback to stable.
      */
-    if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
+    if (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX &&
       (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE)) &&
-      __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
+      __wt_txn_visible(session, tw.stop_txn, tw.stop_ts)) {
         __wt_buf_free(session, &buf);
         WT_RET(__wt_upd_alloc_tombstone(session, updp, NULL));
-        (*updp)->txnid = stop.txnid;
+        (*updp)->txnid = tw.stop_txn;
         /* FIXME: Reevaluate this as part of PM-1524. */
-        (*updp)->durable_ts = (*updp)->start_ts = stop.timestamp;
+        (*updp)->tw.durable_ts = (*updp)->tw.start_ts = tw.stop_ts;
         F_SET(*updp, WT_UPDATE_RESTORED_FROM_DISK);
         return (0);
     }
@@ -870,7 +869,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
      * an update. This allocation is expensive and doesn't serve a purpose other than to work within
      * the current system.
      */
-    if (__wt_txn_visible(session, start.txnid, start.timestamp) ||
+    if (__wt_txn_visible(session, tw.start_txn, tw.start_ts) ||
       F_ISSET(session, WT_SESSION_RESOLVING_MODIFY)) {
 
         /* If we are resolving a modify then the btree must be the history store. */
@@ -881,8 +880,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
         ret = __wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, updp, NULL);
         __wt_buf_free(session, &buf);
         WT_RET(ret);
-        (*updp)->txnid = start.txnid;
-        (*updp)->start_ts = start.timestamp;
+        (*updp)->txnid = tw.start_txn;
+        (*updp)->start_ts = tw.start_ts;
         F_SET((*updp), WT_UPDATE_RESTORED_FROM_DISK);
         return (0);
     }

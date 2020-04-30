@@ -165,7 +165,7 @@ __wt_read_row_time_pairs(
  */
 int
 __wt_value_return_buf(
-  WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_PAIR *start, WT_TIME_PAIR *stop)
+  WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_WINDOW *tw)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -182,11 +182,7 @@ __wt_value_return_buf(
     page = ref->page;
     cursor = &cbt->iface;
 
-    if (start != NULL && stop != NULL)
-        __time_pairs_init(start, stop);
-
-    /* Must provide either both start and stop as output parameters or neither. */
-    WT_ASSERT(session, (start != NULL && stop != NULL) || (start == NULL && stop == NULL));
+    __wt_time_window_init(tw);
 
     if (page->type == WT_PAGE_ROW_LEAF) {
         rip = &page->pg_row[cbt->slot];
