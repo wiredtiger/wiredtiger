@@ -198,8 +198,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 int
 __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_DECL_RET;
-
     /*
      * Start the optional statistics thread. Start statistics first so that other optional threads
      * can know if statistics are enabled or not.
@@ -210,11 +208,11 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /* Initialize metadata tracking, required before creating tables. */
     WT_RET(__wt_meta_track_init(session));
 
-    /* Try to create the history store table. */
-    ret = __wt_hs_create(session, cfg);
-
-    if (ret != 0 && ret != ENOENT && ret != WT_NOTFOUND)
-        return (ret);
+    /*
+     * Try to create the history store table. Failure here suggests that the history file is
+     * corrupted in some way. We catch this failure and then run recovery.
+     */
+    WT_RET_ERROR_OK(__wt_hs_create(session, cfg), ENOENT);
 
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
@@ -222,10 +220,6 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * metadata), and before eviction is started for real.
      */
     WT_RET(__wt_txn_recover(session));
-
-    /* Try to create the history store table if we failed to create it before recovery. */
-    if (ret != 0)
-        WT_RET(__wt_hs_create(session, cfg));
 
     /*
      * Start the optional logging/archive threads. NOTE: The log manager must be started before
