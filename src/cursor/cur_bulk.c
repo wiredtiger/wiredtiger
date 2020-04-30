@@ -19,7 +19,7 @@ __bulk_col_keycmp_err(WT_CURSOR_BULK *cbulk)
     WT_SESSION_IMPL *session;
 
     cursor = &cbulk->cbt.iface;
-    session = C2S(cbulk);
+    session = CUR2S(cbulk);
 
     WT_RET_MSG(session, EINVAL, "bulk-load presented with out-of-order keys: %" PRIu64
                                 " is less "
@@ -197,7 +197,7 @@ __bulk_row_keycmp_err(WT_CURSOR_BULK *cbulk)
     WT_SESSION_IMPL *session;
 
     cursor = &cbulk->cbt.iface;
-    session = C2S(cbulk);
+    session = CUR2S(cbulk);
 
     WT_ERR(__wt_scr_alloc(session, 512, &a));
     WT_ERR(__wt_scr_alloc(session, 512, &b));

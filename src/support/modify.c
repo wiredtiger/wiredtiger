@@ -81,7 +81,7 @@ __wt_modify_pack(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries, WT_ITEM **
     uint8_t *data;
     int i;
 
-    session = C2S(cursor);
+    session = CUR2S(cursor);
     *modifyp = NULL;
 
     /*
@@ -355,7 +355,7 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
     WT_SESSION_IMPL *session;
     bool sformat;
 
-    session = C2S(cursor);
+    session = CUR2S(cursor);
     sformat = cursor->value_format[0] == 'S';
 
     return (__wt_modify_apply_item(session, &cursor->value, modify, sformat));

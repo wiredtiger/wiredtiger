@@ -7,7 +7,7 @@
  */
 
 /* Get the session from any cursor. */
-#define C2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
+#define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
 
 /*
  * Initialize a static WT_CURSOR structure.

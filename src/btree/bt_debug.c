@@ -717,7 +717,7 @@ __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
     uint32_t session_flags;
     bool is_owner;
 
-    session = C2S(cursor_arg);
+    session = CUR2S(cursor_arg);
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
 
     WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));

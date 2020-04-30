@@ -373,7 +373,7 @@ __wt_json_column_init(WT_CURSOR *cursor, const char *uri, const char *keyformat,
     const char *beginkey, *end, *lparen, *p;
 
     json = (WT_CURSOR_JSON *)cursor->json_private;
-    session = C2S(cursor);
+    session = CUR2S(cursor);
     beginkey = colconf->str;
     end = beginkey + colconf->len;
 

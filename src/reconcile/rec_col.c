@@ -19,7 +19,7 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
     WT_RECONCILE *r;
     WT_SESSION_IMPL *session;
 
-    session = C2S(cbulk);
+    session = CUR2S(cbulk);
     r = cbulk->reconcile;
     btree = S2BT(session);
 

@@ -282,7 +282,7 @@ __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
     WT_SESSION_IMPL *session;
     WT_UPDATE *last_upd;
 
-    session = C2S(hs_cbt);
+    session = CUR2S(hs_cbt);
 
     /* If there are existing updates, append them after the new updates. */
     if (hs_cbt->compare == 0) {
@@ -564,7 +564,7 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     int nentries;
     bool squashed;
 
-    session = C2S(cursor);
+    session = CUR2S(cursor);
     prev_upd = NULL;
     insert_cnt = 0;
     __wt_modify_vector_init(session, &modifies);
