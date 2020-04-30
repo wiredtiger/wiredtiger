@@ -1413,7 +1413,9 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * our caller will not discard the disk image when discarding the original page, and our caller
      * will discard the allocated page on error, when discarding the allocated WT_REF.
      */
+    F_SET(session, WT_SESSION_INSTANTIATE_PREPARED);
     WT_RET(__wt_page_inmem(session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page));
+    F_CLR(session, WT_SESSION_INSTANTIATE_PREPARED);
     multi->disk_image = NULL;
 
     /*
@@ -1534,6 +1536,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
 err:
+    F_CLR(session, WT_SESSION_INSTANTIATE_PREPARED);
     /* Free any resources that may have been cached in the cursor. */
     WT_TRET(__wt_btcur_close(&cbt, true));
 

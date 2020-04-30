@@ -557,7 +557,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     /* Walk the page, building indices. */
     rip = page->pg_row;
     WT_CELL_FOREACH_BEGIN (session, btree, page->dsk, unpack) {
-        if (F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE))
+        if (F_ISSET(session, WT_SESSION_INSTANTIATE_PREPARED) &&
+          F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE))
             prepare = true;
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
