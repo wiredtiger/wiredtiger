@@ -1268,9 +1268,11 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     WT_ERR(__wt_scr_alloc(session, 0, &prev_hs_key));
 
     /*
-     * Even if we're not verifying the history store, we need to be able to iterate over the history
-     * store content for another table. In order to do this, we must ignore tombstones in the
-     * history store since every history store record is succeeded with a tombstone.
+     * we need to be able to iterate over the history store content for another table. In order to
+     * do this, we must ignore non-globally visible tombstones in the history store since every
+     * history store record is succeeded with a tombstone. We also need to skip the non-globally
+     * visible tombstones in the data table to verify the corresponding entries in the history store
+     * are too present in the data store.
      */
     F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     F_SET((WT_CURSOR *)cbt, WT_CURSTD_IGNORE_TOMBSTONE);
