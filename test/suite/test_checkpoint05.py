@@ -41,59 +41,59 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
     conn_config = 'create,cache_size=100MB,log=(archive=false,enabled=true,file_max=100K)'
 
     def make_key(self, n):
-	return "Key:" + str(n)
+        return "Key:" + str(n)
 
     def make_value(self, n):
-	return "Value:" + str(n)
+        return "Value:" + str(n)
 
     def do_updates(self, n):
-	nops = 500
-	ckpt_freq = 10
+        nops = 500
+        ckpt_freq = 10
 
-	cursor = self.session.open_cursor(self.uri, None)
-	for i in xrange(n * nops, (n + 1) * nops - 1):
-	    cursor[self.make_key(i)] = self.make_value(i)
-	    if i % ckpt_freq == 0:
-		self.session.checkpoint(None)
-	cursor.close()
+        cursor = self.session.open_cursor(self.uri, None)
+        for i in xrange(n * nops, (n + 1) * nops - 1):
+            cursor[self.make_key(i)] = self.make_value(i)
+            if i % ckpt_freq == 0:
+                self.session.checkpoint(None)
+        cursor.close()
 
     def count_checkpoints(self):
-	metadata_cursor = self.session.open_cursor('metadata:', None, None)
+        metadata_cursor = self.session.open_cursor('metadata:', None, None)
 
-	nckpt = 0
-	while metadata_cursor.next() == 0:
-	    key = metadata_cursor.get_key()
-	    value = metadata_cursor[key]
-	    nckpt = nckpt + value.count("WiredTigerCheckpoint")
-	metadata_cursor.close()
-	return nckpt
+        nckpt = 0
+        while metadata_cursor.next() == 0:
+            key = metadata_cursor.get_key()
+            value = metadata_cursor[key]
+            nckpt = nckpt + value.count("WiredTigerCheckpoint")
+        metadata_cursor.close()
+        return nckpt
 
     def test_checkpoints_during_backup(self):
-	self.uri = 'table:ckpt05'
-	self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.uri = 'table:ckpt05'
+        self.session.create(self.uri, 'key_format=S,value_format=S')
 
-	# Insert some data and take checkpoints
-	self.do_updates(0)
+        # Insert some data and take checkpoints
+        self.do_updates(0)
 
-	backup_cursor = self.session.open_cursor('backup:', None, None)
-	initial_count = self.count_checkpoints()
+        backup_cursor = self.session.open_cursor('backup:', None, None)
+        initial_count = self.count_checkpoints()
 
-	# Checkpoints created immediately after a backup cursor may get pinned.
-	# Pause to avoid this.
-	time.sleep(2)
+        # Checkpoints created immediately after a backup cursor may get pinned.
+        # Pause to avoid this.
+        time.sleep(2)
 
-	# Insert some more data, then update existing values
-	self.do_updates(1)
-	self.do_updates(0)
+        # Insert some more data, then update existing values
+        self.do_updates(1)
+        self.do_updates(0)
 
-	# There may be a few more checkpoints than when we opened the
-	# backup cursor, but not too many more.  The factor of three
-	# is generous.  But if WT isn't deleting checkpoints there would
-	# be about 100x more checkpoints here.
-	final_count = self.count_checkpoints()
-	self.assertTrue (final_count < initial_count * 3)
+        # There may be a few more checkpoints than when we opened the
+        # backup cursor, but not too many more.  The factor of three
+        # is generous.  But if WT isn't deleting checkpoints there would
+        # be about 100x more checkpoints here.
+        final_count = self.count_checkpoints()
+        self.assertTrue (final_count < initial_count * 3)
 
-	self.session.close()
+        self.session.close()
 
 if __name__ == '__main__':
     wttest.run()
