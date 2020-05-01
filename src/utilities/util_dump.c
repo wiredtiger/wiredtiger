@@ -185,7 +185,7 @@ err:
         if ((ret = cursor->close(cursor)) != 0)
             ret = util_err(session, ret, NULL);
     }
-   
+
     if (ofile != NULL && (ret = fclose(fp)) != 0)
         ret = util_err(session, errno, NULL);
 
