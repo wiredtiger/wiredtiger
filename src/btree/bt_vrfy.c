@@ -1115,7 +1115,7 @@ __verify_page_content(
 
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start durable",
               unpack.durable_start_ts, "newest durable start", addr_unpack->newest_start_durable_ts,
-              false, vs));
+              true, vs));
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_ts,
               "oldest start", addr_unpack->oldest_start_ts, true, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_txn,
