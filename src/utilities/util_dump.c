@@ -180,10 +180,12 @@ err:
         ret = 1;
     }
 
-    if (cursor != NULL)
+    if (cursor != NULL) {
         F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
-    if (cursor != NULL && (ret = cursor->close(cursor)) != 0)
-        ret = util_err(session, ret, NULL);
+        if ((ret = cursor->close(cursor)) != 0)
+            ret = util_err(session, ret, NULL);
+    }
+   
     if (ofile != NULL && (ret = fclose(fp)) != 0)
         ret = util_err(session, errno, NULL);
 
