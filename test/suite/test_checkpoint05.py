@@ -37,23 +37,6 @@ import wiredtiger, wttest
 class test_checkpoint05(wttest.WiredTigerTestCase):
     conn_config = 'create,cache_size=100MB,log=(archive=false,enabled=true,file_max=100K)'
 
-    def make_key(self, n):
-        return "Key:" + str(n)
-
-    def make_value(self, n):
-        return "Value:" + str(n)
-
-    def do_updates(self, n):
-        nops = 500
-        ckpt_freq = 10
-
-        cursor = self.session.open_cursor(self.uri, None)
-        for i in range(n * nops, (n + 1) * nops - 1):
-            cursor[self.make_key(i)] = self.make_value(i)
-            if i % ckpt_freq == 0:
-                self.session.checkpoint(None)
-        cursor.close()
-
     def count_checkpoints(self):
         metadata_cursor = self.session.open_cursor('metadata:', None, None)
 
@@ -85,8 +68,7 @@ class test_checkpoint05(wttest.WiredTigerTestCase):
 
         # Take a bunch of checkpoints.
         for i in range (50):
-            cursor[i] = i
-            self.session.checkpoint(None)
+            self.session.checkpoint('force=true')
         cursor.close()
 
         # There may be a few more checkpoints than when we opened the

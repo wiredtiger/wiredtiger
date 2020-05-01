@@ -28,9 +28,9 @@
 
 import glob
 import os
-import time
 import shutil
 import string
+import time
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
@@ -190,8 +190,8 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint()
 
         # Confirm that a named checkpoint created after a backup cursor can be dropped.
-        # Need to pause a couple seconds as checkpoints created immediately after a backup
-        # may be pinned.
+        # Need to pause a couple seconds; checkpoints that are assigned the same timestamp as
+        # the backup will be pinned, even if they occur after the backup starts.
         time.sleep(2)
         self.session.checkpoint("name=four")
         self.session.checkpoint("drop=(four)")
