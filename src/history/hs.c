@@ -282,7 +282,7 @@ __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
     WT_SESSION_IMPL *session;
     WT_UPDATE *last_upd;
 
-    session = (WT_SESSION_IMPL *)hs_cbt->iface.session;
+    session = CUR2S(hs_cbt);
 
     /* If there are existing updates, append them after the new updates. */
     if (hs_cbt->compare == 0) {
@@ -564,8 +564,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     int nentries;
     bool squashed;
 
+    session = CUR2S(cursor);
     prev_upd = NULL;
-    session = (WT_SESSION_IMPL *)cursor->session;
     insert_cnt = 0;
     __wt_modify_vector_init(session, &modifies);
 
@@ -764,10 +764,9 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
     max_hs_size = ((WT_CURSOR_BTREE *)cursor)->btree->file_max;
     if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
-        WT_PANIC_ERR(session, WT_PANIC, "WiredTigerHS: file size of %" PRIu64
-                                        " exceeds maximum "
-                                        "size %" PRIu64,
-          (uint64_t)hs_size, max_hs_size);
+        WT_ERR_PANIC(session, WT_PANIC,
+          "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64, (uint64_t)hs_size,
+          max_hs_size);
 
 err:
     if (ret == 0 && insert_cnt > 0)
@@ -863,7 +862,7 @@ __hs_restore_read_timestamp(WT_SESSION_IMPL *session)
  *     prepare conflict will be returned upon reading a prepared update.
  */
 int
-__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDATE **updp,
+__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDATE_VALUE *upd_value,
   bool allow_prepare, WT_ITEM *on_disk_buf)
 {
     WT_CURSOR *hs_cursor;
@@ -882,8 +881,6 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
     bool is_owner, modify;
-
-    *updp = NULL;
 
     hs_cursor = NULL;
     mod_upd = upd = NULL;
@@ -954,6 +951,13 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
 
     /* We do not have tombstones in the history store anymore. */
     WT_ASSERT(session, upd_type != WT_UPDATE_TOMBSTONE);
+
+    /*
+     * If the caller has signalled they don't need the value buffer, don't bother reconstructing a
+     * modify update or copying the contents into the value buffer.
+     */
+    if (upd_value->skip_buf)
+        goto skip_buf;
 
     /*
      * Keep walking until we get a non-modify update. Once we get to that point, squash the updates
@@ -1037,19 +1041,18 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
         WT_STAT_CONN_INCR(session, cache_hs_read_squash);
     }
 
-    /* Allocate an update structure for the record found. */
-    WT_ERR(__wt_upd_alloc(session, hs_value, upd_type, &upd, NULL));
-    upd->txnid = WT_TXN_NONE;
-    upd->durable_ts = durable_timestamp;
-    upd->start_ts = hs_start_ts;
-    upd->prepare_state = upd->start_ts == upd->durable_ts ? WT_PREPARE_INIT : WT_PREPARE_RESOLVED;
-
     /*
-     * We're not keeping this in our update list as we want to get rid of it after the read has been
-     * dealt with. Mark this update as external and to be discarded when not needed.
+     * Potential optimization: We can likely get rid of this copy and the update allocation above.
+     * We already have buffers containing the modify values so there's no good reason to allocate an
+     * update other than to work with our modify vector implementation.
      */
-    F_SET(upd, WT_UPDATE_RESTORED_FROM_DISK);
-    *updp = upd;
+    WT_ERR(__wt_buf_set(session, &upd_value->buf, hs_value->data, hs_value->size));
+skip_buf:
+    upd_value->start_ts = hs_start_ts;
+    upd_value->txnid = WT_TXN_NONE;
+    upd_value->type = upd_type;
+    upd_value->prepare_state =
+      (hs_start_ts == durable_timestamp) ? WT_PREPARE_INIT : WT_PREPARE_RESOLVED;
 
 done:
 err:
@@ -1305,7 +1308,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         WT_ERR(__cursor_reset(cbt));
 
         if (!found)
-            WT_ERR_MSG(session, WT_PANIC,
+            WT_ERR_PANIC(session, WT_PANIC,
               "the associated history store key %s was not found in the data store %s",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key),
               session->dhandle->name);
@@ -1407,7 +1410,7 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
          */
         WT_ERR(cursor->get_key(cursor, &btree_id, hs_key, &hs_start_ts, &hs_counter));
         if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0)
-            WT_ERR_MSG(session, WT_PANIC,
+            WT_ERR_PANIC(session, WT_PANIC,
               "Unable to find btree id %" PRIu32
               " in the metadata file for the associated history store key %s",
               btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, buf));

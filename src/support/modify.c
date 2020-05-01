@@ -81,7 +81,7 @@ __wt_modify_pack(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries, WT_ITEM **
     uint8_t *data;
     int i;
 
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
     *modifyp = NULL;
 
     /*
@@ -355,7 +355,7 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
     WT_SESSION_IMPL *session;
     bool sformat;
 
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
     sformat = cursor->value_format[0] == 'S';
 
     return (__wt_modify_apply_item(session, &cursor->value, modify, sformat));
@@ -522,4 +522,76 @@ __wt_modify_vector_free(WT_MODIFY_VECTOR *modifies)
     if (modifies->allocated_bytes != 0)
         __wt_free(modifies->session, modifies->listp);
     __wt_modify_vector_init(modifies->session, modifies);
+}
+
+/*
+ * __wt_modify_reconstruct_from_upd_list --
+ *     Takes an in-memory modify and populates an update value with the reconstructed full value.
+ */
+int
+__wt_modify_reconstruct_from_upd_list(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE_VALUE *upd_value)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_MODIFY_VECTOR modifies;
+    WT_TIME_PAIR start, stop;
+    bool sformat;
+
+    WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
+
+    cursor = (WT_CURSOR *)cbt;
+    sformat = (cursor->value_format[0] == 'S');
+
+    /* While we have a pointer to our original modify, grab this information. */
+    upd_value->start_ts = upd->start_ts;
+    upd_value->txnid = upd->txnid;
+    upd_value->prepare_state = upd->prepare_state;
+
+    /* Construct full update */
+    __wt_modify_vector_init(session, &modifies);
+    /* Find a complete update. */
+    for (; upd != NULL; upd = upd->next) {
+        if (upd->txnid == WT_TXN_ABORTED)
+            continue;
+
+        if (WT_UPDATE_DATA_VALUE(upd))
+            break;
+
+        if (upd->type == WT_UPDATE_MODIFY)
+            WT_ERR(__wt_modify_vector_push(&modifies, upd));
+    }
+    /*
+     * If there's no full update, the base item is the on-page item. If the update is a tombstone,
+     * the base item is an empty item.
+     */
+    if (upd == NULL) {
+        /*
+         * Callers of this function set the cursor slot to an impossible value to check we don't try
+         * and return on-page values when the update list should have been sufficient (which
+         * happens, for example, if an update list was truncated, deleting some standard update
+         * required by a previous modify update). Assert the case.
+         */
+        WT_ASSERT(session, cbt->slot != UINT32_MAX);
+
+        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &start, &stop));
+        /*
+         * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
+         * the stop time pair should be unset.
+         */
+        WT_ASSERT(session, stop.txnid == WT_TXN_MAX && stop.timestamp == WT_TS_MAX);
+    } else {
+        /* The base update must not be a tombstone. */
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
+        WT_ERR(__wt_buf_set(session, &upd_value->buf, upd->data, upd->size));
+    }
+    /* Once we have a base item, roll forward through any visible modify updates. */
+    while (modifies.size > 0) {
+        __wt_modify_vector_pop(&modifies, &upd);
+        WT_ERR(__wt_modify_apply_item(session, &upd_value->buf, upd->data, sformat));
+    }
+    upd_value->type = WT_UPDATE_STANDARD;
+err:
+    __wt_modify_vector_free(&modifies);
+    return (ret);
 }

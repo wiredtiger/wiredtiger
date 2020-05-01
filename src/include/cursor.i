@@ -193,7 +193,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     __cursor_pos_clear(cbt);
 
@@ -242,7 +242,7 @@ __wt_curindex_get_valuev(WT_CURSOR *cursor, va_list ap)
     WT_SESSION_IMPL *session;
 
     cindex = (WT_CURSOR_INDEX *)cursor;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
     WT_RET(__cursor_checkvalue(cursor));
 
     if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
@@ -269,7 +269,7 @@ __wt_curtable_get_valuev(WT_CURSOR *cursor, va_list ap)
     WT_SESSION_IMPL *session;
 
     ctable = (WT_CURSOR_TABLE *)cursor;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
     primary = *ctable->cg_cursors;
     WT_RET(__cursor_checkvalue(primary));
 
@@ -354,10 +354,10 @@ __wt_cursor_disable_bulk(WT_SESSION_IMPL *session)
  *     Return a page referenced key/value pair to the application.
  */
 static inline int
-__cursor_kv_return(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__cursor_kv_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
 {
     WT_RET(__wt_key_return(cbt));
-    WT_RET(__wt_value_return(cbt, upd));
+    WT_RET(__wt_value_return(cbt, upd_value));
 
     return (0);
 }
@@ -371,7 +371,7 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 {
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     if (reenter) {
 #ifdef HAVE_DIAGNOSTIC
@@ -421,7 +421,7 @@ __cursor_row_slot_key_return(
 
     *kpack_used = false;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     btree = S2BT(session);
     page = cbt->ref->page;
 
