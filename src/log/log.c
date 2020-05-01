@@ -215,7 +215,7 @@ __log_fs_write(
     }
     __wt_capacity_throttle(session, len, WT_THROTTLE_LOG);
     if ((ret = __wt_write(session, slot->slot_fh, offset, len, buf)) != 0)
-        WT_PANIC_RET(session, ret, "%s: fatal log failure", slot->slot_fh->name);
+        WT_RET_PANIC(session, ret, "%s: fatal log failure", slot->slot_fh->name);
     return (ret);
 }
 

@@ -319,7 +319,7 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
      * We didn't find an entry. This should not happen.
      */
     if (i == WT_BLKINCR_MAX)
-        WT_PANIC_RET(session, WT_NOTFOUND, "Could not find an incremental backup slot to use");
+        WT_RET_PANIC(session, WT_NOTFOUND, "Could not find an incremental backup slot to use");
 
     /* Use the slot.  */
     if (blk->id_str != NULL)

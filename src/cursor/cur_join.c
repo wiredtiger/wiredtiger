@@ -770,7 +770,7 @@ __curjoin_init_bloom(
                 goto done;
             WT_ERR(ret);
         } else
-            WT_PANIC_ERR(session, EINVAL, "fatal error in join cursor position state");
+            WT_ERR_PANIC(session, EINVAL, "fatal error in join cursor position state");
     }
     collator = (entry->index == NULL) ? NULL : entry->index->collator;
     while (ret == 0) {
