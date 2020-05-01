@@ -329,6 +329,8 @@ struct __wt_txn_shared;
 typedef struct __wt_txn_shared WT_TXN_SHARED;
 struct __wt_update;
 typedef struct __wt_update WT_UPDATE;
+struct __wt_update_value;
+typedef struct __wt_update_value WT_UPDATE_VALUE;
 union __wt_lsn;
 typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
