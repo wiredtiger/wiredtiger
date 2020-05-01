@@ -524,8 +524,6 @@ static inline int
 __hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDATE *upd,
   const void *base_full_value, size_t size)
 {
-    WT_SESSION_IMPL *session;
-
     if (upd->type == WT_UPDATE_MODIFY) {
         WT_RET(__wt_buf_set(session, full_value, base_full_value, size));
         WT_RET(__wt_modify_apply_item(session, S2BT(session)->value_format, full_value, upd->data));
