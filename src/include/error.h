@@ -162,7 +162,7 @@
 #define WT_RET_PANIC_ASSERT(session, exp, v, ...)  \
     do {                                           \
         if (!(exp))                                \
-            WT_PANIC_RET(session, v, __VA_ARGS__); \
+            WT_RET_PANIC(session, v, __VA_ARGS__); \
     } while (0)
 #endif
 
