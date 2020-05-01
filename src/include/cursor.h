@@ -6,6 +6,9 @@
  * See the file LICENSE for redistribution information.
  */
 
+/* Get the session from any cursor. */
+#define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
+
 /*
  * Initialize a static WT_CURSOR structure.
  */

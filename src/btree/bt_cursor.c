@@ -60,7 +60,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
     WT_SESSION_IMPL *session;
 
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cbt);
 
     /*
      * Check the page active flag, asserting the page reference with any external key.
@@ -182,7 +182,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
     *valid = false;
     btree = cbt->btree;
     page = cbt->ref->page;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     /*
      * We may be pointing to an insert object, and we may have a page with
@@ -346,7 +346,7 @@ __cursor_col_search(WT_CURSOR_BTREE *cbt, WT_REF *leaf, bool *leaf_foundp)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     WT_WITH_PAGE_INDEX(
       session, ret = __wt_col_search(cbt, cbt->iface.recno, leaf, false, leaf_foundp));
     return (ret);
@@ -362,7 +362,7 @@ __cursor_row_search(WT_CURSOR_BTREE *cbt, bool insert, WT_REF *leaf, bool *leaf_
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     WT_WITH_PAGE_INDEX(
       session, ret = __wt_row_search(cbt, &cbt->iface.key, insert, leaf, false, leaf_foundp));
     return (ret);
@@ -412,7 +412,7 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
     WT_SESSION_IMPL *session;
 
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     WT_STAT_CONN_INCR(session, cursor_reset);
     WT_STAT_DATA_INCR(session, cursor_reset);
@@ -503,7 +503,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 
     btree = cbt->btree;
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cbt);
 
     WT_STAT_CONN_INCR(session, cursor_search);
     WT_STAT_DATA_INCR(session, cursor_search);
@@ -599,7 +599,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 
     btree = cbt->btree;
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cbt);
     exact = 0;
 
     WT_STAT_CONN_INCR(session, cursor_search_near);
@@ -754,8 +754,11 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     btree = cbt->btree;
     cursor = &cbt->iface;
     insert_bytes = cursor->key.size + cursor->value.size;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cbt);
     yield_count = sleep_usecs = 0;
+
+    WT_RET_PANIC_ASSERT(
+      session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
 
     WT_STAT_CONN_INCR(session, cursor_insert);
     WT_STAT_DATA_INCR(session, cursor_insert);
@@ -765,9 +768,6 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
     if (btree->type == BTREE_ROW)
         WT_RET(__cursor_size_chk(session, &cursor->key));
     WT_RET(__cursor_size_chk(session, &cursor->value));
-
-    WT_RET_ASSERT(
-      session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
 
     /* It's no longer possible to bulk-load into the tree. */
     __wt_cursor_disable_bulk(session);
@@ -909,7 +909,7 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt)
 
     btree = cbt->btree;
     page = cbt->ref->page;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     upd = NULL;
 
     if (cbt->compare != 0)
@@ -941,7 +941,7 @@ __wt_btcur_insert_check(WT_CURSOR_BTREE *cbt)
     uint64_t yield_count, sleep_usecs;
 
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cbt);
     yield_count = sleep_usecs = 0;
 
     WT_ASSERT(session, cbt->btree->type == BTREE_ROW);
@@ -992,7 +992,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
 
     btree = cbt->btree;
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cbt);
     yield_count = sleep_usecs = 0;
     iterating = F_ISSET(cbt, WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV);
     searched = false;
@@ -1183,10 +1183,10 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 
     btree = cbt->btree;
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cbt);
     yield_count = sleep_usecs = 0;
 
-    WT_RET_ASSERT(
+    WT_RET_PANIC_ASSERT(
       session, S2BT(session) == btree, WT_PANIC, "btree differs unexpectedly from session's btree");
 
     /* It's no longer possible to bulk-load into the tree. */
@@ -1360,7 +1360,7 @@ __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
 
     cursor = &cbt->iface;
     page = cbt->ref->page;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cbt);
 
     upd = NULL;
     if (cbt->ins != NULL)
@@ -1414,7 +1414,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     bool overwrite;
 
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cbt);
 
     /* Save the cursor state. */
     __cursor_state_save(cursor, &state);
@@ -1500,7 +1500,7 @@ __wt_btcur_reserve(WT_CURSOR_BTREE *cbt)
     bool overwrite;
 
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cbt);
 
     WT_STAT_CONN_INCR(session, cursor_reserve);
     WT_STAT_DATA_INCR(session, cursor_reserve);
@@ -1527,7 +1527,7 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 
     btree = cbt->btree;
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cbt);
 
     WT_STAT_CONN_INCR(session, cursor_update);
     WT_STAT_DATA_INCR(session, cursor_update);
@@ -1553,7 +1553,7 @@ __wt_btcur_compare(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *cmpp)
 
     a = (WT_CURSOR *)a_arg;
     b = (WT_CURSOR *)b_arg;
-    session = (WT_SESSION_IMPL *)a->session;
+    session = CUR2S(a_arg);
 
     /* Confirm both cursors reference the same object. */
     if (a_arg->btree != b_arg->btree)
@@ -1625,8 +1625,8 @@ __wt_btcur_equals(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *equalp)
 
     a = (WT_CURSOR *)a_arg;
     b = (WT_CURSOR *)b_arg;
+    session = CUR2S(a_arg);
     cmp = 0;
-    session = (WT_SESSION_IMPL *)a->session;
 
     /* Confirm both cursors reference the same object. */
     if (a_arg->btree != b_arg->btree)
@@ -1658,7 +1658,7 @@ __cursor_truncate(
     WT_SESSION_IMPL *session;
     uint64_t yield_count, sleep_usecs;
 
-    session = (WT_SESSION_IMPL *)start->iface.session;
+    session = CUR2S(start);
     yield_count = sleep_usecs = 0;
 
 /*
@@ -1714,7 +1714,7 @@ __cursor_truncate_fix(
     uint64_t yield_count, sleep_usecs;
     const uint8_t *value;
 
-    session = (WT_SESSION_IMPL *)start->iface.session;
+    session = CUR2S(start);
     yield_count = sleep_usecs = 0;
 
 /*
@@ -1771,8 +1771,8 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)start->iface.session;
     btree = start->btree;
+    session = CUR2S(start);
     WT_STAT_DATA_INCR(session, cursor_truncate);
 
     WT_RET(__wt_txn_autocommit_check(session));
@@ -1856,7 +1856,7 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     /*
      * The in-memory split and history store table code creates low-level btree cursors to
