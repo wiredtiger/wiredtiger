@@ -521,12 +521,10 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
  *     Calculate the full value of an update.
  */
 static inline int
-__hs_calculate_full_value(
-  WT_CURSOR *cursor, WT_ITEM *full_value, WT_UPDATE *upd, const void *base_full_value, size_t size)
+__hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDATE *upd,
+  const void *base_full_value, size_t size)
 {
     WT_SESSION_IMPL *session;
-
-    session = (WT_SESSION_IMPL *)cursor->session;
 
     if (upd->type == WT_UPDATE_MODIFY) {
         WT_RET(__wt_buf_set(session, full_value, base_full_value, size));
@@ -724,7 +722,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 prev_full_value->size = prev_upd->size;
             } else
                 WT_ERR(__hs_calculate_full_value(
-                  cursor, prev_full_value, prev_upd, full_value->data, full_value->size));
+                  session, prev_full_value, prev_upd, full_value->data, full_value->size));
 
             /*
              * Skip the updates have the same start timestamp and transaction id
