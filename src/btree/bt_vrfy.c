@@ -424,7 +424,7 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
     if (unpack->newest_stop_ts != WT_TS_MAX &&
       unpack->newest_stop_ts > unpack->newest_stop_durable_ts)
         WT_RET_MSG(session, WT_ERROR,
-          "internal page reference at %s has an newest stop "
+          "internal page reference at %s has a newest stop "
           "timestamp (%" PRIu64
           ") newer than its newest stop durable "
           "timestamp (%" PRIu64 ")",
@@ -1042,7 +1042,7 @@ __verify_page_content(
             if (unpack.newest_stop_ts != WT_TS_MAX &&
               unpack.newest_stop_ts > unpack.newest_stop_durable_ts)
                 WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                              " on page at %s has an "
+                                              " on page at %s has a "
                                               "newest stop timestamp %s newer than "
                                               "its newest stop durable timestamp %s",
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),

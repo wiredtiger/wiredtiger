@@ -313,7 +313,7 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
         if (unpack->newest_stop_ts != WT_TS_MAX &&
           unpack->newest_stop_ts > unpack->newest_stop_durable_ts)
             WT_RET_VRFY(session, "cell %" PRIu32
-                                 " on page at %s has an newest "
+                                 " on page at %s has a newest "
                                  "stop timestamp %s newer than its newest stop durable "
                                  "timestamp %s",
               cell_num - 1, tag, __wt_timestamp_to_string(unpack->newest_stop_ts, ts_string[0]),
