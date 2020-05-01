@@ -444,7 +444,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * On restart, the minimum valid oldest timestamp is the oldest start timestamp in the history
-     * store checkpoint list. Use this value if set.
+     * store checkpoint list.
      */
     WT_RET(__wt_config_gets_def(session, cfg, "oldest_timestamp", 0, &oldest_cval));
     has_oldest = oldest_cval.len != 0 || txn_global->oldest_ckpt_hs_timestamp != WT_TS_NONE;
@@ -468,20 +468,17 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_txn_parse_timestamp(session, "stable", &stable_ts, &stable_cval));
 
     /*
-     * We set the oldest timestamp to the greater of the supplied oldest timestamp and the oldest
-     * timestamp in the history store checkpoint list. Note that the oldest history store timestamp
-     * is set during recovery and that if set, we reset it to WT_TS_NONE to ensure this code is only
-     * executed on a restart. If the checkpoint oldest timestamp is used, ensure the stable
-     * timestamp is at least as large.
+     * The supplied oldest timestamp must be no older than the oldest timestamp in the history store
+     * checkpoint list. Note that the oldest history store timestamp is set during recovery and that
+     * if set, we reset it to WT_TS_NONE to ensure this code is only executed on a restart.
      */
     if (txn_global->oldest_ckpt_hs_timestamp > oldest_ts) {
-        oldest_ts = txn_global->oldest_ckpt_hs_timestamp;
-        stable_ts = WT_MAX(stable_ts, oldest_ts);
-        __wt_verbose(session, WT_VERB_TIMESTAMP,
-          "supplied oldest timestamp %s set to oldest timestamp %s in history store",
+        txn_global->oldest_ckpt_hs_timestamp = WT_TS_NONE;
+        WT_RET_MSG(session, EINVAL,
+          "set_timestamp: oldest timestamp %s must not be earlier than oldest start timestamp %s "
+          "in history store checkpoint list",
           __wt_timestamp_to_string(oldest_ts, ts_string[0]),
           __wt_timestamp_to_string(txn_global->oldest_ckpt_hs_timestamp, ts_string[1]));
-        txn_global->oldest_ckpt_hs_timestamp = WT_TS_NONE;
     }
 
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
