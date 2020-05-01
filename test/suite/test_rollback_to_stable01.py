@@ -128,7 +128,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
     scenarios = make_scenarios(in_memory_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=50MB,statistics=(all)'
+        config = 'cache_size=1MB,statistics=(all)'
         if self.in_memory:
             config += ',in_memory=true'
         else:
