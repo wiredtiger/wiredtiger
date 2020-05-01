@@ -617,7 +617,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
             /* Unpack the on-page value cell. */
             __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
             if (F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE)) {
-                if (unpack.newest_stop_ts == WT_TS_MAX && unpack.newest_stop_txn == WT_TXN_MAX) {
+                if (unpack.stop_ts == WT_TS_MAX && unpack.stop_txn == WT_TXN_MAX) {
                     /* Take the value from the original page cell. */
                     WT_RET(__wt_page_cell_data_ref(session, page, &unpack, &buf));
 
