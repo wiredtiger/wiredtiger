@@ -694,9 +694,9 @@ __rollback_verify_ondisk_page(
     /* Review updates that belong to keys that are on the disk image. */
     WT_ROW_FOREACH (page, rip, i) {
         __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
-        WT_ASSERT(session, vpack->start_ts <= rollback_timestamp);
-        if (vpack->stop_ts != WT_TS_MAX)
-            WT_ASSERT(session, vpack->stop_ts <= rollback_timestamp);
+        WT_ASSERT(session, vpack->durable_start_ts <= rollback_timestamp);
+        if (vpack->durable_stop_ts != WT_TS_NONE)
+            WT_ASSERT(session, vpack->durable_stop_ts <= rollback_timestamp);
     }
 }
 #endif
@@ -733,7 +733,8 @@ __rollback_abort_newer_updates(
 #ifdef HAVE_DIAGNOSTIC
             if (ref->page == NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
                 WT_RET(__wt_page_in(session, ref, 0));
-                __rollback_verify_ondisk_page(session, ref->page, rollback_timestamp);
+                if (ref->page->type == WT_PAGE_ROW_LEAF)
+                    __rollback_verify_ondisk_page(session, ref->page, rollback_timestamp);
                 WT_TRET(__wt_page_release(session, ref, 0));
             }
 #endif

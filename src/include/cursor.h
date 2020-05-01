@@ -178,7 +178,10 @@ struct __wt_cursor_btree {
      * The update structure allocated by the row- and column-store modify functions, used to avoid a
      * data copy in the WT_CURSOR.update call.
      */
-    WT_UPDATE *modify_update;
+    WT_UPDATE_VALUE *modify_update, _modify_update;
+
+    /* An intermediate structure to hold the update value to be assigned to the cursor buffer. */
+    WT_UPDATE_VALUE *upd_value, _upd_value;
 
     /*
      * Fixed-length column-store items are a single byte, and it's simpler and cheaper to allocate
