@@ -542,7 +542,7 @@ __curfile_cache(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
     cbt->dhandle = cbt->btree->dhandle;
 
     WT_TRET(__wt_cursor_cache(cursor, cbt->dhandle));
@@ -565,7 +565,7 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     dhandle = cbt->dhandle;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
 
     if (check_only)
         return (WT_DHANDLE_CAN_REOPEN(dhandle) ? 0 : WT_NOTFOUND);
