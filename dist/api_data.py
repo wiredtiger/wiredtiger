@@ -983,6 +983,12 @@ wiredtiger_open_common =\
         size and the default config would extend log files in allocations of
         the maximum log file size.''',
         type='list', choices=['data', 'log']),
+    Config('file_handle_close_sync', 'true', r'''
+        flush modified files to stable storage independent of checkpoints when
+        closing existing file handles and opening an exclusive file handle. If
+        set to false, certain API calls that require exclusive access to files may
+        return EBUSY to caller''',
+        type='boolean'),
     Config('hazard_max', '1000', r'''
         maximum number of simultaneous hazard pointers per session
         handle''',

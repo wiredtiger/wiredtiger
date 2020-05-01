@@ -2898,6 +2898,10 @@ struct __wt_connection {
  * configured maximum log size and the default config would extend log files in allocations of the
  * maximum log file size., a list\, with values chosen from the following options: \c "data"\, \c
  * "log"; default empty.}
+ * @config{file_handle_close_sync, flush modified files to stable storage independent of checkpoints
+ * when closing existing file handles and opening an exclusive file handle.  If set to false\,
+ * certain API calls that require exclusive access to files may return EBUSY to caller., a boolean
+ * flag; default \c true.}
  * @config{file_manager = (, control how file handles are managed., a set of related configuration
  * options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;close_handle_minimum, number of handles
