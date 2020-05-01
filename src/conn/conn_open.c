@@ -16,6 +16,7 @@ int
 __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
 {
     WT_SESSION_IMPL *session;
+    time_t finish_secs;
 
     /* Default session. */
     session = conn->default_session;
@@ -38,6 +39,9 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
      * allocate into a stack variable and then assign it on success.
      */
     conn->default_session = session;
+
+    __wt_seconds(session, &finish_secs);
+    conn->ckpt_finish_secs = finish_secs;
 
     /*
      * Publish: there must be a barrier to ensure the connection structure fields are set before
