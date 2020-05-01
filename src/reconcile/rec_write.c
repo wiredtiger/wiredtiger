@@ -594,6 +594,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     r->update_modify_cbt.ref = ref;
     r->update_modify_cbt.iface.value_format = btree->value_format;
+    r->update_modify_cbt.upd_value = &r->update_modify_cbt._upd_value;
 
 /*
  * If we allocated the reconciliation structure and there was an error, clean up. If our caller
@@ -669,6 +670,7 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
     __wt_buf_free(session, &r->_last);
 
     __wt_buf_free(session, &r->update_modify_cbt.iface.value);
+    __wt_buf_free(session, &r->update_modify_cbt._upd_value.buf);
 
     __wt_free(session, r);
 }
