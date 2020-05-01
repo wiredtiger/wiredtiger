@@ -1801,17 +1801,16 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    bool bulk, metadata, need_tracking;
+    bool bulk, need_tracking;
 
     btree = S2BT(session);
     bulk = F_ISSET(btree, WT_BTREE_BULK);
-    metadata = WT_IS_METADATA(session->dhandle);
 
     /*
      * We've done the final checkpoint before the final close, subsequent writes to normal objects
      * are wasted effort. Discard the objects to validate exit accounting.
      */
-    if (final && !metadata)
+    if (final && !WT_IS_METADATA(session->dhandle))
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /*
@@ -1825,11 +1824,14 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     }
 
     /*
-     * Don't flush data from trees independant of system-wide checkpoint when logging is disabled.
-     * Otherwise, it can lead to files that are inconsistent on disk after a crash.
+     * Don't flush data from modified trees independent of system-wide checkpoint if logging is
+     * disabled, and, either there is a stable timestamp set or the connection is configured to
+     * disallow such operation. Flushing trees with logging disabled can lead to files that are
+     * inconsistent on disk after a crash.
      */
-    if (btree->modified && !bulk && !metadata && !__wt_btree_immediately_durable(session) &&
-      !F_ISSET(S2C(session), WT_CONN_FILE_HANDLE_CLOSE_SYNC))
+    if (btree->modified && !bulk && !__wt_btree_immediately_durable(session) &&
+      (S2C(session)->txn_global.has_stable_timestamp ||
+          !F_ISSET(S2C(session), WT_CONN_FILE_HANDLE_CLOSE_SYNC)))
         return (__wt_set_return(session, EBUSY));
 
     /*
