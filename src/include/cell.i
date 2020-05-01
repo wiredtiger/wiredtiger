@@ -17,6 +17,7 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t durable_sta
 {
 #ifdef HAVE_DIAGNOSTIC
     /*
+     * We're using WT_ERR_ASSERT rather than WT_ASSERT because we want to push out a message string.
      * This usage of WT_ERR_ASSERT isn't "correct", because it jumps to a non-existent error label
      * in non-diagnostic builds and returns WT_PANIC without calling the underlying panic routine.
      * That's OK, we have to be in a diagnostic build to get here, and fixing it would require new
@@ -143,6 +144,7 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_durable_
 {
 #ifdef HAVE_DIAGNOSTIC
     /*
+     * We're using WT_ERR_ASSERT rather than WT_ASSERT because we want to push out a message string.
      * This usage of WT_ERR_ASSERT isn't "correct", because it jumps to a non-existent error label
      * in non-diagnostic builds and returns WT_PANIC without calling the underlying panic routine.
      * That's OK, we have to be in a diagnostic build to get here, and fixing it would require new
