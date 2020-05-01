@@ -34,10 +34,7 @@
 import time
 import wiredtiger, wttest
 
-def timestamp_str(t):
-    return '%x' % t
-
-class test_checkpoint04(wttest.WiredTigerTestCase):
+class test_checkpoint05(wttest.WiredTigerTestCase):
     conn_config = 'create,cache_size=100MB,log=(archive=false,enabled=true,file_max=100K)'
 
     def make_key(self, n):
@@ -70,11 +67,15 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
 
     def test_checkpoints_during_backup(self):
         self.uri = 'table:ckpt05'
-        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.session.create(self.uri, 'key_format=i,value_format=i')
 
-        # Insert some data and take checkpoints
-        self.do_updates(0)
+        # Setup: Insert some data and checkpoint it
+        cursor = self.session.open_cursor(self.uri, None)
+        for i in range(16):
+            cursor[i] = i
+        self.session.checkpoint(None)
 
+        # Create backup and check how many checkpoints we have.
         backup_cursor = self.session.open_cursor('backup:', None, None)
         initial_count = self.count_checkpoints()
 
@@ -82,14 +83,16 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
         # Pause to avoid this.
         time.sleep(2)
 
-        # Insert some more data, then update existing values
-        self.do_updates(1)
-        self.do_updates(0)
+        # Take a bunch of checkpoints.
+        for i in range (50):
+            cursor[i] = i
+            self.session.checkpoint(None)
+        cursor.close()
 
         # There may be a few more checkpoints than when we opened the
         # backup cursor, but not too many more.  The factor of three
         # is generous.  But if WT isn't deleting checkpoints there would
-        # be about 100x more checkpoints here.
+        # be about 30x more checkpoints here.
         final_count = self.count_checkpoints()
         self.assertTrue (final_count < initial_count * 3)
 

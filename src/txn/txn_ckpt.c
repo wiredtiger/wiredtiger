@@ -745,8 +745,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_ISOLATION saved_isolation;
     wt_timestamp_t ckpt_tmp_ts;
+    uint64_t finish_secs, hs_ckpt_duration_usecs, time_start_hs, time_stop_hs;
     uint64_t fsync_duration_usecs, generation, time_start_fsync, time_stop_fsync;
-    uint64_t time_start_hs, time_stop_hs, hs_ckpt_duration_usecs, finish_secs;
     u_int i;
     bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
     void *saved_meta_next;
@@ -998,7 +998,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
 err:
-
     /*
      * Reset the timer so that next checkpoint tracks the progress only if configured.
      */
