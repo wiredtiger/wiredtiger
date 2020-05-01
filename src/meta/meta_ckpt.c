@@ -463,6 +463,7 @@ __wt_meta_ckptlist_get(
     WT_CONFIG_ITEM k, v;
     WT_DECL_RET;
     size_t allocated, slot;
+    int64_t maxorder;
     char *config;
 
     *ckptbasep = NULL;
@@ -507,8 +508,11 @@ __wt_meta_ckptlist_get(
         WT_ERR(__wt_realloc_def(session, &allocated, slot + 2, &ckptbase));
 
         /* The caller may be adding a value, initialize it. */
-        ckpt = &ckptbase[slot];
-        ckpt->order = (slot == 0) ? 1 : ckptbase[slot - 1].order + 1;
+        maxorder = 0;
+        WT_CKPT_FOREACH (ckptbase, ckpt)
+            if (ckpt->order > maxorder)
+                maxorder = ckpt->order;
+        ckpt->order = maxorder + 1;
         __wt_seconds(session, &ckpt->sec);
         /*
          * Load most recent checkpoint backup blocks to this checkpoint.
