@@ -661,7 +661,7 @@ __log_file_server(void *arg)
 
     if (0) {
 err:
-        ret = __wt_panic(session, ret, "log close server error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "log close server error"));
     }
     WT_STAT_CONN_INCRV(session, log_server_sync_blocked, yield_count);
     if (locked)
@@ -856,7 +856,7 @@ __log_wrlsn_server(void *arg)
     __wt_log_wrlsn(session, NULL);
     if (0) {
 err:
-        ret = __wt_panic(session, ret, "log wrlsn server error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "log wrlsn server error"));
     }
     return (WT_THREAD_RET_VALUE);
 }
@@ -947,7 +947,7 @@ __log_server(void *arg)
 
     if (0) {
 err:
-        ret = __wt_panic(session, ret, "log server error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "log server error"));
     }
     return (WT_THREAD_RET_VALUE);
 }
