@@ -514,7 +514,7 @@ __recovery_file_scan(WT_RECOVERY *r)
  *     Run recovery.
  */
 int
-__wt_txn_recover(WT_SESSION_IMPL *session)
+__wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metac;
@@ -546,18 +546,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
     WT_ERR(__wt_metadata_cursor_open(session, NULL, &metac));
     metafile = &r.files[WT_METAFILE_ID];
     metafile->c = metac;
-
-    /*
-     * We should check whether the history store file exists or not. or not. If it does not, then we
-     * should not apply rollback to stable to each table. This might happen if we're upgrading from
-     * an older version.
-     */
-    metac->set_key(metac, WT_HS_URI);
-    WT_ERR_NOTFOUND_OK(metac->search(metac), true);
-    if (ret == WT_NOTFOUND)
-        hs_exists = false;
-    /* Unpin the page from cache. */
-    WT_ERR(metac->reset(metac));
 
     /*
      * If no log was found (including if logging is disabled), or if the last checkpoint was done
@@ -632,6 +620,36 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
         WT_ERR(ret);
     }
+
+    /*
+     * We should check whether the history store file exists in the metadata or not. or not. If it
+     * does not, then we should not apply rollback to stable to each table. This might happen if
+     * we're upgrading from an older version. If it does exist in the metadata we should check that
+     * it exists on disk to confirm that it wasn't deleted between runs.
+     *
+     * This needs to happen after we recovery the metadata from the logs, otherwise we can end up
+     * in the situation where the metadata does actually contain the history store but we didn't
+     * yet recover the metadata.
+     */
+    metac->set_key(metac, WT_HS_URI);
+    WT_ERR_NOTFOUND_OK(metac->search(metac), true);
+    if (ret == WT_NOTFOUND) {
+        hs_exists = false;
+    } else {
+        WT_ERR(__wt_fs_exist(session, WT_HS_FILE, &hs_exists));
+        if (!hs_exists) {
+            /* The history store file has likely been deleted, we cannot recover from this. */
+            WT_ERR_MSG(session, WT_TRY_SALVAGE, "%s file is corrupted or missing", WT_HS_FILE);
+        } else {
+            /*
+             * We expect that configuring the history store can fail in certain recovery scenarios.
+             */
+            WT_ERR_ERROR_OK(__wt_hs_config(session, cfg), ENOENT, false);
+        }
+    }
+
+    /* Unpin the page from cache. */
+    WT_ERR(metac->reset(metac));
 
     /* Scan the metadata to find the live files and their IDs. */
     WT_ERR(__recovery_file_scan(&r));

@@ -205,21 +205,22 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_statlog_create(session, cfg));
     WT_RET(__wt_logmgr_create(session, cfg));
 
-    /* Initialize metadata tracking, required before creating tables. */
-    WT_RET(__wt_meta_track_init(session));
-
-    /*
-     * Try to create the history store table. Failure here suggests that the history file is
-     * corrupted in some way. We catch this failure and then run recovery.
-     */
-    WT_RET_ERROR_OK(__wt_hs_create(session, cfg), ENOENT);
-
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
      * Recovery must run before the history store table is created (because recovery will update the
-     * metadata), and before eviction is started for real.
+     * metadata, and set the maximum file id seen), and before eviction is started for real.
      */
-    WT_RET(__wt_txn_recover(session));
+    WT_RET(__wt_txn_recover(session, cfg));
+
+    /* Initialize metadata tracking, required before creating tables. */
+    WT_RET(__wt_meta_track_init(session));
+
+
+    /*
+     * Create the history store file. This will only actually create it on upgrade or when creating
+     * a new database.
+     */
+    WT_RET(__wt_hs_create(session, cfg));
 
     /*
      * Start the optional logging/archive threads. NOTE: The log manager must be started before
