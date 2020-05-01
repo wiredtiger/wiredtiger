@@ -333,6 +333,8 @@ struct __wt_txn_shared;
 typedef struct __wt_txn_shared WT_TXN_SHARED;
 struct __wt_update;
 typedef struct __wt_update WT_UPDATE;
+struct __wt_update_value;
+typedef struct __wt_update_value WT_UPDATE_VALUE;
 union __wt_lsn;
 typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -379,8 +381,8 @@ typedef uint64_t wt_timestamp_t;
 #include "misc.h"
 #include "mutex.h"
 
-#include "stat.h"    /* required by dhandle.h */
-#include "dhandle.h" /* required by btree.h */
+#include "stat.h"      /* required by dhandle.h */
+#include "dhandle.h"   /* required by btree.h */
 #include "timestamp.h" /* required by reconcile.h */
 
 #include "api.h"

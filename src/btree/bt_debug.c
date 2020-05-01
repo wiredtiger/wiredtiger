@@ -709,15 +709,13 @@ int
 __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-    WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint32_t session_flags;
     bool is_owner;
 
-    cursor = cursor_arg;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor_arg);
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
 
     WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
@@ -741,10 +739,9 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
-    wt_timestamp_t hs_durable_ts;
-    uint64_t hs_upd_type_full;
+    uint64_t hs_counter, hs_upd_type_full;
     uint32_t hs_btree_id;
-    uint8_t hs_prep_state, hs_upd_type;
+    uint8_t hs_upd_type;
 
     ds = &_ds;
     __wt_time_window_init(&tw);
@@ -753,13 +750,11 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
     WT_ERR(__debug_config(session, ds, NULL));
 
-    WT_ERR(hs_cursor->get_key(
-      hs_cursor, &hs_btree_id, hs_key, &tw.start_ts, &tw.start_txn, &tw.stop_ts, &tw.stop_txn));
-
+    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &tw.start_ts, &hs_counter));
+    WT_ERR(hs_cursor->get_value(
+      hs_cursor, &tw.stop_ts, &tw.durable_start_ts, &hs_upd_type_full, hs_value));
     WT_ERR(__debug_time_window(ds, "T", &tw));
 
-    WT_ERR(
-      hs_cursor->get_value(hs_cursor, &hs_durable_ts, &hs_prep_state, &hs_upd_type_full, hs_value));
     hs_upd_type = (uint8_t)hs_upd_type_full;
     switch (hs_upd_type) {
     case WT_UPDATE_MODIFY:

@@ -14,13 +14,20 @@ static inline void
 __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
 #ifdef HAVE_DIAGNOSTIC
+    /*
+     * We're using WT_ERR_ASSERT rather than WT_ASSERT because we want to push out a message string.
+     * This usage of WT_ERR_ASSERT isn't "correct", because it jumps to a non-existent error label
+     * in non-diagnostic builds and returns WT_PANIC without calling the underlying panic routine.
+     * That's OK, we have to be in a diagnostic build to get here, and fixing it would require new
+     * macros that aren't needed anywhere else, so we're leaving it alone.
+     */
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    if (tw->start_ts > tw->start_durable_ts)
-        WT_ERR_ASSERT(session, tw->start_ts <= tw->start_durable_ts, WT_PANIC,
+    if (tw->start_ts > tw->durable_start_ts)
+        WT_ERR_ASSERT(session, tw->start_ts <= tw->durable_start_ts, WT_PANIC,
           "a start timestamp %s newer than its durable start timestamp %s",
           __wt_timestamp_to_string(tw->start_ts, ts_string[0]),
-          __wt_timestamp_to_string(tw->start_durable_ts, ts_string[1]));
+          __wt_timestamp_to_string(tw->durable_start_ts, ts_string[1]));
 
     if (tw->start_ts != WT_TS_NONE && tw->stop_ts == WT_TS_NONE)
         WT_ERR_ASSERT(session, tw->stop_ts != WT_TS_NONE, WT_PANIC, "stop timestamp of 0");
@@ -36,11 +43,11 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
           "a start transaction ID %" PRIu64 " newer than its stop transaction ID %" PRIu64,
           tw->start_txn, tw->stop_txn);
 
-    if (tw->stop_ts != WT_TS_MAX && tw->stop_ts > tw->stop_durable_ts)
-        WT_ERR_ASSERT(session, tw->stop_ts <= tw->stop_durable_ts, WT_PANIC,
+    if (tw->stop_ts != WT_TS_MAX && tw->stop_ts > tw->durable_stop_ts)
+        WT_ERR_ASSERT(session, tw->stop_ts <= tw->durable_stop_ts, WT_PANIC,
           "a stop timestamp %s newer than its durable stop timestamp %s",
           __wt_timestamp_to_string(tw->stop_ts, ts_string[0]),
-          __wt_timestamp_to_string(tw->stop_durable_ts, ts_string[1]));
+          __wt_timestamp_to_string(tw->durable_stop_ts, ts_string[1]));
 
 #else
     WT_UNUSED(session);
@@ -79,11 +86,11 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, tw->start_txn));
         LF_SET(WT_CELL_TXN_START);
     }
-    if (tw->start_durable_ts != WT_TS_NONE) {
-        WT_ASSERT(session, tw->start_ts != WT_TS_NONE && tw->start_ts <= tw->start_durable_ts);
+    if (tw->durable_start_ts != WT_TS_NONE) {
+        WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
         /* Store differences if any, not absolutes. */
-        if (tw->start_durable_ts - tw->start_ts > 0) {
-            WT_IGNORE_RET(__wt_vpack_uint(pp, 0, tw->start_durable_ts - tw->start_ts));
+        if (tw->durable_start_ts - tw->start_ts > 0) {
+            WT_IGNORE_RET(__wt_vpack_uint(pp, 0, tw->durable_start_ts - tw->start_ts));
             LF_SET(WT_CELL_TS_DURABLE_START);
         }
     }
@@ -97,11 +104,11 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, tw->stop_txn - tw->start_txn));
         LF_SET(WT_CELL_TXN_STOP);
     }
-    if (tw->stop_durable_ts != WT_TS_NONE) {
-        WT_ASSERT(session, tw->stop_ts != WT_TS_MAX && tw->stop_ts <= tw->stop_durable_ts);
+    if (tw->durable_stop_ts != WT_TS_NONE) {
+        WT_ASSERT(session, tw->stop_ts <= tw->durable_stop_ts);
         /* Store differences if any, not absolutes. */
-        if (tw->stop_durable_ts - tw->stop_ts > 0) {
-            WT_IGNORE_RET(__wt_vpack_uint(pp, 0, tw->stop_durable_ts - tw->stop_ts));
+        if (tw->durable_stop_ts - tw->stop_ts > 0) {
+            WT_IGNORE_RET(__wt_vpack_uint(pp, 0, tw->durable_stop_ts - tw->stop_ts));
             LF_SET(WT_CELL_TS_DURABLE_STOP);
         }
     }
@@ -123,6 +130,13 @@ static inline void
 __wt_check_addr_validity(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
 {
 #ifdef HAVE_DIAGNOSTIC
+    /*
+     * We're using WT_ERR_ASSERT rather than WT_ASSERT because we want to push out a message string.
+     * This usage of WT_ERR_ASSERT isn't "correct", because it jumps to a non-existent error label
+     * in non-diagnostic builds and returns WT_PANIC without calling the underlying panic routine.
+     * That's OK, we have to be in a diagnostic build to get here, and fixing it would require new
+     * macros that aren't needed anywhere else, so we're leaving it alone.
+     */
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     if (ta->oldest_start_ts != WT_TS_NONE && ta->newest_stop_ts == WT_TS_NONE)
@@ -190,12 +204,8 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
     }
     if (ta->newest_start_durable_ts != WT_TS_NONE) {
         /* Store differences, not absolutes. */
-        /*
-         * FIXME-prepare-support:
-         * WT_ASSERT(
-         *  session, ta->oldest_start_ts != WT_TS_NONE && ta->oldest_start_ts <=
-         * ta>newest_start_durable_ts);
-         */
+        WT_ASSERT(session, ta->oldest_start_ts <= ta->newest_start_durable_ts);
+
         /*
          * Unlike value cell, we store the durable start timestamp even the difference is zero
          * compared to oldest commit timestamp. The difference can only be zero when the page
@@ -217,13 +227,12 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
         LF_SET(WT_CELL_TXN_STOP);
     }
     if (ta->newest_stop_durable_ts != WT_TS_NONE) {
-        /* Store differences, not absolutes. */
+        WT_ASSERT(session,
+          ta->newest_stop_ts == WT_TS_MAX || ta->newest_stop_ts <= ta->newest_stop_durable_ts);
+
         /*
-         * FIXME-prepare-support:
-         * WT_ASSERT(session,
-         *   ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts <= stop_durable__ts);
-         */
-        /*
+         * Store differences, not absolutes.
+         *
          * Unlike value cell, we store the durable stop timestamp even the difference is zero
          * compared to newest commit timestamp. The difference can only be zero when the page
          * contains all the key/value pairs with the same timestamp. But this scenario is rare and
@@ -233,6 +242,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_stop_durable_ts - ta->newest_stop_ts));
         LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
+
     /*
      * Currently, no uncommitted prepared updates are written to the data store, so this flag must
      * be false until we allow writing them in WT-5984. In that ticket this assert must be removed.
@@ -240,6 +250,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
     WT_ASSERT(session, ta->prepare == false);
     if (ta->prepare)
         LF_SET(WT_CELL_PREPARE);
+
     *flagsp = flags;
 }
 
@@ -851,10 +862,10 @@ restart:
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->start_txn));
         if (LF_ISSET(WT_CELL_TS_DURABLE_START)) {
             WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->start_durable_ts));
-            tw->start_durable_ts += tw->start_ts;
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->durable_start_ts));
+            tw->durable_start_ts += tw->start_ts;
         } else
-            tw->start_durable_ts = tw->start_ts;
+            tw->durable_start_ts = tw->start_ts;
 
         if (LF_ISSET(WT_CELL_TS_STOP)) {
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->stop_ts));
@@ -866,12 +877,12 @@ restart:
         }
         if (LF_ISSET(WT_CELL_TS_DURABLE_STOP)) {
             WT_RET(
-              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->stop_durable_ts));
-            tw->stop_durable_ts += tw->stop_ts;
+              __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->durable_stop_ts));
+            tw->durable_stop_ts += tw->stop_ts;
         } else if (tw->stop_ts != WT_TS_MAX)
-            tw->stop_durable_ts = tw->stop_ts;
+            tw->durable_stop_ts = tw->stop_ts;
         else
-            tw->stop_durable_ts = WT_TS_NONE;
+            tw->durable_stop_ts = WT_TS_NONE;
 
         __cell_check_value_validity(session, tw);
         break;

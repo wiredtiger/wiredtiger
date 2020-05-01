@@ -115,7 +115,7 @@ __rec_append_orig_value(
     total_size += size;
     append->txnid = unpack->tw.start_txn;
     append->start_ts = unpack->tw.start_ts;
-    append->durable_ts = unpack->tw.start_durable_ts;
+    append->durable_ts = unpack->tw.durable_start_ts;
 
     /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
@@ -130,13 +130,13 @@ __rec_append_orig_value(
             total_size += size;
             tombstone->txnid = unpack->tw.stop_txn;
             tombstone->start_ts = unpack->tw.stop_ts;
-            tombstone->durable_ts = unpack->tw.stop_durable_ts;
+            tombstone->durable_ts = unpack->tw.durable_stop_ts;
 
             tombstone->next = append;
             append = tombstone;
         } else
             WT_ASSERT(session, unpack->tw.stop_ts == oldest_upd->start_ts &&
-                    unpack->tw.stop_txn == oldest_upd->txnid);
+                unpack->tw.stop_txn == oldest_upd->txnid);
     }
 
     /* Append the new entry into the update list. */
@@ -317,7 +317,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      */
     if (has_newer_updates && F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBILITY_ERR)) {
         if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-            WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
+            WT_RET_PANIC(session, EINVAL, "reconciliation error, update not visible");
         return (__wt_set_return(session, EBUSY));
     }
 
@@ -402,7 +402,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
           "Warning: fixing out-of-order timestamps remove at %s earlier than value at %s",
           __wt_timestamp_to_string(select_tw->stop_ts, ts_string[0]),
           __wt_timestamp_to_string(select_tw->start_ts, ts_string[1]));
-        select_tw->start_durable_ts = select_tw->stop_durable_ts;
+        select_tw->durable_start_ts = select_tw->durable_stop_ts;
         select_tw->start_ts = select_tw->stop_ts;
         select_tw->start_txn = select_tw->stop_txn;
     }

@@ -917,7 +917,7 @@ __slvg_col_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_s
      */
     /* Case #2/8, #10, #11 */
     if (a_trk->col_start > b_trk->col_start)
-        WT_PANIC_RET(session, EINVAL, "unexpected merge array sort order");
+        WT_RET_PANIC(session, EINVAL, "unexpected merge array sort order");
 
     if (a_trk->col_start == b_trk->col_start) { /* Case #1, #4 and #9 */
                                                 /*
@@ -1318,7 +1318,7 @@ __slvg_col_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK *
             return (__slvg_ovfl_ref(session, ovfl, false));
     }
 
-    WT_PANIC_RET(session, EINVAL, "overflow record at column-store page merge not found");
+    WT_RET_PANIC(session, EINVAL, "overflow record at column-store page merge not found");
 }
 
 /*
@@ -1507,7 +1507,7 @@ __slvg_row_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_s
     WT_RET(__wt_compare(session, btree->collator, A_TRK_STOP, B_TRK_STOP, &stop_cmp));
 
     if (start_cmp > 0) /* Case #2/8, #10, #11 */
-        WT_PANIC_RET(session, EINVAL, "unexpected merge array sort order");
+        WT_RET_PANIC(session, EINVAL, "unexpected merge array sort order");
 
     if (start_cmp == 0) { /* Case #1, #4, #9 */
                           /*
@@ -1982,7 +1982,7 @@ __slvg_row_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK *
             return (__slvg_ovfl_ref(session, ovfl, true));
     }
 
-    WT_PANIC_RET(session, EINVAL, "overflow record at row-store page merge not found");
+    WT_RET_PANIC(session, EINVAL, "overflow record at row-store page merge not found");
 }
 
 /*
@@ -2260,7 +2260,7 @@ __slvg_ovfl_ref(WT_SESSION_IMPL *session, WT_TRACK *trk, bool multi_panic)
     if (F_ISSET(trk, WT_TRACK_OVFL_REFD)) {
         if (!multi_panic)
             return (__wt_set_return(session, EBUSY));
-        WT_PANIC_RET(session, EINVAL,
+        WT_RET_PANIC(session, EINVAL,
           "overflow record unexpectedly referenced multiple times "
           "during leaf page merge");
     }

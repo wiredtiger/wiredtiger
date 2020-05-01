@@ -357,11 +357,11 @@ __rollback_abort_row_ondisk_kv(
     vpack = &_vpack;
     upd = NULL;
     __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
-    if (vpack->ta.newest_start_durable_ts > rollback_timestamp) {
+    if (vpack->tw.durable_start_ts > rollback_timestamp) {
         __wt_verbose(session, WT_VERB_RTS,
           "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s and "
           "stable timestamp: %s",
-          __wt_timestamp_to_string(vpack->ta.newest_start_durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(vpack->tw.durable_start_ts, ts_string[0]),
           __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
@@ -374,8 +374,8 @@ __rollback_abort_row_ondisk_kv(
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
         }
-    } else if (vpack->tw.stop_durable_ts != WT_TS_NONE &&
-      vpack->tw.stop_durable_ts > rollback_timestamp) {
+    } else if (vpack->tw.durable_stop_ts != WT_TS_NONE &&
+      vpack->tw.durable_stop_ts > rollback_timestamp) {
         /*
          * Clear the remove operation from the key by inserting the original on-disk value as a
          * standard update.
@@ -392,7 +392,7 @@ __rollback_abort_row_ondisk_kv(
 
         WT_RET(__wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, &upd, NULL));
         upd->txnid = vpack->tw.start_txn;
-        upd->durable_ts = vpack->tw.start_durable_ts;
+        upd->durable_ts = vpack->tw.durable_start_ts;
         upd->start_ts = vpack->tw.start_ts;
         WT_STAT_CONN_INCR(session, txn_rts_keys_restored);
         __wt_verbose(session, WT_VERB_RTS,
@@ -694,9 +694,9 @@ __rollback_verify_ondisk_page(
     /* Review updates that belong to keys that are on the disk image. */
     WT_ROW_FOREACH (page, rip, i) {
         __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
-        WT_ASSERT(session, vpack->tw.start_ts <= rollback_timestamp);
-        if (vpack->tw.stop_ts != WT_TS_MAX)
-            WT_ASSERT(session, vpack->tw.stop_ts <= rollback_timestamp);
+        WT_ASSERT(session, vpack->tw.durable_start_ts <= rollback_timestamp);
+        WT_ASSERT(session, vpack->tw.durable_stop_ts == WT_TS_NONE ||
+            vpack->tw.durable_stop_ts <= rollback_timestamp);
     }
 }
 #endif
@@ -733,7 +733,8 @@ __rollback_abort_newer_updates(
 #ifdef HAVE_DIAGNOSTIC
             if (ref->page == NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
                 WT_RET(__wt_page_in(session, ref, 0));
-                __rollback_verify_ondisk_page(session, ref->page, rollback_timestamp);
+                if (ref->page->type == WT_PAGE_ROW_LEAF)
+                    __rollback_verify_ondisk_page(session, ref->page, rollback_timestamp);
                 WT_TRET(__wt_page_release(session, ref, 0));
             }
 #endif
@@ -846,7 +847,7 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
      */
     if (__wt_btree_immediately_durable(session)) {
         if (btree->id >= conn->stable_rollback_maxfile)
-            WT_PANIC_RET(session, EINVAL, "btree file ID %" PRIu32 " larger than max %" PRIu32,
+            WT_RET_PANIC(session, EINVAL, "btree file ID %" PRIu32 " larger than max %" PRIu32,
               btree->id, conn->stable_rollback_maxfile);
         return (0);
     }

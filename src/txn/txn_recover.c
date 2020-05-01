@@ -424,7 +424,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     }
 
     if (r->files[fileid].uri != NULL)
-        WT_PANIC_RET(r->session, WT_PANIC,
+        WT_RET_PANIC(r->session, WT_PANIC,
           "metadata corruption: files %s and %s have the same "
           "file ID %u",
           uri, r->files[fileid].uri, fileid);

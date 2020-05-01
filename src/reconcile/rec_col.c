@@ -19,7 +19,7 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
     WT_RECONCILE *r;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbulk->cbt.iface.session;
+    session = CUR2S(cbulk);
     r = cbulk->reconcile;
     btree = S2BT(session);
 
@@ -488,7 +488,7 @@ __wt_rec_col_fix_slvg(
      * We can't split during salvage -- if everything didn't fit, it's all gone wrong.
      */
     if (salvage->missing != 0 || page_take != 0)
-        WT_PANIC_RET(session, WT_PANIC, "%s page too large, attempted split during salvage",
+        WT_RET_PANIC(session, WT_PANIC, "%s page too large, attempted split during salvage",
           __wt_page_type_string(page->type));
 
     /* Write the page. */
@@ -800,7 +800,9 @@ record_loop:
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
                     cbt->slot = WT_COL_SLOT(page, cip);
-                    WT_ERR(__wt_value_return_upd(cbt, upd));
+                    WT_ERR(
+                      __wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
+                    WT_ERR(__wt_value_return(cbt, cbt->upd_value));
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
                     update_no_copy = false;
@@ -960,7 +962,9 @@ compare:
                      * Impossible slot, there's no backing on-page item.
                      */
                     cbt->slot = UINT32_MAX;
-                    WT_ERR(__wt_value_return_upd(cbt, upd));
+                    WT_ERR(
+                      __wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
+                    WT_ERR(__wt_value_return(cbt, cbt->upd_value));
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
                     update_no_copy = false;
@@ -998,9 +1002,9 @@ compare:
                      */
                     WT_ASSERT(session,
                       (!deleted && !last.deleted) ||
-                        (last.tw.start_durable_ts == tw.start_durable_ts &&
+                        (last.tw.durable_start_ts == tw.durable_start_ts &&
                           last.tw.start_ts == WT_TS_NONE && last.tw.start_txn == WT_TXN_NONE &&
-                          last.tw.stop_durable_ts == tw.stop_durable_ts &&
+                          last.tw.durable_stop_ts == tw.durable_stop_ts &&
                           last.tw.stop_ts == WT_TS_MAX && last.tw.stop_txn == WT_TXN_MAX));
                     ++rle;
                     goto next;

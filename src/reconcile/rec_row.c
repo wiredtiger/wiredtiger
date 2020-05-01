@@ -535,8 +535,8 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     /*
      * The item must be globally visible because we're not writing anything on the page. Don't be
-     * tempted to check the time window against the default here - the check is subtly different
-     * due to the grouping.
+     * tempted to check the time window against the default here - the check is subtly different due
+     * to the grouping.
      */
     return ((tw->stop_ts == WT_TS_MAX && tw->stop_txn == WT_TXN_MAX) &&
       ((tw->start_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE) ||
@@ -582,7 +582,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              * Impossible slot, there's no backing on-page item.
              */
             cbt->slot = UINT32_MAX;
-            WT_RET(__wt_value_return_upd(cbt, upd));
+            WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
+            WT_RET(__wt_value_return(cbt, cbt->upd_value));
             WT_RET(__wt_rec_cell_build_val(
               session, r, cbt->iface.value.data, cbt->iface.value.size, &tw, 0));
             break;
@@ -837,7 +838,8 @@ __wt_rec_row_leaf(
             switch (upd->type) {
             case WT_UPDATE_MODIFY:
                 cbt->slot = WT_ROW_SLOT(page, rip);
-                WT_ERR(__wt_value_return_upd(cbt, upd));
+                WT_ERR(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
+                WT_ERR(__wt_value_return(cbt, cbt->upd_value));
                 WT_ERR(__wt_rec_cell_build_val(
                   session, r, cbt->iface.value.data, cbt->iface.value.size, &tw, 0));
                 dictionary = true;

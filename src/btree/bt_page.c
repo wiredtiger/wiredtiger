@@ -575,8 +575,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
              * The visibility information is not referenced on the page so we need to ensure that
              * the value is globally visible at the point in time where we read the page into cache.
              */
-            if (!btree->huffman_value &&
-              unpack.tw.stop_txn == WT_TXN_MAX && unpack.tw.stop_ts == WT_TS_MAX &&
+            if (!btree->huffman_value && unpack.tw.stop_txn == WT_TXN_MAX &&
+              unpack.tw.stop_ts == WT_TS_MAX &&
               __wt_txn_visible_all(session, unpack.tw.start_txn, unpack.tw.start_ts))
                 __wt_row_leaf_value_set(page, rip - 1, &unpack);
             break;

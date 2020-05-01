@@ -173,7 +173,6 @@ struct __wt_cell_unpack {
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CELL_UNPACK_OVERFLOW 0x1u           /* cell is an overflow */
-    /* TODO: How can we make sure this flag makes it into the time window and time aggregate? */
 #define WT_CELL_UNPACK_PREPARE 0x2u            /* cell is part of a prepared transaction */
 #define WT_CELL_UNPACK_TIME_PAIRS_CLEARED 0x4u /* time pairs are cleared because of restart */
                                                /* AUTOMATIC FLAG VALUE GENERATION STOP */
