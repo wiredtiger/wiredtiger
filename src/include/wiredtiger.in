@@ -6243,10 +6243,12 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_PAGES_EVICTION			2142
 /*! reconciliation: pages deleted */
 #define	WT_STAT_DSRC_REC_PAGE_DELETE			2143
+/*! reconciliation: prepared values written */
+#define	WT_STAT_DSRC_REC_PREPARE_VALUE			2144
 /*! session: object compaction */
-#define	WT_STAT_DSRC_SESSION_COMPACT			2144
+#define	WT_STAT_DSRC_SESSION_COMPACT			2145
 /*! transaction: update conflicts */
-#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2145
+#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2146
 
 /*!
  * @}
