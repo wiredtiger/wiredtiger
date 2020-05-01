@@ -751,8 +751,8 @@ record_loop:
                 ins = WT_SKIP_NEXT(ins);
             }
 
-            update_no_copy = upd == NULL; /* No data copy */
-            repeat_count = 1;             /* Single record */
+            update_no_copy = true; /* No data copy */
+            repeat_count = 1;      /* Single record */
             deleted = false;
 
             if (upd == NULL) {
@@ -988,7 +988,7 @@ compare:
         }
 
         while (src_recno <= n) {
-            update_no_copy = upd == NULL; /* No data copy */
+            update_no_copy = true; /* No data copy */
             deleted = false;
 
             /*
