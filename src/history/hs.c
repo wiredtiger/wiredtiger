@@ -530,7 +530,7 @@ __hs_calculate_full_value(
 
     if (upd->type == WT_UPDATE_MODIFY) {
         WT_RET(__wt_buf_set(session, full_value, base_full_value, size));
-        WT_RET(__wt_modify_apply_item(cursor, full_value, upd->data));
+        WT_RET(__wt_modify_apply_item(session, S2BT(session)->value_format, full_value, upd->data));
     } else {
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         full_value->data = upd->data;
@@ -871,8 +871,8 @@ __hs_restore_read_timestamp(WT_SESSION_IMPL *session)
  *     prepare conflict will be returned upon reading a prepared update.
  */
 int
-__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDATE_VALUE *upd_value,
-  bool allow_prepare, WT_ITEM *on_disk_buf)
+__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
+  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
@@ -1041,7 +1041,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
             __wt_modify_vector_pop(&modifies, &mod_upd);
-            WT_ERR(__wt_modify_apply_item(hs_cursor, hs_value, mod_upd->data));
+            WT_ERR(__wt_modify_apply_item(session, value_format, hs_value, mod_upd->data));
             __wt_free_update_list(session, &mod_upd);
             mod_upd = NULL;
         }

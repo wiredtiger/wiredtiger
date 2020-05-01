@@ -350,16 +350,14 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const size_t
  *     Apply a single set of WT_MODIFY changes to a WT_ITEM buffer.
  */
 int
-__wt_modify_apply_item(WT_CURSOR *cursor, WT_ITEM *value, const void *modify)
+__wt_modify_apply_item(
+  WT_SESSION_IMPL *session, const char *value_format, WT_ITEM *value, const void *modify)
 {
     WT_MODIFY mod;
-    WT_SESSION_IMPL *session;
     size_t datasz, destsz, item_offset, tmp;
     const size_t *p;
     int napplied, nentries;
     bool overlap, sformat;
-
-    session = (WT_SESSION_IMPL *)cursor->session;
 
     /*
      * Get the number of modify entries and set a second pointer to reference the replacement data.
@@ -369,7 +367,8 @@ __wt_modify_apply_item(WT_CURSOR *cursor, WT_ITEM *value, const void *modify)
     nentries = (int)tmp;
 
     /* Make sure we are not applying modifies to schema with multiple value fields. */
-    sformat = cursor->value_format[0] == 'S';
+    WT_ASSERT(session, value_format[1] == '\0');
+    sformat = value_format[0] == 'S';
 
     /*
      * Grow the buffer first. This function is often called using a cursor buffer referencing
@@ -427,7 +426,8 @@ __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_DECL_RET;
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
-    WT_ERR(__wt_modify_apply_item(cursor, &cursor->value, modify->data));
+    WT_ERR(__wt_modify_apply_item(
+      (WT_SESSION_IMPL *)cursor->session, cursor->value_format, &cursor->value, modify->data));
 
 err:
     __wt_scr_free((WT_SESSION_IMPL *)cursor->session, &modify);
@@ -526,12 +526,10 @@ __wt_modify_reconstruct_from_upd_list(
     WT_DECL_RET;
     WT_MODIFY_VECTOR modifies;
     WT_TIME_PAIR start, stop;
-    bool sformat;
 
     WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
 
     cursor = (WT_CURSOR *)cbt;
-    sformat = (cursor->value_format[0] == 'S');
 
     /* While we have a pointer to our original modify, grab this information. */
     upd_value->start_ts = upd->start_ts;
@@ -578,7 +576,7 @@ __wt_modify_reconstruct_from_upd_list(
     /* Once we have a base item, roll forward through any visible modify updates. */
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &upd);
-        WT_ERR(__wt_modify_apply_item(session, &upd_value->buf, upd->data, sformat));
+        WT_ERR(__wt_modify_apply_item(session, cursor->value_format, &upd_value->buf, upd->data));
     }
     upd_value->type = WT_UPDATE_STANDARD;
 err:

@@ -144,7 +144,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
              * Build/insert a complete value during recovery rather than using cursor modify to
              * create a partial update (for no particular reason than simplicity).
              */
-            WT_ERR(__wt_modify_apply_item(cursor, &cursor->value, value.data));
+            WT_ERR(__wt_modify_apply_item((WT_SESSION_IMPL *)cursor->session, cursor->value_format,
+              &cursor->value, value.data));
             WT_ERR(cursor->insert(cursor));
         }
         break;
@@ -205,7 +206,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
              * Build/insert a complete value during recovery rather than using cursor modify to
              * create a partial update (for no particular reason than simplicity).
              */
-            WT_ERR(__wt_modify_apply_item(cursor, &cursor->value, value.data));
+            WT_ERR(__wt_modify_apply_item((WT_SESSION_IMPL *)cursor->session, cursor->value_format,
+              &cursor->value, value.data));
             WT_ERR(cursor->insert(cursor));
         }
         break;
