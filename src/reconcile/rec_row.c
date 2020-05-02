@@ -100,7 +100,6 @@ __rec_cell_build_leaf_key(
 {
     WT_BTREE *btree;
     WT_REC_KV *key;
-    WT_TIME_WINDOW tw;
     size_t pfx_max;
     uint8_t pfx;
     const uint8_t *a, *b;
@@ -109,7 +108,6 @@ __rec_cell_build_leaf_key(
 
     btree = S2BT(session);
     key = &r->k;
-    __wt_time_window_init(&tw);
 
     pfx = 0;
     if (data == NULL)
@@ -173,7 +171,7 @@ __rec_cell_build_leaf_key(
             WT_STAT_DATA_INCR(session, rec_overflow_key_leaf);
 
             *is_ovflp = true;
-            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, &tw, 0));
+            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));
         }
         return (__rec_cell_build_leaf_key(session, r, NULL, 0, is_ovflp));
     }
