@@ -679,8 +679,8 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
     WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type_full, hs_value));
 
     /*
-     * It is possible that the update in the history store may already been removed by older
-     * transaction but retained due to oldest timestamp
+     * It is possible that the update in the history store may already been removed by an older
+     * transaction but retained it due to an history window.
      */
     if (hs_stop_ts != WT_TS_MAX)
         goto err;
