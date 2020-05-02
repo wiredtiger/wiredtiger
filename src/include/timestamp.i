@@ -47,14 +47,7 @@ __wt_time_window_init_max(WT_TIME_WINDOW *tw)
 static inline void
 __wt_time_window_copy(WT_TIME_WINDOW *dest, WT_TIME_WINDOW *source)
 {
-    /* Don't use memory copy - this is in performance critical paths */
-    dest->start_ts = source->start_ts;
-    dest->start_txn = source->start_txn;
-    dest->durable_start_ts = source->durable_start_ts;
-    dest->stop_ts = source->stop_ts;
-    dest->stop_txn = source->stop_txn;
-    dest->durable_stop_ts = source->durable_stop_ts;
-    dest->prepare = source->prepare;
+    *dest = *source;
 }
 
 /*
@@ -64,11 +57,9 @@ __wt_time_window_copy(WT_TIME_WINDOW *dest, WT_TIME_WINDOW *source)
 static inline bool
 __wt_time_window_is_empty(WT_TIME_WINDOW *tw)
 {
-    if (tw->start_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE &&
+    return (tw->start_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE &&
       tw->durable_start_ts == WT_TS_NONE && tw->stop_ts == WT_TS_MAX &&
-      tw->stop_txn == WT_TXN_MAX && tw->durable_stop_ts == WT_TS_NONE)
-        return (true);
-    return (false);
+      tw->stop_txn == WT_TXN_MAX && tw->durable_stop_ts == WT_TS_NONE);
 }
 
 /*
@@ -78,12 +69,10 @@ __wt_time_window_is_empty(WT_TIME_WINDOW *tw)
 static inline bool
 __wt_time_windows_equal(WT_TIME_WINDOW *tw1, WT_TIME_WINDOW *tw2)
 {
-    if (tw1->start_ts == tw2->start_ts && tw1->start_txn == tw2->start_txn &&
+    return (tw1->start_ts == tw2->start_ts && tw1->start_txn == tw2->start_txn &&
       tw1->durable_start_ts == tw2->durable_start_ts && tw1->stop_ts == tw2->stop_ts &&
       tw1->stop_txn == tw2->stop_txn && tw1->durable_stop_ts == tw2->durable_stop_ts &&
-      tw1->prepare == tw2->prepare)
-        return (true);
-    return (false);
+      tw1->prepare == tw2->prepare);
 }
 
 /*
@@ -154,12 +143,9 @@ __wt_time_aggregate_init_max(WT_TIME_AGGREGATE *ta)
 static inline bool
 __wt_time_aggregate_is_empty(WT_TIME_AGGREGATE *ta)
 {
-    if (ta->newest_start_durable_ts == WT_TS_NONE && ta->newest_stop_durable_ts == WT_TS_NONE &&
+    return (ta->newest_start_durable_ts == WT_TS_NONE && ta->newest_stop_durable_ts == WT_TS_NONE &&
       ta->newest_stop_ts == WT_TS_NONE && ta->newest_stop_txn == WT_TXN_NONE &&
-      ta->oldest_start_ts == WT_TS_MAX && ta->oldest_start_txn == WT_TXN_MAX &&
-      ta->prepare == false)
-        return (true);
-    return (false);
+      ta->oldest_start_ts == WT_TS_MAX && ta->oldest_start_txn == WT_TXN_MAX && ta->prepare == 0);
 }
 
 /*
@@ -169,14 +155,7 @@ __wt_time_aggregate_is_empty(WT_TIME_AGGREGATE *ta)
 static inline void
 __wt_time_aggregate_copy(WT_TIME_AGGREGATE *dest, WT_TIME_AGGREGATE *source)
 {
-    dest->oldest_start_ts = source->oldest_start_ts;
-    dest->oldest_start_txn = source->oldest_start_txn;
-    dest->newest_start_durable_ts = source->newest_start_durable_ts;
-    dest->newest_stop_ts = source->newest_stop_ts;
-    dest->newest_stop_txn = source->newest_stop_txn;
-    dest->newest_stop_durable_ts = source->newest_stop_durable_ts;
-
-    dest->prepare = source->prepare;
+    *dest = *source;
 }
 
 /*
