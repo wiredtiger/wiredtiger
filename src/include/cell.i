@@ -723,11 +723,9 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     uint64_t v;
     const uint8_t *p;
     uint8_t flags;
+    bool copy_cell;
 
-    copy.v = 0; /* -Werror=maybe-uninitialized */
-    __wt_time_window_init(&copy.tw);
-    copy.len = 0;
-    /* Save ourselves from always having to indirect through the unpack structure. */
+    copy_cell = false;
     tw = &unpack->tw;
     ta = &unpack->ta;
 
@@ -901,14 +899,16 @@ restart:
      */
     switch (unpack->raw) {
     case WT_CELL_VALUE_COPY:
+        copy_cell = true;
+
         /*
          * The cell is followed by an offset to a cell written earlier in the page. Save/restore the
-         * length and RLE of this cell, we need the length to step through the set of cells on the
-         * page and this RLE is probably different from the RLE of the earlier cell.
+         * visibility window, length and RLE of this cell, we need the length to step through the
+         * set of cells on the page and the RLE and timestamp information are specific to this cell.
          */
+        __wt_time_window_copy(&copy.tw, tw);
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
         copy.v = unpack->v;
-        __wt_time_window_copy(&copy.tw, tw);
         copy.len = WT_PTRDIFF32(p, cell);
         cell = (WT_CELL *)((uint8_t *)cell - v);
         goto restart;
@@ -956,17 +956,17 @@ restart:
         return (WT_ERROR); /* Unknown cell type. */
     }
 
-/*
- * Check the original cell against the full cell length (this is a diagnostic as well, we may be
- * copying the cell from the page and we need the right length).
- */
 done:
+    /*
+     * Check the original cell against the full cell length (this is a diagnostic as well, we may be
+     * copying the cell from the page and we need the right length).
+     */
     WT_CELL_LEN_CHK(cell, unpack->__len);
-    if (copy.len != 0) {
-        unpack->raw = WT_CELL_VALUE_COPY;
-        unpack->v = copy.v;
+    if (copy_cell) {
         __wt_time_window_copy(tw, &copy.tw);
+        unpack->v = copy.v;
         unpack->__len = copy.len;
+        unpack->raw = WT_CELL_VALUE_COPY;
     }
 
     return (0);
