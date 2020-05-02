@@ -108,7 +108,7 @@ __wt_time_aggregate_init(WT_TIME_AGGREGATE *ta)
 {
     ta->oldest_start_ts = WT_TS_NONE;
     ta->oldest_start_txn = WT_TXN_NONE;
-    ta->newest_start_durable_ts = WT_TS_NONE;
+    ta->newest_start_durable_ts = WT_TS_NONE; /* TODO: Needs a comment. */
     ta->newest_stop_ts = WT_TS_MAX;
     ta->newest_stop_txn = WT_TXN_MAX;
     ta->newest_stop_durable_ts = WT_TS_NONE;
@@ -125,10 +125,9 @@ __wt_time_aggregate_init(WT_TIME_AGGREGATE *ta)
 static inline void
 __wt_time_aggregate_init_max(WT_TIME_AGGREGATE *ta)
 {
-    /* TODO: It's odd that the durable values here match those of the initialization above */
     ta->oldest_start_ts = WT_TS_MAX;
     ta->oldest_start_txn = WT_TXN_MAX;
-    ta->newest_start_durable_ts = WT_TS_NONE;
+    ta->newest_start_durable_ts = WT_TS_NONE; /* TODO: Needs a comment. */
     ta->newest_stop_ts = WT_TS_NONE;
     ta->newest_stop_txn = WT_TXN_NONE;
     ta->newest_stop_durable_ts = WT_TS_NONE;
