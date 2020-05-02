@@ -587,32 +587,32 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
-	ckpt->ta.oldest_start_ts = (uint64_t)a.val;
+        ckpt->ta.oldest_start_ts = (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "oldest_start_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
-	ckpt->ta.oldest_start_txn = (uint64_t)a.val;
+        ckpt->ta.oldest_start_txn = (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "start_durable_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
-	ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
+        ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
-	ckpt->ta.newest_stop_ts = (uint64_t)a.val;
+        ckpt->ta.newest_stop_ts = (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
-	ckpt->ta.newest_stop_txn = (uint64_t)a.val;
+        ckpt->ta.newest_stop_txn = (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "stop_durable_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
-	ckpt->ta.newest_stop_durable_ts = (uint64_t)a.val;
+        ckpt->ta.newest_stop_durable_ts = (uint64_t)a.val;
 
     __wt_check_addr_validity(session, &ckpt->ta);
 
