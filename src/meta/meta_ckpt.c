@@ -582,24 +582,38 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ckpt->size = (uint64_t)a.val;
 
     /* Default to durability. */
-    ret = __wt_config_subgets(session, v, "start_durable_ts", &a);
-    WT_RET_NOTFOUND_OK(ret);
-    ckpt->start_durable_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
+    __wt_time_aggregate_init(&ckpt->ta);
+
     ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
-    ckpt->oldest_start_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
+    if (ret != WT_NOTFOUND && a.len != 0)
+	ckpt->ta.oldest_start_ts = (uint64_t)a.val;
+
     ret = __wt_config_subgets(session, v, "oldest_start_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
-    ckpt->oldest_start_txn = ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_NONE : (uint64_t)a.val;
-    ret = __wt_config_subgets(session, v, "stop_durable_ts", &a);
+    if (ret != WT_NOTFOUND && a.len != 0)
+	ckpt->ta.oldest_start_txn = (uint64_t)a.val;
+
+    ret = __wt_config_subgets(session, v, "start_durable_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
-    ckpt->stop_durable_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
+    if (ret != WT_NOTFOUND && a.len != 0)
+	ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
+
     ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
-    ckpt->newest_stop_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_MAX : (uint64_t)a.val;
+    if (ret != WT_NOTFOUND && a.len != 0)
+	ckpt->ta.newest_stop_ts = (uint64_t)a.val;
+
     ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
-    ckpt->newest_stop_txn = ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_MAX : (uint64_t)a.val;
+    if (ret != WT_NOTFOUND && a.len != 0)
+	ckpt->ta.newest_stop_txn = (uint64_t)a.val;
+
+    ret = __wt_config_subgets(session, v, "stop_durable_ts", &a);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret != WT_NOTFOUND && a.len != 0)
+	ckpt->ta.newest_stop_durable_ts = (uint64_t)a.val;
+
     __wt_check_addr_validity(session, &ckpt->ta);
 
     WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
