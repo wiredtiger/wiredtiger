@@ -151,10 +151,10 @@ struct __wt_cell {
 struct __wt_cell_unpack {
     WT_CELL *cell; /* Cell's disk image address */
 
-    uint64_t v; /* RLE count or recno */
-
-    WT_TIME_WINDOW tw;    /* Value validity window */
     WT_TIME_AGGREGATE ta; /* Address validity window */
+    WT_TIME_WINDOW tw;    /* Value validity window */
+
+    uint64_t v; /* RLE count or recno */
 
     /*
      * !!!
