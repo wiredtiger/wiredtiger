@@ -6,15 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_TXN_TS_ALREADY_LOCKED 0x1u
-#define WT_TXN_TS_INCLUDE_CKPT 0x2u
-#define WT_TXN_TS_INCLUDE_OLDEST 0x4u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
-
-#define WT_TS_NONE 0         /* Beginning of time */
-#define WT_TS_MAX UINT64_MAX /* End of time */
-
 /*
  * We format timestamps in a couple of ways, declare appropriate sized buffers. Hexadecimal is 2x
  * the size of the value. MongoDB format (high/low pairs of 4B unsigned integers, with surrounding
