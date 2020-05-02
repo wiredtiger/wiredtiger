@@ -733,7 +733,6 @@ __verify_dsk_col_var(
     struct {
         const void *data;
         size_t size;
-        /* TODO: does using a time window here give up some verify cases? */
         WT_TIME_WINDOW tw;
         bool deleted;
     } last;
@@ -752,8 +751,8 @@ __verify_dsk_col_var(
 
     last.data = NULL;
     last.size = 0;
-    last.deleted = false;
     __wt_time_window_init(&last.tw);
+    last.deleted = false;
 
     cell_num = 0;
     WT_CELL_FOREACH_VRFY (btree, dsk, cell, unpack, i) {
@@ -781,8 +780,9 @@ __verify_dsk_col_var(
         }
 
         /*
-         * Compare the last two items and see if reconciliation missed a chance for RLE encoding. We
-         * don't have to care about data encoding or anything else, a byte comparison is enough.
+         * Compare the last two items and see if reconciliation missed a chance for RLE encoding.
+         * The time windows must match and we otherwise don't have to care about data encoding, a
+         * byte comparison is enough.
          */
         if (!__wt_time_windows_equal(&unpack->tw, &last.tw))
             ;
