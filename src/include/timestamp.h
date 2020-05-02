@@ -23,7 +23,7 @@
 #define WT_TP_STRING_SIZE (WT_TS_INT_STRING_SIZE + 1 + 20 + 1)
 #define WT_TIME_STRING_SIZE (WT_TS_INT_STRING_SIZE * 4 + 20 * 2 + 64)
 
-/* The set of time pairs that define a time window and some associated metadata */
+/* The time pairs that define a value's time window and associated prepare information. */
 struct __wt_time_window {
     wt_timestamp_t start_ts;         /* default value: WT_TS_NONE */
     uint64_t start_txn;              /* default value: WT_TXN_NONE */
@@ -32,10 +32,14 @@ struct __wt_time_window {
     uint64_t stop_txn;               /* default value: WT_TXN_MAX */
     wt_timestamp_t durable_stop_ts;  /* default value: WT_TS_NONE */
 
+    /*
+     * Prepare information isn't really part of a time window, but we need to aggregate it to the
+     * internal page information in reconciliation, and this is the simplest place to put it.
+     */
     uint8_t prepare;
 };
 
-/* The set of time pairs that define an aggregated time window */
+/* The time pairs that define an aggregated time window and associated prepare information. */
 struct __wt_time_aggregate {
     wt_timestamp_t oldest_start_ts;         /* default value: WT_TS_NONE */
     uint64_t oldest_start_txn;              /* default value: WT_TXN_NONE */
