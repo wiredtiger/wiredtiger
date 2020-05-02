@@ -1055,7 +1055,6 @@ __verify_page_content(
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "newest stop",
               unpack.ta.newest_stop_txn, "newest stop", addr_unpack->ta.newest_stop_txn, false, dsk,
               vs));
-            /* TODO: Did I get the right thing here - it was using names from a window */
             WT_RET(__verify_ts_stable_cmp(session, NULL, ref, cell_num - 1,
               addr_unpack->ta.oldest_start_ts, addr_unpack->ta.newest_stop_ts, vs));
             break;
