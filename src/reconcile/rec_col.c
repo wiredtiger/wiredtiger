@@ -19,7 +19,7 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
     WT_RECONCILE *r;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbulk->cbt.iface.session;
+    session = CUR2S(cbulk);
     r = cbulk->reconcile;
     btree = S2BT(session);
 
@@ -504,7 +504,7 @@ __wt_rec_col_fix_slvg(
      * We can't split during salvage -- if everything didn't fit, it's all gone wrong.
      */
     if (salvage->missing != 0 || page_take != 0)
-        WT_PANIC_RET(session, WT_PANIC, "%s page too large, attempted split during salvage",
+        WT_RET_PANIC(session, WT_PANIC, "%s page too large, attempted split during salvage",
           __wt_page_type_string(page->type));
 
     /* Write the page. */
