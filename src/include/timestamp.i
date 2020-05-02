@@ -20,7 +20,7 @@ __wt_time_window_init(WT_TIME_WINDOW *tw)
     tw->stop_txn = WT_TXN_MAX;
     tw->durable_stop_ts = WT_TS_NONE;
 
-    tw->prepare = false;
+    tw->prepare = 0;
 }
 
 /*
@@ -37,7 +37,7 @@ __wt_time_window_init_max(WT_TIME_WINDOW *tw)
     tw->stop_txn = WT_TXN_NONE;
     tw->durable_stop_ts = WT_TS_MAX;
 
-    tw->prepare = false;
+    tw->prepare = 0;
 }
 
 /*
@@ -124,7 +124,7 @@ __wt_time_aggregate_init(WT_TIME_AGGREGATE *ta)
     ta->newest_stop_txn = WT_TXN_MAX;
     ta->newest_stop_durable_ts = WT_TS_NONE;
 
-    ta->prepare = false;
+    ta->prepare = 0;
 }
 
 /*
@@ -144,7 +144,7 @@ __wt_time_aggregate_init_max(WT_TIME_AGGREGATE *ta)
     ta->newest_stop_txn = WT_TXN_NONE;
     ta->newest_stop_durable_ts = WT_TS_NONE;
 
-    ta->prepare = false;
+    ta->prepare = 0;
 }
 
 /*
@@ -193,8 +193,8 @@ __wt_time_aggregate_update(WT_TIME_AGGREGATE *ta, WT_TIME_WINDOW *tw)
     ta->newest_stop_txn = WT_MAX(tw->stop_txn, ta->newest_stop_txn);
     ta->newest_stop_durable_ts = WT_MAX(tw->durable_stop_ts, ta->newest_stop_durable_ts);
 
-    if (tw->prepare)
-        ta->prepare = true;
+    if (tw->prepare != 0)
+        ta->prepare = 1;
 }
 
 /*
@@ -214,6 +214,6 @@ __wt_time_aggregate_merge(WT_TIME_AGGREGATE *dest, WT_TIME_AGGREGATE *source)
     dest->newest_stop_durable_ts =
       WT_MAX(dest->newest_stop_durable_ts, source->newest_stop_durable_ts);
 
-    if (source->prepare)
-        dest->prepare = true;
+    if (source->prepare != 0)
+        dest->prepare = 1;
 }
