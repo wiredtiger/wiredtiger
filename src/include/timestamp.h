@@ -41,7 +41,7 @@ struct __wt_time_window {
     uint64_t stop_txn;               /* default value: WT_TXN_MAX */
     wt_timestamp_t durable_stop_ts;  /* default value: WT_TS_NONE */
 
-    bool prepare;
+    uint8_t prepare;
 };
 
 /* The set of time pairs that define an aggregated time window */
@@ -53,5 +53,5 @@ struct __wt_time_aggregate {
     uint64_t newest_stop_txn;               /* default value: WT_TXN_MAX */
     wt_timestamp_t newest_stop_durable_ts;  /* default value: WT_TS_NONE */
 
-    bool prepare;
+    uint8_t prepare;
 };
