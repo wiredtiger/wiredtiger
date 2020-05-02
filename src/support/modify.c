@@ -426,11 +426,11 @@ __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_DECL_RET;
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
-    WT_ERR(__wt_modify_apply_item(
-      (WT_SESSION_IMPL *)cursor->session, cursor->value_format, &cursor->value, modify->data));
+    WT_ERR(
+      __wt_modify_apply_item(CUR2S(cursor), cursor->value_format, &cursor->value, modify->data));
 
 err:
-    __wt_scr_free((WT_SESSION_IMPL *)cursor->session, &modify);
+    __wt_scr_free(CUR2S(cursor), &modify);
     return (ret);
 }
 

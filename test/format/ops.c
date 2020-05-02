@@ -1240,11 +1240,11 @@ order_error_col:
                  * less-than, row-store inserts new rows in-between rows by appending a new suffix
                  * to the row's key.)
                  */
-                testutil_check(__wt_buf_fmt((WT_SESSION_IMPL *)cursor->session, tinfo->tbuf, "%.*s",
+                testutil_check(__wt_buf_fmt(CUR2S(cursor), tinfo->tbuf, "%.*s",
                   (int)tinfo->key->size, (char *)tinfo->key->data));
                 keyno_prev = strtoul(tinfo->tbuf->data, NULL, 10);
-                testutil_check(__wt_buf_fmt((WT_SESSION_IMPL *)cursor->session, tinfo->tbuf, "%.*s",
-                  (int)key.size, (char *)key.data));
+                testutil_check(__wt_buf_fmt(
+                  CUR2S(cursor), tinfo->tbuf, "%.*s", (int)key.size, (char *)key.data));
                 keyno = strtoul(tinfo->tbuf->data, NULL, 10);
                 if (incrementing) {
                     if (keyno_prev != keyno && keyno_prev + 1 != keyno)
@@ -1258,8 +1258,7 @@ order_error_row:
                   (char *)tinfo->key->data, (int)key.size, (char *)key.data);
             }
 
-            testutil_check(
-              __wt_buf_set((WT_SESSION_IMPL *)cursor->session, tinfo->key, key.data, key.size));
+            testutil_check(__wt_buf_set(CUR2S(cursor), tinfo->key, key.data, key.size));
             break;
         }
         break;
