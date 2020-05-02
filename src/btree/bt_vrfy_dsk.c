@@ -287,13 +287,13 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
         if (unpack->ta.oldest_start_ts != WT_TS_NONE && unpack->ta.newest_stop_ts == WT_TS_NONE)
             WT_RET_VRFY(session, "cell %" PRIu32
                                  " on page at %s has a newest stop "
-                                 "timestamp of 0. Time aggregate %s",
+                                 "timestamp of 0; time aggregate %s",
               cell_num - 1, tag, __wt_time_aggregate_to_string(&unpack->ta, time_string));
         if (unpack->ta.oldest_start_ts > unpack->ta.newest_stop_ts)
             WT_RET_VRFY(session, "cell %" PRIu32
                                  " on page at %s has an oldest "
                                  "start timestamp newer than its newest stop "
-                                 "timestamp. Time aggregate %s",
+                                 "timestamp; time aggregate %s",
               cell_num - 1, tag, __wt_time_aggregate_to_string(&unpack->ta, time_string));
         if (unpack->ta.oldest_start_txn > unpack->ta.newest_stop_txn)
             WT_RET_VRFY(session, "cell %" PRIu32
@@ -342,12 +342,12 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
         if (unpack->tw.start_ts != WT_TS_NONE && unpack->tw.stop_ts == WT_TS_NONE)
             WT_RET_VRFY(session, "cell %" PRIu32
                                  " on page at %s has a stop "
-                                 "timestamp of 0. Time window %s",
+                                 "timestamp of 0; time window %s",
               cell_num - 1, tag, __wt_time_window_to_string(&unpack->tw, time_string));
         if (unpack->tw.start_ts > unpack->tw.stop_ts)
             WT_RET_VRFY(session, "cell %" PRIu32
                                  " on page at %s has a start "
-                                 "timestamp newer than its stop timestamp. Time window %s",
+                                 "timestamp newer than its stop timestamp; time window %s",
               cell_num - 1, tag, __wt_time_window_to_string(&unpack->tw, time_string));
         if (unpack->tw.start_txn > unpack->tw.stop_txn)
             WT_RET_VRFY(session, "cell %" PRIu32
