@@ -151,8 +151,6 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
     page = ref->page;
     cursor = &cbt->iface;
 
-    __wt_time_window_init(tw);
-
     if (page->type == WT_PAGE_ROW_LEAF) {
         rip = &page->pg_row[cbt->slot];
 
@@ -160,14 +158,16 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
          * If a value is simple and is globally visible at the time of reading a page into cache, we
          * encode its location into the WT_ROW.
          */
-        if (__wt_row_leaf_value(page, rip, buf))
+        if (__wt_row_leaf_value(page, rip, buf)) {
+            if (tw != NULL)
+                __wt_time_window_init(tw);
             return (0);
+        }
 
         /* Take the value from the original page cell. */
         __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
         if (tw != NULL)
             __wt_time_window_copy(tw, &unpack.tw);
-
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
@@ -177,7 +177,6 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
         __wt_cell_unpack(session, page, cell, &unpack);
         if (tw != NULL)
             __wt_time_window_copy(tw, &unpack.tw);
-
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
@@ -186,6 +185,8 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
      *
      * FIXME-PM-1523: Should also check visibility here
      */
+    if (tw != NULL)
+        __wt_time_window_init(tw);
     v = __bit_getv_recno(ref, cursor->recno, btree->bitcnt);
     return (__wt_buf_set(session, buf, &v, 1));
 }
