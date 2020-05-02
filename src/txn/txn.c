@@ -677,7 +677,13 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
 
     /* Get current value and convert to full update if it is a modify. */
     WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type_full, hs_value));
-    WT_ASSERT(session, hs_stop_ts == WT_TS_MAX);
+
+    /*
+     * It is possible that the update in the history store may already been removed by older
+     * transaction but retained due to oldest timestamp
+     */
+    if (hs_stop_ts != WT_TS_MAX)
+        goto err;
 
     /*
      * If we found a history value that satisfied the given timestamp, add it to the update list.
