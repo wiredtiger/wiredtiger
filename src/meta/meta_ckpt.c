@@ -585,7 +585,8 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     /*
      *
      * TODO: The durable timestamp names in the metadata files do not match the names in the
-     * WT_TIME_AGGREGATE structure. That needs comments or updates/backports, I'm not sure which.
+     * WT_TIME_AGGREGATE structure. That needs comments or updates and a backport, I'm not sure
+     * which.
      */
     __wt_time_aggregate_init(&ckpt->ta);
 
@@ -717,8 +718,8 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
          * Use PRId64 formats: WiredTiger's configuration code handles signed 8B values.
          *
          * TODO: The durable timestamp names in the metadata files do not match the names in the
-         * WT_TIME_AGGREGATE structure. That needs comments or updates/backports, I'm not sure
-         * which.
+         * WT_TIME_AGGREGATE structure. That needs comments or updates and a backport, I'm not sure
+         * which. which.
          */
         WT_RET(__wt_buf_catfmt(session, buf,
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
