@@ -196,6 +196,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, txnid;
+    char time_string[WT_TIME_STRING_SIZE];
     bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
 
     /*
@@ -203,7 +204,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * both must be initialized.
      */
     upd_select->upd = NULL;
-    __wt_time_window_init(&upd_select->tw);
+    select_tw = &upd_select->tw;
+    __wt_time_window_init(select_tw);
 
     page = r->page;
     first_txn_upd = upd = last_upd = tombstone = NULL;
@@ -335,7 +337,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * stable.
      */
     if (upd != NULL) {
-        select_tw = &upd_select->tw;
         /*
          * If the newest is a tombstone then select the update before it and set the end of the
          * visibility window to its time pair as appropriate to indicate that we should return "not
@@ -397,11 +398,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      */
     if (select_tw->stop_ts < select_tw->start_ts ||
       (select_tw->stop_ts == select_tw->start_ts && select_tw->stop_txn < select_tw->start_txn)) {
-        char ts_string[2][WT_TS_INT_STRING_SIZE];
         __wt_verbose(session, WT_VERB_TIMESTAMP,
-          "Warning: fixing out-of-order timestamps remove at %s earlier than value at %s",
-          __wt_timestamp_to_string(select_tw->stop_ts, ts_string[0]),
-          __wt_timestamp_to_string(select_tw->start_ts, ts_string[1]));
+          "Warning: fixing out-of-order timestamps remove earlier than value; time window %s",
+          __wt_time_window_to_string(select_tw, time_string));
+
         select_tw->durable_start_ts = select_tw->durable_stop_ts;
         select_tw->start_ts = select_tw->stop_ts;
         select_tw->start_txn = select_tw->stop_txn;
