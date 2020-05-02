@@ -237,7 +237,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
             WT_RET(__wt_rec_dict_replace(session, r, &tw, 0, val));
         __wt_rec_image_copy(session, r, val);
     }
-    __wt_rec_addr_ts_update_window(r, &tw);
+    __wt_time_aggregate_update(&r->cur_ptr->ta, &tw);
 
     /* Update compression state. */
     __rec_key_state_update(r, ovfl_key);
@@ -281,7 +281,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Copy the key and value onto the page. */
         __wt_rec_image_copy(session, r, key);
         __wt_rec_image_copy(session, r, val);
-        __wt_rec_addr_ts_update(r, &addr->ta);
+        __wt_time_aggregate_merge(&r->cur_ptr->ta, &addr->ta);
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
@@ -511,7 +511,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Copy the key and value onto the page. */
         __wt_rec_image_copy(session, r, key);
         __wt_rec_image_copy(session, r, val);
-        __wt_rec_addr_ts_update(r, &ta);
+        __wt_time_aggregate_merge(&r->cur_ptr->ta, &ta);
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
@@ -630,7 +630,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
                 WT_ERR(__wt_rec_dict_replace(session, r, &tw, 0, val));
             __wt_rec_image_copy(session, r, val);
         }
-        __wt_rec_addr_ts_update_window(r, &tw);
+        __wt_time_aggregate_update(&r->cur_ptr->ta, &tw);
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
@@ -983,7 +983,7 @@ build:
                 WT_ERR(__wt_rec_dict_replace(session, r, &tw, 0, val));
             __wt_rec_image_copy(session, r, val);
         }
-        __wt_rec_addr_ts_update_window(r, &tw);
+        __wt_time_aggregate_update(&r->cur_ptr->ta, &tw);
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);

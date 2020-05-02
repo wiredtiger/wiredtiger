@@ -58,26 +58,6 @@ __wt_rec_addr_ts_init(WT_RECONCILE *r, WT_TIME_AGGREGATE *ta)
 }
 
 /*
- * __wt_rec_addr_ts_update --
- *     Update the chunk's timestamp information.
- */
-static inline void
-__wt_rec_addr_ts_update(WT_RECONCILE *r, WT_TIME_AGGREGATE *ta)
-{
-    __wt_time_aggregate_merge(&r->cur_ptr->ta, ta);
-}
-
-/*
- * __wt_rec_addr_ts_update_window --
- *     Update the chunk's timestamp information.
- */
-static inline void
-__wt_rec_addr_ts_update_window(WT_RECONCILE *r, WT_TIME_WINDOW *tw)
-{
-    __wt_time_aggregate_update(&r->cur_ptr->ta, tw);
-}
-
-/*
  * __wt_rec_incr --
  *     Update the memory tracking structure for a set of new entries.
  */

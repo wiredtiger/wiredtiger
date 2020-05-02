@@ -2156,8 +2156,6 @@ static inline void __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *pag
 static inline void __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_rec_addr_ts_init(WT_RECONCILE *r, WT_TIME_AGGREGATE *ta);
-static inline void __wt_rec_addr_ts_update(WT_RECONCILE *r, WT_TIME_AGGREGATE *ta);
-static inline void __wt_rec_addr_ts_update_window(WT_RECONCILE *r, WT_TIME_WINDOW *tw);
 static inline void __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r,
   WT_ADDR *addr, WT_CELL_UNPACK *vpack, bool proxy_cell, uint64_t recno);
 static inline void __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv);
