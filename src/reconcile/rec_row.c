@@ -65,13 +65,11 @@ __rec_cell_build_int_key(
 {
     WT_BTREE *btree;
     WT_REC_KV *key;
-    WT_TIME_WINDOW tw;
 
     *is_ovflp = false;
 
     btree = S2BT(session);
     key = &r->k;
-    __wt_time_window_init(&tw);
 
     /* Copy the bytes into the "current" and key buffers. */
     WT_RET(__wt_buf_set(session, r->cur, data, size));
@@ -82,8 +80,7 @@ __rec_cell_build_int_key(
         WT_STAT_DATA_INCR(session, rec_overflow_key_internal);
 
         *is_ovflp = true;
-        /* TODO: this will use different timestamps than it used to - looked like a bug? */
-        return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, &tw, 0));
+        return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));
     }
 
     key->cell_len = __wt_cell_pack_int_key(&key->cell, key->buf.size);

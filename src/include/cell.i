@@ -555,6 +555,7 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TI
     switch (type) {
     case WT_CELL_KEY_OVFL:
     case WT_CELL_KEY_OVFL_RM:
+        WT_ASSERT(session, tw == NULL);
         ++p;
         break;
     case WT_CELL_VALUE_OVFL:
