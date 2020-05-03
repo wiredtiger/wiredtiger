@@ -611,7 +611,7 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
     WT_TXN *txn;
-    WT_UPDATE *hs_upd, *upd;
+    WT_UPDATE *hs_upd, *tombstone, *upd;
     wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts;
     uint64_t hs_counter, type_full;
     uint32_t hs_btree_id, session_flags, txn_flags;
@@ -622,7 +622,7 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
     hs_cursor = NULL;
     cbt = (WT_CURSOR_BTREE *)cursor;
     txn = session->txn;
-    hs_upd = upd = NULL;
+    hs_upd = tombstone = upd = NULL;
     durable_ts = hs_start_ts = WT_TS_NONE;
     hs_btree_id = S2BT(session)->id;
     session_flags = 0;
@@ -679,17 +679,17 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
     WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type_full, hs_value));
 
     /*
-     * It is possible that the update in the history store may already been removed by an older
-     * transaction but retained it due to an history window.
-     */
-    if (hs_stop_ts != WT_TS_MAX)
-        goto err;
-
-    /*
      * If we found a history value that satisfied the given timestamp, add it to the update list.
      * Otherwise remove the key by adding a tombstone.
      */
     if (commit) {
+        /*
+         * It is possible that the update in the history store may already been removed by an older
+         * transaction but retained it due to an history window.
+         */
+        if (hs_stop_ts != WT_TS_MAX)
+            goto err;
+
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         hs_upd->durable_ts = hs_upd->start_ts = txn->durable_timestamp;
         hs_upd->txnid = txn->id;
@@ -721,9 +721,20 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
         WT_ASSERT(session,
           upd->next != NULL && upd->next->next == NULL && upd->next->txnid == WT_TXN_ABORTED);
 
+        /* Append a tombstone if the stop timestamp exists. */
+        if (hs_stop_ts != WT_TS_MAX) {
+            WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, NULL));
+            tombstone->durable_ts = hs_stop_ts;
+            tombstone->start_ts = hs_stop_ts;
+            tombstone->txnid = WT_TXN_NONE;
+            tombstone->next = upd;
+        } else
+            tombstone = upd;
+
         WT_WITH_BTREE(session, cbt->btree,
-          ret = __wt_row_modify(cbt, &cbt->iface.key, NULL, upd, WT_UPDATE_INVALID, true));
+          ret = __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, true));
         WT_ERR(ret);
+        tombstone = NULL;
         upd = NULL;
 
         /* Remove the restored update from history store. */
@@ -738,6 +749,7 @@ err:
     __wt_scr_free(session, &hs_value);
     __wt_free(session, hs_upd);
     __wt_free(session, upd);
+    __wt_free(session, tombstone);
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
     F_SET(txn, txn_flags);
 
