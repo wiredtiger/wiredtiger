@@ -1279,7 +1279,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
      * are too present in the data store.
      */
     F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
-    F_SET((WT_CURSOR *)cbt, WT_CURSTD_IGNORE_TOMBSTONE);
+    F_SET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
 
     /*
      * The caller is responsible for positioning the history store cursor at the first record to
@@ -1325,7 +1325,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     }
     WT_ERR_NOTFOUND_OK(ret, true);
 err:
-    F_CLR((WT_CURSOR *)cbt, WT_CURSTD_IGNORE_TOMBSTONE);
+    F_CLR(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
     F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &prev_hs_key);
