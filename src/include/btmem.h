@@ -1084,7 +1084,6 @@ struct __wt_update {
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_UPDATE_HS 0x1u                    /* Update has been written to history store. */
 #define WT_UPDATE_RESTORED_FOR_ROLLBACK 0x2u /* Update restored for rollback to stable. */
-#define WT_UPDATE_RESTORED_FROM_DISK 0x4u    /* Update is temporary retrieved from disk. */
                                              /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 
