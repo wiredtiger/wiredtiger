@@ -59,7 +59,7 @@ __wt_time_window_is_empty(WT_TIME_WINDOW *tw)
 {
     return (tw->start_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE &&
       tw->durable_start_ts == WT_TS_NONE && tw->stop_ts == WT_TS_MAX &&
-      tw->stop_txn == WT_TXN_MAX && tw->durable_stop_ts == WT_TS_NONE);
+      tw->stop_txn == WT_TXN_MAX && tw->durable_stop_ts == WT_TS_NONE && tw->prepare == 0);
 }
 
 /*
