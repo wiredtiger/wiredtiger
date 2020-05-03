@@ -2265,7 +2265,7 @@ err:		if (ret != 0)
 			goto err;
 
 		if ((ret = __wt_calloc_def((WT_SESSION_IMPL *)cursor->session,
-			1, &jcb)) != 0)
+			    1, &jcb)) != 0)
 			goto err;
 
 		if ((cursor->flags & WT_CURSTD_RAW) != 0)
