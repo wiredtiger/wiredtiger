@@ -585,7 +585,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
              * the value is globally visible at the point in time where we read the page into cache.
              */
             if (!btree->huffman_value && unpack.stop_txn == WT_TXN_MAX &&
-              unpack.stop_ts == WT_TS_MAX &&
+              unpack.stop_ts == WT_TS_MAX && !F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE) &&
               __wt_txn_visible_all(session, unpack.start_txn, unpack.start_ts))
                 __wt_row_leaf_value_set(page, rip - 1, &unpack);
             break;
