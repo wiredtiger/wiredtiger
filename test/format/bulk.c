@@ -175,15 +175,8 @@ wts_load(void)
                 g.c_delete_pct += g.c_insert_pct - 5;
                 g.c_insert_pct = 5;
             }
-            if (g.c_delete_pct < 20) {
-                g.c_delete_pct += g.c_write_pct / 2;
-                g.c_write_pct = g.c_write_pct / 2;
-            }
-            if (g.c_delete_pct < 20) {
-                g.c_delete_pct += g.c_modify_pct / 2;
-                g.c_write_pct = g.c_modify_pct / 2;
-            }
-            break;
+            g.c_delete_pct += g.c_write_pct / 2;
+            g.c_write_pct = g.c_write_pct / 2;
         }
     }
 
