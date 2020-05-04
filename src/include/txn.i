@@ -880,6 +880,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
         cbt->upd_value->buf.size = 0;
         cbt->upd_value->start_ts = stop.timestamp;
         cbt->upd_value->txnid = stop.txnid;
+        cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
         cbt->upd_value->prepare_state = WT_PREPARE_INIT;
         return (0);
     }
