@@ -144,37 +144,64 @@ struct __wt_cell {
     uint8_t __chunk[1 + 1 + 1 + 7 * WT_INTPACK64_MAXSIZE + WT_INTPACK32_MAXSIZE];
 };
 
-/*
- * WT_CELL_UNPACK --
- *	Unpacked cell.
- */
-struct __wt_cell_unpack {
-    WT_CELL *cell; /* Cell's disk image address */
-
-    WT_TIME_AGGREGATE ta; /* Address validity window */
-    WT_TIME_WINDOW tw;    /* Value validity window */
-
-    uint64_t v; /* RLE count or recno */
-
-    /*
-     * !!!
-     * The size and __len fields are reasonably type size_t; don't change
-     * the type, performance drops significantly if they're type size_t.
-     */
-    const void *data; /* Data */
-    uint32_t size;    /* Data size */
-
-    uint32_t __len; /* Cell + data length (usually) */
-
-    uint8_t prefix; /* Cell prefix length */
-
-    uint8_t raw;  /* Raw cell type (include "shorts") */
-    uint8_t type; /* Cell type */
-
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CELL_UNPACK_OVERFLOW 0x1u           /* cell is an overflow */
 #define WT_CELL_UNPACK_PREPARE 0x2u            /* cell is part of a prepared transaction */
 #define WT_CELL_UNPACK_TIME_PAIRS_CLEARED 0x4u /* time pairs are cleared because of restart */
                                                /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint8_t flags;
+
+#define WT_CELL_COMMON_FIELDS                                                                   \
+    WT_CELL *cell; /* Cell's disk image address */                                              \
+                                                                                                \
+    uint64_t v; /* RLE count or recno */                                                        \
+                                                                                                \
+    /*                                                                                          \
+     * The size and __len fields are reasonably type size_t; don't change the type, performance \
+     * drops significantly if they're type size_t.                                              \
+     */                                                                                         \
+    const void *data; /* Data */                                                                \
+    uint32_t size;    /* Data size */                                                           \
+                                                                                                \
+    uint32_t __len; /* Cell + data length (usually) */                                          \
+                                                                                                \
+    uint8_t prefix; /* Cell prefix length */                                                    \
+                                                                                                \
+    uint8_t raw;  /* Raw cell type (include "shorts") */                                        \
+    uint8_t type; /* Cell type */                                                               \
+                                                                                                \
+    uint8_t flags
+
+/*
+ * WT_CELL_UNPACK --
+ *	Unpacked cell.
+ */
+struct __wt_cell_unpack {
+    WT_CELL_COMMON_FIELDS;
+
+    /*
+     * The validity windows are pointers so that we can set one of them to NULL and force a core
+     * dump if the wrong validity window for the cell is used.
+     */
+    WT_TIME_AGGREGATE *ta, __ta; /* Address validity window */
+    WT_TIME_WINDOW *tw, __tw;    /* Value validity window */
+};
+
+/*
+ * WT_CELL_UNPACK_ADDR --
+ *     Unpacked address cell.
+ */
+struct __wt_cell_unpack_addr {
+    WT_CELL_COMMON_FIELDS;
+
+    WT_TIME_AGGREGATE ta; /* Address validity window */
+};
+
+/*
+ * WT_CELL_UNPACK_VALUE --
+ *     Unpacked value cell.
+ */
+struct __wt_cell_unpack_value {
+    WT_CELL_COMMON_FIELDS;
+
+    WT_TIME_WINDOW tw; /* Value validity window */
 };

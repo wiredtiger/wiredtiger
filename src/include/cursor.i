@@ -455,7 +455,7 @@ __cursor_row_slot_key_return(
      * compiler complaining about uninitialized field use.
      */
     memset(kpack, 0, sizeof(*kpack));
-    __wt_cell_unpack(session, page, cell, kpack);
+    __wt_cell_unpack(session, page->dsk, cell, kpack);
     *kpack_used = true;
     if (kpack->type == WT_CELL_KEY && cbt->rip_saved != NULL && cbt->rip_saved == rip - 1) {
         WT_ASSERT(session, cbt->row_key->size >= kpack->prefix);

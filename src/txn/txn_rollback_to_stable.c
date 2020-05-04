@@ -357,12 +357,12 @@ __rollback_abort_row_ondisk_kv(
     vpack = &_vpack;
     upd = NULL;
     __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
-    if (vpack->tw.durable_start_ts > rollback_timestamp) {
+    if (vpack->tw->durable_start_ts > rollback_timestamp) {
         __wt_verbose(session, WT_VERB_RTS,
           "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s and "
           "stable timestamp: %s",
-          __wt_timestamp_to_string(vpack->tw.durable_start_ts, ts_string[0]),
-          __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]),
+          __wt_timestamp_to_string(vpack->tw->durable_start_ts, ts_string[0]),
+          __wt_timestamp_to_string(vpack->tw->start_ts, ts_string[1]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             return (__rollback_row_ondisk_fixup_key(session, page, rip, rollback_timestamp, true));
@@ -374,8 +374,8 @@ __rollback_abort_row_ondisk_kv(
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
         }
-    } else if (vpack->tw.durable_stop_ts != WT_TS_NONE &&
-      vpack->tw.durable_stop_ts > rollback_timestamp) {
+    } else if (vpack->tw->durable_stop_ts != WT_TS_NONE &&
+      vpack->tw->durable_stop_ts > rollback_timestamp) {
         /*
          * Clear the remove operation from the key by inserting the original on-disk value as a
          * standard update.
@@ -391,9 +391,9 @@ __rollback_abort_row_ondisk_kv(
             WT_RET(__wt_page_cell_data_ref(session, page, vpack, &buf));
 
         WT_RET(__wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, &upd, NULL));
-        upd->txnid = vpack->tw.start_txn;
-        upd->durable_ts = vpack->tw.durable_start_ts;
-        upd->start_ts = vpack->tw.start_ts;
+        upd->txnid = vpack->tw->start_txn;
+        upd->durable_ts = vpack->tw->durable_start_ts;
+        upd->start_ts = vpack->tw->start_ts;
         WT_STAT_CONN_INCR(session, txn_rts_keys_restored);
         __wt_verbose(session, WT_VERB_RTS,
           "key restored (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s", upd->txnid,
@@ -661,8 +661,8 @@ __rollback_page_needs_abort(
     } else if (!__wt_off_page(ref->home, addr)) {
         tag = "on page cell";
         /* Check if the page is obsolete using the page disk address. */
-        __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
-        durable_ts = WT_MAX(vpack.ta.newest_start_durable_ts, vpack.ta.newest_stop_durable_ts);
+        __wt_cell_unpack(session, ref->home->dsk, (WT_CELL *)addr, &vpack);
+        durable_ts = WT_MAX(vpack.ta->newest_start_durable_ts, vpack.ta->newest_stop_durable_ts);
         result = (durable_ts > rollback_timestamp);
     } else if (addr != NULL) {
         tag = "address";
@@ -694,9 +694,9 @@ __rollback_verify_ondisk_page(
     /* Review updates that belong to keys that are on the disk image. */
     WT_ROW_FOREACH (page, rip, i) {
         __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
-        WT_ASSERT(session, vpack->tw.durable_start_ts <= rollback_timestamp);
-        WT_ASSERT(session, vpack->tw.durable_stop_ts == WT_TS_NONE ||
-            vpack->tw.durable_stop_ts <= rollback_timestamp);
+        WT_ASSERT(session, vpack->tw->durable_start_ts <= rollback_timestamp);
+        WT_ASSERT(session, vpack->tw->durable_stop_ts == WT_TS_NONE ||
+            vpack->tw->durable_stop_ts <= rollback_timestamp);
     }
 }
 #endif

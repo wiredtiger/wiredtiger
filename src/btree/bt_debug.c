@@ -800,7 +800,7 @@ __wt_debug_key_value(
         WT_ERR(ds->f(ds, "\tK {%" PRIu64 " %" PRIu64 "}", recno, rle));
     else
         WT_ERR(__debug_item_key(ds, "K", key->data, key->size));
-    WT_ERR(__debug_time_window(ds, "T", &value->tw));
+    WT_ERR(__debug_time_window(ds, "T", value->tw));
     WT_ERR(__debug_cell_data(ds, NULL, value != NULL ? value->type : 0, "V", value));
 
 err:
@@ -1079,7 +1079,7 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
 
     WT_COL_FOREACH (page, cip, i) {
         cell = WT_COL_PTR(page, cip);
-        __wt_cell_unpack(ds->session, page, cell, unpack);
+        __wt_cell_unpack(ds->session, page->dsk, cell, unpack);
         rle = __wt_cell_rle(unpack);
         WT_RET(__wt_snprintf(tag, sizeof(tag), "%" PRIu64 " %" PRIu64, recno, rle));
         WT_RET(__debug_cell_data(ds, page, WT_PAGE_COL_VAR, tag, unpack));
@@ -1414,7 +1414,7 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        WT_RET(ds->f(ds, ", %s", __wt_time_aggregate_to_string(&unpack->ta, time_string)));
+        WT_RET(ds->f(ds, ", %s", __wt_time_aggregate_to_string(unpack->ta, time_string)));
         break;
     case WT_CELL_DEL:
     case WT_CELL_VALUE:
@@ -1422,7 +1422,7 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
     case WT_CELL_VALUE_SHORT:
-        WT_RET(ds->f(ds, ", %s", __wt_time_window_to_string(&unpack->tw, time_string)));
+        WT_RET(ds->f(ds, ", %s", __wt_time_window_to_string(unpack->tw, time_string)));
         break;
     }
 

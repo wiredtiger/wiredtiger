@@ -728,7 +728,7 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
  *     Set a WT_REF to reference an on-page key.
  */
 static inline void
-__wt_ref_key_onpage_set(WT_PAGE *page, WT_REF *ref, WT_CELL_UNPACK *unpack)
+__wt_ref_key_onpage_set(WT_PAGE *page, WT_REF *ref, WT_CELL_UNPACK_ADDR *unpack)
 {
     uintptr_t v;
 
@@ -930,7 +930,7 @@ __wt_row_leaf_key_set_cell(WT_PAGE *page, WT_ROW *rip, WT_CELL *cell)
  *     Set a WT_ROW to reference an on-page row-store leaf key.
  */
 static inline void
-__wt_row_leaf_key_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *unpack)
+__wt_row_leaf_key_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK_VALUE *unpack)
 {
     uintptr_t v;
 
@@ -948,7 +948,7 @@ __wt_row_leaf_key_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *unpack)
  *     Set a WT_ROW to reference an on-page row-store leaf value.
  */
 static inline void
-__wt_row_leaf_value_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *unpack)
+__wt_row_leaf_value_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK_VALUE *unpack)
 {
     uintptr_t key_len, key_offset, value_offset, v;
 
@@ -1020,7 +1020,7 @@ __wt_row_leaf_value_cell(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
   WT_CELL_UNPACK *kpack, WT_CELL_UNPACK *vpack)
 {
     WT_CELL *kcell, *vcell;
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_VALUE unpack;
     size_t size;
     void *copy, *key;
 
@@ -1045,12 +1045,12 @@ __wt_row_leaf_value_cell(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
         if (__wt_row_leaf_key_info(page, copy, NULL, &kcell, &key, &size) && kcell == NULL)
             vcell = (WT_CELL *)((uint8_t *)key + size);
         else {
-            __wt_cell_unpack(session, page, kcell, &unpack);
+            __wt_cell_unpack_value(session, page->dsk, kcell, &unpack);
             vcell = (WT_CELL *)((uint8_t *)unpack.cell + __wt_cell_total_len(&unpack));
         }
     }
 
-    __wt_cell_unpack(session, page, __wt_cell_leaf_value_parse(page, vcell), vpack);
+    __wt_cell_unpack(session, page->dsk, __wt_cell_leaf_value_parse(page, vcell), vpack);
 }
 
 /*
@@ -1122,8 +1122,8 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     }
 
     /* If on-page, the pointer references a cell. */
-    __wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
-    __wt_time_aggregate_copy(&copy->ta, &unpack->ta);
+    __wt_cell_unpack(session, page->dsk, (WT_CELL *)addr, unpack);
+    __wt_time_aggregate_copy(&copy->ta, unpack->ta);
     copy->type = 0; /* Avoid static analyzer uninitialized value complaints. */
     switch (unpack->raw) {
     case WT_CELL_ADDR_INT:

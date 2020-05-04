@@ -857,7 +857,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
         __wt_time_window_init(&tw);
         WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw));
     } else {
-        __wt_time_window_copy(&tw, &vpack->tw);
+        __wt_time_window_copy(&tw, vpack->tw);
         cbt->upd_value->buf.data = vpack->data;
         cbt->upd_value->buf.size = vpack->size;
     }

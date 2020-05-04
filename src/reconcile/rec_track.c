@@ -37,7 +37,7 @@ __ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, c
     WT_RET(__wt_scr_alloc(session, 512, &tmp));
 
     unpack = &_unpack;
-    __wt_cell_unpack(session, page, cell, unpack);
+    __wt_cell_unpack(session, page->dsk, cell, unpack);
 
     __wt_verbose(session, WT_VERB_OVERFLOW, "discard: %s%s%p %s", tag == NULL ? "" : tag,
       tag == NULL ? "" : ": ", (void *)page,

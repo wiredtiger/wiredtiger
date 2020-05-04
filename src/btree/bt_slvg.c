@@ -1340,7 +1340,7 @@ __slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_PAGE *page, uint64_t
 
     WT_COL_FOREACH (page, cip, i) {
         cell = WT_COL_PTR(page, cip);
-        __wt_cell_unpack(session, page, cell, &unpack);
+        __wt_cell_unpack(session, page->dsk, cell, &unpack);
         recno += __wt_cell_rle(&unpack);
 
         /*
@@ -2001,7 +2001,7 @@ __slvg_row_ovfl(
         copy = WT_ROW_KEY_COPY(rip);
         WT_IGNORE_RET_BOOL(__wt_row_leaf_key_info(page, copy, NULL, &cell, NULL, NULL));
         if (cell != NULL) {
-            __wt_cell_unpack(session, page, cell, &unpack);
+            __wt_cell_unpack(session, page->dsk, cell, &unpack);
             WT_RET(__slvg_row_ovfl_single(session, trk, &unpack));
         }
         __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);

@@ -353,7 +353,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         ikey = __wt_ref_key_instantiated(ref);
         if (ikey != NULL && ikey->cell_offset != 0) {
             cell = WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
-            __wt_cell_unpack(session, page, cell, kpack);
+            __wt_cell_unpack(session, page->dsk, cell, kpack);
             key_onpage_ovfl =
               F_ISSET(kpack, WT_CELL_UNPACK_OVERFLOW) && kpack->raw != WT_CELL_KEY_OVFL_RM;
         }
@@ -433,7 +433,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             __wt_rec_cell_build_addr(session, r, addr, NULL, state == WT_CHILD_PROXY, WT_RECNO_OOB);
             __wt_time_aggregate_copy(&ta, &addr->ta);
         } else {
-            __wt_cell_unpack(session, page, ref->addr, vpack);
+            __wt_cell_unpack(session, page->dsk, ref->addr, vpack);
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED)) {
                 /*
                  * The transaction ids are cleared after restart. Repack the cell with new validity
@@ -452,7 +452,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 val->cell_len = 0;
                 val->len = val->buf.size;
             }
-            __wt_time_aggregate_copy(&ta, &vpack->ta);
+            __wt_time_aggregate_copy(&ta, vpack->ta);
         }
         WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
@@ -751,7 +751,7 @@ __wt_rec_row_leaf(
             kpack = NULL;
         else {
             kpack = &_kpack;
-            __wt_cell_unpack(session, page, cell, kpack);
+            __wt_cell_unpack(session, page->dsk, cell, kpack);
         }
 
         /* Unpack the on-page value cell. */
@@ -767,7 +767,7 @@ __wt_rec_row_leaf(
          */
         if (upd == NULL) {
             if (!salvage)
-                __wt_time_window_copy(&tw, &vpack->tw);
+                __wt_time_window_copy(&tw, vpack->tw);
             else
                 __wt_time_window_init(&tw);
         } else
@@ -924,7 +924,7 @@ __wt_rec_row_leaf(
                 goto build;
 
             kpack = &_kpack;
-            __wt_cell_unpack(session, page, cell, kpack);
+            __wt_cell_unpack(session, page->dsk, cell, kpack);
             if (btree->huffman_key == NULL && kpack->type == WT_CELL_KEY &&
               tmpkey->size >= kpack->prefix && tmpkey->size != 0) {
                 /*

@@ -275,12 +275,12 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (addr == NULL && __wt_off_page(page, ref->addr))
             addr = ref->addr;
         if (addr == NULL) {
-            __wt_cell_unpack(session, page, ref->addr, vpack);
+            __wt_cell_unpack(session, page->dsk, ref->addr, vpack);
             val->buf.data = ref->addr;
             val->buf.size = __wt_cell_total_len(vpack);
             val->cell_len = 0;
             val->len = val->buf.size;
-            __wt_time_aggregate_copy(&ta, &vpack->ta);
+            __wt_time_aggregate_copy(&ta, vpack->ta);
         } else {
             __wt_rec_cell_build_addr(session, r, addr, NULL, false, ref->ref_recno);
             __wt_time_aggregate_copy(&ta, &addr->ta);
@@ -668,7 +668,7 @@ __wt_rec_col_var(
     WT_COL_FOREACH (page, cip, i) {
         ovfl_state = OVFL_IGNORE;
         cell = WT_COL_PTR(page, cip);
-        __wt_cell_unpack(session, page, cell, vpack);
+        __wt_cell_unpack(session, page->dsk, cell, vpack);
         nrepeat = __wt_cell_rle(vpack);
         ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip));
 
@@ -746,7 +746,7 @@ record_loop:
                     if (deleted)
                         goto compare;
                 } else
-                    __wt_time_window_copy(&tw, &vpack->tw);
+                    __wt_time_window_copy(&tw, vpack->tw);
 
                 /*
                  * If we are handling overflow items, use the overflow item itself exactly once,
