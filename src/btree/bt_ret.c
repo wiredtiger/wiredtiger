@@ -23,7 +23,7 @@ __key_return(WT_CURSOR_BTREE *cbt)
 
     page = cbt->ref->page;
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     if (page->type == WT_PAGE_ROW_LEAF) {
         rip = &page->pg_row[cbt->slot];
@@ -106,7 +106,7 @@ __wt_read_cell_time_pairs(
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     page = ref->page;
 
     WT_ASSERT(session, start != NULL && stop != NULL);
@@ -176,7 +176,7 @@ __wt_value_return_buf(
     WT_SESSION_IMPL *session;
     uint8_t v;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     btree = S2BT(session);
 
     page = ref->page;
@@ -236,94 +236,6 @@ __value_return(WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_value_return_upd --
- *     Change the cursor to reference an internal update structure return value.
- */
-int
-__wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    WT_MODIFY_VECTOR modifies;
-    WT_SESSION_IMPL *session;
-    WT_TIME_PAIR start, stop;
-
-    cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
-    __wt_modify_vector_init(session, &modifies);
-
-    /*
-     * We're passed a "standard" or "modified" update that's visible to us. Our caller should have
-     * already checked for deleted items (we're too far down the call stack to return not-found).
-     *
-     * Fast path if it's a standard item, assert our caller's behavior.
-     */
-    if (upd->type == WT_UPDATE_STANDARD) {
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK)) {
-            /* Copy an external update, and delete after using it */
-            WT_RET(__wt_buf_set(session, &cursor->value, upd->data, upd->size));
-            __wt_free_update_list(session, &upd);
-        } else {
-            cursor->value.data = upd->data;
-            cursor->value.size = upd->size;
-        }
-        return (0);
-    }
-    WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
-
-    /*
-     * Find a complete update.
-     */
-    for (; upd != NULL; upd = upd->next) {
-        if (upd->txnid == WT_TXN_ABORTED)
-            continue;
-
-        if (WT_UPDATE_DATA_VALUE(upd))
-            break;
-
-        if (upd->type == WT_UPDATE_MODIFY)
-            WT_ERR(__wt_modify_vector_push(&modifies, upd));
-    }
-
-    /*
-     * If there's no full update, the base item is the on-page item. If the update is a tombstone,
-     * the base item is an empty item.
-     */
-    if (upd == NULL) {
-        /*
-         * Callers of this function set the cursor slot to an impossible value to check we don't try
-         * and return on-page values when the update list should have been sufficient (which
-         * happens, for example, if an update list was truncated, deleting some standard update
-         * required by a previous modify update). Assert the case.
-         */
-        WT_ASSERT(session, cbt->slot != UINT32_MAX);
-
-        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &cbt->iface.value, &start, &stop));
-        /*
-         * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
-         * the stop time pair should be unset.
-         */
-        WT_ASSERT(session, stop.txnid == WT_TXN_MAX && stop.timestamp == WT_TS_MAX);
-    } else {
-        /* The base update must not be a tombstone. */
-        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
-        WT_ERR(__wt_buf_set(session, &cursor->value, upd->data, upd->size));
-    }
-
-    /*
-     * Once we have a base item, roll forward through any visible modify updates.
-     */
-    while (modifies.size > 0) {
-        __wt_modify_vector_pop(&modifies, &upd);
-        WT_ERR(__wt_modify_apply(cursor, upd->data));
-    }
-
-err:
-    __wt_modify_vector_free(&modifies);
-    return (ret);
-}
-
-/*
  * __wt_key_return --
  *     Change the cursor to reference an internal return key.
  */
@@ -352,20 +264,37 @@ __wt_key_return(WT_CURSOR_BTREE *cbt)
 
 /*
  * __wt_value_return --
- *     Change the cursor to reference an internal return value.
+ *     Change the cursor to reference an update return value.
  */
 int
-__wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
 {
     WT_CURSOR *cursor;
+    WT_SESSION_IMPL *session;
 
     cursor = &cbt->iface;
+    session = CUR2S(cbt);
 
     F_CLR(cursor, WT_CURSTD_VALUE_EXT);
-    if (upd == NULL)
+    if (upd_value->type == WT_UPDATE_INVALID) {
+        /*
+         * FIXME: This is a holdover from the pre-durable history read logic where we used to
+         * fallback to the on-page value if we didn't find a visible update elsewhere. This is still
+         * required for fixed length column store as we have issues with this table type in durable
+         * history which we're planning to address in PM-1814.
+         */
+        WT_ASSERT(session, cbt->btree->type == BTREE_COL_FIX);
         WT_RET(__value_return(cbt));
-    else
-        WT_RET(__wt_value_return_upd(cbt, upd));
+    } else {
+        /*
+         * We're passed a "standard" update that's visible to us. Our caller should have already
+         * checked for deleted items (we're too far down the call stack to return not-found) and any
+         * modify updates should be have been reconstructed into a full standard update.
+         */
+        WT_ASSERT(session, upd_value->type == WT_UPDATE_STANDARD);
+        cursor->value.data = upd_value->buf.data;
+        cursor->value.size = upd_value->buf.size;
+    }
     F_SET(cursor, WT_CURSTD_VALUE_INT);
     return (0);
 }

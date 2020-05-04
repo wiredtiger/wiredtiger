@@ -166,7 +166,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
         dhandle = (WT_DATA_HANDLE *)table;
         dhandle->type = WT_DHANDLE_TYPE_TABLE;
     } else
-        WT_PANIC_RET(session, EINVAL, "illegal handle allocation URI %s", uri);
+        WT_RET_PANIC(session, EINVAL, "illegal handle allocation URI %s", uri);
 
     /* Btree handles keep their data separate from the interface. */
     if (dhandle->type == WT_DHANDLE_TYPE_BTREE) {
@@ -797,8 +797,7 @@ restart:
      * it's potentially used when discarding other open data handles. Close it before discarding the
      * underlying metadata handle.
      */
-    if (session->meta_cursor != NULL)
-        WT_TRET(session->meta_cursor->close(session->meta_cursor));
+    WT_TRET(__wt_metadata_cursor_close(session));
 
     /* Close the remaining handles. */
     WT_TAILQ_SAFE_REMOVE_BEGIN(dhandle, &conn->dhqh, q, dhandle_tmp)

@@ -917,7 +917,7 @@ __slvg_col_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_s
      */
     /* Case #2/8, #10, #11 */
     if (a_trk->col_start > b_trk->col_start)
-        WT_PANIC_RET(session, EINVAL, "unexpected merge array sort order");
+        WT_RET_PANIC(session, EINVAL, "unexpected merge array sort order");
 
     if (a_trk->col_start == b_trk->col_start) { /* Case #1, #4 and #9 */
                                                 /*
@@ -1323,7 +1323,7 @@ __slvg_col_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK *
             return (__slvg_ovfl_ref(session, ovfl, false));
     }
 
-    WT_PANIC_RET(session, EINVAL, "overflow record at column-store page merge not found");
+    WT_RET_PANIC(session, EINVAL, "overflow record at column-store page merge not found");
 }
 
 /*
@@ -1512,7 +1512,7 @@ __slvg_row_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_s
     WT_RET(__wt_compare(session, btree->collator, A_TRK_STOP, B_TRK_STOP, &stop_cmp));
 
     if (start_cmp > 0) /* Case #2/8, #10, #11 */
-        WT_PANIC_RET(session, EINVAL, "unexpected merge array sort order");
+        WT_RET_PANIC(session, EINVAL, "unexpected merge array sort order");
 
     if (start_cmp == 0) { /* Case #1, #4, #9 */
                           /*
@@ -1761,10 +1761,8 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     WT_REF *ref, **refp;
     WT_TRACK *trk;
     uint32_t i;
-    u_int decr_cnt;
 
     addr = NULL;
-    decr_cnt = 0;
 
     /* Allocate a row-store root (internal) page and fill it in. */
     WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, leaf_cnt, true, &page));
@@ -1828,21 +1826,14 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
          * the reconciliation of the root page. For now, make sure the eviction threads don't see us
          * as a threat.
          */
-        if (page->memory_footprint > WT_MEGABYTE) {
-            ++decr_cnt;
+        if (page->memory_footprint > WT_MEGABYTE * 2)
             __wt_cache_page_inmem_decr(session, page, WT_MEGABYTE);
-        }
     }
-    if (decr_cnt != 0)
-        __wt_cache_page_inmem_incr(session, page, decr_cnt * WT_MEGABYTE);
-
     __wt_root_ref_init(session, &ss->root_ref, page, false);
 
     if (0) {
 err:
         __wt_free(session, addr);
-        if (decr_cnt != 0)
-            __wt_cache_page_inmem_incr(session, page, decr_cnt * WT_MEGABYTE);
         __wt_page_out(session, &page);
     }
     return (ret);
@@ -2001,7 +1992,7 @@ __slvg_row_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK *
             return (__slvg_ovfl_ref(session, ovfl, true));
     }
 
-    WT_PANIC_RET(session, EINVAL, "overflow record at row-store page merge not found");
+    WT_RET_PANIC(session, EINVAL, "overflow record at row-store page merge not found");
 }
 
 /*
@@ -2279,7 +2270,7 @@ __slvg_ovfl_ref(WT_SESSION_IMPL *session, WT_TRACK *trk, bool multi_panic)
     if (F_ISSET(trk, WT_TRACK_OVFL_REFD)) {
         if (!multi_panic)
             return (__wt_set_return(session, EBUSY));
-        WT_PANIC_RET(session, EINVAL,
+        WT_RET_PANIC(session, EINVAL,
           "overflow record unexpectedly referenced multiple times "
           "during leaf page merge");
     }
