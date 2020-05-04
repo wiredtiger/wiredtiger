@@ -475,8 +475,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     if (txn_global->oldest_ckpt_hs_timestamp > oldest_ts) {
         txn_global->oldest_ckpt_hs_timestamp = WT_TS_NONE;
         WT_RET_MSG(session, EINVAL,
-          "set_timestamp: oldest timestamp %s must not be earlier than oldest start timestamp %s "
-          "in history store checkpoint list",
+          "set_timestamp: oldest timestamp %s must not be earlier than oldest history store "
+          "checkpoint timestamp %s ",
           __wt_timestamp_to_string(oldest_ts, ts_string[0]),
           __wt_timestamp_to_string(txn_global->oldest_ckpt_hs_timestamp, ts_string[1]));
     }
