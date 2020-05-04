@@ -205,10 +205,10 @@ struct __wt_cell_unpack_addr {
 };
 
 /*
- * WT_CELL_UNPACK_VALUE --
+ * WT_CELL_UNPACK_KV --
  *     Unpacked value cell.
  */
-struct __wt_cell_unpack_value {
+struct __wt_cell_unpack_kv {
     WT_CELL_COMMON_FIELDS;
 
     WT_TIME_WINDOW tw; /* Value validity window */

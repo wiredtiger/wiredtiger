@@ -76,10 +76,10 @@ __key_return(WT_CURSOR_BTREE *cbt)
 static void
 __read_col_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, WT_TIME_WINDOW *tw)
 {
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_KV unpack;
 
-    __wt_cell_unpack(session, page->dsk, cell, &unpack);
-    __wt_time_window_copy(tw, unpack.tw);
+    __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
+    __wt_time_window_copy(tw, &unpack.tw);
 }
 
 /*
@@ -89,7 +89,7 @@ __read_col_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, W
 void
 __wt_read_row_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_TIME_WINDOW *tw)
 {
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_KV unpack;
 
     __wt_time_window_init(tw);
     /*
@@ -100,7 +100,7 @@ __wt_read_row_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
         return;
 
     __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
-    __wt_time_window_copy(tw, unpack.tw);
+    __wt_time_window_copy(tw, &unpack.tw);
 }
 
 /*
@@ -138,7 +138,7 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
 {
     WT_BTREE *btree;
     WT_CELL *cell;
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_KV unpack;
     WT_CURSOR *cursor;
     WT_PAGE *page;
     WT_ROW *rip;
@@ -167,16 +167,16 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
         /* Take the value from the original page cell. */
         __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
         if (tw != NULL)
-            __wt_time_window_copy(tw, unpack.tw);
+            __wt_time_window_copy(tw, &unpack.tw);
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
     if (page->type == WT_PAGE_COL_VAR) {
         /* Take the value from the original page cell. */
         cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
-        __wt_cell_unpack(session, page->dsk, cell, &unpack);
+        __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
         if (tw != NULL)
-            __wt_time_window_copy(tw, unpack.tw);
+            __wt_time_window_copy(tw, &unpack.tw);
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 

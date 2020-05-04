@@ -35,8 +35,8 @@ struct __wt_dbg {
 static const /* Output separator */
   char *const sep = "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n";
 
-static int __debug_cell(WT_DBG *, const WT_PAGE_HEADER *, WT_CELL_UNPACK *);
-static int __debug_cell_data(WT_DBG *, WT_PAGE *, int, const char *, WT_CELL_UNPACK *);
+static int __debug_cell(WT_DBG *, const WT_PAGE_HEADER *, void *);
+static int __debug_cell_data(WT_DBG *, WT_PAGE *, int, const char *, void *);
 static int __debug_col_skip(WT_DBG *, WT_INSERT_HEAD *, const char *, bool);
 static int __debug_config(WT_SESSION_IMPL *, WT_DBG *, const char *);
 static int __debug_dsk_cell(WT_DBG *, const WT_PAGE_HEADER *);
@@ -1065,7 +1065,7 @@ static int
 __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
 {
     WT_CELL *cell;
-    WT_CELL_UNPACK *unpack, _unpack;
+    WT_CELL_UNPACK_KV *unpack, _unpack;
     WT_COL *cip;
     WT_INSERT_HEAD *update;
     WT_PAGE *page;
@@ -1079,7 +1079,7 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
 
     WT_COL_FOREACH (page, cip, i) {
         cell = WT_COL_PTR(page, cip);
-        __wt_cell_unpack(ds->session, page->dsk, cell, unpack);
+        __wt_cell_unpack_kv(ds->session, page->dsk, cell, unpack);
         rle = __wt_cell_rle(unpack);
         WT_RET(__wt_snprintf(tag, sizeof(tag), "%" PRIu64 " %" PRIu64, recno, rle));
         WT_RET(__debug_cell_data(ds, page, WT_PAGE_COL_VAR, tag, unpack));
@@ -1137,7 +1137,7 @@ __debug_page_row_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
 static int
 __debug_page_row_leaf(WT_DBG *ds, WT_PAGE *page)
 {
-    WT_CELL_UNPACK *unpack, _unpack;
+    WT_CELL_UNPACK_KV *unpack, _unpack;
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_INSERT_HEAD *insert;
@@ -1367,14 +1367,16 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
  *     Dump a single unpacked WT_CELL.
  */
 static int
-__debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
+__debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, void *unpack_arg)
 {
+    WT_CELL_UNPACK *unpack;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     char time_string[WT_TIME_STRING_SIZE];
 
     session = ds->session;
+    unpack = unpack_arg;
 
     WT_RET(ds->f(ds, "\t%s: len %" PRIu32, __wt_cell_type_string(unpack->raw), unpack->size));
 
@@ -1452,14 +1454,16 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
  *     Dump a single cell's data in debugging mode.
  */
 static int
-__debug_cell_data(WT_DBG *ds, WT_PAGE *page, int page_type, const char *tag, WT_CELL_UNPACK *unpack)
+__debug_cell_data(WT_DBG *ds, WT_PAGE *page, int page_type, const char *tag, void *unpack_arg)
 {
+    WT_CELL_UNPACK *unpack;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     const char *p;
 
     session = ds->session;
+    unpack = unpack_arg;
 
     /*
      * Column-store references to deleted cells return a NULL cell reference.
@@ -1486,8 +1490,8 @@ __debug_cell_data(WT_DBG *ds, WT_PAGE *page, int page_type, const char *tag, WT_
     }
 
     WT_RET(__wt_scr_alloc(session, 256, &buf));
-    WT_ERR(page == NULL ? __wt_dsk_cell_data_ref(session, page_type, unpack, buf) :
-                          __wt_page_cell_data_ref(session, page, unpack, buf));
+    WT_ERR(page == NULL ? __wt_dsk_cell_data_ref(session, page_type, unpack_arg, buf) :
+                          __wt_page_cell_data_ref(session, page, unpack_arg, buf));
 
     switch (unpack->raw) {
     case WT_CELL_KEY:

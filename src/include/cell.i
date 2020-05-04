@@ -732,7 +732,7 @@ __wt_cell_leaf_value_parse(WT_PAGE *page, WT_CELL *cell)
  */
 static inline int
 __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
-  WT_CELL_UNPACK *unpack, WT_CELL_UNPACK_ADDR *unpack_addr, WT_CELL_UNPACK_VALUE *unpack_value,
+  WT_CELL_UNPACK *unpack, WT_CELL_UNPACK_ADDR *unpack_addr, WT_CELL_UNPACK_KV *unpack_value,
   const void *end)
 {
     struct {
@@ -834,9 +834,10 @@ copy_cell_restart:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
         /*
-         * Break out if we know we're not unpacking a cell of this type. This is all inlined code,
-         * and ideally checking allows the compiler to discard big chunks of it.
+         * Skip if we know we're not unpacking a cell of this type. This is all inlined code, and
+         * ideally checking allows the compiler to discard big chunks of it.
          */
+        WT_ASSERT(session, unpack_value == NULL);
         if (unpack_value != NULL)
             break;
 
@@ -886,9 +887,10 @@ copy_cell_restart:
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
         /*
-         * Break out if we know we're not unpacking a cell of this type. This is all inlined code,
-         * and ideally checking allows the compiler to discard big chunks of it.
+         * Skip if we know we're not unpacking a cell of this type. This is all inlined code, and
+         * ideally checking allows the compiler to discard big chunks of it.
          */
+        WT_ASSERT(session, unpack_addr == NULL);
         if (unpack_addr != NULL)
             break;
 
@@ -948,9 +950,10 @@ copy_cell_restart:
     switch (unpack->raw) {
     case WT_CELL_VALUE_COPY:
         /*
-         * Break out if we know we're not unpacking a cell of this type. This is all inlined code,
-         * and ideally checking allows the compiler to discard big chunks of it.
+         * Skip if we know we're not unpacking a cell of this type. This is all inlined code, and
+         * ideally checking allows the compiler to discard big chunks of it.
          */
+        WT_ASSERT(session, unpack_addr == NULL);
         if (unpack_addr != NULL)
             break;
 
@@ -1012,10 +1015,11 @@ copy_cell_restart:
     }
 
     /*
-     * Break out if we know we're not unpacking a cell of this type. This is all inlined code, and
+     * Skip if we know we're not unpacking a cell of this type. This is all inlined code, and
      * ideally checking allows the compiler to discard big chunks of it.
      */
-    if (unpack_addr != NULL && copy_cell) {
+    if (unpack_addr == NULL && copy_cell) {
+        WT_ASSERT(session, unpack_addr == NULL);
         unpack->v = copy.v;
         unpack->__len = copy.len;
         unpack->raw = WT_CELL_VALUE_COPY;
@@ -1148,12 +1152,12 @@ __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
 }
 
 /*
- * __wt_cell_unpack_value --
+ * __wt_cell_unpack_kv --
  *     Unpack a value WT_CELL into a structure.
  */
 static inline void
-__wt_cell_unpack_value(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
-  WT_CELL_UNPACK_VALUE *unpack_value)
+__wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
+  WT_CELL_UNPACK_KV *unpack_value)
 {
     if (cell == NULL) {
         __cell_unpack_zero(unpack_value, &unpack_value->tw);
@@ -1240,9 +1244,12 @@ __wt_dsk_cell_data_ref(WT_SESSION_IMPL *session, int page_type, void *unpack_arg
  *     Set a buffer to reference the data from an unpacked cell.
  */
 static inline int
-__wt_page_cell_data_ref(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK *unpack, WT_ITEM *store)
+__wt_page_cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_arg, WT_ITEM *store)
 {
+    WT_CELL_UNPACK *unpack;
+
+    unpack = unpack_arg;
+
     return (__cell_data_ref(session, page, page->type, unpack, store));
 }
 
@@ -1266,13 +1273,13 @@ __wt_page_cell_data_ref(
              __cell += (unpack).__len, --__i) {                                         \
             __wt_cell_unpack_addr(session, dsk, (WT_CELL *)__cell, &(unpack));
 
-#define WT_CELL_FOREACH_BEGIN_VALUE(session, btree, dsk, unpack)                        \
+#define WT_CELL_FOREACH_BEGIN_KV(session, btree, dsk, unpack)                           \
     do {                                                                                \
         uint32_t __i;                                                                   \
         uint8_t *__cell;                                                                \
         for (__cell = WT_PAGE_HEADER_BYTE(btree, dsk), __i = (dsk)->u.entries; __i > 0; \
              __cell += (unpack).__len, --__i) {                                         \
-            __wt_cell_unpack_value(session, dsk, (WT_CELL *)__cell, &(unpack));
+            __wt_cell_unpack_kv(session, dsk, (WT_CELL *)__cell, &(unpack));
 
 #define WT_CELL_FOREACH_END \
     }                       \

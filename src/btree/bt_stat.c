@@ -134,7 +134,7 @@ static void
 __stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 {
     WT_CELL *cell;
-    WT_CELL_UNPACK *unpack, _unpack;
+    WT_CELL_UNPACK_KV *unpack, _unpack;
     WT_COL *cip;
     WT_INSERT *ins;
     uint64_t deleted_cnt, entry_cnt, ovfl_cnt, rle_cnt;
@@ -154,7 +154,7 @@ __stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
      */
     WT_COL_FOREACH (page, cip, i) {
         cell = WT_COL_PTR(page, cip);
-        __wt_cell_unpack(session, page->dsk, cell, unpack);
+        __wt_cell_unpack_kv(session, page->dsk, cell, unpack);
         if (unpack->type == WT_CELL_DEL) {
             orig_deleted = true;
             deleted_cnt += __wt_cell_rle(unpack);
@@ -219,7 +219,7 @@ static void
 __stat_page_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 {
     WT_BTREE *btree;
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_ADDR unpack;
     uint32_t ovfl_cnt;
 
     btree = S2BT(session);
@@ -232,7 +232,8 @@ __stat_page_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
      * representation of the page doesn't necessarily contain a reference to the original cell.
      */
     if (page->dsk != NULL) {
-        WT_CELL_FOREACH_BEGIN (session, btree, page->dsk, unpack) {
+        WT_CELL_FOREACH_BEGIN_ADDR(session, btree, page->dsk, unpack)
+        {
             if (__wt_cell_type(unpack.cell) == WT_CELL_KEY_OVFL)
                 ++ovfl_cnt;
         }
@@ -250,7 +251,7 @@ static void
 __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 {
     WT_BTREE *btree;
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_KV unpack;
     WT_INSERT *ins;
     WT_ROW *rip;
     WT_UPDATE *upd;
@@ -298,7 +299,8 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
      */
     if (page->dsk != NULL) {
         key = false;
-        WT_CELL_FOREACH_BEGIN (session, btree, page->dsk, unpack) {
+        WT_CELL_FOREACH_BEGIN_KV(session, btree, page->dsk, unpack)
+        {
             switch (__wt_cell_type(unpack.cell)) {
             case WT_CELL_KEY_OVFL:
                 ++ovfl_cnt;

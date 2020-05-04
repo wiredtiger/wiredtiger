@@ -54,7 +54,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
  */
 static int
 __rec_append_orig_value(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK *unpack)
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK_KV *unpack)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -80,7 +80,7 @@ __rec_append_orig_value(
          * for stop time pair because we may still need to append the onpage value if only the
          * tombstone is on the update chain.
          */
-        if (unpack->tw->start_ts == upd->start_ts && unpack->tw->start_txn == upd->txnid &&
+        if (unpack->tw.start_ts == upd->start_ts && unpack->tw.start_txn == upd->txnid &&
           upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
@@ -104,8 +104,8 @@ __rec_append_orig_value(
     }
 
     /* Done if the stop time pair of the onpage cell is globally visible. */
-    if ((unpack->tw->stop_ts != WT_TS_MAX || unpack->tw->stop_txn != WT_TXN_MAX) &&
-      __wt_txn_visible_all(session, unpack->tw->stop_txn, unpack->tw->stop_ts))
+    if ((unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX) &&
+      __wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.stop_ts))
         return (0);
 
     /* We need the original on-page value for some reader: get a copy. */
@@ -113,9 +113,9 @@ __rec_append_orig_value(
     WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
     WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
     total_size += size;
-    append->txnid = unpack->tw->start_txn;
-    append->start_ts = unpack->tw->start_ts;
-    append->durable_ts = unpack->tw->durable_start_ts;
+    append->txnid = unpack->tw.start_txn;
+    append->start_ts = unpack->tw.start_ts;
+    append->durable_ts = unpack->tw.durable_start_ts;
 
     /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
@@ -123,20 +123,20 @@ __rec_append_orig_value(
      * delete a value respectively at timestamp 0 and 10, and later insert it again at 20. We need
      * the tombstone to tell us there is no value between 10 and 20.
      */
-    if (unpack->tw->stop_ts != WT_TS_MAX || unpack->tw->stop_txn != WT_TXN_MAX) {
+    if (unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX) {
         /* No need to append the tombstone if it is already in the update chain. */
         if (oldest_upd->type != WT_UPDATE_TOMBSTONE) {
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
             total_size += size;
-            tombstone->txnid = unpack->tw->stop_txn;
-            tombstone->start_ts = unpack->tw->stop_ts;
-            tombstone->durable_ts = unpack->tw->durable_stop_ts;
+            tombstone->txnid = unpack->tw.stop_txn;
+            tombstone->start_ts = unpack->tw.stop_ts;
+            tombstone->durable_ts = unpack->tw.durable_stop_ts;
 
             tombstone->next = append;
             append = tombstone;
         } else
-            WT_ASSERT(session, unpack->tw->stop_ts == oldest_upd->start_ts &&
-                unpack->tw->stop_txn == oldest_upd->txnid);
+            WT_ASSERT(session, unpack->tw.stop_ts == oldest_upd->start_ts &&
+                unpack->tw.stop_txn == oldest_upd->txnid);
     }
 
     /* Append the new entry into the update list. */
@@ -186,7 +186,7 @@ __rec_need_save_upd(
  */
 int
 __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
-  WT_CELL_UNPACK *vpack, WT_UPDATE_SELECT *upd_select)
+  WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -377,8 +377,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              */
             WT_ERR(__rec_append_orig_value(session, page, tombstone, vpack));
             WT_ASSERT(session, last_upd->next != NULL &&
-                last_upd->next->txnid == vpack->tw->start_txn &&
-                last_upd->next->start_ts == vpack->tw->start_ts &&
+                last_upd->next->txnid == vpack->tw.start_txn &&
+                last_upd->next->start_ts == vpack->tw.start_ts &&
                 last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL);
             upd_select->upd = last_upd->next;
             __wt_time_window_set_start(select_tw, last_upd->next);

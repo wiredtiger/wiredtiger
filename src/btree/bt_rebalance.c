@@ -57,7 +57,7 @@ __rebalance_discard(WT_SESSION_IMPL *session, WT_REBALANCE_STUFF *rs)
  */
 static int
 __rebalance_leaf_append(WT_SESSION_IMPL *session, const uint8_t *key, size_t key_len,
-  WT_CELL_UNPACK *unpack, WT_REBALANCE_STUFF *rs)
+  WT_CELL_UNPACK_ADDR *unpack, WT_REBALANCE_STUFF *rs)
 {
     WT_ADDR *copy_addr;
     WT_REF *copy;
@@ -76,7 +76,7 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session, const uint8_t *key, size_t key
 
     WT_RET(__wt_calloc_one(session, &copy_addr));
     copy->addr = copy_addr;
-    __wt_time_aggregate_copy(&copy_addr->ta, unpack->ta);
+    __wt_time_aggregate_copy(&copy_addr->ta, &unpack->ta);
     WT_RET(__wt_memdup(session, unpack->data, unpack->size, &copy_addr->addr));
     copy_addr->size = (uint8_t)unpack->size;
     copy_addr->type = unpack->type == WT_CELL_ADDR_LEAF ? WT_ADDR_LEAF : WT_ADDR_LEAF_NO;
@@ -186,7 +186,7 @@ static int
 __rebalance_col_walk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_REBALANCE_STUFF *rs)
 {
     WT_BTREE *btree;
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_ADDR unpack;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
 
@@ -202,7 +202,8 @@ __rebalance_col_walk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_REB
      * Walk the page, instantiating keys: the page contains sorted key and location cookie pairs.
      * Keys are on-page/overflow items and location cookies are WT_CELL_ADDR_XXX items.
      */
-    WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack) {
+    WT_CELL_FOREACH_BEGIN_ADDR(session, btree, dsk, unpack)
+    {
         switch (unpack.type) {
         case WT_CELL_ADDR_INT:
             /* An internal page: read it and recursively walk it. */
@@ -261,7 +262,7 @@ static int
 __rebalance_row_walk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_REBALANCE_STUFF *rs)
 {
     WT_BTREE *btree;
-    WT_CELL_UNPACK key, unpack;
+    WT_CELL_UNPACK_ADDR key, unpack;
     WT_DECL_ITEM(buf);
     WT_DECL_ITEM(leafkey);
     WT_DECL_RET;
@@ -284,7 +285,8 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_REB
      * Keys are on-page/overflow items and location cookies are WT_CELL_ADDR_XXX items.
      */
     first_cell = true;
-    WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack) {
+    WT_CELL_FOREACH_BEGIN_ADDR(session, btree, dsk, unpack)
+    {
         switch (unpack.type) {
         case WT_CELL_KEY:
             key = unpack;

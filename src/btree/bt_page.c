@@ -301,14 +301,14 @@ static void
 __inmem_col_var_repeats(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t *np)
 {
     WT_BTREE *btree;
-    WT_CELL_UNPACK_VALUE unpack;
+    WT_CELL_UNPACK_KV unpack;
 
     *np = 0;
 
     btree = S2BT(session);
 
     /* Walk the page, counting entries for the repeats array. */
-    WT_CELL_FOREACH_BEGIN_VALUE(session, btree, page->dsk, unpack)
+    WT_CELL_FOREACH_BEGIN_KV(session, btree, page->dsk, unpack)
     {
         if (__wt_cell_rle(&unpack) > 1)
             ++*np;
@@ -324,7 +324,7 @@ static int
 __inmem_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t recno, size_t *sizep)
 {
     WT_BTREE *btree;
-    WT_CELL_UNPACK_VALUE unpack;
+    WT_CELL_UNPACK_KV unpack;
     WT_COL *cip;
     WT_COL_RLE *repeats;
     size_t size;
@@ -344,7 +344,7 @@ __inmem_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t recno, size_t 
      */
     indx = 0;
     cip = page->pg_var;
-    WT_CELL_FOREACH_BEGIN_VALUE(session, btree, page->dsk, unpack)
+    WT_CELL_FOREACH_BEGIN_KV(session, btree, page->dsk, unpack)
     {
         WT_COL_PTR_SET(cip, WT_PAGE_DISK_OFFSET(page, unpack.cell));
         cip++;
@@ -504,7 +504,7 @@ static int
 __inmem_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint32_t *nindxp)
 {
     WT_BTREE *btree;
-    WT_CELL_UNPACK_VALUE unpack;
+    WT_CELL_UNPACK_KV unpack;
     uint32_t nindx;
 
     btree = S2BT(session);
@@ -520,7 +520,7 @@ __inmem_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, ui
      * overflow (WT_CELL_VALUE_OVFL) item.
      */
     nindx = 0;
-    WT_CELL_FOREACH_BEGIN_VALUE(session, btree, dsk, unpack)
+    WT_CELL_FOREACH_BEGIN_KV(session, btree, dsk, unpack)
     {
         switch (unpack.type) {
         case WT_CELL_KEY:
@@ -548,14 +548,14 @@ static int
 __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_BTREE *btree;
-    WT_CELL_UNPACK_VALUE unpack;
+    WT_CELL_UNPACK_KV unpack;
     WT_ROW *rip;
 
     btree = S2BT(session);
 
     /* Walk the page, building indices. */
     rip = page->pg_row;
-    WT_CELL_FOREACH_BEGIN_VALUE(session, btree, page->dsk, unpack)
+    WT_CELL_FOREACH_BEGIN_KV(session, btree, page->dsk, unpack)
     {
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:

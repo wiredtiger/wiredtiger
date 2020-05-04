@@ -122,7 +122,7 @@ __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
  */
 static inline void
 __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *addr,
-  WT_CELL_UNPACK *vpack, bool proxy_cell, uint64_t recno)
+  WT_CELL_UNPACK_ADDR *vpack, bool proxy_cell, uint64_t recno)
 {
     WT_REC_KV *val;
     u_int cell_type;
@@ -175,7 +175,7 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
         val->buf.data = vpack->data;
         val->buf.size = vpack->size;
         val->cell_len =
-          __wt_cell_pack_addr(session, &val->cell, cell_type, recno, vpack->ta, val->buf.size);
+          __wt_cell_pack_addr(session, &val->cell, cell_type, recno, &vpack->ta, val->buf.size);
     }
 
     val->len = val->cell_len + val->buf.size;

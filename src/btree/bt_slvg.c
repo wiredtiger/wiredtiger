@@ -568,7 +568,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
   size_t addr_size, WT_STUFF *ss)
 {
     WT_BTREE *btree;
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_KV unpack;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TRACK *trk;
@@ -603,7 +603,8 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
          * stop key requires walking the page.
          */
         stop_recno = dsk->recno;
-        WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack) {
+        WT_CELL_FOREACH_BEGIN_KV(session, btree, dsk, unpack)
+        {
             stop_recno += __wt_cell_rle(&unpack);
         }
         WT_CELL_FOREACH_END;
@@ -684,14 +685,15 @@ static int
 __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRACK *trk)
 {
     WT_BTREE *btree;
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_KV unpack;
     uint32_t ovfl_cnt;
 
     btree = S2BT(session);
 
     /* Count page overflow items. */
     ovfl_cnt = 0;
-    WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack) {
+    WT_CELL_FOREACH_BEGIN_KV(session, btree, dsk, unpack)
+    {
         if (FLD_ISSET(unpack.flags, WT_CELL_UNPACK_OVERFLOW))
             ++ovfl_cnt;
     }
@@ -706,7 +708,8 @@ __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRA
     trk->trk_ovfl_cnt = ovfl_cnt;
 
     ovfl_cnt = 0;
-    WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack) {
+    WT_CELL_FOREACH_BEGIN_KV(session, btree, dsk, unpack)
+    {
         if (FLD_ISSET(unpack.flags, WT_CELL_UNPACK_OVERFLOW)) {
             WT_RET(
               __wt_memdup(session, unpack.data, unpack.size, &trk->trk_ovfl_addr[ovfl_cnt].addr));
@@ -1297,7 +1300,7 @@ err:
  *     Find a single overflow record in the merge page's list, and mark it as referenced.
  */
 static int
-__slvg_col_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK *unpack)
+__slvg_col_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK_KV *unpack)
 {
     WT_TRACK *ovfl;
     uint32_t i;
@@ -1325,7 +1328,7 @@ __slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_PAGE *page, uint64_t
   uint64_t skip, uint64_t take)
 {
     WT_CELL *cell;
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_KV unpack;
     WT_COL *cip;
     WT_DECL_RET;
     uint64_t start, stop;
@@ -1340,7 +1343,7 @@ __slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_PAGE *page, uint64_t
 
     WT_COL_FOREACH (page, cip, i) {
         cell = WT_COL_PTR(page, cip);
-        __wt_cell_unpack(session, page->dsk, cell, &unpack);
+        __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
         recno += __wt_cell_rle(&unpack);
 
         /*
@@ -1957,7 +1960,7 @@ err:
  *     Find a single overflow record in the merge page's list, and mark it as referenced.
  */
 static int
-__slvg_row_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK *unpack)
+__slvg_row_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK_KV *unpack)
 {
     WT_TRACK *ovfl;
     uint32_t i;
@@ -1989,7 +1992,7 @@ __slvg_row_ovfl(
   WT_SESSION_IMPL *session, WT_TRACK *trk, WT_PAGE *page, uint32_t start, uint32_t stop)
 {
     WT_CELL *cell;
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_KV unpack;
     WT_ROW *rip;
     void *copy;
 
@@ -2001,7 +2004,7 @@ __slvg_row_ovfl(
         copy = WT_ROW_KEY_COPY(rip);
         WT_IGNORE_RET_BOOL(__wt_row_leaf_key_info(page, copy, NULL, &cell, NULL, NULL));
         if (cell != NULL) {
-            __wt_cell_unpack(session, page->dsk, cell, &unpack);
+            __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
             WT_RET(__slvg_row_ovfl_single(session, trk, &unpack));
         }
         __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
