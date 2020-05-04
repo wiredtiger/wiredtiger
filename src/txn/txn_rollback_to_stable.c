@@ -992,7 +992,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t max_durable_ts, start_durable_ts, stop_durable_ts, rollback_timestamp;
+    wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts,
+      rollback_timestamp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
     bool durable_ts_found;
@@ -1026,25 +1027,27 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         WT_ERR(cursor->get_value(cursor, &config));
 
         /* Find out the max durable timestamp of the object from checkpoint. */
-        start_durable_ts = stop_durable_ts = WT_TS_NONE;
+        newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
         durable_ts_found = false;
         WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
         __wt_config_subinit(session, &ckptconf, &cval);
         for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
-            ret = __wt_config_subgets(session, &cval, "start_durable_ts", &durableval);
+            ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &durableval);
             if (ret == 0) {
-                start_durable_ts = WT_MAX(start_durable_ts, (wt_timestamp_t)durableval.val);
+                newest_start_durable_ts =
+                  WT_MAX(newest_start_durable_ts, (wt_timestamp_t)durableval.val);
                 durable_ts_found = true;
             }
             WT_ERR_NOTFOUND_OK(ret, false);
-            ret = __wt_config_subgets(session, &cval, "stop_durable_ts", &durableval);
+            ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &durableval);
             if (ret == 0) {
-                stop_durable_ts = WT_MAX(stop_durable_ts, (wt_timestamp_t)durableval.val);
+                newest_stop_durable_ts =
+                  WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)durableval.val);
                 durable_ts_found = true;
             }
             WT_ERR_NOTFOUND_OK(ret, false);
         }
-        max_durable_ts = WT_MAX(start_durable_ts, stop_durable_ts);
+        max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
         ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
         /* Ignore performing rollback to stable on files that don't exist. */
         if (ret == ENOENT)

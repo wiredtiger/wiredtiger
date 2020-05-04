@@ -600,7 +600,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.oldest_start_txn = (uint64_t)a.val;
 
-    ret = __wt_config_subgets(session, v, "start_durable_ts", &a);
+    ret = __wt_config_subgets(session, v, "newest_start_durable_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
@@ -615,7 +615,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.newest_stop_txn = (uint64_t)a.val;
 
-    ret = __wt_config_subgets(session, v, "stop_durable_ts", &a);
+    ret = __wt_config_subgets(session, v, "newest_stop_durable_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.newest_stop_durable_ts = (uint64_t)a.val;
@@ -714,18 +714,12 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         if (strcmp(ckpt->name, WT_CHECKPOINT) == 0)
             WT_RET(__wt_buf_catfmt(session, buf, ".%" PRId64, ckpt->order));
 
-        /*
-         * Use PRId64 formats: WiredTiger's configuration code handles signed 8B values.
-         *
-         * TODO: The durable timestamp names in the metadata files do not match the names in the
-         * WT_TIME_AGGREGATE structure. That needs comments or updates and a backport, I'm not sure
-         * which. which.
-         */
+        /* Use PRId64 formats: WiredTiger's configuration code handles signed 8B values. */
         WT_RET(__wt_buf_catfmt(session, buf,
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
-          ",start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",oldest_start_txn=%" PRId64
-          ",stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64
-          ",write_gen=%" PRId64 ")",
+          ",newest_start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64
+          ",oldest_start_txn=%" PRId64 ",newest_stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64
+          ",newest_stop_txn=%" PRId64 ",write_gen=%" PRId64 ")",
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
           (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.oldest_start_txn,
