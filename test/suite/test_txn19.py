@@ -390,11 +390,9 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     # In many cases, wiredtiger_open without any salvage options will
     # just work.  We list those cases here.
     openable = [
-        "removal:WiredTigerHS.wt",
         "removal:WiredTiger.basecfg",
         "removal:WiredTiger.turtle",
         "truncate:WiredTiger",
-        "truncate:WiredTigerHS.wt",
         "truncate:WiredTiger.basecfg",
         "truncate-middle:WiredTiger",
         "truncate-middle:WiredTigerHS.wt",
@@ -402,7 +400,6 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         "truncate-middle:WiredTiger.turtle",
         "truncate-middle:WiredTiger.wt",
         "zero:WiredTiger",
-        "zero:WiredTigerHS.wt",
         "zero:WiredTiger.basecfg",
         "zero-end:WiredTiger",
         "zero-end:WiredTigerHS.wt",
@@ -410,7 +407,6 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         "zero-end:WiredTiger.turtle",
         "zero-end:WiredTiger.wt",
         "garbage-begin:WiredTiger",
-        "garbage-begin:WiredTigerHS.wt",
         "garbage-middle:WiredTiger",
         "garbage-middle:WiredTiger.basecfg",
         "garbage-middle:WiredTiger.turtle",
@@ -428,9 +424,12 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         "removal:WiredTiger.turtle",
         "removal:WiredTiger.wt",
         "truncate:WiredTiger.wt",
+        "truncate:WiredTigerHS.wt",
         "zero:WiredTiger.wt",
+        "zero:WiredTigerHS.wt",
         "garbage-begin:WiredTiger.basecfg",
         "garbage-begin:WiredTiger.wt",
+        "garbage-begin:WiredTigerHS.wt",
         "garbage-end:WiredTiger.basecfg",
     ]
 

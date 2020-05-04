@@ -521,6 +521,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
+    WT_SESSION *wt_session;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
@@ -627,24 +628,39 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * we're upgrading from an older version. If it does exist in the metadata we should check that
      * it exists on disk to confirm that it wasn't deleted between runs.
      *
-     * This needs to happen after we recovery the metadata from the logs, otherwise we can end up
-     * in the situation where the metadata does actually contain the history store but we didn't
-     * yet recover the metadata.
+     * This needs to happen after we recovery the metadata from the logs, otherwise we can end up in
+     * the situation where the metadata does actually contain the history store but we didn't yet
+     * recover the metadata.
      */
     metac->set_key(metac, WT_HS_URI);
     WT_ERR_NOTFOUND_OK(metac->search(metac), true);
     if (ret == WT_NOTFOUND) {
         hs_exists = false;
     } else {
+        /* Given the history store exists in the metadata validate whether it exists on disk. */
         WT_ERR(__wt_fs_exist(session, WT_HS_FILE, &hs_exists));
-        if (!hs_exists) {
-            /* The history store file has likely been deleted, we cannot recover from this. */
-            WT_ERR_MSG(session, WT_TRY_SALVAGE, "%s file is corrupted or missing", WT_HS_FILE);
+        if (hs_exists) {
+            /* Attempt to configure the history store, this will detect corruption if it fails. */
+            ret = __wt_hs_config(session, cfg);
+            if (ret != 0) {
+                if (F_ISSET(conn, WT_CONN_SALVAGE)) {
+                    wt_session = &session->iface;
+                    WT_ERR(wt_session->salvage(wt_session, WT_HS_URI, NULL));
+                } else
+                    WT_ERR(ret);
+            }
         } else {
             /*
-             * We expect that configuring the history store can fail in certain recovery scenarios.
+             * We're attempting to salvage the database with a missing history store, remove it from
+             * the metadata and pretend it never existed. As such we won't run rollback to stable
+             * later.
              */
-            WT_ERR_ERROR_OK(__wt_hs_config(session, cfg), ENOENT, false);
+            if (F_ISSET(conn, WT_CONN_SALVAGE)) {
+                hs_exists = false;
+                metac->remove(metac);
+            } else
+                /* The history store file has likely been deleted, we cannot recover from this. */
+                WT_ERR_MSG(session, WT_TRY_SALVAGE, "%s file is corrupted or missing", WT_HS_FILE);
         }
     }
 
