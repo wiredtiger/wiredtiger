@@ -582,12 +582,6 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ckpt->size = (uint64_t)a.val;
 
     /* Default to durability. */
-    /*
-     *
-     * TODO: The durable timestamp names in the metadata files do not match the names in the
-     * WT_TIME_AGGREGATE structure. That needs comments or updates and a backport, I'm not sure
-     * which.
-     */
     __wt_time_aggregate_init(&ckpt->ta);
 
     ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
