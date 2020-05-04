@@ -31,7 +31,6 @@
 #
 
 import time, wiredtiger, wttest
-from wiredtiger import stat
 from wtscenario import make_scenarios
 
 class test_config08(wttest.WiredTigerTestCase):
@@ -63,40 +62,36 @@ class test_config08(wttest.WiredTigerTestCase):
         except wiredtiger.WiredTigerError as e:
             print("Failed conn at '%s' with config '%s'" % (dir, conn_params))
 
-    # Create a table, add keys with both big and small values.
+    # Create a table with logging setting matching the connection level config. 
     def test_config08(self):
         self.ConnectionOpen(self.log, self.file_handle_close_sync)
         table_params = 'key_format=i,value_format=S,log=' + self.log
-        self.uri = 'table:checkpoint'
+        self.uri = 'table:config_test'
 
-        # Create a table with the data
+        # Create a table with some data
         self.session.create(self.uri, table_params)
         c = self.session.open_cursor(self.uri, None)
         c[0] = 'ABC' * 4096
         c[1] = 'DEF' * 4096
         c[2] = 'GHI' * 4096
-
-        if self.log == '(enabled=false)' and self.file_handle_close_sync == 'false':
-            # WT won't allow this operation as exclsuive file handle not possible without checkpoint
-            if not self.raisesBusy(
-                lambda: self.session.verify(self.uri, None)):
-                None
-            
-            # Taking a checkopoint should make WT happy
-            self.session.checkpoint()
-            time.sleep(5)
-            self.session.verify(self.uri, None)
-
-        elif self.log == '(enabled=false)' and self.file_handle_close_sync == 'true':
-            self.session.verify(self.uri, None)
-
-        elif self.log == '(enabled=true)' and self.file_handle_close_sync == 'false':
-            self.session.verify(self.uri, None)
-
-        else: # both log and file_handle_close_sync enabled
-            self.session.verify(self.uri, None)
-
         c.close()
+
+        # API calls that require exclusive file handles should return EBUSY if dirty tables flushing
+        # and logging are disabled.
+        if self.log == '(enabled=false)' and self.file_handle_close_sync == 'false':
+            # WT won't allow this operation as exclsuive file handle is not possible 
+            # with modified table
+            if self.raisesBusy(lambda: self.session.verify(self.uri, None)):
+                # Taking a checkopoint should make WT happy
+                self.session.checkpoint()
+                self.session.verify(self.uri, None)
+            else:
+                self.assertTrue(False, "Was expecting API call to fail with EBUSY")
+        else:
+            # All other combinations of configs should not return EBUSY
+            self.session.verify(self.uri, None)
+        
+        self.conn.close()
 
 if __name__ == '__main__':
     wttest.run()
