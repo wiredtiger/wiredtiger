@@ -40,7 +40,7 @@ __cursor_skip_prev(WT_CURSOR_BTREE *cbt)
     uint64_t recno;
     int i;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
 restart:
     /*
@@ -124,7 +124,7 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -221,7 +221,7 @@ __cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     page = cbt->ref->page;
     btree = S2BT(session);
 
@@ -277,7 +277,7 @@ __cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -325,7 +325,7 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_SESSION_IMPL *session;
     uint64_t rle_start;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     page = cbt->ref->page;
 
     rle_start = 0; /* -Werror=maybe-uninitialized */
@@ -443,7 +443,7 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_SESSION_IMPL *session;
     bool kpack_used;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     page = cbt->ref->page;
     key = &cbt->iface.key;
 
@@ -568,7 +568,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     bool newpage, restart;
 
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     WT_STAT_CONN_INCR(session, cursor_prev);
     WT_STAT_DATA_INCR(session, cursor_prev);

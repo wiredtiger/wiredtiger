@@ -61,7 +61,7 @@ __random_skip_entries(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head)
     uint32_t entries;
     int level;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     entries = 0; /* [-Wconditional-uninitialized] */
 
     if (ins_head == NULL)
@@ -112,7 +112,7 @@ __random_leaf_skip(WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, uint32_t entr
 
     *validp = false;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     /* This is a relatively expensive test, try a few times then quit. */
     for (retry = 0; retry < WT_RANDOM_SKIP_RETRY; ++retry) {
@@ -171,7 +171,7 @@ __random_leaf_insert(WT_CURSOR_BTREE *cbt, bool *validp)
     *validp = false;
 
     page = cbt->ref->page;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     /* Check for a large insert list with no items, that's common when tables are newly created. */
     ins_head = WT_ROW_INSERT_SMALLEST(page);
@@ -238,7 +238,7 @@ __random_leaf_disk(WT_CURSOR_BTREE *cbt, bool *validp)
     *validp = false;
 
     page = cbt->ref->page;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     entries = cbt->ref->page->entries;
 
     /* This is a relatively cheap test, so try several times. */
@@ -270,8 +270,8 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
     uint32_t i;
     bool next, valid;
 
-    cursor = (WT_CURSOR *)cbt;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    cursor = &cbt->iface;
+    session = CUR2S(cbt);
 
     /*
      * If the page has a sufficiently large number of disk-based entries, randomly select from them.
@@ -476,7 +476,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 
     btree = cbt->btree;
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     read_flags = WT_READ_RESTART_OK;
     if (F_ISSET(cbt, WT_CBT_READ_ONCE))

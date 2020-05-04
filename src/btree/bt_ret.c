@@ -23,7 +23,7 @@ __key_return(WT_CURSOR_BTREE *cbt)
 
     page = cbt->ref->page;
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     if (page->type == WT_PAGE_ROW_LEAF) {
         rip = &page->pg_row[cbt->slot];
@@ -106,7 +106,7 @@ __wt_read_cell_time_pairs(
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     page = ref->page;
 
     WT_ASSERT(session, start != NULL && stop != NULL);
@@ -176,7 +176,7 @@ __wt_value_return_buf(
     WT_SESSION_IMPL *session;
     uint8_t v;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     btree = S2BT(session);
 
     page = ref->page;
@@ -273,7 +273,7 @@ __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
     WT_SESSION_IMPL *session;
 
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     F_CLR(cursor, WT_CURSTD_VALUE_EXT);
     if (upd_value->type == WT_UPDATE_INVALID) {

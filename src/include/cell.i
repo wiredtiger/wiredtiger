@@ -16,6 +16,13 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t durable_sta
   wt_timestamp_t stop_ts, uint64_t stop_txn)
 {
 #ifdef HAVE_DIAGNOSTIC
+    /*
+     * We're using WT_ERR_ASSERT rather than WT_ASSERT because we want to push out a message string.
+     * This usage of WT_ERR_ASSERT isn't "correct", because it jumps to a non-existent error label
+     * in non-diagnostic builds and returns WT_PANIC without calling the underlying panic routine.
+     * That's OK, we have to be in a diagnostic build to get here, and fixing it would require new
+     * macros that aren't needed anywhere else, so we're leaving it alone.
+     */
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     if (start_ts > durable_start_ts)
@@ -136,6 +143,13 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_durable_
   wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
 {
 #ifdef HAVE_DIAGNOSTIC
+    /*
+     * We're using WT_ERR_ASSERT rather than WT_ASSERT because we want to push out a message string.
+     * This usage of WT_ERR_ASSERT isn't "correct", because it jumps to a non-existent error label
+     * in non-diagnostic builds and returns WT_PANIC without calling the underlying panic routine.
+     * That's OK, we have to be in a diagnostic build to get here, and fixing it would require new
+     * macros that aren't needed anywhere else, so we're leaving it alone.
+     */
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     if (oldest_start_ts != WT_TS_NONE && newest_stop_ts == WT_TS_NONE)

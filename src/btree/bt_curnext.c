@@ -17,7 +17,7 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -81,7 +81,7 @@ __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     btree = S2BT(session);
     page = cbt->ref->page;
 
@@ -137,7 +137,7 @@ __cursor_var_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -186,7 +186,7 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_SESSION_IMPL *session;
     uint64_t rle, rle_start;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     page = cbt->ref->page;
 
     rle_start = 0; /* -Werror=maybe-uninitialized */
@@ -303,7 +303,7 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_SESSION_IMPL *session;
     bool kpack_used;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     page = cbt->ref->page;
     key = &cbt->iface.key;
 
@@ -425,7 +425,7 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
         return (0);
     }
 
-    WT_PANIC_RET(session, EINVAL, "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64
+    WT_RET_PANIC(session, EINVAL, "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64
                                   " then "
                                   "key %" PRIu64,
       next ? "next" : "prev", cbt->lastrecno, cbt->recno);
@@ -458,7 +458,7 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     WT_ERR(__wt_scr_alloc(session, 512, &a));
     WT_ERR(__wt_scr_alloc(session, 512, &b));
 
-    WT_PANIC_ERR(session, EINVAL,
+    WT_ERR_PANIC(session, EINVAL,
       "WT_CURSOR.%s out-of-order returns: returned key %.1024s then "
       "key %.1024s",
       next ? "next" : "prev", __wt_buf_set_printable_format(session, cbt->lastkey->data,
@@ -500,7 +500,7 @@ __wt_cursor_key_order_init(WT_CURSOR_BTREE *cbt)
 {
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     /*
      * Cursor searches set the position for cursor movements, set the last-key value for diagnostic
@@ -612,7 +612,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     bool newpage, restart;
 
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     WT_STAT_CONN_INCR(session, cursor_next);
     WT_STAT_DATA_INCR(session, cursor_next);

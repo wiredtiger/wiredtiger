@@ -716,15 +716,13 @@ int
 __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-    WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint32_t session_flags;
     bool is_owner;
 
-    cursor = cursor_arg;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor_arg);
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
 
     WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));

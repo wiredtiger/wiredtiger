@@ -645,7 +645,7 @@ __txn_search_prepared_op(
     case WT_TXN_OP_REF_DELETE:
     case WT_TXN_OP_TRUNCATE_COL:
     case WT_TXN_OP_TRUNCATE_ROW:
-        WT_RET_ASSERT(session, false, WT_PANIC, "invalid prepared operation update type");
+        WT_RET_PANIC_ASSERT(session, false, WT_PANIC, "invalid prepared operation update type");
         break;
     }
 
@@ -1144,7 +1144,7 @@ err:
      * a prepared transaction.
      */
     if (prepare)
-        WT_PANIC_RET(session, ret, "failed to commit prepared transaction, failing the system");
+        WT_RET_PANIC(session, ret, "failed to commit prepared transaction, failing the system");
 
     WT_TRET(__wt_txn_rollback(session, cfg));
     return (ret);
