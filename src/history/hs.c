@@ -1251,7 +1251,7 @@ err:
 static int
 __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32_t this_btree_id)
 {
-    WT_CURSOR *cursor;
+    WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(prev_hs_key);
     WT_DECL_ITEM(tmp);
