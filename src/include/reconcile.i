@@ -216,6 +216,8 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
             return (__wt_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, rle));
         }
     }
+    if (tw->prepare)
+        WT_STAT_DATA_INCR(session, rec_prepare_value);
 
     val->cell_len = __wt_cell_pack_value(session, &val->cell, tw, rle, val->buf.size);
     val->len = val->cell_len + val->buf.size;
