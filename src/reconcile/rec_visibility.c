@@ -75,8 +75,11 @@ __rec_append_orig_value(
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK))
             return (0);
 
-        /* Prepared updates should already be in the update list. */
-        if (F_ISSET(unpack, WT_CELL_UNPACK_PREPARE))
+        /*
+         * Prepared updates should already be in the update list, add the original update to the
+         * list only when the prepared update is a tombstone.
+         */
+        if (F_ISSET(unpack, WT_CELL_UNPACK_PREPARE) && upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
         /*
@@ -139,8 +142,13 @@ __rec_append_orig_value(
             tombstone->next = append;
             append = tombstone;
         } else
-            WT_ASSERT(session,
-              unpack->stop_ts == oldest_upd->start_ts && unpack->stop_txn == oldest_upd->txnid);
+            /*
+             * Once the prepared update is resolved, the in-memory update and on-disk written copy
+             * doesn't have same timestamp due to replacing of prepare timestamp with commit and
+             * durable timestamps. Don't compare them when the on-disk version is a prepare.
+             */
+            WT_ASSERT(session, F_ISSET(unpack, WT_CELL_UNPACK_PREPARE) ||
+                (unpack->stop_ts == oldest_upd->start_ts && unpack->stop_txn == oldest_upd->txnid));
     }
 
     /* Append the new entry into the update list. */
