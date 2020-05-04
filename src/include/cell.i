@@ -1019,7 +1019,6 @@ copy_cell_restart:
      * ideally checking allows the compiler to discard big chunks of it.
      */
     if (unpack_addr == NULL && copy_cell) {
-        WT_ASSERT(session, unpack_addr == NULL);
         unpack->v = copy.v;
         unpack->__len = copy.len;
         unpack->raw = WT_CELL_VALUE_COPY;
