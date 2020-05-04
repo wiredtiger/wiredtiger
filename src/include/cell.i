@@ -737,8 +737,8 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
 {
     struct {
         uint64_t v;
-        WT_TIME_WINDOW tw;
         uint32_t len;
+        WT_TIME_WINDOW tw;
     } copy;
     WT_TIME_AGGREGATE *ta;
     WT_TIME_WINDOW *tw;
@@ -748,8 +748,10 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     bool copy_cell;
 
     copy_cell = false;
-    ta = NULL; /* [-Wconditional-uninitialized] */
-    tw = NULL; /* [-Wconditional-uninitialized] */
+    copy.len = 0; /* [-Wconditional-uninitialized] */
+    copy.v = 0;   /* [-Wconditional-uninitialized] */
+    ta = NULL;    /* [-Wconditional-uninitialized] */
+    tw = NULL;    /* [-Wconditional-uninitialized] */
 
     if (unpack == NULL) {
         if ((unpack = (WT_CELL_UNPACK *)unpack_addr) == NULL)
@@ -1009,7 +1011,11 @@ copy_cell_restart:
         return (WT_ERROR); /* Unknown cell type. */
     }
 
-    if (copy_cell) {
+    /*
+     * Break out if we know we're not unpacking a cell of this type. This is all inlined code, and
+     * ideally checking allows the compiler to discard big chunks of it.
+     */
+    if (unpack_addr != NULL && copy_cell) {
         unpack->v = copy.v;
         unpack->__len = copy.len;
         unpack->raw = WT_CELL_VALUE_COPY;
