@@ -150,6 +150,14 @@ struct __wt_cell {
 #define WT_CELL_UNPACK_TIME_PAIRS_CLEARED 0x4u /* time pairs are cleared because of restart */
                                                /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
+/*
+ * We have three flavors of cell unpack structures: one that can unpack any kind of cell, one that
+ * can only unpack address cells and one that can only unpack value cells. The reason is because we
+ * want to catch code using the wrong time window information relative to the cell type, minimize
+ * the size of the unpack structure, and finally reduce the code executed in performance paths,
+ * while still allowing other code such as verification and debug functions to be able to read any
+ * kind of cell.
+ */
 #define WT_CELL_COMMON_FIELDS                                                                   \
     WT_CELL *cell; /* Cell's disk image address */                                              \
                                                                                                 \
