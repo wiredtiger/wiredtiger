@@ -62,7 +62,7 @@ class test_config08(wttest.WiredTigerTestCase):
         except wiredtiger.WiredTigerError as e:
             print("Failed conn at '%s' with config '%s'" % (dir, conn_params))
 
-    # Create a table with logging setting matching the connection level config. 
+    # Create a table with logging setting matching the connection level config.
     def test_config08(self):
         self.ConnectionOpen(self.log, self.file_handle_close_sync)
         table_params = 'key_format=i,value_format=S,log=' + self.log
@@ -79,7 +79,7 @@ class test_config08(wttest.WiredTigerTestCase):
         # API calls that require exclusive file handles should return EBUSY if dirty tables flushing
         # and logging are disabled.
         if self.log == '(enabled=false)' and self.file_handle_close_sync == 'false':
-            # WT won't allow this operation as exclsuive file handle is not possible 
+            # WT won't allow this operation as exclsuive file handle is not possible
             # with modified table
             if self.raisesBusy(lambda: self.session.verify(self.uri, None)):
                 # Taking a checkopoint should make WT happy
@@ -90,7 +90,7 @@ class test_config08(wttest.WiredTigerTestCase):
         else:
             # All other combinations of configs should not return EBUSY
             self.session.verify(self.uri, None)
-        
+
         self.conn.close()
 
 if __name__ == '__main__':
