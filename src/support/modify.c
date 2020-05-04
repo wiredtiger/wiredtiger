@@ -540,7 +540,7 @@ __wt_modify_reconstruct_from_upd_list(
 
     WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
 
-    cursor = (WT_CURSOR *)cbt;
+    cursor = &cbt->iface;
     sformat = (cursor->value_format[0] == 'S');
 
     /* While we have a pointer to our original modify, grab this information. */
