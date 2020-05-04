@@ -565,7 +565,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 {
     WT_BTREE *btree;
     WT_CURSOR_BTREE *cbt;
-    WT_DECL_RET;
     WT_REC_KV *key, *val;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
@@ -602,28 +601,24 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              * Impossible slot, there's no backing on-page item.
              */
             cbt->slot = UINT32_MAX;
-            WT_RET(__wt_value_return_upd(cbt, upd));
+            WT_RET(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
+            WT_RET(__wt_value_return(cbt, cbt->upd_value));
             WT_RET(__wt_rec_cell_build_val(session, r, cbt->iface.value.data, cbt->iface.value.size,
               start_durable_ts, start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, prepare,
               0));
             break;
         case WT_UPDATE_STANDARD:
             /* Take the value from the update. */
-            WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, start_durable_ts,
+            WT_RET(__wt_rec_cell_build_val(session, r, upd->data, upd->size, start_durable_ts,
               start_ts, start_txn, stop_durable_ts, stop_ts, stop_txn, prepare, 0));
             break;
         case WT_UPDATE_TOMBSTONE:
             continue;
         default:
-            ret = __wt_illegal_value(session, upd->type);
-            WT_ERR(ret);
+            WT_RET(__wt_illegal_value(session, upd->type));
         }
-        /* Free the update if it is external. */
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-            __wt_free_update_list(session, &upd);
-
         /* Build key cell. */
-        WT_ERR(__rec_cell_build_leaf_key(
+        WT_RET(__rec_cell_build_leaf_key(
           session, r, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
 
         /* Boundary: split or write the page. */
@@ -635,10 +630,10 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             if (r->key_pfx_compress_conf) {
                 r->key_pfx_compress = false;
                 if (!ovfl_key)
-                    WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
+                    WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
             }
 
-            WT_ERR(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, false));
+            WT_RET(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, false));
         }
 
         /* Copy the key/value pair onto the page. */
@@ -648,7 +643,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         else {
             r->all_empty_value = false;
             if (btree->dictionary)
-                WT_ERR(__wt_rec_dict_replace(session, r, start_durable_ts, start_ts, start_txn,
+                WT_RET(__wt_rec_dict_replace(session, r, start_durable_ts, start_ts, start_txn,
                   stop_durable_ts, stop_ts, stop_txn, prepare, 0, val));
             __wt_rec_image_copy(session, r, val);
         }
@@ -659,12 +654,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         __rec_key_state_update(r, ovfl_key);
     }
 
-err:
-    /* Free the update if it is external. */
-    if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-        __wt_free_update_list(session, &upd);
-
-    return (ret);
+    return (0);
 }
 
 /*
@@ -884,7 +874,8 @@ __wt_rec_row_leaf(
             switch (upd->type) {
             case WT_UPDATE_MODIFY:
                 cbt->slot = WT_ROW_SLOT(page, rip);
-                WT_ERR(__wt_value_return_upd(cbt, upd));
+                WT_ERR(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
+                WT_ERR(__wt_value_return(cbt, cbt->upd_value));
                 WT_ERR(__wt_rec_cell_build_val(session, r, cbt->iface.value.data,
                   cbt->iface.value.size, start_durable_ts, start_ts, start_txn, stop_durable_ts,
                   stop_ts, stop_txn, prepare, 0));
@@ -940,9 +931,6 @@ __wt_rec_row_leaf(
             default:
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
-            /* Free the update if it is external. */
-            if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-                __wt_free_update_list(session, &upd);
         }
 
         /*
@@ -1047,10 +1035,6 @@ leaf_insert:
     ret = __wt_rec_split_finish(session, r);
 
 err:
-    /* Free the update if it is external. */
-    if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
-        __wt_free_update_list(session, &upd);
-
     __wt_scr_free(session, &tmpkey);
     return (ret);
 }
