@@ -232,8 +232,7 @@ __stat_page_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
      * representation of the page doesn't necessarily contain a reference to the original cell.
      */
     if (page->dsk != NULL) {
-        WT_CELL_FOREACH_BEGIN_ADDR(session, btree, page->dsk, unpack)
-        {
+        WT_CELL_FOREACH_BEGIN_ADDR (session, btree, page->dsk, unpack) {
             if (__wt_cell_type(unpack.cell) == WT_CELL_KEY_OVFL)
                 ++ovfl_cnt;
         }
@@ -299,8 +298,7 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
      */
     if (page->dsk != NULL) {
         key = false;
-        WT_CELL_FOREACH_BEGIN_KV(session, btree, page->dsk, unpack)
-        {
+        WT_CELL_FOREACH_BEGIN_KV (session, btree, page->dsk, unpack) {
             switch (__wt_cell_type(unpack.cell)) {
             case WT_CELL_KEY_OVFL:
                 ++ovfl_cnt;
