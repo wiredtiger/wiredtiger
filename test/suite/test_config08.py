@@ -54,7 +54,8 @@ class test_config08(wttest.WiredTigerTestCase):
         return None
     def ConnectionOpen(self, log, file_handle_close_sync):
         self.home = '.'
-        conn_params = 'create,' + \
+        # Explicitly increase time between checkpoints
+        conn_params = 'create,checkpoint=(wait=60),' + \
             'log=' + log + ',' + 'file_handle_close_sync=' + file_handle_close_sync
         try:
             self.conn = wiredtiger.wiredtiger_open(self.home, conn_params)
@@ -76,17 +77,17 @@ class test_config08(wttest.WiredTigerTestCase):
         c[2] = 'GHI' * 4096
         c.close()
 
-        # API calls that require exclusive file handles should return EBUSY if dirty tables flushing
+        # API calls that require exclusive file handles should return EBUSY if dirty tables flush
         # and logging are disabled.
         if self.log == '(enabled=false)' and self.file_handle_close_sync == 'false':
             # WT won't allow this operation as exclsuive file handle is not possible
             # with modified table
-            if self.raisesBusy(lambda: self.session.verify(self.uri, None)):
-                # Taking a checkopoint should make WT happy
-                self.session.checkpoint()
-                self.session.verify(self.uri, None)
-            else:
-                self.assertTrue(False, "Was expecting API call to fail with EBUSY")
+            self.assertTrue(self.raisesBusy(lambda: self.session.verify(self.uri, None)),
+                "Was expecting API call to fail with EBUSY")
+
+            # Taking a checkopoint should make WT happy
+            self.session.checkpoint()
+            self.session.verify(self.uri, None)
         else:
             # All other combinations of configs should not return EBUSY
             self.session.verify(self.uri, None)
