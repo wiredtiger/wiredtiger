@@ -59,7 +59,7 @@ __wt_time_window_is_empty(WT_TIME_WINDOW *tw)
 {
     return (tw->start_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE &&
       tw->durable_start_ts == WT_TS_NONE && tw->stop_ts == WT_TS_MAX &&
-      tw->stop_txn == WT_TXN_MAX && tw->durable_stop_ts == WT_TS_NONE);
+      tw->stop_txn == WT_TXN_MAX && tw->durable_stop_ts == WT_TS_NONE && tw->prepare == 0);
 }
 
 /*
@@ -108,7 +108,12 @@ __wt_time_aggregate_init(WT_TIME_AGGREGATE *ta)
 {
     ta->oldest_start_ts = WT_TS_NONE;
     ta->oldest_start_txn = WT_TXN_NONE;
-    ta->newest_start_durable_ts = WT_TS_NONE; /* TODO: Needs a comment. */
+    /*
+     * The aggregated durable timestamp values represent the maximum durable timestamp over set of
+     * timestamps. These aggregated max values are used for rollback to stable operation to find out
+     * whether the page has any timestamp updates more than stable timestamp.
+     */
+    ta->newest_start_durable_ts = WT_TS_NONE;
     ta->newest_stop_ts = WT_TS_MAX;
     ta->newest_stop_txn = WT_TXN_MAX;
     ta->newest_stop_durable_ts = WT_TS_NONE;
@@ -127,7 +132,12 @@ __wt_time_aggregate_init_max(WT_TIME_AGGREGATE *ta)
 {
     ta->oldest_start_ts = WT_TS_MAX;
     ta->oldest_start_txn = WT_TXN_MAX;
-    ta->newest_start_durable_ts = WT_TS_NONE; /* TODO: Needs a comment. */
+    /*
+     * The aggregated durable timestamp values represent the maximum durable timestamp over set of
+     * timestamps. These aggregated max values are used for rollback to stable operation to find out
+     * whether the page has any timestamp updates more than stable timestamp.
+     */
+    ta->newest_start_durable_ts = WT_TS_NONE;
     ta->newest_stop_ts = WT_TS_NONE;
     ta->newest_stop_txn = WT_TXN_NONE;
     ta->newest_stop_durable_ts = WT_TS_NONE;
