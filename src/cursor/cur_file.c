@@ -655,7 +655,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     cacheable = F_ISSET(session, WT_SESSION_CACHE_CURSORS) && !bulk;
 
     WT_RET(__wt_calloc(session, 1, csize, &cbt));
-    cursor = (WT_CURSOR *)cbt;
+    cursor = &cbt->iface;
     *cursor = iface;
     cursor->session = (WT_SESSION *)session;
     cursor->internal_uri = btree->dhandle->name;

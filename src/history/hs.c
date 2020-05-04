@@ -589,9 +589,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         if (list->onpage_upd == NULL)
             continue;
 
-        /* onpage_upd now is always from the update chain */
-        WT_ASSERT(session, !F_ISSET(list->onpage_upd, WT_UPDATE_RESTORED_FROM_DISK));
-
         /* History store table key component: source key. */
         switch (page->type) {
         case WT_PAGE_COL_FIX:
