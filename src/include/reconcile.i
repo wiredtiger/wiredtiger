@@ -255,6 +255,8 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
               start_ts, start_txn, durable_stop_ts, stop_ts, stop_txn, prepare, rle));
         }
     }
+    if (prepare)
+        WT_STAT_DATA_INCR(session, rec_prepare_value);
 
     val->cell_len = __wt_cell_pack_value(session, &val->cell, durable_start_ts, start_ts, start_txn,
       durable_stop_ts, stop_ts, stop_txn, prepare, rle, val->buf.size);

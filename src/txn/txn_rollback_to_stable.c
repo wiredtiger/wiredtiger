@@ -1143,9 +1143,9 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
      * Rollback to stable should ignore tombstones in the history store since it needs to scan the
      * entire table sequentially.
      */
-    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE | WT_SESSION_IGNORE_HS_TOMBSTONE);
+    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
     ret = __rollback_to_stable(session, cfg);
-    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE | WT_SESSION_IGNORE_HS_TOMBSTONE);
+    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
     WT_RET(ret);
 
     /*
