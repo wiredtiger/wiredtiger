@@ -440,7 +440,7 @@ __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ERR(__wt_modify_apply(cursor, modify->data));
 
 err:
-    __wt_scr_free((WT_SESSION_IMPL *)cursor->session, &modify);
+    __wt_scr_free(CUR2S(cursor), &modify);
     return (ret);
 }
 
@@ -540,7 +540,7 @@ __wt_modify_reconstruct_from_upd_list(
 
     WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
 
-    cursor = (WT_CURSOR *)cbt;
+    cursor = &cbt->iface;
     sformat = (cursor->value_format[0] == 'S');
 
     /* While we have a pointer to our original modify, grab this information. */
