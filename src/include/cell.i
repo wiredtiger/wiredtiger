@@ -787,26 +787,24 @@ copy_cell_restart:
      * WT_CELL_KEY_SHORT and WT_CELL_VALUE_SHORT. Short key/data cells have 6 bits of data length in
      * the descriptor byte and nothing else
      */
-    if (WT_CELL_SHORT_TYPE(unpack->raw) != 0) {
-        if (WT_CELL_SHORT_TYPE(unpack->raw) == WT_CELL_KEY_SHORT_PFX) {
-            WT_CELL_LEN_CHK(cell, 1); /* skip prefix */
-            unpack->prefix = cell->__chunk[1];
-            unpack->data = cell->__chunk + 2;
-            unpack->size = cell->__chunk[0] >> WT_CELL_SHORT_SHIFT;
-            unpack->__len = 2 + unpack->size;
-        } else {
-            if (WT_CELL_SHORT_TYPE(unpack->raw) == WT_CELL_VALUE_SHORT) {
-                if (unpack_value == NULL)
-                    tw = unpack->tw = &unpack->__tw;
-                else
-                    tw = &unpack_value->tw;
-                __wt_time_window_init(tw);
-            }
-            unpack->prefix = 0;
-            unpack->data = cell->__chunk + 1;
-            unpack->size = cell->__chunk[0] >> WT_CELL_SHORT_SHIFT;
-            unpack->__len = 1 + unpack->size;
-        }
+    switch (unpack->raw) {
+    case WT_CELL_KEY_SHORT_PFX:
+        WT_CELL_LEN_CHK(cell, 1); /* skip prefix */
+        unpack->prefix = cell->__chunk[1];
+        unpack->data = cell->__chunk + 2;
+        unpack->size = cell->__chunk[0] >> WT_CELL_SHORT_SHIFT;
+        unpack->__len = 2 + unpack->size;
+        goto short_return;
+    case WT_CELL_VALUE_SHORT:
+        tw = unpack_value == NULL ? (unpack->tw = &unpack->__tw) : &unpack_value->tw;
+        __wt_time_window_init(tw);
+    /* FALLTHROUGH */
+    case WT_CELL_KEY_SHORT:
+        unpack->prefix = 0;
+        unpack->data = cell->__chunk + 1;
+        unpack->size = cell->__chunk[0] >> WT_CELL_SHORT_SHIFT;
+        unpack->__len = 1 + unpack->size;
+short_return:
         WT_CELL_LEN_CHK(cell, unpack->__len);
         return (0);
     }
