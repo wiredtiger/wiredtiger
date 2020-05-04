@@ -1262,7 +1262,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     int cmp;
     bool found;
 
-    cursor = session->hs_cursor;
+    hs_cursor = session->hs_cursor;
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &prev_hs_key));
@@ -1274,7 +1274,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
      * visible tombstones in the data table to verify the corresponding entries in the history store
      * are too present in the data store.
      */
-    F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+    F_SET(hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     F_SET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
 
     /*
@@ -1282,8 +1282,8 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
      * verify. When we return after moving to a new key the caller is responsible for keeping the
      * cursor there or deciding they're done.
      */
-    for (; ret == 0; ret = cursor->next(cursor)) {
-        WT_ERR(cursor->get_key(cursor, &btree_id, hs_key, &hs_start_ts, &hs_counter));
+    for (; ret == 0; ret = hs_cursor->next(cursor)) {
+        WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         /*
          * If the btree id does not match the preview one, we're done. It is up to the caller to set
@@ -1322,7 +1322,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     WT_ERR_NOTFOUND_OK(ret, true);
 err:
     F_CLR(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
-    F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+    F_CLR(hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &prev_hs_key);
     return (ret);
