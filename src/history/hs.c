@@ -282,7 +282,7 @@ __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
     WT_SESSION_IMPL *session;
     WT_UPDATE *last_upd;
 
-    session = (WT_SESSION_IMPL *)hs_cbt->iface.session;
+    session = CUR2S(hs_cbt);
 
     /* If there are existing updates, append them after the new updates. */
     if (hs_cbt->compare == 0) {
@@ -561,8 +561,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     int nentries;
     bool squashed;
 
+    session = CUR2S(cursor);
     prev_upd = NULL;
-    session = (WT_SESSION_IMPL *)cursor->session;
     insert_cnt = 0;
     __wt_modify_vector_init(session, &modifies);
 
@@ -581,9 +581,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
         /* If no onpage_upd is selected, we don't need to insert anything into the history store. */
         if (list->onpage_upd == NULL)
             continue;
-
-        /* onpage_upd now is always from the update chain */
-        WT_ASSERT(session, !F_ISSET(list->onpage_upd, WT_UPDATE_RESTORED_FROM_DISK));
 
         /* History store table key component: source key. */
         switch (page->type) {
@@ -761,10 +758,9 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
     max_hs_size = ((WT_CURSOR_BTREE *)cursor)->btree->file_max;
     if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
-        WT_PANIC_ERR(session, WT_PANIC, "WiredTigerHS: file size of %" PRIu64
-                                        " exceeds maximum "
-                                        "size %" PRIu64,
-          (uint64_t)hs_size, max_hs_size);
+        WT_ERR_PANIC(session, WT_PANIC,
+          "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64, (uint64_t)hs_size,
+          max_hs_size);
 
 err:
     if (ret == 0 && insert_cnt > 0)
@@ -1313,7 +1309,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         WT_ERR(__cursor_reset(cbt));
 
         if (!found)
-            WT_ERR_MSG(session, WT_PANIC,
+            WT_ERR_PANIC(session, WT_PANIC,
               "the associated history store key %s was not found in the data store %s",
               __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key),
               session->dhandle->name);
@@ -1417,7 +1413,7 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
          */
         WT_ERR(cursor->get_key(cursor, &btree_id, hs_key, &hs_start_ts, &hs_counter));
         if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0)
-            WT_ERR_MSG(session, WT_PANIC,
+            WT_ERR_PANIC(session, WT_PANIC,
               "Unable to find btree id %" PRIu32
               " in the metadata file for the associated history store key %s",
               btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, buf));
