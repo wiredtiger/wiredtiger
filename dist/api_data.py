@@ -985,10 +985,11 @@ wiredtiger_open_common =\
         type='list', choices=['data', 'log']),
     Config('file_close_sync', 'true', r'''
         control whether to flush modified tables to storage independent
-        of a global checkpoint when acquiring exclusive access to a table.
-        If set to false, API calls that require exclusive access to tables
-        will return EBUSY if there have been changes made to the table since
-        the last global checkpoint.''',
+        of a global checkpoint when closing file handles to acquire exclusive
+        access to a table. When logging is disabled and <code>file_close_sync</code>
+        set to false, API calls that require exclusive access to tables will
+        return EBUSY if there have been changes made to the table since the last
+        global checkpoint.''',
         type='boolean'),
     Config('hazard_max', '1000', r'''
         maximum number of simultaneous hazard pointers per session
