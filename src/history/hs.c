@@ -810,9 +810,6 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      * Note that we need to compare the raw key off the cursor to determine where we are in the
      * history store as opposed to comparing the embedded data store key since the ordering is not
      * guaranteed to be the same.
-     *
-     * FIXME: We should be repeatedly moving the cursor backwards within the loop instead of doing a
-     * search near operation each time as it is cheaper.
      */
     cursor->set_key(
       cursor, btree_id, key, timestamp != WT_TS_NONE ? timestamp : WT_TS_MAX, UINT64_MAX);

@@ -1104,9 +1104,6 @@ compare:
              * the same thing.
              */
             if (rle != 0) {
-                /*
-                 * FIXME-PM-1521: Follow up issue with clang in WT-5341.
-                 */
                 if ((last.start_durable_ts == start_durable_ts && last.start_ts == start_ts &&
                       last.start_txn == start_txn && last.stop_durable_ts == stop_durable_ts &&
                       last.stop_ts == stop_ts && last.stop_txn == stop_txn) &&

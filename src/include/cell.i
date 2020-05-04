@@ -470,7 +470,7 @@ __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell, wt_timestamp_t start
     p = cell->__chunk;
     *p = '\0';
 
-    /* FIXME-prepare-support: we should pass prepare value. */
+    /* FIXME-PM-1524: we should pass prepare value. */
     __cell_pack_value_validity(session, &p, start_durable_ts, start_ts, start_txn, stop_durable_ts,
       stop_ts, stop_txn, false);
 
@@ -1075,7 +1075,7 @@ __wt_cell_unpack_dsk(
      * Previous startup txnid=0, ts=y       txnid=0, ts=WT_TS_NONE           txnid=MAX, ts=MAX
      */
     if (dsk->write_gen > 0 && dsk->write_gen <= S2C(session)->base_write_gen) {
-        /* FIXME-prepare-support: deal with durable timestamps. */
+        /* FIXME-PM-1524: deal with durable timestamps. */
         /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
         if (unpack->start_txn != WT_TXN_NONE) {
             unpack->start_txn = WT_TXN_NONE;
