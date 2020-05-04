@@ -839,6 +839,9 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
   WT_UPDATE *upd, WT_CELL_UNPACK *vpack)
 {
     WT_TIME_PAIR start, stop;
+    bool prepare;
+
+    prepare = false;
 
     WT_RET(__wt_txn_read_upd_list(session, cbt, upd));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
@@ -854,7 +857,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
 
     /* Check the ondisk value. */
     if (vpack == NULL)
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &start, &stop));
+        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &start, &stop, &prepare));
     else {
         start.timestamp = vpack->start_ts;
         start.txnid = vpack->start_txn;
@@ -862,14 +865,16 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
         stop.txnid = vpack->start_txn;
         cbt->upd_value->buf.data = vpack->data;
         cbt->upd_value->buf.size = vpack->size;
+        prepare = F_ISSET(vpack, WT_CELL_UNPACK_PREPARE);
     }
 
     /*
-     * If the stop pair is set, that means that there is a tombstone at that time. If the stop time
-     * pair is visible to our txn then that means we've just spotted a tombstone and should return
-     * "not found", except for history store scan during rollback to stable.
+     * If the stop pair is set, that means that there is a tombstone at that time. If it is not
+     * prepared and the stop time pair is visible to our txn then that means we've just spotted a
+     * tombstone and should return "not found", except for history store scan during rollback to
+     * stable.
      */
-    if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
+    if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX && !prepare &&
       (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_IGNORE_HS_TOMBSTONE)) &&
       __wt_txn_visible(session, stop.txnid, stop.timestamp)) {
         cbt->upd_value->buf.data = NULL;
@@ -881,9 +886,13 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
         return (0);
     }
 
-    /* If the start time pair is visible then we need to return the ondisk value. */
-    if (__wt_txn_visible(session, start.txnid, start.timestamp) ||
-      F_ISSET(session, WT_SESSION_RESOLVING_MODIFY)) {
+    /*
+     * If the start time pair is visible and it is not a prepared value then we need to return the
+     * ondisk value.
+     */
+    if ((!prepare || (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX)) &&
+      (__wt_txn_visible(session, start.txnid, start.timestamp) ||
+          F_ISSET(session, WT_SESSION_RESOLVING_MODIFY))) {
 
         /* If we are resolving a modify then the btree must be the history store. */
         WT_ASSERT(

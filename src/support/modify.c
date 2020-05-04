@@ -574,7 +574,7 @@ __wt_modify_reconstruct_from_upd_list(
          */
         WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
-        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &start, &stop));
+        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &start, &stop, NULL));
         /*
          * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
          * the stop time pair should be unset.

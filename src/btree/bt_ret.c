@@ -164,8 +164,8 @@ __wt_read_row_time_pairs(
  *     Change a buffer to reference an internal original-page return value.
  */
 int
-__wt_value_return_buf(
-  WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_PAIR *start, WT_TIME_PAIR *stop)
+__wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_PAIR *start,
+  WT_TIME_PAIR *stop, bool *preparep)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -203,6 +203,8 @@ __wt_value_return_buf(
         if (start != NULL && stop != NULL)
             __time_pairs_set(start, stop, &unpack);
 
+        if (preparep)
+            *preparep = F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE);
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
@@ -213,6 +215,8 @@ __wt_value_return_buf(
         if (start != NULL && stop != NULL)
             __time_pairs_set(start, stop, &unpack);
 
+        if (preparep)
+            *preparep = F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE);
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
@@ -222,6 +226,8 @@ __wt_value_return_buf(
      * FIXME-PM-1523: Should also check visibility here
      */
     v = __bit_getv_recno(ref, cursor->recno, btree->bitcnt);
+    if (preparep)
+        *preparep = false;
     return (__wt_buf_set(session, buf, &v, 1));
 }
 
@@ -232,7 +238,7 @@ __wt_value_return_buf(
 static inline int
 __value_return(WT_CURSOR_BTREE *cbt)
 {
-    return (__wt_value_return_buf(cbt, cbt->ref, &cbt->iface.value, NULL, NULL));
+    return (__wt_value_return_buf(cbt, cbt->ref, &cbt->iface.value, NULL, NULL, NULL));
 }
 
 /*
