@@ -24,7 +24,7 @@ __cursor_set_recno(WT_CURSOR_BTREE *cbt, uint64_t v)
 static inline int
 __cursor_copy_release(WT_CURSOR *cursor)
 {
-    if (F_ISSET(S2C((WT_SESSION_IMPL *)cursor->session), WT_CONN_DEBUG_CURSOR_COPY)) {
+    if (F_ISSET(S2C(CUR2S(cursor)), WT_CONN_DEBUG_CURSOR_COPY)) {
         if (F_ISSET(cursor, WT_CURSTD_DEBUG_COPY_KEY)) {
             WT_RET(__wt_cursor_copy_release_item(cursor, &cursor->key));
             F_CLR(cursor, WT_CURSTD_DEBUG_COPY_KEY);
@@ -77,8 +77,7 @@ __cursor_localkey(WT_CURSOR *cursor)
 {
     if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
         if (!WT_DATA_IN_ITEM(&cursor->key))
-            WT_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session, &cursor->key, cursor->key.data,
-              cursor->key.size));
+            WT_RET(__wt_buf_set(CUR2S(cursor), &cursor->key, cursor->key.data, cursor->key.size));
         F_CLR(cursor, WT_CURSTD_KEY_INT);
         F_SET(cursor, WT_CURSTD_KEY_EXT);
     }
@@ -94,8 +93,8 @@ __cursor_localvalue(WT_CURSOR *cursor)
 {
     if (F_ISSET(cursor, WT_CURSTD_VALUE_INT)) {
         if (!WT_DATA_IN_ITEM(&cursor->value))
-            WT_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session, &cursor->value,
-              cursor->value.data, cursor->value.size));
+            WT_RET(
+              __wt_buf_set(CUR2S(cursor), &cursor->value, cursor->value.data, cursor->value.size));
         F_CLR(cursor, WT_CURSTD_VALUE_INT);
         F_SET(cursor, WT_CURSTD_VALUE_EXT);
     }
