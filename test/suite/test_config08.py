@@ -91,6 +91,7 @@ class test_config08(wttest.WiredTigerTestCase):
             # All other combinations of configs should not return EBUSY
             self.session.verify(self.uri, None)
 
+        # This will catch a bug if we return EBUSY from final shutdown.
         self.conn.close()
 
 if __name__ == '__main__':

@@ -1801,16 +1801,17 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    bool bulk, need_tracking;
+    bool bulk, metadata, need_tracking;
 
     btree = S2BT(session);
     bulk = F_ISSET(btree, WT_BTREE_BULK);
+    metadata = WT_IS_METADATA(session->dhandle);
 
     /*
      * We've done the final checkpoint before the final close, subsequent writes to normal objects
      * are wasted effort. Discard the objects to validate exit accounting.
      */
-    if (final && !WT_IS_METADATA(session->dhandle))
+    if (final && !metadata)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /*
@@ -1831,7 +1832,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
      */
     if (btree->modified && !bulk && !__wt_btree_immediately_durable(session) &&
       (S2C(session)->txn_global.has_stable_timestamp ||
-          !F_ISSET(S2C(session), WT_CONN_FILE_HANDLE_CLOSE_SYNC)))
+          (!F_ISSET(S2C(session), WT_CONN_FILE_HANDLE_CLOSE_SYNC) && !metadata && !final)))
         return (__wt_set_return(session, EBUSY));
 
     /*
