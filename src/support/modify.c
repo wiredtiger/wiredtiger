@@ -366,7 +366,10 @@ __wt_modify_apply_item(
     memcpy(&tmp, p++, sizeof(size_t));
     nentries = (int)tmp;
 
-    /* Make sure we are not applying modifies to schema with multiple value fields. */
+    /*
+     * Modifies can only be applied on a single value field. Make sure we are not applying modifies
+     * to schema with multiple value fields.
+     */
     WT_ASSERT(session, value_format[1] == '\0');
     sformat = value_format[0] == 'S';
 

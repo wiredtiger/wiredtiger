@@ -568,8 +568,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     insert_cnt = 0;
     __wt_modify_vector_init(session, &modifies);
 
-    WT_ASSERT(session, cursor != NULL);
-
     if (!btree->hs_entries)
         btree->hs_entries = true;
 
