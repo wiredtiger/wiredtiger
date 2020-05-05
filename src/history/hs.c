@@ -523,7 +523,7 @@ __hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDA
 {
     if (upd->type == WT_UPDATE_MODIFY) {
         WT_RET(__wt_buf_set(session, full_value, base_full_value, size));
-        WT_RET(__wt_modify_apply_item(session, full_value, upd->data, false));
+        WT_RET(__wt_modify_apply_item(session, S2BT(session)->value_format, full_value, upd->data));
     } else {
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         full_value->data = upd->data;
@@ -538,8 +538,10 @@ __hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDA
  *     Copy one set of saved updates into the database's history store table.
  */
 int
-__wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
+__wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 {
+    WT_BTREE *btree;
+    WT_CURSOR *cursor;
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(modify_value);
@@ -551,7 +553,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
-    WT_SESSION_IMPL *session;
     WT_UPDATE *prev_upd, *upd;
     WT_TIME_PAIR stop_ts_pair;
     wt_off_t hs_size;
@@ -561,7 +562,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     int nentries;
     bool squashed;
 
-    session = CUR2S(cursor);
+    btree = S2BT(session);
+    cursor = session->hs_cursor;
     prev_upd = NULL;
     insert_cnt = 0;
     __wt_modify_vector_init(session, &modifies);
@@ -856,8 +858,8 @@ __hs_restore_read_timestamp(WT_SESSION_IMPL *session)
  *     prepare conflict will be returned upon reading a prepared update.
  */
 int
-__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDATE_VALUE *upd_value,
-  bool allow_prepare, WT_ITEM *on_disk_buf)
+__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
+  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
@@ -1026,7 +1028,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
             __wt_modify_vector_pop(&modifies, &mod_upd);
-            WT_ERR(__wt_modify_apply_item(session, hs_value, mod_upd->data, false));
+            WT_ERR(__wt_modify_apply_item(session, value_format, hs_value, mod_upd->data));
             __wt_free_update_list(session, &mod_upd);
             mod_upd = NULL;
         }
