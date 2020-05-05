@@ -80,7 +80,7 @@ __rec_append_orig_value(
          * for stop time pair because we may still need to append the onpage value if only the
          * tombstone is on the update chain.
          */
-        if (unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid &&
+        if (unpack->tw.start_ts == upd->start_ts && unpack->tw.start_txn == upd->txnid &&
           upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
@@ -104,8 +104,8 @@ __rec_append_orig_value(
     }
 
     /* Done if the stop time pair of the onpage cell is globally visible. */
-    if ((unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) &&
-      __wt_txn_visible_all(session, unpack->stop_txn, unpack->stop_ts))
+    if ((unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX) &&
+      __wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.stop_ts))
         return (0);
 
     /* We need the original on-page value for some reader: get a copy. */
@@ -113,9 +113,9 @@ __rec_append_orig_value(
     WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
     WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
     total_size += size;
-    append->txnid = unpack->start_txn;
-    append->start_ts = unpack->start_ts;
-    append->durable_ts = unpack->durable_start_ts;
+    append->txnid = unpack->tw.start_txn;
+    append->start_ts = unpack->tw.start_ts;
+    append->durable_ts = unpack->tw.durable_start_ts;
 
     /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
@@ -123,20 +123,20 @@ __rec_append_orig_value(
      * delete a value respectively at timestamp 0 and 10, and later insert it again at 20. We need
      * the tombstone to tell us there is no value between 10 and 20.
      */
-    if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
+    if (unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX) {
         /* No need to append the tombstone if it is already in the update chain. */
         if (oldest_upd->type != WT_UPDATE_TOMBSTONE) {
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
             total_size += size;
-            tombstone->txnid = unpack->stop_txn;
-            tombstone->start_ts = unpack->stop_ts;
-            tombstone->durable_ts = unpack->durable_stop_ts;
+            tombstone->txnid = unpack->tw.stop_txn;
+            tombstone->start_ts = unpack->tw.stop_ts;
+            tombstone->durable_ts = unpack->tw.durable_stop_ts;
 
             tombstone->next = append;
             append = tombstone;
         } else
-            WT_ASSERT(session,
-              unpack->stop_ts == oldest_upd->start_ts && unpack->stop_txn == oldest_upd->txnid);
+            WT_ASSERT(session, unpack->tw.stop_ts == oldest_upd->start_ts &&
+                unpack->tw.stop_txn == oldest_upd->txnid);
     }
 
     /* Append the new entry into the update list. */
@@ -176,8 +176,8 @@ __rec_need_save_upd(
     if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
         return (false);
 
-    return (!__wt_txn_visible_all(session, upd_select->stop_txn, upd_select->stop_ts) &&
-      !__wt_txn_visible_all(session, upd_select->start_txn, upd_select->start_ts));
+    return (!__wt_txn_visible_all(session, upd_select->tw.stop_txn, upd_select->tw.stop_ts) &&
+      !__wt_txn_visible_all(session, upd_select->tw.start_txn, upd_select->tw.start_ts));
 }
 
 /*
@@ -191,10 +191,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_TIME_WINDOW *select_tw;
     WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd, *tombstone;
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, txnid;
+    char time_string[WT_TIME_STRING_SIZE];
     bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
 
     /*
@@ -202,13 +204,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * both must be initialized.
      */
     upd_select->upd = NULL;
-    upd_select->start_durable_ts = WT_TS_NONE;
-    upd_select->start_ts = WT_TS_NONE;
-    upd_select->start_txn = WT_TXN_NONE;
-    upd_select->stop_durable_ts = WT_TS_NONE;
-    upd_select->stop_ts = WT_TS_MAX;
-    upd_select->stop_txn = WT_TXN_MAX;
-    upd_select->prepare = false;
+    select_tw = &upd_select->tw;
+    __wt_time_window_init(select_tw);
 
     page = r->page;
     first_txn_upd = upd = last_upd = tombstone = NULL;
@@ -349,9 +346,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * indicate that the value is visible to any timestamp/transaction id ahead of it.
          */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
-            upd_select->stop_ts = upd->start_ts;
-            upd_select->stop_txn = upd->txnid;
-            upd_select->stop_durable_ts = upd->durable_ts;
+            __wt_time_window_set_stop(select_tw, upd);
             tombstone = upd;
 
             /* Find the update this tombstone applies to. */
@@ -366,10 +361,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
         if (upd != NULL) {
             /* The beginning of the validity window is the selected update's time pair. */
-            upd_select->start_ts = upd->start_ts;
-            upd_select->start_durable_ts = upd->durable_ts;
-            upd_select->start_txn = upd->txnid;
-        } else if (upd_select->stop_ts != WT_TS_NONE || upd_select->stop_txn != WT_TXN_NONE) {
+            __wt_time_window_set_start(select_tw, upd);
+        } else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL && tombstone != NULL);
             /*
@@ -384,13 +377,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              */
             WT_ERR(__rec_append_orig_value(session, page, tombstone, vpack));
             WT_ASSERT(session, last_upd->next != NULL &&
-                last_upd->next->txnid == vpack->start_txn &&
-                last_upd->next->start_ts == vpack->start_ts &&
+                last_upd->next->txnid == vpack->tw.start_txn &&
+                last_upd->next->start_ts == vpack->tw.start_ts &&
                 last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL);
             upd_select->upd = last_upd->next;
-            upd_select->start_ts = last_upd->next->start_ts;
-            upd_select->start_durable_ts = last_upd->next->durable_ts;
-            upd_select->start_txn = last_upd->next->txnid;
+            __wt_time_window_set_start(select_tw, last_upd->next);
         }
     }
 
@@ -405,17 +396,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * time pair. While unusual, it is permitted for a single transaction to insert and then remove
      * a record. We don't want to generate a warning in that case.
      */
-    if (upd_select->stop_ts < upd_select->start_ts ||
-      (upd_select->stop_ts == upd_select->start_ts &&
-          upd_select->stop_txn < upd_select->start_txn)) {
-        char ts_string[2][WT_TS_INT_STRING_SIZE];
+    if (select_tw->stop_ts < select_tw->start_ts ||
+      (select_tw->stop_ts == select_tw->start_ts && select_tw->stop_txn < select_tw->start_txn)) {
         __wt_verbose(session, WT_VERB_TIMESTAMP,
-          "Warning: fixing out-of-order timestamps remove at %s earlier than value at %s",
-          __wt_timestamp_to_string(upd_select->stop_ts, ts_string[0]),
-          __wt_timestamp_to_string(upd_select->start_ts, ts_string[1]));
-        upd_select->start_durable_ts = upd_select->stop_durable_ts;
-        upd_select->start_ts = upd_select->stop_ts;
-        upd_select->start_txn = upd_select->stop_txn;
+          "Warning: fixing out-of-order timestamps remove earlier than value; time window %s",
+          __wt_time_window_to_string(select_tw, time_string));
+
+        select_tw->durable_start_ts = select_tw->durable_stop_ts;
+        select_tw->start_ts = select_tw->stop_ts;
+        select_tw->start_txn = select_tw->stop_txn;
     }
 
     /*
