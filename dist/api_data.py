@@ -986,7 +986,7 @@ wiredtiger_open_common =\
     Config('file_close_sync', 'true', r'''
         control whether to flush modified tables to storage independent
         of a global checkpoint when closing file handles to acquire exclusive
-        access to a table. If set to true, and logging disabled, API calls that
+        access to a table. If set to false, and logging is disabled, API calls that
         require exclusive access to tables will return EBUSY if there have been
         changes made to the table since the last global checkpoint. When logging
         is enabled, the value for <code>file_close_sync</code> has no effect, and,
