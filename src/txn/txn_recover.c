@@ -678,8 +678,11 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * If found, save the oldest start timestamp in the checkpoint list of the history store. This
      * will be the minimum valid oldest timestamp at restart.
      */
-    WT_ERR_NOTFOUND_OK(__wt_meta_get_oldest_ckpt_timestamp(session, WT_HS_URI, &oldest_ts), false);
-    conn->txn_global.oldest_ckpt_hs_timestamp = oldest_ts;
+    if (hs_exists) {
+        WT_ERR_NOTFOUND_OK(
+          __wt_meta_get_oldest_ckpt_timestamp(session, WT_HS_URI, &oldest_ts), false);
+        conn->txn_global.oldest_ckpt_hs_timestamp = oldest_ts;
+    }
 
     /* Scan the metadata to find the live files and their IDs. */
     WT_ERR(__recovery_file_scan(&r));
