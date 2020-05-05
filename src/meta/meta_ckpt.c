@@ -451,6 +451,46 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 }
 
 /*
+ * __wt_meta_get_oldest_ckpt_timestamp --
+ *     Get the oldest timestamp over all checkpoints.
+ */
+int
+__wt_meta_get_oldest_ckpt_timestamp(
+  WT_SESSION_IMPL *session, const char *fname, wt_timestamp_t *oldest_ckpt_ts)
+{
+    WT_CONFIG ckptconf;
+    WT_CONFIG_ITEM a, k, v;
+    WT_DECL_RET;
+    wt_timestamp_t ts;
+    char *config;
+
+    ts = WT_TS_MAX;
+    config = NULL;
+
+    /* Retrieve the metadata information for the file. */
+    WT_ERR(__wt_metadata_search(session, fname, &config));
+
+    /* Load any existing checkpoints into the array. */
+    if ((ret = __wt_config_getones(session, config, "checkpoint", &v)) == 0) {
+        __wt_config_subinit(session, &ckptconf, &v);
+        /*
+         * There may be multiple checkpoints for the file. Loop through to find the minimum oldest
+         * start timestamp over all of them.
+         */
+        for (; (ret = __wt_config_next(&ckptconf, &k, &v)) == 0;) {
+            if (__wt_config_subgets(session, &v, "oldest_start_ts", &a) == 0 && a.len != 0 &&
+              a.val != WT_TS_NONE && ts > (uint64_t)a.val)
+                ts = (uint64_t)a.val;
+        }
+    }
+
+err:
+    *oldest_ckpt_ts = ts != WT_TS_MAX ? ts : WT_TS_NONE;
+    __wt_free(session, config);
+    return (ret);
+}
+
+/*
  * __wt_meta_ckptlist_get --
  *     Load all available checkpoint information for a file.
  */
@@ -463,7 +503,6 @@ __wt_meta_ckptlist_get(
     WT_CONFIG_ITEM k, v;
     WT_DECL_RET;
     size_t allocated, slot;
-    int64_t maxorder;
     char *config;
 
     *ckptbasep = NULL;
@@ -508,11 +547,8 @@ __wt_meta_ckptlist_get(
         WT_ERR(__wt_realloc_def(session, &allocated, slot + 2, &ckptbase));
 
         /* The caller may be adding a value, initialize it. */
-        maxorder = 0;
-        WT_CKPT_FOREACH (ckptbase, ckpt)
-            if (ckpt->order > maxorder)
-                maxorder = ckpt->order;
-        ckpt->order = maxorder + 1;
+        ckpt = &ckptbase[slot];
+        ckpt->order = (slot == 0) ? 1 : ckptbase[slot - 1].order + 1;
         __wt_seconds(session, &ckpt->sec);
         /*
          * Load most recent checkpoint backup blocks to this checkpoint.

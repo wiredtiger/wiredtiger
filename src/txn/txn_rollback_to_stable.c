@@ -229,7 +229,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type_full, hs_value));
         type = (uint8_t)type_full;
         if (type == WT_UPDATE_MODIFY)
-            WT_ERR(__wt_modify_apply_item(session, &full_value, hs_value->data, false));
+            WT_ERR(__wt_modify_apply_item(
+              session, S2BT(session)->value_format, &full_value, hs_value->data));
         else {
             WT_ASSERT(session, type == WT_UPDATE_STANDARD);
             WT_ERR(__wt_buf_set(session, &full_value, hs_value->data, hs_value->size));
@@ -694,9 +695,9 @@ __rollback_verify_ondisk_page(
     /* Review updates that belong to keys that are on the disk image. */
     WT_ROW_FOREACH (page, rip, i) {
         __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
-        WT_ASSERT(session, vpack->start_ts <= rollback_timestamp);
-        if (vpack->stop_ts != WT_TS_MAX)
-            WT_ASSERT(session, vpack->stop_ts <= rollback_timestamp);
+        WT_ASSERT(session, vpack->durable_start_ts <= rollback_timestamp);
+        if (vpack->durable_stop_ts != WT_TS_NONE)
+            WT_ASSERT(session, vpack->durable_stop_ts <= rollback_timestamp);
     }
 }
 #endif
@@ -733,7 +734,8 @@ __rollback_abort_newer_updates(
 #ifdef HAVE_DIAGNOSTIC
             if (ref->page == NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
                 WT_RET(__wt_page_in(session, ref, 0));
-                __rollback_verify_ondisk_page(session, ref->page, rollback_timestamp);
+                if (ref->page->type == WT_PAGE_ROW_LEAF)
+                    __rollback_verify_ondisk_page(session, ref->page, rollback_timestamp);
                 WT_TRET(__wt_page_release(session, ref, 0));
             }
 #endif
@@ -846,7 +848,7 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
      */
     if (__wt_btree_immediately_durable(session)) {
         if (btree->id >= conn->stable_rollback_maxfile)
-            WT_PANIC_RET(session, EINVAL, "btree file ID %" PRIu32 " larger than max %" PRIu32,
+            WT_RET_PANIC(session, EINVAL, "btree file ID %" PRIu32 " larger than max %" PRIu32,
               btree->id, conn->stable_rollback_maxfile);
         return (0);
     }
@@ -1141,9 +1143,9 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
      * Rollback to stable should ignore tombstones in the history store since it needs to scan the
      * entire table sequentially.
      */
-    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE | WT_SESSION_IGNORE_HS_TOMBSTONE);
+    F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
     ret = __rollback_to_stable(session, cfg);
-    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE | WT_SESSION_IGNORE_HS_TOMBSTONE);
+    F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
     WT_RET(ret);
 
     /*

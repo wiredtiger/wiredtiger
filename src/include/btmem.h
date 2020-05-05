@@ -1098,7 +1098,6 @@ struct __wt_update {
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_UPDATE_HS 0x1u                    /* Update has been written to history store. */
 #define WT_UPDATE_RESTORED_FOR_ROLLBACK 0x2u /* Update restored for rollback to stable. */
-#define WT_UPDATE_RESTORED_FROM_DISK 0x4u    /* Update is temporary retrieved from disk. */
                                              /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 
@@ -1120,6 +1119,39 @@ struct __wt_update {
  * overhead of tiny allocations can swamp our cache overhead calculation.
  */
 #define WT_UPDATE_MEMSIZE(upd) WT_ALIGN(WT_UPDATE_SIZE + (upd)->size, 32)
+
+/*
+ * WT_UPDATE_VALUE --
+ *
+ * A generic representation of an update's value regardless of where it exists. This structure is
+ * used to represent both in-memory updates and updates that don't exist in an update list such as
+ * reconstructed modify updates, updates in the history store and onpage values.
+ *
+ * The skip buffer flag is an optimization for callers of various read functions to communicate that
+ * they just want to check that an update exists and not read its underlying value. This means that
+ * the read functions can avoid the performance penalty of reconstructing modifies.
+ */
+struct __wt_update_value {
+    WT_ITEM buf;
+    wt_timestamp_t start_ts;
+    uint64_t txnid;
+    uint8_t type;
+    uint8_t prepare_state;
+    bool skip_buf;
+};
+
+/*
+ * WT_WITH_UPDATE_VALUE_SKIP_BUF --
+ *
+ * A helper macro to use for calling read functions when we're checking for the existence of a given
+ * key. This means that read functions can avoid the performance penalty of reconstructing modifies.
+ */
+#define WT_WITH_UPDATE_VALUE_SKIP_BUF(op) \
+    do {                                  \
+        cbt->upd_value->skip_buf = true;  \
+        op;                               \
+        cbt->upd_value->skip_buf = false; \
+    } while (0)
 
 /*
  * WT_MAX_MODIFY_UPDATE, WT_MODIFY_VECTOR_STACK_SIZE

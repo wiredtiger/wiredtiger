@@ -594,6 +594,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     r->update_modify_cbt.ref = ref;
     r->update_modify_cbt.iface.value_format = btree->value_format;
+    r->update_modify_cbt.upd_value = &r->update_modify_cbt._upd_value;
 
 /*
  * If we allocated the reconciliation structure and there was an error, clean up. If our caller
@@ -669,6 +670,7 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
     __wt_buf_free(session, &r->_last);
 
     __wt_buf_free(session, &r->update_modify_cbt.iface.value);
+    __wt_buf_free(session, &r->update_modify_cbt._upd_value.buf);
 
     __wt_free(session, r);
 }
@@ -1111,7 +1113,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len, bool 
      * page.
      */
     if (r->salvage != NULL)
-        WT_PANIC_RET(session, WT_PANIC, "%s page too large, attempted split during salvage",
+        WT_RET_PANIC(session, WT_PANIC, "%s page too large, attempted split during salvage",
           __wt_page_type_string(r->page->type));
 
     /*
@@ -2267,7 +2269,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
-            WT_ERR(__wt_hs_insert_updates(session->hs_cursor, S2BT(session), r->page, multi));
+            WT_ERR(__wt_hs_insert_updates(session, r->page, multi));
             r->cache_write_hs = true;
             if (!multi->supd_restore) {
                 __wt_free(session, multi->supd);
