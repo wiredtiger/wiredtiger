@@ -581,12 +581,8 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TI
  *     Return the cell's RLE value.
  */
 static inline uint64_t
-__wt_cell_rle(void *unpack_arg)
+__wt_cell_rle(WT_CELL_UNPACK_KV *unpack)
 {
-    WT_CELL_UNPACK_KV *unpack;
-
-    unpack = unpack_arg;
-
     /*
      * Any item with only 1 occurrence is stored with an RLE of 0, that is, without any RLE at all.
      * This code is a single place to handle that correction, for simplicity.
@@ -601,7 +597,7 @@ __wt_cell_rle(void *unpack_arg)
 static inline size_t
 __wt_cell_total_len(void *unpack_arg)
 {
-    WT_CELL_UNPACK_KV *unpack;
+    WT_CELL_UNPACK_COMMON *unpack;
 
     unpack = unpack_arg;
 
@@ -739,7 +735,7 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         uint32_t len;
         WT_TIME_WINDOW tw;
     } copy;
-    WT_CELL_UNPACK_ADDR *unpack;
+    WT_CELL_UNPACK_COMMON *unpack;
     WT_TIME_AGGREGATE *ta;
     WT_TIME_WINDOW *tw;
     uint64_t v;
@@ -751,8 +747,8 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     copy.len = 0; /* [-Wconditional-uninitialized] */
     copy.v = 0;   /* [-Wconditional-uninitialized] */
 
-    if ((unpack = (WT_CELL_UNPACK_ADDR *)unpack_addr) == NULL)
-        unpack = (WT_CELL_UNPACK_ADDR *)unpack_value;
+    if ((unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr) == NULL)
+        unpack = (WT_CELL_UNPACK_COMMON *)unpack_value;
 
     /*
      * NB: when unpacking a WT_CELL_VALUE_COPY cell, unpack.cell is returned as the original cell,
@@ -1144,16 +1140,14 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
  *     Set a buffer to reference the data from an unpacked cell.
  */
 static inline int
-__cell_data_ref(
-  WT_SESSION_IMPL *session, WT_PAGE *page, int page_type, void *unpack_arg, WT_ITEM *store)
+__cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
+  WT_CELL_UNPACK_COMMON *unpack, WT_ITEM *store)
 {
     WT_BTREE *btree;
-    WT_CELL_UNPACK_KV *unpack;
     bool decoded;
     void *huffman;
 
     btree = S2BT(session);
-    unpack = unpack_arg;
 
     /* Reference the cell's data, optionally decode it. */
     switch (unpack->type) {
@@ -1171,14 +1165,14 @@ __cell_data_ref(
         huffman = btree->huffman_value;
         break;
     case WT_CELL_KEY_OVFL:
-        WT_RET(__wt_ovfl_read(session, page, unpack_arg, store, &decoded));
+        WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
         if (page_type == WT_PAGE_ROW_INT || decoded)
             return (0);
 
         huffman = btree->huffman_key;
         break;
     case WT_CELL_VALUE_OVFL:
-        WT_RET(__wt_ovfl_read(session, page, unpack_arg, store, &decoded));
+        WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
         if (decoded)
             return (0);
         huffman = btree->huffman_value;
@@ -1204,12 +1198,12 @@ __cell_data_ref(
 static inline int
 __wt_dsk_cell_data_ref(WT_SESSION_IMPL *session, int page_type, void *unpack_arg, WT_ITEM *store)
 {
-    WT_CELL_UNPACK_KV *unpack;
+    WT_CELL_UNPACK_COMMON *unpack;
 
     unpack = unpack_arg;
 
     WT_ASSERT(session, __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
-    return (__cell_data_ref(session, NULL, page_type, unpack_arg, store));
+    return (__cell_data_ref(session, NULL, page_type, unpack, store));
 }
 
 /*

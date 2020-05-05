@@ -972,8 +972,7 @@ __verify_page_content_int(
 
     /* Walk the page, tracking timestamps and verifying overflow pages. */
     cell_num = 0;
-    WT_CELL_FOREACH_ADDR(session, btree, dsk, unpack)
-    {
+    WT_CELL_FOREACH_ADDR (session, btree, dsk, unpack) {
         ++cell_num;
 
         if (!__wt_cell_type_check(unpack.type, dsk->type))
@@ -1101,8 +1100,7 @@ __verify_page_content_leaf(
 
     /* Walk the page, tracking timestamps and verifying overflow pages. */
     cell_num = 0;
-    WT_CELL_FOREACH_KV(session, btree, dsk, unpack)
-    {
+    WT_CELL_FOREACH_KV (session, btree, dsk, unpack) {
         ++cell_num;
 
         if (!__wt_cell_type_check(unpack.type, dsk->type))

@@ -180,6 +180,14 @@ struct __wt_cell {
     uint8_t flags
 
 /*
+ * WT_CELL_UNPACK_COMMON --
+ *     Unpacked address cell, the common fields.
+ */
+struct __wt_cell_unpack_common {
+    WT_CELL_COMMON_FIELDS;
+};
+
+/*
  * WT_CELL_UNPACK_ADDR --
  *     Unpacked address cell.
  */

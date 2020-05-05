@@ -202,8 +202,7 @@ __rebalance_col_walk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_REB
      * Walk the page, instantiating keys: the page contains sorted key and location cookie pairs.
      * Keys are on-page/overflow items and location cookies are WT_CELL_ADDR_XXX items.
      */
-    WT_CELL_FOREACH_ADDR(session, btree, dsk, unpack)
-    {
+    WT_CELL_FOREACH_ADDR (session, btree, dsk, unpack) {
         switch (unpack.type) {
         case WT_CELL_ADDR_INT:
             /* An internal page: read it and recursively walk it. */
@@ -285,8 +284,7 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_REB
      * Keys are on-page/overflow items and location cookies are WT_CELL_ADDR_XXX items.
      */
     first_cell = true;
-    WT_CELL_FOREACH_ADDR(session, btree, dsk, unpack)
-    {
+    WT_CELL_FOREACH_ADDR (session, btree, dsk, unpack) {
         switch (unpack.type) {
         case WT_CELL_KEY:
             key = unpack;
