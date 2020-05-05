@@ -962,6 +962,7 @@ __verify_page_content_int(
 
     btree = S2BT(session);
     page = ref->page;
+    ta = &unpack.ta;
 
     /*
      * If a tree is empty (just created), it won't have a disk image; if there is no disk image,
@@ -1002,8 +1003,6 @@ __verify_page_content_int(
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
-            ta = &unpack.ta;
-
             if (ta->oldest_start_ts != WT_TS_NONE && ta->newest_stop_ts == WT_TS_NONE)
                 WT_RET_MSG(session, WT_ERROR,
                   "cell %" PRIu32 " on page at %s has a newest stop timestamp of 0; time window %s",
@@ -1088,6 +1087,7 @@ __verify_page_content_leaf(
     btree = S2BT(session);
     page = ref->page;
     rip = page->pg_row;
+    tw = &unpack.tw;
     recno = ref->ref_recno;
     found_ovfl = false;
 
@@ -1133,8 +1133,6 @@ __verify_page_content_leaf(
         case WT_CELL_VALUE_COPY:
         case WT_CELL_VALUE_OVFL:
         case WT_CELL_VALUE_SHORT:
-            tw = &unpack.tw;
-
             if (tw->start_ts != WT_TS_NONE && tw->stop_ts == WT_TS_NONE)
                 WT_RET_MSG(session, WT_ERROR,
                   "cell %" PRIu32 " on page at %s has a stop timestamp of 0; time window %s",
