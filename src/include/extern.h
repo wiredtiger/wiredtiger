@@ -597,7 +597,7 @@ extern int __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
 extern int __wt_debug_disk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char *ofile)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_key_value(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno,
-  uint64_t rle, WT_CELL_UNPACK *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  uint64_t rle, WT_CELL_UNPACK_KV *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_offset(WT_SESSION_IMPL *session, wt_off_t offset, uint32_t size,
