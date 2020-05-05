@@ -967,9 +967,6 @@ compare:
              * the same thing.
              */
             if (rle != 0) {
-                /*
-                 * FIXME-PM-1521: Follow up issue with clang in WT-5341.
-                 */
                 if (__wt_time_windows_equal(&last.tw, &tw) &&
                   ((deleted && last.deleted) ||
                       (!deleted && !last.deleted && last.value->size == size &&
