@@ -1411,8 +1411,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * our caller will not discard the disk image when discarding the original page, and our caller
      * will discard the allocated page on error, when discarding the allocated WT_REF.
      */
-    page_flags = WT_PAGE_DISK_ALLOC;
-    FLD_SET(page_flags, WT_PAGE_INSTANTIATE_PREPARE_UPDATE);
+    page_flags = WT_PAGE_DISK_ALLOC | WT_PAGE_INSTANTIATE_PREPARE_UPDATE;
     WT_RET(__wt_page_inmem(session, ref, multi->disk_image, page_flags, &page));
     multi->disk_image = NULL;
 

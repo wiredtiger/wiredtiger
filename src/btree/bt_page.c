@@ -549,16 +549,17 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_UPDATE **upd_array, *upd;
     size_t size, total_size;
     uint32_t i;
-    bool prepare;
+    bool instantiate_prepared, prepare;
 
     btree = S2BT(session);
     prepare = false;
 
+    instantiate_prepared = F_ISSET_ATOMIC(page, WT_PAGE_INSTANTIATE_PREPARE_UPDATE);
+
     /* Walk the page, building indices. */
     rip = page->pg_row;
     WT_CELL_FOREACH_BEGIN (session, btree, page->dsk, unpack) {
-        if (F_ISSET_ATOMIC(page, WT_PAGE_INSTANTIATE_PREPARE_UPDATE) &&
-          F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE))
+        if (instantiate_prepared && !prepare && F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE))
             prepare = true;
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
