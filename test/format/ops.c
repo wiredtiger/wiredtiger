@@ -496,8 +496,7 @@ prepare_transaction(TINFO *tinfo)
 {
     WT_DECL_RET;
     WT_SESSION *session;
-    uint64_t longwait, pause_ms;
-    uint64_t ts;
+    uint64_t longwait, pause_ms, ts;
     char buf[64];
 
     session = tinfo->session;
@@ -531,9 +530,9 @@ prepare_transaction(TINFO *tinfo)
      * delay. The rest of the time, pause up to 5 seconds, weighted toward the smaller delays.
      */
     if (tinfo->id % 5 == 0) {
-        longwait = mmrand(&tinfo->rnd, 0, 1000);
+        longwait = mmrand(&tinfo->rnd, 0, 999);
         if (longwait < 10) {
-            pause_ms = mmrand(&tinfo->rnd, 0, 10) << longwait;
+            pause_ms = mmrand(&tinfo->rnd, 1, 10) << longwait;
             __wt_sleep(0, pause_ms * WT_THOUSAND);
         }
     }
