@@ -442,8 +442,12 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
             WT_STAT_CONN_INCR(session, txn_set_ts_durable);
     }
 
+    /*
+     * On restart, the minimum valid oldest timestamp is the oldest start timestamp in the history
+     * store checkpoint list.
+     */
     WT_RET(__wt_config_gets_def(session, cfg, "oldest_timestamp", 0, &oldest_cval));
-    has_oldest = oldest_cval.len != 0;
+    has_oldest = oldest_cval.len != 0 || txn_global->oldest_ckpt_hs_timestamp != WT_TS_NONE;
     if (has_oldest)
         WT_STAT_CONN_INCR(session, txn_set_ts_oldest);
 
@@ -462,6 +466,20 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_txn_parse_timestamp(session, "durable", &durable_ts, &durable_cval));
     WT_RET(__wt_txn_parse_timestamp(session, "oldest", &oldest_ts, &oldest_cval));
     WT_RET(__wt_txn_parse_timestamp(session, "stable", &stable_ts, &stable_cval));
+
+    /*
+     * The supplied oldest timestamp must be no older than the oldest timestamp in the history store
+     * checkpoint list. Note that the oldest history store timestamp is set during recovery and that
+     * if set, we reset it to WT_TS_NONE to ensure this code is only executed on a restart.
+     */
+    if (txn_global->oldest_ckpt_hs_timestamp > oldest_ts) {
+        txn_global->oldest_ckpt_hs_timestamp = WT_TS_NONE;
+        WT_RET_MSG(session, EINVAL,
+          "set_timestamp: oldest timestamp %s must not be earlier than oldest history store "
+          "checkpoint timestamp %s ",
+          __wt_timestamp_to_string(oldest_ts, ts_string[0]),
+          __wt_timestamp_to_string(txn_global->oldest_ckpt_hs_timestamp, ts_string[1]));
+    }
 
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;

@@ -145,6 +145,7 @@ struct __wt_txn_global {
     wt_timestamp_t durable_timestamp;
     wt_timestamp_t last_ckpt_timestamp;
     wt_timestamp_t meta_ckpt_timestamp;
+    wt_timestamp_t oldest_ckpt_hs_timestamp;
     wt_timestamp_t oldest_timestamp;
     wt_timestamp_t pinned_timestamp;
     wt_timestamp_t recovery_timestamp;
