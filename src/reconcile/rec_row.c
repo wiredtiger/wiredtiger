@@ -434,7 +434,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             __wt_time_aggregate_copy(&ta, &addr->ta);
         } else {
             __wt_cell_unpack(session, page, ref->addr, vpack);
-            if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED)) {
+            if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
                 /*
                  * The transaction ids are cleared after restart. Repack the cell with new validity
                  * to flush the cleared transaction ids.
@@ -785,7 +785,7 @@ __wt_rec_row_leaf(
                 WT_ERR(__rec_cell_repack(session, btree, r, vpack, &tw));
 
                 dictionary = true;
-            } else if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED)) {
+            } else if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
                 /*
                  * The transaction ids are cleared after restart. Repack the cell to flush the
                  * cleared transaction ids.

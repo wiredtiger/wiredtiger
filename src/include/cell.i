@@ -1030,22 +1030,22 @@ __wt_cell_unpack_dsk(
         /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
         if (tw->start_txn != WT_TXN_NONE) {
             tw->start_txn = WT_TXN_NONE;
-            F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
+            F_SET(unpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
         }
         if (tw->stop_txn != WT_TXN_MAX) {
             tw->stop_txn = WT_TXN_NONE;
-            F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
+            F_SET(unpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
             if (tw->stop_ts == WT_TS_MAX)
                 tw->stop_ts = WT_TS_NONE;
         } else
             WT_ASSERT(session, tw->stop_ts == WT_TS_MAX);
         if (ta->oldest_start_txn != WT_TXN_NONE) {
             ta->oldest_start_txn = WT_TXN_NONE;
-            F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
+            F_SET(unpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
         }
         if (ta->newest_stop_txn != WT_TXN_MAX) {
             ta->newest_stop_txn = WT_TXN_NONE;
-            F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
+            F_SET(unpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
             if (ta->newest_stop_ts == WT_TS_MAX)
                 ta->newest_stop_ts = WT_TS_NONE;
         } else

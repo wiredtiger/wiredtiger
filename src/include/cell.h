@@ -172,9 +172,9 @@ struct __wt_cell_unpack {
     uint8_t type; /* Cell type */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CELL_UNPACK_OVERFLOW 0x1u           /* cell is an overflow */
-#define WT_CELL_UNPACK_PREPARE 0x2u            /* cell is part of a prepared transaction */
-#define WT_CELL_UNPACK_TIME_PAIRS_CLEARED 0x4u /* time pairs are cleared because of restart */
-                                               /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_CELL_UNPACK_OVERFLOW 0x1u            /* cell is an overflow */
+#define WT_CELL_UNPACK_PREPARE 0x2u             /* cell is part of a prepared transaction */
+#define WT_CELL_UNPACK_TIME_WINDOW_CLEARED 0x4u /* time window cleared because of restart */
+                                                /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 };
