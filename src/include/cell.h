@@ -180,21 +180,6 @@ struct __wt_cell {
     uint8_t flags
 
 /*
- * WT_CELL_UNPACK --
- *	Unpacked cell.
- */
-struct __wt_cell_unpack {
-    WT_CELL_COMMON_FIELDS;
-
-    /*
-     * The validity windows are pointers so that we can set one of them to NULL and force a core
-     * dump if the wrong validity window for the cell is used.
-     */
-    WT_TIME_AGGREGATE *ta, __ta; /* Address validity window */
-    WT_TIME_WINDOW *tw, __tw;    /* Value validity window */
-};
-
-/*
  * WT_CELL_UNPACK_ADDR --
  *     Unpacked address cell.
  */

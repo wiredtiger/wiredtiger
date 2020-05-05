@@ -44,11 +44,13 @@ __ovfl_read(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, WT_
  */
 int
 __wt_ovfl_read(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK *unpack, WT_ITEM *store, bool *decoded)
+  WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_arg, WT_ITEM *store, bool *decoded)
 {
+    WT_CELL_UNPACK_KV *unpack;
     WT_DECL_RET;
 
     *decoded = false;
+    unpack = unpack_arg;
 
     /*
      * If no page specified, there's no need to lock and there's no cache to search, we don't care
