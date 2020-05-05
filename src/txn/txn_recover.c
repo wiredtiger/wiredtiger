@@ -645,20 +645,10 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         /* Given the history store exists in the metadata validate whether it exists on disk. */
         WT_ERR(__wt_fs_exist(session, WT_HS_FILE, &hs_exists));
         if (hs_exists) {
-            /* If found, save the oldest start timestamp in the checkpoint list of the history
-             * store. This will be the minimum valid oldest timestamp at restart. Its possible this
-             * will detect corruption if it fails, it can also return not found in the instance
-             * where the timestamp doesn't exist so we ignore that.
+            /*
+             * Attempt to configure the history store, this will detect corruption if it fails.
              */
-            ret = __wt_meta_get_oldest_ckpt_timestamp(session, WT_HS_URI, &oldest_ts);
-            if (ret == WT_NOTFOUND || ret == 0) {
-                conn->txn_global.oldest_ckpt_hs_timestamp = oldest_ts;
-                /*
-                 * Attempt to configure the history store, this will detect corruption if it fails.
-                 */
-                ret = __wt_hs_config(session, cfg);
-            }
-
+            ret = __wt_hs_config(session, cfg);
             if (ret != 0) {
                 if (F_ISSET(conn, WT_CONN_SALVAGE)) {
                     wt_session = &session->iface;
@@ -683,6 +673,13 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Unpin the page from cache. */
     WT_ERR(metac->reset(metac));
+
+    /*
+     * If found, save the oldest start timestamp in the checkpoint list of the history store. This
+     * will be the minimum valid oldest timestamp at restart.
+     */
+    WT_ERR_NOTFOUND_OK(__wt_meta_get_oldest_ckpt_timestamp(session, WT_HS_URI, &oldest_ts), false);
+    conn->txn_global.oldest_ckpt_hs_timestamp = oldest_ts;
 
     /* Scan the metadata to find the live files and their IDs. */
     WT_ERR(__recovery_file_scan(&r));
