@@ -1254,10 +1254,9 @@ static int
 __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32_t this_btree_id)
 {
     WT_CURSOR *hs_cursor;
-    WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(prev_hs_key);
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    WT_ITEM hs_key;
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t btree_id;
@@ -1265,8 +1264,8 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     bool found;
 
     hs_cursor = session->hs_cursor;
+    WT_CLEAR(hs_key);
 
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &prev_hs_key));
 
     /*
@@ -1285,7 +1284,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
      * cursor there or deciding they're done.
      */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, hs_key, &hs_start_ts, &hs_counter));
+        WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &hs_key, &hs_start_ts, &hs_counter));
 
         /*
          * If the btree id does not match the preview one, we're done. It is up to the caller to set
@@ -1301,10 +1300,10 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
          * If we have already checked against this key, keep going to the next key. We only need to
          * check the key once.
          */
-        WT_ERR(__wt_compare(session, NULL, hs_key, prev_hs_key, &cmp));
+        WT_ERR(__wt_compare(session, NULL, &hs_key, prev_hs_key, &cmp));
         if (cmp == 0)
             continue;
-        WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, hs_key, false, NULL, false, NULL));
+        WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &hs_key, false, NULL, false, NULL));
         WT_ERR(ret);
 
         found = cbt->compare == 0;
@@ -1313,19 +1312,20 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         if (!found)
             WT_ERR_PANIC(session, WT_PANIC,
               "the associated history store key %s was not found in the data store %s",
-              __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key),
+              __wt_buf_set_printable(session, hs_key.data, hs_key.size, prev_hs_key),
               session->dhandle->name);
 
-        /* Swap current/previous buffers. */
-        tmp = hs_key;
-        hs_key = prev_hs_key;
-        prev_hs_key = tmp;
+        /*
+         * Copy the key memory into our scratch buffer. The key will get invalidated on our next
+         * cursor iteration.
+         */
+        WT_ERR(__wt_buf_set(session, prev_hs_key, hs_key.data, hs_key.size));
     }
     WT_ERR_NOTFOUND_OK(ret, true);
 err:
     F_CLR(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
     F_CLR(hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
-    __wt_scr_free(session, &hs_key);
+    WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
     __wt_scr_free(session, &prev_hs_key);
     return (ret);
 }
