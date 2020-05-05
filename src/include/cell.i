@@ -247,7 +247,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
      * Currently, no uncommitted prepared updates are written to the data store, so this flag must
      * be false until we allow writing them in WT-5984. In that ticket this assert must be removed.
      */
-    WT_ASSERT(session, ta->prepare == false);
+    WT_ASSERT(session, !ta->prepare);
     if (ta->prepare)
         LF_SET(WT_CELL_PREPARE);
 
