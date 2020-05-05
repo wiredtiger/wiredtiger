@@ -270,7 +270,7 @@ __random_leaf(WT_CURSOR_BTREE *cbt)
     uint32_t i;
     bool next, valid;
 
-    cursor = (WT_CURSOR *)cbt;
+    cursor = &cbt->iface;
     session = CUR2S(cbt);
 
     /*

@@ -144,7 +144,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
              * Build/insert a complete value during recovery rather than using cursor modify to
              * create a partial update (for no particular reason than simplicity).
              */
-            WT_ERR(__wt_modify_apply(cursor, value.data));
+            WT_ERR(__wt_modify_apply_item(
+              CUR2S(cursor), cursor->value_format, &cursor->value, value.data));
             WT_ERR(cursor->insert(cursor));
         }
         break;
@@ -205,7 +206,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
              * Build/insert a complete value during recovery rather than using cursor modify to
              * create a partial update (for no particular reason than simplicity).
              */
-            WT_ERR(__wt_modify_apply(cursor, value.data));
+            WT_ERR(__wt_modify_apply_item(
+              CUR2S(cursor), cursor->value_format, &cursor->value, value.data));
             WT_ERR(cursor->insert(cursor));
         }
         break;
@@ -522,6 +524,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
     WT_SESSION *wt_session;
+    wt_timestamp_t oldest_ts;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
@@ -532,6 +535,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     config = NULL;
     do_checkpoint = hs_exists = true;
     eviction_started = false;
+    oldest_ts = WT_TS_NONE;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
     /* We need a real session for recovery. */
@@ -539,7 +543,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     r.session = session;
     WT_MAX_LSN(&r.max_ckpt_lsn);
     WT_MAX_LSN(&r.max_rec_lsn);
-    conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp = WT_TS_NONE;
+    conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp =
+      conn->txn_global.oldest_ckpt_hs_timestamp = WT_TS_NONE;
 
     F_SET(conn, WT_CONN_RECOVERING);
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
@@ -640,8 +645,20 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         /* Given the history store exists in the metadata validate whether it exists on disk. */
         WT_ERR(__wt_fs_exist(session, WT_HS_FILE, &hs_exists));
         if (hs_exists) {
-            /* Attempt to configure the history store, this will detect corruption if it fails. */
-            ret = __wt_hs_config(session, cfg);
+            /* If found, save the oldest start timestamp in the checkpoint list of the history
+             * store. This will be the minimum valid oldest timestamp at restart. Its possible this
+             * will detect corruption if it fails, it can also return not found in the instance
+             * where the timestamp doesn't exist so we ignore that.
+             */
+            ret = __wt_meta_get_oldest_ckpt_timestamp(session, WT_HS_URI, &oldest_ts);
+            if (ret == WT_NOTFOUND || ret == 0) {
+                conn->txn_global.oldest_ckpt_hs_timestamp = oldest_ts;
+                /*
+                 * Attempt to configure the history store, this will detect corruption if it fails.
+                 */
+                ret = __wt_hs_config(session, cfg);
+            }
+
             if (ret != 0) {
                 if (F_ISSET(conn, WT_CONN_SALVAGE)) {
                     wt_session = &session->iface;

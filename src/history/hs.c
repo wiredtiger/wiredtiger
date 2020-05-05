@@ -360,7 +360,6 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_UPDATE *hs_upd;
-    uint32_t session_flags;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = NULL;
@@ -425,8 +424,7 @@ err:
          */
         WT_TRET(__wt_cursor_key_order_init(cbt));
 #endif
-        session_flags = session->flags;
-        F_SET(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
+        F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
         /* We're pointing at the newly inserted update. Iterate once more to avoid deleting it. */
         ret = cursor->next(cursor);
         if (ret == WT_NOTFOUND)
@@ -435,8 +433,7 @@ err:
             WT_TRET(__hs_delete_key_from_pos(session, cursor, btree->id, key));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
         }
-        if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
-            F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
+        F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     }
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
@@ -526,7 +523,7 @@ __hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDA
 {
     if (upd->type == WT_UPDATE_MODIFY) {
         WT_RET(__wt_buf_set(session, full_value, base_full_value, size));
-        WT_RET(__wt_modify_apply_item(session, full_value, upd->data, false));
+        WT_RET(__wt_modify_apply_item(session, S2BT(session)->value_format, full_value, upd->data));
     } else {
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         full_value->data = upd->data;
@@ -541,8 +538,10 @@ __hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDA
  *     Copy one set of saved updates into the database's history store table.
  */
 int
-__wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
+__wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 {
+    WT_BTREE *btree;
+    WT_CURSOR *cursor;
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(modify_value);
@@ -554,7 +553,6 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
-    WT_SESSION_IMPL *session;
     WT_UPDATE *prev_upd, *upd;
     WT_TIME_PAIR stop_ts_pair;
     wt_off_t hs_size;
@@ -564,7 +562,8 @@ __wt_hs_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MUL
     int nentries;
     bool squashed;
 
-    session = CUR2S(cursor);
+    btree = S2BT(session);
+    cursor = session->hs_cursor;
     prev_upd = NULL;
     insert_cnt = 0;
     __wt_modify_vector_init(session, &modifies);
@@ -859,8 +858,8 @@ __hs_restore_read_timestamp(WT_SESSION_IMPL *session)
  *     prepare conflict will be returned upon reading a prepared update.
  */
 int
-__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDATE_VALUE *upd_value,
-  bool allow_prepare, WT_ITEM *on_disk_buf)
+__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
+  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
@@ -1029,7 +1028,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_UPDA
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
             __wt_modify_vector_pop(&modifies, &mod_upd);
-            WT_ERR(__wt_modify_apply_item(session, hs_value, mod_upd->data, false));
+            WT_ERR(__wt_modify_apply_item(session, value_format, hs_value, mod_upd->data));
             __wt_free_update_list(session, &mod_upd);
             mod_upd = NULL;
         }
@@ -1172,17 +1171,19 @@ __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *k
         return (0);
 
     WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
+
     /*
      * In order to delete a key range, we need to be able to inspect all history store records
      * regardless of their stop time pairs.
      */
-    F_SET(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
+    F_SET(session->hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_delete_key_int(session, btree_id, key)) == WT_RESTART)
         ;
 
-    if (!FLD_ISSET(session_flags, WT_SESSION_IGNORE_HS_TOMBSTONE))
-        F_CLR(session, WT_SESSION_IGNORE_HS_TOMBSTONE);
+    F_CLR(session->hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
     return (ret);
 }
@@ -1252,7 +1253,7 @@ err:
 static int
 __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32_t this_btree_id)
 {
-    WT_CURSOR *cursor;
+    WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(prev_hs_key);
     WT_DECL_ITEM(tmp);
@@ -1263,18 +1264,28 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     int cmp;
     bool found;
 
-    cursor = session->hs_cursor;
+    hs_cursor = session->hs_cursor;
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &prev_hs_key));
+
+    /*
+     * We need to be able to iterate over the history store content for another table. In order to
+     * do this, we must ignore non-globally visible tombstones in the history store since every
+     * history store record is succeeded with a tombstone. We also need to skip the non-globally
+     * visible tombstones in the data table to verify the corresponding entries in the history store
+     * are too present in the data store.
+     */
+    F_SET(hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+    F_SET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
 
     /*
      * The caller is responsible for positioning the history store cursor at the first record to
      * verify. When we return after moving to a new key the caller is responsible for keeping the
      * cursor there or deciding they're done.
      */
-    for (; ret == 0; ret = cursor->next(cursor)) {
-        WT_ERR(cursor->get_key(cursor, &btree_id, hs_key, &hs_start_ts, &hs_counter));
+    for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
+        WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         /*
          * If the btree id does not match the preview one, we're done. It is up to the caller to set
@@ -1296,12 +1307,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, hs_key, false, NULL, false, NULL));
         WT_ERR(ret);
 
-/* FIXME: temporarily disable hs verification. */
-#if 0
         found = cbt->compare == 0;
-#else
-        found = true;
-#endif
         WT_ERR(__cursor_reset(cbt));
 
         if (!found)
@@ -1317,6 +1323,8 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     }
     WT_ERR_NOTFOUND_OK(ret, true);
 err:
+    F_CLR(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
+    F_CLR(hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &prev_hs_key);
     return (ret);
