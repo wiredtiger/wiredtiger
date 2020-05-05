@@ -1825,10 +1825,9 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     }
 
     /*
-     * Don't flush data from modified trees independent of system-wide checkpoint if logging is
-     * disabled, and, either there is a stable timestamp set or the connection is configured to
-     * disallow such operation. Flushing trees with logging disabled can lead to files that are
-     * inconsistent on disk after a crash.
+     * Don't flush data from modified trees independent of system-wide checkpoint when either there
+     * is a stable timestamp set or the connection is configured to disallow such operation.
+     * Flushing trees can lead to files that are inconsistent on disk after a crash.
      */
     if (btree->modified && !bulk && !__wt_btree_immediately_durable(session) &&
       (S2C(session)->txn_global.has_stable_timestamp ||
