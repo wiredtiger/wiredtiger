@@ -954,7 +954,7 @@ short_return:
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
         copy.v = unpack->v;
         copy.len = WT_PTRDIFF32(p, cell);
-        __wt_time_window_copy(&copy.tw, tw);
+        __wt_time_window_copy(&copy.tw, &unpack_value->tw);
         cell = (WT_CELL *)((uint8_t *)cell - v);
         goto copy_cell_restart;
 
@@ -1009,7 +1009,7 @@ short_return:
         unpack->v = copy.v;
         unpack->__len = copy.len;
         unpack->raw = WT_CELL_VALUE_COPY;
-        __wt_time_window_copy(tw, &copy.tw);
+        __wt_time_window_copy(&unpack_value->tw, &copy.tw);
     }
 
     /*
