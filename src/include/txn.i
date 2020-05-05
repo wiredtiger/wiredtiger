@@ -915,8 +915,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
-        WT_RET_NOTFOUND_OK(
-          __wt_find_hs_upd(session, key, recno, cbt->upd_value, false, &cbt->upd_value->buf));
+        WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, key, cbt->iface.value_format, recno,
+          cbt->upd_value, false, &cbt->upd_value->buf));
 
     /* Return invalid not tombstone if nothing is found in history store. */
     WT_ASSERT(session, cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
