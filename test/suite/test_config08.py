@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_config08.py
-#   Test tha configuration that enables/disables dirty tree flusing.
+#   Test the configuration that enables/disables dirty tree flushing.
 #
 
 import time, wiredtiger, wttest
@@ -46,7 +46,7 @@ class test_config08(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(logging, fileFlush)
 
-    # This test varies the logging and flush settings and therefore needs to set up its own
+    # This test varies the logging and file flush settings and therefore needs to set up its own
     # connection. Override the standard methods.
     def setUpConnectionOpen(self, dir):
         return None
