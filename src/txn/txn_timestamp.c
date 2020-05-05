@@ -41,7 +41,7 @@ __wt_time_pair_to_string(wt_timestamp_t timestamp, uint64_t txn_id, char *tp_str
 char *
 __wt_time_window_to_string(WT_TIME_WINDOW *tw, char *tw_string)
 {
-    char ts_string[WT_TS_INT_STRING_SIZE][4];
+    char ts_string[4][WT_TS_INT_STRING_SIZE];
 
     WT_IGNORE_RET(__wt_snprintf(tw_string, WT_TIME_STRING_SIZE,
       "start: %s/%s/%" PRIu64 " stop: %s/%s/%" PRIu64 " prepare:  %s",
@@ -60,14 +60,14 @@ __wt_time_window_to_string(WT_TIME_WINDOW *tw, char *tw_string)
 char *
 __wt_time_aggregate_to_string(WT_TIME_AGGREGATE *ta, char *ta_string)
 {
-    char ts_string[WT_TS_INT_STRING_SIZE][4];
+    char ts_string[4][WT_TS_INT_STRING_SIZE];
 
     WT_IGNORE_RET(__wt_snprintf(ta_string, WT_TIME_STRING_SIZE,
       "newest durable: %s/%s oldest start: %s/%" PRIu64 " newest stop %s/%" PRIu64 " prepare:  %s",
       __wt_timestamp_to_string(ta->newest_start_durable_ts, ts_string[0]),
       __wt_timestamp_to_string(ta->newest_stop_durable_ts, ts_string[1]),
-      __wt_timestamp_to_string(ta->oldest_start_ts, ts_string[3]), ta->oldest_start_txn,
-      __wt_timestamp_to_string(ta->newest_stop_ts, ts_string[2]), ta->newest_stop_txn,
+      __wt_timestamp_to_string(ta->oldest_start_ts, ts_string[2]), ta->oldest_start_txn,
+      __wt_timestamp_to_string(ta->newest_stop_ts, ts_string[3]), ta->newest_stop_txn,
       ta->prepare ? "yes" : "no"));
     return (ta_string);
 }
