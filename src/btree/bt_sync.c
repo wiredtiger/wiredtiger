@@ -469,12 +469,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         btree->syncing = WT_BTREE_SYNC_RUNNING;
         is_hs = WT_IS_HS(btree);
 
-        /*
-         * Add in history store reconciliation for standard files.
-         *
-         * FIXME-PM-1521: Remove the history store check, and assert that no updates from the
-         * history store are copied to the history store recursively.
-         */
+        /* Add in history store reconciliation for standard files. */
         rec_flags = WT_REC_CHECKPOINT;
         if (!is_hs && !WT_IS_METADATA(btree->dhandle))
             rec_flags |= WT_REC_HS;

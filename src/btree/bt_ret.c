@@ -183,7 +183,7 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
     /*
      * WT_PAGE_COL_FIX: Take the value from the original page.
      *
-     * FIXME-PM-1523: Should also check visibility here
+     * FIXME-WT-6126: Should also check visibility here
      */
     if (tw != NULL)
         __wt_time_window_init(tw);
@@ -244,10 +244,10 @@ __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
     F_CLR(cursor, WT_CURSTD_VALUE_EXT);
     if (upd_value->type == WT_UPDATE_INVALID) {
         /*
-         * FIXME: This is a holdover from the pre-durable history read logic where we used to
-         * fallback to the on-page value if we didn't find a visible update elsewhere. This is still
-         * required for fixed length column store as we have issues with this table type in durable
-         * history which we're planning to address in PM-1814.
+         * FIXME-WT-6127: This is a holdover from the pre-durable history read logic where we used
+         * to fallback to the on-page value if we didn't find a visible update elsewhere. This is
+         * still required for fixed length column store as we have issues with this table type in
+         * durable history which we're planning to address in PM-1814.
          */
         WT_ASSERT(session, cbt->btree->type == BTREE_COL_FIX);
         WT_RET(__value_return(cbt));

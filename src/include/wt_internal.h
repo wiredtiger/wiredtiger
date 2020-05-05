@@ -321,8 +321,6 @@ struct __wt_thread_group;
 typedef struct __wt_thread_group WT_THREAD_GROUP;
 struct __wt_time_aggregate;
 typedef struct __wt_time_aggregate WT_TIME_AGGREGATE;
-struct __wt_time_pair;
-typedef struct __wt_time_pair WT_TIME_PAIR;
 struct __wt_time_window;
 typedef struct __wt_time_window WT_TIME_WINDOW;
 struct __wt_txn;

@@ -247,7 +247,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
      * Currently, no uncommitted prepared updates are written to the data store, so this flag must
      * be false until we allow writing them in WT-5984. In that ticket this assert must be removed.
      */
-    WT_ASSERT(session, ta->prepare == false);
+    WT_ASSERT(session, !ta->prepare);
     if (ta->prepare)
         LF_SET(WT_CELL_PREPARE);
 
@@ -456,7 +456,7 @@ __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell, WT_TIME_WINDOW *tw, 
     p = cell->__chunk;
     *p = '\0';
 
-    /* FIXME-prepare-support: we should pass prepare value. */
+    /* FIXME-WT-6124: we should set the time window prepare value. */
     __cell_pack_value_validity(session, &p, tw);
 
     if (rle < 2)
@@ -1057,16 +1057,16 @@ __wt_cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *
     if (dsk->write_gen == 0 || dsk->write_gen > S2C(session)->base_write_gen)
         return;
 
+    /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
+    /* FIXME-WT-6124: deal with durable timestamps. */
     if (tw != NULL) {
-        /* FIXME-prepare-support: deal with durable timestamps. */
-        /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
         if (tw->start_txn != WT_TXN_NONE) {
             tw->start_txn = WT_TXN_NONE;
-            F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
+            F_SET(unpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
         }
         if (tw->stop_txn != WT_TXN_MAX) {
             tw->stop_txn = WT_TXN_NONE;
-            F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
+            F_SET(unpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
             if (tw->stop_ts == WT_TS_MAX)
                 tw->stop_ts = WT_TS_NONE;
         } else
@@ -1075,11 +1075,11 @@ __wt_cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *
     if (ta != NULL) {
         if (ta->oldest_start_txn != WT_TXN_NONE) {
             ta->oldest_start_txn = WT_TXN_NONE;
-            F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
+            F_SET(unpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
         }
         if (ta->newest_stop_txn != WT_TXN_MAX) {
             ta->newest_stop_txn = WT_TXN_NONE;
-            F_SET(unpack, WT_CELL_UNPACK_TIME_PAIRS_CLEARED);
+            F_SET(unpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
             if (ta->newest_stop_ts == WT_TS_MAX)
                 ta->newest_stop_ts = WT_TS_NONE;
         } else

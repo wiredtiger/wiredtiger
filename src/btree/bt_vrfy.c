@@ -788,7 +788,7 @@ __verify_ts_stable_cmp(WT_SESSION_IMPL *session, WT_ITEM *key, WT_REF *ref, uint
 {
     WT_BTREE *btree;
     WT_DECL_RET;
-    char tp_string[2][WT_TP_STRING_SIZE];
+    char tp_string[2][WT_TS_INT_STRING_SIZE];
     bool start;
 
     btree = S2BT(session);
