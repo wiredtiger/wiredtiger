@@ -803,15 +803,6 @@ struct __wt_page_deleted {
 };
 
 /*
- * WT_TIME_PAIR --
- * 	A pair containing a timestamp and transaction id.
- */
-struct __wt_time_pair {
-    wt_timestamp_t timestamp;
-    uint64_t txnid;
-};
-
-/*
  * WT_REF --
  *	A single in-memory page and state information.
  */
