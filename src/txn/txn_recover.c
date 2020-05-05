@@ -623,14 +623,14 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * We should check whether the history store file exists in the metadata or not. or not. If it
-     * does not, then we should not apply rollback to stable to each table. This might happen if
-     * we're upgrading from an older version. If it does exist in the metadata we should check that
-     * it exists on disk to confirm that it wasn't deleted between runs.
+     * We should check whether the history store file exists in the metadata or not. If it does not,
+     * then we should skip rollback to stable for each table. This might happen if we're upgrading
+     * from an older version. If it does exist in the metadata we should check that it exists on
+     * disk to confirm that it wasn't deleted between runs.
      *
-     * This needs to happen after we recovery the metadata from the logs, otherwise we can end up in
-     * the situation where the metadata does actually contain the history store but we didn't yet
-     * recover the metadata.
+     * This needs to happen after we apply the logs as they may contain the metadata changes which
+     * include the history store creation. As such the on disk metadata file won't contain the
+     * history store but will after log application.
      */
     metac->set_key(metac, WT_HS_URI);
     WT_ERR_NOTFOUND_OK(metac->search(metac), true);
