@@ -727,6 +727,9 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     bool copy_cell;
 
     copy_cell = false;
+    copy.len = 0; /* [-Wconditional-uninitialized] */
+    copy.v = 0;   /* [-Wconditional-uninitialized] */
+
     tw = &unpack->tw;
     ta = &unpack->ta;
 
