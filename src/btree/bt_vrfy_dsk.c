@@ -410,7 +410,7 @@ __verify_row_key_order_check(WT_SESSION_IMPL *session, WT_ITEM *last, uint32_t l
     int cmp;
 
     WT_RET(__wt_compare(session, S2BT(session)->collator, last, current, &cmp));
-    if (cmp > 0)
+    if (cmp < 0)
         return (0);
 
     WT_ERR(__wt_scr_alloc(session, 0, &tmp1));
