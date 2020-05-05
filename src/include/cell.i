@@ -1254,15 +1254,7 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_ar
  * WT_CELL_FOREACH --
  *	Walk the cells on a page.
  */
-#define WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack)                              \
-    do {                                                                                \
-        uint32_t __i;                                                                   \
-        uint8_t *__cell;                                                                \
-        for (__cell = WT_PAGE_HEADER_BYTE(btree, dsk), __i = (dsk)->u.entries; __i > 0; \
-             __cell += (unpack).__len, --__i) {                                         \
-            __wt_cell_unpack(session, dsk, (WT_CELL *)__cell, &(unpack));
-
-#define WT_CELL_FOREACH_BEGIN_ADDR(session, btree, dsk, unpack)                         \
+#define WT_CELL_FOREACH_ADDR(session, btree, dsk, unpack)                               \
     do {                                                                                \
         uint32_t __i;                                                                   \
         uint8_t *__cell;                                                                \
@@ -1270,7 +1262,7 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_ar
              __cell += (unpack).__len, --__i) {                                         \
             __wt_cell_unpack_addr(session, dsk, (WT_CELL *)__cell, &(unpack));
 
-#define WT_CELL_FOREACH_BEGIN_KV(session, btree, dsk, unpack)                           \
+#define WT_CELL_FOREACH_KV(session, btree, dsk, unpack)                                 \
     do {                                                                                \
         uint32_t __i;                                                                   \
         uint8_t *__cell;                                                                \
