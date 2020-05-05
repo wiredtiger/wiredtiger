@@ -110,7 +110,7 @@ new_page:
     if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
         cbt->ins = NULL;
     /*
-     * FIXME-PM-1814: Now we only do transaction read if we have an update chain and it doesn't work
+     * FIXME-WT-6127: Now we only do transaction read if we have an update chain and it doesn't work
      * in durable history. Review this when we have a plan for fixed-length column store.
      */
     __wt_upd_value_clear(cbt->upd_value);

@@ -160,7 +160,7 @@ thread_run(void *arg)
     /*
      * Make sure that alternative threads operate on column-store table
      *
-     * FIXME-PM-1814: temporarily turn off column store test.
+     * FIXME-WT-6125: temporarily turn off column store test.
      */
     if (td->id % 2 != 0)
         columnar_table = true;
@@ -391,7 +391,7 @@ recover_and_verify(uint32_t nthreads)
             cursor = row_cursor;
         }
 #else
-        /* FIXME-PM-1814: temporarily turn off column store test. */
+        /* FIXME-WT-6125: temporarily turn off column store test. */
         columnar_table = false;
         cursor = row_cursor;
 #endif

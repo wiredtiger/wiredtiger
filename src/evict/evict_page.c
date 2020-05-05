@@ -127,7 +127,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
      * The test for the connection's default session is because there are known problems with using
      * cached cursors from the default session.
      *
-     * FIXME-PM-1845: This isn't reasonable and needs a better fix.
+     * FIXME-WT-6037: This isn't reasonable and needs a better fix.
      */
     if (!WT_IS_METADATA(S2BT(session)->dhandle) && !F_ISSET(conn, WT_CONN_IN_MEMORY) &&
       session->hs_cursor == NULL && !F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
