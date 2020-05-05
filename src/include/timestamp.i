@@ -13,12 +13,13 @@
 static inline void
 __wt_time_window_init(WT_TIME_WINDOW *tw)
 {
+    tw->durable_start_ts = WT_TS_NONE;
     tw->start_ts = WT_TS_NONE;
     tw->start_txn = WT_TXN_NONE;
-    tw->durable_start_ts = WT_TS_NONE;
+
+    tw->durable_stop_ts = WT_TS_NONE;
     tw->stop_ts = WT_TS_MAX;
     tw->stop_txn = WT_TXN_MAX;
-    tw->durable_stop_ts = WT_TS_NONE;
 
     tw->prepare = 0;
 }
@@ -30,12 +31,13 @@ __wt_time_window_init(WT_TIME_WINDOW *tw)
 static inline void
 __wt_time_window_init_max(WT_TIME_WINDOW *tw)
 {
+    tw->durable_start_ts = WT_TS_MAX;
     tw->start_ts = WT_TS_MAX;
     tw->start_txn = WT_TXN_MAX;
-    tw->durable_start_ts = WT_TS_MAX;
+
+    tw->durable_stop_ts = WT_TS_MAX;
     tw->stop_ts = WT_TS_NONE;
     tw->stop_txn = WT_TXN_NONE;
-    tw->durable_stop_ts = WT_TS_MAX;
 
     tw->prepare = 0;
 }
@@ -57,9 +59,9 @@ __wt_time_window_copy(WT_TIME_WINDOW *dest, WT_TIME_WINDOW *source)
 static inline bool
 __wt_time_window_is_empty(WT_TIME_WINDOW *tw)
 {
-    return (tw->start_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE &&
-      tw->durable_start_ts == WT_TS_NONE && tw->stop_ts == WT_TS_MAX &&
-      tw->stop_txn == WT_TXN_MAX && tw->durable_stop_ts == WT_TS_NONE && tw->prepare == 0);
+    return (tw->durable_start_ts == WT_TS_NONE && tw->start_ts == WT_TS_NONE &&
+      tw->start_txn == WT_TXN_NONE && tw->durable_stop_ts == WT_TS_NONE &&
+      tw->stop_ts == WT_TS_MAX && tw->stop_txn == WT_TXN_MAX && tw->prepare == 0);
 }
 
 /*
@@ -69,9 +71,9 @@ __wt_time_window_is_empty(WT_TIME_WINDOW *tw)
 static inline bool
 __wt_time_windows_equal(WT_TIME_WINDOW *tw1, WT_TIME_WINDOW *tw2)
 {
-    return (tw1->start_ts == tw2->start_ts && tw1->start_txn == tw2->start_txn &&
-      tw1->durable_start_ts == tw2->durable_start_ts && tw1->stop_ts == tw2->stop_ts &&
-      tw1->stop_txn == tw2->stop_txn && tw1->durable_stop_ts == tw2->durable_stop_ts &&
+    return (tw1->durable_start_ts == tw2->durable_start_ts && tw1->start_ts == tw2->start_ts &&
+      tw1->start_txn == tw2->start_txn && tw1->durable_stop_ts == tw2->durable_stop_ts &&
+      tw1->stop_ts == tw2->stop_ts && tw1->stop_txn == tw2->stop_txn &&
       tw1->prepare == tw2->prepare);
 }
 
@@ -82,9 +84,9 @@ __wt_time_windows_equal(WT_TIME_WINDOW *tw1, WT_TIME_WINDOW *tw2)
 static inline void
 __wt_time_window_set_start(WT_TIME_WINDOW *tw, WT_UPDATE *upd)
 {
+    tw->durable_start_ts = upd->durable_ts;
     tw->start_ts = upd->start_ts;
     tw->start_txn = upd->txnid;
-    tw->durable_start_ts = upd->durable_ts;
 }
 
 /*
@@ -94,9 +96,9 @@ __wt_time_window_set_start(WT_TIME_WINDOW *tw, WT_UPDATE *upd)
 static inline void
 __wt_time_window_set_stop(WT_TIME_WINDOW *tw, WT_UPDATE *upd)
 {
+    tw->durable_stop_ts = upd->durable_ts;
     tw->stop_ts = upd->start_ts;
     tw->stop_txn = upd->txnid;
-    tw->durable_stop_ts = upd->durable_ts;
 }
 
 /*
@@ -106,17 +108,19 @@ __wt_time_window_set_stop(WT_TIME_WINDOW *tw, WT_UPDATE *upd)
 static inline void
 __wt_time_aggregate_init(WT_TIME_AGGREGATE *ta)
 {
-    ta->oldest_start_ts = WT_TS_NONE;
-    ta->oldest_start_txn = WT_TXN_NONE;
     /*
      * The aggregated durable timestamp values represent the maximum durable timestamp over set of
      * timestamps. These aggregated max values are used for rollback to stable operation to find out
      * whether the page has any timestamp updates more than stable timestamp.
      */
     ta->newest_start_durable_ts = WT_TS_NONE;
+    ta->newest_stop_durable_ts = WT_TS_NONE;
+
+    ta->oldest_start_ts = WT_TS_NONE;
+    ta->oldest_start_txn = WT_TXN_NONE;
+
     ta->newest_stop_ts = WT_TS_MAX;
     ta->newest_stop_txn = WT_TXN_MAX;
-    ta->newest_stop_durable_ts = WT_TS_NONE;
 
     ta->prepare = 0;
 }
@@ -130,17 +134,19 @@ __wt_time_aggregate_init(WT_TIME_AGGREGATE *ta)
 static inline void
 __wt_time_aggregate_init_max(WT_TIME_AGGREGATE *ta)
 {
-    ta->oldest_start_ts = WT_TS_MAX;
-    ta->oldest_start_txn = WT_TXN_MAX;
     /*
      * The aggregated durable timestamp values represent the maximum durable timestamp over set of
      * timestamps. These aggregated max values are used for rollback to stable operation to find out
      * whether the page has any timestamp updates more than stable timestamp.
      */
     ta->newest_start_durable_ts = WT_TS_NONE;
+    ta->newest_stop_durable_ts = WT_TS_NONE;
+
+    ta->oldest_start_ts = WT_TS_MAX;
+    ta->oldest_start_txn = WT_TXN_MAX;
+
     ta->newest_stop_ts = WT_TS_NONE;
     ta->newest_stop_txn = WT_TXN_NONE;
-    ta->newest_stop_durable_ts = WT_TS_NONE;
 
     ta->prepare = 0;
 }
@@ -153,8 +159,8 @@ static inline bool
 __wt_time_aggregate_is_empty(WT_TIME_AGGREGATE *ta)
 {
     return (ta->newest_start_durable_ts == WT_TS_NONE && ta->newest_stop_durable_ts == WT_TS_NONE &&
-      ta->newest_stop_ts == WT_TS_NONE && ta->newest_stop_txn == WT_TXN_NONE &&
-      ta->oldest_start_ts == WT_TS_MAX && ta->oldest_start_txn == WT_TXN_MAX && ta->prepare == 0);
+      ta->oldest_start_ts == WT_TS_MAX && ta->oldest_start_txn == WT_TXN_MAX &&
+      ta->newest_stop_ts == WT_TS_NONE && ta->newest_stop_txn == WT_TXN_NONE && ta->prepare == 0);
 }
 
 /*
@@ -174,12 +180,13 @@ __wt_time_aggregate_copy(WT_TIME_AGGREGATE *dest, WT_TIME_AGGREGATE *source)
 static inline void
 __wt_time_aggregate_update(WT_TIME_AGGREGATE *ta, WT_TIME_WINDOW *tw)
 {
+    ta->newest_start_durable_ts = WT_MAX(tw->durable_start_ts, ta->newest_start_durable_ts);
+    ta->newest_stop_durable_ts = WT_MAX(tw->durable_stop_ts, ta->newest_stop_durable_ts);
+
     ta->oldest_start_ts = WT_MIN(tw->start_ts, ta->oldest_start_ts);
     ta->oldest_start_txn = WT_MIN(tw->start_txn, ta->oldest_start_txn);
-    ta->newest_start_durable_ts = WT_MAX(tw->durable_start_ts, ta->newest_start_durable_ts);
     ta->newest_stop_ts = WT_MAX(tw->stop_ts, ta->newest_stop_ts);
     ta->newest_stop_txn = WT_MAX(tw->stop_txn, ta->newest_stop_txn);
-    ta->newest_stop_durable_ts = WT_MAX(tw->durable_stop_ts, ta->newest_stop_durable_ts);
 
     if (tw->prepare != 0)
         ta->prepare = 1;
@@ -193,14 +200,15 @@ __wt_time_aggregate_update(WT_TIME_AGGREGATE *ta, WT_TIME_WINDOW *tw)
 static inline void
 __wt_time_aggregate_merge(WT_TIME_AGGREGATE *dest, WT_TIME_AGGREGATE *source)
 {
-    dest->oldest_start_ts = WT_MIN(dest->oldest_start_ts, source->oldest_start_ts);
-    dest->oldest_start_txn = WT_MIN(dest->oldest_start_txn, source->oldest_start_txn);
     dest->newest_start_durable_ts =
       WT_MAX(dest->newest_start_durable_ts, source->newest_start_durable_ts);
-    dest->newest_stop_ts = WT_MAX(dest->newest_stop_ts, source->newest_stop_ts);
-    dest->newest_stop_txn = WT_MAX(dest->newest_stop_txn, source->newest_stop_txn);
     dest->newest_stop_durable_ts =
       WT_MAX(dest->newest_stop_durable_ts, source->newest_stop_durable_ts);
+
+    dest->oldest_start_ts = WT_MIN(dest->oldest_start_ts, source->oldest_start_ts);
+    dest->oldest_start_txn = WT_MIN(dest->oldest_start_txn, source->oldest_start_txn);
+    dest->newest_stop_ts = WT_MAX(dest->newest_stop_ts, source->newest_stop_ts);
+    dest->newest_stop_txn = WT_MAX(dest->newest_stop_txn, source->newest_stop_txn);
 
     if (source->prepare != 0)
         dest->prepare = 1;
