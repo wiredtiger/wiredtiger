@@ -325,11 +325,14 @@ if __name__ == '__main__':
                 if batchtotal != 0 or len(args) == 0:
                     usage()
                     sys.exit(2)
-                b = args.pop(0).split('/')
+                # Batch expects an argument that has int slash int.
+                # For example "-b 4/12"
                 try:
-                    batchnum = int(b[0])
-                    batchtotal = int(b[1])
+                    left, right = args.pop(0).split('/')
+                    batchnum = int(left)
+                    batchtotal = int(right)
                 except:
+                    print('batch argument should be nnn/nnn')
                     usage()
                     sys.exit(2)
                 if batchtotal <= 0 or batchnum < 0 or batchnum >= batchtotal:
@@ -537,7 +540,7 @@ if __name__ == '__main__':
         # before we see a failure in the next test.  To that end, we define a
         # sort function that sorts by scenario first, and test name second.
         hugetests = set()
-        def batchsort(test):
+        def get_sort_keys(test):
             s = 0
             name = test.simpleName()
             if hasattr(test, 'scenario_number'):
@@ -545,9 +548,12 @@ if __name__ == '__main__':
                 if s > 1000:
                     hugetests.add(name)    # warn for too many scenarios
             return (s, test.simpleName())  # sort by scenerio number first
-        all_tests = sorted(tests, key = batchsort)
-        for name in hugetests:
-            print("WARNING: huge test " + name + " has > 1000 scenarios")
+        all_tests = sorted(tests, key = get_sort_keys)
+        if not longtest:
+            for name in hugetests:
+                print("WARNING: huge test " + name + " has > 1000 scenarios.\n" +
+                      "That is only appropriate when using the --long option.\n" +
+                      "The number of scenerios for the test should be pruned")
 
         # At this point we have an ordered list of all the tests.
         # Break it into just our batch.

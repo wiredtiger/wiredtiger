@@ -1246,7 +1246,7 @@ tasks:
           dependent_task: compile-linux-no-ftruncate
       - func: "unit test"
 
-  # Break out Python unit tests into multiple buckets/tasks.  We have 11 buckets,
+  # Break out Python unit tests into multiple buckets/tasks.  We have a fixed number of buckets,
   # and we use the -b option of the test/suite/run.py script to split up the tests.
 
   - name: unit-test-bucket00
