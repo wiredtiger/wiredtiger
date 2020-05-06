@@ -41,9 +41,7 @@ class test_checkpoint06(wttest.WiredTigerTestCase):
 
     def test_rollback_truncation_in_checkpoint(self):
         self.uri = 'table:ckpt06'
-        self.uri2 = 'table:other'
         self.session.create(self.uri, 'key_format=i,value_format=S')
-        self.session.create(self.uri2, 'key_format=i,value_format=S')
 
         value = "abcdefghijklmnopqrstuvwxyz" * 3
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
