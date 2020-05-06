@@ -27,49 +27,37 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_config08.py
-#   Test the configuration that enables/disables dirty tree flushing.
+#   Test the configuration that enables/disables dirty table flushing.
 #
 
-import time, wiredtiger, wttest
+import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 class test_config08(wttest.WiredTigerTestCase):
 
     logging = [
-        ('log_off', dict(log='(enabled=false)')),
-        ('log_on', dict(log='(enabled=true)')),
+        ('log_off', dict(logging='false')),
+        ('log_on', dict(logging='true')),
     ]
-    fileFlush = [
-        ('flush_off', dict(file_close_sync='false')),
-        ('flush_on', dict(file_close_sync='true')),
+    flush = [
+        ('flush_off', dict(flush='false')),
+        ('flush_on', dict(flush='true')),
     ]
 
-    scenarios = make_scenarios(logging, fileFlush)
+    scenarios = make_scenarios(logging, flush)
 
     # This test varies the logging and file flush settings and therefore needs to set up its own
-    # connection. Override the standard methods.
-    def setUpConnectionOpen(self, dir):
-        return None
-    def setUpSessionOpen(self, conn):
-        return None
-    def ConnectionOpen(self, log, file_close_sync):
-        self.home = '.'
-        # Explicitly increase time between checkpoints
-        conn_params = 'create,checkpoint=(wait=60),' + \
-            'log=' + log + ',' + 'file_close_sync=' + file_close_sync
-        try:
-            self.conn = wiredtiger.wiredtiger_open(self.home, conn_params)
-            self.session = self.conn.open_session()
-        except wiredtiger.WiredTigerError as e:
-            print("Failed conn at '%s' with config '%s'" % (dir, conn_params))
+    # connection config. Override the standard method.
+    def conn_config(self):
+        return 'create,log=(enabled={}),file_close_sync={}'.\
+            format(self.logging,self.flush)
 
-    # Create a table with logging setting matching the connection level config.
     def test_config08(self):
-        self.ConnectionOpen(self.log, self.file_close_sync)
-        table_params = 'key_format=i,value_format=S,log=' + self.log
+        # Create a table with logging setting matching the connection level config.
+        table_params = 'key_format=i,value_format=S,log=(enabled={})'.format(self.logging)
         self.uri = 'table:config_test'
 
-        # Create a table with some data
+        # Create a table with some data.
         self.session.create(self.uri, table_params)
         c = self.session.open_cursor(self.uri, None)
         c[0] = 'ABC' * 4096
@@ -77,19 +65,19 @@ class test_config08(wttest.WiredTigerTestCase):
         c[2] = 'GHI' * 4096
         c.close()
 
-        # API calls that require exclusive file handles should return EBUSY if dirty tables flush
-        # and logging are disabled.
-        if self.log == '(enabled=false)' and self.file_close_sync == 'false':
+        # API calls that require exclusive file handles should return EBUSY if file_close_sync is 
+        # set to false and logging is disabled.
+        if self.logging == 'false' and self.flush == 'false':
             # WT won't allow this operation as exclsuive file handle is not possible
-            # with modified table
+            # with modified table.
             self.assertTrue(self.raisesBusy(lambda: self.session.verify(self.uri, None)),
                 "Was expecting API call to fail with EBUSY")
 
-            # Taking a checkopoint should make WT happy
+            # Taking a checkopoint should make WT happy.
             self.session.checkpoint()
             self.session.verify(self.uri, None)
         else:
-            # All other combinations of configs should not return EBUSY
+            # All other combinations of configs should not return EBUSY.
             self.session.verify(self.uri, None)
 
         # This will catch a bug if we return EBUSY from final shutdown.
