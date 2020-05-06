@@ -416,8 +416,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 upd_select->upd = last_upd->next;
                 __wt_time_window_set_start(select_tw, last_upd->next);
             } else {
-                WT_ASSERT(session,
-                  __wt_txn_upd_visible_all(session, tombstone) && upd_select->upd == NULL);
+                WT_ASSERT(
+                  session, __wt_txn_upd_visible_all(session, tombstone) && upd_select->upd == NULL);
                 upd_select->upd = tombstone;
             }
         }
