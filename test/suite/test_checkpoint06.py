@@ -53,7 +53,7 @@ class test_checkpoint06(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
 
-        # Force everything to disk
+        # Flush everything to disk
         self.reopen_conn()
 
         # Truncate large portion of the data in the table
