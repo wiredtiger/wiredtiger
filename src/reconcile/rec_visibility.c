@@ -173,7 +173,7 @@ static inline bool
 __rec_need_save_upd(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select, bool has_newer_updates)
 {
-    if (upd_select->prepare)
+    if (upd_select->tw.prepare)
         return (true);
 
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
@@ -362,7 +362,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * update to write.
          */
         if (upd->prepare_state == WT_PREPARE_INPROGRESS)
-            upd_select->prepare = true;
+            select_tw->prepare = 1;
 
         /*
          * If the newest is a tombstone then select the update before it and set the end of the

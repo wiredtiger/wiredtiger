@@ -763,7 +763,7 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
           (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.oldest_start_txn,
           (int64_t)ckpt->ta.newest_stop_durable_ts, (int64_t)ckpt->ta.newest_stop_ts,
-          (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.preprepare,(int64_t)ckpt->write_gen));
+          (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare,(int64_t)ckpt->write_gen));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
 

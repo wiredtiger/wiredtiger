@@ -188,8 +188,6 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
     if (tw != NULL)
         __wt_time_window_init(tw);
     v = __bit_getv_recno(ref, cursor->recno, btree->bitcnt);
-    if (preparep)
-        *preparep = false;
     return (__wt_buf_set(session, buf, &v, 1));
 }
 

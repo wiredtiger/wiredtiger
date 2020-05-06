@@ -618,19 +618,19 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
             /* Unpack the on-page value cell. */
             __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
             if (F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE)) {
-                if (unpack.stop_ts == WT_TS_MAX && unpack.stop_txn == WT_TXN_MAX) {
+                if (unpack.tw.stop_ts == WT_TS_MAX && unpack.tw.stop_txn == WT_TXN_MAX) {
                     /* Take the value from the original page cell. */
                     WT_RET(__wt_page_cell_data_ref(session, page, &unpack, &buf));
 
                     WT_RET(__wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, &upd, &size));
                     upd->durable_ts = WT_TS_NONE;
-                    upd->start_ts = unpack.start_ts;
-                    upd->txnid = unpack.start_txn;
+                    upd->start_ts = unpack.tw.start_ts;
+                    upd->txnid = unpack.tw.start_txn;
                 } else {
                     WT_RET(__wt_upd_alloc_tombstone(session, &upd, &size));
                     upd->durable_ts = WT_TS_NONE;
-                    upd->start_ts = unpack.stop_ts;
-                    upd->txnid = unpack.stop_txn;
+                    upd->start_ts = unpack.tw.stop_ts;
+                    upd->txnid = unpack.tw.stop_txn;
                 }
                 upd->prepare_state = WT_PREPARE_INPROGRESS;
                 upd_array[WT_ROW_SLOT(page, rip)] = upd;

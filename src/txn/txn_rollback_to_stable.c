@@ -407,8 +407,8 @@ __rollback_abort_row_ondisk_kv(
           ", prepared: %s",
           __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
           __wt_timestamp_to_string(upd->durable_ts, ts_string[1]), upd->txnid,
-          __wt_timestamp_to_string(vpack->newest_stop_ts, ts_string[2]),
-          __wt_timestamp_to_string(vpack->durable_stop_ts, ts_string[3]), vpack->newest_stop_txn,
+          __wt_timestamp_to_string(vpack->tw.stop_ts, ts_string[2]),
+          __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[3]), vpack->tw.stop_txn,
           prepared ? "true" : "false");
     } else
         /* Stable version according to the timestamp. */

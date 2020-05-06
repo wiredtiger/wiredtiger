@@ -888,7 +888,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
      * ondisk value.
      */
     if ((!tw.prepare || (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX)) &&
-      (__wt_txn_visible(session, start.txnid, start.timestamp) ||
+      (__wt_txn_visible(session, tw.start_txn, tw.start_ts) ||
           F_ISSET(session, WT_SESSION_RESOLVING_MODIFY))) {
 
         /* If we are resolving a modify then the btree must be the history store. */
