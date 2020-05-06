@@ -9,6 +9,15 @@
 #include "wt_internal.h"
 
 /*
+ * WT_HS_TIME_PAIR --
+ * 	A pair containing a timestamp and transaction id.
+ */
+typedef struct {
+    wt_timestamp_t timestamp;
+    uint64_t txnid;
+} WT_HS_TIME_PAIR;
+
+/*
  * When an operation is accessing the history store table, it should ignore the cache size (since
  * the cache is already full).
  */
@@ -355,7 +364,7 @@ __hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
 static int
 __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_TIME_PAIR stop_ts_pair)
+  WT_HS_TIME_PAIR stop_ts_pair)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -449,7 +458,7 @@ err:
 static int
 __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_TIME_PAIR stop_ts_pair)
+  WT_HS_TIME_PAIR stop_ts_pair)
 {
     WT_DECL_RET;
 
@@ -502,7 +511,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
  */
 static int
 __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, const WT_ITEM *key,
-  const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value, WT_TIME_PAIR stop_ts_pair)
+  const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value, WT_HS_TIME_PAIR stop_ts_pair)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -554,7 +563,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
     WT_UPDATE *prev_upd, *upd;
-    WT_TIME_PAIR stop_ts_pair;
+    WT_HS_TIME_PAIR stop_ts_pair;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size;
     uint32_t i;
@@ -805,9 +814,6 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      * Note that we need to compare the raw key off the cursor to determine where we are in the
      * history store as opposed to comparing the embedded data store key since the ordering is not
      * guaranteed to be the same.
-     *
-     * FIXME: We should be repeatedly moving the cursor backwards within the loop instead of doing a
-     * search near operation each time as it is cheaper.
      */
     cursor->set_key(
       cursor, btree_id, key, timestamp != WT_TS_NONE ? timestamp : WT_TS_MAX, UINT64_MAX);
@@ -1308,11 +1314,13 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         found = cbt->compare == 0;
         WT_ERR(__cursor_reset(cbt));
 
-        if (!found)
+        if (!found) {
+            F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_PANIC(session, WT_PANIC,
               "the associated history store key %s was not found in the data store %s",
               __wt_buf_set_printable(session, hs_key.data, hs_key.size, prev_hs_key),
               session->dhandle->name);
+        }
 
         /*
          * Copy the key memory into our scratch buffer. The key will get invalidated on our next
@@ -1413,11 +1421,13 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
          * first key of a new btree id.
          */
         WT_ERR(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start_ts, &hs_counter));
-        if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0)
+        if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0) {
+            F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_PANIC(session, WT_PANIC,
               "Unable to find btree id %" PRIu32
               " in the metadata file for the associated history store key %s",
               btree_id, __wt_buf_set_printable(session, hs_key.data, hs_key.size, buf));
+        }
         WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &data_cursor));
         F_SET(data_cursor, WT_CURSOR_RAW_OK);
         ret = __verify_history_store_id(session, (WT_CURSOR_BTREE *)data_cursor, btree_id);
