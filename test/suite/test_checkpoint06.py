@@ -25,11 +25,6 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-#
-# test_checkpoint05.py
-# Verify that we don't accumulate a lot of checkpoints while a backup
-# cursor is open. WiredTiger checkpoints created after the backup cursor
-# should get deleted as usual.
 
 import time
 import wiredtiger, wttest
@@ -37,12 +32,14 @@ import wiredtiger, wttest
 def timestamp_str(t):
     return '%x' % t
 
-# Test checkpoint deleted pages after stable timestamp to make sure the deletion is rolled back in rollback to stable
+# test_checkpoint06.py
+# Verify that we rollback the truncation that is committed after stable
+# timestamp in the checkpoint.
 class test_checkpoint06(wttest.WiredTigerTestCase):
     conn_config = 'create,cache_size=50MB'
     session_config = 'isolation=snapshot'
 
-    def test_checkpoints_during_backup(self):
+    def test_rollback_truncation_in_checkpoint(self):
         self.uri = 'table:ckpt06'
         self.uri2 = 'table:other'
         self.session.create(self.uri, 'key_format=i,value_format=S')
@@ -70,9 +67,13 @@ class test_checkpoint06(wttest.WiredTigerTestCase):
         self.session.truncate(None, start, None, None)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
+        # Do a checkpoint
+        self.session.checkpoint()
+
+        # rollback to stable
         self.reopen_conn()
 
-        # We should be able to read all the data as the truncation should be rolled back.
+        # Verify the truncation is rolled back.
         cursor = self.session.open_cursor(self.uri)
         for i in range(1000):
             self.assertEqual(cursor[i], value)
