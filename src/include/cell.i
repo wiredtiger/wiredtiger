@@ -747,8 +747,17 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     copy.len = 0; /* [-Wconditional-uninitialized] */
     copy.v = 0;   /* [-Wconditional-uninitialized] */
 
-    if ((unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr) == NULL)
+    if (unpack_addr == NULL) {
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_value;
+        tw = &unpack_value->tw;
+        __wt_time_window_init(tw);
+        ta = NULL;
+    } else {
+        unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr;
+        ta = &unpack_addr->ta;
+        __wt_time_aggregate_init(ta);
+        tw = NULL;
+    }
 
     /*
      * NB: when unpacking a WT_CELL_VALUE_COPY cell, unpack.cell is returned as the original cell,
@@ -784,10 +793,8 @@ copy_cell_restart:
         unpack->size = cell->__chunk[0] >> WT_CELL_SHORT_SHIFT;
         unpack->__len = 2 + unpack->size;
         goto short_return;
-    case WT_CELL_VALUE_SHORT:
-        __wt_time_window_init(&unpack_value->tw);
-    /* FALLTHROUGH */
     case WT_CELL_KEY_SHORT:
+    case WT_CELL_VALUE_SHORT:
         unpack->prefix = 0;
         unpack->data = cell->__chunk + 1;
         unpack->size = cell->__chunk[0] >> WT_CELL_SHORT_SHIFT;
@@ -827,9 +834,6 @@ short_return:
         WT_ASSERT(session, unpack_value == NULL);
         if (unpack_value != NULL)
             break;
-
-        ta = &unpack_addr->ta;
-        __wt_time_aggregate_init(ta);
 
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
@@ -880,9 +884,6 @@ short_return:
         WT_ASSERT(session, unpack_addr == NULL);
         if (unpack_addr != NULL)
             break;
-
-        tw = &unpack_value->tw;
-        __wt_time_window_init(tw);
 
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
@@ -954,7 +955,7 @@ short_return:
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
         copy.v = unpack->v;
         copy.len = WT_PTRDIFF32(p, cell);
-        __wt_time_window_copy(&copy.tw, &unpack_value->tw);
+        __wt_time_window_copy(&copy.tw, tw);
         cell = (WT_CELL *)((uint8_t *)cell - v);
         goto copy_cell_restart;
 
@@ -1009,7 +1010,7 @@ short_return:
         unpack->v = copy.v;
         unpack->__len = copy.len;
         unpack->raw = WT_CELL_VALUE_COPY;
-        __wt_time_window_copy(&unpack_value->tw, &copy.tw);
+        __wt_time_window_copy(tw, &copy.tw);
     }
 
     /*
