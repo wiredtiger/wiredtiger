@@ -65,7 +65,7 @@ class test_config08(wttest.WiredTigerTestCase):
         c[2] = 'GHI' * 4096
         c.close()
 
-        # API calls that require exclusive file handles should return EBUSY if file_close_sync is 
+        # API calls that require exclusive file handles should return EBUSY if file_close_sync is
         # set to false and logging is disabled.
         if self.logging == 'false' and self.flush == 'false':
             # WT won't allow this operation as exclsuive file handle is not possible
