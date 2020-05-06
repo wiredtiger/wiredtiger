@@ -76,6 +76,13 @@ __rec_append_orig_value(
             return (0);
 
         /*
+         * Prepared updates should already be in the update list, add the original update to the
+         * list only when the prepared update is a tombstone.
+         */
+        if (F_ISSET(unpack, WT_CELL_UNPACK_PREPARE) && upd->type != WT_UPDATE_TOMBSTONE)
+            return (0);
+
+        /*
          * Done if the on page value already appears on the update list. We can't do the same check
          * for stop time pair because we may still need to append the onpage value if only the
          * tombstone is on the update chain.
@@ -135,8 +142,14 @@ __rec_append_orig_value(
             tombstone->next = append;
             append = tombstone;
         } else
-            WT_ASSERT(session, unpack->tw.stop_ts == oldest_upd->start_ts &&
-                unpack->tw.stop_txn == oldest_upd->txnid);
+            /*
+             * Once the prepared update is resolved, the in-memory update and on-disk written copy
+             * doesn't have same timestamp due to replacing of prepare timestamp with commit and
+             * durable timestamps. Don't compare them when the on-disk version is a prepare.
+             */
+            WT_ASSERT(session, F_ISSET(unpack, WT_CELL_UNPACK_PREPARE) ||
+                (unpack->tw.stop_ts == oldest_upd->start_ts &&
+                                 unpack->tw.stop_txn == oldest_upd->txnid));
     }
 
     /* Append the new entry into the update list. */
@@ -161,6 +174,9 @@ static inline bool
 __rec_need_save_upd(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select, bool has_newer_updates)
 {
+    if (upd_select->tw.prepare)
+        return (true);
+
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
         return (true);
 
@@ -261,20 +277,24 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             continue;
         }
 
+        /* Ignore prepared updates if it is not eviction. */
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            WT_ASSERT(session, upd_select->upd == NULL);
-            has_newer_updates = true;
-            if (upd->start_ts > max_ts)
-                max_ts = upd->start_ts;
+            WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid);
+            if (!F_ISSET(r, WT_REC_EVICT)) {
+                has_newer_updates = true;
+                if (upd->start_ts > max_ts)
+                    max_ts = upd->start_ts;
 
-            /*
-             * Track the oldest update not on the page, used to decide whether reads can use the
-             * page image, hence using the start rather than the durable timestamp.
-             */
-            if (upd->start_ts < r->min_skipped_ts)
-                r->min_skipped_ts = upd->start_ts;
-            continue;
+                /*
+                 * Track the oldest update not on the page, used to decide whether reads can use the
+                 * page image, hence using the start rather than the durable timestamp.
+                 */
+                if (upd->start_ts < r->min_skipped_ts)
+                    r->min_skipped_ts = upd->start_ts;
+                continue;
+            } else
+                WT_ASSERT(session, upd->prepare_state == WT_PREPARE_INPROGRESS);
         }
 
         /* Track the first update with non-zero timestamp. */
@@ -337,6 +357,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * stable.
      */
     if (upd != NULL) {
+        /*
+         * Mark the prepare flag if the selected update is an uncommitted prepare. As tombstone
+         * updates are never returned to write, set this flag before we move into the previous
+         * update to write.
+         */
+        if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+            select_tw->prepare = 1;
+
         /*
          * If the newest is a tombstone then select the update before it and set the end of the
          * visibility window to its time pair as appropriate to indicate that we should return "not

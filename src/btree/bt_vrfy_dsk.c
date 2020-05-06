@@ -318,16 +318,19 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
         if (addr == NULL)
             break;
 
-        WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "start durable",
-          unpack->ta.newest_start_durable_ts, "start durable", addr->ta.newest_start_durable_ts,
-          false, tag));
+        if (addr->ta.newest_start_durable_ts != WT_TS_NONE)
+            WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "start durable",
+              unpack->ta.newest_start_durable_ts, "start durable", addr->ta.newest_start_durable_ts,
+              false, tag));
         WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "oldest start",
           unpack->ta.oldest_start_ts, "oldest start", addr->ta.oldest_start_ts, true, tag));
         WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1, "oldest start",
           unpack->ta.oldest_start_txn, "oldest start", addr->ta.oldest_start_txn, true, tag, dsk));
-        WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "stop durable",
-          unpack->ta.newest_stop_durable_ts, "stop durable", addr->ta.newest_stop_durable_ts, false,
-          tag));
+
+        if (addr->ta.newest_stop_durable_ts != WT_TS_NONE)
+            WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "stop durable",
+              unpack->ta.newest_stop_durable_ts, "stop durable", addr->ta.newest_stop_durable_ts,
+              false, tag));
         WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "newest stop",
           unpack->ta.newest_stop_ts, "newest stop", addr->ta.newest_stop_ts, false, tag));
         WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1, "newest stop",
@@ -369,14 +372,15 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
         if (addr == NULL)
             break;
 
-        WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "start durable",
-          unpack->tw.durable_start_ts, "newest start durable", addr->ta.newest_start_durable_ts,
-          false, tag));
+        if (addr->ta.newest_start_durable_ts != WT_TS_NONE)
+            WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "start durable",
+              unpack->tw.durable_start_ts, "newest start durable", addr->ta.newest_start_durable_ts,
+              false, tag));
         WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "start", unpack->tw.start_ts,
           "oldest start", addr->ta.oldest_start_ts, true, tag));
         WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1, "start", unpack->tw.start_txn,
           "oldest start", addr->ta.oldest_start_txn, true, tag, dsk));
-        if (unpack->tw.stop_ts != WT_TS_MAX)
+        if (addr->ta.newest_stop_durable_ts != WT_TS_NONE)
             WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "stop durable",
               unpack->tw.durable_stop_ts, "newest stop durable", addr->ta.newest_stop_durable_ts,
               false, tag));
