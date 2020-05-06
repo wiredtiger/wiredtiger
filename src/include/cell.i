@@ -112,11 +112,6 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
             LF_SET(WT_CELL_TS_DURABLE_STOP);
         }
     }
-    /*
-     * Currently, no uncommitted prepared updates are written to the data store, so this flag must
-     * be false until we allow writing them in WT-5984. In that ticket this assert must be removed.
-     */
-    WT_ASSERT(session, tw->prepare == false);
     if (tw->prepare)
         LF_SET(WT_CELL_PREPARE);
     *flagsp = flags;
@@ -242,12 +237,6 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
         WT_IGNORE_RET(__wt_vpack_uint(pp, 0, ta->newest_stop_durable_ts - ta->newest_stop_ts));
         LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
-
-    /*
-     * Currently, no uncommitted prepared updates are written to the data store, so this flag must
-     * be false until we allow writing them in WT-5984. In that ticket this assert must be removed.
-     */
-    WT_ASSERT(session, !ta->prepare);
     if (ta->prepare)
         LF_SET(WT_CELL_PREPARE);
 
@@ -815,8 +804,10 @@ restart:
             break;
         flags = *p++; /* skip second descriptor byte */
 
-        if (LF_ISSET(WT_CELL_PREPARE))
+        if (LF_ISSET(WT_CELL_PREPARE)) {
             F_SET(unpack, WT_CELL_UNPACK_PREPARE);
+            ta->prepare = 1;
+        }
         if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->oldest_start_ts));
@@ -844,7 +835,6 @@ restart:
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_durable_ts));
             ta->newest_stop_durable_ts += ta->newest_stop_ts;
         }
-
         __wt_check_addr_validity(session, ta);
         break;
     case WT_CELL_DEL:
@@ -856,8 +846,10 @@ restart:
             break;
         flags = *p++; /* skip second descriptor byte */
 
-        if (LF_ISSET(WT_CELL_PREPARE))
+        if (LF_ISSET(WT_CELL_PREPARE)) {
             F_SET(unpack, WT_CELL_UNPACK_PREPARE);
+            tw->prepare = 1;
+        }
         if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &tw->start_ts));
         if (LF_ISSET(WT_CELL_TXN_START))
