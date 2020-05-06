@@ -839,7 +839,7 @@ static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno,
   WT_UPDATE *upd, WT_CELL_UNPACK *vpack)
 {
-    WT_TIME_PAIR start, stop;
+    WT_TIME_WINDOW tw;
 
     WT_RET(__wt_txn_read_upd_list(session, cbt, upd));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
@@ -854,40 +854,42 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     }
 
     /* Check the ondisk value. */
-    if (vpack == NULL)
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &start, &stop));
-    else {
-        start.timestamp = vpack->start_ts;
-        start.txnid = vpack->start_txn;
-        stop.timestamp = vpack->stop_ts;
-        stop.txnid = vpack->start_txn;
+    if (vpack == NULL) {
+        __wt_time_window_init(&tw);
+        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw));
+    } else {
+        __wt_time_window_copy(&tw, &vpack->tw);
         cbt->upd_value->buf.data = vpack->data;
         cbt->upd_value->buf.size = vpack->size;
     }
 
     /*
-     * If the stop pair is set, that means that there is a tombstone at that time. If the stop time
-     * pair is visible to our txn then that means we've just spotted a tombstone and should return
-     * "not found", except when we are doing history store scans during rollback to stable and when
-     * we are told to ignore non-globally visible tombstones.
+     * If the stop pair is set, that means that there is a tombstone at that time. If it is not
+     * prepared and the stop time pair is visible to our txn then that means we've just spotted a
+     * tombstone and should return "not found", except for history store scan during rollback to
+     * stable and when we are told to ignore non-globally visible tombstones.
      */
-    if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
-      __wt_txn_visible(session, stop.txnid, stop.timestamp) &&
+    if (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX && !tw.prepare &&
+      __wt_txn_visible(session, tw.stop_txn, tw.stop_ts) &&
       ((!F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
          (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))) ||
-          __wt_txn_visible_all(session, stop.txnid, stop.timestamp))) {
+          __wt_txn_visible_all(session, tw.stop_txn, tw.stop_ts))) {
         cbt->upd_value->buf.data = NULL;
         cbt->upd_value->buf.size = 0;
-        cbt->upd_value->start_ts = stop.timestamp;
-        cbt->upd_value->txnid = stop.txnid;
+        cbt->upd_value->start_ts = tw.stop_ts;
+        cbt->upd_value->txnid = tw.stop_txn;
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
         cbt->upd_value->prepare_state = WT_PREPARE_INIT;
         return (0);
     }
 
-    /* If the start time pair is visible then we need to return the ondisk value. */
-    if (__wt_txn_visible(session, start.txnid, start.timestamp) ||
-      F_ISSET(session, WT_SESSION_RESOLVING_MODIFY)) {
+    /*
+     * If the start time pair is visible and it is not a prepared value then we need to return the
+     * ondisk value.
+     */
+    if ((!tw.prepare || (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX)) &&
+      (__wt_txn_visible(session, tw.start_txn, tw.start_ts) ||
+          F_ISSET(session, WT_SESSION_RESOLVING_MODIFY))) {
 
         /* If we are resolving a modify then the btree must be the history store. */
         WT_ASSERT(
@@ -898,8 +900,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
             cbt->upd_value->buf.data = NULL;
             cbt->upd_value->buf.size = 0;
         }
-        cbt->upd_value->start_ts = start.timestamp;
-        cbt->upd_value->txnid = start.txnid;
+        cbt->upd_value->start_ts = tw.start_ts;
+        cbt->upd_value->txnid = tw.start_txn;
         cbt->upd_value->type = WT_UPDATE_STANDARD;
         cbt->upd_value->prepare_state = WT_PREPARE_INIT;
         return (0);
@@ -907,8 +909,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
-        WT_RET_NOTFOUND_OK(
-          __wt_find_hs_upd(session, key, recno, cbt->upd_value, false, &cbt->upd_value->buf));
+        WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, key, cbt->iface.value_format, recno,
+          cbt->upd_value, false, &cbt->upd_value->buf));
 
     /* Return invalid not tombstone if nothing is found in history store. */
     WT_ASSERT(session, cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
@@ -1115,7 +1117,7 @@ static inline int
 __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
     WT_DECL_RET;
-    WT_TIME_PAIR start, stop;
+    WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     bool ignore_prepare_set, rollback;
@@ -1152,11 +1154,11 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
      */
     if (!rollback && upd == NULL && cbt != NULL && cbt->btree->type != BTREE_COL_FIX &&
       cbt->ins == NULL) {
-        __wt_read_cell_time_pairs(cbt, cbt->ref, &start, &stop);
-        if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX)
-            rollback = !__wt_txn_visible(session, stop.txnid, stop.timestamp);
+        __wt_read_cell_time_window(cbt, cbt->ref, &tw);
+        if (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX)
+            rollback = !__wt_txn_visible(session, tw.stop_txn, tw.stop_ts);
         else
-            rollback = !__wt_txn_visible(session, start.txnid, start.timestamp);
+            rollback = !__wt_txn_visible(session, tw.start_txn, tw.start_ts);
     }
 
     if (rollback) {

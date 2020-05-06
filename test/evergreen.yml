@@ -198,7 +198,9 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${test_env_vars|} ./test_random_abort ${random_abort_args|} 2>&1
+        #FIXME-WT-6093: reenable all calls to test_random_abort
+        echo "Warning: test_random_abort temporarily disabled"
+        ##${test_env_vars|} ./test_random_abort ${random_abort_args|} 2>&1
   "timestamp abort test":
     command: shell.exec
     params:
@@ -226,19 +228,20 @@ functions:
         for i in $(seq ${times|1}); do
           # Run the various combinations of args.  Let time and threads be random.
           # Run current version with write-no-sync txns.
-          ${test_env_vars|} ./test_random_abort 2>&1
+          echo "Warning: test_random_abort temporarily disabled"
+          ##${test_env_vars|} ./test_random_abort 2>&1
           ${test_env_vars|} ./test_timestamp_abort 2>&1
 
           # Current version with memory-based txns (MongoDB usage).
-          ${test_env_vars|} ./test_random_abort -m 2>&1
+          ##${test_env_vars|} ./test_random_abort -m 2>&1
           ${test_env_vars|} ./test_timestamp_abort -m 2>&1
 
           # V1 log compatibility mode with write-no-sync txns.
-          ${test_env_vars|} ./test_random_abort -C 2>&1
+          ##${test_env_vars|} ./test_random_abort -C 2>&1
           ${test_env_vars|} ./test_timestamp_abort -C 2>&1
 
           # V1 log compatibility mode with memory-based txns.
-          ${test_env_vars|} ./test_random_abort -C -m 2>&1
+          ##${test_env_vars|} ./test_random_abort -C -m 2>&1
           ${test_env_vars|} ./test_timestamp_abort -C -m 2>&1
 
           ${test_env_vars|} ./test_truncated_log ${truncated_log_args|} 2>&1
@@ -1975,7 +1978,7 @@ tasks:
         vars:
           extra_args: file_type=row
 
-      #FIXME: Add wtperf testing from Jenkin "wiredtiger-test-check-long" after fixing WT-5270
+      #FIXME-WT-5270: Add wtperf testing from Jenkin "wiredtiger-test-check-long" after fixing WT-5270
 
   - name: time-shift-sensitivity-test
     depends_on:

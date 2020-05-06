@@ -210,9 +210,18 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
      * Recovery must run before the history store table is created (because recovery will update the
-     * metadata), and before eviction is started for real.
+     * metadata, and set the maximum file id seen), and before eviction is started for real.
      */
-    WT_RET(__wt_txn_recover(session));
+    WT_RET(__wt_txn_recover(session, cfg));
+
+    /* Initialize metadata tracking, required before creating tables. */
+    WT_RET(__wt_meta_track_init(session));
+
+    /*
+     * Create the history store file. This will only actually create it on upgrade or when creating
+     * a new database.
+     */
+    WT_RET(__wt_hs_create(session, cfg));
 
     /*
      * Start the optional logging/archive threads. NOTE: The log manager must be started before
@@ -220,12 +229,6 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * started before any operation that can commit, or the commit can block.
      */
     WT_RET(__wt_logmgr_open(session));
-
-    /* Initialize metadata tracking, required before creating tables. */
-    WT_RET(__wt_meta_track_init(session));
-
-    /* Create the history store table. */
-    WT_RET(__wt_hs_create(session, cfg));
 
     /*
      * Start eviction threads. NOTE: Eviction must be started after the history store table is
