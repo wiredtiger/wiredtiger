@@ -618,7 +618,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.prepare = (uint8_t)a.val;
-    
+
     __wt_check_addr_validity(session, &ckpt->ta);
 
     WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
@@ -723,7 +723,7 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
           (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.oldest_start_txn,
           (int64_t)ckpt->ta.newest_stop_durable_ts, (int64_t)ckpt->ta.newest_stop_ts,
-          (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare,(int64_t)ckpt->write_gen));
+          (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare, (int64_t)ckpt->write_gen));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
 

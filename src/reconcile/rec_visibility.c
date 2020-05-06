@@ -148,7 +148,8 @@ __rec_append_orig_value(
              * durable timestamps. Don't compare them when the on-disk version is a prepare.
              */
             WT_ASSERT(session, F_ISSET(unpack, WT_CELL_UNPACK_PREPARE) ||
-                (unpack->tw.stop_ts == oldest_upd->start_ts && unpack->tw.stop_txn == oldest_upd->txnid));
+                (unpack->tw.stop_ts == oldest_upd->start_ts &&
+                                 unpack->tw.stop_txn == oldest_upd->txnid));
     }
 
     /* Append the new entry into the update list. */

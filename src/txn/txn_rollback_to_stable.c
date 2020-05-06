@@ -551,7 +551,8 @@ __rollback_abort_row_reconciled_page(
         for (multi = mod->mod_multi, multi_entry = 0; multi_entry < mod->mod_multi_entries;
              ++multi, ++multi_entry)
             if (multi->addr.ta.newest_start_durable_ts > rollback_timestamp ||
-              multi->addr.ta.newest_stop_durable_ts > rollback_timestamp || multi->addr.ta.prepare) {
+              multi->addr.ta.newest_stop_durable_ts > rollback_timestamp ||
+              multi->addr.ta.prepare) {
                 __wt_verbose(session, WT_VERB_RTS,
                   "reconciled multi block page history store update removal on-disk with "
                   "start durable timestamp: %s, stop durable timestamp: %s and stable "
@@ -659,8 +660,8 @@ __rollback_page_needs_abort(
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
         tag = "reconciled replace block";
-        durable_ts =
-          WT_MAX(mod->mod_replace.ta.newest_start_durable_ts, mod->mod_replace.ta.newest_stop_durable_ts);
+        durable_ts = WT_MAX(
+          mod->mod_replace.ta.newest_start_durable_ts, mod->mod_replace.ta.newest_stop_durable_ts);
         prepared = mod->mod_replace.ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared;
     } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {

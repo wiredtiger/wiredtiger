@@ -85,8 +85,8 @@ static inline void
 __wt_time_window_set_start(WT_TIME_WINDOW *tw, WT_UPDATE *upd)
 {
     /*
-     * Durable timestamp can be 0 for prepared updates, in those cases use the prepared
-     * timestamp as durable timestamp.
+     * Durable timestamp can be 0 for prepared updates, in those cases use the prepared timestamp as
+     * durable timestamp.
      */
     tw->durable_start_ts = tw->start_ts = upd->start_ts;
     if (upd->durable_ts != WT_TS_NONE)
@@ -102,8 +102,8 @@ static inline void
 __wt_time_window_set_stop(WT_TIME_WINDOW *tw, WT_UPDATE *upd)
 {
     /*
-     * Durable timestamp can be 0 for prepared updates, in those cases use the prepared
-     * timestamp as durable timestamp.
+     * Durable timestamp can be 0 for prepared updates, in those cases use the prepared timestamp as
+     * durable timestamp.
      */
     tw->durable_stop_ts = tw->stop_ts = upd->start_ts;
     if (upd->durable_ts != WT_TS_NONE)

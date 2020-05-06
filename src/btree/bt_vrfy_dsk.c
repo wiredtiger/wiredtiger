@@ -329,8 +329,8 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
 
         if (addr->ta.newest_stop_durable_ts != WT_TS_NONE)
             WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "stop durable",
-              unpack->ta.newest_stop_durable_ts, "stop durable", addr->ta.newest_stop_durable_ts, false,
-              tag));
+              unpack->ta.newest_stop_durable_ts, "stop durable", addr->ta.newest_stop_durable_ts,
+              false, tag));
         WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "newest stop",
           unpack->ta.newest_stop_ts, "newest stop", addr->ta.newest_stop_ts, false, tag));
         WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1, "newest stop",
