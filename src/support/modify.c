@@ -528,7 +528,7 @@ __wt_modify_reconstruct_from_upd_list(
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_MODIFY_VECTOR modifies;
-    WT_TIME_PAIR start, stop;
+    WT_TIME_WINDOW tw;
 
     WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
 
@@ -565,12 +565,12 @@ __wt_modify_reconstruct_from_upd_list(
          */
         WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
-        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &start, &stop, NULL));
+        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw));
         /*
          * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
          * the stop time pair should be unset.
          */
-        WT_ASSERT(session, stop.txnid == WT_TXN_MAX && stop.timestamp == WT_TS_MAX);
+        WT_ASSERT(session, tw.stop_txn == WT_TXN_MAX && tw.stop_ts == WT_TS_MAX);
     } else {
         /* The base update must not be a tombstone. */
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
