@@ -528,6 +528,9 @@ connection_stats = [
     RecStat('rec_page_delete_fast', 'fast-path pages deleted'),
     RecStat('rec_pages', 'page reconciliation calls'),
     RecStat('rec_pages_eviction', 'page reconciliation calls for eviction'),
+    RecStat('rec_pages_with_txn', 'pages written with transaction ids'),
+    RecStat('rec_pages_with_ts', 'pages written with timestamps'),
+    RecStat('rec_pages_with_prepare', 'pages written with prepared transaction metadata'),
     RecStat('rec_split_stashed_bytes', 'split bytes currently awaiting free', 'no_clear,no_scale,size'),
     RecStat('rec_split_stashed_objects', 'split objects currently awaiting free', 'no_clear,no_scale'),
 
