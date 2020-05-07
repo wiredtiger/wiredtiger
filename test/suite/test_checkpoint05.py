@@ -77,7 +77,8 @@ class test_checkpoint05(wttest.WiredTigerTestCase):
         # be about 30x more checkpoints here.
         final_count = self.count_checkpoints()
 
-        # N.B. This test disabled until WT-6118 is fixed.
+        # N.B. This test is temporarily disabled because deleting checkpoints during backup
+        # can corrupt the backup.
         # self.assertTrue (final_count < initial_count * 3)
 
         self.session.close()
