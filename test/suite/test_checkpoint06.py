@@ -75,4 +75,3 @@ class test_checkpoint06(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
         for i in range(1000):
             self.assertEqual(cursor[i], value)
-
