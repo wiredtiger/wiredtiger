@@ -71,6 +71,9 @@ class test_hs11(wttest.WiredTigerTestCase):
             cursor[str(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
+        # Flush dirty dirty to disk and remove the entries in the history store.
+        self.session.checkpoint()
+
         # Ensure that we blew away history store content.
         for ts in range(1, 5):
             self.session.begin_transaction('read_timestamp=' + timestamp_str(ts))
