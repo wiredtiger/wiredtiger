@@ -343,9 +343,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         return (__wt_set_return(session, EBUSY));
     }
 
-    if (upd != NULL && upd->start_ts > r->max_ondisk_ts)
-        r->max_ondisk_ts = upd->start_ts;
-
     /*
      * The start timestamp is determined by the commit timestamp when the key is first inserted (or
      * last updated). The end timestamp is set when a key/value pair becomes invalid, either because
