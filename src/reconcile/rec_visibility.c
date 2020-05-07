@@ -112,7 +112,7 @@ __rec_append_orig_value(
 
     /* Done if the stop time pair of the onpage cell is globally visible. */
     if ((unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX) &&
-      __wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.stop_ts))
+      __wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.durable_stop_ts))
         return (0);
 
     /* We need the original on-page value for some reader: get a copy. */
@@ -192,8 +192,8 @@ __rec_need_save_upd(
     if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
         return (false);
 
-    return (!__wt_txn_visible_all(session, upd_select->tw.stop_txn, upd_select->tw.stop_ts) &&
-      !__wt_txn_visible_all(session, upd_select->tw.start_txn, upd_select->tw.start_ts));
+    return (!__wt_txn_visible_all(session, upd_select->tw.stop_txn, upd_select->tw.durable_stop_ts) &&
+      !__wt_txn_visible_all(session, upd_select->tw.start_txn, upd_select->tw.durable_start_ts));
 }
 
 /*
