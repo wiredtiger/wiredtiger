@@ -670,8 +670,9 @@ __ckpt_add_blkmod_entry(
      * length.
      */
     start_bit = (uint64_t)offset / blk_mod->granularity;
-    end_bit = (uint64_t)(offset + len) / blk_mod->granularity;
+    end_bit = (uint64_t)(offset + len - 1) / blk_mod->granularity;
     WT_ASSERT(session, end_bit < UINT32_MAX);
+    /* We want to grow the bitmap by 64 bits, or 8 bytes at a time. */
     end_rdup_bits = WT_MAX(__wt_rduppo2((uint32_t)end_bit, 64), WT_BLOCK_MODS_LIST_MIN);
     end_rdup_bytes = end_rdup_bits >> 3;
     end_buf_bytes = (uint32_t)blk_mod->nbits >> 3;
