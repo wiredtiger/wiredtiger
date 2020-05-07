@@ -1263,8 +1263,13 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
          * If there is a hot backup, don't delete any WiredTiger checkpoint that could possibly have
          * been created before the backup started. Fail if trying to delete any other named
          * checkpoint.
+         *
+         * N.B. Despite the comment above, this can cause corruption in the backup (WT-6118).
+         * For now we retain all WiredTiger checkpoints during a hot backup.  Once
+         * that is fixed the following condition should change to:
+         *     if (conn->hot_backup_start != 0 && ckpt->sec <= conn->hot_backup_start)
          */
-        if (conn->hot_backup_start != 0 && ckpt->sec <= conn->hot_backup_start) {
+        if (conn->hot_backup_start != 0) {
             if (is_wt_ckpt) {
                 F_CLR(ckpt, WT_CKPT_DELETE);
                 continue;

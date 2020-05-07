@@ -192,12 +192,14 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
         # Confirm that a named checkpoint created after a backup cursor can be dropped.
         # Need to pause a couple seconds; checkpoints that are assigned the same timestamp as
         # the backup will be pinned, even if they occur after the backup starts.
-        time.sleep(2)
-        self.session.checkpoint("name=four")
-        self.session.checkpoint("drop=(four)")
-        self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: self.session.open_cursor(
-            self.objs[0][0], None, "checkpoint=four"))
+        #
+        # N.B. This test disabled until WT-6118 is fixed.
+        #time.sleep(2)
+        #self.session.checkpoint("name=four")
+        #self.session.checkpoint("drop=(four)")
+        #self.assertRaises(wiredtiger.WiredTigerError,
+        #    lambda: self.session.open_cursor(
+        #    self.objs[0][0], None, "checkpoint=four"))
 
         # Confirm that after closing the backup cursor the original named checkpoint can
         # be deleted.
