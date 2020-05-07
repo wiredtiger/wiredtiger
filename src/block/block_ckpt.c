@@ -343,6 +343,105 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
 #endif
 
 /*
+ * __ckpt_add_blkmod_entry --
+ *     Add an offset/length entry to the bitstring based on granularity.
+ */
+static int
+__ckpt_add_blkmod_entry(
+  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len)
+{
+    uint64_t end_bit, start_bit;
+    uint32_t end_buf_bytes, end_rdup_bits, end_rdup_bytes;
+
+    WT_ASSERT(session, blk_mod->granularity != 0);
+    /*
+     * Figure out how the starting and ending bits based on the granularity and our offset and
+     * length.
+     */
+    start_bit = (uint64_t)offset / blk_mod->granularity;
+    end_bit = (uint64_t)(offset + len - 1) / blk_mod->granularity;
+    WT_ASSERT(session, end_bit < UINT32_MAX);
+    /* We want to grow the bitmap by 64 bits, or 8 bytes at a time. */
+    end_rdup_bits = WT_MAX(__wt_rduppo2((uint32_t)end_bit, 64), WT_BLOCK_MODS_LIST_MIN);
+    end_rdup_bytes = end_rdup_bits >> 3;
+    end_buf_bytes = (uint32_t)blk_mod->nbits >> 3;
+    /*
+     * We are doing a lot of shifting. Make sure that the number of bytes we end up with is a
+     * multiple of eight. We guarantee that in the rounding up call, but also make sure that the
+     * constant stays a multiple of eight.
+     */
+    WT_ASSERT(session, end_rdup_bytes % 8 == 0);
+    if (end_rdup_bytes > end_buf_bytes) {
+        /* If we don't have enough, extend the buffer. */
+        if (blk_mod->nbits == 0) {
+            WT_RET(__wt_buf_initsize(session, &blk_mod->bitstring, end_rdup_bytes));
+            memset(blk_mod->bitstring.mem, 0, end_rdup_bytes);
+        } else {
+            WT_RET(
+              __wt_buf_set(session, &blk_mod->bitstring, blk_mod->bitstring.data, end_rdup_bytes));
+            memset(
+              (uint8_t *)blk_mod->bitstring.mem + end_buf_bytes, 0, end_rdup_bytes - end_buf_bytes);
+        }
+        blk_mod->nbits = end_rdup_bits;
+    }
+    /* Set all the bits needed to record this offset/length pair. */
+    __bit_nset(blk_mod->bitstring.mem, start_bit, end_bit);
+    return (0);
+}
+
+/*
+ * __ckpt_add_blk_mods_ext --
+ *     Add the extent blocks to all valid incremental backup source identifiers. This is split apart
+ *     from the other function because it needs to be done before merging of the extent lists
+ *     happens when processing checkpoints.
+ */
+static int
+__ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
+{
+    WT_BLOCK_MODS *blk_mod;
+    WT_EXT *ext;
+    u_int i;
+
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blk_mod = &ckpt->backup_blocks[i];
+        /* If there is no information at this entry, we're done. */
+        if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
+            continue;
+
+        WT_EXT_FOREACH (ext, ci->alloc.off) {
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ext->off, ext->size));
+        }
+    }
+    return (0);
+}
+
+/*
+ * __ckpt_add_blk_mods_alloc --
+ *     Add the allocated blocks to all valid incremental backup source identifiers.
+ */
+static int
+__ckpt_add_blk_mods_alloc(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
+{
+    WT_BLOCK_MODS *blk_mod;
+    u_int i;
+
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blk_mod = &ckpt->backup_blocks[i];
+        /* If there is no information at this entry, we're done. */
+        if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
+            continue;
+
+        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->alloc.offset, ci->alloc.size));
+        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->discard.offset, ci->discard.size));
+        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->avail.offset, ci->avail.size));
+    }
+    return (0);
+}
+
+/*
  * __ckpt_process --
  *     Process the list of checkpoints.
  */
@@ -527,6 +626,13 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         WT_ERR(__ckpt_extlist_fblocks(session, block, &a->discard));
 
         /*
+         * If this is the live system, we need to record the list of blocks written for this
+         * checkpoint (including the blocks we allocated to write the extent lists).
+         */
+        if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
+            WT_ERR(__ckpt_add_blk_mods_ext(session, ckpt, ci));
+
+        /*
          * Roll the "from" alloc and discard extent lists into the "to" checkpoint's lists.
          */
         if (a->alloc.entries != 0)
@@ -654,83 +760,6 @@ err:
 }
 
 /*
- * __ckpt_add_blkmod_entry --
- *     Add an offset/length entry to the bitstring based on granularity.
- */
-static int
-__ckpt_add_blkmod_entry(
-  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len)
-{
-    uint64_t end_bit, start_bit;
-    uint32_t end_buf_bytes, end_rdup_bits, end_rdup_bytes;
-
-    WT_ASSERT(session, blk_mod->granularity != 0);
-    /*
-     * Figure out how the starting and ending bits based on the granularity and our offset and
-     * length.
-     */
-    start_bit = (uint64_t)offset / blk_mod->granularity;
-    end_bit = (uint64_t)(offset + len - 1) / blk_mod->granularity;
-    WT_ASSERT(session, end_bit < UINT32_MAX);
-    /* We want to grow the bitmap by 64 bits, or 8 bytes at a time. */
-    end_rdup_bits = WT_MAX(__wt_rduppo2((uint32_t)end_bit, 64), WT_BLOCK_MODS_LIST_MIN);
-    end_rdup_bytes = end_rdup_bits >> 3;
-    end_buf_bytes = (uint32_t)blk_mod->nbits >> 3;
-    /*
-     * We are doing a lot of shifting. Make sure that the number of bytes we end up with is a
-     * multiple of eight. We guarantee that in the rounding up call, but also make sure that the
-     * constant stays a multiple of eight.
-     */
-    WT_ASSERT(session, end_rdup_bytes % 8 == 0);
-    if (end_rdup_bytes > end_buf_bytes) {
-        /* If we don't have enough, extend the buffer. */
-        if (blk_mod->nbits == 0) {
-            WT_RET(__wt_buf_initsize(session, &blk_mod->bitstring, end_rdup_bytes));
-            memset(blk_mod->bitstring.mem, 0, end_rdup_bytes);
-        } else {
-            WT_RET(
-              __wt_buf_set(session, &blk_mod->bitstring, blk_mod->bitstring.data, end_rdup_bytes));
-            memset(
-              (uint8_t *)blk_mod->bitstring.mem + end_buf_bytes, 0, end_rdup_bytes - end_buf_bytes);
-        }
-        blk_mod->nbits = end_rdup_bits;
-    }
-    /* Set all the bits needed to record this offset/length pair. */
-    __bit_nset(blk_mod->bitstring.mem, start_bit, end_bit);
-    return (0);
-}
-
-/*
- * __ckpt_add_blk_mods --
- *     Add the blocks to all valid incremental backup source identifiers.
- */
-static int
-__ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
-{
-    WT_BLOCK_MODS *blk_mod;
-    WT_EXT *ext;
-    u_int i;
-
-    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-        blk_mod = &ckpt->backup_blocks[i];
-        /* If there is no information at this entry, we're done. */
-        if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
-            continue;
-
-        WT_EXT_FOREACH (ext, ci->alloc.off)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ext->off, ext->size));
-
-        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->alloc.offset, ci->alloc.size));
-        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->discard.offset, ci->discard.size));
-        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->avail.offset, ci->avail.size));
-    }
-    return (0);
-}
-
-/*
  * __ckpt_update --
  *     Update a checkpoint.
  */
@@ -807,7 +836,7 @@ __ckpt_update(
      * (including the blocks we allocated to write the extent lists).
      */
     if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
-        WT_RET(__ckpt_add_blk_mods(session, ckpt, ci));
+        WT_RET(__ckpt_add_blk_mods_alloc(session, ckpt, ci));
 
     /*
      * Set the file size for the live system.
