@@ -226,9 +226,10 @@ struct __wt_reconcile {
      */
     WT_CURSOR_BTREE update_modify_cbt;
 
-    /* Variables to collect information about on-disk pages with time window values */
-    uint64_t pages_with_ts;
-    uint64_t pages_with_txn_id;
+    /* Variables to track pages reconciled with time window values and prepared transcations */
+    bool page_with_ts;
+    bool page_with_txn_id;
+    bool page_with_prepared_txn;
 };
 
 typedef struct {

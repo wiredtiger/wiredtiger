@@ -210,6 +210,14 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_STAT_CONN_INCR(session, cache_write_restore);
         WT_STAT_DATA_INCR(session, cache_write_restore);
     }
+    if (!WT_IS_HS(btree)) {
+        if (r->page_with_txn_id)
+            WT_STAT_CONN_INCR(session, rec_pages_with_txn);
+        if (r->page_with_ts)
+            WT_STAT_CONN_INCR(session, rec_pages_with_ts);
+        if (r->page_with_prepared_txn)
+            WT_STAT_CONN_INCR(session, rec_pages_with_prepare);
+    }
     if (r->multi_next > btree->rec_multiblock_max)
         btree->rec_multiblock_max = r->multi_next;
 
@@ -638,6 +646,11 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     /* Reconciliation is not re-entrant, make sure that doesn't happen. */
     r->ref = NULL;
+
+    /* Clear stats related data. */
+    r->page_with_ts = false;
+    r->page_with_txn_id = false;
+    r->page_with_prepared_txn = false;
 }
 
 /*

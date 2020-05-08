@@ -5602,11 +5602,11 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_PAGES_EVICTION			1317
 /*! reconciliation: pages deleted */
 #define	WT_STAT_CONN_REC_PAGE_DELETE			1318
-/*! reconciliation: pages written with prepared transaction metadata */
+/*! reconciliation: pages reconciled with prepared transaction metadata */
 #define	WT_STAT_CONN_REC_PAGES_WITH_PREPARE		1319
-/*! reconciliation: pages written with timestamps */
+/*! reconciliation: pages reconciled with timestamps */
 #define	WT_STAT_CONN_REC_PAGES_WITH_TS			1320
-/*! reconciliation: pages written with transaction ids */
+/*! reconciliation: pages reconciled with transaction ids */
 #define	WT_STAT_CONN_REC_PAGES_WITH_TXN			1321
 /*! reconciliation: split bytes currently awaiting free */
 #define	WT_STAT_CONN_REC_SPLIT_STASHED_BYTES		1322
