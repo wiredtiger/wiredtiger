@@ -54,7 +54,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
  */
 static int
 __rec_append_orig_value(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK *unpack)
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK_KV *unpack)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -202,7 +202,7 @@ __rec_need_save_upd(
  */
 int
 __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
-  WT_CELL_UNPACK *vpack, WT_UPDATE_SELECT *upd_select)
+  WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;

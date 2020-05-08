@@ -423,6 +423,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     not_salvageable = [
         "removal:WiredTiger.turtle",
         "removal:WiredTiger.wt",
+        "removal:WiredTigerHS.wt",
         "truncate:WiredTiger.wt",
         "truncate:WiredTigerHS.wt",
         "zero:WiredTiger.wt",
@@ -481,7 +482,13 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
             closeconn=False)
 
         if expect_fail:
-            self.check_file_contains_one_of(errfile, ['WT_TRY_SALVAGE: database corruption detected'])
+            errmsg = 'WT_TRY_SALVAGE: database corruption detected'
+            if self.filename == 'WiredTigerHS.wt':
+                if self.kind == 'removal':
+                    errmsg = 'handle-open'
+                elif self.kind == 'truncate':
+                    errmsg = 'file size=0, alloc size=4096'
+            self.check_file_contains_one_of(errfile, [errmsg])
 
     def test_corrupt_meta(self):
         errfile = 'list.err'
@@ -539,10 +546,13 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
                 # an error during the wiredtiger_open.  But the nature of the
                 # messages produced during the error is variable by which case
                 # it is, and even variable from system to system.
-                with self.expectedStdoutPattern('.'):
-                    self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                        lambda: self.reopen_conn(salvagedir, salvage_config),
-                        '/.*/')
+                if self.filename == "WiredTigerHS.wt":
+                    self.run_wt_and_check(salvagedir, salvagedir + '_' + errfile, salvagedir + '_' + outfile, True)
+                else:
+                    with self.expectedStdoutPattern('.'):
+                        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                            lambda: self.reopen_conn(salvagedir, salvage_config),
+                            '/.*/')
 
 if __name__ == '__main__':
     wttest.run()
