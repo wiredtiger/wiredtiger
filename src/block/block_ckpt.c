@@ -390,13 +390,11 @@ __ckpt_add_blkmod_entry(
 }
 
 /*
- * __ckpt_add_blk_mods_ext --
- *     Add the extent blocks to all valid incremental backup source identifiers. This is split apart
- *     from the other function because it needs to be done before merging of the extent lists
- *     happens when processing checkpoints.
+ * __ckpt_add_blk_mods_alloc --
+ *     Add the checkpoint's allocated blocks to all valid incremental backup source identifiers.
  */
 static int
-__ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
+__ckpt_add_blk_mods_alloc(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
 {
     WT_BLOCK_MODS *blk_mod;
     WT_EXT *ext;
@@ -416,11 +414,11 @@ __ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *
 }
 
 /*
- * __ckpt_add_blk_mods_alloc --
- *     Add the allocated blocks to all valid incremental backup source identifiers.
+ * __ckpt_add_blk_mods_ext --
+ *     Add a set of extent blocks to all valid incremental backup source identifiers.
  */
 static int
-__ckpt_add_blk_mods_alloc(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
+__ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
 {
     WT_BLOCK_MODS *blk_mod;
     u_int i;
@@ -625,12 +623,9 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         WT_ERR(__ckpt_extlist_fblocks(session, block, &a->avail));
         WT_ERR(__ckpt_extlist_fblocks(session, block, &a->discard));
 
-        /*
-         * If this is the live system, we need to record the list of blocks written for this
-         * checkpoint (including the blocks we allocated to write the extent lists).
-         */
+        /* If this is the live system, we need to record the checkpoint's allocated blocks. */
         if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
-            WT_ERR(__ckpt_add_blk_mods_ext(session, ckpt, ci));
+            WT_ERR(__ckpt_add_blk_mods_alloc(session, ckpt, ci));
 
         /*
          * Roll the "from" alloc and discard extent lists into the "to" checkpoint's lists.
@@ -781,9 +776,8 @@ __ckpt_update(
     WT_RET(__wt_block_extlist_check(session, &ci->alloc, &ci->discard));
 #endif
     /*
-     * Write the checkpoint's alloc and discard extent lists. After each write, remove any allocated
-     * blocks from the system's allocation list, checkpoint extent blocks don't appear on any extent
-     * lists.
+     * Write the checkpoint's alloc and discard extent lists. Note these blocks never appear on the
+     * system's allocation list, checkpoint extent blocks don't appear on any extent lists.
      */
     WT_RET(__wt_block_extlist_write(session, block, &ci->alloc, NULL));
     WT_RET(__wt_block_extlist_write(session, block, &ci->discard, NULL));
@@ -831,12 +825,9 @@ __ckpt_update(
         WT_RET(ret);
     }
 
-    /*
-     * If this is the live system, we need to record the list of blocks written for this checkpoint
-     * (including the blocks we allocated to write the extent lists).
-     */
+    /* Record the list of blocks we allocated to write the extent lists. */
     if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
-        WT_RET(__ckpt_add_blk_mods_alloc(session, ckpt, ci));
+        WT_RET(__ckpt_add_blk_mods_ext(session, ckpt, ci));
 
     /*
      * Set the file size for the live system.
