@@ -92,8 +92,7 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
         if (dsk->recno == WT_RECNO_OOB)
             break;
         WT_RET_VRFY(session,
-          "%s page at %s has a record number, which is illegal for "
-          "this page type",
+          "%s page at %s has a record number, which is illegal for this page type",
           __wt_page_type_string(dsk->type), tag);
     }
 
@@ -230,8 +229,8 @@ __verify_dsk_ts_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num, const char
         break;
     }
     WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                  " on page at %s failed verification with %s "
-                                  "timestamp of %s, %s the parent's %s timestamp of %s",
+                                  " on page at %s failed verification with %s timestamp of %s, %s "
+                                  "the parent's %s timestamp of %s",
       cell_num, tag, ts1_name, ts1_bp, gt ? "less than" : "greater than", ts2_name, ts2_bp);
 }
 
@@ -255,11 +254,9 @@ __verify_dsk_txn_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num, const cha
     if (dsk->write_gen <= S2C(session)->base_write_gen)
         return (0);
 
-    WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                  " on page at %s failed verification with %s "
-                                  "transaction of %" PRIu64
-                                  ", %s the parent's %s transaction of "
-                                  "%" PRIu64,
+    WT_RET_MSG(session, WT_ERROR,
+      "cell %" PRIu32 " on page at %s failed verification with %s transaction of %" PRIu64
+      ", %s the parent's %s transaction of %" PRIu64,
       cell_num, tag, txn1_name, txn1, gt ? "less than" : "greater than", txn2_name, txn2);
 }
 
@@ -822,8 +819,8 @@ key_compare:
           __wt_page_type_string(dsk->type), tag, key_cnt, dsk->u.entries);
     if (F_ISSET(dsk, WT_PAGE_EMPTY_V_NONE) && key_cnt * 2 != dsk->u.entries)
         WT_ERR_VRFY(session,
-          "%s page at %s with the 'no empty values' flag set has a "
-          "key count of %" PRIu32 " and a physical entry count of %" PRIu32,
+          "%s page at %s with the 'no empty values' flag set has a key count of %" PRIu32
+          " and a physical entry count of %" PRIu32,
           __wt_page_type_string(dsk->type), tag, key_cnt, dsk->u.entries);
 
     if (0) {
@@ -972,8 +969,7 @@ __verify_dsk_col_var(
           memcmp(last.data, unpack->data, last.size) == 0)
 match_err:
         WT_RET_VRFY(session, "data entries %" PRIu32 " and %" PRIu32
-                             " on page at %s are identical and should "
-                             "have been run-length encoded",
+                             " on page at %s are identical and should have been run-length encoded",
           cell_num - 1, cell_num, tag);
 
         __wt_time_window_copy(&last.tw, &unpack->tw);
@@ -1016,9 +1012,8 @@ __verify_dsk_memsize(
     len = WT_PTRDIFF((uint8_t *)dsk + dsk->mem_size, cell);
     if (len == 0)
         return (0);
-    WT_RET_VRFY(session, "%s page at %s has %" WT_SIZET_FMT
-                         " unexpected bytes of data "
-                         "after the last cell",
+    WT_RET_VRFY(session,
+      "%s page at %s has %" WT_SIZET_FMT " unexpected bytes of data after the last cell",
       __wt_page_type_string(dsk->type), tag, len);
 }
 
@@ -1071,9 +1066,8 @@ __err_cell_corrupt(WT_SESSION_IMPL *session, int retval, uint32_t entry_num, con
 static int
 __err_cell_corrupt_or_eof(WT_SESSION_IMPL *session, int retval, uint32_t entry_num, const char *tag)
 {
-    WT_RET_VRFY_RETVAL(session, retval, "item %" PRIu32
-                                        " on page at %s is a corrupted cell or references "
-                                        "non-existent file pages",
+    WT_RET_VRFY_RETVAL(session, retval,
+      "item %" PRIu32 " on page at %s is a corrupted cell or references non-existent file pages",
       entry_num, tag);
 }
 
