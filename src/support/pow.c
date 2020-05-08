@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -101,11 +101,10 @@ bool
 __wt_ispo2(uint32_t v)
 {
     /*
-     * Only numbers that are powers of two will satisfy the relationship
-     * (v & (v - 1) == 0).
+     * Only numbers that are powers of two will satisfy the relationship (v & (v - 1) == 0).
      *
-     * However n must be positive, this returns 0 as a power of 2; to fix
-     * that, use: (! (v & (v - 1)) && v)
+     * However n must be positive, this returns 0 as a power of 2; to fix that, use: (! (v & (v -
+     * 1)) && v)
      */
     return ((v & (v - 1)) == 0);
 }

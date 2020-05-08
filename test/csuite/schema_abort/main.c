@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -486,7 +486,7 @@ thread_ts_run(void *arg)
                 printf("SET STABLE: %" PRIx64 " %" PRIu64 "\n", oldest_ts, oldest_ts);
             }
         } else
-        ts_wait:
+ts_wait:
         __wt_sleep(0, 1000);
     }
     /* NOTREACHED */

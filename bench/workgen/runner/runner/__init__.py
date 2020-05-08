@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,10 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # runner/__init__.py
-#	Used as a first import by runners, does any common initialization.
+#   Used as a first import by runners, does any common initialization.
 from __future__ import print_function
 
-import os, shutil, sys
+import os, sys
 thisdir = os.path.dirname(os.path.abspath(__file__))
 workgen_src = os.path.dirname(os.path.dirname(thisdir))
 wt_dir = os.path.dirname(os.path.dirname(workgen_src))
@@ -83,10 +83,6 @@ except:
     sys.path.insert(0, os.path.join(workgen_src, 'workgen'))
     sys.path.insert(0, os.path.join(wt_builddir, 'bench', 'workgen'))
     import workgen
-
-# Clear out the WT_TEST directory.
-shutil.rmtree('WT_TEST', True)
-os.mkdir('WT_TEST')
 
 from .core import txn, extensions_config, op_append, op_group_transaction, op_log_like, op_multi_table, op_populate_with_range, sleep, timed
 from .latency import workload_latency

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -43,7 +43,8 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
     keyfmt = [
         ('row-string', dict(keyfmt='S')),
         ('row-int', dict(keyfmt='i')),
-        ('column-store', dict(keyfmt='r')),
+    # The commented columnar tests needs to be enabled once rollback to stable for columnar is fixed in (WT-5548).
+    #    ('column-store', dict(keyfmt='r')),
     ]
     types = [
         ('file', dict(uri='file', ds=SimpleDataSet)),

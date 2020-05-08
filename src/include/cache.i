@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -183,25 +183,24 @@ __wt_cache_bytes_other(WT_CACHE *cache)
 }
 
 /*
- * __wt_cache_lookaside_score --
- *     Get the current lookaside score (between 0 and 100).
+ * __wt_cache_hs_score --
+ *     Get the current history store score (between 0 and 100).
  */
 static inline uint32_t
-__wt_cache_lookaside_score(WT_CACHE *cache)
+__wt_cache_hs_score(WT_CACHE *cache)
 {
     int32_t global_score;
 
-    global_score = cache->evict_lookaside_score;
+    global_score = cache->evict_hs_score;
     return ((uint32_t)WT_MIN(WT_MAX(global_score, 0), 100));
 }
 
 /*
- * __wt_cache_update_lookaside_score --
- *     Update the lookaside score based how many unstable updates are seen.
+ * __wt_cache_update_hs_score --
+ *     Update the history store score based how many unstable updates are seen.
  */
 static inline void
-__wt_cache_update_lookaside_score(
-  WT_SESSION_IMPL *session, u_int updates_seen, u_int updates_unstable)
+__wt_cache_update_hs_score(WT_SESSION_IMPL *session, u_int updates_seen, u_int updates_unstable)
 {
     WT_CACHE *cache;
     int32_t global_score, score;
@@ -211,12 +210,12 @@ __wt_cache_update_lookaside_score(
 
     cache = S2C(session)->cache;
     score = (int32_t)((100 * updates_unstable) / updates_seen);
-    global_score = cache->evict_lookaside_score;
+    global_score = cache->evict_hs_score;
 
     if (score > global_score && global_score < 100)
-        (void)__wt_atomic_addi32(&cache->evict_lookaside_score, 1);
+        (void)__wt_atomic_addi32(&cache->evict_hs_score, 1);
     else if (score < global_score && global_score > 0)
-        (void)__wt_atomic_subi32(&cache->evict_lookaside_score, 1);
+        (void)__wt_atomic_subi32(&cache->evict_hs_score, 1);
 }
 
 /*
@@ -375,7 +374,7 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
 {
     WT_BTREE *btree;
     WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *txn_state;
+    WT_TXN_SHARED *txn_shared;
     double pct_full;
 
     if (didworkp != NULL)
@@ -388,9 +387,9 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
      * sure there is free space in the cache.
      */
     txn_global = &S2C(session)->txn_global;
-    txn_state = WT_SESSION_TXN_STATE(session);
-    busy = busy || txn_state->id != WT_TXN_NONE || session->nhazard > 0 ||
-      (txn_state->pinned_id != WT_TXN_NONE && txn_global->current != txn_global->oldest_id);
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+    busy = busy || txn_shared->id != WT_TXN_NONE || session->nhazard > 0 ||
+      (txn_shared->pinned_id != WT_TXN_NONE && txn_global->current != txn_global->oldest_id);
 
     /*
      * LSM sets the "ignore cache size" flag when holding the LSM tree lock, in that case, or when

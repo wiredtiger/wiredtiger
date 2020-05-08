@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -244,14 +244,16 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
     }
 
     /*
-     * Close the handle if we are finishing a bulk load or if the handle is set to discard on
-     * release.
+     * Close the handle if we are finishing a bulk load or rebalance or if the handle is set to
+     * discard on release. Bulk loads and rebalanced trees are special because they may have huge
+     * root pages in memory, and we need to push those pages out of the cache. The only way to do
+     * that is to close the handle.
      */
-    if (btree != NULL && F_ISSET(btree, WT_BTREE_BULK)) {
+    if (btree != NULL && F_ISSET(btree, WT_BTREE_BULK | WT_BTREE_REBALANCE)) {
         WT_ASSERT(
           session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !F_ISSET(dhandle, WT_DHANDLE_DISCARD));
         /*
-         * Acquire the schema lock while completing a bulk load. This avoids racing with a
+         * Acquire the schema lock while closing out the handles. This avoids racing with a
          * checkpoint while it gathers a set of handles.
          */
         WT_WITH_SCHEMA_LOCK(session, ret = __wt_conn_dhandle_close(session, false, false));
@@ -361,6 +363,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
     WT_DATA_HANDLE *dhandle;
     WT_DATA_HANDLE_CACHE *dhandle_cache, *dhandle_cache_tmp;
     uint64_t now;
+    bool empty_btree;
 
     conn = S2C(session);
 
@@ -377,9 +380,15 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
     TAILQ_FOREACH_SAFE(dhandle_cache, &session->dhandles, q, dhandle_cache_tmp)
     {
         dhandle = dhandle_cache->dhandle;
+        empty_btree = false;
+        if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
+            WT_WITH_DHANDLE(
+              session, dhandle, empty_btree = (__wt_btree_bytes_evictable(session) == 0));
+
         if (dhandle != session->dhandle && dhandle->session_inuse == 0 &&
           (WT_DHANDLE_INACTIVE(dhandle) ||
-              (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time))) {
+              (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time) ||
+              empty_btree)) {
             WT_STAT_CONN_INCR(session, dh_session_handles);
             WT_ASSERT(session, !WT_IS_METADATA(dhandle));
             __session_discard_dhandle(session, dhandle_cache);

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -112,7 +112,7 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
     WT_DECL_RET;
     WT_ITEM key, start_key, stop_key, value;
     WT_SESSION_IMPL *session;
-    wt_timestamp_t commit, durable, first, prepare, read;
+    wt_timestamp_t commit, durable, first_commit, pinned_read, prepare, read;
     uint64_t recno, start_recno, stop_recno, t_nsec, t_sec;
     uint32_t fileid, mode, optype, opsize;
 
@@ -138,14 +138,14 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
         cursor->set_key(cursor, recno);
         if ((ret = cursor->search(cursor)) != 0)
-            WT_ERR_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, false);
         else {
             /*
-             * Build/insert a complete value during recovery rather
-             * than using cursor modify to create a partial update
-             * (for no particular reason than simplicity).
+             * Build/insert a complete value during recovery rather than using cursor modify to
+             * create a partial update (for no particular reason than simplicity).
              */
-            WT_ERR(__wt_modify_apply(cursor, value.data));
+            WT_ERR(__wt_modify_apply_item(
+              CUR2S(cursor), cursor->value_format, &cursor->value, value.data));
             WT_ERR(cursor->insert(cursor));
         }
         break;
@@ -200,14 +200,14 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
         GET_RECOVERY_CURSOR(session, r, lsnp, fileid, &cursor);
         __wt_cursor_set_raw_key(cursor, &key);
         if ((ret = cursor->search(cursor)) != 0)
-            WT_ERR_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, false);
         else {
             /*
-             * Build/insert a complete value during recovery rather
-             * than using cursor modify to create a partial update
-             * (for no particular reason than simplicity).
+             * Build/insert a complete value during recovery rather than using cursor modify to
+             * create a partial update (for no particular reason than simplicity).
              */
-            WT_ERR(__wt_modify_apply(cursor, value.data));
+            WT_ERR(__wt_modify_apply_item(
+              CUR2S(cursor), cursor->value_format, &cursor->value, value.data));
             WT_ERR(cursor->insert(cursor));
         }
         break;
@@ -268,8 +268,8 @@ __txn_op_apply(WT_RECOVERY *r, WT_LSN *lsnp, const uint8_t **pp, const uint8_t *
          * Timestamp records are informational only. We have to unpack it to properly move forward
          * in the log record to the next operation, but otherwise ignore.
          */
-        WT_ERR(__wt_logop_txn_timestamp_unpack(
-          session, pp, end, &t_sec, &t_nsec, &commit, &durable, &first, &prepare, &read));
+        WT_ERR(__wt_logop_txn_timestamp_unpack(session, pp, end, &t_sec, &t_nsec, &commit, &durable,
+          &first_commit, &prepare, &read, &pinned_read));
         break;
     default:
         WT_ERR(__wt_illegal_value(session, optype));
@@ -374,10 +374,11 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
     ckpt_timestamp = 0;
 
     /* Search in the metadata for the system information. */
-    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, WT_SYSTEM_CKPT_URI, &sys_config));
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, WT_SYSTEM_CKPT_URI, &sys_config), false);
     if (sys_config != NULL) {
         WT_CLEAR(cval);
-        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, sys_config, "checkpoint_timestamp", &cval));
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_getones(session, sys_config, "checkpoint_timestamp", &cval), false);
         if (cval.len != 0) {
             __wt_verbose(
               session, WT_VERB_RECOVERY, "Recovery timestamp %.*s", (int)cval.len, cval.str);
@@ -402,7 +403,8 @@ err:
 
 /*
  * __recovery_setup_file --
- *     Set up the recovery slot for a file.
+ *     Set up the recovery slot for a file, track the largest file ID, and update the base write gen
+ *     based on the file's configuration.
  */
 static int
 __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
@@ -424,13 +426,13 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     }
 
     if (r->files[fileid].uri != NULL)
-        WT_PANIC_RET(r->session, WT_PANIC,
+        WT_RET_PANIC(r->session, WT_PANIC,
           "metadata corruption: files %s and %s have the same "
           "file ID %u",
           uri, r->files[fileid].uri, fileid);
     WT_RET(__wt_strdup(r->session, uri, &r->files[fileid].uri));
     WT_RET(__wt_config_getones(r->session, config, "checkpoint_lsn", &cval));
-    /* If there is checkpoint logged for the file, apply everything. */
+    /* If there is no checkpoint logged for the file, apply everything. */
     if (cval.type != WT_CONFIG_ITEM_STRUCT)
         WT_INIT_LSN(&lsn);
     /* NOLINTNEXTLINE(cert-err34-c) */
@@ -449,7 +451,8 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
         r->max_ckpt_lsn = lsn;
 
-    return (0);
+    /* Update the base write gen based on this file's configuration. */
+    return (__wt_metadata_update_base_write_gen(r->session, config));
 }
 
 /*
@@ -513,21 +516,23 @@ __recovery_file_scan(WT_RECOVERY *r)
  *     Run recovery.
  */
 int
-__wt_txn_recover(WT_SESSION_IMPL *session)
+__wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metac;
     WT_DECL_RET;
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
+    WT_SESSION *wt_session;
     char *config;
-    bool do_checkpoint, eviction_started, needs_rec, was_backup;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
 
     conn = S2C(session);
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
-    do_checkpoint = true;
+    do_checkpoint = hs_exists = true;
     eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
@@ -619,6 +624,53 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
         WT_ERR(ret);
     }
 
+    /*
+     * We should check whether the history store file exists in the metadata or not. If it does not,
+     * then we should skip rollback to stable for each table. This might happen if we're upgrading
+     * from an older version. If it does exist in the metadata we should check that it exists on
+     * disk to confirm that it wasn't deleted between runs.
+     *
+     * This needs to happen after we apply the logs as they may contain the metadata changes which
+     * include the history store creation. As such the on disk metadata file won't contain the
+     * history store but will after log application.
+     */
+    metac->set_key(metac, WT_HS_URI);
+    WT_ERR_NOTFOUND_OK(metac->search(metac), true);
+    if (ret == WT_NOTFOUND) {
+        hs_exists = false;
+    } else {
+        /* Given the history store exists in the metadata validate whether it exists on disk. */
+        WT_ERR(__wt_fs_exist(session, WT_HS_FILE, &hs_exists));
+        if (hs_exists) {
+            /*
+             * Attempt to configure the history store, this will detect corruption if it fails.
+             */
+            ret = __wt_hs_config(session, cfg);
+            if (ret != 0) {
+                if (F_ISSET(conn, WT_CONN_SALVAGE)) {
+                    wt_session = &session->iface;
+                    WT_ERR(wt_session->salvage(wt_session, WT_HS_URI, NULL));
+                } else
+                    WT_ERR(ret);
+            }
+        } else {
+            /*
+             * We're attempting to salvage the database with a missing history store, remove it from
+             * the metadata and pretend it never existed. As such we won't run rollback to stable
+             * later.
+             */
+            if (F_ISSET(conn, WT_CONN_SALVAGE)) {
+                hs_exists = false;
+                metac->remove(metac);
+            } else
+                /* The history store file has likely been deleted, we cannot recover from this. */
+                WT_ERR_MSG(session, WT_TRY_SALVAGE, "%s file is corrupted or missing", WT_HS_FILE);
+        }
+    }
+
+    /* Unpin the page from cache. */
+    WT_ERR(metac->reset(metac));
+
     /* Scan the metadata to find the live files and their IDs. */
     WT_ERR(__recovery_file_scan(&r));
     /*
@@ -661,7 +713,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
     /*
      * Recovery can touch more data than fits in cache, so it relies on regular eviction to manage
-     * paging. Start eviction threads for recovery without LAS cursors.
+     * paging. Start eviction threads for recovery without history store cursors.
      */
     WT_ERR(__wt_evict_create(session));
     eviction_started = true;
@@ -685,7 +737,66 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
 done:
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
-    if (do_checkpoint)
+
+    /*
+     * Perform rollback to stable only when the following conditions met.
+     * 1. The connection is not read-only. A read-only connection expects that there shouldn't be
+     *    any changes that need to be done on the database other than reading.
+     * 2. A valid recovery timestamp. The recovery timestamp is the stable timestamp retrieved
+     *    from the metadata checkpoint information to indicate the stable timestamp when the
+     *    checkpoint happened. Anything updates newer than this timestamp must rollback.
+     * 3. The history store file was found in the metadata.
+     */
+    if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY) &&
+      conn->txn_global.recovery_timestamp != WT_TS_NONE) {
+        /* Start the eviction threads for rollback to stable if not already started. */
+        if (!eviction_started) {
+            WT_ERR(__wt_evict_create(session));
+            eviction_started = true;
+        }
+
+        /*
+         * Currently, rollback to stable only needs to make changes to tables that use timestamps.
+         * That is because eviction does not run in parallel with a checkpoint, so content that is
+         * written never uses transaction IDs newer than the checkpoint's transaction ID and thus
+         * never needs to be rolled back. Once eviction is allowed while a checkpoint is active, it
+         * will be necessary to take the page write generation number into account during rollback
+         * to stable. For example, a page with write generation 10 and txnid 20 is written in one
+         * checkpoint, and in the next restart a new page with write generation 30 and txnid 20 is
+         * written. The rollback to stable operation should only rollback the latest page changes
+         * solely based on the write generation numbers.
+         */
+
+        WT_ASSERT(session, conn->txn_global.has_stable_timestamp == false &&
+            conn->txn_global.stable_timestamp == WT_TS_NONE);
+        WT_ASSERT(session, conn->txn_global.has_oldest_timestamp == false &&
+            conn->txn_global.oldest_timestamp == WT_TS_NONE);
+
+        /*
+         * Set the stable timestamp from recovery timestamp and process the trees for rollback to
+         * stable.
+         */
+        conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
+        conn->txn_global.has_stable_timestamp = true;
+
+        /*
+         * Set the oldest timestamp to WT_TS_NONE to make sure that we didn't remove any history
+         * window as part of rollback to stable operation.
+         */
+        conn->txn_global.oldest_timestamp = WT_TS_NONE;
+        conn->txn_global.has_oldest_timestamp = true;
+        __wt_verbose(session, WT_VERB_RTS,
+          "Performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
+          "%s",
+          __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
+
+        WT_ERR(__wt_rollback_to_stable(session, NULL, false));
+
+        /* Reset the oldest timestamp. */
+        conn->txn_global.oldest_timestamp = WT_TS_NONE;
+        conn->txn_global.has_oldest_timestamp = false;
+    } else if (do_checkpoint)
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
          * the checkpoint LSN and archiving.
@@ -712,7 +823,7 @@ err:
 
     /*
      * Destroy the eviction threads that were started in support of recovery. They will be restarted
-     * once the lookaside table is created.
+     * once the history store table is created.
      */
     if (eviction_started)
         WT_TRET(__wt_evict_destroy(session));

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -116,7 +116,7 @@ __ckpt_server(void *arg)
 
     if (0) {
 err:
-        WT_PANIC_MSG(session, ret, "checkpoint server error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "checkpoint server error"));
     }
     return (WT_THREAD_RET_VALUE);
 }

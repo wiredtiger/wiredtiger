@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -289,5 +289,5 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
     if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
         return (WT_ERROR);
-    WT_PANIC_RET(session, WT_ERROR, "%s: fatal read error", block->name);
+    WT_RET_PANIC(session, WT_ERROR, "%s: fatal read error", block->name);
 }

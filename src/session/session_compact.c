@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -273,7 +273,7 @@ __compact_worker(WT_SESSION_IMPL *session)
 
             session->compact_state = WT_COMPACT_RUNNING;
             WT_WITH_DHANDLE(session, session->op_handle[i], ret = __wt_compact(session));
-
+            WT_ERR_ERROR_OK(ret, EBUSY, true);
             /*
              * If successful and we did work, schedule another pass. If successful and we did no
              * work, skip this file in the future.
@@ -302,7 +302,6 @@ __compact_worker(WT_SESSION_IMPL *session)
                 ret = 0;
                 another_pass = true;
             }
-            WT_ERR(ret);
         }
         if (!another_pass)
             break;

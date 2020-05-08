@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -70,25 +70,6 @@ found:
     WT_ASSERT(session, pindex->index[slot] == ref);
     *pindexp = pindex;
     *slotp = slot;
-}
-
-/*
- * __ref_is_leaf --
- *     Check if a reference is for a leaf page.
- */
-static inline bool
-__ref_is_leaf(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    size_t addr_size;
-    const uint8_t *addr;
-    u_int type;
-
-    /*
-     * If the page has a disk address, we can crack it to figure out if this page is a leaf page or
-     * not. If there's no address, the page isn't on disk and we don't know the page type.
-     */
-    __wt_ref_info(session, ref, &addr, &addr_size, &type);
-    return (addr == NULL ? false : type == WT_CELL_ADDR_LEAF || type == WT_CELL_ADDR_LEAF_NO);
 }
 
 /*
@@ -263,13 +244,14 @@ __tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp
     WT_DECL_RET;
     WT_PAGE_INDEX *pindex;
     WT_REF *couple, *ref, *ref_orig;
-    uint64_t restart_sleep, restart_yield, swap_sleep, swap_yield;
-    uint32_t current_state, slot;
+    uint64_t restart_sleep, restart_yield;
+    uint32_t slot;
+    uint8_t current_state;
     bool empty_internal, prev, skip;
 
     btree = S2BT(session);
     pindex = NULL;
-    restart_sleep = restart_yield = swap_sleep = swap_yield = 0;
+    restart_sleep = restart_yield = 0;
     empty_internal = false;
 
     /*
@@ -398,34 +380,22 @@ restart:
             if (LF_ISSET(WT_READ_SKIP_INTL))
                 continue;
 
-            for (;;) {
-                /*
-                 * Swap our previous hazard pointer for the page we'll return.
-                 *
-                 * Not-found is an expected return, as eviction might have been attempted. The page
-                 * can't be evicted, we're holding a hazard pointer on a child, spin until we're
-                 * successful.
-                 *
-                 * Restart is not expected, our parent WT_REF should not have split.
-                 */
-                ret = __wt_page_swap(session, couple, ref, WT_READ_NOTFOUND_OK | flags);
-                if (ret == 0) {
-                    /* Success, "couple" released. */
-                    couple = NULL;
-                    *refp = ref;
-                    goto done;
-                }
-
-                WT_ASSERT(session, ret == WT_NOTFOUND);
-                WT_ERR_NOTFOUND_OK(ret);
-
-                __wt_spin_backoff(&swap_yield, &swap_sleep);
-                if (swap_yield < 1000)
-                    WT_STAT_CONN_INCR(session, cache_eviction_walk_internal_yield);
-                if (swap_sleep != 0)
-                    WT_STAT_CONN_INCRV(session, cache_eviction_walk_internal_wait, swap_sleep);
+            /*
+             * Swap our previous hazard pointer for the page we'll return.
+             *
+             * Not-found is an expected return, as eviction might have been attempted. Restart is
+             * not expected, our parent WT_REF should not have split.
+             */
+            WT_ERR_NOTFOUND_OK(
+              __wt_page_swap(session, couple, ref, WT_READ_NOTFOUND_OK | flags), true);
+            if (ret == 0) {
+                /* Success, "couple" released. */
+                couple = NULL;
+                *refp = ref;
+                goto done;
             }
-            /* NOTREACHED */
+
+            /* ret == WT_NOTFOUND, an expected error.  Continue with "couple" unchanged. */
         }
 
         if (prev)
@@ -458,12 +428,7 @@ descend:
                 /*
                  * Only look at unlocked pages in memory: fast-path some common cases.
                  */
-                if (LF_ISSET(WT_READ_NO_WAIT) && current_state != WT_REF_MEM &&
-                  current_state != WT_REF_LIMBO)
-                    break;
-
-                /* Skip lookaside pages if not requested. */
-                if (current_state == WT_REF_LOOKASIDE && !LF_ISSET(WT_READ_LOOKASIDE))
+                if (LF_ISSET(WT_READ_NO_WAIT) && current_state != WT_REF_MEM)
                     break;
             } else if (LF_ISSET(WT_READ_TRUNCATE)) {
                 /*
@@ -497,7 +462,7 @@ descend:
                 couple = NULL;
 
                 /* Return leaf pages to our caller. */
-                if (!WT_PAGE_IS_INTERNAL(ref->page)) {
+                if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
                     *refp = ref;
                     goto done;
                 }
@@ -604,7 +569,7 @@ __tree_walk_skip_count_callback(WT_SESSION_IMPL *session, WT_REF *ref, void *con
      */
     if (ref->state == WT_REF_DELETED && __wt_delete_page_skip(session, ref, false))
         *skipp = true;
-    else if (*skipleafcntp > 0 && __ref_is_leaf(session, ref)) {
+    else if (*skipleafcntp > 0 && F_ISSET(ref, WT_REF_FLAG_LEAF)) {
         --*skipleafcntp;
         *skipp = true;
     } else

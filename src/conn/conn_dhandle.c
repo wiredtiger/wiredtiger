@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -25,6 +25,7 @@ __conn_dhandle_config_clear(WT_SESSION_IMPL *session)
     for (a = dhandle->cfg; *a != NULL; ++a)
         __wt_free(session, *a);
     __wt_free(session, dhandle->cfg);
+    __wt_free(session, dhandle->meta_base);
 }
 
 /*
@@ -36,9 +37,12 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
 {
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    char *metaconf;
+    char *metaconf, *tmp;
+    const char *base, *cfg[4];
 
     dhandle = session->dhandle;
+    base = NULL;
+    tmp = NULL;
 
     /*
      * Read the object's entry from the metadata file, we're done if we don't find one.
@@ -63,17 +67,47 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     WT_ERR(__wt_calloc_def(session, 3, &dhandle->cfg));
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
+        /*
+         * We are stripping out all checkpoint related information from the config string. We save
+         * the rest of the metadata string, that is essentially static and unchanging and then
+         * concatenate the new checkpoint related information on each checkpoint. The reason is
+         * performance and avoiding a lot of calls to the config parsing functions during a
+         * checkpoint for information that changes in a very well known way.
+         *
+         * First collapse and overwrite checkpoint information because we do not know the name of or
+         * how many checkpoints may be in this metadata. Similarly, for backup information, we want
+         * an empty category to strip out since we don't know any backup ids. Set them empty and
+         * call collapse to overwrite anything existing.
+         */
+        cfg[0] = metaconf;
+        cfg[1] = "checkpoint=()";
+        cfg[2] = "checkpoint_backup_info=()";
+        cfg[3] = NULL;
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, file_meta), &dhandle->cfg[0]));
+        WT_ASSERT(session, dhandle->meta_base == NULL);
+        WT_ERR(__wt_config_collapse(session, cfg, &tmp));
+        /*
+         * Now strip out the checkpoint related items from the configuration string and that is now
+         * our base metadata string.
+         */
+        cfg[0] = tmp;
+        cfg[1] = NULL;
+        WT_ERR(__wt_config_merge(
+          session, cfg, "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=", &base));
+        __wt_free(session, tmp);
         break;
     case WT_DHANDLE_TYPE_TABLE:
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, table_meta), &dhandle->cfg[0]));
         break;
     }
     dhandle->cfg[1] = metaconf;
+    dhandle->meta_base = base;
     return (0);
 
 err:
+    __wt_free(session, base);
     __wt_free(session, metaconf);
+    __wt_free(session, tmp);
     return (ret);
 }
 
@@ -132,7 +166,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
         dhandle = (WT_DATA_HANDLE *)table;
         dhandle->type = WT_DHANDLE_TYPE_TABLE;
     } else
-        WT_PANIC_RET(session, EINVAL, "illegal handle allocation URI %s", uri);
+        WT_RET_PANIC(session, EINVAL, "illegal handle allocation URI %s", uri);
 
     /* Btree handles keep their data separate from the interface. */
     if (dhandle->type == WT_DHANDLE_TYPE_BTREE) {
@@ -333,13 +367,12 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
     }
 
     /*
-     * If marking the handle dead, do so after closing the underlying btree.
-     * (Don't do it before that, the block manager asserts there are never
-     * two references to a block manager object, and re-opening the handle
-     * can succeed once we mark this handle dead.)
+     * If marking the handle dead, do so after closing the underlying btree. (Don't do it before
+     * that, the block manager asserts there are never two references to a block manager object, and
+     * re-opening the handle can succeed once we mark this handle dead.)
      *
-     * Check discard too, code we call to clear the cache expects the data
-     * handle dead flag to be set when discarding modified pages.
+     * Check discard too, code we call to clear the cache expects the data handle dead flag to be
+     * set when discarding modified pages.
      */
     if (marked_dead || discard)
         F_SET(dhandle, WT_DHANDLE_DEAD);
@@ -462,6 +495,11 @@ err:
     if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
         __wt_evict_file_exclusive_off(session);
 
+    if (ret == ENOENT && F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
+        F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
+        return (WT_ERROR);
+    }
+
     return (ret);
 }
 
@@ -487,9 +525,8 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
         return (0);
 
     /*
-     * We need to pull the handle into the session handle cache and make
-     * sure it's referenced to stop other internal code dropping the handle
-     * (e.g in LSM when cleaning up obsolete chunks).
+     * We need to pull the handle into the session handle cache and make sure it's referenced to
+     * stop other internal code dropping the handle (e.g in LSM when cleaning up obsolete chunks).
      */
     if ((ret = __wt_session_get_dhandle(session, dhandle->name, dhandle->checkpoint, NULL, 0)) != 0)
         return (ret == EBUSY ? 0 : ret);
@@ -729,12 +766,13 @@ __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
     __wt_session_close_cache(session);
 
 /*
- * Close open data handles: first, everything apart from metadata and lookaside (as closing a normal
- * file may write metadata and read lookaside entries). Then close whatever is left open.
+ * Close open data handles: first, everything apart from metadata and the history store (as closing
+ * a normal file may write metadata and read history store entries). Then close whatever is left
+ * open.
  */
 restart:
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        if (WT_IS_METADATA(dhandle) || strcmp(dhandle->name, WT_LAS_URI) == 0 ||
+        if (WT_IS_METADATA(dhandle) || strcmp(dhandle->name, WT_HS_URI) == 0 ||
           WT_PREFIX_MATCH(dhandle->name, WT_SYSTEM_PREFIX))
             continue;
 
@@ -743,8 +781,8 @@ restart:
         goto restart;
     }
 
-    /* Shut down the lookaside table after all eviction is complete. */
-    WT_TRET(__wt_las_destroy(session));
+    /* Shut down the history store table after all eviction is complete. */
+    __wt_hs_destroy(session);
 
     /*
      * Closing the files may have resulted in entries on our default session's list of open data
@@ -759,8 +797,7 @@ restart:
      * it's potentially used when discarding other open data handles. Close it before discarding the
      * underlying metadata handle.
      */
-    if (session->meta_cursor != NULL)
-        WT_TRET(session->meta_cursor->close(session->meta_cursor));
+    WT_TRET(__wt_metadata_cursor_close(session));
 
     /* Close the remaining handles. */
     WT_TAILQ_SAFE_REMOVE_BEGIN(dhandle, &conn->dhqh, q, dhandle_tmp)

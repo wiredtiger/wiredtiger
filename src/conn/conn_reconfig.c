@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -174,7 +174,8 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * from an earlier run.
      */
     rel_major = rel_minor = WT_CONN_COMPAT_NONE;
-    if ((ret = __wt_metadata_search(session, WT_METADATA_COMPAT, &value)) == 0) {
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, WT_METADATA_COMPAT, &value), true);
+    if (ret == 0) {
         WT_ERR(__wt_config_getones(session, value, "major", &cval));
         rel_major = (uint16_t)cval.val;
         WT_ERR(__wt_config_getones(session, value, "minor", &cval));
@@ -193,14 +194,20 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
               min_major, min_minor, rel_major, rel_minor);
     } else if (ret == WT_NOTFOUND)
         ret = 0;
-    else
-        WT_ERR(ret);
 
 done:
     conn->req_max_major = max_major;
     conn->req_max_minor = max_minor;
     conn->req_min_major = min_major;
     conn->req_min_minor = min_minor;
+    /*
+     * Set up the log manager versions in the connection and verify any logs. We do this at the end
+     * here, but very early in the startup process so that if we're starting from a backup and there
+     * are compatibility errors, we inform the user but leave the directory unchanged.
+     */
+    __wt_logmgr_compat_version(session);
+    if (!reconfig && !F_ISSET(conn, WT_CONN_SALVAGE))
+        WT_ERR(__wt_log_compat_verify(session));
 
 err:
     __wt_free(session, value);
@@ -428,7 +435,7 @@ __wt_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     WT_ERR(__wt_capacity_server_create(session, cfg));
     WT_ERR(__wt_checkpoint_server_create(session, cfg));
     WT_ERR(__wt_debug_mode_config(session, cfg));
-    WT_ERR(__wt_las_config(session, cfg));
+    WT_ERR(__wt_hs_config(session, cfg));
     WT_ERR(__wt_logmgr_reconfig(session, cfg));
     WT_ERR(__wt_lsm_manager_reconfig(session, cfg));
     WT_ERR(__wt_statlog_create(session, cfg));

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -105,11 +105,11 @@ __cm_fingerprint(const uint8_t *p)
 }
 
 /*
- * wiredtiger_calc_modify --
+ * __wt_calc_modify --
  *     Calculate a set of WT_MODIFY operations to represent an update.
  */
 int
-wiredtiger_calc_modify(WT_SESSION *wt_session, const WT_ITEM *oldv, const WT_ITEM *newv,
+__wt_calc_modify(WT_SESSION_IMPL *wt_session, const WT_ITEM *oldv, const WT_ITEM *newv,
   size_t maxdiff, WT_MODIFY *entries, int *nentriesp)
 {
     WT_CM_MATCH match;
@@ -146,12 +146,11 @@ wiredtiger_calc_modify(WT_SESSION *wt_session, const WT_ITEM *oldv, const WT_ITE
         goto end;
 
     /*
-     * Walk through the post-image, maintaining start / end markers
-     * separated by a gap in the pre-image.  If the current point in the
-     * post-image matches either marker, try to extend the match to find a
-     * (large) range of matching bytes.  If the end of the range is reached
-     * in the post-image without finding a good match, double the size of
-     * the gap, update the markers and keep trying.
+     * Walk through the post-image, maintaining start / end markers separated by a gap in the
+     * pre-image. If the current point in the post-image matches either marker, try to extend the
+     * match to find a (large) range of matching bytes. If the end of the range is reached in the
+     * post-image without finding a good match, double the size of the gap, update the markers and
+     * keep trying.
      */
     hstart = hend = 0;
     i = gap = 0;
@@ -190,4 +189,15 @@ end:
         WT_RET(__cm_add_modify(&cms, cms.used2, cms.e1, cms.e2, entries, nentriesp));
 
     return (0);
+}
+
+/*
+ * wiredtiger_calc_modify --
+ *     Calculate a set of WT_MODIFY operations to represent an update.
+ */
+int
+wiredtiger_calc_modify(WT_SESSION *wt_session, const WT_ITEM *oldv, const WT_ITEM *newv,
+  size_t maxdiff, WT_MODIFY *entries, int *nentriesp)
+{
+    return __wt_calc_modify((WT_SESSION_IMPL *)wt_session, oldv, newv, maxdiff, entries, nentriesp);
 }

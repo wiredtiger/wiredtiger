@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -42,6 +42,7 @@ This provides an API similar to the C API, with the following modifications:
   - Statistics cursors behave a little differently and are best handled using the C-like functions
   - C Constants starting with WT_STAT_DSRC are instead exposed under wiredtiger.stat.dsrc
   - C Constants starting with WT_STAT_CONN are instead exposed under wiredtiger.stat.conn
+  - C Constants starting with WT_STAT_SESSION are instead exposed under wiredtiger.stat.session
 "
 %enddef
 
@@ -50,7 +51,7 @@ This provides an API similar to the C API, with the following modifications:
 %feature("autodoc", "0");
 
 %pythoncode %{
-from .packing import pack, unpack
+from packing import pack, unpack
 ## @endcond
 %}
 
@@ -111,7 +112,7 @@ from .packing import pack, unpack
 		PyObject_SetAttrString($result, "value_format",
 		    PyString_InternFromString((*$1)->value_format));
 
-		if (__wt_calloc_def((WT_ASYNC_OP_IMPL *)(*$1), 1, &pcb) != 0)
+		if (__wt_calloc_def(NULL, 1, &pcb) != 0)
 			SWIG_exception_fail(SWIG_MemoryError, "WT calloc failed");
 		else {
 			pcb->pyobj = $result;
@@ -372,6 +373,7 @@ static PyObject *wtError;
 
 static int sessionFreeHandler(WT_SESSION *session_arg);
 static int cursorFreeHandler(WT_CURSOR *cursor_arg);
+static int asyncopFreeHandler(WT_ASYNC_OP *asyncop_arg);
 static int unpackBytesOrString(PyObject *obj, void **data, size_t *size);
 
 #define WT_GETATTR(var, parent, name)					\
@@ -722,7 +724,7 @@ typedef int int_void;
 	}
 
 	int _freecb() {
-		return (cursorFreeHandler($self));
+		return (asyncopFreeHandler($self));
 	}
 
 %pythoncode %{
@@ -1345,7 +1347,7 @@ cursorCloseHandler(WT_CURSOR *cursor)
 	cursor->lang_private = NULL;
 	if (pcb != NULL)
 		ret = pythonClose(pcb);
-	__wt_free((WT_SESSION_IMPL *)cursor->session, pcb);
+	__wt_free(CUR2S(cursor), pcb);
 
 	return (ret);
 }
@@ -1372,8 +1374,20 @@ cursorFreeHandler(WT_CURSOR *cursor)
 
 	pcb = (PY_CALLBACK *)cursor->lang_private;
 	cursor->lang_private = NULL;
-	__wt_free((WT_SESSION_IMPL *)cursor->session, pcb);
+	__wt_free(CUR2S(cursor), pcb);
 	return (0);
+}
+
+/* Async Op specific close handler. */
+static int
+asyncopFreeHandler(WT_ASYNC_OP *asyncop)
+{
+        PY_CALLBACK *pcb;
+
+        pcb = (PY_CALLBACK *)asyncop->c.lang_private;
+        asyncop->c.lang_private = NULL;
+        __wt_free(NULL, pcb);
+        return (0);
 }
 
 static int
@@ -1472,12 +1486,17 @@ class stat:
 		'''keys for cursors on data source statistics'''
 		pass
 
+	class session:
+		'''keys for cursors on session statistics'''
+		pass
+
 ## @}
 
 import sys
 # All names starting with 'WT_STAT_DSRC_' are renamed to
 # the wiredtiger.stat.dsrc class, those starting with 'WT_STAT_CONN' are
-# renamed to wiredtiger.stat.conn class.
+# renamed to the wiredtiger.stat.conn class. All names starting with 'WT_STAT_SESSION'
+# are renamed to the wiredtiger.stat.session class.
 def _rename_with_prefix(prefix, toclass):
 	curmodule = sys.modules[__name__]
 	for name in dir(curmodule):
@@ -1488,5 +1507,6 @@ def _rename_with_prefix(prefix, toclass):
 
 _rename_with_prefix('WT_STAT_CONN_', stat.conn)
 _rename_with_prefix('WT_STAT_DSRC_', stat.dsrc)
+_rename_with_prefix('WT_STAT_SESSION_', stat.session)
 del _rename_with_prefix
 %}

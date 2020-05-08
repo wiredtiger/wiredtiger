@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -206,8 +206,8 @@ __check_leaf_key_range(
  *     Search a row-store tree for a specific key.
  */
 int
-__wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CURSOR_BTREE *cbt,
-  bool insert, bool restore)
+__wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *leaf, bool leaf_safe,
+  bool *leaf_foundp)
 {
     WT_BTREE *btree;
     WT_COLLATOR *collator;
@@ -218,11 +218,13 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CU
     WT_PAGE_INDEX *pindex, *parent_pindex;
     WT_REF *current, *descent;
     WT_ROW *rip;
+    WT_SESSION_IMPL *session;
     size_t match, skiphigh, skiplow;
     uint32_t base, indx, limit, read_flags;
     int cmp, depth;
     bool append_check, descend_right, done;
 
+    session = CUR2S(cbt);
     btree = S2BT(session);
     collator = btree->collator;
     item = cbt->tmp;
@@ -251,21 +253,16 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CU
     /*
      * We may be searching only a single leaf page, not the full tree. In the normal case where we
      * are searching a tree, check the page's parent keys before doing the full search, it's faster
-     * when the cursor is being re-positioned. Skip this if the page is being re-instantiated in
-     * memory.
+     * when the cursor is being re-positioned. Skip that check if we know the page is the right one
+     * (for example, when re-instantiating a page in memory, in that case we know the target must be
+     * on the current page).
      */
     if (leaf != NULL) {
-        if (!restore) {
+        if (!leaf_safe) {
             WT_RET(__check_leaf_key_range(session, srch_key, leaf, cbt));
-            if (cbt->compare != 0) {
-                /*
-                 * !!!
-                 * WT_CURSOR.search_near uses the slot value to
-                 * decide if there was an on-page match.
-                 */
-                cbt->slot = 0;
+            *leaf_foundp = cbt->compare == 0;
+            if (!*leaf_foundp)
                 return (0);
-            }
         }
 
         current = leaf;
@@ -318,14 +315,12 @@ restart:
         }
 
         /*
-         * Binary search of an internal page. There are three versions
-         * (keys with no application-specified collation order, in long
-         * and short versions, and keys with an application-specified
-         * collation order), because doing the tests and error handling
-         * inside the loop costs about 5%.
+         * Binary search of an internal page. There are three versions (keys with no
+         * application-specified collation order, in long and short versions, and keys with an
+         * application-specified collation order), because doing the tests and error handling inside
+         * the loop costs about 5%.
          *
-         * Reference the comment above about the 0th key: we continue to
-         * special-case it.
+         * Reference the comment above about the 0th key: we continue to special-case it.
          */
         base = 1;
         limit = pindex->entries - 1;
@@ -536,7 +531,7 @@ leaf_only:
      * read-mostly workload. Check that case and get out fast.
      */
     if (0) {
-    leaf_match:
+leaf_match:
         cbt->compare = 0;
         cbt->slot = WT_ROW_SLOT(page, rip);
         return (0);
@@ -545,20 +540,17 @@ leaf_only:
     /*
      * We didn't find an exact match in the WT_ROW array.
      *
-     * Base is the smallest index greater than key and may be the 0th index
-     * or the (last + 1) index.  Set the slot to be the largest index less
-     * than the key if that's possible (if base is the 0th index it means
-     * the application is inserting a key before any key found on the page).
+     * Base is the smallest index greater than key and may be the 0th index or the (last + 1) index.
+     * Set the slot to be the largest index less than the key if that's possible (if base is the 0th
+     * index it means the application is inserting a key before any key found on the page).
      *
-     * It's still possible there is an exact match, but it's on an insert
-     * list.  Figure out which insert chain to search and then set up the
-     * return information assuming we'll find nothing in the insert list
-     * (we'll correct as needed inside the search routine, depending on
-     * what we find).
+     * It's still possible there is an exact match, but it's on an insert list. Figure out which
+     * insert chain to search and then set up the return information assuming we'll find nothing in
+     * the insert list (we'll correct as needed inside the search routine, depending on what we
+     * find).
      *
-     * If inserting a key smaller than any key found in the WT_ROW array,
-     * use the extra slot of the insert array, otherwise the insert array
-     * maps one-to-one to the WT_ROW array.
+     * If inserting a key smaller than any key found in the WT_ROW array, use the extra slot of the
+     * insert array, otherwise the insert array maps one-to-one to the WT_ROW array.
      */
     if (base == 0) {
         cbt->compare = 1;

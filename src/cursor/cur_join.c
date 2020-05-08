@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -35,7 +35,7 @@ __wt_curjoin_joined(WT_CURSOR *cursor) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
 
     WT_RET_MSG(session, ENOTSUP, "cursor is being used in a join");
 }
@@ -678,15 +678,15 @@ __curjoin_get_key(WT_CURSOR *cursor, ...)
 
     cjoin = (WT_CURSOR_JOIN *)cursor;
 
-    va_start(ap, cursor);
     JOINABLE_CURSOR_API_CALL(cursor, session, get_key, NULL);
 
     if (!F_ISSET(cjoin, WT_CURJOIN_INITIALIZED) || !cjoin->iter->positioned)
         WT_ERR_MSG(session, EINVAL, "join cursor must be advanced with next()");
-    WT_ERR(__wt_cursor_get_keyv(cursor, cursor->flags, ap));
+    va_start(ap, cursor);
+    ret = __wt_cursor_get_keyv(cursor, cursor->flags, ap);
+    va_end(ap);
 
 err:
-    va_end(ap);
     API_END_RET(session, ret);
 }
 
@@ -704,16 +704,16 @@ __curjoin_get_value(WT_CURSOR *cursor, ...)
 
     cjoin = (WT_CURSOR_JOIN *)cursor;
 
-    va_start(ap, cursor);
     JOINABLE_CURSOR_API_CALL(cursor, session, get_value, NULL);
 
     if (!F_ISSET(cjoin, WT_CURJOIN_INITIALIZED) || !cjoin->iter->positioned)
         WT_ERR_MSG(session, EINVAL, "join cursor must be advanced with next()");
 
-    WT_ERR(__wt_curtable_get_valuev(cjoin->main, ap));
+    va_start(ap, cursor);
+    ret = __wt_curtable_get_valuev(cjoin->main, ap);
+    va_end(ap);
 
 err:
-    va_end(ap);
     API_END_RET(session, ret);
 }
 
@@ -770,7 +770,7 @@ __curjoin_init_bloom(
                 goto done;
             WT_ERR(ret);
         } else
-            WT_PANIC_ERR(session, EINVAL, "fatal error in join cursor position state");
+            WT_ERR_PANIC(session, EINVAL, "fatal error in join cursor position state");
     }
     collator = (entry->index == NULL) ? NULL : entry->index->collator;
     while (ret == 0) {
@@ -847,7 +847,7 @@ advance:
             break;
     }
 done:
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
     if (c != NULL)
@@ -926,7 +926,7 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, bool iterab
          * doing any needed check during the iteration.
          */
         if (!iterable && F_ISSET(je, WT_CURJOIN_ENTRY_BLOOM)) {
-            if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
+            if (session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
                 WT_ERR_MSG(session, EINVAL,
                   "join cursors with Bloom filters cannot be "
                   "used with read-uncommitted isolation");
@@ -1031,8 +1031,7 @@ __curjoin_next(WT_CURSOR *cursor)
             break;
     }
     iter->positioned = (ret == 0);
-    if (ret != 0 && ret != WT_NOTFOUND)
-        WT_ERR(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
 
     if (ret == 0) {
         /*

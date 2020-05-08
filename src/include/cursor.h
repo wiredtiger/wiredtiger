@@ -1,10 +1,13 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
+
+/* Get the session from any cursor. */
+#define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
 
 /*
  * Initialize a static WT_CURSOR structure.
@@ -37,19 +40,36 @@ struct __wt_cursor_backup {
 
     size_t next;     /* Cursor position */
     WT_FSTREAM *bfs; /* Backup file stream */
-    uint32_t maxid;  /* Maximum log file ID seen */
+
+#define WT_CURSOR_BACKUP_ID(cursor) (((WT_CURSOR_BACKUP *)(cursor))->maxid)
+    uint32_t maxid; /* Maximum log file ID seen */
 
     char **list; /* List of files to be copied. */
     size_t list_allocated;
     size_t list_next;
 
+    /* File offset-based incremental backup. */
+    WT_BLKINCR *incr_src; /* Incremental backup source */
+    char *incr_file;      /* File name */
+
+    WT_CURSOR *incr_cursor; /* File cursor */
+
+    bool incr_init;       /* Cursor traversal initialized */
+    WT_ITEM bitstring;    /* List of modified blocks */
+    uint64_t nbits;       /* Number of bits in bitstring */
+    uint64_t offset;      /* Zero bit offset in bitstring */
+    uint64_t bit_offset;  /* Current offset */
+    uint64_t granularity; /* Length, transfer size */
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CURBACKUP_DUP 0x1u    /* Duplicated backup cursor */
-#define WT_CURBACKUP_LOCKER 0x2u /* Hot-backup started */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_CURBACKUP_DUP 0x01u        /* Duplicated backup cursor */
+#define WT_CURBACKUP_FORCE_FULL 0x02u /* Force full file copy for this cursor */
+#define WT_CURBACKUP_FORCE_STOP 0x04u /* Force stop incremental backup */
+#define WT_CURBACKUP_INCR 0x08u       /* Incremental backup cursor */
+#define WT_CURBACKUP_LOCKER 0x10u     /* Hot-backup started */
+                                      /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 };
-#define WT_CURSOR_BACKUP_ID(cursor) (((WT_CURSOR_BACKUP *)(cursor))->maxid)
 
 struct __wt_cursor_btree {
     WT_CURSOR iface;
@@ -161,7 +181,10 @@ struct __wt_cursor_btree {
      * The update structure allocated by the row- and column-store modify functions, used to avoid a
      * data copy in the WT_CURSOR.update call.
      */
-    WT_UPDATE *modify_update;
+    WT_UPDATE_VALUE *modify_update, _modify_update;
+
+    /* An intermediate structure to hold the update value to be assigned to the cursor buffer. */
+    WT_UPDATE_VALUE *upd_value, _upd_value;
 
     /*
      * Fixed-length column-store items are a single byte, and it's simpler and cheaper to allocate

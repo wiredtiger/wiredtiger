@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -97,7 +97,7 @@ compression_opts = {
 #
 #conn_config += extensions_config(['compressors/snappy'])
 
-conn = wiredtiger_open("WT_TEST", conn_config)
+conn = context.wiredtiger_open(conn_config)
 s = conn.open_session()
 
 tables = []

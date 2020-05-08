@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -8,7 +8,12 @@
 
 #include "util.h"
 
-static int usage(void);
+static int
+usage(void)
+{
+    util_usage("truncate uri", NULL, NULL);
+    return (1);
+}
 
 int
 util_truncate(WT_SESSION *session, int argc, char *argv[])
@@ -39,14 +44,4 @@ util_truncate(WT_SESSION *session, int argc, char *argv[])
 
     free(uri);
     return (ret);
-}
-
-static int
-usage(void)
-{
-    (void)fprintf(stderr,
-      "usage: %s %s "
-      "truncate uri\n",
-      progname, usage_prefix);
-    return (1);
 }

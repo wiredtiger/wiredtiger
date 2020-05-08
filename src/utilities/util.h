@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -53,5 +53,6 @@ int util_str2num(WT_SESSION *, const char *, bool, uint64_t *);
 int util_truncate(WT_SESSION *, int, char *[]);
 int util_upgrade(WT_SESSION *, int, char *[]);
 char *util_uri(WT_SESSION *, const char *, const char *);
+void util_usage(const char *, const char *, const char *[]);
 int util_verify(WT_SESSION *, int, char *[]);
 int util_write(WT_SESSION *, int, char *[]);

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -141,7 +141,7 @@ thread_ts_run(void *arg)
          * that requires locking out transactional ops that set or query a timestamp.
          */
         testutil_check(pthread_rwlock_wrlock(&ts_lock));
-        ret = td->conn->query_timestamp(td->conn, ts_string, "get=all_committed");
+        ret = td->conn->query_timestamp(td->conn, ts_string, "get=all_durable");
         testutil_check(pthread_rwlock_unlock(&ts_lock));
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         if (ret == 0) {

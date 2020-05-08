@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -781,7 +781,7 @@ err:
      * progress. Error out of WiredTiger.
      */
     if (ret != 0)
-        WT_PANIC_RET(session, ret, "Failed doing LSM switch");
+        WT_RET_PANIC(session, ret, "Failed doing LSM switch");
     else if (!first_switch)
         WT_RET(__wt_lsm_manager_push_entry(session, WT_LSM_WORK_FLUSH, 0, lsm_tree));
     return (ret);

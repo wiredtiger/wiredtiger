@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -39,7 +39,7 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, const char *func, uint16_t 
 
     if (0) {
 err:
-        WT_PANIC_MSG(session, ret, "operation tracking initialization failure");
+        WT_IGNORE_RET(__wt_panic(session, ret, "operation tracking initialization failure"));
     }
 
     if (locked)

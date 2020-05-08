@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -80,7 +80,7 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
             break;
         WT_ERR(__wt_getline(session, fs, value));
         if (value->size == 0)
-            WT_PANIC_ERR(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
+            WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
         WT_ERR(__wt_metadata_update(session, key->data, value->data));
     }
 
@@ -131,10 +131,48 @@ __metadata_load_bulk(WT_SESSION_IMPL *session)
         WT_ERR(__wt_direct_io_size_check(session, filecfg, "allocation_size", &allocsize));
         WT_ERR(__wt_block_manager_create(session, key, allocsize));
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    /*
+     * We want to explicitly close, not just release the metadata cursor here. We know we are in
+     * initialization and this open cursor holds a lock on the metadata and we may need to verify
+     * the metadata.
+     */
+    WT_TRET(__wt_metadata_cursor_close(session));
+    return (ret);
+}
+
+/*
+ * __turtle_validate_version --
+ *     Retrieve version numbers from the turtle file and validate them against our WiredTiger
+ *     version.
+ */
+static int
+__turtle_validate_version(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    uint32_t major, minor;
+    char *version_string;
+
+    WT_WITH_TURTLE_LOCK(
+      session, ret = __wt_turtle_read(session, WT_METADATA_VERSION, &version_string));
+
+    if (ret != 0)
+        WT_ERR_MSG(session, ret, "Unable to read version string from turtle file");
+
+    if ((ret = sscanf(version_string, "major=%u,minor=%u", &major, &minor)) != 2)
+        WT_ERR_MSG(session, ret, "Unable to parse turtle file version string");
+
+    ret = 0;
+
+    if (major < WT_MIN_STARTUP_VERSION_MAJOR ||
+      (major == WT_MIN_STARTUP_VERSION_MAJOR && minor < WT_MIN_STARTUP_VERSION_MINOR))
+        WT_ERR_MSG(session, WT_ERROR, "WiredTiger version incompatible with current binary");
+
+err:
+    __wt_free(session, version_string);
     return (ret);
 }
 
@@ -186,9 +224,9 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     char *metaconf, *unused_value;
     bool exist_backup, exist_incr, exist_isrc, exist_turtle;
-    bool load, loadTurtle;
+    bool load, loadTurtle, validate_turtle;
 
-    load = loadTurtle = false;
+    load = loadTurtle = validate_turtle = false;
 
     /*
      * Discard any turtle setup file left-over from previous runs. This doesn't matter for
@@ -208,10 +246,11 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
      * turtle file and an incremental backup file, that is an error. Otherwise, if there's already a
      * turtle file, we're done.
      */
-    WT_RET(__wt_fs_exist(session, WT_INCREMENTAL_BACKUP, &exist_incr));
-    WT_RET(__wt_fs_exist(session, WT_INCREMENTAL_SRC, &exist_isrc));
+    WT_RET(__wt_fs_exist(session, WT_LOGINCR_BACKUP, &exist_incr));
+    WT_RET(__wt_fs_exist(session, WT_LOGINCR_SRC, &exist_isrc));
     WT_RET(__wt_fs_exist(session, WT_METADATA_BACKUP, &exist_backup));
     WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist_turtle));
+
     if (exist_turtle) {
         /*
          * Failure to read means a bad turtle file. Remove it and create a new turtle file.
@@ -225,7 +264,13 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
         if (ret != 0) {
             WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             loadTurtle = true;
-        }
+        } else
+            /*
+             * Set a flag to specify that we should validate whether we can start up on the turtle
+             * file version seen. Return an error if we can't. Only check if we either didn't run
+             * salvage or if salvage didn't fail to read it.
+             */
+            validate_turtle = true;
 
         /*
          * We need to detect the difference between a source database that may have crashed with an
@@ -247,7 +292,8 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
             WT_RET(__wt_remove_if_exists(session, WT_METAFILE, false));
             WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             load = true;
-        }
+        } else if (validate_turtle)
+            WT_RET(__turtle_validate_version(session));
     } else
         load = true;
     if (load) {
@@ -335,7 +381,7 @@ err:
      */
     if (ret == 0 || strcmp(key, WT_METADATA_COMPAT) == 0 || F_ISSET(S2C(session), WT_CONN_SALVAGE))
         return (ret);
-    WT_PANIC_RET(session, ret, "%s: fatal turtle file read error", WT_METADATA_TURTLE);
+    WT_RET_PANIC(session, WT_TRY_SALVAGE, "%s: fatal turtle file read error", WT_METADATA_TURTLE);
 }
 
 /*
@@ -391,5 +437,5 @@ err:
      */
     if (ret == 0)
         return (ret);
-    WT_PANIC_RET(session, ret, "%s: fatal turtle file update error", WT_METADATA_TURTLE);
+    WT_RET_PANIC(session, ret, "%s: fatal turtle file update error", WT_METADATA_TURTLE);
 }

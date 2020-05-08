@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -537,9 +537,8 @@ config_opt_file(WTPERF *wtperf, const char *filename)
             ;
 
         /*
-         * Find the end of the line; if there's no trailing newline, the
-         * the line is too long for the buffer or the file was corrupted
-         * (there's no terminating newline in the file).
+         * Find the end of the line; if there's no trailing newline, the line is too long for the
+         * buffer or the file was corrupted (there's no terminating newline in the file).
          */
         for (rtrim = line; *rtrim && *rtrim != '\n'; rtrim++)
             ;

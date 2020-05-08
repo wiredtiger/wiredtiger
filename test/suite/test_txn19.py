@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -303,9 +303,8 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
             closeconn=False)
 
         if expect_fail:
-            self.check_file_contains_one_of(errfile,
-                ['/log file.*corrupted/',
-                'WT_TRY_SALVAGE: database corruption detected'])
+            self.check_file_contains(errfile,
+                'WT_TRY_SALVAGE: database corruption detected')
         else:
             self.check_empty_file(errfile)
             if self.expect_warning_corruption():
@@ -385,7 +384,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         ('WiredTiger.basecfg', dict(filename='WiredTiger.basecfg')),
         ('WiredTiger.turtle', dict(filename='WiredTiger.turtle')),
         ('WiredTiger.wt', dict(filename='WiredTiger.wt')),
-        ('WiredTigerLAS.wt', dict(filename='WiredTigerLAS.wt')),
+        ('WiredTigerHS.wt', dict(filename='WiredTigerHS.wt')),
     ]
 
     # In many cases, wiredtiger_open without any salvage options will
@@ -393,34 +392,30 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     openable = [
         "removal:WiredTiger.basecfg",
         "removal:WiredTiger.turtle",
-        "removal:WiredTigerLAS.wt",
         "truncate:WiredTiger",
         "truncate:WiredTiger.basecfg",
-        "truncate:WiredTigerLAS.wt",
         "truncate-middle:WiredTiger",
         "truncate-middle:WiredTiger.basecfg",
         "truncate-middle:WiredTiger.turtle",
         "truncate-middle:WiredTiger.wt",
-        "truncate-middle:WiredTigerLAS.wt",
+        "truncate-middle:WiredTigerHS.wt",
         "zero:WiredTiger",
         "zero:WiredTiger.basecfg",
-        "zero:WiredTigerLAS.wt",
         "zero-end:WiredTiger",
         "zero-end:WiredTiger.basecfg",
         "zero-end:WiredTiger.turtle",
         "zero-end:WiredTiger.wt",
-        "zero-end:WiredTigerLAS.wt",
+        "zero-end:WiredTigerHS.wt",
         "garbage-begin:WiredTiger",
-        "garbage-begin:WiredTigerLAS.wt",
         "garbage-middle:WiredTiger",
         "garbage-middle:WiredTiger.basecfg",
         "garbage-middle:WiredTiger.turtle",
         "garbage-middle:WiredTiger.wt",
-        "garbage-middle:WiredTigerLAS.wt",
+        "garbage-middle:WiredTigerHS.wt",
         "garbage-end:WiredTiger",
         "garbage-end:WiredTiger.turtle",
         "garbage-end:WiredTiger.wt",
-        "garbage-end:WiredTigerLAS.wt",
+        "garbage-end:WiredTigerHS.wt",
     ]
 
     # The cases for which salvage will not work, represented in the
@@ -429,9 +424,12 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         "removal:WiredTiger.turtle",
         "removal:WiredTiger.wt",
         "truncate:WiredTiger.wt",
+        "truncate:WiredTigerHS.wt",
         "zero:WiredTiger.wt",
+        "zero:WiredTigerHS.wt",
         "garbage-begin:WiredTiger.basecfg",
         "garbage-begin:WiredTiger.wt",
+        "garbage-begin:WiredTigerHS.wt",
         "garbage-end:WiredTiger.basecfg",
     ]
 
@@ -477,6 +475,14 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         key = self.kind + ':' + self.filename
         return key not in self.not_salvageable
 
+    def run_wt_and_check(self, dir, errfile, outfile, expect_fail):
+        self.runWt(['-h', dir, '-C', self.base_config, '-R', 'list'],
+            errfilename=errfile, outfilename=outfile, failure=expect_fail,
+            closeconn=False)
+
+        if expect_fail:
+            self.check_file_contains_one_of(errfile, ['WT_TRY_SALVAGE: database corruption detected'])
+
     def test_corrupt_meta(self):
         errfile = 'list.err'
         outfile = 'list.out'
@@ -512,19 +518,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         # us to observe the failure or success safely.
         # Use -R to force recover=on, which is the default for
         # wiredtiger_open, (wt utilities normally have recover=error)
-
-        expect_fail = not self.is_openable()
-        self.runWt(['-h', newdir, '-C', self.base_config, '-R', 'list'],
-            errfilename=errfile, outfilename=outfile, failure=expect_fail,
-            closeconn=False)
-
-        if expect_fail:
-            self.check_file_contains_one_of(errfile,
-                ['/unknown configuration key/',
-                '/handle-open:/',
-                '/turtle file read error: WT_NOTFOUND: item not found/',
-                'WT_ERROR: non-specific WiredTiger error',
-                'WT_TRY_SALVAGE: database corruption detected'])
+        self.run_wt_and_check(newdir, errfile, outfile, not self.is_openable())
 
         for salvagedir in [ newdir, newdir2 ]:
             # Removing the 'WiredTiger.turtle' file has weird behavior:
@@ -534,8 +528,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
             #  But, immediately after the corruption, if we run
             #  wiredtiger_open with salvage, it will fail.
             # This anomoly should be fixed or explained.
-            if salvagedir == newdir and self.kind == 'removal' and \
-               self.filename == 'WiredTiger.turtle':
+            if self.kind == 'removal' and self.filename == 'WiredTiger.turtle':
                 continue
 
             if self.is_salvageable():

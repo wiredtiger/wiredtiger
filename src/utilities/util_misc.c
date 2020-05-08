@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -151,4 +151,22 @@ util_flush(WT_SESSION *session, const char *uri)
     if ((ret = session->drop(session, uri, NULL)) != 0)
         (void)util_err(session, ret, "%s: session.drop", uri);
     return (1);
+}
+
+/*
+ * util_usage --
+ *     Display a usage statement.
+ */
+void
+util_usage(const char *usage, const char *tag, const char *list[])
+{
+    const char **p;
+
+    if (usage != NULL)
+        fprintf(stderr, "usage: %s %s %s\n", progname, usage_prefix, usage);
+    if (tag != NULL)
+        fprintf(stderr, "%s\n", tag);
+    if (list != NULL)
+        for (p = list; *p != NULL; p += 2)
+            fprintf(stderr, "    %s%s%s\n", p[0], strlen(p[0]) > 2 ? "\n        " : "  ", p[1]);
 }

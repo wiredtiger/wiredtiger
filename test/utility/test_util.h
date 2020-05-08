@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -145,6 +145,18 @@ typedef struct {
         int __r;                                                                          \
         if ((__r = (call)) != 0)                                                          \
             testutil_die(__r, "%s/%d: %s: " fmt, __func__, __LINE__, #call, __VA_ARGS__); \
+    } while (0)
+
+/*
+ * error_sys_check --
+ *     Complain and quit if a function call fails. A special name because it appears in the
+ *     documentation. Allow any non-negative values.
+ */
+#define error_sys_check(call)                                          \
+    do {                                                               \
+        int __r;                                                       \
+        if ((__r = (int)(call)) < 0 && __r != ENOTSUP)                 \
+            testutil_die(__r, "%s/%d: %s", __func__, __LINE__, #call); \
     } while (0)
 
 /*

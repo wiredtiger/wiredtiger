@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -39,7 +39,7 @@ err:
         ret = thread->stop_func(session, thread);
 
     if (ret != 0 && F_ISSET(thread, WT_THREAD_PANIC_FAIL))
-        WT_PANIC_MSG(session, ret, "Unrecoverable utility thread error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "Unrecoverable utility thread error"));
 
     /*
      * The three cases when threads are expected to stop are:
@@ -176,14 +176,13 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
     for (i = group->max; i < new_max; i++) {
         WT_ERR(__wt_calloc_one(session, &thread));
         /*
-         * Threads get their own session and lookaside table cursor
-         * (if the lookaside table is open).
+         * Threads get their own session and hs table cursor (if the hs table is open).
          */
         session_flags = LF_ISSET(WT_THREAD_CAN_WAIT) ? WT_SESSION_CAN_WAIT : 0;
         WT_ERR(
           __wt_open_internal_session(conn, group->name, false, session_flags, &thread->session));
-        if (LF_ISSET(WT_THREAD_LOOKASIDE) && F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN))
-            WT_ERR(__wt_las_cursor_open(thread->session));
+        if (LF_ISSET(WT_THREAD_HS) && F_ISSET(conn, WT_CONN_HS_OPEN))
+            WT_ERR(__wt_hs_cursor_open(thread->session));
         if (LF_ISSET(WT_THREAD_PANIC_FAIL))
             F_SET(thread, WT_THREAD_PANIC_FAIL);
         thread->id = i;
@@ -233,7 +232,7 @@ err:
     group->min = new_min;
     WT_TRET(__wt_thread_group_destroy(session, group));
 
-    WT_PANIC_RET(session, ret, "Error while resizing thread group");
+    WT_RET_PANIC(session, ret, "Error while resizing thread group");
 }
 
 /*

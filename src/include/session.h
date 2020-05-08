@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -53,6 +53,7 @@ typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor) WT_CURSOR_LIST;
  */
 struct __wt_session_impl {
     WT_SESSION iface;
+    WT_EVENT_HANDLER *event_handler; /* Application's event handlers */
 
     void *lang_private; /* Language specific private storage */
 
@@ -62,13 +63,9 @@ struct __wt_session_impl {
     const char *lastop; /* Last operation */
     uint32_t id;        /* UID, offset in session array */
 
+    uint64_t cache_wait_us;        /* Wait time for cache for current operation */
     uint64_t operation_start_us;   /* Operation start */
     uint64_t operation_timeout_us; /* Maximum operation period before rollback */
-#ifdef HAVE_DIAGNOSTIC
-    uint32_t op_5043_seconds; /* Temporary debugging to catch WT-5043, discard after 01/2020. */
-#endif
-
-    WT_EVENT_HANDLER *event_handler; /* Application's event handlers */
 
     WT_DATA_HANDLE *dhandle; /* Current data handle */
 
@@ -84,6 +81,7 @@ struct __wt_session_impl {
     struct timespec last_epoch; /* Last epoch time returned */
 
     WT_CURSOR_LIST cursors;          /* Cursors closed with the session */
+    u_int ncursors;                  /* Count of active file cursors. */
     uint32_t cursor_sweep_position;  /* Position in cursor_cache for sweep */
     uint32_t cursor_sweep_countdown; /* Countdown to cursor sweep */
     uint64_t last_cursor_sweep;      /* Last sweep for dead cursors */
@@ -93,7 +91,7 @@ struct __wt_session_impl {
     WT_COMPACT_STATE *compact; /* Compaction information */
     enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } compact_state;
 
-    WT_CURSOR *las_cursor; /* Lookaside table cursor */
+    WT_CURSOR *hs_cursor; /* History store table cursor */
 
     WT_CURSOR *meta_cursor;  /* Metadata file */
     void *meta_track;        /* Metadata operation tracking */
@@ -131,10 +129,10 @@ struct __wt_session_impl {
     WT_ITEM err; /* Error buffer */
 
     WT_TXN_ISOLATION isolation;
-    WT_TXN txn; /* Transaction state */
+    WT_TXN *txn; /* Transaction state */
+
 #define WT_SESSION_BG_SYNC_MSEC 1200000
     WT_LSN bg_sync_lsn; /* Background sync operation LSN. */
-    u_int ncursors;     /* Count of active file cursors. */
 
     void *block_manager; /* Block-manager support */
     int (*block_manager_cleanup)(WT_SESSION_IMPL *);
@@ -144,16 +142,13 @@ struct __wt_session_impl {
     u_int ckpt_handle_next;       /* Next empty slot */
     size_t ckpt_handle_allocated; /* Bytes allocated */
 
-    uint64_t cache_wait_us; /* Wait time for cache for current operation */
-
     /*
      * Operations acting on handles.
      *
-     * The preferred pattern is to gather all of the required handles at
-     * the beginning of an operation, then drop any other locks, perform
-     * the operation, then release the handles.  This cannot be easily
-     * merged with the list of checkpoint handles because some operations
-     * (such as compact) do checkpoints internally.
+     * The preferred pattern is to gather all of the required handles at the beginning of an
+     * operation, then drop any other locks, perform the operation, then release the handles. This
+     * cannot be easily merged with the list of checkpoint handles because some operations (such as
+     * compact) do checkpoints internally.
      */
     WT_DATA_HANDLE **op_handle; /* Handle list */
     u_int op_handle_next;       /* Next empty slot */
@@ -166,34 +161,37 @@ struct __wt_session_impl {
     u_int stat_bucket; /* Statistics bucket offset */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_SESSION_BACKUP_CURSOR 0x0000001u
-#define WT_SESSION_BACKUP_DUP 0x0000002u
-#define WT_SESSION_CACHE_CURSORS 0x0000004u
-#define WT_SESSION_CAN_WAIT 0x0000008u
-#define WT_SESSION_IGNORE_CACHE_SIZE 0x0000010u
-#define WT_SESSION_INTERNAL 0x0000020u
-#define WT_SESSION_LOCKED_CHECKPOINT 0x0000040u
-#define WT_SESSION_LOCKED_HANDLE_LIST_READ 0x0000080u
-#define WT_SESSION_LOCKED_HANDLE_LIST_WRITE 0x0000100u
-#define WT_SESSION_LOCKED_HOTBACKUP_READ 0x0000200u
-#define WT_SESSION_LOCKED_HOTBACKUP_WRITE 0x0000400u
-#define WT_SESSION_LOCKED_METADATA 0x0000800u
-#define WT_SESSION_LOCKED_PASS 0x0001000u
-#define WT_SESSION_LOCKED_SCHEMA 0x0002000u
-#define WT_SESSION_LOCKED_SLOT 0x0004000u
-#define WT_SESSION_LOCKED_TABLE_READ 0x0008000u
-#define WT_SESSION_LOCKED_TABLE_WRITE 0x0010000u
-#define WT_SESSION_LOCKED_TURTLE 0x0020000u
-#define WT_SESSION_LOGGING_INMEM 0x0040000u
-#define WT_SESSION_LOOKASIDE_CURSOR 0x0080000u
-#define WT_SESSION_NO_DATA_HANDLES 0x0100000u
-#define WT_SESSION_NO_LOGGING 0x0200000u
-#define WT_SESSION_NO_RECONCILE 0x0400000u
-#define WT_SESSION_NO_SCHEMA_LOCK 0x0800000u
-#define WT_SESSION_QUIET_CORRUPT_FILE 0x1000000u
-#define WT_SESSION_READ_WONT_NEED 0x2000000u
-#define WT_SESSION_SCHEMA_TXN 0x4000000u
-#define WT_SESSION_SERVER_ASYNC 0x8000000u
+#define WT_SESSION_BACKUP_CURSOR 0x00000001u
+#define WT_SESSION_BACKUP_DUP 0x00000002u
+#define WT_SESSION_CACHE_CURSORS 0x00000004u
+#define WT_SESSION_CAN_WAIT 0x00000008u
+#define WT_SESSION_HS_CURSOR 0x00000010u
+#define WT_SESSION_IGNORE_CACHE_SIZE 0x00000020u
+#define WT_SESSION_INTERNAL 0x00000040u
+#define WT_SESSION_LOCKED_CHECKPOINT 0x00000080u
+#define WT_SESSION_LOCKED_HANDLE_LIST_READ 0x00000100u
+#define WT_SESSION_LOCKED_HANDLE_LIST_WRITE 0x00000200u
+#define WT_SESSION_LOCKED_HOTBACKUP_READ 0x00000400u
+#define WT_SESSION_LOCKED_HOTBACKUP_WRITE 0x00000800u
+#define WT_SESSION_LOCKED_METADATA 0x00001000u
+#define WT_SESSION_LOCKED_PASS 0x00002000u
+#define WT_SESSION_LOCKED_SCHEMA 0x00004000u
+#define WT_SESSION_LOCKED_SLOT 0x00008000u
+#define WT_SESSION_LOCKED_TABLE_READ 0x00010000u
+#define WT_SESSION_LOCKED_TABLE_WRITE 0x00020000u
+#define WT_SESSION_LOCKED_TURTLE 0x00040000u
+#define WT_SESSION_LOGGING_INMEM 0x00080000u
+#define WT_SESSION_NO_DATA_HANDLES 0x00100000u
+#define WT_SESSION_NO_LOGGING 0x00200000u
+#define WT_SESSION_NO_RECONCILE 0x00400000u
+#define WT_SESSION_NO_SCHEMA_LOCK 0x00800000u
+#define WT_SESSION_QUIET_CORRUPT_FILE 0x01000000u
+#define WT_SESSION_READ_WONT_NEED 0x02000000u
+#define WT_SESSION_RESOLVING_MODIFY 0x04000000u
+#define WT_SESSION_RESOLVING_TXN 0x08000000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x10000000u
+#define WT_SESSION_SCHEMA_TXN 0x20000000u
+#define WT_SESSION_SERVER_ASYNC 0x40000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 

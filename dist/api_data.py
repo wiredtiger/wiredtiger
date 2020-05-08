@@ -377,6 +377,8 @@ file_config = format_meta + file_runtime_config + [
 file_meta = file_config + [
     Config('checkpoint', '', r'''
         the file checkpoint entries'''),
+    Config('checkpoint_backup_info', '', r'''
+        the incremental backup durable information'''),
     Config('checkpoint_lsn', '', r'''
         LSN of the last checkpoint'''),
     Config('id', '', r'''
@@ -459,7 +461,19 @@ connection_runtime_config = [
             this size, a panic will be triggered. The default value means that
             the cache overflow file is unbounded and may use as much space as
             the filesystem will accommodate. The minimum non-zero setting is
-            100MB.''',    # !!! Must match WT_LAS_FILE_MIN
+            100MB.''',    # !!! TODO: WT-5585 To be removed when we switch to history_store config
+            min='0')
+        ]),
+    Config('history_store', '', r'''
+        history store configuration options''',
+        type='category', subconfig=[
+        Config('file_max', '0', r'''
+            The maximum number of bytes that WiredTiger is allowed to use for
+            its history store mechanism. If the history store file exceeds
+            this size, a panic will be triggered. The default value means that
+            the history store file is unbounded and may use as much space as
+            the filesystem will accommodate. The minimum non-zero setting is
+            100MB.''',    # !!! Must match WT_HS_FILE_MIN
             min='0')
         ]),
     Config('cache_overhead', '8', r'''
@@ -495,16 +509,32 @@ connection_runtime_config = [
             adjust log archiving to retain the log records of this number
             of checkpoints. Zero or one means perform normal archiving.''',
             min='0', max='1024'),
+        Config('cursor_copy', 'false', r'''
+            if true, use the system allocator to make a copy of any data
+            returned by a cursor operation and return the copy instead.
+            The copy is freed on the next cursor operation. This allows
+            memory sanitizers to detect inappropriate references to memory
+            owned by cursors.''',
+            type='boolean'),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force
-            lookaside eviction to happen more aggressively. This includes but
+            history store eviction to happen more aggressively. This includes but
             is not limited to not skewing newest, not favoring leaf pages,
             and modifying the eviction score mechanism.''',
+            type='boolean'),
+        Config('realloc_exact', 'false', r'''
+            if true, reallocation of memory will only provide the exact
+            amount requested. This will help with spotting memory allocation
+            issues more easily.''',
             type='boolean'),
         Config('rollback_error', '0', r'''
             return a WT_ROLLBACK error from a transaction operation about
             every Nth operation to simulate a collision''',
             min='0', max='10M'),
+        Config('slow_checkpoint', 'false', r'''
+            if true, slow down checkpoint creation by slowing down internal
+            page processing.''',
+            type='boolean'),
         Config('table_logging', 'false', r'''
             if true, write transaction related information to the log for all
             operations, even operations for tables with logging turned off.
@@ -602,9 +632,6 @@ connection_runtime_config = [
             merge LSM chunks where possible''',
             type='boolean')
         ]),
-    Config('lsm_merge', 'true', r'''
-        merge LSM chunks where possible (deprecated)''',
-        type='boolean', undoc=True),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the number of elapsed real time milliseconds
         application threads will take to complete database operations. Time is measured from the
@@ -672,7 +699,7 @@ connection_runtime_config = [
         intended for use with internal stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_sweep', 'checkpoint_slow', 'lookaside_sweep_race',
+        'aggressive_sweep', 'checkpoint_slow', 'history_store_sweep_race',
         'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6',
         'split_7', 'split_8']),
     Config('verbose', '', r'''
@@ -680,8 +707,10 @@ connection_runtime_config = [
         list, such as <code>"verbose=[evictserver,read]"</code>''',
         type='list', choices=[
             'api',
+            'backup',
             'block',
             'checkpoint',
+            'checkpoint_gc',
             'checkpoint_progress',
             'compact',
             'compact_progress',
@@ -692,8 +721,8 @@ connection_runtime_config = [
             'fileops',
             'handleops',
             'log',
-            'lookaside',
-            'lookaside_activity',
+            'history_store',
+            'history_store_activity',
             'lsm',
             'lsm_manager',
             'metadata',
@@ -704,6 +733,7 @@ connection_runtime_config = [
             'reconcile',
             'recovery',
             'recovery_progress',
+            'rts',
             'salvage',
             'shared_cache',
             'split',
@@ -958,7 +988,10 @@ wiredtiger_open_common =\
         handle''',
         min=15, undoc=True),
     Config('mmap', 'true', r'''
-        Use memory mapping to access files when possible''',
+        Use memory mapping when accessing files in a read-only mode''',
+        type='boolean'),
+    Config('mmap_all', 'false', r'''
+        Use memory mapping to read and write all data files''',
         type='boolean'),
     Config('multiprocess', 'false', r'''
         permit sharing between processes (will automatically start an
@@ -1001,6 +1034,10 @@ wiredtiger_open_common =\
             @ref tune_durability for more information''',
             choices=['dsync', 'fsync', 'none']),
         ]),
+    Config('verify_metadata', 'false', r'''
+        open connection and verify any WiredTiger metadata. This API
+        allows verification and detection of corruption in WiredTiger metadata.''',
+        type='boolean'),
     Config('write_through', '', r'''
         Use \c FILE_FLAG_WRITE_THROUGH on Windows to write to files.  Ignored
         on non-Windows systems.  Options are given as a list, such as
@@ -1208,6 +1245,38 @@ methods = {
         characters are hexadecimal encoded.  These formats are compatible
         with the @ref util_dump and @ref util_load commands''',
         choices=['hex', 'json', 'print']),
+    Config('incremental', '', r'''
+        configure the cursor for block incremental backup usage. These formats
+        are only compatible with the backup data source; see @ref backup''',
+        type='category', subconfig=[
+        Config('enabled', 'false', r'''
+            whether to configure this backup as the starting point for a subsequent
+            incremental backup''',
+            type='boolean'),
+        Config('file', '', r'''
+            the file name when opening a duplicate incremental backup cursor.
+            That duplicate cursor will return the block modifications relevant
+            to the given file name'''),
+        Config('force_stop', 'false', r'''
+            causes all block incremental backup information to be released. This is
+            on an open_cursor call and the resources will be released when this
+            cursor is closed. No other operations should be done on this open cursor''',
+            type='boolean'),
+        Config('granularity', '16MB', r'''
+            this setting manages the granularity of how WiredTiger maintains modification
+            maps internally. The larger the granularity, the smaller amount of information
+            WiredTiger need to maintain''',
+            min='1MB', max='2GB'),
+        Config('src_id', '', r'''
+            a string that identifies a previous checkpoint backup source as the source
+            of this incremental backup. This identifier must have already been created
+            by use of the 'this_id' configuration in an earlier backup. A source id is
+            required to begin an incremental backup'''),
+        Config('this_id', '', r'''
+            a string that identifies the current system state  as a future backup source
+            for an incremental backup via 'src_id'. This identifier is required when opening
+            an incremental backup cursor and an error will be returned if one is not provided'''),
+        ]),
     Config('next_random', 'false', r'''
         configure the cursor to return a pseudo-random record from the
         object when the WT_CURSOR::next method is called; valid only for
@@ -1298,12 +1367,18 @@ methods = {
 'WT_SESSION.upgrade' : Method([]),
 'WT_SESSION.verify' : Method([
     Config('dump_address', 'false', r'''
-        Display addresses and page types as pages are verified,
-        using the application's message handler, intended for debugging''',
+        Display page addresses, start and stop time pairs and page types as
+        pages are verified, using the application's message handler,
+        intended for debugging''',
         type='boolean'),
     Config('dump_blocks', 'false', r'''
         Display the contents of on-disk blocks as they are verified,
         using the application's message handler, intended for debugging''',
+        type='boolean'),
+    Config('dump_history', 'false', r'''
+        Display a key's values along with its start and stop time pairs as
+        they are verified against the history store, using the application's
+        message handler, intended for debugging''',
         type='boolean'),
     Config('dump_layout', 'false', r'''
         Display the layout of the files as they are verified, using the
@@ -1318,11 +1393,15 @@ methods = {
         Display the contents of in-memory pages as they are verified,
         using the application's message handler, intended for debugging''',
         type='boolean'),
+    Config('stable_timestamp', 'false', r'''
+        Ensure that no data has a start timestamp after the stable timestamp,
+        to be run after rollback_to_stable.''',
+        type='boolean'),
     Config('strict', 'false', r'''
         Treat any verification problem as an error; by default, verify will
         warn, but not fail, in the case of errors that won't affect future
         behavior (for example, a leaked block)''',
-        type='boolean')
+        type='boolean'),
 ]),
 
 'WT_SESSION.begin_transaction' : Method([
@@ -1373,9 +1452,6 @@ methods = {
             read timestamp will be rounded up to the oldest timestamp''',
             type='boolean'),
         ]),
-    Config('snapshot', '', r'''
-        use a named, in-memory snapshot, see
-        @ref transaction_named_snapshots'''),
     Config('sync', '', r'''
         whether to sync log records when the transaction commits,
         inherited from ::wiredtiger_open \c transaction_sync''',
@@ -1447,8 +1523,9 @@ methods = {
         including the named checkpoint, or
         \c "to=<checkpoint>" to drop all checkpoints before and
         including the named checkpoint.  Checkpoints cannot be
-        dropped while a hot backup is in progress or if open in
-        a cursor''', type='list'),
+        dropped if open in a cursor.  While a hot backup is in
+        progress, checkpoints created prior to the start of the
+        backup cannot be dropped''', type='list'),
     Config('force', 'false', r'''
         if false (the default), checkpoints may be skipped if the underlying object has not been
         modified, if true, this option forces the checkpoint''',
@@ -1463,28 +1540,6 @@ methods = {
         are in use, or all current updates if there is no stable timestamp set. If false, this
         option generates a checkpoint with all updates including those later than the timestamp''',
         type='boolean'),
-]),
-
-'WT_SESSION.snapshot' : Method([
-    Config('drop', '', r'''
-            if non-empty, specifies which snapshots to drop. Where a group
-            of snapshots are being dropped, the order is based on snapshot
-            creation order not alphanumeric name order''',
-        type='category', subconfig=[
-        Config('all', 'false', r'''
-            drop all named snapshots''', type='boolean'),
-        Config('before', '', r'''
-            drop all snapshots up to but not including the specified name'''),
-        Config('names', '', r'''
-            drop specific named snapshots''', type='list'),
-        Config('to', '', r'''
-            drop all snapshots up to and including the specified name'''),
-    ]),
-    Config('include_updates', 'false', r'''
-        make updates from the current transaction visible to users of the
-        named snapshot.  Transactions started with such a named snapshot are
-        restricted to being read-only''', type='boolean'),
-    Config('name', '', r'''specify a name for the snapshot'''),
 ]),
 
 'WT_CONNECTION.add_collator' : Method([]),
@@ -1571,8 +1626,7 @@ methods = {
 
 'WT_CONNECTION.query_timestamp' : Method([
     Config('get', 'all_durable', r'''
-        specify which timestamp to query: \c all_committed returns the largest
-        timestamp such that all timestamps up to that value have committed,
+        specify which timestamp to query:
         \c all_durable returns the largest timestamp such that all timestamps
         up to that value have been made durable, \c last_checkpoint returns the
         timestamp of the most recent stable checkpoint, \c oldest returns the
@@ -1583,7 +1637,7 @@ methods = {
         timestamp of the most recent stable checkpoint taken prior to a shutdown
         and \c stable returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp. See @ref transaction_timestamps''',
-        choices=['all_committed','all_durable','last_checkpoint',
+        choices=['all_durable','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
 

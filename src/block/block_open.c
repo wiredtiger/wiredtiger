@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -44,7 +44,7 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
         if ((ret = __wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA,
                WT_FS_OPEN_CREATE | WT_FS_OPEN_DURABLE | WT_FS_OPEN_EXCLUSIVE, &fh)) == 0)
             break;
-        WT_ERR_TEST(ret != EEXIST, ret);
+        WT_ERR_TEST(ret != EEXIST, ret, false);
 
         if (tmp == NULL)
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
@@ -316,6 +316,35 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         return (0);
 
+    /*
+     * If a data file is smaller than the allocation size, we're not going to be able to read the
+     * descriptor block.
+     *
+     * If we're performing rollback to stable as part of recovery, we should treat this as if the
+     * file has been deleted; that is, to log an error but continue on.
+     *
+     * In the general case, we should return a generic error and signal that we've detected data
+     * corruption.
+     *
+     * FIXME-WT-5832: MongoDB relies heavily on the error codes reported when opening cursors (which
+     * hits this logic if the relevant data handle isn't already open). However this code gets run
+     * in rollback to stable as part of recovery where we want to skip any corrupted data files
+     * temporarily to allow MongoDB to initiate salvage. This is why we've been forced into this
+     * situation. We should address this as part of WT-5832 and clarify what error codes we expect
+     * to be returning across the API boundary.
+     */
+    if (block->size < allocsize) {
+        if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+            ret = ENOENT;
+        else {
+            ret = WT_ERROR;
+            F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
+        }
+        WT_RET_MSG(session, ret,
+          "File %s is smaller than allocation size; file size=%" PRId64 ", alloc size=%" PRIu32,
+          block->name, block->size, allocsize);
+    }
+
     /* Use a scratch buffer to get correct alignment for direct I/O. */
     WT_RET(__wt_scr_alloc(session, allocsize, &buf));
 
@@ -345,8 +374,11 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
      * without some reason to believe they are WiredTiger files. The user may have entered the wrong
      * file name, and is now frantically pounding their interrupt key.
      */
-    if (desc->magic != WT_BLOCK_MAGIC || !checksum_matched)
+    if (desc->magic != WT_BLOCK_MAGIC || !checksum_matched) {
+        if (strcmp(block->name, WT_METAFILE) == 0 || strcmp(block->name, WT_HS_FILE) == 0)
+            WT_ERR_MSG(session, WT_TRY_SALVAGE, "%s is corrupted", block->name);
         WT_ERR_MSG(session, WT_ERROR, "%s does not appear to be a WiredTiger file", block->name);
+    }
 
     if (desc->majorv > WT_BLOCK_MAJOR_VERSION ||
       (desc->majorv == WT_BLOCK_MAJOR_VERSION && desc->minorv > WT_BLOCK_MINOR_VERSION))

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -131,6 +131,21 @@ __wt_metadata_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
         F_SET(session->meta_cursor, WT_CURSTD_META_INUSE);
     }
     return (0);
+}
+
+/*
+ * __wt_metadata_cursor_close --
+ *     Close a metadata cursor.
+ */
+int
+__wt_metadata_cursor_close(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+
+    if (session->meta_cursor != NULL)
+        ret = session->meta_cursor->close(session->meta_cursor);
+    session->meta_cursor = NULL;
+    return (ret);
 }
 
 /*
@@ -322,24 +337,34 @@ err:
 }
 
 /*
- * __wt_metadata_salvage --
- *     Salvage the metadata file. This is a destructive operation. Save a copy of the original
- *     metadata.
+ * __wt_metadata_btree_id_to_uri --
+ *     Given a btree id, find the matching entry in the metadata and return a copy of the uri. The
+ *     caller has to free the returned uri.
  */
 int
-__wt_metadata_salvage(WT_SESSION_IMPL *session)
+__wt_metadata_btree_id_to_uri(WT_SESSION_IMPL *session, uint32_t btree_id, char **uri)
 {
-    WT_SESSION *wt_session;
+    WT_CONFIG_ITEM id;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    char *key, *value;
 
-    wt_session = &session->iface;
-    /*
-     * Copy the original metadata.
-     */
-    WT_RET(__wt_copy_and_sync(wt_session, WT_METAFILE, WT_METAFILE_SLVG));
+    *uri = NULL;
+    key = NULL;
 
-    /*
-     * Now salvage the metadata. We know we're in wiredtiger_open and single threaded.
-     */
-    WT_RET(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
-    return (0);
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_value(cursor, &value));
+        if ((ret = __wt_config_getones(session, value, "id", &id)) == 0 && btree_id == id.val) {
+            WT_ERR(cursor->get_key(cursor, &key));
+            /* Return a copy as the uri. */
+            WT_ERR(__wt_strdup(session, key, uri));
+            break;
+        }
+        WT_ERR_NOTFOUND_OK(ret, false);
+    }
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
 }

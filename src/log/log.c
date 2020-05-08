@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -215,7 +215,7 @@ __log_fs_write(
     }
     __wt_capacity_throttle(session, len, WT_THROTTLE_LOG);
     if ((ret = __wt_write(session, slot->slot_fh, offset, len, buf)) != 0)
-        WT_PANIC_RET(session, ret, "%s: fatal log failure", slot->slot_fh->name);
+        WT_RET_PANIC(session, ret, "%s: fatal log failure", slot->slot_fh->name);
     return (ret);
 }
 
@@ -528,11 +528,11 @@ err:
 }
 
 /*
- * __log_filename --
+ * __wt_log_filename --
  *     Given a log number, return a WT_ITEM of a generated log file name of the given prefix type.
  */
-static int
-__log_filename(WT_SESSION_IMPL *session, uint32_t id, const char *file_prefix, WT_ITEM *buf)
+int
+__wt_log_filename(WT_SESSION_IMPL *session, uint32_t id, const char *file_prefix, WT_ITEM *buf)
 {
     return (
       __wt_filename_construct(session, S2C(session)->log_path, file_prefix, UINTMAX_MAX, id, buf));
@@ -843,10 +843,10 @@ __log_openfile(WT_SESSION_IMPL *session, uint32_t id, uint32_t flags, WT_FH **fh
      */
     if (LF_ISSET(WT_LOG_OPEN_CREATE_OK)) {
         wtopen_flags = WT_FS_OPEN_CREATE;
-        WT_ERR(__log_filename(session, id, WT_LOG_TMPNAME, buf));
+        WT_ERR(__wt_log_filename(session, id, WT_LOG_TMPNAME, buf));
     } else {
         wtopen_flags = 0;
-        WT_ERR(__log_filename(session, id, WT_LOG_FILENAME, buf));
+        WT_ERR(__wt_log_filename(session, id, WT_LOG_FILENAME, buf));
     }
     __wt_verbose(session, WT_VERB_LOG, "opening log %s", (const char *)buf->data);
     if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_LOG))
@@ -912,7 +912,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
             WT_ERR_MSG(session, WT_ERROR, "log file %s corrupted: Bad magic number %" PRIu32,
               fh->name, desc->log_magic);
         else
-            WT_PANIC_RET(session, WT_ERROR, "log file %s corrupted: Bad magic number %" PRIu32,
+            WT_ERR_MSG(session, WT_TRY_SALVAGE, "log file %s corrupted: Bad magic number %" PRIu32,
               fh->name, desc->log_magic);
     }
     /*
@@ -1086,8 +1086,8 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 
     WT_ERR(__wt_scr_alloc(session, 0, &from_path));
     WT_ERR(__wt_scr_alloc(session, 0, &to_path));
-    WT_ERR(__log_filename(session, from_num, WT_LOG_PREPNAME, from_path));
-    WT_ERR(__log_filename(session, to_num, WT_LOG_FILENAME, to_path));
+    WT_ERR(__wt_log_filename(session, from_num, WT_LOG_PREPNAME, from_path));
+    WT_ERR(__wt_log_filename(session, to_num, WT_LOG_FILENAME, to_path));
     __wt_spin_lock(session, &log->log_fs_lock);
     locked = true;
     __wt_verbose(session, WT_VERB_LOG, "log_alloc_prealloc: rename log %s to %s",
@@ -1166,7 +1166,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * can copy the files in any way they choose, and a log file rename might confuse things.
      */
     create_log = true;
-    if (conn->log_prealloc > 0 && !conn->hot_backup) {
+    if (conn->log_prealloc > 0 && conn->hot_backup_start == 0) {
         WT_WITH_HOTBACKUP_READ_LOCK(
           session, ret = __log_alloc_prealloc(session, log->fileid), &skipp);
 
@@ -1191,12 +1191,10 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      */
     if (create_log) {
         /*
-         * Increment the missed pre-allocated file counter only
-         * if a hot backup is not in progress. We are deliberately
-         * not using pre-allocated log files during backup
-         * (see comment above).
+         * Increment the missed pre-allocated file counter only if a hot backup is not in progress.
+         * We are deliberately not using pre-allocated log files during backup (see comment above).
          */
-        if (!conn->hot_backup)
+        if (conn->hot_backup_start == 0)
             log->prep_missed++;
         WT_RET(__wt_log_allocfile(session, log->fileid, WT_LOG_FILENAME));
     }
@@ -1385,7 +1383,7 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
     conn = S2C(session);
     log = conn->log;
 
-    if (!F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP) && !conn->hot_backup) {
+    if (!F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP) && conn->hot_backup_start == 0) {
         WT_WITH_HOTBACKUP_READ_LOCK(session, ret = __wt_ftruncate(session, log_fh, offset), &skipp);
         if (!skipp) {
             if (ret != ENOTSUP)
@@ -1430,10 +1428,9 @@ __log_truncate(WT_SESSION_IMPL *session, WT_LSN *lsn, bool this_log, bool salvag
     /*
      * Truncate the log file to the given LSN.
      *
-     * It's possible the underlying file system doesn't support truncate
-     * (there are existing examples), which is fine, but we don't want to
-     * repeatedly do the setup work just to find that out every time. Check
-     * before doing work, and if there's a not-supported error, turn off
+     * It's possible the underlying file system doesn't support truncate (there are existing
+     * examples), which is fine, but we don't want to repeatedly do the setup work just to find that
+     * out every time. Check before doing work, and if there's a not-supported error, turn off
      * future truncates.
      */
     WT_ERR(__log_openfile(session, lsn->l.file, 0, &log_fh));
@@ -1528,8 +1525,8 @@ __wt_log_allocfile(WT_SESSION_IMPL *session, uint32_t lognum, const char *dest)
     WT_RET(__wt_scr_alloc(session, 0, &from_path));
     WT_ERR(__wt_scr_alloc(session, 0, &to_path));
     tmp_id = __wt_atomic_add32(&log->tmp_fileid, 1);
-    WT_ERR(__log_filename(session, tmp_id, WT_LOG_TMPNAME, from_path));
-    WT_ERR(__log_filename(session, lognum, dest, to_path));
+    WT_ERR(__wt_log_filename(session, tmp_id, WT_LOG_TMPNAME, from_path));
+    WT_ERR(__wt_log_filename(session, lognum, dest, to_path));
     __wt_spin_lock(session, &log->log_fs_lock);
     /*
      * Set up the temporary file.
@@ -1565,11 +1562,38 @@ __wt_log_remove(WT_SESSION_IMPL *session, const char *file_prefix, uint32_t logn
     WT_DECL_RET;
 
     WT_RET(__wt_scr_alloc(session, 0, &path));
-    WT_ERR(__log_filename(session, lognum, file_prefix, path));
+    WT_ERR(__wt_log_filename(session, lognum, file_prefix, path));
     __wt_verbose(session, WT_VERB_LOG, "log_remove: remove log %s", (const char *)path->data);
     WT_ERR(__wt_fs_remove(session, path->data, false));
 err:
     __wt_scr_free(session, &path);
+    return (ret);
+}
+
+/*
+ * __wt_log_compat_verify --
+ *     Verify the last log when opening for the compatibility settings. This is separate because we
+ *     need to do it very early in the startup process.
+ */
+int
+__wt_log_compat_verify(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    uint32_t lastlog, lognum;
+    u_int i, logcount;
+    char **logfiles;
+
+    lastlog = 0;
+
+    WT_ERR(__log_get_files(session, WT_LOG_FILENAME, &logfiles, &logcount));
+    for (i = 0; i < logcount; i++) {
+        WT_ERR(__wt_log_extract_lognum(session, logfiles[i], &lognum));
+        lastlog = WT_MAX(lastlog, lognum);
+    }
+    if (lastlog != 0)
+        WT_ERR(__log_open_verify(session, lastlog, NULL, NULL, NULL, NULL));
+err:
+    WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
     return (ret);
 }
 
@@ -1894,7 +1918,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
          * After this point the worker thread owns the slot. There is nothing more to do but return.
          */
         /*
-         * !!! Signalling the wrlsn_cond condition here results in
+         * !!! Signaling the wrlsn_cond condition here results in
          * worse performance because it causes more scheduling churn
          * and more walking of the slot pool for a very small number
          * of slots to process.  Don't signal here.

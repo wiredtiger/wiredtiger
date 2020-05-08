@@ -185,20 +185,6 @@ pthread_adaptive|pthreads_adaptive)
 esac
 AC_MSG_RESULT($with_spinlock)
 
-AH_TEMPLATE(HAVE_PAGE_VERSION_TS,
-    [Define to 1 to enable writing timestamp version page formats.])
-AC_MSG_CHECKING(if --enable-page-version-ts option specified)
-AC_ARG_ENABLE(page-version-ts,
-	[AS_HELP_STRING([--enable-page-version-ts],
-	    [Configure for timestamp version page formats])],
-	    r=$enableval, r=no)
-case "$r" in
-no)	wt_cv_enable_page_version_ts=no;;
-*)	AC_DEFINE(HAVE_PAGE_VERSION_TS)
-	wt_cv_enable_page_version_ts=yes;;
-esac
-AC_MSG_RESULT($wt_cv_enable_page_version_ts)
-
 AC_MSG_CHECKING(if --enable-strict option specified)
 AC_ARG_ENABLE(strict,
 	[AS_HELP_STRING([--enable-strict],
@@ -275,4 +261,23 @@ no)	wt_cv_crc32_hardware=no
 	AC_MSG_RESULT(no);;
 esac
 
+AC_MSG_CHECKING(if --enable-llvm option specified)
+AC_ARG_ENABLE(llvm,
+	[AS_HELP_STRING([--enable-llvm],
+	    [Configure with LLVM.])], r=$enableval, r=no)
+case "$r" in
+no)	wt_cv_enable_llvm=no;;
+*)	wt_cv_enable_llvm=yes;;
+esac
+AC_MSG_RESULT($wt_cv_enable_llvm)
+if test "$wt_cv_enable_llvm" = "yes"; then
+	AC_CHECK_PROG(wt_cv_llvm_config, llvm-config, yes)
+	if test "$wt_cv_llvm_config" != "yes"; then
+		AC_MSG_ERROR([--enable-llvm requires llvm-config])
+	fi
+	if ! test $(llvm-config --version | grep "^8"); then
+		AC_MSG_ERROR([llvm-config must be version 8])
+	fi
+fi
+AM_CONDITIONAL([LLVM], [test x$wt_cv_enable_llvm = xyes])
 ])

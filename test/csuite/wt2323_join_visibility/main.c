@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -278,8 +278,12 @@ thread_insert(void *arg)
             else if (ret == WT_ROLLBACK)
                 threadargs->rollbacks++;
         }
-        if (sharedopts->remove)
-            testutil_check(session->commit_transaction(session, NULL));
+        if (sharedopts->remove) {
+            if (ret == WT_ROLLBACK)
+                testutil_check(session->rollback_transaction(session, NULL));
+            else
+                testutil_check(session->commit_transaction(session, NULL));
+        }
         if (i % 1000 == 0 && i != 0) {
             if (i % 10000 == 0)
                 fprintf(stderr, "*");

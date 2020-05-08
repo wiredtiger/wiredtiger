@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -264,7 +264,7 @@ struct __wt_table {
         if ((skipp) != (bool *)NULL)                            \
             *(bool *)(skipp) = true;                            \
         if (F_ISSET(session, WT_SESSION_LOCKED_HOTBACKUP)) {    \
-            if (!__conn->hot_backup) {                          \
+            if (__conn->hot_backup_start == 0) {                \
                 if ((skipp) != (bool *)NULL)                    \
                     *(bool *)(skipp) = false;                   \
                 op;                                             \
@@ -272,7 +272,7 @@ struct __wt_table {
         } else {                                                \
             __wt_readlock(session, &__conn->hot_backup_lock);   \
             F_SET(session, WT_SESSION_LOCKED_HOTBACKUP_READ);   \
-            if (!__conn->hot_backup) {                          \
+            if (__conn->hot_backup_start == 0) {                \
                 if ((skipp) != (bool *)NULL)                    \
                     *(bool *)(skipp) = false;                   \
                 op;                                             \

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -310,10 +310,9 @@ __wt_huffman_open(
     WT_RET(__wt_calloc_one(session, &huffman));
 
     /*
-     * The frequency table is 4B pairs of symbol and frequency.  The symbol
-     * is either 1 or 2 bytes and the frequency ranges from 1 to UINT32_MAX
-     * (a frequency of 0 means the value is never expected to appear in the
-     * input).  Validate the symbols are within range.
+     * The frequency table is 4B pairs of symbol and frequency. The symbol is either 1 or 2 bytes
+     * and the frequency ranges from 1 to UINT32_MAX (a frequency of 0 means the value is never
+     * expected to appear in the input). Validate the symbols are within range.
      */
     if (numbytes != 1 && numbytes != 2)
         WT_ERR_MSG(session, EINVAL,

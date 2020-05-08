@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -36,7 +36,7 @@ __async_set_key(WT_ASYNC_OP *asyncop, ...)
 
     c = &asyncop->c;
     va_start(ap, asyncop);
-    __wt_cursor_set_keyv(c, c->flags, ap);
+    WT_IGNORE_RET(__wt_cursor_set_keyv(c, c->flags, ap));
     if (!WT_DATA_IN_ITEM(&c->key) && !WT_CURSOR_RECNO(c))
         c->saved_err =
           __wt_buf_set(O2S((WT_ASYNC_OP_IMPL *)asyncop), &c->key, c->key.data, c->key.size);
@@ -71,7 +71,7 @@ __async_set_value(WT_ASYNC_OP *asyncop, ...)
 
     c = &asyncop->c;
     va_start(ap, asyncop);
-    __wt_cursor_set_valuev(c, ap);
+    WT_IGNORE_RET(__wt_cursor_set_valuev(c, ap));
     /* Copy the data, if it is pointing at data elsewhere. */
     if (!WT_DATA_IN_ITEM(&c->value))
         c->saved_err =
@@ -291,7 +291,7 @@ __wt_async_op_enqueue(WT_SESSION_IMPL *session, WT_ASYNC_OP_IMPL *op)
 #ifdef HAVE_DIAGNOSTIC
     WT_ORDERED_READ(my_op, async->async_queue[my_slot]);
     if (my_op != NULL)
-        return (__wt_panic(session));
+        return (__wt_panic(session, WT_PANIC, "async failure"));
 #endif
     WT_PUBLISH(async->async_queue[my_slot], op);
     op->state = WT_ASYNCOP_ENQUEUED;

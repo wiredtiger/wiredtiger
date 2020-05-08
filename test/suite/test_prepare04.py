@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -116,7 +116,7 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Make sure we detect the conflict between operations.
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda:c_other.update(), conflictmsg)
-        s_other.commit_transaction()
+        s_other.rollback_transaction()
 
         self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(300))
         self.session.timestamp_transaction('durable_timestamp=' + timestamp_str(300))

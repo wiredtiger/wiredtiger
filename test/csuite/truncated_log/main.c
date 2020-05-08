@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -67,7 +67,6 @@ write_and_read_new(WT_SESSION *session)
     printf("Write log_printf record and verify.\n");
     testutil_check(session->log_printf(session, "Test Log Record"));
     testutil_check(session->log_flush(session, "sync=on"));
-    testutil_check(session->open_cursor(session, "log:", NULL, NULL, &logc));
     testutil_check(session->open_cursor(session, "log:", NULL, NULL, &logc));
     saw_msg = false;
     while (logc->next(logc) == 0) {

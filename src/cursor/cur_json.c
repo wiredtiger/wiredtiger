@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -373,7 +373,7 @@ __wt_json_column_init(WT_CURSOR *cursor, const char *uri, const char *keyformat,
     const char *beginkey, *end, *lparen, *p;
 
     json = (WT_CURSOR_JSON *)cursor->json_private;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
     beginkey = colconf->str;
     end = beginkey + colconf->len;
 

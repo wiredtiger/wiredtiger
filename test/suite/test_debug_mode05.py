@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -42,7 +42,7 @@ class test_debug_mode05(wttest.WiredTigerTestCase):
     uri = 'file:test_debug_mode05'
 
     def test_table_logging_rollback_to_stable(self):
-        self.session.create(self.uri, 'key_format=i,value_format=u')
+        self.session.create(self.uri, 'key_format=i,value_format=u,log=(enabled=false)')
 
         cursor = self.session.open_cursor(self.uri, None)
 

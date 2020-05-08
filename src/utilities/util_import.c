@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -11,10 +11,7 @@
 static int
 usage(void)
 {
-    (void)fprintf(stderr,
-      "usage: %s %s "
-      "import uri\n",
-      progname, usage_prefix);
+    util_usage("import uri", NULL, NULL);
     return (1);
 }
 

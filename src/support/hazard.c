@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -57,11 +57,11 @@ hazard_grow(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_hazard_set --
+ * __wt_hazard_set_func --
  *     Set a hazard pointer.
  */
 int
-__wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
+__wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 #ifdef HAVE_DIAGNOSTIC
   ,
   const char *func, int line
@@ -69,7 +69,7 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
   )
 {
     WT_HAZARD *hp;
-    uint32_t current_state;
+    uint8_t current_state;
 
     *busyp = false;
 
@@ -82,7 +82,7 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
      * re-check it after a barrier to make sure we have a valid reference.
      */
     current_state = ref->state;
-    if (current_state != WT_REF_LIMBO && current_state != WT_REF_MEM) {
+    if (current_state != WT_REF_MEM) {
         *busyp = true;
         return (0);
     }
@@ -124,8 +124,8 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
     /*
      * Do the dance:
      *
-     * The memory location which makes a page "real" is the WT_REF's state of WT_REF_LIMBO or
-     * WT_REF_MEM, which can be set to WT_REF_LOCKED at any time by the page eviction server.
+     * The memory location which makes a page "real" is the WT_REF's state of WT_REF_MEM, which can
+     * be set to WT_REF_LOCKED at any time by the page eviction server.
      *
      * Add the WT_REF reference to the session's hazard list and flush the write, then see if the
      * page's state is still valid. If so, we can use the page because the page eviction server will
@@ -141,11 +141,10 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
     WT_FULL_BARRIER();
 
     /*
-     * Check if the page state is still valid, where valid means a state of WT_REF_LIMBO or
-     * WT_REF_MEM.
+     * Check if the page state is still valid, where valid means a state of WT_REF_MEM.
      */
     current_state = ref->state;
-    if (current_state == WT_REF_LIMBO || current_state == WT_REF_MEM) {
+    if (current_state == WT_REF_MEM) {
         ++session->nhazard;
 
         /*
@@ -157,14 +156,13 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
     }
 
     /*
-     * The page isn't available, it's being considered for eviction
-     * (or being evicted, for all we know).  If the eviction server
-     * sees our hazard pointer before evicting the page, it will
-     * return the page to use, no harm done, if it doesn't, it will
-     * go ahead and complete the eviction.
+     * The page isn't available, it's being considered for eviction (or being evicted, for all we
+     * know). If the eviction server sees our hazard pointer before evicting the page, it will
+     * return the page to use, no harm done, if it doesn't, it will go ahead and complete the
+     * eviction.
      *
-     * We don't bother publishing this update: the worst case is we
-     * prevent some random page from being evicted.
+     * We don't bother publishing this update: the worst case is we prevent some random page from
+     * being evicted.
      */
     hp->ref = NULL;
     *busyp = true;
@@ -212,7 +210,7 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
      * A serious error, we should always find the hazard pointer. Panic, because using a page we
      * didn't have pinned down implies corruption.
      */
-    WT_PANIC_RET(session, EINVAL, "session %p: clear hazard pointer: %p: not found",
+    WT_RET_PANIC(session, EINVAL, "session %p: clear hazard pointer: %p: not found",
       (void *)session, (void *)ref);
 }
 
@@ -245,15 +243,13 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 #endif
 
     /*
-     * Clear any hazard pointers because it's not a correctness problem
-     * (any hazard pointer we find can't be real because the session is
-     * being closed when we're called). We do this work because session
-     * close isn't that common that it's an expensive check, and we don't
-     * want to let a hazard pointer lie around, keeping a page from being
-     * evicted.
+     * Clear any hazard pointers because it's not a correctness problem (any hazard pointer we find
+     * can't be real because the session is being closed when we're called). We do this work because
+     * session close isn't that common that it's an expensive check, and we don't want to let a
+     * hazard pointer lie around, keeping a page from being evicted.
      *
-     * We don't panic: this shouldn't be a correctness issue (at least, I
-     * can't think of a reason it would be).
+     * We don't panic: this shouldn't be a correctness issue (at least, I can't think of a reason it
+     * would be).
      */
     for (hp = session->hazard; hp < session->hazard + session->hazard_inuse; ++hp)
         if (hp->ref != NULL) {

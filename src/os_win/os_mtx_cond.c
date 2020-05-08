@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -116,8 +116,8 @@ skipping:
 
     __wt_err(session, __wt_map_windows_error(windows_error), "SleepConditionVariableCS: %s: %s",
       cond->name, __wt_formatmessage(session, windows_error));
-    WT_PANIC_MSG(
-      session, __wt_map_windows_error(windows_error), "SleepConditionVariableCS: %s", cond->name);
+    WT_IGNORE_RET(__wt_panic(
+      session, __wt_map_windows_error(windows_error), "SleepConditionVariableCS: %s", cond->name));
 }
 
 /*

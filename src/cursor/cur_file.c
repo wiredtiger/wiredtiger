@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -88,6 +88,7 @@ __curfile_next(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, next, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
 
     WT_ERR(__wt_btcur_next(cbt, false));
 
@@ -114,6 +115,7 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, next, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
 
     WT_ERR(__wt_btcur_next_random(cbt));
 
@@ -139,6 +141,7 @@ __curfile_prev(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, prev, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
 
     WT_ERR(__wt_btcur_prev(cbt, false));
 
@@ -164,6 +167,7 @@ __curfile_reset(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
 
     ret = __wt_btcur_reset(cbt);
 
@@ -189,6 +193,7 @@ __curfile_search(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, search, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
     time_start = __wt_clock(session);
@@ -219,6 +224,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, search_near, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
     time_start = __wt_clock(session);
@@ -249,6 +255,7 @@ __curfile_insert(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, insert, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
 
     if (!F_ISSET(cursor, WT_CURSTD_APPEND))
         WT_ERR(__cursor_checkkey(cursor));
@@ -289,6 +296,7 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     tret = 0;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, update, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
     tret = __wt_btcur_insert_check(cbt);
@@ -315,6 +323,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, modify, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
     /* Check for a rational modify vector count. */
@@ -349,6 +358,7 @@ __curfile_update(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, update, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__cursor_checkvalue(cursor));
 
@@ -391,6 +401,7 @@ __curfile_remove(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_REMOVE_API_CALL(cursor, session, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
     time_start = __wt_clock(session);
@@ -427,6 +438,7 @@ __curfile_reserve(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_UPDATE_API_CALL_BTREE(cursor, session, reserve, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
     WT_ERR(__cursor_checkkey(cursor));
 
     WT_ERR(__wt_txn_context_check(session, true));
@@ -445,12 +457,11 @@ err:
     CURSOR_UPDATE_API_END(session, ret);
 
     /*
-     * The application might do a WT_CURSOR.get_value call when we return,
-     * so we need a value and the underlying functions didn't set one up.
-     * For various reasons, those functions may not have done a search and
-     * any previous value in the cursor might race with WT_CURSOR.reserve
-     * (and in cases like LSM, the reserve never encountered the original
-     * key). For simplicity, repeat the search here.
+     * The application might do a WT_CURSOR.get_value call when we return, so we need a value and
+     * the underlying functions didn't set one up. For various reasons, those functions may not have
+     * done a search and any previous value in the cursor might race with WT_CURSOR.reserve (and in
+     * cases like LSM, the reserve never encountered the original key). For simplicity, repeat the
+     * search here.
      */
     return (ret == 0 ? cursor->search(cursor) : ret);
 }
@@ -470,6 +481,7 @@ __curfile_close(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, cbt->btree);
+    WT_ERR(__cursor_copy_release(cursor));
 err:
 
     /* Only try to cache the cursor if there's no error. */
@@ -530,7 +542,7 @@ __curfile_cache(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
     cbt->dhandle = cbt->btree->dhandle;
 
     WT_TRET(__wt_cursor_cache(cursor, cbt->dhandle));
@@ -553,7 +565,7 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     dhandle = cbt->dhandle;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
 
     if (check_only)
         return (WT_DHANDLE_CAN_REOPEN(dhandle) ? 0 : WT_NOTFOUND);
@@ -643,7 +655,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
     cacheable = F_ISSET(session, WT_SESSION_CACHE_CURSORS) && !bulk;
 
     WT_RET(__wt_calloc(session, 1, csize, &cbt));
-    cursor = (WT_CURSOR *)cbt;
+    cursor = &cbt->iface;
     *cursor = iface;
     cursor->session = (WT_SESSION *)session;
     cursor->internal_uri = btree->dhandle->name;
@@ -705,9 +717,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
       S2C(session)->compat_major >= WT_LOG_V2_MAJOR)
         cursor->modify = __curfile_modify;
 
-    /*
-     * WiredTiger.wt should not be cached, doing so interferes with named checkpoints.
-     */
+    /* Cursors on metadata should not be cached, doing so interferes with named checkpoints. */
     if (cacheable && strcmp(WT_METAFILE_URI, cursor->internal_uri) != 0)
         F_SET(cursor, WT_CURSTD_CACHEABLE);
 

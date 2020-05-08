@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -82,6 +82,9 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
         TAILQ_INIT(&conn->blockhash[i]); /* Block handle hash lists */
     TAILQ_INIT(&conn->blockqh);          /* Block manager list */
+
+    conn->ckpt_prep_min = UINT64_MAX;
+    conn->ckpt_time_min = UINT64_MAX;
 
     return (0);
 }

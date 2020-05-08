@@ -407,7 +407,8 @@ shim = env.Library("window_shim",
 
 examples = [
     "ex_access",
-    "ex_all",
+    # Temporarily disabled
+    # "ex_all",
     "ex_async",
     "ex_call_center",
     "ex_config_parse",
@@ -485,23 +486,6 @@ t = env.Program("t_fops",
     ["test/fops/file.c",
     "test/fops/fops.c",
     "test/fops/t.c"],
-    LIBS=[wtlib, shim, testutil] + wtlibs)
-Default(t)
-
-t = env.Program("t_format",
-    ["test/format/backup.c",
-    "test/format/bulk.c",
-    "test/format/compact.c",
-    "test/format/config.c",
-    "test/format/lrt.c",
-    "test/format/ops.c",
-    "test/format/rebalance.c",
-    "test/format/random.c",
-    "test/format/salvage.c",
-    "test/format/snap.c",
-    "test/format/t.c",
-    "test/format/util.c",
-    "test/format/wts.c"],
     LIBS=[wtlib, shim, testutil] + wtlibs)
 Default(t)
 

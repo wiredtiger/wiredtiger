@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -38,6 +38,8 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
      * allocate into a stack variable and then assign it on success.
      */
     conn->default_session = session;
+
+    __wt_seconds(session, &conn->ckpt_finish_secs);
 
     /*
      * Publish: there must be a barrier to ensure the connection structure fields are set before
@@ -97,6 +99,10 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     /* The eviction server is shut down last. */
     WT_TRET(__wt_evict_destroy(session));
 
+    /* There should be no more file opens after this point. */
+    F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
+    WT_FULL_BARRIER();
+
     /* Close open data handles. */
     WT_TRET(__wt_conn_dhandle_discard(session));
 
@@ -140,6 +146,8 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 
     /* Close operation tracking */
     WT_TRET(__wt_conn_optrack_teardown(session, false));
+
+    __wt_backup_destroy(session);
 
     /* Close any file handles left open. */
     WT_TRET(__wt_close_connection_close(session));
@@ -200,13 +208,20 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_logmgr_create(session, cfg));
 
     /*
-     * Run recovery.
-     * NOTE: This call will start (and stop) eviction if recovery is
-     * required.  Recovery must run before the lookaside table is created
-     * (because recovery will update the metadata), and before eviction is
-     * started for real.
+     * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
+     * Recovery must run before the history store table is created (because recovery will update the
+     * metadata, and set the maximum file id seen), and before eviction is started for real.
      */
-    WT_RET(__wt_txn_recover(session));
+    WT_RET(__wt_txn_recover(session, cfg));
+
+    /* Initialize metadata tracking, required before creating tables. */
+    WT_RET(__wt_meta_track_init(session));
+
+    /*
+     * Create the history store file. This will only actually create it on upgrade or when creating
+     * a new database.
+     */
+    WT_RET(__wt_hs_create(session, cfg));
 
     /*
      * Start the optional logging/archive threads. NOTE: The log manager must be started before
@@ -215,14 +230,9 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_RET(__wt_logmgr_open(session));
 
-    /* Initialize metadata tracking, required before creating tables. */
-    WT_RET(__wt_meta_track_init(session));
-
-    /* Create the lookaside table. */
-    WT_RET(__wt_las_create(session, cfg));
-
     /*
-     * Start eviction threads. NOTE: Eviction must be started after the lookaside table is created.
+     * Start eviction threads. NOTE: Eviction must be started after the history store table is
+     * created.
      */
     WT_RET(__wt_evict_create(session));
 

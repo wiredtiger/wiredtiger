@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -17,12 +17,45 @@ __wt_ref_is_root(WT_REF *ref)
 }
 
 /*
+ * __wt_ref_cas_state_int --
+ *     Try to do a compare and swap, if successful update the ref history in diagnostic mode.
+ */
+static inline bool
+__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t old_state, uint8_t new_state,
+  const char *func, int line)
+{
+    bool cas_result;
+
+    /* Parameters that are used in a macro for diagnostic builds */
+    WT_UNUSED(session);
+    WT_UNUSED(func);
+    WT_UNUSED(line);
+
+    cas_result = __wt_atomic_casv8(&ref->state, old_state, new_state);
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * The history update here has potential to race; if the state gets updated again after the CAS
+     * above but before the history has been updated.
+     */
+    if (cas_result)
+        WT_REF_SAVE_STATE(ref, new_state, func, line);
+#endif
+    return (cas_result);
+}
+
+/*
  * __wt_page_is_empty --
  *     Return if the page is empty.
  */
 static inline bool
 __wt_page_is_empty(WT_PAGE *page)
 {
+    /*
+     * Be cautious modifying this function: it's reading fields set by checkpoint reconciliation,
+     * and we're not blocking checkpoints (although we must block eviction as it might clear and
+     * free these structures).
+     */
     return (page->modify != NULL && page->modify->rec_result == WT_PM_REC_EMPTY);
 }
 
@@ -33,6 +66,11 @@ __wt_page_is_empty(WT_PAGE *page)
 static inline bool
 __wt_page_evict_clean(WT_PAGE *page)
 {
+    /*
+     * Be cautious modifying this function: it's reading fields set by checkpoint reconciliation,
+     * and we're not blocking checkpoints (although we must block eviction as it might clear and
+     * free these structures).
+     */
     return (page->modify == NULL ||
       (page->modify->page_state == WT_PAGE_CLEAN && page->modify->rec_result == 0));
 }
@@ -44,6 +82,11 @@ __wt_page_evict_clean(WT_PAGE *page)
 static inline bool
 __wt_page_is_modified(WT_PAGE *page)
 {
+    /*
+     * Be cautious modifying this function: it's reading fields set by checkpoint reconciliation,
+     * and we're not blocking checkpoints (although we must block eviction as it might clear and
+     * free these structures).
+     */
     return (page->modify != NULL && page->modify->page_state != WT_PAGE_CLEAN);
 }
 
@@ -148,6 +191,9 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
     WT_ASSERT(session, size < WT_EXABYTE);
     btree = S2BT(session);
     cache = S2C(session)->cache;
+
+    if (size == 0)
+        return;
 
     (void)__wt_atomic_add64(&btree->bytes_inmem, size);
     (void)__wt_atomic_add64(&cache->bytes_inmem, size);
@@ -489,6 +535,12 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (page->modify->page_state < WT_PAGE_DIRTY &&
       __wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY_FIRST) {
         __wt_cache_dirty_incr(session, page);
+        /*
+         * In the event we dirty a page which is flagged for eviction soon, we update its read
+         * generation to avoid evicting a dirty page prematurely.
+         */
+        if (page->read_gen == WT_READGEN_WONT_NEED)
+            __wt_cache_read_gen_new(session, page);
 
         /*
          * We won the race to dirty the page, but another thread could have committed in the
@@ -505,8 +557,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
 
     /* Check if this is the largest transaction ID to update the page. */
-    if (WT_TXNID_LT(page->modify->update_txn, session->txn.id))
-        page->modify->update_txn = session->txn.id;
+    if (WT_TXNID_LT(page->modify->update_txn, session->txn->id))
+        page->modify->update_txn = session->txn->id;
 }
 
 /*
@@ -623,23 +675,6 @@ __wt_off_page(WT_PAGE *page, const void *p)
      */
     return (page->dsk == NULL || p < (void *)page->dsk ||
       p >= (void *)((uint8_t *)page->dsk + page->dsk->mem_size));
-}
-
-/*
- * __wt_ref_addr_free --
- *     Free the address in a reference, if necessary.
- */
-static inline void
-__wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    if (ref->addr == NULL)
-        return;
-
-    if (ref->home == NULL || __wt_off_page(ref->home, ref->addr)) {
-        __wt_free(session, ((WT_ADDR *)ref->addr)->addr);
-        __wt_free(session, ref->addr);
-    }
-    ref->addr = NULL;
 }
 
 /*
@@ -832,10 +867,6 @@ __wt_row_leaf_key_info(
             *ikeyp = NULL;
         if (cellp != NULL)
             *cellp = WT_PAGE_REF_OFFSET(page, WT_CELL_DECODE_OFFSET(v));
-        if (datap != NULL) {
-            *(void **)datap = NULL;
-            *sizep = 0;
-        }
         return (false);
     case WT_K_FLAG:
         /* Encoded key: no instantiated key, no cell. */
@@ -993,6 +1024,9 @@ __wt_row_leaf_value_cell(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
     size_t size;
     void *copy, *key;
 
+    size = 0;   /* -Werror=maybe-uninitialized */
+    key = NULL; /* -Werror=maybe-uninitialized */
+
     /* If we already have an unpacked key cell, use it. */
     if (kpack != NULL)
         vcell = (WT_CELL *)((uint8_t *)kpack->cell + __wt_cell_total_len(kpack));
@@ -1020,6 +1054,16 @@ __wt_row_leaf_value_cell(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
 }
 
 /*
+ * __wt_row_leaf_value_exists --
+ *     Check if the value for a row-store leaf page encoded key/value pair exists.
+ */
+static inline bool
+__wt_row_leaf_value_exists(WT_ROW *rip)
+{
+    return (((uintptr_t)WT_ROW_KEY_COPY(rip) & 0x03) == WT_KV_FLAG);
+}
+
+/*
  * __wt_row_leaf_value --
  *     Return the value for a row-store leaf page encoded key/value pair.
  */
@@ -1043,57 +1087,57 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
 }
 
 /*
- * __wt_ref_info --
- *     Return the addr/size and type triplet for a reference.
+ * __wt_ref_addr_copy --
+ *     Return a copy of the WT_REF address information.
  */
-static inline void
-__wt_ref_info(
-  WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
+static inline bool
+__wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
 {
     WT_ADDR *addr;
     WT_CELL_UNPACK *unpack, _unpack;
     WT_PAGE *page;
 
-    addr = ref->addr;
     unpack = &_unpack;
     page = ref->home;
 
     /*
-     * If NULL, there is no location. If off-page, the pointer references a WT_ADDR structure. If
-     * on-page, the pointer references a cell.
-     *
-     * The type is of a limited set: internal, leaf or no-overflow leaf.
+     * To look at an on-page cell, we need to look at the parent page's disk image, and that can be
+     * dangerous. The problem is if the parent page splits, deepening the tree. As part of that
+     * process, the WT_REF WT_ADDRs pointing into the parent's disk image are copied into off-page
+     * WT_ADDRs and swapped into place. The content of the two WT_ADDRs are identical, and we don't
+     * care which version we get as long as we don't mix-and-match the two.
      */
-    if (addr == NULL) {
-        *addrp = NULL;
-        *sizep = 0;
-        if (typep != NULL)
-            *typep = 0;
-    } else if (__wt_off_page(page, addr)) {
-        *addrp = addr->addr;
-        *sizep = addr->size;
-        if (typep != NULL)
-            switch (addr->type) {
-            case WT_ADDR_INT:
-                *typep = WT_CELL_ADDR_INT;
-                break;
-            case WT_ADDR_LEAF:
-                *typep = WT_CELL_ADDR_LEAF;
-                break;
-            case WT_ADDR_LEAF_NO:
-                *typep = WT_CELL_ADDR_LEAF_NO;
-                break;
-            default:
-                *typep = 0;
-                break;
-            }
-    } else {
-        __wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
-        *addrp = unpack->data;
-        *sizep = unpack->size;
-        if (typep != NULL)
-            *typep = unpack->type;
+    WT_ORDERED_READ(addr, ref->addr);
+
+    /* If NULL, there is no information. */
+    if (addr == NULL)
+        return (false);
+
+    /* If off-page, the pointer references a WT_ADDR structure. */
+    if (__wt_off_page(page, addr)) {
+        __wt_time_aggregate_copy(&copy->ta, &addr->ta);
+        copy->type = addr->type;
+        memcpy(copy->addr, addr->addr, copy->size = addr->size);
+        return (true);
     }
+
+    /* If on-page, the pointer references a cell. */
+    __wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
+    __wt_time_aggregate_copy(&copy->ta, &unpack->ta);
+    copy->type = 0; /* Avoid static analyzer uninitialized value complaints. */
+    switch (unpack->raw) {
+    case WT_CELL_ADDR_INT:
+        copy->type = WT_ADDR_INT;
+        break;
+    case WT_CELL_ADDR_LEAF:
+        copy->type = WT_ADDR_LEAF;
+        break;
+    case WT_CELL_ADDR_LEAF_NO:
+        copy->type = WT_ADDR_LEAF_NO;
+        break;
+    }
+    memcpy(copy->addr, unpack->data, copy->size = (uint8_t)unpack->size);
+    return (true);
 }
 
 /*
@@ -1103,14 +1147,12 @@ __wt_ref_info(
 static inline int
 __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    size_t addr_size;
-    const uint8_t *addr;
+    WT_ADDR_COPY addr;
 
-    if (ref->addr == NULL)
+    if (!__wt_ref_addr_copy(session, ref, &addr))
         return (0);
 
-    __wt_ref_info(session, ref, &addr, &addr_size, NULL);
-    WT_RET(__wt_btree_block_free(session, addr, addr_size));
+    WT_RET(__wt_btree_block_free(session, addr.addr, addr.size));
 
     /* Clear the address (so we don't free it twice). */
     __wt_ref_addr_free(session, ref);
@@ -1136,25 +1178,6 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
         return (true);
     return (visible_all ? !__wt_txn_visible_all(session, page_del->txnid, page_del->timestamp) :
                           !__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
-}
-
-/*
- * __wt_page_las_active --
- *     Return if lookaside data for a page is still required.
- */
-static inline bool
-__wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_PAGE_LOOKASIDE *page_las;
-
-    if ((page_las = ref->page_las) == NULL)
-        return (false);
-    if (page_las->resolved)
-        return (false);
-    if (page_las->min_skipped_ts != WT_TS_MAX || page_las->has_prepares)
-        return (true);
-
-    return (!__wt_txn_visible_all(session, page_las->max_txn, page_las->max_ondisk_ts));
 }
 
 /*
@@ -1345,8 +1368,10 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * overflow item, because the split into the parent frees the backing blocks for any
      * no-longer-used overflow keys, which will corrupt the checkpoint's block management.
      */
-    if (!__wt_btree_can_evict_dirty(session) && F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS))
+    if (!__wt_btree_can_evict_dirty(session) && F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS)) {
+        WT_STAT_CONN_INCR(session, cache_eviction_fail_parent_has_overflow_items);
         return (false);
+    }
 
     /*
      * Check for in-memory splits before other eviction tests. If the page should split in-memory,
@@ -1381,15 +1406,17 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * One special case where we know this is safe is if the handle is locked exclusive (e.g., when
      * the whole tree is being evicted). In that case, no readers can be looking at an old index.
      */
-    if (WT_PAGE_IS_INTERNAL(page) && !F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
       __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen))
         return (false);
 
     /*
      * If the page is clean but has modifications that appear too new to evict, skip it.
      */
-    if (!modified && !__wt_txn_visible_all(session, mod->rec_max_txn, mod->rec_max_timestamp))
+    if (!modified && !__wt_txn_visible_all(session, mod->rec_max_txn, mod->rec_max_timestamp)) {
+        WT_STAT_CONN_INCR(session, cache_eviction_fail_with_newer_modifications_on_a_clean_page);
         return (false);
+    }
 
     return (true);
 }
@@ -1661,4 +1688,25 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
         WT_RET_MSG(session, EINVAL, "page-release WT_RESTART error mapped to EINVAL");
 
     return (ret);
+}
+
+/*
+ * __wt_bt_col_var_cursor_walk_txn_read --
+ *     Set the value for variable-length column-store cursor walk.
+ */
+static inline int
+__wt_bt_col_var_cursor_walk_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page,
+  WT_CELL_UNPACK *unpack, WT_COL *cip)
+{
+    cbt->slot = WT_COL_SLOT(page, cip);
+    WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, NULL, unpack));
+    if (cbt->upd_value->type == WT_UPDATE_INVALID || cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
+        return (0);
+
+    WT_RET(__wt_value_return(cbt, cbt->upd_value));
+
+    cbt->tmp->data = cbt->iface.value.data;
+    cbt->tmp->size = cbt->iface.value.size;
+    cbt->cip_saved = cip;
+    return (0);
 }

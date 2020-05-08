@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -20,15 +20,12 @@ struct __wt_reconcile {
     uint32_t flags; /* Caller's configuration */
 
     /*
-     * Track start/stop checkpoint generations to decide if lookaside table records are correct.
+     * Track start/stop checkpoint generations to decide if history store table records are correct.
      */
     uint64_t orig_btree_checkpoint_gen;
     uint64_t orig_txn_checkpoint_gen;
 
-    /*
-     * Track the oldest running transaction and whether to skew lookaside to the newest update.
-     */
-    bool las_skew_newest;
+    /* Track the oldest running transaction. */
     uint64_t last_running;
 
     /* Track the page's min/maximum transactions. */
@@ -40,15 +37,9 @@ struct __wt_reconcile {
     u_int updates_seen;     /* Count of updates seen. */
     u_int updates_unstable; /* Count of updates not visible_all. */
 
-    bool update_uncommitted; /* An update was uncommitted. */
-    bool update_used;        /* An update could be used. */
-
-    /* All the updates are with prepare in-progress state. */
-    bool all_upd_prepare_in_prog;
-
     /*
-     * When we can't mark the page clean (for example, checkpoint found some uncommitted updates),
-     * there's a leave-dirty flag.
+     * When we can't mark the page clean after reconciliation (for example, checkpoint or eviction
+     * found some uncommitted updates), there's a leave-dirty flag.
      */
     bool leave_dirty;
 
@@ -120,26 +111,20 @@ struct __wt_reconcile {
         uint32_t entries;
         uint64_t recno;
         WT_ITEM key;
-        wt_timestamp_t newest_durable_ts;
-        wt_timestamp_t oldest_start_ts;
-        uint64_t oldest_start_txn;
-        wt_timestamp_t newest_stop_ts;
-        uint64_t newest_stop_txn;
+        WT_TIME_AGGREGATE ta;
 
         /* Saved minimum split-size boundary information. */
         uint32_t min_entries;
         uint64_t min_recno;
         WT_ITEM min_key;
-        wt_timestamp_t min_newest_durable_ts;
-        wt_timestamp_t min_oldest_start_ts;
-        uint64_t min_oldest_start_txn;
-        wt_timestamp_t min_newest_stop_ts;
-        uint64_t min_newest_stop_txn;
+        WT_TIME_AGGREGATE ta_min;
 
         size_t min_offset; /* byte offset */
 
         WT_ITEM image; /* disk-image */
     } chunkA, chunkB, *cur_ptr, *prev_ptr;
+
+    size_t disk_img_buf_size; /* Base size needed for a chunk memory image */
 
     /*
      * We track current information about the current record number, the number of entries copied
@@ -147,17 +132,16 @@ struct __wt_reconcile {
      * current min/max of the timestamps. Those values are packaged here rather than passing
      * pointers to stack locations around the code.
      */
-    uint64_t recno;      /* Current record number */
-    uint32_t entries;    /* Current number of entries */
-    uint8_t *first_free; /* Current first free byte */
-    size_t space_avail;  /* Remaining space in this chunk */
-    /* Remaining space in this chunk to put a minimum size boundary */
-    size_t min_space_avail;
+    uint64_t recno;         /* Current record number */
+    uint32_t entries;       /* Current number of entries */
+    uint8_t *first_free;    /* Current first free byte */
+    size_t space_avail;     /* Remaining space in this chunk */
+    size_t min_space_avail; /* Remaining space in this chunk to put a minimum size boundary */
 
     /*
-     * Saved update list, supporting the WT_REC_UPDATE_RESTORE and WT_REC_LOOKASIDE configurations.
-     * While reviewing updates for each page, we save WT_UPDATE lists here, and then move them to
-     * per-block areas as the blocks are defined.
+     * Saved update list, supporting WT_REC_HS configurations. While reviewing updates for each
+     * page, we save WT_UPDATE lists here, and then move them to per-block areas as the blocks are
+     * defined.
      */
     WT_SAVE_UPD *supd; /* Saved updates */
     uint32_t supd_next;
@@ -230,10 +214,10 @@ struct __wt_reconcile {
 
     WT_SALVAGE_COOKIE *salvage; /* If it's a salvage operation */
 
-    bool cache_write_lookaside; /* Used the lookaside table */
-    bool cache_write_restore;   /* Used update/restoration */
+    bool cache_write_hs;      /* Used the history store table */
+    bool cache_write_restore; /* Used update/restoration */
 
-    uint32_t tested_ref_state; /* Debugging information */
+    uint8_t tested_ref_state; /* Debugging information */
 
     /*
      * XXX In the case of a modified update, we may need a copy of the current value as a set of
@@ -246,14 +230,7 @@ struct __wt_reconcile {
 typedef struct {
     WT_UPDATE *upd; /* Update to write (or NULL) */
 
-    wt_timestamp_t durable_ts; /* Transaction IDs, timestamps */
-    wt_timestamp_t start_ts;
-    uint64_t start_txn;
-    wt_timestamp_t stop_ts;
-    uint64_t stop_txn;
-
-    bool upd_saved; /* Updates saved to list */
-
+    WT_TIME_WINDOW tw;
 } WT_UPDATE_SELECT;
 
 /*
