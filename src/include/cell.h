@@ -151,12 +151,11 @@ struct __wt_cell {
                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
- * We have three flavors of cell unpack structures: one that can unpack any kind of cell, one that
- * can only unpack address cells and one that can only unpack value cells. The reason is because we
- * want to catch code using the wrong time window information relative to the cell type, minimize
- * the size of the unpack structure, and finally reduce the code executed in performance paths,
- * while still allowing other code such as verification and debug functions to be able to read any
- * kind of cell.
+ * We have two "unpacked cell" structures: one holding holds unpacked cells from internal nodes
+ * (address pages), and one holding unpacked cells from leaf nodes (key/value pages). They share a
+ * common set of initial fields: in a few places where a function has to handle both types of
+ * unpacked cells, the unpacked cell structures are cast to an "unpack-common" structure that can
+ * only reference shared fields.
  */
 #define WT_CELL_COMMON_FIELDS                                                                   \
     WT_CELL *cell; /* Cell's disk image address */                                              \
