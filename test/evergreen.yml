@@ -1246,12 +1246,8 @@ tasks:
           dependent_task: compile-linux-no-ftruncate
       - func: "unit test"
 
-  # Break out Python unit tests into multiple buckets/tasks based on test name and runtime
-  # The test/suite/run.py script can work out test names by casting each command argument
-  # with "test_" prefix and "*.py" postfix.
-  #
-  # One example:
-  # "test/suite/run.py [ab]" will be translated to testing "test_a*.py" and "test_b*.py"
+  # Break out Python unit tests into multiple buckets/tasks.  We have a fixed number of buckets,
+  # and we use the -b option of the test/suite/run.py script to split up the tests.
 
   - name: unit-test-bucket00
     tags: ["pull_request", "unit_test"]
@@ -1266,7 +1262,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [ab] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -b 0/11 ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket01
     tags: ["pull_request", "unit_test"]
@@ -1281,8 +1277,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            # Reserve this bucket only for compat tests, which take a long time to run
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py compat ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -b 1/11 ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket02
     tags: ["pull_request", "unit_test"]
@@ -1297,9 +1292,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            # Non-compat tests in the 'c' family
-            non_compat_tests=$(ls ../test/suite/test_c*.py | xargs -n1 basename | grep -v compat)
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py $non_compat_tests ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -b 2/11 ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket03
     tags: ["pull_request", "unit_test"]
@@ -1314,7 +1307,8 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [defg] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -b 3/11 ${unit_test_args|-v 2} ${smp_command|} 2>&1
+
   - name: unit-test-bucket04
     tags: ["pull_request", "unit_test"]
     depends_on:
@@ -1328,9 +1322,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            # Reserve this bucket only for history store tests, which take a long time to run
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py hs ${unit_test_args|-v 2} ${smp_command|} 2>&1
-
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -b 4/11 ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket05
     tags: ["pull_request", "unit_test"]
@@ -1345,10 +1337,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            # Non-history store tests in the 'h' family
-            non_ts_tests=$(ls ../test/suite/test_h*.py | xargs -n1 basename | grep -v _hs)
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py $non_ts_tests ${unit_test_args|-v 2} ${smp_command|} 2>&1
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [ijk] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -b 5/11 ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket06
     tags: ["pull_request", "unit_test"]
@@ -1363,7 +1352,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [lmnopq] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -b 6/11 ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket07
     tags: ["pull_request", "unit_test"]
@@ -1378,7 +1367,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [rs] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -b 7/11 ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket08
     tags: ["pull_request", "unit_test"]
@@ -1393,8 +1382,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            # Reserve this bucket only for timestamp tests, which take a long time to run
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py timestamp ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -b 8/11 ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket09
     tags: ["pull_request", "unit_test"]
@@ -1409,9 +1397,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            # Non-timestamp tests in the 't' family
-            non_ts_tests=$(ls ../test/suite/test_t*.py | xargs -n1 basename | grep -v timestamp)
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py $non_ts_tests ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -b 9/11 ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   - name: unit-test-bucket10
     tags: ["pull_request", "unit_test"]
@@ -1426,7 +1412,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [uvwxyz] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -b 10/11 ${unit_test_args|-v 2} ${smp_command|} 2>&1
 
   # End of Python unit test tasks
 
