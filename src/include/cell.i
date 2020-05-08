@@ -1075,32 +1075,6 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
 }
 
 /*
- * __cell_unpack_zero --
- *     Pretend to unpack a zero-length cell.
- */
-static inline void
-__cell_unpack_zero(WT_CELL_UNPACK_KV *unpack, WT_TIME_WINDOW *tw)
-{
-    /*
-     * Row-store doesn't store zero-length values on pages, but this allows us to pretend.
-     */
-    unpack->cell = NULL;
-    unpack->v = 0;
-    unpack->data = "";
-    unpack->size = 0;
-    unpack->__len = 0;
-    unpack->prefix = 0;
-    unpack->raw = unpack->type = WT_CELL_VALUE;
-    unpack->flags = 0;
-
-    /*
-     * If there isn't any value validity window (which is what it will take to get to a zero-length
-     * item), the value must be stable.
-     */
-    __wt_time_window_init(tw);
-}
-
-/*
  * __wt_cell_unpack_addr --
  *     Unpack an address WT_CELL into a structure.
  */
@@ -1120,10 +1094,28 @@ static inline void
 __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL *cell,
   WT_CELL_UNPACK_KV *unpack_value)
 {
+    /*
+     * Row-store doesn't store zero-length values on pages, but this allows us to pretend.
+     */
     if (cell == NULL) {
-        __cell_unpack_zero(unpack_value, &unpack_value->tw);
+        unpack_value->cell = NULL;
+        unpack_value->v = 0;
+        unpack_value->data = "";
+        unpack_value->size = 0;
+        unpack_value->__len = 0;
+        unpack_value->prefix = 0;
+        unpack_value->raw = unpack_value->type = WT_CELL_VALUE;
+        unpack_value->flags = 0;
+
+        /*
+         * If there isn't any value validity window (which is what it will take to get to a
+         * zero-length item), the value must be stable.
+         */
+        __wt_time_window_init(&unpack_value->tw);
+
         return;
     }
+
     WT_IGNORE_RET(__wt_cell_unpack_safe(session, dsk, cell, NULL, unpack_value, NULL));
     __cell_unpack_window_cleanup(session, dsk, NULL, unpack_value);
 }
