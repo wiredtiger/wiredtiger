@@ -110,27 +110,21 @@ __rec_append_orig_value(
             break;
     }
 
-    /* Done if the stop time pair of the onpage cell is globally visible. */
-    if ((unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX) &&
-      __wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.stop_ts))
-        return (0);
-
-    /* We need the original on-page value for some reader: get a copy. */
-    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-    WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
-    WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
-    total_size += size;
-    append->txnid = unpack->tw.start_txn;
-    append->start_ts = unpack->tw.start_ts;
-    append->durable_ts = unpack->tw.durable_start_ts;
-
     /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
      * the list, if the onpage value has a valid stop pair. Imagine a case where we insert and
      * delete a value respectively at timestamp 0 and 10, and later insert it again at 20. We need
      * the tombstone to tell us there is no value between 10 and 20.
+     *
+     * We still need to append the globally visible tombstone if its timestamp is WT_TS_NONE as we
+     * may need it to clear the history store content of the key. We don't append a timestamped
+     * globally visible tombstone because even if its timestamp is smaller than the entries in the
+     * history store, we can't change the history store entries. This is not correct but we hope we
+     * can get away with it. TODO: remove this once we get rid of out of order timestamps.
      */
-    if (unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX) {
+    if ((unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX) &&
+      (unpack->tw.stop_ts == WT_TS_NONE ||
+          !__wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.stop_ts))) {
         /* No need to append the tombstone if it is already in the update chain. */
         if (oldest_upd->type != WT_UPDATE_TOMBSTONE) {
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
@@ -138,9 +132,6 @@ __rec_append_orig_value(
             tombstone->txnid = unpack->tw.stop_txn;
             tombstone->start_ts = unpack->tw.stop_ts;
             tombstone->durable_ts = unpack->tw.durable_stop_ts;
-
-            tombstone->next = append;
-            append = tombstone;
         } else
             /*
              * Once the prepared update is resolved, the in-memory update and on-disk written copy
@@ -150,6 +141,23 @@ __rec_append_orig_value(
             WT_ASSERT(session, F_ISSET(unpack, WT_CELL_UNPACK_PREPARE) ||
                 (unpack->tw.stop_ts == oldest_upd->start_ts &&
                                  unpack->tw.stop_txn == oldest_upd->txnid));
+    }
+
+    /* We need the original on-page value for some reader: get a copy. */
+    if ((unpack->tw.stop_ts == WT_TS_MAX && unpack->tw.stop_txn == WT_TXN_MAX) ||
+      !__wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.stop_ts)) {
+        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+        WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
+        WT_ERR(__wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &append, &size));
+        total_size += size;
+        append->txnid = unpack->tw.start_txn;
+        append->start_ts = unpack->tw.start_ts;
+        append->durable_ts = unpack->tw.durable_start_ts;
+    }
+
+    if (tombstone != NULL) {
+        tombstone->next = append;
+        append = tombstone;
     }
 
     /* Append the new entry into the update list. */
