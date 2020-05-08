@@ -623,7 +623,10 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         WT_ERR(__ckpt_extlist_fblocks(session, block, &a->avail));
         WT_ERR(__ckpt_extlist_fblocks(session, block, &a->discard));
 
-        /* If this is the live system, we need to record the checkpoint's allocated blocks. */
+        /*
+         * If this is the live system, we need to record the checkpoint's allocated blocks before
+         * merging in blocks from any previous checkpoint.
+         */
         if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
             WT_ERR(__ckpt_add_blk_mods_alloc(session, ckpt, ci));
 
@@ -682,11 +685,9 @@ live_update:
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             /*
              * !!!
-             * Our caller wants the final checkpoint size.  Setting
-             * the size here violates layering, but the alternative
-             * is a call for the btree layer to crack the checkpoint
-             * cookie into its components, and that's a fair amount
-             * of work.
+             * Our caller wants the final checkpoint size. Setting the size here violates layering,
+             * but the alternative is a call for the btree layer to crack the checkpoint cookie into
+             * its components, and that's a fair amount of work.
              */
             ckpt->size = ckpt_size;
 
@@ -825,27 +826,35 @@ __ckpt_update(
         WT_RET(ret);
     }
 
-    /* Record the list of blocks we allocated to write the extent lists. */
-    if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
-        WT_RET(__ckpt_add_blk_mods_ext(session, ckpt, ci));
+    /*
+     * Record the blocks allocated to write the extent lists. We must record blocks in the live
+     * system's extent lists, as those blocks are a necessary part of the checkpoint a hot backup
+     * might recover. Update blocks in extent lists used to rewrite other checkpoints (for example,
+     * an intermediate checkpoint rewritten because a checkpoint was rolled into it), even though
+     * it's not necessary: those blocks aren't the last checkpoint in the file and so aren't
+     * included in a recoverable checkpoint, they don't matter on a hot backup target until they're
+     * allocated and * used in the context of a live system. Regardless, they shouldn't materially
+     * affect how much data we're writing, and it keeps things more consistent on the target to
+     * update them. (Ignore the live system's ckpt_avail list here. The blocks on that list were
+     * written into the final avail extent list which will be copied to the hot backup, and that's
+     * all that matters.)
+     */
+    WT_RET(__ckpt_add_blk_mods_ext(session, ckpt, ci));
 
     /*
      * Set the file size for the live system.
      *
      * !!!
-     * We do NOT set the file size when re-writing checkpoints because we
-     * want to test the checkpoint's blocks against a reasonable maximum
-     * file size during verification.  This is bad: imagine a checkpoint
-     * appearing early in the file, re-written, and then the checkpoint
-     * requires blocks at the end of the file, blocks after the listed file
-     * size.  If the application opens that checkpoint for writing
-     * (discarding subsequent checkpoints), we would truncate the file to
-     * the early chunk, discarding the re-written checkpoint information.
-     * The alternative, updating the file size has its own problems, in
-     * that case we'd work correctly, but we'd lose all of the blocks
-     * between the original checkpoint and the re-written checkpoint.
-     * Currently, there's no API to roll-forward intermediate checkpoints,
-     * if there ever is, this will need to be fixed.
+     * We do NOT set the file size when re-writing checkpoints because we want to test the
+     * checkpoint's blocks against a reasonable maximum file size during verification. This is bad:
+     * imagine a checkpoint appearing early in the file, re-written, and then the checkpoint
+     * requires blocks at the end of the file, blocks after the listed file size. If the application
+     * opens that checkpoint for writing (discarding subsequent checkpoints), we would truncate the
+     * file to the early chunk, discarding the re-written checkpoint information. The alternative,
+     * updating the file size has its own problems, in that case we'd work correctly, but we'd lose
+     * all of the blocks between the original checkpoint and the re-written checkpoint. Currently,
+     * there's no API to roll-forward intermediate checkpoints, if there ever is, this will need to
+     * be fixed.
      */
     if (is_live)
         ci->file_size = block->size;
