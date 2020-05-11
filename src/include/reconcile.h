@@ -226,10 +226,13 @@ struct __wt_reconcile {
      */
     WT_CURSOR_BTREE update_modify_cbt;
 
-    /* Variables to track pages reconciled with time window values and prepared transactions */
-    bool page_with_ts;
-    bool page_with_txn_id;
-    bool page_with_prepared_txn;
+    /*
+     * Variables to track reconciled pages containing cells with time window values and prepared
+     * transactions.
+     */
+    bool page_cell_rec_with_ts;
+    bool page_cell_rec_with_txn_id;
+    bool page_cell_rec_with_prepared_txn;
 };
 
 typedef struct {

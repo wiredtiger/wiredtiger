@@ -117,12 +117,12 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
     }
     if (LF_ISSET(
           WT_CELL_TS_START | WT_CELL_TS_DURABLE_START | WT_CELL_TS_STOP | WT_CELL_TS_DURABLE_STOP))
-        r->page_with_ts = true;
+        r->page_cell_rec_with_ts = true;
     if (LF_ISSET(WT_CELL_TXN_START | WT_CELL_TXN_STOP))
-        r->page_with_txn_id = true;
+        r->page_cell_rec_with_txn_id = true;
     if (tw->prepare) {
         LF_SET(WT_CELL_PREPARE);
-        r->page_with_prepared_txn = true;
+        r->page_cell_rec_with_prepared_txn = true;
     }
     *flagsp = flags;
 }
