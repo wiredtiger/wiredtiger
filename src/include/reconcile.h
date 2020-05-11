@@ -230,9 +230,9 @@ struct __wt_reconcile {
      * Variables to track reconciled pages containing cells with time window values and prepared
      * transactions.
      */
-    bool page_cell_rec_with_ts;
-    bool page_cell_rec_with_txn_id;
-    bool page_cell_rec_with_prepared_txn;
+    bool rec_page_cell_with_ts;
+    bool rec_page_cell_with_txn_id;
+    bool rec_page_cell_with_prepared_txn;
 };
 
 typedef struct {
