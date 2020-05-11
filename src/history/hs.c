@@ -889,11 +889,10 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
   WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf)
 {
     WT_CURSOR *hs_cursor;
-    WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(orig_hs_value_buf);
     WT_DECL_RET;
-    WT_ITEM recno_key;
+    WT_ITEM hs_key, recno_key;
     WT_MODIFY_VECTOR modifies;
     WT_TXN *txn;
     WT_UPDATE *mod_upd, *upd;
@@ -908,6 +907,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     hs_cursor = NULL;
     mod_upd = upd = NULL;
     orig_hs_value_buf = NULL;
+    WT_CLEAR(hs_key);
     __wt_modify_vector_init(session, &modifies);
     txn = session->txn;
     hs_btree_id = S2BT(session)->id;
@@ -934,8 +934,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         key->size = WT_PTRDIFF(p, recno_key_buf);
     }
 
-    /* Allocate buffers for the history store key/value. */
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+    /* Allocate buffer for the history store value. */
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     /* Open a history store table cursor. */
@@ -954,7 +953,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         ret = 0;
         goto done;
     }
-    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
+    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
 
     /* Stop before crossing over to the next btree */
     if (hs_btree_id != S2BT(session)->id)
@@ -964,7 +963,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
      * Keys are sorted in an order, skip the ones before the desired key, and bail out if we have
      * crossed over the desired key and not found the record we are looking for.
      */
-    WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+    WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
     if (cmp != 0)
         goto done;
 
@@ -1035,9 +1034,9 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
              * reverse deltas on top of.
              */
             WT_ERR(hs_cursor->get_key(
-              hs_cursor, &hs_btree_id, hs_key, &hs_start_ts_tmp, &hs_counter_tmp));
+              hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts_tmp, &hs_counter_tmp));
 
-            WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+            WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
 
             if (cmp != 0) {
                 /* Fallback to the onpage value as the base value. */
@@ -1085,7 +1084,7 @@ err:
         __wt_scr_free(session, &orig_hs_value_buf);
     else
         __wt_scr_free(session, &hs_value);
-    __wt_scr_free(session, &hs_key);
+    WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
 
     /*
      * Restore the read timestamp if we encountered an error while processing a modify. There's no
@@ -1281,10 +1280,9 @@ static int
 __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32_t this_btree_id)
 {
     WT_CURSOR *hs_cursor;
-    WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(prev_hs_key);
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    WT_ITEM hs_key;
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t btree_id;
@@ -1292,8 +1290,8 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     bool found;
 
     hs_cursor = session->hs_cursor;
+    WT_CLEAR(hs_key);
 
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &prev_hs_key));
 
     /*
@@ -1312,7 +1310,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
      * cursor there or deciding they're done.
      */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, hs_key, &hs_start_ts, &hs_counter));
+        WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &hs_key, &hs_start_ts, &hs_counter));
 
         /*
          * If the btree id does not match the preview one, we're done. It is up to the caller to set
@@ -1328,10 +1326,10 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
          * If we have already checked against this key, keep going to the next key. We only need to
          * check the key once.
          */
-        WT_ERR(__wt_compare(session, NULL, hs_key, prev_hs_key, &cmp));
+        WT_ERR(__wt_compare(session, NULL, &hs_key, prev_hs_key, &cmp));
         if (cmp == 0)
             continue;
-        WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, hs_key, false, NULL, false, NULL));
+        WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &hs_key, false, NULL, false, NULL));
         WT_ERR(ret);
 
         found = cbt->compare == 0;
@@ -1341,20 +1339,21 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
             F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_PANIC(session, WT_PANIC,
               "the associated history store key %s was not found in the data store %s",
-              __wt_buf_set_printable(session, hs_key->data, hs_key->size, prev_hs_key),
+              __wt_buf_set_printable(session, hs_key.data, hs_key.size, prev_hs_key),
               session->dhandle->name);
         }
 
-        /* Swap current/previous buffers. */
-        tmp = hs_key;
-        hs_key = prev_hs_key;
-        prev_hs_key = tmp;
+        /*
+         * Copy the key memory into our scratch buffer. The key will get invalidated on our next
+         * cursor iteration.
+         */
+        WT_ERR(__wt_buf_set(session, prev_hs_key, hs_key.data, hs_key.size));
     }
     WT_ERR_NOTFOUND_OK(ret, true);
 err:
     F_CLR(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
     F_CLR(hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
-    __wt_scr_free(session, &hs_key);
+    WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
     __wt_scr_free(session, &prev_hs_key);
     return (ret);
 }
@@ -1407,8 +1406,8 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor, *data_cursor;
     WT_DECL_ITEM(buf);
-    WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
+    WT_ITEM hs_key;
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t btree_id, session_flags;
@@ -1419,13 +1418,13 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
     WT_ASSERT(session, S2C(session)->default_session != session);
 
     cursor = data_cursor = NULL;
+    WT_CLEAR(hs_key);
     btree_id = WT_BTREE_ID_INVALID;
     session_flags = 0; /* [-Wconditional-uninitialized] */
     uri_data = NULL;
     is_owner = false; /* [-Wconditional-uninitialized] */
 
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
     cursor = session->hs_cursor;
     ret = cursor->next(cursor);
@@ -1442,13 +1441,13 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
          * The cursor is positioned either from above or left over from the internal call on the
          * first key of a new btree id.
          */
-        WT_ERR(cursor->get_key(cursor, &btree_id, hs_key, &hs_start_ts, &hs_counter));
+        WT_ERR(cursor->get_key(cursor, &btree_id, &hs_key, &hs_start_ts, &hs_counter));
         if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0) {
             F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_PANIC(session, WT_PANIC,
               "Unable to find btree id %" PRIu32
               " in the metadata file for the associated history store key %s",
-              btree_id, __wt_buf_set_printable(session, hs_key->data, hs_key->size, buf));
+              btree_id, __wt_buf_set_printable(session, hs_key.data, hs_key.size, buf));
         }
         WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &data_cursor));
         F_SET(data_cursor, WT_CURSOR_RAW_OK);
@@ -1462,7 +1461,7 @@ err:
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     __wt_scr_free(session, &buf);
-    __wt_scr_free(session, &hs_key);
+    WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
     __wt_free(session, uri_data);
     return (ret);
 }
