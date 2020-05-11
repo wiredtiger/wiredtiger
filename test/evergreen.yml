@@ -587,17 +587,16 @@ tasks:
         vars:
           directory: test/fops
 
-  # Temporarily disabled
-  # - name: format-test
-  #   tags: ["pull_request"]
-  #   depends_on:
-  #     - name: compile
-  #   commands:
-  #     - func: "fetch artifacts"
-  #     - func: "compile wiredtiger"
-  #     - func: "make check directory"
-  #       vars:
-  #         directory: test/format
+  - name: format-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: test/format
 
   - name: huge-test
     tags: ["pull_request"]
