@@ -572,6 +572,16 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     ckpt_size += ci->alloc.bytes;
     ckpt_size -= ci->discard.bytes;
 
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        /*
+         * If this is the live system, we need to record the checkpoint's allocated blocks always.
+         * So do it before skipping any processing and before possibly merging in blocks from any
+         * previous checkpoint.
+         */
+        if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
+            WT_ERR(__ckpt_add_blk_mods_alloc(session, ckpt, ci));
+    }
+
     /* Skip the additional processing if we aren't deleting checkpoints. */
     if (!deleting)
         goto live_update;
@@ -622,13 +632,6 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         WT_ERR(__ckpt_extlist_fblocks(session, block, &a->alloc));
         WT_ERR(__ckpt_extlist_fblocks(session, block, &a->avail));
         WT_ERR(__ckpt_extlist_fblocks(session, block, &a->discard));
-
-        /*
-         * If this is the live system, we need to record the checkpoint's allocated blocks before
-         * merging in blocks from any previous checkpoint.
-         */
-        if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
-            WT_ERR(__ckpt_add_blk_mods_alloc(session, ckpt, ci));
 
         /*
          * Roll the "from" alloc and discard extent lists into the "to" checkpoint's lists.
