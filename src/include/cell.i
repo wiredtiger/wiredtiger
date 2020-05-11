@@ -60,7 +60,8 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
  *     Pack the validity window for a value.
  */
 static inline void
-__cell_pack_value_validity(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint8_t **pp, WT_TIME_WINDOW *tw)
+__cell_pack_value_validity(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, uint8_t **pp, WT_TIME_WINDOW *tw)
 {
     uint8_t flags, *flagsp;
 
@@ -283,8 +284,8 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
  *     Set a value item's WT_CELL contents.
  */
 static inline size_t
-__wt_cell_pack_value(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle, size_t size)
+__wt_cell_pack_value(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, WT_TIME_WINDOW *tw,
+  uint64_t rle, size_t size)
 {
     uint8_t byte, *p;
     bool validity;
@@ -415,8 +416,8 @@ __wt_cell_pack_value_match(
  *     Write a copy value cell.
  */
 static inline size_t
-__wt_cell_pack_copy(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle, uint64_t v)
+__wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, WT_TIME_WINDOW *tw,
+  uint64_t rle, uint64_t v)
 {
     uint8_t *p;
 
@@ -444,7 +445,8 @@ __wt_cell_pack_copy(
  *     Write a deleted value cell.
  */
 static inline size_t
-__wt_cell_pack_del(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle)
+__wt_cell_pack_del(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle)
 {
     uint8_t *p;
 
@@ -539,8 +541,8 @@ __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
  *     Pack an overflow cell.
  */
 static inline size_t
-__wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, uint8_t type, WT_TIME_WINDOW *tw,
-  uint64_t rle, size_t size)
+__wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, uint8_t type,
+  WT_TIME_WINDOW *tw, uint64_t rle, size_t size)
 {
     uint8_t *p;
 
