@@ -2220,7 +2220,7 @@ buildvariants:
     - name: checkpoint-filetypes-test
     # - name: coverage-report
     - name: unit-test-long
-    # - name: spinlock-gcc-test
+    - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
     - name: wtperf-test
@@ -2323,7 +2323,7 @@ buildvariants:
     - name: make-check-asan-test
     - name: checkpoint-filetypes-test
     - name: unit-test-long
-    # - name: spinlock-gcc-test
+    - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
     - name: wtperf-test
