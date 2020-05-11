@@ -118,23 +118,25 @@ __rec_append_orig_value(
      * delete a value respectively at timestamp 0 and 10, and later insert it again at 20. We need
      * the tombstone to tell us there is no value between 10 and 20.
      */
-    if ((unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX)) {
+    if (unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX) {
         tombstone_globally_visible =
-          __wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.stop_ts);
-        /*
-         * We still need to append the globally visible tombstone if its timestamp is WT_TS_NONE as
-         * we may need it to clear the history store content of the key. We don't append a
-         * timestamped globally visible tombstone because even if its timestamp is smaller than the
-         * entries in the history store, we can't change the history store entries. This is not
-         * correct but we hope we can get away with it. TODO: remove this once we get rid of out of
-         * order timestamps.
-         */
-        if (unpack->tw.stop_ts != WT_TS_NONE && tombstone_globally_visible) {
-            return (0);
-        }
+          __wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.durable_stop_ts);
 
         /* No need to append the tombstone if it is already in the update chain. */
         if (oldest_upd->type != WT_UPDATE_TOMBSTONE) {
+            /*
+             * We still need to append the globally visible tombstone if its timestamp is WT_TS_NONE
+             * as we may need it to clear the history store content of the key. We don't append a
+             * timestamped globally visible tombstone because even if its timestamp is smaller than
+             * the entries in the history store, we can't change the history store entries. This is
+             * not correct but we hope we can get away with it.
+             *
+             * FIXME-WT-6171: remove this once we get rid of out of order timestamps and mixed mode
+             * transactions.
+             */
+            if (unpack->tw.durable_stop_ts != WT_TS_NONE && tombstone_globally_visible)
+                return (0);
+
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
             total_size += size;
             tombstone->txnid = unpack->tw.stop_txn;
