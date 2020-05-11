@@ -636,30 +636,19 @@ static inline void
 __rec_simplify_time_window(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     wt_timestamp_t pinned_ts;
-    uint64_t oldest_id;
     /*
      * Get a copy of the pinned timestamp and oldest ID. It is OK if these are out of date, they
      * only move forward, so the worst case is that we store some information that is no longer
      * relevant.
      */
     __wt_txn_pinned_timestamp(session, &pinned_ts);
-    oldest_id = __wt_txn_oldest_id(session);
     if (!tw->prepare) {
-        if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < oldest_id) {
+        if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < __wt_txn_oldest_id(session))
             tw->start_txn = WT_TXN_NONE;
-        }
-        if (tw->durable_stop_ts != WT_TS_NONE && tw->durable_stop_ts < pinned_ts) {
-            tw->durable_stop_ts = WT_TS_NONE;
-        }
 
-        if (tw->stop_ts == WT_TS_MAX && tw->start_ts < pinned_ts) {
+        if (tw->durable_start_ts < pinned_ts && tw->stop_ts == WT_TS_MAX &&
+          tw->start_ts < pinned_ts)
             tw->start_ts = WT_TS_NONE;
-        }
-
-        if (tw->durable_start_ts < pinned_ts) {
-            tw->durable_start_ts = WT_TS_NONE;
-        }
-        WT_ASSERT(session, tw->start_txn <= tw->stop_txn);
     }
 }
 
