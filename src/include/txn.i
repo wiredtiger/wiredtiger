@@ -812,7 +812,7 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
                 cbt->hs_stop_ts = upd->start_ts;
                 cbt->hs_stop_txnid = upd->txnid;
                 continue;
-              }
+            }
             break;
         }
         if (upd_visible == WT_VISIBLE_PREPARE)
@@ -890,7 +890,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
         return (0);
     }
 
-    /* Store the stop timepair of the history store record that is returning. */
+    /* Store the stop time pair of the history store record that is returning. */
     if (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX && WT_IS_HS(S2BT(session))) {
         cbt->hs_stop_ts = tw.stop_ts;
         cbt->hs_stop_txnid = tw.stop_txn;
