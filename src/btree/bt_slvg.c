@@ -567,14 +567,12 @@ static int
 __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *addr,
   size_t addr_size, WT_STUFF *ss)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TRACK *trk;
     uint64_t stop_recno;
 
-    btree = S2BT(session);
     page = NULL;
     trk = NULL;
 
@@ -603,7 +601,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
          * stop key requires walking the page.
          */
         stop_recno = dsk->recno;
-        WT_CELL_FOREACH_KV (session, btree, dsk, unpack) {
+        WT_CELL_FOREACH_KV (session, dsk, unpack) {
             stop_recno += __wt_cell_rle(&unpack);
         }
         WT_CELL_FOREACH_END;
@@ -683,15 +681,12 @@ __slvg_trk_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
 static int
 __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRACK *trk)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
     uint32_t ovfl_cnt;
 
-    btree = S2BT(session);
-
     /* Count page overflow items. */
     ovfl_cnt = 0;
-    WT_CELL_FOREACH_KV (session, btree, dsk, unpack) {
+    WT_CELL_FOREACH_KV (session, dsk, unpack) {
         if (FLD_ISSET(unpack.flags, WT_CELL_UNPACK_OVERFLOW))
             ++ovfl_cnt;
     }
@@ -706,7 +701,7 @@ __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRA
     trk->trk_ovfl_cnt = ovfl_cnt;
 
     ovfl_cnt = 0;
-    WT_CELL_FOREACH_KV (session, btree, dsk, unpack) {
+    WT_CELL_FOREACH_KV (session, dsk, unpack) {
         if (FLD_ISSET(unpack.flags, WT_CELL_UNPACK_OVERFLOW)) {
             WT_RET(
               __wt_memdup(session, unpack.data, unpack.size, &trk->trk_ovfl_addr[ovfl_cnt].addr));

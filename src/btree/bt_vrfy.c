@@ -947,7 +947,6 @@ static int
 __verify_page_content_int(
   WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *addr_unpack, WT_VSTUFF *vs)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR unpack;
     WT_DECL_RET;
     WT_PAGE *page;
@@ -956,7 +955,6 @@ __verify_page_content_int(
     uint32_t cell_num;
     char time_string[WT_TIME_STRING_SIZE];
 
-    btree = S2BT(session);
     page = ref->page;
     ta = &unpack.ta;
 
@@ -969,7 +967,7 @@ __verify_page_content_int(
 
     /* Walk the page, tracking timestamps and verifying overflow pages. */
     cell_num = 0;
-    WT_CELL_FOREACH_ADDR (session, btree, dsk, unpack) {
+    WT_CELL_FOREACH_ADDR (session, dsk, unpack) {
         ++cell_num;
 
         if (!__wt_cell_type_check(unpack.type, dsk->type))
@@ -1068,7 +1066,6 @@ static int
 __verify_page_content_leaf(
   WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *addr_unpack, WT_VSTUFF *vs)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
     WT_DECL_RET;
     WT_PAGE *page;
@@ -1081,7 +1078,6 @@ __verify_page_content_leaf(
     char time_string[WT_TIME_STRING_SIZE];
     bool found_ovfl;
 
-    btree = S2BT(session);
     page = ref->page;
     rip = page->pg_row;
     tw = &unpack.tw;
@@ -1097,7 +1093,7 @@ __verify_page_content_leaf(
 
     /* Walk the page, tracking timestamps and verifying overflow pages. */
     cell_num = 0;
-    WT_CELL_FOREACH_KV (session, btree, dsk, unpack) {
+    WT_CELL_FOREACH_KV (session, dsk, unpack) {
         ++cell_num;
 
         if (!__wt_cell_type_check(unpack.type, dsk->type))

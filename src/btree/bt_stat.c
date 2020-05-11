@@ -218,11 +218,9 @@ __stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
 static void
 __stat_page_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR unpack;
     uint32_t ovfl_cnt;
 
-    btree = S2BT(session);
     ovfl_cnt = 0;
 
     WT_STAT_INCR(session, stats, btree_row_internal);
@@ -232,7 +230,7 @@ __stat_page_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
      * representation of the page doesn't necessarily contain a reference to the original cell.
      */
     if (page->dsk != NULL) {
-        WT_CELL_FOREACH_ADDR (session, btree, page->dsk, unpack) {
+        WT_CELL_FOREACH_ADDR (session, page->dsk, unpack) {
             if (__wt_cell_type(unpack.cell) == WT_CELL_KEY_OVFL)
                 ++ovfl_cnt;
         }
@@ -249,7 +247,6 @@ __stat_page_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
 static void
 __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
     WT_INSERT *ins;
     WT_ROW *rip;
@@ -257,7 +254,6 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
     uint32_t empty_values, entry_cnt, i, ovfl_cnt;
     bool key;
 
-    btree = S2BT(session);
     empty_values = entry_cnt = ovfl_cnt = 0;
 
     WT_STAT_INCR(session, stats, btree_row_leaf);
@@ -298,7 +294,7 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
      */
     if (page->dsk != NULL) {
         key = false;
-        WT_CELL_FOREACH_KV (session, btree, page->dsk, unpack) {
+        WT_CELL_FOREACH_KV (session, page->dsk, unpack) {
             switch (__wt_cell_type(unpack.cell)) {
             case WT_CELL_KEY_OVFL:
                 ++ovfl_cnt;
