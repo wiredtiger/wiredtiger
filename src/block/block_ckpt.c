@@ -394,12 +394,20 @@ __ckpt_add_blkmod_entry(
  *     Add the checkpoint's allocated blocks to all valid incremental backup source identifiers.
  */
 static int
-__ckpt_add_blk_mods_alloc(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
+__ckpt_add_blk_mods_alloc(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci)
 {
     WT_BLOCK_MODS *blk_mod;
+    WT_CKPT *ckpt;
     WT_EXT *ext;
     u_int i;
 
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (F_ISSET(ckpt, WT_CKPT_ADD))
+            break;
+    }
+    /* If this is not the live checkpoint or we don't care about incremental blocks, we're done. */
+    if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
+        return (0);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ckpt->backup_blocks[i];
         /* If there is no information at this entry, we're done. */
@@ -418,11 +426,19 @@ __ckpt_add_blk_mods_alloc(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT
  *     Add a set of extent blocks to all valid incremental backup source identifiers.
  */
 static int
-__ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
+__ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci)
 {
     WT_BLOCK_MODS *blk_mod;
+    WT_CKPT *ckpt;
     u_int i;
 
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (F_ISSET(ckpt, WT_CKPT_ADD))
+            break;
+    }
+    /* If this is not the live checkpoint or we don't care about incremental blocks, we're done. */
+    if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
+        return (0);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk_mod = &ckpt->backup_blocks[i];
         /* If there is no information at this entry, we're done. */
@@ -572,15 +588,11 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     ckpt_size += ci->alloc.bytes;
     ckpt_size -= ci->discard.bytes;
 
-    WT_CKPT_FOREACH (ckptbase, ckpt) {
-        /*
-         * If this is the live system, we need to record the checkpoint's allocated blocks always.
-         * So do it before skipping any processing and before possibly merging in blocks from any
-         * previous checkpoint.
-         */
-        if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
-            WT_ERR(__ckpt_add_blk_mods_alloc(session, ckpt, ci));
-    }
+    /*
+     * Record the checkpoint's allocated blocks. Do so before skipping any processing and before
+     * possibly merging in blocks from any previous checkpoint.
+     */
+    WT_ERR(__ckpt_add_blk_mods_alloc(session, ckptbase, ci));
 
     /* Skip the additional processing if we aren't deleting checkpoints. */
     if (!deleting)
@@ -842,7 +854,7 @@ __ckpt_update(
      * written into the final avail extent list which will be copied to the hot backup, and that's
      * all that matters.)
      */
-    WT_RET(__ckpt_add_blk_mods_ext(session, ckpt, ci));
+    WT_RET(__ckpt_add_blk_mods_ext(session, ckptbase, ci));
 
     /*
      * Set the file size for the live system.
