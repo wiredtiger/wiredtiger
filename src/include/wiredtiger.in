@@ -5600,14 +5600,23 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_PAGES				1316
 /*! reconciliation: page reconciliation calls for eviction */
 #define	WT_STAT_CONN_REC_PAGES_EVICTION			1317
+/*!
+ * reconciliation: page reconciliation calls that resulted in pages with
+ * prepared transaction metadata
+ */
+#define	WT_STAT_CONN_REC_PAGES_WITH_PREPARE		1318
+/*!
+ * reconciliation: page reconciliation calls that resulted in pages with
+ * timestamps
+ */
+#define	WT_STAT_CONN_REC_PAGES_WITH_TS			1319
+/*!
+ * reconciliation: page reconciliation calls that resulted in pages with
+ * transaction ids
+ */
+#define	WT_STAT_CONN_REC_PAGES_WITH_TXN			1320
 /*! reconciliation: pages deleted */
-#define	WT_STAT_CONN_REC_PAGE_DELETE			1318
-/*! reconciliation: pages reconciled with prepared transaction metadata */
-#define	WT_STAT_CONN_REC_PAGES_WITH_PREPARE		1319
-/*! reconciliation: pages reconciled with timestamps */
-#define	WT_STAT_CONN_REC_PAGES_WITH_TS			1320
-/*! reconciliation: pages reconciled with transaction ids */
-#define	WT_STAT_CONN_REC_PAGES_WITH_TXN			1321
+#define	WT_STAT_CONN_REC_PAGE_DELETE			1321
 /*! reconciliation: split bytes currently awaiting free */
 #define	WT_STAT_CONN_REC_SPLIT_STASHED_BYTES		1322
 /*! reconciliation: split objects currently awaiting free */
