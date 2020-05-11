@@ -696,7 +696,7 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
     } else {
         WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, NULL));
 
-        upd->txnid = WT_TXN_NONE;
+        upd->txnid = hs_cbt->upd_value->txnid;
         upd->durable_ts = durable_ts;
         upd->start_ts = hs_start_ts;
         __wt_verbose(session, WT_VERB_TRANSACTION,
@@ -724,8 +724,8 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
         if (hs_stop_ts != WT_TS_MAX) {
             WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, NULL));
             tombstone->durable_ts = hs_stop_ts;
-            tombstone->start_ts = hs_stop_ts;
-            tombstone->txnid = WT_TXN_NONE;
+            tombstone->start_ts = hs_cbt->hs_stop_ts;
+            tombstone->txnid = hs_cbt->hs_stop_txnid;
             tombstone->next = upd;
         } else
             tombstone = upd;

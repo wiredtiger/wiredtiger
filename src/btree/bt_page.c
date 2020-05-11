@@ -555,6 +555,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     prepare = false;
 
     instantiate_prepared = F_ISSET_ATOMIC(page, WT_PAGE_INSTANTIATE_PREPARE_UPDATE);
+    F_CLR_ATOMIC(page, WT_PAGE_INSTANTIATE_PREPARE_UPDATE);
 
     /* Walk the page, building indices. */
     rip = page->pg_row;

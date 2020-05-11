@@ -804,8 +804,11 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
             if (type == WT_UPDATE_TOMBSTONE &&
               (F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) ||
                   (WT_IS_HS(S2BT(session)) && F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))) &&
-              !__wt_txn_upd_visible_all(session, upd))
+              !__wt_txn_upd_visible_all(session, upd)) {
+                cbt->hs_stop_ts = upd->start_ts;
+                cbt->hs_stop_txnid = upd->txnid;
                 continue;
+              }
             break;
         }
         if (upd_visible == WT_VISIBLE_PREPARE)
@@ -881,6 +884,12 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
         cbt->upd_value->prepare_state = WT_PREPARE_INIT;
         return (0);
+    }
+
+    /* Store the stop timepair of the history store record that is returning. */
+    if (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX && WT_IS_HS(S2BT(session)) {
+        cbt->hs_stop_ts = tw.stop_ts;
+        cbt->hs_stop_txid = tw.stop_txn;
     }
 
     /*
