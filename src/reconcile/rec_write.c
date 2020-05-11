@@ -604,6 +604,11 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->update_modify_cbt.iface.value_format = btree->value_format;
     r->update_modify_cbt.upd_value = &r->update_modify_cbt._upd_value;
 
+    /* Clear stats related data. */
+    r->page_cell_rec_with_ts = false;
+    r->page_cell_rec_with_txn_id = false;
+    r->page_cell_rec_with_prepared_txn = false;
+
 /*
  * If we allocated the reconciliation structure and there was an error, clean up. If our caller
  * passed in a structure, they own it.
@@ -646,11 +651,6 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     /* Reconciliation is not re-entrant, make sure that doesn't happen. */
     r->ref = NULL;
-
-    /* Clear stats related data. */
-    r->page_cell_rec_with_ts = false;
-    r->page_cell_rec_with_txn_id = false;
-    r->page_cell_rec_with_prepared_txn = false;
 }
 
 /*
