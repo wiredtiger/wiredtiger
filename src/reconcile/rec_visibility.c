@@ -18,7 +18,7 @@ __rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
     return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
         __wt_txn_upd_visible_all(session, upd) :
         __wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE &&
-          __wt_txn_visible(session, upd->txnid, upd->start_ts));
+          __wt_txn_visible(session, upd->txnid, upd->durable_ts));
 }
 
 /*
@@ -54,7 +54,7 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
  */
 static int
 __rec_append_orig_value(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK *unpack)
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK_KV *unpack)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -112,7 +112,7 @@ __rec_append_orig_value(
 
     /* Done if the stop time pair of the onpage cell is globally visible. */
     if ((unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX) &&
-      __wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.stop_ts))
+      __wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.durable_stop_ts))
         return (0);
 
     /* We need the original on-page value for some reader: get a copy. */
@@ -192,8 +192,9 @@ __rec_need_save_upd(
     if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
         return (false);
 
-    return (!__wt_txn_visible_all(session, upd_select->tw.stop_txn, upd_select->tw.stop_ts) &&
-      !__wt_txn_visible_all(session, upd_select->tw.start_txn, upd_select->tw.start_ts));
+    return (
+      !__wt_txn_visible_all(session, upd_select->tw.stop_txn, upd_select->tw.durable_stop_ts) &&
+      !__wt_txn_visible_all(session, upd_select->tw.start_txn, upd_select->tw.durable_start_ts));
 }
 
 /*
@@ -202,7 +203,7 @@ __rec_need_save_upd(
  */
 int
 __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
-  WT_CELL_UNPACK *vpack, WT_UPDATE_SELECT *upd_select)
+  WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -342,9 +343,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_RET_PANIC(session, EINVAL, "reconciliation error, update not visible");
         return (__wt_set_return(session, EBUSY));
     }
-
-    if (upd != NULL && upd->start_ts > r->max_ondisk_ts)
-        r->max_ondisk_ts = upd->start_ts;
 
     /*
      * The start timestamp is determined by the commit timestamp when the key is first inserted (or
