@@ -38,7 +38,7 @@ def timestamp_str(t):
 # test_prepare_hs04.py
 # Read prepared updates from on-disk with ignore_prepare.
 # Committing or aborting a prepared update when there exists a tombstone for that key already.
-# 
+#
 class test_prepare_hs04(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
@@ -140,7 +140,7 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
                 cursors[j].set_value(prepare_value)
                 self.assertEquals(cursors[j].insert(), 0)
             sessions[j].prepare_transaction('prepare_timestamp=' + timestamp_str(20))
-        
+
         hs_writes = self.get_stat(stat.conn.cache_write_hs) - hs_writes_start
 
         # Assert if not writing anything to the history store.
@@ -193,7 +193,6 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
         for j in range (0, self.nsessions):
             cursors[j].close()
             sessions[j].close()
-
 
     def test_prepare_hs(self):
 
