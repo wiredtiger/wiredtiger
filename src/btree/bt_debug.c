@@ -474,12 +474,9 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
 static int
 __debug_dsk_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR unpack;
 
-    btree = S2BT(ds->session);
-
-    WT_CELL_FOREACH_ADDR (ds->session, btree, dsk, unpack) {
+    WT_CELL_FOREACH_ADDR (ds->session, dsk, unpack) {
         WT_RET(__debug_cell_int(ds, dsk, &unpack));
     }
     WT_CELL_FOREACH_END;
@@ -609,12 +606,9 @@ __debug_cell_kv(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_KV *unpack
 static int
 __debug_dsk_kv(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 {
-    WT_BTREE *btree;
     WT_CELL_UNPACK_KV unpack;
 
-    btree = S2BT(ds->session);
-
-    WT_CELL_FOREACH_KV (ds->session, btree, dsk, unpack) {
+    WT_CELL_FOREACH_KV (ds->session, dsk, unpack) {
         WT_RET(__debug_cell_kv(ds, dsk, &unpack));
     }
     WT_CELL_FOREACH_END;

@@ -46,8 +46,8 @@ static int __verify_dsk_row_leaf(
  * WT_CELL_FOREACH macro, created because the loop can't simply unpack cells,
  * verify has to do additional work to ensure that unpack is safe.
  */
-#define WT_CELL_FOREACH_VRFY(btree, dsk, cell, unpack, i)                           \
-    for ((cell) = WT_PAGE_HEADER_BYTE(btree, dsk), (i) = (dsk)->u.entries; (i) > 0; \
+#define WT_CELL_FOREACH_VRFY(session, dsk, cell, unpack, i)                                 \
+    for ((cell) = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), (i) = (dsk)->u.entries; (i) > 0; \
          (cell) = (WT_CELL *)((uint8_t *)(cell) + (unpack)->__len), --(i))
 
 /*
@@ -463,7 +463,7 @@ __verify_dsk_row_int(
     last_cell_type = FIRST;
     cell_num = 0;
     key_cnt = 0;
-    WT_CELL_FOREACH_VRFY (btree, dsk, cell, unpack, i) {
+    WT_CELL_FOREACH_VRFY (session, dsk, cell, unpack, i) {
         ++cell_num;
 
         /* Carefully unpack the cell. */
@@ -645,7 +645,7 @@ __verify_dsk_row_leaf(
     last_cell_type = FIRST;
     cell_num = last_cell_num = 0;
     key_cnt = 0;
-    WT_CELL_FOREACH_VRFY (btree, dsk, cell, unpack, i) {
+    WT_CELL_FOREACH_VRFY (session, dsk, cell, unpack, i) {
         ++cell_num;
 
         /* Carefully unpack the cell. */
@@ -856,7 +856,7 @@ __verify_dsk_col_int(
     end = (uint8_t *)dsk + dsk->mem_size;
 
     cell_num = 0;
-    WT_CELL_FOREACH_VRFY (btree, dsk, cell, unpack, i) {
+    WT_CELL_FOREACH_VRFY (session, dsk, cell, unpack, i) {
         ++cell_num;
 
         /* Carefully unpack the cell. */
@@ -931,7 +931,7 @@ __verify_dsk_col_var(
     last.deleted = false;
 
     cell_num = 0;
-    WT_CELL_FOREACH_VRFY (btree, dsk, cell, unpack, i) {
+    WT_CELL_FOREACH_VRFY (session, dsk, cell, unpack, i) {
         ++cell_num;
 
         /* Carefully unpack the cell. */
