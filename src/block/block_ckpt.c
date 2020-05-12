@@ -848,7 +848,7 @@ __ckpt_update(
      * an intermediate checkpoint rewritten because a checkpoint was rolled into it), even though
      * it's not necessary: those blocks aren't the last checkpoint in the file and so aren't
      * included in a recoverable checkpoint, they don't matter on a hot backup target until they're
-     * allocated and * used in the context of a live system. Regardless, they shouldn't materially
+     * allocated and used in the context of a live system. Regardless, they shouldn't materially
      * affect how much data we're writing, and it keeps things more consistent on the target to
      * update them. (Ignore the live system's ckpt_avail list here. The blocks on that list were
      * written into the final avail extent list which will be copied to the hot backup, and that's
