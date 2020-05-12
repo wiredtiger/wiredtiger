@@ -840,10 +840,10 @@ static const char *const __stats_connection_desc[] = {
   "perf: operation write latency histogram (bucket 5) - 10000us+",
   "reconciliation: fast-path pages deleted", "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction",
-  "reconciliation: page reconciliation calls that resulted in pages with prepared transaction "
+  "reconciliation: page reconciliation calls that resulted in values with prepared transaction "
   "metadata",
-  "reconciliation: page reconciliation calls that resulted in pages with timestamps",
-  "reconciliation: page reconciliation calls that resulted in pages with transaction ids",
+  "reconciliation: page reconciliation calls that resulted in values with timestamps",
+  "reconciliation: page reconciliation calls that resulted in values with transaction ids",
   "reconciliation: pages deleted", "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free", "session: open session count",
   "session: session query timestamp calls", "session: table alter failed calls",

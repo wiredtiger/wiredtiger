@@ -5601,17 +5601,17 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! reconciliation: page reconciliation calls for eviction */
 #define	WT_STAT_CONN_REC_PAGES_EVICTION			1317
 /*!
- * reconciliation: page reconciliation calls that resulted in pages with
+ * reconciliation: page reconciliation calls that resulted in values with
  * prepared transaction metadata
  */
 #define	WT_STAT_CONN_REC_PAGES_WITH_PREPARE		1318
 /*!
- * reconciliation: page reconciliation calls that resulted in pages with
+ * reconciliation: page reconciliation calls that resulted in values with
  * timestamps
  */
 #define	WT_STAT_CONN_REC_PAGES_WITH_TS			1319
 /*!
- * reconciliation: page reconciliation calls that resulted in pages with
+ * reconciliation: page reconciliation calls that resulted in values with
  * transaction ids
  */
 #define	WT_STAT_CONN_REC_PAGES_WITH_TXN			1320
