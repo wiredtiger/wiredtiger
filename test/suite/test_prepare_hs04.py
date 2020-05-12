@@ -156,7 +156,8 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
         # Search the key with timestamp 20 and ignore_prepare=false
         self.search_key_timestamp_and_ignore(ds, 20, "false")
 
-        # Commit the prepared_transactions.
+        # Commit the prepared_transactions with timestamp 30 to search below the key
+        # and expect it not to return prepared conflict message.
         for j in range (0, self.nsessions):
             sessions[j].commit_transaction(
                 'commit_timestamp=' + timestamp_str(30) + ',durable_timestamp=' + timestamp_str(30))
