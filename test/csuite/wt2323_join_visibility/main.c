@@ -242,7 +242,7 @@ thread_insert(void *arg)
          */
         key = (int)(__wt_random(&rnd) % N_RECORDS);
         maincur->set_key(maincur, key);
-/* FIXME-WT-6180: disable lower islolation levels. */
+/* FIXME-WT-6180: disable lower isolation levels. */
 #if 0
         if (sharedopts->remove)
             testutil_check(session->begin_transaction(session, "isolation=snapshot"));
@@ -283,7 +283,7 @@ thread_insert(void *arg)
             else if (ret == WT_ROLLBACK)
                 threadargs->rollbacks++;
         }
-/* FIXME-WT-6180: disable lower islolation levels. */
+/* FIXME-WT-6180: disable lower isolation levels. */
 #if 0
         if (sharedopts->remove) {
             if (ret == WT_ROLLBACK)
