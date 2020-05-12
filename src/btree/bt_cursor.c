@@ -1543,18 +1543,20 @@ __wt_btcur_update(WT_CURSOR_BTREE *cbt)
 int
 __wt_btcur_compare(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *cmpp)
 {
+    WT_BTREE *btree;
     WT_CURSOR *a, *b;
     WT_SESSION_IMPL *session;
 
+    btree = CUR2BT(a_arg);
     a = (WT_CURSOR *)a_arg;
     b = (WT_CURSOR *)b_arg;
     session = CUR2S(a_arg);
 
     /* Confirm both cursors reference the same object. */
-    if (a_arg->dhandle->handle != b_arg->dhandle->handle)
-        WT_RET_MSG(session, EINVAL, "Cursors must reference the same object");
+    if (CUR2BT(a_arg) != CUR2BT(b_arg))
+        WT_RET_MSG(session, EINVAL, "cursors must reference the same object");
 
-    switch (CUR2BT(a_arg)->type) {
+    switch (btree->type) {
     case BTREE_COL_FIX:
     case BTREE_COL_VAR:
         /*
@@ -1569,7 +1571,7 @@ __wt_btcur_compare(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *cmpp)
             *cmpp = 1;
         break;
     case BTREE_ROW:
-        WT_RET(__wt_compare(session, CUR2BT(a_arg)->collator, &a->key, &b->key, cmpp));
+        WT_RET(__wt_compare(session, btree->collator, &a->key, &b->key, cmpp));
         break;
     }
     return (0);
@@ -1624,8 +1626,8 @@ __wt_btcur_equals(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *equalp)
     cmp = 0;
 
     /* Confirm both cursors reference the same object. */
-    if (a_arg->dhandle->handle != b_arg->dhandle->handle)
-        WT_RET_MSG(session, EINVAL, "Cursors must reference the same object");
+    if (CUR2BT(a_arg) != CUR2BT(b_arg))
+        WT_RET_MSG(session, EINVAL, "cursors must reference the same object");
 
     /*
      * The reason for an equals method is because we can avoid doing a full key comparison in some
