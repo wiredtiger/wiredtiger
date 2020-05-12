@@ -533,9 +533,9 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
      * tempted to check the time window against the default here - the check is subtly different due
      * to the grouping.
      */
-    return ((tw->stop_ts == WT_TS_MAX && tw->stop_txn == WT_TXN_MAX) &&
+    return (!__wt_time_window_has_stop(tw) &&
       ((tw->start_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE) ||
-              __wt_txn_tw_start_visible_all(session, tw)));
+        __wt_txn_tw_start_visible_all(session, tw)));
 }
 
 /*
