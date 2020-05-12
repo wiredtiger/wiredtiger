@@ -519,7 +519,7 @@ __wt_meta_ckptlist_get(
          * race with will only increase (never decrease) the most recent checkpoint time value.
          */
         for (;;) {
-            most_recent = conn->ckpt_most_recent;
+            WT_ORDERED_READ(most_recent, conn->ckpt_most_recent);
             if (ckpt->sec <= most_recent ||
               __wt_atomic_cas64(&conn->ckpt_most_recent, most_recent, ckpt->sec))
                 break;
