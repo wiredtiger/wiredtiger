@@ -478,6 +478,8 @@ extern int __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CUR
 extern int __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
   WT_CURSOR *cursor, const char *cfg[], WT_CURSOR **cursorp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_curbulk_close(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curbulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool bitmap,
   bool skip_sort_check) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curconfig_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],

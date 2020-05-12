@@ -1039,8 +1039,7 @@ err:
      * database was idle.
      */
     if (full && logging) {
-        if (ret == 0 &&
-          F_ISSET(((WT_CURSOR_BTREE *)session->meta_cursor)->btree, WT_BTREE_SKIP_CKPT))
+        if (ret == 0 && F_ISSET(CUR2BT(session->meta_cursor), WT_BTREE_SKIP_CKPT))
             idle = true;
         WT_TRET(__wt_txn_checkpoint_log(session, full,
           (ret == 0 && !idle) ? WT_TXN_LOG_CKPT_STOP : WT_TXN_LOG_CKPT_CLEANUP, NULL));
