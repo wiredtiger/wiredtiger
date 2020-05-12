@@ -16,7 +16,7 @@ int
 __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
 {
     WT_SESSION_IMPL *session;
-    time_t finish_secs;
+    time_t most_recent;
 
     /* Default session. */
     session = conn->default_session;
@@ -40,8 +40,8 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
      */
     conn->default_session = session;
 
-    __wt_seconds(session, &finish_secs);
-    conn->ckpt_finish_secs = finish_secs;
+    __wt_seconds(session, &most_recent);
+    conn->ckpt_most_recent = most_recent;
 
     /*
      * Publish: there must be a barrier to ensure the connection structure fields are set before

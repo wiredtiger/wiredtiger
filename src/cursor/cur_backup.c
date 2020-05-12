@@ -258,7 +258,7 @@ __backup_start(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool is_dup, cons
          * complete and valid.
          */
         __wt_writelock(session, &conn->hot_backup_lock);
-        conn->hot_backup_start = conn->ckpt_finish_secs;
+        conn->hot_backup_start = conn->ckpt_most_recent;
         conn->hot_backup_list = NULL;
         __wt_writeunlock(session, &conn->hot_backup_lock);
 
