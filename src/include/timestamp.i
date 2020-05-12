@@ -80,10 +80,10 @@ __wt_time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
             __wt_txn_pinned_timestamp(session, &pinned_ts);
             /*
              * The durable start timestamp is always greater than or equal to the start timestamp,
-             * so we only need to check the more conservative one here.
+             * as such we must check it against the pinned timestamp and not the start timestamp.
              */
             WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
-            if (tw->start_ts < pinned_ts)
+            if (tw->durable_start_ts < pinned_ts)
                 tw->start_ts = tw->durable_start_ts = WT_TS_NONE;
         }
     }
