@@ -71,7 +71,7 @@ class test_config08(wttest.WiredTigerTestCase):
             # WT won't allow this operation as exclsuive file handle is not possible
             # with modified table.
             self.assertTrue(self.raisesBusy(lambda: self.session.verify(self.uri, None)),
-                "Was expecting API call to fail with EBUSY")
+                "was expecting API call to fail with EBUSY")
 
             # Taking a checkopoint should make WT happy.
             self.session.checkpoint()

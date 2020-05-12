@@ -984,13 +984,13 @@ wiredtiger_open_common =\
         the maximum log file size.''',
         type='list', choices=['data', 'log']),
     Config('file_close_sync', 'true', r'''
-        control whether to flush modified tables to storage independent
+        control whether to flush modified files to storage independent
         of a global checkpoint when closing file handles to acquire exclusive
         access to a table. If set to false, and logging is disabled, API calls that
         require exclusive access to tables will return EBUSY if there have been
         changes made to the table since the last global checkpoint. When logging
         is enabled, the value for <code>file_close_sync</code> has no effect, and,
-        modified table is always flushed to storage when closing file handles to
+        modified file is always flushed to storage when closing file handles to
         acquire exclusive access to the table''',
         type='boolean'),
     Config('hazard_max', '1000', r'''
