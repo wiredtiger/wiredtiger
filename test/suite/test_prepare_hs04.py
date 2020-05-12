@@ -57,9 +57,7 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
         return val
 
     def search_key_timestamp_and_ignore(self, ds, timestamp, ignore_prepare_str, after_crash=None):
-        # Seach for key inserted at timestamp 5
         cursor = self.session.open_cursor(self.uri)
-        preparemsg = '/conflict with a prepared update/'
 
         txn_config = 'read_timestamp=' + timestamp_str(timestamp) + ',ignore_prepare=' + ignore_prepare_str
         commit_key = "C"
@@ -83,6 +81,7 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
                     # Because the prepared_updates are committed with timestamp 30
                     self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
                 else:
+                    preparemsg = '/conflict with a prepared update/'
                     # Make sure we get the expected prepare conflict message.
                     self.assertRaisesException(wiredtiger.WiredTigerError, lambda:cursor.search(), preparemsg)
             elif timestamp == 30:
