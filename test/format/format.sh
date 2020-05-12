@@ -442,13 +442,13 @@ format()
 	fi
 
 	cmd="$format_binary -c "$config" -h "$dir" -1 $args quiet=1"
-	verbose "$name: $cmd"
+	echo "$name: $cmd"
 
 	# Disassociate the command from the shell script so we can exit and let the command
 	# continue to run.
 	# Run format in its own session so child processes are in their own process gorups
 	# and we can individually terminate (and clean up) running jobs and their children.
-	$env_var setsid $cmd > $log 2>&1 &
+	eval $env_var setsid $cmd > $log 2>&1 &
 
 	# Check for setsid command failed execution, and forcibly quit.
 	# The RUNDIR is not successfully created in this failure type.
