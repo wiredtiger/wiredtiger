@@ -461,6 +461,7 @@ __wt_meta_ckptlist_get(
     WT_CKPT *ckpt, *ckptbase;
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM k, v;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     size_t allocated, slot;
     char *config;
@@ -470,6 +471,7 @@ __wt_meta_ckptlist_get(
     ckptbase = NULL;
     allocated = slot = 0;
     config = NULL;
+    conn = S2C(session);
 
     /* Retrieve the metadata information for the file. */
     WT_RET(__wt_metadata_search(session, fname, &config));
@@ -510,6 +512,9 @@ __wt_meta_ckptlist_get(
         ckpt = &ckptbase[slot];
         ckpt->order = (slot == 0) ? 1 : ckptbase[slot - 1].order + 1;
         __wt_seconds(session, &ckpt->sec);
+        /* Update time value for most recent checkpoint. Don't let it move backwards. */
+        if (ckpt->sec > conn->ckpt_most_recent)
+            conn->ckpt_most_recent = ckpt->sec;
         /*
          * Load most recent checkpoint backup blocks to this checkpoint.
          */
@@ -522,7 +527,7 @@ __wt_meta_ckptlist_get(
          * the checkpoint's modified blocks from the block manager.
          */
         F_SET(ckpt, WT_CKPT_ADD);
-        if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
+        if (F_ISSET(conn, WT_CONN_INCR_BACKUP)) {
             F_SET(ckpt, WT_CKPT_BLOCK_MODS);
             WT_ERR(__ckpt_valid_blk_mods(session, ckpt));
         }
