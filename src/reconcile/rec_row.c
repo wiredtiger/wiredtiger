@@ -636,19 +636,14 @@ static inline void
 __rec_simplify_time_window(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     wt_timestamp_t pinned_ts;
-    uint64_t checkpoint_id;
-
-    checkpoint_id = S2C(session)->txn_global.checkpoint_id;
     /*
      * Get a copy of the pinned timestamp and oldest ID. It is OK if these are out of date, they
      * only move forward, so the worst case is that we store some information that is no longer
      * relevant.
      */
     __wt_txn_pinned_timestamp(session, &pinned_ts);
-
     if (!tw->prepare) {
-        if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < __wt_txn_oldest_id(session) &&
-          (checkpoint_id != WT_TXN_NONE && tw->start_txn < checkpoint_id))
+        if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < __wt_txn_oldest_id(session))
             tw->start_txn = WT_TXN_NONE;
 
         if (tw->durable_start_ts < pinned_ts && tw->stop_ts == WT_TS_MAX &&
