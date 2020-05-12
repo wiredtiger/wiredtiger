@@ -783,17 +783,14 @@ copy_cell_restart:
         unpack->data = cell->__chunk + 2;
         unpack->size = cell->__chunk[0] >> WT_CELL_SHORT_SHIFT;
         unpack->__len = 2 + unpack->size;
-        goto short_return;
+        goto done; /* Handle copy cells. */
     case WT_CELL_KEY_SHORT:
     case WT_CELL_VALUE_SHORT:
         unpack->prefix = 0;
         unpack->data = cell->__chunk + 1;
         unpack->size = cell->__chunk[0] >> WT_CELL_SHORT_SHIFT;
         unpack->__len = 1 + unpack->size;
-
-short_return:
-        WT_CELL_LEN_CHK(cell, unpack->__len);
-        return (0);
+        goto done; /* Handle copy cells. */
     }
 
     unpack->prefix = 0;
@@ -947,7 +944,8 @@ short_return:
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
         copy.v = unpack->v;
         copy.len = WT_PTRDIFF32(p, cell);
-        __wt_time_window_copy(&copy.tw, tw);
+        tw = &copy.tw;
+        __wt_time_window_init(tw);
         cell = (WT_CELL *)((uint8_t *)cell - v);
         goto copy_cell_restart;
 
@@ -994,6 +992,7 @@ short_return:
         return (WT_ERROR); /* Unknown cell type. */
     }
 
+done:
     /*
      * Skip if we know we're not unpacking a cell of this type. This is all inlined code, and
      * ideally checking allows the compiler to discard big chunks of it.
@@ -1002,7 +1001,6 @@ short_return:
         unpack->v = copy.v;
         unpack->__len = copy.len;
         unpack->raw = WT_CELL_VALUE_COPY;
-        __wt_time_window_copy(tw, &copy.tw);
     }
 
     /*
