@@ -569,6 +569,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             continue;
 
         __wt_time_window_copy(&tw, &upd_select.tw);
+        __wt_time_window_clear_obsolete(session, &tw);
 
         switch (upd->type) {
         case WT_UPDATE_MODIFY:

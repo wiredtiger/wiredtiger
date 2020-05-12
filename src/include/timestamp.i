@@ -61,8 +61,14 @@ __wt_time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
     wt_timestamp_t pinned_ts;
 
-    if (!tw->prepare) {
-        if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < __wt_txn_oldest_id(session))
+    /*
+     * In memory database don't need to avoid writing values to the cell. If we remove this check we
+     * create an extra update on the end of the chain later in reconciliation as we'll re-append the
+     * disk image value to the update chain.
+     */
+    if (!tw->prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+        uint64_t oldest_id = __wt_txn_oldest_id(session);
+        if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < oldest_id)
             tw->start_txn = WT_TXN_NONE;
         /* Avoid retrieving the pinned timestamp unless we need it. */
         if (tw->stop_ts == WT_TS_MAX) {
