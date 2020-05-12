@@ -341,6 +341,10 @@ __wt_curbulk_init(
 int
 __wt_curbulk_close(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 {
+    WT_DECL_RET;
+
+    ret = __wt_bulk_wrapup(session, cbulk);
+
     __wt_buf_free(session, &cbulk->last);
-    return (__wt_bulk_wrapup(session, cbulk));
+    return (ret);
 }
