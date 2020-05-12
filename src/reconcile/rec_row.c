@@ -629,30 +629,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 }
 
 /*
- * __rec_simplify_time_window --
- *     Where possible modify time window values to avoid writing them to the cell later.
- */
-static inline void
-__rec_simplify_time_window(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
-{
-    wt_timestamp_t pinned_ts;
-    /*
-     * Get a copy of the pinned timestamp and oldest ID. It is OK if these are out of date, they
-     * only move forward, so the worst case is that we store some information that is no longer
-     * relevant.
-     */
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
-    if (!tw->prepare) {
-        if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < __wt_txn_oldest_id(session))
-            tw->start_txn = WT_TXN_NONE;
-
-        if (tw->durable_start_ts < pinned_ts && tw->stop_ts == WT_TS_MAX &&
-          tw->start_ts < pinned_ts)
-            tw->start_ts = WT_TS_NONE;
-    }
-}
-
-/*
  * __rec_cell_repack --
  *     Repack a cell.
  */
@@ -794,7 +770,7 @@ __wt_rec_row_leaf(
           __wt_txn_visible_all(session, tw.stop_txn, tw.stop_ts))
             upd = &upd_tombstone;
 
-        __rec_simplify_time_window(session, &tw);
+        __wt_time_window_clear_obsolete(session, &tw);
 
         /* Build value cell. */
         if (upd == NULL) {
