@@ -679,7 +679,7 @@ __rollback_page_needs_abort(
         /* Check if the page is obsolete using the page disk address. */
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &vpack);
         durable_ts = WT_MAX(vpack.ta.newest_start_durable_ts, vpack.ta.newest_stop_durable_ts);
-        prepared = vpack->tw.prepare;
+        prepared = vpack.ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared;
     } else if (addr != NULL) {
         tag = "address";
