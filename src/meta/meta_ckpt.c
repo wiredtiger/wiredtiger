@@ -464,6 +464,7 @@ __wt_meta_ckptlist_get(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     size_t allocated, slot;
+    uint64_t most_recent;
     char *config;
 
     *ckptbasep = NULL;
@@ -512,9 +513,17 @@ __wt_meta_ckptlist_get(
         ckpt = &ckptbase[slot];
         ckpt->order = (slot == 0) ? 1 : ckptbase[slot - 1].order + 1;
         __wt_seconds(session, &ckpt->sec);
-        /* Update time value for most recent checkpoint. Don't let it move backwards. */
-        if (ckpt->sec > conn->ckpt_most_recent)
-            conn->ckpt_most_recent = ckpt->sec;
+        /*
+         * Update time value for most recent checkpoint, not letting it move backwards. It is
+         * possible to race here, so use atomic CAS. This code relies on the fact that anyone we
+         * race with will only increase (never decrease) the most recent checkpoint time value.
+         */
+        while (true) {
+            most_recent = conn->ckpt_most_recent;
+            if (ckpt->sec <= most_recent ||
+              __wt_atomic_cas64(&conn->ckpt_most_recent, most_recent, ckpt->sec))
+                break;
+        }
         /*
          * Load most recent checkpoint backup blocks to this checkpoint.
          */
