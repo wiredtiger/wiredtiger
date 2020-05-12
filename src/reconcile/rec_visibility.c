@@ -79,7 +79,7 @@ __rec_append_orig_value(
          * Prepared updates should already be in the update list, add the original update to the
          * list only when the prepared update is a tombstone.
          */
-        if (F_ISSET(unpack, WT_CELL_UNPACK_PREPARE) && upd->type != WT_UPDATE_TOMBSTONE)
+        if (unpack->tw.prepare && upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
         /*
@@ -111,8 +111,7 @@ __rec_append_orig_value(
     }
 
     /* Done if the stop time pair of the onpage cell is globally visible. */
-    if ((unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX) &&
-      __wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.durable_stop_ts))
+    if (__wt_txn_tw_stop_visible_all(session, &unpack->tw))
         return (0);
 
     /* We need the original on-page value for some reader: get a copy. */
@@ -147,9 +146,8 @@ __rec_append_orig_value(
              * doesn't have same timestamp due to replacing of prepare timestamp with commit and
              * durable timestamps. Don't compare them when the on-disk version is a prepare.
              */
-            WT_ASSERT(session, F_ISSET(unpack, WT_CELL_UNPACK_PREPARE) ||
-                (unpack->tw.stop_ts == oldest_upd->start_ts &&
-                                 unpack->tw.stop_txn == oldest_upd->txnid));
+            WT_ASSERT(session, unpack->tw.prepare || (unpack->tw.stop_ts == oldest_upd->start_ts &&
+                                                       unpack->tw.stop_txn == oldest_upd->txnid));
     }
 
     /* Append the new entry into the update list. */
@@ -192,9 +190,8 @@ __rec_need_save_upd(
     if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
         return (false);
 
-    return (
-      !__wt_txn_visible_all(session, upd_select->tw.stop_txn, upd_select->tw.durable_stop_ts) &&
-      !__wt_txn_visible_all(session, upd_select->tw.start_txn, upd_select->tw.durable_start_ts));
+    return (!__wt_txn_tw_stop_visible_all(session, &upd_select->tw) &&
+      !__wt_txn_tw_start_visible_all(session, &upd_select->tw));
 }
 
 /*

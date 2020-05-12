@@ -535,7 +535,7 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
      */
     return ((tw->stop_ts == WT_TS_MAX && tw->stop_txn == WT_TXN_MAX) &&
       ((tw->start_ts == WT_TS_NONE && tw->start_txn == WT_TXN_NONE) ||
-              __wt_txn_visible_all(session, tw->start_txn, tw->durable_start_ts)));
+              __wt_txn_tw_start_visible_all(session, tw)));
 }
 
 /*
@@ -766,8 +766,7 @@ __wt_rec_row_leaf(
          * If we reconcile an on disk key with a globally visible stop time pair and there are no
          * new updates for that key, skip writing that key.
          */
-        if (upd == NULL && (tw.stop_txn != WT_TXN_MAX || tw.stop_ts != WT_TS_MAX) &&
-          __wt_txn_visible_all(session, tw.stop_txn, tw.durable_stop_ts))
+        if (upd == NULL && __wt_txn_tw_stop_visible_all(session, &tw))
             upd = &upd_tombstone;
 
         /* Build value cell. */

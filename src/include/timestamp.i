@@ -65,6 +65,16 @@ __wt_time_window_is_empty(WT_TIME_WINDOW *tw)
 }
 
 /*
+ * __wt_time_window_has_stop --
+ *     Check if the stop time window is set.
+ */
+static inline bool
+__wt_time_window_has_stop(WT_TIME_WINDOW *tw)
+{
+    return (tw->stop_txn != WT_TXN_MAX || tw->stop_ts != WT_TS_MAX);
+}
+
+/*
  * __wt_time_windows_equal --
  *     Return true if the time windows are the same.
  */
