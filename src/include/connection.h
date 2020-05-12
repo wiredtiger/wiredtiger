@@ -152,7 +152,7 @@ struct __wt_named_extractor {
  */
 #define WT_CONN_HOTBACKUP_START(conn)                        \
     do {                                                     \
-        (conn)->hot_backup_start = (conn)->ckpt_finish_secs; \
+        (conn)->hot_backup_start = (conn)->ckpt_most_recent; \
         (conn)->hot_backup_list = NULL;                      \
     } while (0)
 
@@ -276,7 +276,7 @@ struct __wt_connection_impl {
     wt_thread_t ckpt_tid;          /* Checkpoint thread */
     bool ckpt_tid_set;             /* Checkpoint thread set */
     WT_CONDVAR *ckpt_cond;         /* Checkpoint wait mutex */
-    uint64_t ckpt_finish_secs;     /* Clock value of last completed checkpoint */
+    uint64_t ckpt_most_recent;     /* Clock value of most recent checkpoint */
 #define WT_CKPT_LOGSIZE(conn) ((conn)->ckpt_logsize != 0)
     wt_off_t ckpt_logsize; /* Checkpoint log size period */
     bool ckpt_signalled;   /* Checkpoint signalled */
