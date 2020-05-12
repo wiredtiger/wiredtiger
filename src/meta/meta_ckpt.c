@@ -264,6 +264,7 @@ __wt_meta_ckptlist_get(WT_SESSION_IMPL *session, const char *fname, WT_CKPT **ck
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     size_t allocated, slot;
+    uint64_t most_recent;
     char *config;
 
     *ckptbasep = NULL;

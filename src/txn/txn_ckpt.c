@@ -740,7 +740,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_ISOLATION saved_isolation;
     wt_timestamp_t ckpt_tmp_ts;
-    time_t finish_secs;
     uint64_t fsync_duration_usecs, generation, time_start, time_stop;
     u_int i;
     bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
@@ -962,16 +961,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
                 conn->txn_global.last_ckpt_timestamp = conn->txn_global.recovery_timestamp;
         } else
             conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
-
-        /*
-         * Save clock value marking end of checkpoint processing. If a hot backup starts before the
-         * next checkpoint, we will need to keep all checkpoints up to this clock value until the
-         * backup completes.
-         */
-        __wt_seconds(session, &finish_secs);
-        /* Be defensive: time is only monotonic per session */
-        if (finish_secs > conn->ckpt_finish_secs)
-            conn->ckpt_finish_secs = finish_secs;
     }
 
 err:
@@ -1342,8 +1331,8 @@ __checkpoint_lock_dirty_tree(
             }
             WT_ERR_MSG(session, EBUSY,
               "checkpoint %s blocked by hot backup: it would "
-              "delete an existing checkpoint, and checkpoints "
-              "cannot be deleted during a hot backup",
+              "delete an existing named checkpoint, and such "
+              "checkpoints cannot be deleted during a hot backup",
               ckpt->name);
         }
         /*
