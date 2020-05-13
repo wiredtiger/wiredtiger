@@ -602,6 +602,50 @@ __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_va
 }
 
 /*
+ * __wt_txn_tw_stop_visible --
+ *     Is the given stop time window visible?
+ */
+static inline bool
+__wt_txn_tw_stop_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+{
+    return (__wt_time_window_has_stop(tw) && !tw->prepare &&
+      __wt_txn_visible(session, tw->stop_txn, tw->stop_ts));
+}
+
+/*
+ * __wt_txn_tw_start_visible --
+ *     Is the given start time window visible?
+ */
+static inline bool
+__wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+{
+    return ((__wt_time_window_has_stop(tw) || !tw->prepare) &&
+      __wt_txn_visible(session, tw->start_txn, tw->start_ts));
+}
+
+/*
+ * __wt_txn_tw_start_visible_all --
+ *     Is the given start time window visible to all (possible) readers?
+ */
+static inline bool
+__wt_txn_tw_start_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+{
+    return ((__wt_time_window_has_stop(tw) || !tw->prepare) &&
+      __wt_txn_visible_all(session, tw->start_txn, tw->durable_start_ts));
+}
+
+/*
+ * __wt_txn_tw_stop_visible_all --
+ *     Is the given stop time window visible to all (possible) readers?
+ */
+static inline bool
+__wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+{
+    return (__wt_time_window_has_stop(tw) && !tw->prepare &&
+      __wt_txn_visible_all(session, tw->stop_txn, tw->durable_stop_ts));
+}
+
+/*
  * __txn_visible_id --
  *     Can the current transaction see the given ID?
  */
@@ -844,7 +888,7 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
  */
 static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno,
-  WT_UPDATE *upd, WT_CELL_UNPACK *vpack)
+  WT_UPDATE *upd, WT_CELL_UNPACK_KV *vpack)
 {
     WT_TIME_WINDOW tw;
 
@@ -876,11 +920,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
      * tombstone and should return "not found", except for history store scan during rollback to
      * stable and when we are told to ignore non-globally visible tombstones.
      */
-    if (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX && !tw.prepare &&
-      __wt_txn_visible(session, tw.stop_txn, tw.stop_ts) &&
+    if (__wt_txn_tw_stop_visible(session, &tw) &&
       ((!F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
          (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))) ||
-          __wt_txn_visible_all(session, tw.stop_txn, tw.durable_stop_ts))) {
+          __wt_txn_tw_stop_visible_all(session, &tw))) {
         cbt->upd_value->buf.data = NULL;
         cbt->upd_value->buf.size = 0;
         cbt->upd_value->durable_ts = tw.durable_stop_ts;
@@ -891,19 +934,13 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     }
 
     /* Store the stop time pair of the history store record that is returning. */
-    if (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX && WT_IS_HS(S2BT(session))) {
+    if (__wt_time_window_has_stop(tw) && WT_IS_HS(S2BT(session))) {
         cbt->hs_stop_ts = tw.stop_ts;
         cbt->hs_stop_txnid = tw.stop_txn;
     }
 
-    /*
-     * If the start time pair is visible and it is not a prepared value then we need to return the
-     * ondisk value.
-     */
-    if ((!tw.prepare || (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX)) &&
-      (__wt_txn_visible(session, tw.start_txn, tw.start_ts) ||
-          F_ISSET(session, WT_SESSION_RESOLVING_MODIFY))) {
-
+    /* If the start time pair is visible then we need to return the ondisk value. */
+    if (__wt_txn_tw_start_visible(session, &tw) || F_ISSET(session, WT_SESSION_RESOLVING_MODIFY)) {
         /* If we are resolving a modify then the btree must be the history store. */
         WT_ASSERT(
           session, (F_ISSET(session, WT_SESSION_RESOLVING_MODIFY) && WT_IS_HS(S2BT(session))) ||
@@ -1165,7 +1202,7 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
      * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
      * uncommitted update or determined that it would be safe to write if we saw a committed update.
      */
-    if (!rollback && upd == NULL && cbt != NULL && cbt->btree->type != BTREE_COL_FIX &&
+    if (!rollback && upd == NULL && cbt != NULL && CUR2BT(cbt)->type != BTREE_COL_FIX &&
       cbt->ins == NULL) {
         __wt_read_cell_time_window(cbt, cbt->ref, &tw);
         if (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX)

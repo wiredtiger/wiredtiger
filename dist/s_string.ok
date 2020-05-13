@@ -298,6 +298,7 @@ Obama
 Opcode
 Outfmt
 PARAM
+PFX
 POSIX
 PPC
 PREDEFINE
@@ -1320,6 +1321,7 @@ trylock
 tsc
 tupdate
 tvalue
+tw
 txn
 txnc
 txnid

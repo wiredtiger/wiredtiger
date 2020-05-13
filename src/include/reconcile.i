@@ -122,7 +122,7 @@ __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
  */
 static inline void
 __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *addr,
-  WT_CELL_UNPACK *vpack, bool proxy_cell, uint64_t recno)
+  WT_CELL_UNPACK_ADDR *vpack, bool proxy_cell, uint64_t recno)
 {
     WT_REC_KV *val;
     u_int cell_type;
@@ -219,7 +219,7 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
     if (tw->prepare)
         WT_STAT_DATA_INCR(session, rec_prepare_value);
 
-    val->cell_len = __wt_cell_pack_value(session, &val->cell, tw, rle, val->buf.size);
+    val->cell_len = __wt_cell_pack_value(session, r, &val->cell, tw, rle, val->buf.size);
     val->len = val->cell_len + val->buf.size;
 
     return (0);
@@ -267,7 +267,7 @@ __wt_rec_dict_replace(
          * offset from the beginning of the page.
          */
         offset = (uint64_t)WT_PTRDIFF(r->first_free, (uint8_t *)r->cur_ptr->image.mem + dp->offset);
-        val->len = val->cell_len = __wt_cell_pack_copy(session, &val->cell, tw, rle, offset);
+        val->len = val->cell_len = __wt_cell_pack_copy(session, r, &val->cell, tw, rle, offset);
         val->buf.data = NULL;
         val->buf.size = 0;
     }
