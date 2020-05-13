@@ -1193,7 +1193,7 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
      * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
      * uncommitted update or determined that it would be safe to write if we saw a committed update.
      */
-    if (!rollback && upd == NULL && cbt != NULL && cbt->btree->type != BTREE_COL_FIX &&
+    if (!rollback && upd == NULL && cbt != NULL && CUR2BT(cbt)->type != BTREE_COL_FIX &&
       cbt->ins == NULL) {
         __wt_read_cell_time_window(cbt, cbt->ref, &tw);
         if (tw.stop_txn != WT_TXN_MAX && tw.stop_ts != WT_TS_MAX)
