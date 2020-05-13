@@ -242,7 +242,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      */
     upd_select->upd = NULL;
     select_tw = &upd_select->tw;
-    __wt_time_window_init(select_tw);
+    WT_TIME_WINDOW_INIT(select_tw);
 
     page = r->page;
     first_txn_upd = upd = last_upd = tombstone = NULL;
@@ -392,7 +392,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * indicate that the value is visible to any timestamp/transaction id ahead of it.
          */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
-            __wt_time_window_set_stop(select_tw, upd);
+            WT_TIME_WINDOW_SET_STOP(select_tw, upd);
             tombstone = upd;
 
             /* Find the update this tombstone applies to. */
@@ -407,7 +407,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
         if (upd != NULL)
             /* The beginning of the validity window is the selected update's time pair. */
-            __wt_time_window_set_start(select_tw, upd);
+            WT_TIME_WINDOW_SET_START(select_tw, upd);
         else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL && tombstone != NULL && last_upd->next == NULL);
@@ -432,7 +432,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                     last_upd->next->start_ts == vpack->tw.start_ts &&
                     last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL);
                 upd_select->upd = last_upd->next;
-                __wt_time_window_set_start(select_tw, last_upd->next);
+                WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
             } else {
                 WT_ASSERT(
                   session, __wt_txn_upd_visible_all(session, tombstone) && upd_select->upd == NULL);
