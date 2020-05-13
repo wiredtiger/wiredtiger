@@ -118,7 +118,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 
     val = &r->v;
     if (deleted) {
-        val->cell_len = __wt_cell_pack_del(session, &val->cell, &tw, cbulk->rle);
+        val->cell_len = __wt_cell_pack_del(session, r, &val->cell, &tw, cbulk->rle);
         val->buf.data = NULL;
         val->buf.size = 0;
         val->len = val->cell_len;
@@ -192,7 +192,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 {
     WT_ADDR *addr;
     WT_BTREE *btree;
-    WT_CELL_UNPACK *vpack, _vpack;
+    WT_CELL_UNPACK_ADDR *vpack, _vpack;
     WT_CHILD_STATE state;
     WT_DECL_RET;
     WT_PAGE *child, *page;
@@ -275,7 +275,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (addr == NULL && __wt_off_page(page, ref->addr))
             addr = ref->addr;
         if (addr == NULL) {
-            __wt_cell_unpack(session, page, ref->addr, vpack);
+            __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             val->buf.data = ref->addr;
             val->buf.size = __wt_cell_total_len(vpack);
             val->cell_len = 0;
@@ -526,13 +526,13 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
     }
 
     if (deleted) {
-        val->cell_len = __wt_cell_pack_del(session, &val->cell, tw, rle);
+        val->cell_len = __wt_cell_pack_del(session, r, &val->cell, tw, rle);
         val->buf.data = NULL;
         val->buf.size = 0;
         val->len = val->cell_len;
     } else if (overflow_type) {
         val->cell_len =
-          __wt_cell_pack_ovfl(session, &val->cell, WT_CELL_VALUE_OVFL, tw, rle, value->size);
+          __wt_cell_pack_ovfl(session, r, &val->cell, WT_CELL_VALUE_OVFL, tw, rle, value->size);
         val->buf.data = value->data;
         val->buf.size = value->size;
         val->len = val->cell_len + value->size;
@@ -571,7 +571,7 @@ __wt_rec_col_var(
     } last;
     WT_BTREE *btree;
     WT_CELL *cell;
-    WT_CELL_UNPACK *vpack, _vpack;
+    WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_COL *cip;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(orig);
@@ -654,7 +654,7 @@ __wt_rec_col_var(
     WT_COL_FOREACH (page, cip, i) {
         ovfl_state = OVFL_IGNORE;
         cell = WT_COL_PTR(page, cip);
-        __wt_cell_unpack(session, page, cell, vpack);
+        __wt_cell_unpack_kv(session, page->dsk, cell, vpack);
         nrepeat = __wt_cell_rle(vpack);
         ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip));
 

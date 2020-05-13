@@ -1111,21 +1111,20 @@ tasks:
 
   #           ${test_env_vars|} $(pwd)/test/csuite/test_wt2246_col_append 2>&1
 
-  # Temporarily disabled
-  # - name: csuite-wt2323-join-visibility-test
-  #   tags: ["pull_request"]
-  #   depends_on:
-  #     - name: compile
-  #   commands:
-  #     - func: "fetch artifacts"
-  #     - command: shell.exec
-  #       params:
-  #         working_dir: "wiredtiger/build_posix"
-  #         script: |
-  #           set -o errexit
-  #           set -o verbose
+  - name: csuite-wt2323-join-visibility-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
 
-  #           ${test_env_vars|} $(pwd)/test/csuite/test_wt2323_join_visibility 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2323_join_visibility 2>&1
 
   - name: csuite-wt2535-insert-race-test
     tags: ["pull_request"]
@@ -2070,7 +2069,7 @@ tasks:
       - func: "format test script"
         vars:
           #run for 24 hours ( 24 * 60 = 1440 minutes), use default config
-          format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -t 1440
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 1440
 
   - name: format-stress-smoke-test
     # Set 7 hours timeout
@@ -2082,7 +2081,7 @@ tasks:
         vars:
           # to emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
           # run smoke tests, use default config (-S)
-          format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -S
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -S
           times: 16
 
   - name: checkpoint-stress-test
@@ -2113,7 +2112,7 @@ tasks:
           # Make sure we dump core on failure
           format_test_setting: ulimit -c unlimited
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
-          format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -t 120
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120
 
   - name: format-wtperf-test
     commands:
@@ -2217,10 +2216,10 @@ buildvariants:
     - name: syscall-linux
     - name: make-check-asan-test
     - name: configure-combinations
-    # - name: checkpoint-filetypes-test
+    - name: checkpoint-filetypes-test
     # - name: coverage-report
     - name: unit-test-long
-    # - name: spinlock-gcc-test
+    - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
     - name: wtperf-test
@@ -2321,9 +2320,9 @@ buildvariants:
     - name: syscall-linux
     - name: compile-asan
     - name: make-check-asan-test
-    # - name: checkpoint-filetypes-test
+    - name: checkpoint-filetypes-test
     - name: unit-test-long
-    # - name: spinlock-gcc-test
+    - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
     - name: wtperf-test
