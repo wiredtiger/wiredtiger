@@ -191,7 +191,6 @@ err:
     WT_REF_SET_STATE(ref, previous_state);
 
     __wt_buf_free(session, &tmp);
-    F_CLR(session, WT_SESSION_INSTANTIATE_PREPARE);
 
     return (ret);
 }
