@@ -759,9 +759,8 @@ __wt_rec_row_leaf(
                 __wt_time_window_copy(&tw, &vpack->tw);
             else
                 __wt_time_window_init(&tw);
-        } else {
+        } else
             __wt_time_window_copy(&tw, &upd_select.tw);
-        }
 
         /*
          * If we reconcile an on disk key with a globally visible stop time pair and there are no
