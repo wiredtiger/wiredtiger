@@ -568,8 +568,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         if ((upd = upd_select.upd) == NULL)
             continue;
 
+        __wt_time_window_clear_obsolete(session, &upd_select.tw);
         __wt_time_window_copy(&tw, &upd_select.tw);
-        __wt_time_window_clear_obsolete(session, &tw);
 
         switch (upd->type) {
         case WT_UPDATE_MODIFY:
@@ -760,8 +760,10 @@ __wt_rec_row_leaf(
                 __wt_time_window_copy(&tw, &vpack->tw);
             else
                 __wt_time_window_init(&tw);
-        } else
+        } else {
+            __wt_time_window_clear_obsolete(session, &upd_select.tw);
             __wt_time_window_copy(&tw, &upd_select.tw);
+        }
 
         /*
          * If we reconcile an on disk key with a globally visible stop time pair and there are no
@@ -771,7 +773,6 @@ __wt_rec_row_leaf(
           __wt_txn_visible_all(session, tw.stop_txn, tw.stop_ts))
             upd = &upd_tombstone;
 
-        __wt_time_window_clear_obsolete(session, &tw);
 
         /* Build value cell. */
         if (upd == NULL) {
