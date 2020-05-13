@@ -934,7 +934,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     }
 
     /* Store the stop time pair of the history store record that is returning. */
-    if (__wt_time_window_has_stop(tw) && WT_IS_HS(S2BT(session))) {
+    if (__wt_time_window_has_stop(&tw) && WT_IS_HS(S2BT(session))) {
         cbt->hs_stop_ts = tw.stop_ts;
         cbt->hs_stop_txnid = tw.stop_txn;
     }
