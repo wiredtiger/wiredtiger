@@ -862,7 +862,8 @@ __wt_rec_row_leaf(
                  */
                 if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !WT_IS_HS(btree)) {
                     WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
-                    WT_ERR(__wt_hs_delete_key(session, btree->id, tmpkey));
+                    /* Delete all the history store entries of that key. */
+                    WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, tmpkey, WT_TS_NONE));
                     WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
                 }
 
