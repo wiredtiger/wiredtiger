@@ -85,19 +85,22 @@ retry:
 
 /*
  * __wt_session_lock_dhandle --
- *     Return when the current data handle is either (a) open with the requested lock mode; or (b)
- *     closed and write locked. If exclusive access is requested and cannot be granted immediately
- *     because the handle is in use, fail with EBUSY. Here is a brief summary of how different
- *     operations synchronize using either the schema lock, handle locks or handle flags: open --
+ *     Return when the current data handle is either (a) open with the requested lock mode; or
+ *     (b) closed and write locked. If exclusive access is requested and cannot be granted
+ *     immediately because the handle is in use, fail with EBUSY. Here is a brief summary of how
+ *     different operations synchronize using either the schema lock, handle locks or handle flags:
+ *     open --
  *     one thread gets the handle exclusive, reverts to a shared handle lock once the handle is
  *     open; bulk load --
  *     sets bulk and exclusive; salvage, truncate, update, verify --
  *     hold the schema lock, get the handle exclusive, set a "special" flag; sweep --
- *     gets a write lock on the handle, doesn't set exclusive The principle is that some application
- *     operations can cause other application operations to fail (so attempting to open a cursor on
- *     a file while it is being bulk-loaded will fail), but internal or database-wide operations
- *     should not prevent application-initiated operations. For example, attempting to verify a file
- *     should not fail because the sweep server happens to be in the process of closing that file.
+ *     gets a write lock on the handle, doesn't set exclusive.
+ *
+ *     The principle is that some application operations can cause other application operations to fail
+ *     (so attempting to open a cursor on a file while it is being bulk-loaded will fail), but
+ *     internal or database-wide operations should not prevent application-initiated operations. For
+ *     example, attempting to verify a file should not fail because the sweep server happens to be
+ *     in the process of closing that file.
  */
 int
 __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_deadp)
