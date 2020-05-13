@@ -34,7 +34,6 @@ struct __wt_reconcile {
     /* Track the page's min/maximum transactions. */
     uint64_t max_txn;
     wt_timestamp_t max_ts;
-    wt_timestamp_t max_ondisk_ts;
     wt_timestamp_t min_skipped_ts;
 
     u_int updates_seen;     /* Count of updates seen. */
@@ -228,6 +227,14 @@ struct __wt_reconcile {
      * violation and fragile, we need a better solution.
      */
     WT_CURSOR_BTREE update_modify_cbt;
+
+    /*
+     * Variables to track reconciled pages containing cells with time window values and prepared
+     * transactions.
+     */
+    bool rec_page_cell_with_ts;
+    bool rec_page_cell_with_txn_id;
+    bool rec_page_cell_with_prepared_txn;
 };
 
 typedef struct {

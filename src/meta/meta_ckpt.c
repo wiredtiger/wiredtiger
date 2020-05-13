@@ -461,8 +461,10 @@ __wt_meta_ckptlist_get(
     WT_CKPT *ckpt, *ckptbase;
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM k, v;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     size_t allocated, slot;
+    uint64_t most_recent;
     char *config;
 
     *ckptbasep = NULL;
@@ -470,6 +472,7 @@ __wt_meta_ckptlist_get(
     ckptbase = NULL;
     allocated = slot = 0;
     config = NULL;
+    conn = S2C(session);
 
     /* Retrieve the metadata information for the file. */
     WT_RET(__wt_metadata_search(session, fname, &config));
@@ -511,6 +514,17 @@ __wt_meta_ckptlist_get(
         ckpt->order = (slot == 0) ? 1 : ckptbase[slot - 1].order + 1;
         __wt_seconds(session, &ckpt->sec);
         /*
+         * Update time value for most recent checkpoint, not letting it move backwards. It is
+         * possible to race here, so use atomic CAS. This code relies on the fact that anyone we
+         * race with will only increase (never decrease) the most recent checkpoint time value.
+         */
+        for (;;) {
+            WT_ORDERED_READ(most_recent, conn->ckpt_most_recent);
+            if (ckpt->sec <= most_recent ||
+              __wt_atomic_cas64(&conn->ckpt_most_recent, most_recent, ckpt->sec))
+                break;
+        }
+        /*
          * Load most recent checkpoint backup blocks to this checkpoint.
          */
         WT_ERR(__ckpt_load_blk_mods(session, config, ckpt));
@@ -522,7 +536,7 @@ __wt_meta_ckptlist_get(
          * the checkpoint's modified blocks from the block manager.
          */
         F_SET(ckpt, WT_CKPT_ADD);
-        if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
+        if (F_ISSET(conn, WT_CONN_INCR_BACKUP)) {
             F_SET(ckpt, WT_CKPT_BLOCK_MODS);
             WT_ERR(__ckpt_valid_blk_mods(session, ckpt));
         }
@@ -598,6 +612,16 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
+    else {
+        /*
+         * Backward compatibility changes, as the parameter name is different in older versions of
+         * WT, make sure that we read older format in case if we didn't find the newer format name.
+         */
+        ret = __wt_config_subgets(session, v, "start_durable_ts", &a);
+        WT_RET_NOTFOUND_OK(ret);
+        if (ret != WT_NOTFOUND && a.len != 0)
+            ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
+    }
 
     ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
@@ -613,6 +637,16 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.newest_stop_durable_ts = (uint64_t)a.val;
+    else {
+        /*
+         * Backward compatibility changes, as the parameter name is different in older versions of
+         * WT, make sure that we read older format in case if we didn't find the newer format name.
+         */
+        ret = __wt_config_subgets(session, v, "stop_durable_ts", &a);
+        WT_RET_NOTFOUND_OK(ret);
+        if (ret != WT_NOTFOUND && a.len != 0)
+            ckpt->ta.newest_stop_durable_ts = (uint64_t)a.val;
+    }
 
     ret = __wt_config_subgets(session, v, "prepare", &a);
     WT_RET_NOTFOUND_OK(ret);
