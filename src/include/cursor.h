@@ -72,7 +72,10 @@ struct __wt_cursor_backup {
 };
 
 /* Get the WT_BTREE from any WT_CURSOR/WT_CURSOR_BTREE. */
-#define CUR2BT(c) ((WT_BTREE *)((WT_CURSOR_BTREE *)(c))->dhandle->handle)
+#define CUR2BT(c)                                \
+    (((WT_CURSOR_BTREE *)(c))->dhandle == NULL ? \
+        NULL :                                   \
+        (WT_BTREE *)((WT_CURSOR_BTREE *)(c))->dhandle->handle)
 
 struct __wt_cursor_btree {
     WT_CURSOR iface;
