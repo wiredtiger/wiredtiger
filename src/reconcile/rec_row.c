@@ -568,7 +568,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         if ((upd = upd_select.upd) == NULL)
             continue;
 
-        __wt_time_window_clear_obsolete(session, &upd_select.tw, r);
         __wt_time_window_copy(&tw, &upd_select.tw);
 
         switch (upd->type) {
@@ -761,7 +760,6 @@ __wt_rec_row_leaf(
             else
                 __wt_time_window_init(&tw);
         } else {
-            __wt_time_window_clear_obsolete(session, &upd_select.tw, r);
             __wt_time_window_copy(&tw, &upd_select.tw);
         }
 
