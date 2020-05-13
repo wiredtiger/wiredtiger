@@ -39,6 +39,9 @@
       (tw)->start_txn == WT_TXN_NONE && (tw)->durable_stop_ts == WT_TS_NONE && \
       (tw)->stop_ts == WT_TS_MAX && (tw)->stop_txn == WT_TXN_MAX && (tw)->prepare == 0)
 
+/* Check if the stop time window is set. */
+#define WT_TIME_WINDOW_HAS_STOP(tw) ((tw)->stop_txn != WT_TXN_MAX || (tw)->stop_ts != WT_TS_MAX)
+
 /* Return true if the time windows are the same. */
 #define WT_TIME_WINDOWS_EQUAL(tw1, tw2)                                                           \
     ((tw1)->durable_start_ts == (tw2)->durable_start_ts && (tw1)->start_ts == (tw2)->start_ts &&  \
