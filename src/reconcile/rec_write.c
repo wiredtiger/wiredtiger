@@ -85,6 +85,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * that information.
      */
     ret = __reconcile(session, ref, salvage, flags, &page_locked);
+    /* TODO: should we clear the session reconciliation times here, or leave them set? */
 
 err:
     if (page_locked)
@@ -152,6 +153,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     /* Initialize the reconciliation structure for each new run. */
     WT_RET(__rec_init(session, ref, flags, salvage, &session->reconcile));
     r = session->reconcile;
+
+    __wt_txn_pinned_timestamp(session, &session->rec_pinned_ts);
+    session->rec_oldest_txnid = __wt_txn_oldest_id(session);
 
     /* Reconcile the page. */
     switch (page->type) {

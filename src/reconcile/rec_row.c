@@ -771,8 +771,6 @@ __wt_rec_row_leaf(
           __wt_txn_visible_all(session, tw.stop_txn, tw.stop_ts))
             upd = &upd_tombstone;
 
-        __wt_time_window_clear_obsolete(session, &tw);
-
         /* Build value cell. */
         if (upd == NULL) {
             /*

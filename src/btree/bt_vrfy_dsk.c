@@ -199,6 +199,13 @@ __verify_dsk_ts_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num, const char
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *ts1_bp, *ts2_bp;
 
+    /*
+     * On page timestamps are aggressively cleared when older than oldest to save space, so we
+     * can't rely on them in checks against the aggregated timestamp.
+     */
+    if (ts1 == WT_TS_NONE)
+       return (0);
+
     if (gt && ts1 >= ts2)
         return (0);
     if (!gt && ts1 <= ts2)
@@ -241,6 +248,12 @@ __verify_dsk_txn_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num, const cha
   uint64_t txn1, const char *txn2_name, uint64_t txn2, bool gt, const char *tag,
   const WT_PAGE_HEADER *dsk)
 {
+    /*
+     * On page IDs are aggressively cleared when older than oldest to save space, so we can't
+     * include them in checks against the aggregated ID.
+     */
+    if (txn1 == WT_TXN_NONE)
+        return (0);
     if (gt && txn1 >= txn2)
         return (0);
     if (!gt && txn1 <= txn2)

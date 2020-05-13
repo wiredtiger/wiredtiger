@@ -59,33 +59,34 @@ __wt_time_window_copy(WT_TIME_WINDOW *dest, WT_TIME_WINDOW *source)
 static inline void
 __wt_time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    wt_timestamp_t pinned_ts;
+    if (session->rec_pinned_ts == WT_TS_NONE && session->rec_oldest_txnid == WT_TXN_NONE)
+        /* TODO: maybe should use the global values in this case? */
+        return;
 
     /*
      * In memory database don't need to avoid writing values to the cell. If we remove this check we
      * create an extra update on the end of the chain later in reconciliation as we'll re-append the
      * disk image value to the update chain.
      */
-    if (!tw->prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-        uint64_t oldest_id = __wt_txn_oldest_id(session);
-        if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < oldest_id)
-            tw->start_txn = WT_TXN_NONE;
-        /* Avoid retrieving the pinned timestamp unless we need it. */
-        if (tw->stop_ts == WT_TS_MAX) {
-            /*
-             * The durable stop timestamp should be it's default value whenever the stop timestamp
-             * is.
-             */
-            WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
-            __wt_txn_pinned_timestamp(session, &pinned_ts);
-            /*
-             * The durable start timestamp is always greater than or equal to the start timestamp,
-             * as such we must check it against the pinned timestamp and not the start timestamp.
-             */
-            WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
-            if (tw->durable_start_ts < pinned_ts)
-                tw->start_ts = tw->durable_start_ts = WT_TS_NONE;
-        }
+    if (tw->prepare || F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+        return;
+
+    if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < session->rec_oldest_txnid)
+        tw->start_txn = WT_TXN_NONE;
+    /* Avoid retrieving the pinned timestamp unless we need it. */
+    if (tw->stop_ts == WT_TS_MAX) {
+        /*
+         * The durable stop timestamp should be it's default value whenever the stop timestamp
+         * is.
+         */
+        WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
+        /*
+         * The durable start timestamp is always greater than or equal to the start timestamp,
+         * as such we must check it against the pinned timestamp and not the start timestamp.
+         */
+        WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
+        if (tw->durable_start_ts < session->rec_pinned_ts)
+            tw->start_ts = tw->durable_start_ts = WT_TS_NONE;
     }
 }
 
@@ -218,6 +219,34 @@ static inline void
 __wt_time_aggregate_copy(WT_TIME_AGGREGATE *dest, WT_TIME_AGGREGATE *source)
 {
     *dest = *source;
+}
+
+/*
+ * __wt_time_aggregate_clear_obsolete --
+ *     Where possible modify time window values to avoid writing obsolete aggregated values.
+ */
+static inline void
+__wt_time_aggregate_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
+{
+    if (session->rec_pinned_ts == WT_TS_NONE && session->rec_oldest_txnid == WT_TXN_NONE)
+        /* TODO: maybe should use the global values in this case? */
+        return;
+
+    /*
+     * In memory database don't need to avoid writing values to the cell. If we remove this check we
+     * create an extra update on the end of the chain later in reconciliation as we'll re-append the
+     * disk image value to the update chain.
+     */
+    if (ta->prepare || F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+        return;
+
+    ta->newest_start_durable_ts = WT_MAX(ta->newest_start_durable_ts, session->rec_pinned_ts);
+    ta->newest_stop_durable_ts = WT_MAX(ta->newest_stop_durable_ts, session->rec_pinned_ts);
+
+    ta->oldest_start_ts = WT_MIN(ta->oldest_start_ts, session->rec_pinned_ts);
+    ta->oldest_start_txn = WT_MIN(ta->oldest_start_txn, session->rec_oldest_txnid);
+    ta->newest_stop_ts = WT_MAX(ta->newest_stop_ts, session->rec_pinned_ts);
+    ta->newest_stop_txn = WT_MAX(ta->newest_stop_txn, session->rec_oldest_txnid);
 }
 
 /*

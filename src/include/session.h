@@ -157,6 +157,16 @@ struct __wt_session_impl {
     void *reconcile; /* Reconciliation support */
     int (*reconcile_cleanup)(WT_SESSION_IMPL *);
 
+    /*
+     * Save the time pair used to choose a visibility point for the most recent reconciliation
+     * done by this session. It's a bit of a hack, but saves us passing a time pair through
+     * a lot of code.
+     * These values are used to remember what oldest time is for a reconciliation, so we can avoid
+     * saving transaction IDs and timestamps to disk where possible.
+     */
+    wt_timestamp_t rec_pinned_ts;
+    uint64_t rec_oldest_txnid;
+
     /* Sessions have an associated statistics bucket based on its ID. */
     u_int stat_bucket; /* Statistics bucket offset */
 
