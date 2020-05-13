@@ -487,6 +487,12 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     WT_ORDERED_READ(r->last_running, txn_global->last_running);
 
     /*
+     * Cache the pinned timestamp, this is used to when we clear obsolete timestamps from time
+     * windows later in reconciliation.
+     */
+    __wt_txn_pinned_timestamp(session, &r->pinned_ts);
+
+    /*
      * The checkpoint transaction doesn't pin the oldest txn id, therefore the global last_running
      * can move beyond the checkpoint transaction id. When reconciling the metadata, we have to take
      * checkpoints into account.
