@@ -542,7 +542,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     btree = S2BT(session);
     prepare = false;
 
-    instantiate_prepared = F_ISSET_ATOMIC(page, WT_PAGE_INSTANTIATE_PREPARE_UPDATE);
+    instantiate_prepared = F_ISSET(session, WT_SESSION_INSTANTIATE_PREPARE);
 
     /* Walk the page, building indices. */
     rip = page->pg_row;
