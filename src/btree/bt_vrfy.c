@@ -766,11 +766,11 @@ __verify_ts_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num, c
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     /*
-     * On page timestamps are aggressively cleared when older than oldest to save space, so we
-     * can't rely on them in checks against the aggregated timestamp.
+     * On page timestamps are aggressively cleared when older than oldest to save space, so we can't
+     * rely on them in checks against the aggregated timestamp.
      */
     if (ts1 == WT_TS_NONE)
-            return (0);
+        return (0);
 
     if (gt && ts1 >= ts2)
         return (0);
@@ -847,7 +847,7 @@ __verify_txn_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
      * include them in checks against the aggregated ID.
      */
     if (txn1 == WT_TXN_NONE)
-            return (0);
+        return (0);
     if (gt && txn1 >= txn2)
         return (0);
     if (!gt && txn1 <= txn2)

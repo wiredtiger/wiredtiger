@@ -85,7 +85,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * that information.
      */
     ret = __reconcile(session, ref, salvage, flags, &page_locked);
-    /* TODO: should we clear the session reconciliation times here, or leave them set? */
+/* TODO: should we clear the session reconciliation times here, or leave them set? */
 
 err:
     if (page_locked)

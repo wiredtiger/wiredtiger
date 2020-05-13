@@ -93,8 +93,8 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
         WT_ASSERT(session, trimmed_tw.start_ts <= trimmed_tw.durable_start_ts);
         /* Store differences if any, not absolutes. */
         if (trimmed_tw.durable_start_ts - trimmed_tw.start_ts > 0) {
-            WT_IGNORE_RET(__wt_vpack_uint(pp, 0,
-                trimmed_tw.durable_start_ts - trimmed_tw.start_ts));
+            WT_IGNORE_RET(
+              __wt_vpack_uint(pp, 0, trimmed_tw.durable_start_ts - trimmed_tw.start_ts));
             LF_SET(WT_CELL_TS_DURABLE_START);
         }
     }
@@ -112,8 +112,7 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDO
         WT_ASSERT(session, trimmed_tw.stop_ts <= trimmed_tw.durable_stop_ts);
         /* Store differences if any, not absolutes. */
         if (trimmed_tw.durable_stop_ts - trimmed_tw.stop_ts > 0) {
-            WT_IGNORE_RET(__wt_vpack_uint(pp, 0,
-                trimmed_tw.durable_stop_ts - trimmed_tw.stop_ts));
+            WT_IGNORE_RET(__wt_vpack_uint(pp, 0, trimmed_tw.durable_stop_ts - trimmed_tw.stop_ts));
             LF_SET(WT_CELL_TS_DURABLE_STOP);
         }
     }
@@ -217,20 +216,20 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
          * having that check to find out whether it is zero or not will unnecessarily add overhead
          * than benefit.
          */
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0,
-            trimmed_ta.newest_start_durable_ts - trimmed_ta.oldest_start_ts));
+        WT_IGNORE_RET(
+          __wt_vpack_uint(pp, 0, trimmed_ta.newest_start_durable_ts - trimmed_ta.oldest_start_ts));
         LF_SET(WT_CELL_TS_DURABLE_START);
     }
     if (trimmed_ta.newest_stop_ts != WT_TS_MAX) {
         /* Store differences, not absolutes. */
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0,
-            trimmed_ta.newest_stop_ts - trimmed_ta.oldest_start_ts));
+        WT_IGNORE_RET(
+          __wt_vpack_uint(pp, 0, trimmed_ta.newest_stop_ts - trimmed_ta.oldest_start_ts));
         LF_SET(WT_CELL_TS_STOP);
     }
     if (trimmed_ta.newest_stop_txn != WT_TXN_MAX) {
         /* Store differences, not absolutes. */
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0,
-            trimmed_ta.newest_stop_txn - trimmed_ta.oldest_start_txn));
+        WT_IGNORE_RET(
+          __wt_vpack_uint(pp, 0, trimmed_ta.newest_stop_txn - trimmed_ta.oldest_start_txn));
         LF_SET(WT_CELL_TXN_STOP);
     }
     if (trimmed_ta.newest_stop_durable_ts != WT_TS_NONE) {
@@ -246,8 +245,8 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
          * having that check to find out whether it is zero or not will unnecessarily add overhead
          * than benefit.
          */
-        WT_IGNORE_RET(__wt_vpack_uint(pp, 0,
-            trimmed_ta.newest_stop_durable_ts - trimmed_ta.newest_stop_ts));
+        WT_IGNORE_RET(
+          __wt_vpack_uint(pp, 0, trimmed_ta.newest_stop_durable_ts - trimmed_ta.newest_stop_ts));
         LF_SET(WT_CELL_TS_DURABLE_STOP);
     }
     if (trimmed_ta.prepare)

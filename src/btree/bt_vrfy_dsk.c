@@ -200,11 +200,11 @@ __verify_dsk_ts_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num, const char
     const char *ts1_bp, *ts2_bp;
 
     /*
-     * On page timestamps are aggressively cleared when older than oldest to save space, so we
-     * can't rely on them in checks against the aggregated timestamp.
+     * On page timestamps are aggressively cleared when older than oldest to save space, so we can't
+     * rely on them in checks against the aggregated timestamp.
      */
     if (ts1 == WT_TS_NONE)
-       return (0);
+        return (0);
 
     if (gt && ts1 >= ts2)
         return (0);
