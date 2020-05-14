@@ -34,27 +34,41 @@ static inline int
 read_op(WT_CURSOR *cursor, read_operation op, int *exactp)
 {
     WT_DECL_RET;
+    uint64_t start, now;
 
     /*
      * Read operations wait out prepare-conflicts. (As part of the snapshot isolation checks, we
      * repeat reads that succeeded before, they should be repeatable.)
      */
+    __wt_seconds(NULL, &start);
     switch (op) {
     case NEXT:
-        while ((ret = cursor->next(cursor)) == WT_PREPARE_CONFLICT)
+        while ((ret = cursor->next(cursor)) == WT_PREPARE_CONFLICT) {
+            __wt_seconds(NULL, &now);
+            testutil_assert(now < start || now - start < 60);
             __wt_yield();
+        }
         break;
     case PREV:
-        while ((ret = cursor->prev(cursor)) == WT_PREPARE_CONFLICT)
+        while ((ret = cursor->prev(cursor)) == WT_PREPARE_CONFLICT) {
+            __wt_seconds(NULL, &now);
+            testutil_assert(now < start || now - start < 60);
             __wt_yield();
+        }
         break;
     case SEARCH:
-        while ((ret = cursor->search(cursor)) == WT_PREPARE_CONFLICT)
+        while ((ret = cursor->search(cursor)) == WT_PREPARE_CONFLICT) {
+            __wt_seconds(NULL, &now);
+            testutil_assert(now < start || now - start < 60);
             __wt_yield();
+        }
         break;
     case SEARCH_NEAR:
-        while ((ret = cursor->search_near(cursor, exactp)) == WT_PREPARE_CONFLICT)
+        while ((ret = cursor->search_near(cursor, exactp)) == WT_PREPARE_CONFLICT) {
+            __wt_seconds(NULL, &now);
+            testutil_assert(now < start || now - start < 60);
             __wt_yield();
+        }
         break;
     }
     return (ret);
