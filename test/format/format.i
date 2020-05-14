@@ -44,34 +44,42 @@ read_op(WT_CURSOR *cursor, read_operation op, int *exactp)
     switch (op) {
     case NEXT:
         while ((ret = cursor->next(cursor)) == WT_PREPARE_CONFLICT) {
+            __wt_yield();
+
+            /* Ignore clock reset. */
             __wt_seconds(NULL, &now);
             testutil_assertfmt(now < start || now - start < 60,
               "%s: timed out with prepare-conflict", "WT_CURSOR.next");
-            __wt_yield();
         }
         break;
     case PREV:
         while ((ret = cursor->prev(cursor)) == WT_PREPARE_CONFLICT) {
+            __wt_yield();
+
+            /* Ignore clock reset. */
             __wt_seconds(NULL, &now);
             testutil_assertfmt(now < start || now - start < 60,
               "%s: timed out with prepare-conflict", "WT_CURSOR.prev");
-            __wt_yield();
         }
         break;
     case SEARCH:
         while ((ret = cursor->search(cursor)) == WT_PREPARE_CONFLICT) {
+            __wt_yield();
+
+            /* Ignore clock reset. */
             __wt_seconds(NULL, &now);
             testutil_assertfmt(now < start || now - start < 60,
               "%s: timed out with prepare-conflict", "WT_CURSOR.search");
-            __wt_yield();
         }
         break;
     case SEARCH_NEAR:
         while ((ret = cursor->search_near(cursor, exactp)) == WT_PREPARE_CONFLICT) {
+            __wt_yield();
+
+            /* Ignore clock reset. */
             __wt_seconds(NULL, &now);
             testutil_assertfmt(now < start || now - start < 60,
               "%s: timed out with prepare-conflict", "WT_CURSOR.search_near");
-            __wt_yield();
         }
         break;
     }
