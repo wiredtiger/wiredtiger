@@ -542,7 +542,7 @@ __hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool 
     } else {
         /* Given the history store exists in the metadata validate whether it exists on disk. */
         WT_ERR(__wt_fs_exist(session, WT_HS_FILE, hs_exists));
-        if (hs_exists) {
+        if (*hs_exists) {
             /*
              * Attempt to configure the history store, this will detect corruption if it fails.
              */
