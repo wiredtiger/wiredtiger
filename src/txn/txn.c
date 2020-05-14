@@ -693,6 +693,12 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         hs_upd->durable_ts = hs_upd->start_ts = txn->durable_timestamp;
         hs_upd->txnid = txn->id;
+
+        hs_cursor->set_value(hs_cursor, txn->durable_timestamp, durable_ts, type_full, hs_value);
+        WT_ERR(__wt_upd_alloc(session, &hs_cursor->value, WT_UPDATE_STANDARD, &hs_upd->next, NULL));
+        hs_upd->next->durable_ts = durable_ts;
+        hs_upd->next->start_ts = hs_start_ts;
+        hs_upd->next->txnid = hs_cbt->upd_value->txnid;
     } else {
         WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, NULL));
 
@@ -746,7 +752,7 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
 err:
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
-    __wt_free(session, hs_upd);
+    __wt_free_update_list(session, &hs_upd);
     __wt_free(session, upd);
     __wt_free(session, tombstone);
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
