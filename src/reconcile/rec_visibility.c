@@ -113,6 +113,15 @@ __rec_append_orig_value(
     }
 
     /*
+     * We end up in this function because we have selected a newer value to write to disk. For
+     * normal updates, they are committed so we should see a valid update here. However, we may also
+     * choose to write an uncommitted prepared update and it can be aborted concurrently. If all the
+     * updates are aborted, no need to append the onpage value any more.
+     */
+    if (oldest_upd == NULL)
+        return (0);
+
+    /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
      * the list, if the onpage value has a valid stop pair. Imagine a case where we insert and
      * delete a value respectively at timestamp 0 and 10, and later insert it again at 20. We need
