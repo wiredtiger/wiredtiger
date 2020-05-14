@@ -1843,6 +1843,23 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
 }
 
 /*
+ * __wt_btcur_cache --
+ *     Discard buffers when caching a cursor.
+ */
+void
+__wt_btcur_cache(WT_CURSOR_BTREE *cbt)
+{
+    WT_SESSION_IMPL *session;
+
+    session = CUR2S(cbt);
+
+    __wt_buf_free(session, &cbt->_row_key);
+    __wt_buf_free(session, &cbt->_tmp);
+    __wt_buf_free(session, &cbt->_modify_update.buf);
+    __wt_buf_free(session, &cbt->_upd_value.buf);
+}
+
+/*
  * __wt_btcur_close --
  *     Close a btree cursor.
  */
@@ -1862,10 +1879,10 @@ __wt_btcur_close(WT_CURSOR_BTREE *cbt, bool lowlevel)
     if (!lowlevel)
         ret = __cursor_reset(cbt);
 
-    __wt_buf_free(session, &cbt->_modify_update.buf);
-    __wt_buf_free(session, &cbt->_upd_value.buf);
     __wt_buf_free(session, &cbt->_row_key);
     __wt_buf_free(session, &cbt->_tmp);
+    __wt_buf_free(session, &cbt->_modify_update.buf);
+    __wt_buf_free(session, &cbt->_upd_value.buf);
 #ifdef HAVE_DIAGNOSTIC
     __wt_buf_free(session, &cbt->_lastkey);
 #endif
