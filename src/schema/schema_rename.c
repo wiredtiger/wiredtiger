@@ -17,6 +17,7 @@ __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
 {
     WT_DECL_RET;
     char *newvalue, *oldvalue;
+    const char *filecfg[3] = {NULL, NULL, NULL};
     const char *filename, *newfile;
     bool exist;
 
@@ -54,13 +55,20 @@ __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
     default:
         WT_ERR(ret);
     }
+    __wt_free(session, newvalue);
     WT_ERR(__wt_fs_exist(session, newfile, &exist));
     if (exist)
         WT_ERR_MSG(session, EEXIST, "%s", newfile);
 
-    /* Replace the old file entries with new file entries. */
+    /*
+     * Replace the old file entries with new file entries. We need to remove any backup information
+     * from the old value before writing the new one out.
+     */
     WT_ERR(__wt_metadata_remove(session, uri));
-    WT_ERR(__wt_metadata_insert(session, newuri, oldvalue));
+    filecfg[0] = oldvalue;
+    filecfg[1] = "checkpoint_backup_info=";
+    WT_ERR(__wt_config_collapse(session, filecfg, &newvalue));
+    WT_ERR(__wt_metadata_insert(session, newuri, newvalue));
 
     /* Rename the underlying file. */
     WT_ERR(__wt_fs_rename(session, filename, newfile, false));
