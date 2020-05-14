@@ -524,7 +524,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RECOVERY r;
     WT_RECOVERY_FILE *metafile;
     WT_SESSION *wt_session;
-    wt_timestamp_t oldest_ts;
+    wt_timestamp_t oldest_ckpt_hs_ts;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
@@ -535,7 +535,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     config = NULL;
     do_checkpoint = hs_exists = true;
     eviction_started = false;
-    oldest_ts = WT_TS_NONE;
+    oldest_ckpt_hs_ts = WT_TS_NONE;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
     /* We need a real session for recovery. */
@@ -543,8 +543,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     r.session = session;
     WT_MAX_LSN(&r.max_ckpt_lsn);
     WT_MAX_LSN(&r.max_rec_lsn);
-    conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp =
-      conn->txn_global.oldest_ckpt_hs_timestamp = WT_TS_NONE;
+    conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp = WT_TS_NONE;
 
     F_SET(conn, WT_CONN_RECOVERING);
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
@@ -680,8 +679,9 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (hs_exists) {
         WT_ERR_NOTFOUND_OK(
-          __wt_meta_get_oldest_ckpt_timestamp(session, WT_HS_URI, &oldest_ts), false);
-        conn->txn_global.oldest_ckpt_hs_timestamp = oldest_ts;
+          __wt_meta_get_oldest_ckpt_timestamp(session, WT_HS_URI, &oldest_ckpt_hs_ts), false);
+        conn->txn_global.oldest_timestamp = oldest_ckpt_hs_ts;
+        conn->txn_global.has_oldest_timestamp = oldest_ckpt_hs_ts != WT_TS_NONE;
     }
 
     /* Scan the metadata to find the live files and their IDs. */
@@ -782,8 +782,6 @@ done:
 
         WT_ASSERT(session, conn->txn_global.has_stable_timestamp == false &&
             conn->txn_global.stable_timestamp == WT_TS_NONE);
-        WT_ASSERT(session, conn->txn_global.has_oldest_timestamp == false &&
-            conn->txn_global.oldest_timestamp == WT_TS_NONE);
 
         /*
          * Set the stable timestamp from recovery timestamp and process the trees for rollback to
@@ -793,11 +791,13 @@ done:
         conn->txn_global.has_stable_timestamp = true;
 
         /*
-         * Set the oldest timestamp to WT_TS_NONE to make sure that we didn't remove any history
-         * window as part of rollback to stable operation.
+         * The oldest timestamp is set to the oldest history store checkpoint timestamp (which may
+         * be WT_TS_NONE) to make sure we didn't remove any history window as part of rollback to
+         * stable operation.
          */
-        conn->txn_global.oldest_timestamp = WT_TS_NONE;
+        conn->txn_global.oldest_timestamp = oldest_ckpt_hs_ts;
         conn->txn_global.has_oldest_timestamp = true;
+
         __wt_verbose(session, WT_VERB_RTS,
           "Performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
           "%s",
@@ -806,9 +806,9 @@ done:
 
         WT_ERR(__wt_rollback_to_stable(session, NULL, false));
 
-        /* Reset the oldest timestamp. */
-        conn->txn_global.oldest_timestamp = WT_TS_NONE;
-        conn->txn_global.has_oldest_timestamp = false;
+        /* Reset the oldest timestamp flag. */
+        conn->txn_global.has_oldest_timestamp = oldest_ckpt_hs_ts != WT_TS_NONE;
+
     } else if (do_checkpoint)
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with

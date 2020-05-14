@@ -93,12 +93,21 @@ class test_timestamp19(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen('.')
         self.session = self.setUpSessionOpen(self.conn)
 
-        # Test that we detect setting an oldest timestamp earlier than the oldest start
-        # timestamp in the history store checkpoint list.
-        msg = '/must not be earlier/'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-            self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10) +
-                ', stable_timestamp=' + timestamp_str(10)), msg)
+        # The oldest timestamp on recovery is 40. Trying to set it earlier is a no-op.
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10))
+        self.assertTimestampsEqual(self.conn.query_timestamp('get=oldest'), timestamp_str(40))
+
+        # Trying to set an earlier stable timestamp is an error.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10)),
+            '/oldest timestamp \(0, 40\) must not be later than stable timestamp \(0, 10\)/')
+        self.assertTimestampsEqual(self.conn.query_timestamp('get=stable'), timestamp_str(40))
+
+        # Move the oldest and stable timestamps to 70.
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(70) +
+          ', stable_timestamp=' + timestamp_str(70))
+        self.assertTimestampsEqual(self.conn.query_timestamp('get=oldest'), timestamp_str(70))
+        self.assertTimestampsEqual(self.conn.query_timestamp('get=stable'), timestamp_str(70))
 
 if __name__ == '__main__':
     wttest.run()
