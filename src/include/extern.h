@@ -2185,7 +2185,7 @@ static inline void __wt_time_aggregate_init_max(WT_TIME_AGGREGATE *ta);
 static inline void __wt_time_aggregate_merge(WT_TIME_AGGREGATE *dest, WT_TIME_AGGREGATE *source);
 static inline void __wt_time_aggregate_update(WT_TIME_AGGREGATE *ta, WT_TIME_WINDOW *tw);
 static inline void __wt_time_window_clear_obsolete(
-  WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, WT_RECONCILE *r);
+  WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, uint64_t oldest_id, wt_timestamp_t oldest_ts);
 static inline void __wt_time_window_copy(WT_TIME_WINDOW *dest, WT_TIME_WINDOW *source);
 static inline void __wt_time_window_init(WT_TIME_WINDOW *tw);
 static inline void __wt_time_window_init_max(WT_TIME_WINDOW *tw);

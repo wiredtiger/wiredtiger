@@ -57,7 +57,8 @@ __wt_time_window_copy(WT_TIME_WINDOW *dest, WT_TIME_WINDOW *source)
  *     Where possible modify time window values to avoid writing obsolete values to the cell later.
  */
 static inline void
-__wt_time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, WT_RECONCILE *r)
+__wt_time_window_clear_obsolete(
+  WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, uint64_t oldest_id, wt_timestamp_t oldest_ts)
 {
     /*
      * In memory database don't need to avoid writing values to the cell. If we remove this check we
@@ -65,7 +66,7 @@ __wt_time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, WT
      * disk image value to the update chain.
      */
     if (!tw->prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-        if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < r->rec_start_oldest_id)
+        if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < oldest_id)
             tw->start_txn = WT_TXN_NONE;
         /* Avoid retrieving the pinned timestamp unless we need it. */
         if (tw->stop_ts == WT_TS_MAX) {
@@ -79,7 +80,7 @@ __wt_time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, WT
              * as such we must check it against the pinned timestamp and not the start timestamp.
              */
             WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
-            if (tw->durable_start_ts < r->rec_start_pinned_ts)
+            if (tw->durable_start_ts < oldest_ts)
                 tw->start_ts = tw->durable_start_ts = WT_TS_NONE;
         }
     }
