@@ -113,6 +113,16 @@ __rec_append_orig_value(
     }
 
     /*
+     * We end up in this function because we have selected a newer value to write to disk. If we
+     * select the newest committed update, we should see a valid update here. We can only write
+     * uncommitted prepared updates in eviction and if the update chain only has uncommitted
+     * prepared updates, we cannot abort them concurrently when we are still evicting the page
+     * because we have to do a search for the prepared updates, which can not proceed until eviction
+     * finishes.
+     */
+    WT_ASSERT(session, oldest_upd != NULL);
+
+    /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
      * the list, if the onpage value has a valid stop pair. Imagine a case where we insert and
      * delete a value respectively at timestamp 0 and 10, and later insert it again at 20. We need
