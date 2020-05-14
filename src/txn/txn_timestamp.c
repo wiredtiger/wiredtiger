@@ -480,10 +480,6 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
             WT_STAT_CONN_INCR(session, txn_set_ts_durable);
     }
 
-    /*
-     * On restart, the minimum valid oldest timestamp is the oldest start timestamp in the history
-     * store checkpoint list.
-     */
     WT_RET(__wt_config_gets_def(session, cfg, "oldest_timestamp", 0, &oldest_cval));
     has_oldest = oldest_cval.len != 0;
     if (has_oldest)
