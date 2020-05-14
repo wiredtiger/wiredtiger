@@ -113,13 +113,14 @@ __rec_append_orig_value(
     }
 
     /*
-     * We end up in this function because we have selected a newer value to write to disk. For
-     * normal updates, they are committed so we should see a valid update here. However, we may also
-     * choose to write an uncommitted prepared update and it can be aborted concurrently. If all the
-     * updates are aborted, no need to append the onpage value any more.
+     * We end up in this function because we have selected a newer value to write to disk. If we
+     * select the newest committed update, we should see a valid update here. We can only write
+     * uncommitted prepared updates in eviction and if the update chain only has uncommitted
+     * prepared updates, we cannot abort them concurrently when we are still evicting the page
+     * because we have to do a search for the prepared updates, which can not proceed until eviction
+     * finishes.
      */
-    if (oldest_upd == NULL)
-        return (0);
+    WT_ASSERT(session, oldest_upd != NULL);
 
     /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
