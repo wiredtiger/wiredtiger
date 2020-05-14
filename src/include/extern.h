@@ -478,6 +478,8 @@ extern int __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CUR
 extern int __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
   WT_CURSOR *cursor, const char *cfg[], WT_CURSOR **cursorp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_curbulk_close(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curbulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool bitmap,
   bool skip_sort_check) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curconfig_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[],
@@ -1598,6 +1600,7 @@ extern void __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_S
 extern void __wt_bloom_hash(WT_BLOOM *bloom, WT_ITEM *key, WT_BLOOM_HASH *bhash);
 extern void __wt_bloom_insert(WT_BLOOM *bloom, WT_ITEM *key)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_btcur_cache(WT_CURSOR_BTREE *cbt);
 extern void __wt_btcur_init(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt);
 extern void __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt);
 extern void __wt_btcur_open(WT_CURSOR_BTREE *cbt);
@@ -1832,9 +1835,19 @@ static inline bool __wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref
   WT_PAGE_INDEX *saved_pindex) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_time_aggregate_is_empty(WT_TIME_AGGREGATE *ta)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_time_window_has_stop(WT_TIME_WINDOW *tw)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_time_window_is_empty(WT_TIME_WINDOW *tw)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_time_windows_equal(WT_TIME_WINDOW *tw1, WT_TIME_WINDOW *tw2)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_txn_tw_start_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_txn_tw_stop_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session,
   WT_UPDATE_VALUE *upd_value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

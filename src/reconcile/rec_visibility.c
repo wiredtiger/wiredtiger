@@ -81,7 +81,7 @@ __rec_append_orig_value(
          * Prepared updates should already be in the update list, add the original update to the
          * list only when the prepared update is a tombstone.
          */
-        if (F_ISSET(unpack, WT_CELL_UNPACK_PREPARE) && upd->type != WT_UPDATE_TOMBSTONE)
+        if (unpack->tw.prepare && upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
         /*
@@ -118,9 +118,8 @@ __rec_append_orig_value(
      * delete a value respectively at timestamp 0 and 10, and later insert it again at 20. We need
      * the tombstone to tell us there is no value between 10 and 20.
      */
-    if (unpack->tw.stop_ts != WT_TS_MAX || unpack->tw.stop_txn != WT_TXN_MAX) {
-        tombstone_globally_visible =
-          __wt_txn_visible_all(session, unpack->tw.stop_txn, unpack->tw.durable_stop_ts);
+    if (__wt_time_window_has_stop(&unpack->tw)) {
+        tombstone_globally_visible = __wt_txn_tw_stop_visible_all(session, &unpack->tw);
 
         /* No need to append the tombstone if it is already in the update chain. */
         if (oldest_upd->type != WT_UPDATE_TOMBSTONE) {
@@ -148,9 +147,8 @@ __rec_append_orig_value(
              * doesn't have same timestamp due to replacing of prepare timestamp with commit and
              * durable timestamps. Don't compare them when the on-disk version is a prepare.
              */
-            WT_ASSERT(session, F_ISSET(unpack, WT_CELL_UNPACK_PREPARE) ||
-                (unpack->tw.stop_ts == oldest_upd->start_ts &&
-                                 unpack->tw.stop_txn == oldest_upd->txnid));
+            WT_ASSERT(session, unpack->tw.prepare || (unpack->tw.stop_ts == oldest_upd->start_ts &&
+                                                       unpack->tw.stop_txn == oldest_upd->txnid));
             if (tombstone_globally_visible)
                 return (0);
         }
@@ -212,9 +210,8 @@ __rec_need_save_upd(
     if (F_ISSET(r, WT_REC_CHECKPOINT) && upd_select->upd == NULL)
         return (false);
 
-    return (
-      !__wt_txn_visible_all(session, upd_select->tw.stop_txn, upd_select->tw.durable_stop_ts) &&
-      !__wt_txn_visible_all(session, upd_select->tw.start_txn, upd_select->tw.durable_start_ts));
+    return (!__wt_txn_tw_stop_visible_all(session, &upd_select->tw) &&
+      !__wt_txn_tw_start_visible_all(session, &upd_select->tw));
 }
 
 /*

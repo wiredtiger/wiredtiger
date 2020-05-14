@@ -66,7 +66,7 @@ __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 
     WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
 
-    *hs_btreep = ((WT_CURSOR_BTREE *)session->hs_cursor)->btree;
+    *hs_btreep = CUR2BT(session->hs_cursor);
     WT_ASSERT(session, *hs_btreep != NULL);
 
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
@@ -303,7 +303,7 @@ __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
             last_upd->next = mod->mod_row_update[hs_cbt->slot];
     }
 
-    WT_WITH_BTREE(session, hs_cbt->btree,
+    WT_WITH_BTREE(session, CUR2BT(hs_cbt),
       ret = __wt_row_modify(hs_cbt, &hs_cbt->iface.key, NULL, hs_upd, WT_UPDATE_INVALID, true));
     return (ret);
 }
@@ -526,8 +526,8 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     WT_DECL_RET;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    WT_WITH_BTREE(session, cbt->btree, ret = __hs_insert_record_with_btree(session, cursor, btree,
-                                         key, upd, type, hs_value, stop_ts_pair));
+    WT_WITH_BTREE(session, CUR2BT(cbt), ret = __hs_insert_record_with_btree(session, cursor, btree,
+                                          key, upd, type, hs_value, stop_ts_pair));
     return (ret);
 }
 
@@ -788,7 +788,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
     WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
-    max_hs_size = ((WT_CURSOR_BTREE *)cursor)->btree->file_max;
+    max_hs_size = CUR2BT(cursor)->file_max;
     if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
         WT_ERR_PANIC(session, WT_PANIC,
           "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64, (uint64_t)hs_size,
