@@ -764,8 +764,8 @@ extern int __wt_hs_cursor_open(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   WT_ITEM *key, wt_timestamp_t timestamp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_hs_delete_key(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, uint32_t btree_id,
+  const WT_ITEM *key, wt_timestamp_t ts) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
@@ -2199,6 +2199,8 @@ static inline void __wt_time_aggregate_init(WT_TIME_AGGREGATE *ta);
 static inline void __wt_time_aggregate_init_max(WT_TIME_AGGREGATE *ta);
 static inline void __wt_time_aggregate_merge(WT_TIME_AGGREGATE *dest, WT_TIME_AGGREGATE *source);
 static inline void __wt_time_aggregate_update(WT_TIME_AGGREGATE *ta, WT_TIME_WINDOW *tw);
+static inline void __wt_time_window_clear_obsolete(
+  WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, uint64_t oldest_id, wt_timestamp_t oldest_ts);
 static inline void __wt_time_window_copy(WT_TIME_WINDOW *dest, WT_TIME_WINDOW *source);
 static inline void __wt_time_window_init(WT_TIME_WINDOW *tw);
 static inline void __wt_time_window_init_max(WT_TIME_WINDOW *tw);
