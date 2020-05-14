@@ -539,6 +539,7 @@ __hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool 
     WT_ERR_NOTFOUND_OK(metac->search(metac), true);
     if (ret == WT_NOTFOUND) {
         *hs_exists = false;
+        ret = 0;
     } else {
         /* Given the history store exists in the metadata validate whether it exists on disk. */
         WT_ERR(__wt_fs_exist(session, WT_HS_FILE, hs_exists));
