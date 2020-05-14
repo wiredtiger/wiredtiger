@@ -514,7 +514,8 @@ __recovery_file_scan(WT_RECOVERY *r)
 /*
  * __hs_exists --
  *     Check whether the history store exists. This function looks for both the history store URI in
- *     the metadata file and for the history store data file itself.
+ *     the metadata file and for the history store data file itself. If we're running salvage, we'll
+ *     attempt to salvage the history store here.
  */
 static int
 __hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool *hs_exists)
