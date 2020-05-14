@@ -164,13 +164,12 @@ __wt_time_aggregate_validate(
           "aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
-#if 0
-    if (ta->newest_stop_durable_ts < ta->oldest_start_ts)
+    if (ta->newest_stop_durable_ts != WT_TS_NONE &&
+      ta->newest_stop_durable_ts < ta->oldest_start_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has a newest stop durable time before its oldest start time; time "
           "aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
-#endif
 
     /*
      * Optionally validate the time window against a parent's time window.
