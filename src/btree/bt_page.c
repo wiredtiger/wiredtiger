@@ -541,6 +541,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     btree = S2BT(session);
     prepare = false;
+    WT_CLEAR(buf);
 
     instantiate_prepared = F_ISSET_ATOMIC(page, WT_PAGE_INSTANTIATE_PREPARE_UPDATE);
 
