@@ -969,7 +969,7 @@ compare:
             if (rle != 0) {
                 if (WT_TIME_WINDOWS_EQUAL(&last.tw, &tw) &&
                   ((deleted && last.deleted) ||
-                      (!deleted && !last.deleted && last.value->size == size &&
+                      (!deleted && !last.deleted && size != 0 && last.value->size == size &&
                         memcmp(last.value->data, data, size) == 0))) {
                     /*
                      * The start time pair for deleted keys must be (WT_TS_NONE, WT_TXN_NONE) and
