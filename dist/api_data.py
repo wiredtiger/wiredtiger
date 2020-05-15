@@ -1001,7 +1001,8 @@ wiredtiger_open_common =\
         Use memory mapping when accessing files in a read-only mode''',
         type='boolean'),
     Config('mmap_all', 'false', r'''
-        Use memory mapping to read and write all data files''',
+        Use memory mapping to read and write all data files, may not be configured with direct
+        I/O''',
         type='boolean'),
     Config('multiprocess', 'false', r'''
         permit sharing between processes (will automatically start an
