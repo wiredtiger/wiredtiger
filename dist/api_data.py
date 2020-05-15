@@ -998,8 +998,7 @@ wiredtiger_open_common =\
         handle''',
         min=15, undoc=True),
     Config('mmap', 'true', r'''
-        Use memory mapping when accessing files in a read-only mode, may not be configured with
-        direct I/O''',
+        Use memory mapping when accessing files in a read-only mode''',
         type='boolean'),
     Config('mmap_all', 'false', r'''
         Use memory mapping to read and write all data files, may not be configured with direct
