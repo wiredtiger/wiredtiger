@@ -132,8 +132,7 @@ __rec_append_orig_value(
         tombstone_globally_visible = __wt_txn_tw_stop_visible_all(session, &unpack->tw);
 
         /*
-         * No need to append the tombstone if it is already in the update chain. it is an aborted
-         * prepared update.
+         * No need to append the tombstone if it is already in the update chain.
          *
          * Don't append the onpage tombstone if it is a prepared update as it is either on the
          * update chain or has been aborted. It it is aborted, discard it silently.
