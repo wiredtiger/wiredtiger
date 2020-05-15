@@ -452,8 +452,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 upd_select->upd = last_upd->next;
                 WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
             } else {
-                WT_ASSERT(
-                  session, __wt_txn_upd_visible_all(session, tombstone) && upd_select->upd == NULL);
+                /* If the tombstone is aborted currently, we should still have appended the onpage
+                 * value. */
+                WT_ASSERT(session, tombstone->txnid != WT_TXN_ABORTED &&
+                    __wt_txn_upd_visible_all(session, tombstone) && upd_select->upd == NULL);
                 upd_select->upd = tombstone;
             }
         }
