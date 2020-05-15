@@ -131,8 +131,13 @@ __rec_append_orig_value(
     if (WT_TIME_WINDOW_HAS_STOP(&unpack->tw)) {
         tombstone_globally_visible = __wt_txn_tw_stop_visible_all(session, &unpack->tw);
 
-        /* No need to append the tombstone if it is already in the update chain. */
-        if (oldest_upd->type != WT_UPDATE_TOMBSTONE) {
+        /*
+         * No need to append the tombstone if it is already in the update chain.
+         *
+         * Don't append the onpage tombstone if it is a prepared update as it is either on the
+         * update chain or has been aborted. If it is aborted, discard it silently.
+         */
+        if (oldest_upd->type != WT_UPDATE_TOMBSTONE && !unpack->tw.prepare) {
             /*
              * We still need to append the globally visible tombstone if its timestamp is WT_TS_NONE
              * as we may need it to clear the history store content of the key. We don't append a
@@ -162,7 +167,12 @@ __rec_append_orig_value(
             if (tombstone_globally_visible)
                 return (0);
         }
-    }
+    } else if (unpack->tw.prepare)
+        /*
+         * Don't append the onpage value if it is a prepared update as it is either on the update
+         * chain or has been aborted. It it is aborted, discard it silently.
+         */
+        return (0);
 
     /* We need the original on-page value for some reader: get a copy. */
     if (!tombstone_globally_visible) {
@@ -441,8 +451,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 upd_select->upd = last_upd->next;
                 WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
             } else {
-                WT_ASSERT(
-                  session, __wt_txn_upd_visible_all(session, tombstone) && upd_select->upd == NULL);
+                /*
+                 * If the tombstone is aborted concurrently, we should still have appended the
+                 * onpage value.
+                 */
+                WT_ASSERT(session, tombstone->txnid != WT_TXN_ABORTED &&
+                    __wt_txn_upd_visible_all(session, tombstone) && upd_select->upd == NULL);
                 upd_select->upd = tombstone;
             }
         }
