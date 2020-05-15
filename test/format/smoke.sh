@@ -19,3 +19,5 @@ args="$args runs.threads=4 "
 $TEST_WRAPPER ./t $args runs.type=row
 # Force a rebalance to occur with statistics logging to test the utility
 $TEST_WRAPPER ./t $args runs.type=row statistics.server=1 ops.rebalance=1
+# Force a block incremental backup
+$TEST_WRAPPER ./t $args backup=1 backup.incremental=block
