@@ -758,10 +758,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  *
                  * It is not correct to check prev_upd == list->onpage_upd as we may have aborted
                  * updates in the middle.
+                 *
+                 * We can't calculate reverse modify based on an uncommitted prepared update because
+                 * it may be aborted.
                  */
                 nentries = MAX_REVERSE_MODIFY_NUM;
                 if (!F_ISSET(upd, WT_UPDATE_HS)) {
                     if (upd->type == WT_UPDATE_MODIFY &&
+                      prev_upd->prepare_state != WT_PREPARE_INPROGRESS &&
                       __wt_calc_modify(session, prev_full_value, full_value,
                         prev_full_value->size / 10, entries, &nentries) == 0) {
                         WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
