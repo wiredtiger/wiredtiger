@@ -263,7 +263,7 @@ __wt_time_value_validate(
           "value time window has a durable start time after its stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
-    if (tw->durable_start_ts > tw->durable_stop_ts)
+    if (tw->durable_stop_ts != WT_TS_NONE && tw->durable_start_ts > tw->durable_stop_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a durable start time after its durable stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
