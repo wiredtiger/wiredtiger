@@ -1677,6 +1677,90 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
 }
 
 /*
+ * __rec_page_time_stats --
+ *     Update statistics about this cell, don't bother clearing here - they are cleared in a
+ *     different place, because sometimes we accumulate these stats and don't end up writing.
+ */
+static void
+__rec_page_time_stats(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+{
+    /* Time window statistics */
+    if (r->count_durable_start_ts != 0) {
+        WT_STAT_CONN_INCRV(session, hs_write_rec_durable_start_ts, r->count_durable_start_ts);
+        WT_STAT_DATA_INCRV(session, hs_write_rec_durable_start_ts, r->count_durable_start_ts);
+        WT_STAT_CONN_INCR(session, hs_write_pages_durable_start_ts);
+        WT_STAT_DATA_INCR(session, hs_write_pages_durable_start_ts);
+    }
+    if (r->count_start_ts != 0) {
+        WT_STAT_CONN_INCRV(session, hs_write_rec_start_ts, r->count_start_ts);
+        WT_STAT_DATA_INCRV(session, hs_write_rec_start_ts, r->count_start_ts);
+        WT_STAT_CONN_INCR(session, hs_write_pages_start_ts);
+        WT_STAT_DATA_INCR(session, hs_write_pages_start_ts);
+    }
+    if (r->count_start_txn != 0) {
+        WT_STAT_CONN_INCRV(session, hs_write_rec_start_txn, r->count_start_txn);
+        WT_STAT_DATA_INCRV(session, hs_write_rec_start_txn, r->count_start_txn);
+        WT_STAT_CONN_INCR(session, hs_write_pages_start_txn);
+        WT_STAT_DATA_INCR(session, hs_write_pages_start_txn);
+    }
+    if (r->count_durable_stop_ts != 0) {
+        WT_STAT_CONN_INCRV(session, hs_write_rec_durable_stop_ts, r->count_durable_stop_ts);
+        WT_STAT_DATA_INCRV(session, hs_write_rec_durable_stop_ts, r->count_durable_stop_ts);
+        WT_STAT_CONN_INCR(session, hs_write_pages_durable_stop_ts);
+        WT_STAT_DATA_INCR(session, hs_write_pages_durable_stop_ts);
+    }
+    if (r->count_stop_ts != 0) {
+        WT_STAT_CONN_INCRV(session, hs_write_rec_stop_ts, r->count_stop_ts);
+        WT_STAT_DATA_INCRV(session, hs_write_rec_stop_ts, r->count_stop_ts);
+        WT_STAT_CONN_INCR(session, hs_write_pages_stop_ts);
+        WT_STAT_DATA_INCR(session, hs_write_pages_stop_ts);
+    }
+    if (r->count_stop_txn != 0) {
+        WT_STAT_CONN_INCRV(session, hs_write_rec_stop_txn, r->count_stop_txn);
+        WT_STAT_DATA_INCRV(session, hs_write_rec_stop_txn, r->count_stop_txn);
+        WT_STAT_CONN_INCR(session, hs_write_pages_stop_txn);
+        WT_STAT_DATA_INCR(session, hs_write_pages_stop_txn);
+    }
+
+    if (r->count_prepare != 0) {
+        WT_STAT_CONN_INCRV(session, hs_write_rec_prepared, r->count_prepare);
+        WT_STAT_DATA_INCRV(session, hs_write_rec_prepared, r->count_prepare);
+        WT_STAT_CONN_INCR(session, hs_write_pages_prepared);
+        WT_STAT_DATA_INCR(session, hs_write_pages_prepared);
+    }
+
+    /* Time aggregate statistics */
+    if (r->has_newest_start_durable_ts) {
+        WT_STAT_CONN_INCR(session, hs_write_addr_newest_start_durable_ts);
+        WT_STAT_DATA_INCR(session, hs_write_addr_newest_start_durable_ts);
+    }
+    if (r->has_newest_stop_durable_ts) {
+        WT_STAT_CONN_INCR(session, hs_write_addr_newest_stop_durable_ts);
+        WT_STAT_DATA_INCR(session, hs_write_addr_newest_stop_durable_ts);
+    }
+    if (r->has_oldest_start_ts) {
+        WT_STAT_CONN_INCR(session, hs_write_addr_oldest_start_ts);
+        WT_STAT_DATA_INCR(session, hs_write_addr_oldest_start_ts);
+    }
+    if (r->has_oldest_start_txn) {
+        WT_STAT_CONN_INCR(session, hs_write_addr_oldest_start_txn);
+        WT_STAT_DATA_INCR(session, hs_write_addr_oldest_start_txn);
+    }
+    if (r->has_newest_stop_ts) {
+        WT_STAT_CONN_INCR(session, hs_write_addr_newest_stop_ts);
+        WT_STAT_DATA_INCR(session, hs_write_addr_newest_stop_ts);
+    }
+    if (r->has_newest_stop_txn) {
+        WT_STAT_CONN_INCR(session, hs_write_addr_newest_stop_txn);
+        WT_STAT_DATA_INCR(session, hs_write_addr_newest_stop_txn);
+    }
+    if (r->has_prepare) {
+        WT_STAT_CONN_INCR(session, hs_write_addr_prepared);
+        WT_STAT_DATA_INCR(session, hs_write_addr_prepared);
+    }
+}
+
+/*
  * __rec_split_write --
  *     Write a disk block out for the split helper functions.
  */
@@ -1817,7 +1901,24 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
         __rec_compression_adjust(
           session, btree->maxleafpage, compressed_size, last_block, &btree->maxleafpage_precomp);
 
+    /* Update the per-page reconciliation time statistics now that we've written something. */
+    __rec_page_time_stats(session, r);
 copy_image:
+    /* All non-error cases clear accumulated time statistics here. */
+    r->count_durable_start_ts = 0;
+    r->count_start_ts = 0;
+    r->count_start_txn = 0;
+    r->count_durable_stop_ts = 0;
+    r->count_stop_ts = 0;
+    r->count_stop_txn = 0;
+    r->count_prepare = 0;
+    r->has_newest_start_durable_ts = false;
+    r->has_newest_stop_durable_ts = false;
+    r->has_oldest_start_ts = false;
+    r->has_oldest_start_txn = false;
+    r->has_newest_stop_ts = false;
+    r->has_newest_stop_txn = false;
+    r->has_prepare = false;
 #ifdef HAVE_DIAGNOSTIC
     /*
      * The I/O routines verify all disk images we write, but there are paths in reconciliation that

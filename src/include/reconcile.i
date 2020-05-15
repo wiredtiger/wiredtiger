@@ -117,6 +117,22 @@ __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
 }
 
 /*
+ * __rec_cell_addr_stats --
+ *     Track statistics for time values associated with an address.
+ */
+static inline void
+__rec_cell_addr_stats(WT_RECONCILE *r, WT_TIME_AGGREGATE *ta)
+{
+    r->has_newest_start_durable_ts = ta->newest_start_durable_ts != WT_TS_NONE;
+    r->has_newest_stop_durable_ts = ta->newest_stop_durable_ts != WT_TS_NONE;
+    r->has_oldest_start_ts = ta->oldest_start_ts != WT_TS_NONE;
+    r->has_oldest_start_txn = ta->oldest_start_txn != WT_TXN_NONE;
+    r->has_newest_stop_ts = ta->newest_stop_ts != WT_TS_MAX;
+    r->has_newest_stop_txn = ta->newest_stop_txn != WT_TXN_MAX;
+    r->has_prepare = ta->prepare != 0;
+}
+
+/*
  * __wt_rec_cell_build_addr --
  *     Process an address or unpack reference and return a cell structure to be stored on the page.
  */
@@ -153,6 +169,8 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
         WT_ASSERT(session, addr->size != 0);
     }
 
+    __rec_cell_addr_stats(r, vpack == NULL ? &addr->ta : &vpack->ta);
+
     /*
      * We don't check the address size because we can't store an address on an overflow page: if the
      * address won't fit, the overflow page's address won't fit either. This possibility must be
@@ -179,6 +197,29 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
     }
 
     val->len = val->cell_len + val->buf.size;
+}
+
+/*
+ * __rec_cell_tw_stats --
+ *     Gather statistics about this cell.
+ */
+static inline void
+__rec_cell_tw_stats(WT_RECONCILE *r, WT_TIME_WINDOW *tw)
+{
+    if (tw->durable_start_ts != WT_TS_NONE)
+        ++r->count_durable_start_ts;
+    if (tw->start_ts != WT_TS_NONE)
+        ++r->count_start_ts;
+    if (tw->start_txn != WT_TXN_NONE)
+        ++r->count_start_txn;
+    if (tw->durable_stop_ts != WT_TS_NONE)
+        ++r->count_durable_stop_ts;
+    if (tw->stop_ts != WT_TS_MAX)
+        ++r->count_stop_ts;
+    if (tw->stop_txn != WT_TXN_MAX)
+        ++r->count_stop_txn;
+    if (tw->prepare)
+        ++r->count_prepare;
 }
 
 /*
@@ -216,8 +257,7 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
             return (__wt_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL, tw, rle));
         }
     }
-    if (tw->prepare)
-        WT_STAT_DATA_INCR(session, rec_prepare_value);
+    __rec_cell_tw_stats(r, tw);
 
     val->cell_len = __wt_cell_pack_value(session, r, &val->cell, tw, rle, val->buf.size);
     val->len = val->cell_len + val->buf.size;

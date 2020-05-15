@@ -397,6 +397,27 @@ connection_stats = [
     HistoryStat('hs_gc_pages_evict', 'history pages added for eviction during garbage collection'),
     HistoryStat('hs_gc_pages_removed', 'history pages removed for garbage collection'),
     HistoryStat('hs_gc_pages_visited', 'history pages visited for garbage collection'),
+    HistoryStat('hs_write_addr_prepared', 'page addresses written that included at least one prepare state'),
+    HistoryStat('hs_write_addr_newest_start_durable_ts', 'page addresses written that include a newest start durable timestamp '),
+    HistoryStat('hs_write_addr_newest_stop_durable_ts', 'page addresses written that include a newest stop durable timestamp '),
+    HistoryStat('hs_write_addr_oldest_start_ts', 'page addresses written that include a oldest start timestamp '),
+    HistoryStat('hs_write_addr_oldest_start_txn', 'page addresses written that include a oldest start transaction ID '),
+    HistoryStat('hs_write_addr_newest_stop_ts', 'page addresses written that include a newest stop timestamp '),
+    HistoryStat('hs_write_addr_newest_stop_txn', 'page addresses written that include a newest stop transaction ID'),
+    HistoryStat('hs_write_pages_prepared', 'pages written that included at least one prepare state'),
+    HistoryStat('hs_write_pages_durable_start_ts', 'pages written that included at least one start durable timestamp'),
+    HistoryStat('hs_write_pages_durable_stop_ts', 'pages written that included at least one stop durable timestamp'),
+    HistoryStat('hs_write_pages_start_ts', 'pages written that included at least one start timestamp'),
+    HistoryStat('hs_write_pages_start_txn', 'pages written that included at least one start transaction ID'),
+    HistoryStat('hs_write_pages_stop_ts', 'pages written that included at least one stop timestamp'),
+    HistoryStat('hs_write_pages_stop_txn', 'pages written that included at least one stop transaction ID'),
+    HistoryStat('hs_write_rec_prepared', 'records written that included a prepare state'),
+    HistoryStat('hs_write_rec_durable_start_ts', 'records written that included a start durable timestamp'),
+    HistoryStat('hs_write_rec_durable_stop_ts', 'records written that included a stop durable timestamp'),
+    HistoryStat('hs_write_rec_start_ts', 'records written that included a start timestamp'),
+    HistoryStat('hs_write_rec_start_txn', 'records written that included a start transaction ID'),
+    HistoryStat('hs_write_rec_stop_ts', 'records written that included a stop timestamp'),
+    HistoryStat('hs_write_rec_stop_txn', 'records written that included a stop transaction ID'),
 
     ##########################################
     # Locking statistics
@@ -801,6 +822,34 @@ dsrc_stats = [
     CursorStat('cursor_update_bytes_changed', 'update value size change', 'size'),
 
     ##########################################
+    # History statistics
+    ##########################################
+    HistoryStat('hs_gc_pages_evict', 'history pages added for eviction during garbage collection'),
+    HistoryStat('hs_gc_pages_removed', 'history pages removed for garbage collection'),
+    HistoryStat('hs_gc_pages_visited', 'history pages visited for garbage collection'),
+    HistoryStat('hs_write_addr_prepared', 'page addresses written that included at least one prepare state'),
+    HistoryStat('hs_write_addr_newest_start_durable_ts', 'page addresses written that include a newest start durable timestamp '),
+    HistoryStat('hs_write_addr_newest_stop_durable_ts', 'page addresses written that include a newest stop durable timestamp '),
+    HistoryStat('hs_write_addr_oldest_start_ts', 'page addresses written that include a oldest start timestamp '),
+    HistoryStat('hs_write_addr_oldest_start_txn', 'page addresses written that include a oldest start transaction ID '),
+    HistoryStat('hs_write_addr_newest_stop_ts', 'page addresses written that include a newest stop timestamp '),
+    HistoryStat('hs_write_addr_newest_stop_txn', 'page addresses written that include a newest stop transaction ID'),
+    HistoryStat('hs_write_pages_prepared', 'pages written that included at least one prepare state'),
+    HistoryStat('hs_write_pages_durable_start_ts', 'pages written that included at least one start durable timestamp'),
+    HistoryStat('hs_write_pages_durable_stop_ts', 'pages written that included at least one stop durable timestamp'),
+    HistoryStat('hs_write_pages_start_ts', 'pages written that included at least one start timestamp'),
+    HistoryStat('hs_write_pages_start_txn', 'pages written that included at least one start transaction ID'),
+    HistoryStat('hs_write_pages_stop_ts', 'pages written that included at least one stop timestamp'),
+    HistoryStat('hs_write_pages_stop_txn', 'pages written that included at least one stop transaction ID'),
+    HistoryStat('hs_write_rec_prepared', 'records written that included a prepare state'),
+    HistoryStat('hs_write_rec_durable_start_ts', 'records written that included a start durable timestamp'),
+    HistoryStat('hs_write_rec_durable_stop_ts', 'records written that included a stop durable timestamp'),
+    HistoryStat('hs_write_rec_start_ts', 'records written that included a start timestamp'),
+    HistoryStat('hs_write_rec_start_txn', 'records written that included a start transaction ID'),
+    HistoryStat('hs_write_rec_stop_ts', 'records written that included a stop timestamp'),
+    HistoryStat('hs_write_rec_stop_txn', 'records written that included a stop transaction ID'),
+
+    ##########################################
     # LSM statistics
     ##########################################
     LSMStat('bloom_count', 'bloom filters in the LSM tree', 'no_scale'),
@@ -826,7 +875,6 @@ dsrc_stats = [
     RecStat('rec_overflow_key_internal', 'internal-page overflow keys'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_overflow_value', 'overflow values written'),
-    RecStat('rec_prepare_value', 'prepared values written'),
     RecStat('rec_page_delete', 'pages deleted'),
     RecStat('rec_page_delete_fast', 'fast-path pages deleted'),
     RecStat('rec_page_match', 'page checksum matches'),
