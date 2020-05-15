@@ -730,8 +730,6 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **
     uint8_t prepare_state, previous_state;
     bool upd_visible;
 
-    if (prepare_updp != NULL)
-        *prepare_updp = NULL;
     for (;; __wt_yield()) {
         /* Prepare state change is in progress, yield and try again. */
         WT_ORDERED_READ(prepare_state, upd->prepare_state);
@@ -842,11 +840,9 @@ static inline int
 __wt_txn_read_upd_list(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **prepare_updp)
 {
-    WT_UPDATE *first_upd;
     WT_VISIBLE_TYPE upd_visible;
     uint8_t type;
 
-    first_upd = upd;
     __wt_upd_value_clear(cbt->upd_value);
 
     for (; upd != NULL; upd = upd->next) {
@@ -856,7 +852,7 @@ __wt_txn_read_upd_list(
             continue;
         /* Prepared update must be the first update on the update chain. */
         upd_visible =
-          __wt_txn_upd_visible_type(session, upd, first_upd == upd ? prepare_updp : NULL);
+          __wt_txn_upd_visible_type(session, upd, prepare_updp);
         if (upd_visible == WT_VISIBLE_TRUE) {
             /*
              * Ignore non-globally visible tombstones when we are doing history store scans in
@@ -903,6 +899,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd;
     uint8_t prepare_state;
+
+    prepare_upd = NULL;
 
     WT_RET(__wt_txn_read_upd_list(session, cbt, upd, &prepare_upd));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
