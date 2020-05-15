@@ -135,7 +135,7 @@ __rec_append_orig_value(
          * No need to append the tombstone if it is already in the update chain.
          *
          * Don't append the onpage tombstone if it is a prepared update as it is either on the
-         * update chain or has been aborted. It it is aborted, discard it silently.
+         * update chain or has been aborted. If it is aborted, discard it silently.
          */
         if (oldest_upd->type != WT_UPDATE_TOMBSTONE && !unpack->tw.prepare) {
             /*
