@@ -561,9 +561,9 @@ config_directio(void)
      * the presence of shared cache configurations (including mmap), but we've seen file corruption
      * and it doesn't make much sense (the library disallows the combination).
      */
-    if ((g.c_mmap != 0 && config_is_perm("disk.mmap")) ||
-      (g.c_mmap_all != 0 && config_is_perm("disk.mmap_all"))) {
-        testutil_die(EINVAL, "direct I/O is incompatible with mmap configurations");
+    if (g.c_mmap != 0 || g.c_mmap_all != 0) {
+        if (config_is_perm("disk.mmap") || config_is_perm("disk.mmap_all"))
+            testutil_die(EINVAL, "direct I/O is incompatible with mmap configurations");
         config_single("disk.mmap=off", false);
         config_single("disk.mmap_all=off", false);
     }
