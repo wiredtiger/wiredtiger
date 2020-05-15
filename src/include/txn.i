@@ -725,11 +725,13 @@ __wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp
  *     Visible type of given update for the current transaction.
  */
 static inline WT_VISIBLE_TYPE
-__wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **prepare_updp)
 {
     uint8_t prepare_state, previous_state;
     bool upd_visible;
 
+    if (prepare_updp != NULL)
+        *prepare_updp = NULL;
     for (;; __wt_yield()) {
         /* Prepare state change is in progress, yield and try again. */
         WT_ORDERED_READ(prepare_state, upd->prepare_state);
@@ -754,9 +756,15 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         return (WT_VISIBLE_FALSE);
 
     /* Ignore the prepared update, if transaction configuration says so. */
-    if (prepare_state == WT_PREPARE_INPROGRESS)
-        return (
-          F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE) ? WT_VISIBLE_FALSE : WT_VISIBLE_PREPARE);
+    if (prepare_state == WT_PREPARE_INPROGRESS) {
+        if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
+            /* Save the prepared update to help us detect if we race with commit or rollback. */
+            if (prepare_updp != NULL)
+                *prepare_updp = upd;
+            return (WT_VISIBLE_FALSE);
+        }
+        return (WT_VISIBLE_PREPARE);
+    }
 
     return (WT_VISIBLE_TRUE);
 }
@@ -768,7 +776,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline bool
 __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    return (__wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE);
+    return (__wt_txn_upd_visible_type(session, upd, NULL) == WT_VISIBLE_TRUE);
 }
 
 /*
@@ -831,11 +839,14 @@ __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp, size_t *siz
  *     Get the first visible update in a list (or NULL if none are visible).
  */
 static inline int
-__wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__wt_txn_read_upd_list(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **prepare_updp)
 {
+    WT_UPDATE *first_upd;
     WT_VISIBLE_TYPE upd_visible;
     uint8_t type;
 
+    first_upd = upd;
     __wt_upd_value_clear(cbt->upd_value);
 
     for (; upd != NULL; upd = upd->next) {
@@ -843,7 +854,9 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
         /* Skip reserved place-holders, they're never visible. */
         if (type == WT_UPDATE_RESERVE)
             continue;
-        upd_visible = __wt_txn_upd_visible_type(session, upd);
+        /* Prepared update must be the first update on the update chain. */
+        upd_visible =
+          __wt_txn_upd_visible_type(session, upd, first_upd == upd ? prepare_updp : NULL);
         if (upd_visible == WT_VISIBLE_TRUE) {
             /*
              * Ignore non-globally visible tombstones when we are doing history store scans in
@@ -888,8 +901,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
   WT_UPDATE *upd, WT_CELL_UNPACK_KV *vpack)
 {
     WT_TIME_WINDOW tw;
+    WT_UPDATE *prepare_upd;
+    uint8_t prepare_state;
 
-    WT_RET(__wt_txn_read_upd_list(session, cbt, upd));
+    WT_RET(__wt_txn_read_upd_list(session, cbt, upd, &prepare_upd));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
       (cbt->upd_value->type == WT_UPDATE_MODIFY && cbt->upd_value->skip_buf))
         return (0);
@@ -952,6 +967,16 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
         WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, key, cbt->iface.value_format, recno,
           cbt->upd_value, false, &cbt->upd_value->buf));
+
+    /*
+     * Retry if we race with prepare commit or rollback as the reader may have read changed history
+     * store content.
+     */
+    if (prepare_upd != NULL) {
+        WT_ORDERED_READ(prepare_state, prepare_upd->prepare_state);
+        if (prepare_state != WT_PREPARE_INPROGRESS || prepare_upd->txnid == WT_TXN_ABORTED)
+            return (WT_RESTART);
+    }
 
     /* Return invalid not tombstone if nothing is found in history store. */
     WT_ASSERT(session, cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
