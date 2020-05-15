@@ -131,15 +131,14 @@ __rec_append_orig_value(
     if (WT_TIME_WINDOW_HAS_STOP(&unpack->tw)) {
         tombstone_globally_visible = __wt_txn_tw_stop_visible_all(session, &unpack->tw);
 
-        /* 
-         * No need to append the tombstone if it is already in the update chain.
-         * it is an aborted prepared update.
+        /*
+         * No need to append the tombstone if it is already in the update chain. it is an aborted
+         * prepared update.
          *
-         * Don't append the onpage tombstone if it is a prepared update as it is either on the update
-         * chain or has been aborted. It it is aborted, discard it silently.
+         * Don't append the onpage tombstone if it is a prepared update as it is either on the
+         * update chain or has been aborted. It it is aborted, discard it silently.
          */
-        if (oldest_upd->type != WT_UPDATE_TOMBSTONE && !unpack->tw.prepare)
-        {
+        if (oldest_upd->type != WT_UPDATE_TOMBSTONE && !unpack->tw.prepare) {
             /*
              * We still need to append the globally visible tombstone if its timestamp is WT_TS_NONE
              * as we may need it to clear the history store content of the key. We don't append a
