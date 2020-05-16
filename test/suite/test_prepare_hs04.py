@@ -218,7 +218,7 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
 
         txn_config = 'read_timestamp=' + timestamp_str(20) + ',ignore_prepare=false'
         # Search keys with timestamp 20, ignore_prepare=false and expect the cursor search to return WT_NOTFOUND.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, wiredtiger.WT_NOTFOUND)    
+        self.search_keys_timestamp_and_ignore(ds, txn_config, wiredtiger.WT_NOTFOUND)
 
     def test_prepare_hs(self):
 
