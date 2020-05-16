@@ -608,7 +608,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
-    WT_UPDATE *upd, *tombstone;
+    WT_UPDATE *upd;
     wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts;
     size_t size;
     uint64_t hs_counter;
@@ -621,7 +621,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
 
     *fix_updp = NULL;
     size = 0;
-    upd = tombstone = NULL;
+    upd = NULL;
 
     /* Allocate buffers for the data store and history store key. */
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
@@ -671,17 +671,15 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     for (; chain->next != NULL; chain = chain->next)
         ;
 
-    __wt_cache_page_inmem_incr(session, page, size);
-
     /* Append the update to the end of the chain. */
     WT_PUBLISH(chain->next, upd);
 
+    __wt_cache_page_inmem_incr(session, page, size);
     *fix_updp = upd;
 
     if (0) {
 err:
         __wt_free(session, upd);
-        __wt_free(session, tombstone);
     }
 done:
     __wt_scr_free(session, &hs_key);
@@ -737,7 +735,7 @@ __txn_fixup_prepared_update(
 
         hs_cursor->set_value(hs_cursor, txn->durable_timestamp, fix_upd->durable_ts,
           fix_upd->type, fix_upd->data);
-        WT_ERR(__wt_upd_alloc(session, &hs_cursor->value, WT_UPDATE_STANDARD, &hs_upd->next, NULL));
+        WT_ERR(__wt_upd_alloc(session, fix_upd->data, WT_UPDATE_STANDARD, &hs_upd->next, NULL));
         hs_upd->next->durable_ts = fix_upd->durable_ts;
         hs_upd->next->start_ts = fix_upd->start_ts;
         hs_upd->next->txnid = fix_upd->txnid;
