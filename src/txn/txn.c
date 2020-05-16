@@ -603,7 +603,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  */
 static int
 __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *key, WT_PAGE *page,
-  WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp)
+  WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *upd_appended)
 {
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_ITEM(hs_key);
@@ -621,6 +621,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
 
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     *fix_updp = NULL;
+    *upd_appended = false;
     size = total_size = 0;
     tombstone = upd = NULL;
 
@@ -707,6 +708,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
 
     /* Append the update to the end of the chain. */
     WT_PUBLISH(chain->next, tombstone);
+    *upd_appended = true;
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 
@@ -856,13 +858,13 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_TXN *txn;
     WT_UPDATE *fix_upd, *upd;
     uint32_t hs_btree_id, session_flags;
-    bool is_owner;
+    bool is_owner, upd_appended;
 
     fix_upd = NULL;
     hs_cursor = NULL;
     txn = session->txn;
     session_flags = 0;
-    is_owner = false;
+    upd_appended = is_owner = false;
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
@@ -907,7 +909,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
         if (ret == 0)
             WT_ERR(__txn_append_hs_record(session, hs_cursor, &op->u.op_row.key,
-              ((WT_CURSOR_BTREE *)(*cursorp))->ref->page, upd, commit, &fix_upd));
+              ((WT_CURSOR_BTREE *)(*cursorp))->ref->page, upd, commit, &fix_upd, &upd_appended));
         else
             ret = 0;
     }
@@ -971,7 +973,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 err:
     if (hs_cursor != NULL)
         ret = __wt_hs_cursor_close(session, session_flags, is_owner);
-    if (commit)
+    if (!upd_appended)
         __wt_free(session, fix_upd);
     return (ret);
 }
