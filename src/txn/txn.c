@@ -662,7 +662,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
      * If the history store update already have a stop time pair and it is commit operation there is
      * nothing to do.
      */
-    if ((hs_stop_ts != WT_TS_MAX) && commit)
+    if (hs_stop_ts != WT_TS_MAX && commit)
         goto done;
 
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
