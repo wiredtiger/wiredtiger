@@ -610,7 +610,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_DECL_RET;
     WT_UPDATE *upd, *tombstone;
     wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts;
-    size_t total_size, size;
+    size_t size;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
     uint8_t type_full;
@@ -620,7 +620,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_ASSERT(session, chain != NULL);
 
     *fix_updp = NULL;
-    total_size = 0;
+    size = 0;
     upd = tombstone = NULL;
 
     /* Allocate buffers for the data store and history store key. */
@@ -647,12 +647,15 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     /* The value older than the prepared update in the history store must be a full value. */
     WT_ASSERT(session, type_full == WT_UPDATE_STANDARD);
 
+    /* If the history store record has a valid stop time pair, no need to append it and fix it. */
+    if (hs_stop_ts != WT_TS_MAX)
+        goto done;
+
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
 
     upd->txnid = WT_TXN_NONE;
     upd->durable_ts = durable_ts;
     upd->start_ts = hs_start_ts;
-    total_size += size;
     __wt_verbose(session, WT_VERB_TRANSACTION,
       "update restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
       upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
@@ -664,33 +667,16 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
      */
     F_SET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK);
 
-    /* Append a tombstone if the stop timestamp exists. */
-    if (hs_stop_ts != WT_TS_MAX) {
-        WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
-        tombstone->durable_ts = hs_stop_ts;
-        tombstone->start_ts = hs_stop_ts;
-        tombstone->txnid = WT_TXN_NONE;
-        tombstone->next = upd;
-        total_size += size;
-        /*
-         * Set the flag to indicate that this update has been restored from history store for the
-         * rollback of a prepared transaction.
-         */
-        F_SET(tombstone, WT_UPDATE_RESTORED_FOR_ROLLBACK);
-        upd = tombstone;
-    }
-
     /* Walk to the end of the chain. */
     for (; chain->next != NULL; chain = chain->next)
         ;
 
-    __wt_cache_page_inmem_incr(session, page, total_size);
+    __wt_cache_page_inmem_incr(session, page, size);
 
     /* Append the update to the end of the chain. */
     WT_PUBLISH(chain->next, upd);
 
-    if (tombstone == NULL)
-        *fix_updp = upd;
+    *fix_updp = upd;
 
     if (0) {
 err:
