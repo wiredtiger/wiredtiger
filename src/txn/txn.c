@@ -610,7 +610,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
     WT_UPDATE *tombstone, *upd;
-    wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts;
+    wt_timestamp_t durable_ts, hs_start_ts, hs_stop_durable_ts;
     size_t size, total_size;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
@@ -653,7 +653,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     hs_cbt->compare = 0;
 
     /* Get current value. */
-    WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type_full, hs_value));
+    WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts, &durable_ts, &type_full, hs_value));
 
     /* The value older than the prepared update in the history store must be a full value. */
     WT_ASSERT(session, type_full == WT_UPDATE_STANDARD);
@@ -662,7 +662,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
      * If the history store update already have a stop time pair and it is commit operation there is
      * nothing to do.
      */
-    if (hs_stop_ts != WT_TS_MAX && commit)
+    if (hs_stop_durable_ts != WT_TS_MAX && commit)
         goto done;
 
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
@@ -681,10 +681,11 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     total_size += size;
 
     /* If the history store record has a valid stop time pair, append it. */
-    if (hs_stop_ts != WT_TS_MAX) {
+    if (hs_stop_durable_ts != WT_TS_MAX) {
         WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
-        tombstone->durable_ts = hs_stop_ts;
-        tombstone->start_ts = hs_stop_ts;
+        tombstone->durable_ts = hs_stop_durable_ts;
+        /* FIXME: get the correct stop ts and txnid from the cell. */
+        tombstone->start_ts = hs_stop_durable_ts;
         tombstone->txnid = WT_TXN_NONE;
         tombstone->next = upd;
         total_size += size;
