@@ -697,6 +697,7 @@ __txn_fixup_prepared_update(
   WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_UPDATE *fix_upd, bool commit)
 {
     WT_CURSOR_BTREE *hs_cbt;
+    WT_ITEM hs_value;
     WT_DECL_RET;
     WT_TXN *txn;
     WT_UPDATE *hs_upd;
@@ -733,8 +734,10 @@ __txn_fixup_prepared_update(
         hs_upd->durable_ts = hs_upd->start_ts = txn->durable_timestamp;
         hs_upd->txnid = txn->id;
 
+        hs_value.data = fix_upd->data;
+        hs_value.size = fix_upd->size;
         hs_cursor->set_value(
-          hs_cursor, txn->durable_timestamp, fix_upd->durable_ts, fix_upd->type, fix_upd->data);
+          hs_cursor, txn->durable_timestamp, fix_upd->durable_ts, fix_upd->type, &hs_value);
         WT_ERR(__wt_upd_alloc(session, &hs_cursor->value, WT_UPDATE_STANDARD, &hs_upd->next, NULL));
         hs_upd->next->durable_ts = fix_upd->durable_ts;
         hs_upd->next->start_ts = fix_upd->start_ts;
