@@ -736,7 +736,9 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
-        if (upd->type == WT_UPDATE_STANDARD && F_ISSET(session, WT_SESSION_RESOLVING_MODIFY)) {
+        if (F_ISSET(session, WT_SESSION_RESOLVING_MODIFY) && upd->txnid != WT_TXN_ABORTED &&
+          upd->type == WT_UPDATE_STANDARD) {
+            /* If we are resolving a modify then the btree must be the history store. */
             WT_ASSERT(session, WT_IS_HS(S2BT(session)));
             return (WT_VISIBLE_TRUE);
         }
