@@ -735,7 +735,7 @@ __txn_fixup_prepared_update(
 
         hs_cursor->set_value(hs_cursor, txn->durable_timestamp, fix_upd->durable_ts,
           fix_upd->type, fix_upd->data);
-        WT_ERR(__wt_upd_alloc(session, fix_upd->data, WT_UPDATE_STANDARD, &hs_upd->next, NULL));
+        WT_ERR(__wt_upd_alloc(session, &hs_cursor->value, WT_UPDATE_STANDARD, &hs_upd->next, NULL));
         hs_upd->next->durable_ts = fix_upd->durable_ts;
         hs_upd->next->start_ts = fix_upd->start_ts;
         hs_upd->next->txnid = fix_upd->txnid;
