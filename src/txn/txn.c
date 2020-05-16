@@ -923,7 +923,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
         if (upd->txnid != txn->id)
-            continue;
+            break;
+
         if (!commit) {
             upd->txnid = WT_TXN_ABORTED;
             continue;
