@@ -696,7 +696,7 @@ done:
  */
 static int
 __txn_fixup_prepared_update(
-  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_UPDATE *append_upd, bool commit)
+  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_UPDATE *fix_upd, bool commit)
 {
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_RET;
@@ -724,7 +724,7 @@ __txn_fixup_prepared_update(
     hs_cbt->compare = 0;
 
     /* The value older than the prepared update in the history store must be a full value. */
-    WT_ASSERT(session, append_upd->type == WT_UPDATE_STANDARD);
+    WT_ASSERT(session, fix_upd->type == WT_UPDATE_STANDARD);
 
     /*
      * If we found a history value that satisfied the given timestamp, add it to the update list.
@@ -735,12 +735,12 @@ __txn_fixup_prepared_update(
         hs_upd->durable_ts = hs_upd->start_ts = txn->durable_timestamp;
         hs_upd->txnid = txn->id;
 
-        hs_cursor->set_value(hs_cursor, txn->durable_timestamp, append_upd->durable_ts,
-          append_upd->type, append_upd->data);
+        hs_cursor->set_value(hs_cursor, txn->durable_timestamp, fix_upd->durable_ts,
+          fix_upd->type, fix_upd->data);
         WT_ERR(__wt_upd_alloc(session, &hs_cursor->value, WT_UPDATE_STANDARD, &hs_upd->next, NULL));
-        hs_upd->next->durable_ts = append_upd->durable_ts;
-        hs_upd->next->start_ts = append_upd->start_ts;
-        hs_upd->next->txnid = append_upd->txnid;
+        hs_upd->next->durable_ts = fix_upd->durable_ts;
+        hs_upd->next->start_ts = fix_upd->start_ts;
+        hs_upd->next->txnid = fix_upd->txnid;
     } else
         /* Remove the restored update from history store. */
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
@@ -831,7 +831,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     uint32_t hs_btree_id, session_flags;
     bool is_owner;
 
-    hs_btree_id = S2BT(session)->id;
+    fix_upd = NULL;
     hs_cursor = NULL;
     txn = session->txn;
     session_flags = 0;
@@ -854,6 +854,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * and checkpoint moving the new updates to the history store.
      */
     if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK)) {
+        hs_btree_id = S2BT(session)->id;
+
         /* Open a history store table cursor. */
         WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
         hs_cursor = session->hs_cursor;
