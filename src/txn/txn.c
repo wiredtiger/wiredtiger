@@ -612,9 +612,8 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_UPDATE *tombstone, *upd;
     wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts;
     size_t size, total_size;
-    uint64_t hs_counter;
+    uint64_t hs_counter, type_full;
     uint32_t hs_btree_id;
-    uint8_t type_full;
     int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -656,7 +655,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type_full, hs_value));
 
     /* The value older than the prepared update in the history store must be a full value. */
-    WT_ASSERT(session, type_full == WT_UPDATE_STANDARD);
+    WT_ASSERT(session, (uint8_t)type_full == WT_UPDATE_STANDARD);
 
     /*
      * If the history store update already have a stop time pair and it is commit operation there is
@@ -763,8 +762,8 @@ __txn_fixup_prepared_update(
 
         hs_value.data = fix_upd->data;
         hs_value.size = fix_upd->size;
-        hs_cursor->set_value(
-          hs_cursor, txn->durable_timestamp, fix_upd->durable_ts, fix_upd->type, &hs_value);
+        hs_cursor->set_value(hs_cursor, txn->durable_timestamp, fix_upd->durable_ts,
+          (uint64_t)fix_upd->type, &hs_value);
         WT_ERR(__wt_upd_alloc(session, &hs_cursor->value, WT_UPDATE_STANDARD, &hs_upd->next, NULL));
         hs_upd->next->durable_ts = fix_upd->durable_ts;
         hs_upd->next->start_ts = fix_upd->start_ts;
