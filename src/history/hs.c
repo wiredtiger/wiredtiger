@@ -871,6 +871,19 @@ err:
 }
 
 /*
+ * __hs_restore_read_timestamp --
+ *     Reset the currently running transaction's read timestamp with the original read timestamp.
+ */
+static void
+__hs_restore_read_timestamp(WT_SESSION_IMPL *session)
+{
+    WT_TXN_SHARED *txn_shared;
+
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+    session->txn->read_timestamp = txn_shared->pinned_read_timestamp;
+}
+
+/*
  * __wt_find_hs_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
  *     for the record and return to the caller. The caller may choose to optionally allow prepared
@@ -996,6 +1009,17 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
             mod_upd = NULL;
 
             /*
+             * Each entry in the lookaside is written with the actual start and stop time pair
+             * embedded in the key. In order to traverse a sequence of modifies, we're going to have
+             * to manipulate our read timestamp to see records we wouldn't otherwise be able to see.
+             *
+             * In this case, we want to read the next update in the chain meaning that its start
+             * timestamp should be equivalent to the stop timestamp of the record that we're
+             * currently on.
+             */
+            session->txn->read_timestamp = hs_stop_ts_tmp;
+
+            /*
              * Find the base update to apply the reverse deltas. If our cursor next fails to find an
              * update here we fall back to the datastore version. If its timestamp doesn't match our
              * timestamp then we return not found.
@@ -1040,6 +1064,8 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
             __wt_free_update_list(session, &mod_upd);
             mod_upd = NULL;
         }
+        /* After we're done looping over modifies, reset the read timestamp. */
+        __hs_restore_read_timestamp(session);
         WT_STAT_CONN_INCR(session, cache_hs_read_squash);
     }
 
@@ -1066,6 +1092,11 @@ err:
         __wt_scr_free(session, &hs_value);
     WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
 
+    /*
+     * Restore the read timestamp if we encountered an error while processing a modify. There's no
+     * harm in doing this multiple times.
+     */
+    __hs_restore_read_timestamp(session);
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     __wt_free_update_list(session, &mod_upd);
