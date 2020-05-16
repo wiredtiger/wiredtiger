@@ -934,7 +934,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * will be only one uncommitted prepared update. There can be a false positive of fixing history
      * store when handling prepared inserts, but it doesn't cost much.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && fix_upd != NULL)
+    if (fix_upd != NULL)
         WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd, commit));
 
 err:
