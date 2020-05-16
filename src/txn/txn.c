@@ -920,9 +920,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
                 WT_WITH_BTREE(session, op->btree, ret = __wt_row_modify(cbt, &cbt->iface.key, NULL,
                                                     tombstone, WT_UPDATE_INVALID, true));
                 WT_RET(ret);
-            } else {
+            } else
                 WT_RET(0);
-            }
         } else
             WT_RET(ret);
     }
