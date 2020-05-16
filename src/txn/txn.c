@@ -830,14 +830,18 @@ __txn_search_prepared_op(
 static int
 __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, WT_CURSOR **cursorp)
 {
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
     WT_TXN *txn;
-    WT_UPDATE *upd;
+    WT_UPDATE *head_upd, *upd, *tombstone;
+    size_t size;
     bool resolved;
 
     txn = session->txn;
     resolved = false;
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
+    head_upd = upd;
 
     for (; upd != NULL; upd = upd->next) {
         /*
@@ -895,8 +899,33 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * will be only one uncommitted prepared update. There can be a false positive of fixing history
      * store when handling prepared inserts, but it doesn't cost much.
      */
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && resolved && upd == NULL)
-        WT_RET_NOTFOUND_OK(__txn_fixup_prepared_update(session, op, *cursorp, commit));
+    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && resolved && upd == NULL) {
+        ret = __txn_fixup_prepared_update(session, op, *cursorp, commit);
+        /*
+         * If the above returns not found it means there wasn't a history store entry associated
+         * with the key, however it is still possible we wrote the prepared transaction to disk. In
+         * the event of a rollback we need to do some extra work.
+         */
+        if (ret == WT_NOTFOUND) {
+            if (!commit && F_ISSET(head_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK)) {
+                cbt = (WT_CURSOR_BTREE *)*cursorp;
+
+                /*
+                 * Allocate a tombstone so that when we reconcile the update chain we don't copy the
+                 * prepared cell, which is now associated with a rolled back prepare, and instead
+                 * write nothing.
+                 */
+                WT_RET(__wt_upd_alloc_tombstone(session, &tombstone, &size));
+                /* Apply the tombstone to the row. */
+                WT_WITH_BTREE(session, op->btree, ret = __wt_row_modify(cbt, &cbt->iface.key, NULL,
+                                                    tombstone, WT_UPDATE_INVALID, true));
+                WT_RET(ret);
+            } else {
+                WT_RET(0);
+            }
+        } else
+            WT_RET(ret);
+    }
 
     return (0);
 }
