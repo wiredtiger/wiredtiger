@@ -733,8 +733,8 @@ __txn_fixup_prepared_update(
         hs_upd->durable_ts = hs_upd->start_ts = txn->durable_timestamp;
         hs_upd->txnid = txn->id;
 
-        hs_cursor->set_value(hs_cursor, txn->durable_timestamp, fix_upd->durable_ts,
-          fix_upd->type, fix_upd->data);
+        hs_cursor->set_value(
+          hs_cursor, txn->durable_timestamp, fix_upd->durable_ts, fix_upd->type, fix_upd->data);
         WT_ERR(__wt_upd_alloc(session, &hs_cursor->value, WT_UPDATE_STANDARD, &hs_upd->next, NULL));
         hs_upd->next->durable_ts = fix_upd->durable_ts;
         hs_upd->next->start_ts = fix_upd->start_ts;
@@ -838,10 +838,17 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
     /*
+     * Aborted updates can exist in the update chain of our txn. Generally this will occur due to a
+     * reserved update. As such we should skip over these updates.
+     */
+    for (; upd->txnid == WT_TXN_ABORTED; upd = upd->next)
+        ;
+
+    /*
      * The head of the update chain is not a prepared update, which means all the prepared updates
      * of the key are resolved.
      */
-    if (upd->txnid == WT_TXN_ABORTED || upd->prepare_state != WT_PREPARE_INPROGRESS)
+    if (upd->prepare_state != WT_PREPARE_INPROGRESS)
         return (0);
 
     /*
@@ -883,8 +890,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
         if (upd->txnid != txn->id)
-            break;
-
+            continue;
         if (!commit) {
             upd->txnid = WT_TXN_ABORTED;
             continue;
