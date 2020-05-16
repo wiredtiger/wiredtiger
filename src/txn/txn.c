@@ -623,7 +623,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     *fix_updp = NULL;
     size = total_size = 0;
-    upd = NULL;
+    tombstone = upd = NULL;
 
     /* Allocate buffers for the data store and history store key. */
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
