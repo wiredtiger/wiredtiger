@@ -763,6 +763,13 @@ __wt_rec_row_leaf(
             WT_TIME_WINDOW_COPY(&tw, &upd_select.tw);
 
         /*
+         * If our update is null here and our cell is prepared it means that our prepared update,
+         * was aborted. As such we skip writing anything for this key.
+         */
+        if (upd == NULL && vpack->tw.prepare)
+            continue;
+
+        /*
          * If we reconcile an on disk key with a globally visible stop time pair and there are no
          * new updates for that key, skip writing that key.
          */
