@@ -379,7 +379,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
      */
     cursor->set_key(
       cursor, btree->id, key, upd->start_ts, __wt_atomic_add64(&btree->hs_counter, 1));
-    cursor->set_value(cursor, stop_ts_pair.timestamp, upd->durable_ts, (uint64_t)type, hs_value);
+    cursor->set_value(cursor, stop_ts_pair.timestamp, upd->durable_ts, type, hs_value);
 
     /* Allocate a tombstone only when there is a valid stop time pair. */
     if (stop_ts_pair.timestamp != WT_TS_MAX || stop_ts_pair.txnid != WT_TXN_MAX) {

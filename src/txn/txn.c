@@ -879,9 +879,11 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
           __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, &op->u.op_row.key, WT_TS_MAX),
           true);
 
-        if (ret != WT_NOTFOUND)
+        if (ret == 0)
             WT_ERR(__txn_append_hs_record(session, hs_cursor, &op->u.op_row.key,
               ((WT_CURSOR_BTREE *)(*cursorp))->ref->page, upd, &fix_upd));
+        else
+            ret = 0;
     }
 
     for (; upd != NULL; upd = upd->next) {
