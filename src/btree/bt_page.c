@@ -621,7 +621,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                     upd->start_ts = unpack.tw.stop_ts;
                     upd->txnid = unpack.tw.stop_txn;
                 }
-                F_SET(upd, WT_PREPARED_UPDATE_RESTORED_FROM_DISK);
+                F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK);
                 upd->prepare_state = WT_PREPARE_INPROGRESS;
                 upd_array[WT_ROW_SLOT(page, rip)] = upd;
                 total_size += size;
