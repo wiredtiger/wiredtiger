@@ -972,7 +972,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 err:
     if (hs_cursor != NULL)
         ret = __wt_hs_cursor_close(session, session_flags, is_owner);
-    __wt_free(session, fix_upd);
+    if (commit)
+        __wt_free(session, fix_upd);
     return (ret);
 }
 
