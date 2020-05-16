@@ -842,8 +842,7 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      * history store as opposed to comparing the embedded data store key since the ordering is not
      * guaranteed to be the same.
      */
-    cursor->set_key(
-      cursor, btree_id, key, timestamp != WT_TS_NONE ? timestamp : WT_TS_MAX, UINT64_MAX);
+    cursor->set_key(cursor, btree_id, key, timestamp, UINT64_MAX);
     /* Copy the raw key before searching as a basis for comparison. */
     WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
     WT_ERR(cursor->search_near(cursor, &exact));
@@ -953,8 +952,9 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
      * las) to the oldest (earlier in the las) for a given key.
      */
     read_timestamp = allow_prepare ? txn->prepare_timestamp : txn->read_timestamp;
-    WT_ERR_NOTFOUND_OK(
-      __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp), true);
+    WT_ERR_NOTFOUND_OK(__wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key,
+                         read_timestamp != WT_TS_NONE ? read_timestamp : WT_TS_MAX),
+      true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
