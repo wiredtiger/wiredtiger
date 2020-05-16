@@ -71,32 +71,6 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
         cursor.close()
         self.session.commit_transaction()
 
-        #    if timestamp <= 10:
-        #        self.assertEqual(cursor.search(), 0)
-        #    elif timestamp == 20 and ignore_prepare_str == "true":
-        #        if after_crash == True:
-        #            # Cursor search should not find the key with ignore_prepare=true and after_crash
-        #            # Because the prepared_updates are committed with timestamp 30
-        #            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-        #        else:
-        #            # Cursor search should not find the key with ignore_prepare=true
-        #            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-        #    elif timestamp == 20 and ignore_prepare_str == "false":
-        #        if after_crash == True:
-        #            # Cursor search should not find the key with ignore_prepare=false and after_crash
-        #            # Because the prepared_updates are committed with timestamp 30
-        #            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-        #        else:
-        #            preparemsg = '/conflict with a prepared update/'
-        #            # Make sure we get the expected prepare conflict message.
-        #            self.assertRaisesException(wiredtiger.WiredTigerError, lambda:cursor.search(), #preparemsg)
-        #    elif timestamp == 30:
-        #        # Keys are visible at timestamp 30.
-        #        self.assertEqual(cursor.search(), 0)
-
-        #cursor.close()
-        #self.session.commit_transaction()
-
     def prepare_updates(self, ds):
 
         # Commit some updates to get eviction and history store fired up
