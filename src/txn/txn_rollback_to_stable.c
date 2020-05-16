@@ -153,7 +153,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_DECL_RET;
     WT_ITEM full_value;
     WT_UPDATE *hs_upd, *upd;
-    wt_timestamp_t durable_ts, hs_start_ts, hs_stop_durable_ts;
+    wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts;
 #ifdef HAVE_DIAGNOSTIC
     wt_timestamp_t newer_hs_ts;
 #endif
@@ -228,7 +228,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         cbt->compare = 0;
 
         /* Get current value and convert to full update if it is a modify. */
-        WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts, &durable_ts, &type_full, hs_value));
+        WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type_full, hs_value));
         type = (uint8_t)type_full;
         if (type == WT_UPDATE_MODIFY)
             WT_ERR(__wt_modify_apply_item(
@@ -243,17 +243,17 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * stop timestamp if the original update's commit timestamp is out of order.
          */
         WT_ASSERT(session,
-          (newer_hs_ts == WT_TS_NONE || hs_stop_durable_ts <= newer_hs_ts || hs_start_ts == hs_stop_durable_ts));
+          (newer_hs_ts == WT_TS_NONE || hs_stop_ts <= newer_hs_ts || hs_start_ts == hs_stop_ts));
 
         /*
          * Stop processing when we find the newer version value of this key is stable according to
          * the current version stop timestamp. Also it confirms that history store doesn't contains
          * any newer version than the current version for the key.
          */
-        if (hs_stop_durable_ts <= rollback_timestamp) {
+        if (hs_stop_ts <= rollback_timestamp) {
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with stop timestamp: %s and stable timestamp: %s",
-              __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[0]),
+              __wt_timestamp_to_string(hs_stop_ts, ts_string[0]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
             break;
         }
@@ -265,7 +265,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
               "stop timestamp: %s and stable timestamp: %s",
               __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
               __wt_timestamp_to_string(durable_ts, ts_string[1]),
-              __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]),
+              __wt_timestamp_to_string(hs_stop_ts, ts_string[2]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[3]));
             valid_update_found = true;
             break;
@@ -276,7 +276,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
           "timestamp: %s and stable timestamp: %s",
           __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
           __wt_timestamp_to_string(durable_ts, ts_string[1]),
-          __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]),
+          __wt_timestamp_to_string(hs_stop_ts, ts_string[2]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[3]));
 
 #ifdef HAVE_DIAGNOSTIC
