@@ -736,6 +736,11 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
+        if (upd->type == WT_UPDATE_STANDARD && F_ISSET(session, WT_SESSION_RESOLVING_MODIFY)) {
+            WT_ASSERT(session, WT_IS_HS(S2BT(session)));
+            return (WT_VISIBLE_TRUE);
+        }
+
         upd_visible = __wt_txn_visible(session, upd->txnid, upd->start_ts);
 
         /*
