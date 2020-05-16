@@ -603,14 +603,15 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  */
 static int
 __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *key, WT_PAGE *page,
-  WT_UPDATE *chain, WT_UPDATE **fix_updp)
+  WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp)
 {
+    WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
-    WT_UPDATE *upd;
+    WT_UPDATE *tombstone, *upd;
     wt_timestamp_t durable_ts, hs_start_ts, hs_stop_ts;
-    size_t size;
+    size_t size, total_size;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
     uint8_t type_full;
@@ -619,8 +620,9 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
 
     WT_ASSERT(session, chain != NULL);
 
+    hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     *fix_updp = NULL;
-    size = 0;
+    size = total_size = 0;
     upd = NULL;
 
     /* Allocate buffers for the data store and history store key. */
@@ -641,21 +643,54 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     if (cmp != 0)
         goto done;
 
+    /*
+     * As part of the history store search, we never get an exact match based on our search criteria
+     * as we always search for a maximum record for that key. Make sure that we set the comparison
+     * result as an exact match to remove this key as part of rollback to stable. In case if we
+     * don't mark the comparison result as same, later the __wt_row_modify function will not
+     * properly remove the update from history store.
+     */
+    hs_cbt->compare = 0;
+
     /* Get current value. */
     WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_ts, &durable_ts, &type_full, hs_value));
 
     /* The value older than the prepared update in the history store must be a full value. */
     WT_ASSERT(session, type_full == WT_UPDATE_STANDARD);
 
-    /* If the history store record has a valid stop time pair, no need to append it and fix it. */
-    if (hs_stop_ts != WT_TS_MAX)
+    /*
+     * If the history store update already have a stop time pair and it is commit operation there is
+     * nothing to do.
+     */
+    if ((hs_stop_ts != WT_TS_MAX) && commit)
         goto done;
 
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
-
-    upd->txnid = WT_TXN_NONE;
+    upd->txnid = hs_cbt->upd_value->txnid;
     upd->durable_ts = durable_ts;
     upd->start_ts = hs_start_ts;
+    *fix_updp = upd;
+
+    /*
+     * When prepare update is getting committed, use the retrieved history store update to form a
+     * proper stop timestamp in the history store.
+     */
+    if (commit)
+        goto done;
+
+    total_size += size;
+
+    /* If the history store record has a valid stop time pair, append it. */
+    if (hs_stop_ts != WT_TS_MAX) {
+        WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
+        tombstone->durable_ts = hs_stop_ts;
+        tombstone->start_ts = hs_stop_ts;
+        tombstone->txnid = WT_TXN_NONE;
+        tombstone->next = upd;
+        total_size += size;
+    } else
+        tombstone = upd;
+
     __wt_verbose(session, WT_VERB_TRANSACTION,
       "update restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
       upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
@@ -672,14 +707,14 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
         ;
 
     /* Append the update to the end of the chain. */
-    WT_PUBLISH(chain->next, upd);
+    WT_PUBLISH(chain->next, tombstone);
 
-    __wt_cache_page_inmem_incr(session, page, size);
-    *fix_updp = upd;
+    __wt_cache_page_inmem_incr(session, page, total_size);
 
     if (0) {
 err:
         __wt_free(session, upd);
+        __wt_free(session, tombstone);
     }
 done:
     __wt_scr_free(session, &hs_key);
@@ -697,8 +732,8 @@ __txn_fixup_prepared_update(
   WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_UPDATE *fix_upd, bool commit)
 {
     WT_CURSOR_BTREE *hs_cbt;
-    WT_ITEM hs_value;
     WT_DECL_RET;
+    WT_ITEM hs_value;
     WT_TXN *txn;
     WT_UPDATE *hs_upd;
     uint32_t txn_flags;
@@ -713,15 +748,6 @@ __txn_fixup_prepared_update(
     txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR | WT_TXN_PREPARE);
     F_CLR(txn, txn_flags);
 
-    /*
-     * As part of the history store search, we never get an exact match based on our search criteria
-     * as we always search for a maximum record for that key. Make sure that we set the comparison
-     * result as an exact match to remove this key as part of rollback to stable. In case if we
-     * don't mark the comparison result as same, later the __wt_row_modify function will not
-     * properly remove the update from history store.
-     */
-    hs_cbt->compare = 0;
-
     /* The value older than the prepared update in the history store must be a full value. */
     WT_ASSERT(session, fix_upd->type == WT_UPDATE_STANDARD);
 
@@ -731,7 +757,8 @@ __txn_fixup_prepared_update(
      */
     if (commit) {
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
-        hs_upd->durable_ts = hs_upd->start_ts = txn->durable_timestamp;
+        hs_upd->start_ts = txn->commit_timestamp;
+        hs_upd->durable_ts = txn->durable_timestamp;
         hs_upd->txnid = txn->id;
 
         hs_value.data = fix_upd->data;
@@ -881,7 +908,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
         if (ret == 0)
             WT_ERR(__txn_append_hs_record(session, hs_cursor, &op->u.op_row.key,
-              ((WT_CURSOR_BTREE *)(*cursorp))->ref->page, upd, &fix_upd));
+              ((WT_CURSOR_BTREE *)(*cursorp))->ref->page, upd, commit, &fix_upd));
         else
             ret = 0;
     }
@@ -945,6 +972,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 err:
     if (hs_cursor != NULL)
         ret = __wt_hs_cursor_close(session, session_flags, is_owner);
+    __wt_free(session, fix_upd);
     return (ret);
 }
 
