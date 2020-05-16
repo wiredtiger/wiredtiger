@@ -645,11 +645,9 @@ __txn_fixup_prepared_update(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR *
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
 
     /*
-     * Scan the history store for the given btree and key with maximum start and stop time pair to
-     * let the search point to the last version of the key and start traversing backwards to find
-     * out the satisfying record according the given timestamp. Any satisfying history store record
-     * is moved into data store and removed from history store. If none of the history store records
-     * satisfy the given timestamp, the key is removed from data store.
+     * Scan the history store for the given btree and key with maximum start timestamp to let the
+     * search point to the last version of the key and start traversing backwards to find out the
+     * satisfying record according the given timestamp.
      */
     WT_ERR(__wt_hs_cursor_position(session, hs_cursor, hs_btree_id, &op->u.op_row.key, WT_TS_MAX));
     WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
@@ -1220,7 +1218,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
                 /*
                  * Don't reset the timestamp of the history store records with history store
-                 * transaction timestamp. Those records should already have the original time pair
+                 * transaction timestamp. Those records should already have the original time window
                  * when they are inserted into the history store.
                  */
                 if (conn->cache->hs_fileid != 0 && fileid == conn->cache->hs_fileid)
