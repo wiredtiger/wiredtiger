@@ -908,13 +908,6 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     WT_NOT_READ(modify, false);
     is_owner = false;
 
-    /*
-     * We temporarily move the read timestamp forwards to read modify records in the history store.
-     * Outside of that window, it should always be equal to the original read timestamp.
-     */
-    WT_ASSERT(
-      session, txn->read_timestamp == WT_SESSION_TXN_SHARED(session)->pinned_read_timestamp);
-
     /* Row-store key is as passed to us, create the column-store key as needed. */
     WT_ASSERT(
       session, (key == NULL && recno != WT_RECNO_OOB) || (key != NULL && recno == WT_RECNO_OOB));
