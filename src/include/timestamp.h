@@ -20,7 +20,7 @@
  * for time windows with 4 timestamps, 2 transaction IDs, prepare state and formatting. The
  * formatting is currently about 32 characters - enough space that we don't need to think about it.
  */
-#define WT_TP_STRING_SIZE (WT_TS_INT_STRING_SIZE + 1 + 20 + 1)
+#define WT_TP_STRING_SIZE (WT_TS_INT_STRING_SIZE * 2 + 1 + 20 + 1)
 #define WT_TIME_STRING_SIZE (WT_TS_INT_STRING_SIZE * 4 + 20 * 2 + 64)
 
 /* The time points that define a value's time window and associated prepare information. */
