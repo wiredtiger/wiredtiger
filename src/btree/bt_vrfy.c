@@ -999,7 +999,7 @@ __verify_page_content_leaf(
 
 #ifdef HAVE_DIAGNOSTIC
             if (vs->dump_history)
-                WT_RET(__wt_debug_key_value(session, vs->tmp1, WT_RECNO_OOB, 0, &unpack));
+                WT_RET(__wt_debug_key_value(session, vs->tmp1, WT_RECNO_OOB, &unpack));
 #endif
         } else if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
@@ -1010,7 +1010,7 @@ __verify_page_content_leaf(
 
 #ifdef HAVE_DIAGNOSTIC
             if (vs->dump_history)
-                WT_RET(__wt_debug_key_value(session, NULL, recno, rle, &unpack));
+                WT_RET(__wt_debug_key_value(session, NULL, recno, &unpack));
 #endif
             recno += rle;
             vs->records_so_far += rle;
