@@ -870,8 +870,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
     /*
-     * Aborted updates can exist in the update chain of our txn. Generally this will occur due to a
-     * reserved update. As such we should skip over these updates.
+     * Aborted updates can exist in the update chain of our transaction. Generally this will occur
+     * due to a reserved update. As such we should skip over these updates.
      */
     for (; upd->txnid == WT_TXN_ABORTED; upd = upd->next)
         ;
@@ -884,7 +884,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         return (0);
 
     /*
-     * Append the previous update to the update chain if the prepared update is restored from disk.
+     * Retrieve the previous update from the history store and append it to the update chain.
      *
      * We need to do this before we resolve the prepared updates because if we abort the prepared
      * updates first, the history search logic may race with other sessions modifying the same key
@@ -917,9 +917,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
     for (; upd != NULL; upd = upd->next) {
         /*
-         * Aborted updates can exist in the update chain of our txn. Generally this will occur due
-         * to a reserved update. As such we should skip over these updates. If the txn id is then
-         * different and not aborted we know we've reached the end of our update chain and can exit.
+         * Aborted updates can exist in the update chain of our transaction. Generally this will
+         * occur due to a reserved update. As such we should skip over these updates. If the
+         * transaction id is then different and not aborted we know we've reached the end of our
+         * update chain and can exit.
          */
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
