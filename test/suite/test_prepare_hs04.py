@@ -66,8 +66,11 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
             cursor.set_key(key)
             if conflict == True:
                 self.assertRaisesException(wiredtiger.WiredTigerError, lambda:cursor.search(), expected_value)
+            elif expected_value == None:
+                self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
             else:
-                self.assertEqual(cursor.search(), expected_value)
+                self.assertEqual(cursor.search(), 0)
+                self.assertEqual(cursor.get_value(), expected_value)
         cursor.close()
         self.session.commit_transaction()
 
@@ -103,7 +106,7 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
 
         hs_writes_start = self.get_stat(stat.conn.cache_write_hs)
         # Have prepared updates in multiple sessions. This should ensure writing
-        # prepared updates to the history store
+        # prepared updates to the data store
         # Insert the same key at timestamp 20, but with prepare updates.
         sessions = [0] * self.nsessions
         cursors = [0] * self.nsessions
@@ -127,12 +130,12 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(hs_writes, 0)
 
         txn_config = 'read_timestamp=' + timestamp_str(5) + ',ignore_prepare=true'
-        # Search keys with timestamp 5, ignore_prepare=false and expect the cursor search to return 0 (key found)
-        self.search_keys_timestamp_and_ignore(ds, txn_config, 0)
+        # Search keys with timestamp 5, ignore_prepare=true and expect the cursor search to return 0 (key found)
+        self.search_keys_timestamp_and_ignore(ds, txn_config, commit_value)
 
         txn_config = 'read_timestamp=' + timestamp_str(20) + ',ignore_prepare=true'
         # Search keys with timestamp 20, ignore_prepare=true, expect the cursor to return wiredtiger.WT_NOTFOUND
-        self.search_keys_timestamp_and_ignore(ds, txn_config, wiredtiger.WT_NOTFOUND)
+        self.search_keys_timestamp_and_ignore(ds, txn_config, None)
 
         prepare_conflict_msg = '/conflict with a prepared update/'
         txn_config = 'read_timestamp=' + timestamp_str(20) + ',ignore_prepare=false'
@@ -157,24 +160,24 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
         # After simulating a crash, search for the keys inserted.
 
         txn_config = 'read_timestamp=' + timestamp_str(5) + ',ignore_prepare=false'
-        # Search keys with timestamp 5, ignore_prepare=false and expect the cursor search to return 0.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, 0)
+        # Search keys with timestamp 5, ignore_prepare=false and expect the cursor value to be commit_value.
+        self.search_keys_timestamp_and_ignore(ds, txn_config, commit_value)
 
         txn_config = 'read_timestamp=' + timestamp_str(20) + ',ignore_prepare=true'
         # Search keys with timestamp 20, ignore_prepare=true and expect the cursor search to return WT_NOTFOUND.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, wiredtiger.WT_NOTFOUND)
+        self.search_keys_timestamp_and_ignore(ds, txn_config, None)
 
         txn_config = 'read_timestamp=' + timestamp_str(20) + ',ignore_prepare=false'
         # Search keys with timestamp 20, ignore_prepare=false and expect the cursor search to return WT_NOTFOUND.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, wiredtiger.WT_NOTFOUND)
+        self.search_keys_timestamp_and_ignore(ds, txn_config, None)
 
         txn_config = 'read_timestamp=' + timestamp_str(30) + ',ignore_prepare=true'
-        # Search keys with timestamp 30, ignore_prepare=true and expect the cursor search to return 0.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, 0)
+        # Search keys with timestamp 30, ignore_prepare=true and expect the cursor value to be prepare_value.
+        self.search_keys_timestamp_and_ignore(ds, txn_config, prepare_value)
 
         txn_config = 'read_timestamp=' + timestamp_str(30) + ',ignore_prepare=false'
-        # Search keys with timestamp 30, ignore_prepare=false and expect the cursor search to return 0.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, 0)
+        # Search keys with timestamp 30, ignore_prepare=false and expect the cursor value to be prepare_value.
+        self.search_keys_timestamp_and_ignore(ds, txn_config, prepare_value)
 
         # Close all cursors and sessions, this will cause prepared updates to be
         # rollback-ed
@@ -183,16 +186,16 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
             sessions[j].close()
 
         txn_config = 'read_timestamp=' + timestamp_str(5) + ',ignore_prepare=false'
-        # Search keys with timestamp 5, ignore_prepare=false and expect the cursor search to return 0.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, 0)
+        # Search keys with timestamp 5, ignore_prepare=false and expect the cursor value to be prepare_value.
+        self.search_keys_timestamp_and_ignore(ds, txn_config, commit_value)
 
         txn_config = 'read_timestamp=' + timestamp_str(20) + ',ignore_prepare=true'
         # Search keys with timestamp 20, ignore_prepare=true and expect the cursor search to return WT_NOTFOUND.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, wiredtiger.WT_NOTFOUND)
+        self.search_keys_timestamp_and_ignore(ds, txn_config, None)
 
         txn_config = 'read_timestamp=' + timestamp_str(20) + ',ignore_prepare=false'
         # Search keys with timestamp 20, ignore_prepare=false and expect the cursor search to return WT_NOTFOUND.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, wiredtiger.WT_NOTFOUND)
+        self.search_keys_timestamp_and_ignore(ds, txn_config, None)
 
     def test_prepare_hs(self):
 
