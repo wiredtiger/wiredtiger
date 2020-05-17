@@ -889,8 +889,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * We need to do this before we resolve the prepared updates because if we abort the prepared
      * updates first, the history search logic may race with other sessions modifying the same key
      * and checkpoint moving the new updates to the history store.
+     *
+     * For prepared delete, we don't need to fix the history store.
      */
-    if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK)) {
+    if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK) && upd->type != WT_UPDATE_TOMBSTONE) {
         hs_btree_id = S2BT(session)->id;
 
         /* Open a history store table cursor. */
