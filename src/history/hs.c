@@ -365,7 +365,7 @@ __hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
 static int
 __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_HS_TIME_POINT stop_time_point)
+  WT_HS_TIME_POINT *stop_time_point)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -381,18 +381,18 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
     cursor->set_key(
       cursor, btree->id, key, upd->start_ts, __wt_atomic_add64(&btree->hs_counter, 1));
     cursor->set_value(
-      cursor, stop_time_point.durable_ts, upd->durable_ts, (uint64_t)type, hs_value);
+      cursor, stop_time_point->durable_ts, upd->durable_ts, (uint64_t)type, hs_value);
 
     /* Allocate a tombstone only when there is a valid stop time point. */
-    if (stop_time_point.ts != WT_TS_MAX || stop_time_point.txnid != WT_TXN_MAX) {
+    if (stop_time_point->ts != WT_TS_MAX || stop_time_point->txnid != WT_TXN_MAX) {
         /*
          * Insert a delete record to represent stop time point for the actual record to be inserted.
          * Set the stop time point as the commit time point of the history store delete record.
          */
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
-        hs_upd->start_ts = stop_time_point.ts;
-        hs_upd->durable_ts = stop_time_point.durable_ts;
-        hs_upd->txnid = stop_time_point.txnid;
+        hs_upd->start_ts = stop_time_point->ts;
+        hs_upd->durable_ts = stop_time_point->durable_ts;
+        hs_upd->txnid = stop_time_point->txnid;
     }
 
     /*
@@ -469,7 +469,7 @@ err:
 static int
 __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_HS_TIME_POINT stop_time_point)
+  WT_HS_TIME_POINT *stop_time_point)
 {
     WT_DECL_RET;
 
@@ -498,12 +498,12 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      * If the time points are out of order (which can happen if the application performs updates
      * with out-of-order timestamps), so this value can never be seen, don't bother inserting it.
      */
-    if (stop_time_point.ts < upd->start_ts ||
-      (stop_time_point.ts == upd->start_ts && stop_time_point.txnid <= upd->txnid)) {
+    if (stop_time_point->ts < upd->start_ts ||
+      (stop_time_point->ts == upd->start_ts && stop_time_point->txnid <= upd->txnid)) {
         char ts_string[2][WT_TS_INT_STRING_SIZE];
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "Warning: fixing out-of-order timestamps %s earlier than previous update %s",
-          __wt_timestamp_to_string(stop_time_point.ts, ts_string[0]),
+          __wt_timestamp_to_string(stop_time_point->ts, ts_string[0]),
           __wt_timestamp_to_string(upd->start_ts, ts_string[1]));
         return (0);
     }
@@ -523,7 +523,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
 static int
 __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, const WT_ITEM *key,
   const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_HS_TIME_POINT stop_time_point)
+  WT_HS_TIME_POINT *stop_time_point)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -774,11 +774,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                         prev_full_value->size / 10, entries, &nentries) == 0) {
                         WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
                         WT_ERR(__hs_insert_record(session, cursor, btree, key, upd,
-                          WT_UPDATE_MODIFY, modify_value, stop_time_point));
+                          WT_UPDATE_MODIFY, modify_value, &stop_time_point));
                         __wt_scr_free(session, &modify_value);
                     } else
                         WT_ERR(__hs_insert_record(session, cursor, btree, key, upd,
-                          WT_UPDATE_STANDARD, full_value, stop_time_point));
+                          WT_UPDATE_STANDARD, full_value, &stop_time_point));
 
                     /* Flag the update as now in the history store. */
                     F_SET(upd, WT_UPDATE_HS);
