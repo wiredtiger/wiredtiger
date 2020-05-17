@@ -992,57 +992,6 @@ __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
 }
 
 /*
- * __wt_debug_cursor_hs --
- *     Dump information pointed to by a single history store cursor.
- */
-int
-__wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
-{
-    WT_DBG *ds, _ds;
-    WT_DECL_RET;
-
-    ds = &_ds;
-
-    WT_RET(__debug_config(session, ds, NULL));
-
-    ret = __debug_hs_cursor(ds, hs_cursor);
-
-    WT_TRET(__debug_wrapup(ds));
-
-    return (ret);
-}
-
-/*
- * __wt_debug_key_value --
- *     Dump information about a key and/or value.
- */
-int
-__wt_debug_key_value(
-  WT_SESSION_IMPL *session, WT_ITEM *key, uint64_t recno, WT_CELL_UNPACK_KV *value)
-{
-    WT_DBG *ds, _ds;
-    WT_DECL_RET;
-    uint64_t rle;
-    char tag[64];
-
-    ds = &_ds;
-
-    WT_ERR(__debug_config(session, ds, NULL));
-
-    if (key == NULL) {
-        rle = __wt_cell_rle(value);
-        WT_ERR(__wt_snprintf(tag, sizeof(tag), "%" PRIu64 " %" PRIu64, recno, rle));
-        WT_ERR(__debug_cell_kv(ds, NULL, WT_PAGE_COL_VAR, tag, value));
-    } else {
-        WT_ERR(__debug_item_key(ds, "K", key->data, key->size));
-        WT_ERR(__debug_cell_kv(ds, NULL, WT_PAGE_ROW_LEAF, "V", value));
-    }
-
-err:
-    return (__debug_wrapup(ds));
-}
-
-/*
  * __debug_tree --
  *     Dump the in-memory information for a tree.
  */
