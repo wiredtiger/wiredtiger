@@ -680,8 +680,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  * No normal update between prepared updates and the first prepared update cannot be
                  * a tombstone.
                  */
-                WT_ASSERT(
-                  session, (track_prepare && upd_count == 0) || upd->type != WT_UPDATE_TOMBSTONE);
+                WT_ASSERT(session, (track_prepare && upd_count == 0) ||
+                    (!track_prepare && upd->type != WT_UPDATE_TOMBSTONE));
                 track_prepare = true;
             } else if (track_prepare) {
                 if (upd->type == WT_UPDATE_TOMBSTONE) {
