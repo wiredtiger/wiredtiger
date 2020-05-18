@@ -2004,7 +2004,7 @@ __wt_verbose_dump_txn_one(
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     char buf[512];
-    char ts_string[7][WT_TS_INT_STRING_SIZE];
+    char ts_string[6][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
 
     txn = txn_session->txn;
@@ -2034,9 +2034,8 @@ __wt_verbose_dump_txn_one(
                    ", durable_timestamp: %s"
                    ", first_commit_timestamp: %s"
                    ", prepare_timestamp: %s"
-                   ", read_timestamp: %s"
                    ", pinned_durable_timestamp: %s"
-                   ", pinned_read_timestamp: %s"
+                   ", read_timestamp: %s"
                    ", checkpoint LSN: [%" PRIu32 "][%" PRIu32 "]"
                    ", full checkpoint: %s"
                    ", rollback reason: %s"
@@ -2046,10 +2045,9 @@ __wt_verbose_dump_txn_one(
       __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
       __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
       __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
-      __wt_timestamp_to_string(txn->read_timestamp, ts_string[4]),
-      __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[5]),
-      __wt_timestamp_to_string(txn_shared->pinned_read_timestamp, ts_string[6]),
-      txn->ckpt_lsn.l.file, txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
+      __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
+      __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), txn->ckpt_lsn.l.file,
+      txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
       txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
 
     /*
