@@ -875,19 +875,6 @@ err:
 }
 
 /*
- * __hs_restore_read_timestamp --
- *     Reset the currently running transaction's read timestamp with the original read timestamp.
- */
-static void
-__hs_restore_read_timestamp(WT_SESSION_IMPL *session)
-{
-    WT_TXN_SHARED *txn_shared;
-
-    txn_shared = WT_SESSION_TXN_SHARED(session);
-    session->txn->read_timestamp = txn_shared->pinned_read_timestamp;
-}
-
-/*
  * __wt_find_hs_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
  *     for the record and return to the caller. The caller may choose to optionally allow prepared
@@ -905,6 +892,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     WT_ITEM hs_key, recno_key;
     WT_MODIFY_VECTOR modifies;
     WT_TXN *txn;
+    WT_TXN_SHARED *txn_shared;
     WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, hs_start_ts, hs_start_ts_tmp;
     wt_timestamp_t hs_stop_durable_ts, hs_stop_durable_ts_tmp, read_timestamp;
@@ -920,17 +908,11 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     WT_CLEAR(hs_key);
     __wt_modify_vector_init(session, &modifies);
     txn = session->txn;
+    txn_shared = WT_SESSION_TXN_SHARED(session);
     hs_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     WT_NOT_READ(modify, false);
     is_owner = false;
-
-    /*
-     * We temporarily move the read timestamp forwards to read modify records in the history store.
-     * Outside of that window, it should always be equal to the original read timestamp.
-     */
-    WT_ASSERT(
-      session, txn->read_timestamp == WT_SESSION_TXN_SHARED(session)->pinned_read_timestamp);
 
     /* Row-store key is as passed to us, create the column-store key as needed. */
     WT_ASSERT(
@@ -956,7 +938,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
      * timestamp is part of the key, our cursor needs to go from the newest record (further in the
      * las) to the oldest (earlier in the las) for a given key.
      */
-    read_timestamp = allow_prepare ? txn->prepare_timestamp : txn->read_timestamp;
+    read_timestamp = allow_prepare ? txn->prepare_timestamp : txn_shared->read_timestamp;
     WT_ERR_NOTFOUND_OK(
       __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp), true);
     if (ret == WT_NOTFOUND) {
@@ -1013,17 +995,6 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
             mod_upd = NULL;
 
             /*
-             * Each entry in the lookaside is written with the actual start and stop time pair
-             * embedded in the key. In order to traverse a sequence of modifies, we're going to have
-             * to manipulate our read timestamp to see records we wouldn't otherwise be able to see.
-             *
-             * In this case, we want to read the next update in the chain meaning that its start
-             * timestamp should be equivalent to the stop timestamp of the record that we're
-             * currently on.
-             */
-            session->txn->read_timestamp = hs_stop_durable_ts_tmp;
-
-            /*
              * Find the base update to apply the reverse deltas. If our cursor next fails to find an
              * update here we fall back to the datastore version. If its timestamp doesn't match our
              * timestamp then we return not found.
@@ -1068,8 +1039,6 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
             __wt_free_update_list(session, &mod_upd);
             mod_upd = NULL;
         }
-        /* After we're done looping over modifies, reset the read timestamp. */
-        __hs_restore_read_timestamp(session);
         WT_STAT_CONN_INCR(session, cache_hs_read_squash);
     }
 
@@ -1094,11 +1063,6 @@ err:
         __wt_scr_free(session, &hs_value);
     WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
 
-    /*
-     * Restore the read timestamp if we encountered an error while processing a modify. There's no
-     * harm in doing this multiple times.
-     */
-    __hs_restore_read_timestamp(session);
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
 
     __wt_free_update_list(session, &mod_upd);
