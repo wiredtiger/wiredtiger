@@ -38,8 +38,8 @@ extern bool __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern char *__wt_time_aggregate_to_string(WT_TIME_AGGREGATE *ta, char *ta_string)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern char *__wt_time_pair_to_string(wt_timestamp_t timestamp, uint64_t txn_id, char *tp_string)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern char *__wt_time_point_to_string(wt_timestamp_t ts, wt_timestamp_t durable_ts,
+  uint64_t txn_id, char *tp_string) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern char *__wt_time_window_to_string(WT_TIME_WINDOW *tw, char *tw_string)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern char *__wt_timestamp_to_string(wt_timestamp_t ts, char *ts_string)

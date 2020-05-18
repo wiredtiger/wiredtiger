@@ -1302,7 +1302,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
                 /*
                  * Don't reset the timestamp of the history store records with history store
-                 * transaction timestamp. Those records should already have the original time pair
+                 * transaction timestamp. Those records should already have the original time window
                  * when they are inserted into the history store.
                  */
                 if (conn->cache->hs_fileid != 0 && fileid == conn->cache->hs_fileid)

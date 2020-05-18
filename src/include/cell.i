@@ -974,7 +974,7 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
      * Note that it is still necessary to unpack each value above even if we end up overwriting them
      * since values in a cell need to be unpacked sequentially.
      *
-     * This is how the stop time pair should be interpreted for each type of delete:
+     * This is how the stop time point should be interpreted for each type of delete:
      * -
      *                  Timestamp delete  Non-timestamp delete  No delete
      * Current startup  txnid=x, ts=y       txnid=x, ts=WT_TS_NONE           txnid=MAX, ts=MAX
