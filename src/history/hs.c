@@ -555,37 +555,6 @@ __hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDA
 }
 
 /*
- * __hs_second_update_after_prepare --
- *     Get the second update that is not a tombstone after the prepared update if it exists
- */
-static WT_UPDATE *
-__hs_second_update_after_prepare(WT_UPDATE *upd)
-{
-    if (upd->prepare_state != WT_PREPARE_INPROGRESS || upd->type == WT_UPDATE_TOMBSTONE)
-        return (NULL);
-
-    upd = upd->next;
-
-    for (; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
-        ;
-
-    if (upd == NULL || upd->prepare_state == WT_PREPARE_INPROGRESS ||
-      upd->type == WT_UPDATE_TOMBSTONE)
-        return (NULL);
-
-    upd = upd->next;
-
-    for (; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
-        ;
-
-    if (upd == NULL || upd->prepare_state == WT_PREPARE_INPROGRESS ||
-      upd->type == WT_UPDATE_TOMBSTONE)
-        return (NULL);
-
-    return (upd);
-}
-
-/*
  * __wt_hs_insert_updates --
  *     Copy one set of saved updates into the database's history store table.
  */
@@ -605,14 +574,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
-    WT_UPDATE *prev_upd, *second_after_prepare, *upd;
+    WT_UPDATE *prev_upd, *second_older_than_prepare, *upd;
     WT_HS_TIME_POINT stop_time_point;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size;
     uint32_t i;
     uint8_t *p;
     int nentries;
-    bool squashed;
+    bool squashed, track_prepare;
+    uint8_t upd_count;
 
     btree = S2BT(session);
     cursor = session->hs_cursor;
@@ -665,7 +635,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
           session, btree, upd = __wt_update_obsolete_check(session, page, list->onpage_upd, true));
         __wt_free_update_list(session, &upd);
         upd = list->onpage_upd;
-        second_after_prepare = NULL;
+        second_older_than_prepare = NULL;
+        track_prepare = false;
+        upd_count = 0;
 
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
@@ -699,9 +671,24 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 continue;
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
 
-            /* Mark the second update after the prepared update. */
-            if (second_after_prepare == NULL)
-                second_after_prepare = __hs_second_update_after_prepare(upd);
+            /*
+             * If the update is the second update older than the prepared update and we haven't seen
+             * a tombstone. Mark the update.
+             */
+            if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+                track_prepare = true;
+            else if (track_prepare) {
+                if (upd->type == WT_UPDATE_TOMBSTONE) {
+                    upd_count = 0;
+                    track_prepare = false;
+                } else if (upd_count == 0)
+                    ++upd_count;
+                else {
+                    second_older_than_prepare = upd;
+                    upd_count = 0;
+                    track_prepare = false;
+                }
+            }
 
             /*
              * If we've reached a full update and its in the history store we don't need to continue
@@ -809,7 +796,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 if (!F_ISSET(upd, WT_UPDATE_HS)) {
                     if (upd->type == WT_UPDATE_MODIFY &&
                       prev_upd->prepare_state != WT_PREPARE_INPROGRESS &&
-                      (second_after_prepare == NULL || upd != second_after_prepare) &&
+                      (second_older_than_prepare == NULL || upd != second_older_than_prepare) &&
                       __wt_calc_modify(session, prev_full_value, full_value,
                         prev_full_value->size / 10, entries, &nentries) == 0) {
                         WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
