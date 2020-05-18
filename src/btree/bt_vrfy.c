@@ -808,7 +808,7 @@ __verify_key_hs(
             break;
 
 #ifdef HAVE_DIAGNOSTIC
-        /* Optionally dump historical time pairs and values in debug mode. */
+        /* Optionally dump historical time windows and values in debug mode. */
         if (vs->dump_history)
             WT_RET(__wt_debug_cursor_hs(session, hs_cursor));
 #endif
@@ -986,7 +986,7 @@ __verify_page_content_leaf(
         }
 
         /*
-         * Verify key-associated history-store entries, optionally dump historical time pairs and
+         * Verify key-associated history-store entries, optionally dump historical time windows and
          * values in debug mode.
          */
         if (page->type == WT_PAGE_ROW_LEAF) {
