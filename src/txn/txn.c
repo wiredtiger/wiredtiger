@@ -659,8 +659,8 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_ASSERT(session, (uint8_t)type_full == WT_UPDATE_STANDARD);
 
     /*
-     * If the history store update already have a stop time pair and it is commit operation there is
-     * nothing to do.
+     * If the history update already has a stop time point and we are committing the prepared update
+     * there is no work to do.
      */
     if (hs_stop_durable_ts != WT_TS_MAX && commit)
         goto done;
@@ -672,15 +672,15 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     *fix_updp = upd;
 
     /*
-     * When prepare update is getting committed, use the retrieved history store update to form a
-     * proper stop timestamp in the history store.
+     * When the prepared update is getting committed, use the retrieved history store update to form
+     * a proper stop timestamp in the history store.
      */
     if (commit)
         goto done;
 
     total_size += size;
 
-    /* If the history store record has a valid stop time pair, append it. */
+    /* If the history store record has a valid stop time point, append it. */
     if (hs_stop_durable_ts != WT_TS_MAX) {
         WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
         tombstone->durable_ts = hs_stop_durable_ts;
@@ -703,9 +703,14 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
      */
     F_SET(upd, WT_UPDATE_RESTORED_FOR_ROLLBACK);
 
-    /* Walk to the end of the chain. */
-    for (; chain->next != NULL; chain = chain->next)
-        ;
+    /* Walk to the end of the chain and we can only have prepared updates on the update chain. */
+    for (;; chain = chain->next) {
+        WT_ASSERT(
+          session, chain->txnid != WT_TXN_ABORTED && chain->prepare_state == WT_PREPARE_INPROGRESS);
+
+        if (chain->next == NULL)
+            break;
+    }
 
     /* Append the update to the end of the chain. */
     WT_PUBLISH(chain->next, tombstone);
@@ -765,6 +770,11 @@ __txn_fixup_prepared_update(
 
         hs_value.data = fix_upd->data;
         hs_value.size = fix_upd->size;
+        /*
+         * We need to update the stop durable timestamp stored in the history store value.
+         *
+         * Pack the value using cursor api.
+         */
         hs_cursor->set_value(hs_cursor, txn->durable_timestamp, fix_upd->durable_ts,
           (uint64_t)fix_upd->type, &hs_value);
         WT_ERR(__wt_upd_alloc(session, &hs_cursor->value, WT_UPDATE_STANDARD, &hs_upd->next, NULL));
@@ -776,10 +786,11 @@ __txn_fixup_prepared_update(
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
 
     WT_ERR(__wt_hs_modify(hs_cbt, hs_upd));
-    hs_upd = NULL;
 
+    if (0) {
 err:
-    __wt_free_update_list(session, &hs_upd);
+        __wt_free_update_list(session, &hs_upd);
+    }
     F_SET(txn, txn_flags);
 
     return (ret);
@@ -897,14 +908,13 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
         /* Open a history store table cursor. */
         WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
+        /* We must be the owner of the history cursor. */
+        WT_ASSERT(session, is_owner);
         hs_cursor = session->hs_cursor;
 
         /*
-         * Scan the history store for the given btree and key with maximum start and stop time pair
-         * to let the search point to the last version of the key and start traversing backwards to
-         * find out the satisfying record according the given timestamp. Any satisfying history
-         * store record is moved into data store and removed from history store. If none of the
-         * history store records satisfy the given timestamp, the key is removed from data store.
+         * Scan the history store for the given btree and key with maximum start timestamp to let
+         * the search point to the last version of the key.
          */
         WT_ERR_NOTFOUND_OK(
           __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, &op->u.op_row.key, WT_TS_MAX),
