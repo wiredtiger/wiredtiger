@@ -566,11 +566,17 @@ __hs_second_update_after_prepare(WT_UPDATE *upd)
 
     upd = upd->next;
 
+    for (; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
+        ;
+
     if (upd == NULL || upd->prepare_state == WT_PREPARE_INPROGRESS ||
       upd->type == WT_UPDATE_TOMBSTONE)
         return (NULL);
 
     upd = upd->next;
+
+    for (; upd != NULL && upd->txnid == WT_TXN_ABORTED; upd = upd->next)
+        ;
 
     if (upd == NULL || upd->prepare_state == WT_PREPARE_INPROGRESS ||
       upd->type == WT_UPDATE_TOMBSTONE)
