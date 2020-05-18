@@ -574,7 +574,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
-    WT_UPDATE *prev_upd, *upd;
+    WT_UPDATE *prev_upd, *second_after_prepare, *upd;
     WT_HS_TIME_POINT stop_time_point;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size;
@@ -634,6 +634,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
           session, btree, upd = __wt_update_obsolete_check(session, page, list->onpage_upd, true));
         __wt_free_update_list(session, &upd);
         upd = list->onpage_upd;
+        second_after_prepare = NULL;
 
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
@@ -666,6 +667,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
+
+            /* Mark the second update after the prepared update. */
+            if (upd->prepare_state == WT_PREPARE_INPROGRESS && upd->type != WT_UPDATE_TOMBSTONE &&
+              upd->next != NULL && upd->next->prepare_state != WT_PREPARE_INPROGRESS &&
+              upd->next->type != WT_UPDATE_TOMBSTONE && upd->next->next != NULL &&
+              upd->next->next->prepare_state != WT_PREPARE_INPROGRESS &&
+              upd->next->next->type != WT_UPDATE_TOMBSTONE)
+                second_after_prepare = upd->next->next;
+
             /*
              * If we've reached a full update and its in the history store we don't need to continue
              * as anything beyond this point won't help with calculating deltas.
@@ -763,13 +773,16 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  * It is not correct to check prev_upd == list->onpage_upd as we may have aborted
                  * updates in the middle.
                  *
-                 * We can't calculate reverse modify based on an uncommitted prepared update because
-                 * it may be aborted.
+                 * We must insert the first and second updates after a prepared update as full
+                 * values because if the prepared update is aborted, we will remove the first update
+                 * after it from the history store to the update chain. Readers reading the older
+                 * values need a full update as the base value for constructing reverse modifies.
                  */
                 nentries = MAX_REVERSE_MODIFY_NUM;
                 if (!F_ISSET(upd, WT_UPDATE_HS)) {
                     if (upd->type == WT_UPDATE_MODIFY &&
                       prev_upd->prepare_state != WT_PREPARE_INPROGRESS &&
+                      (second_after_prepare == NULL || upd != second_after_prepare) &&
                       __wt_calc_modify(session, prev_full_value, full_value,
                         prev_full_value->size / 10, entries, &nentries) == 0) {
                         WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
