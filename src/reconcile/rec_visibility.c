@@ -170,7 +170,7 @@ __rec_append_orig_value(
     } else if (unpack->tw.prepare)
         /*
          * Don't append the onpage value if it is a prepared update as it is either on the update
-         * chain or has been aborted. It it is aborted, discard it silently.
+         * chain or has been aborted. If it is aborted, discard it silently.
          */
         return (0);
 
