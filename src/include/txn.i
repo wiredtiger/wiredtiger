@@ -756,7 +756,8 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **
     /* Ignore the prepared update, if transaction configuration says so. */
     if (prepare_state == WT_PREPARE_INPROGRESS) {
         if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
-            /* Save the prepared update to help us detect if we race with commit or rollback. */
+            /* Save the prepared update to help us detect if we race with prepared commit or
+             * rollback. */
             if (prepare_updp != NULL)
                 *prepare_updp = upd;
             return (WT_VISIBLE_FALSE);
@@ -843,6 +844,7 @@ __wt_txn_read_upd_list(
     WT_VISIBLE_TYPE upd_visible;
     uint8_t type;
 
+    *prepare_updp = NULL;
     __wt_upd_value_clear(cbt->upd_value);
 
     for (; upd != NULL; upd = upd->next) {
@@ -850,9 +852,8 @@ __wt_txn_read_upd_list(
         /* Skip reserved place-holders, they're never visible. */
         if (type == WT_UPDATE_RESERVE)
             continue;
-        /* Prepared update must be the first update on the update chain. */
-        upd_visible =
-          __wt_txn_upd_visible_type(session, upd, prepare_updp);
+        /* Save the first prepared update we see. */
+        upd_visible = __wt_txn_upd_visible_type(session, upd, *prepare_updp == NULL ? prepare_updp : NULL);
         if (upd_visible == WT_VISIBLE_TRUE) {
             /*
              * Ignore non-globally visible tombstones when we are doing history store scans in
@@ -967,7 +968,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
           cbt->upd_value, false, &cbt->upd_value->buf));
 
     /*
-     * Retry if we race with prepare commit or rollback as the reader may have read changed history
+     * Retry if we race with prepared commit or rollback as the reader may have read changed history
      * store content.
      */
     if (prepare_upd != NULL) {
