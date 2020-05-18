@@ -853,8 +853,9 @@ __wt_txn_read_upd_list(
         /* Skip reserved place-holders, they're never visible. */
         if (type == WT_UPDATE_RESERVE)
             continue;
-        /* Save the first prepared update we see. */
+
         upd_visible = __wt_txn_upd_visible_type(session, upd);
+
         if (upd_visible == WT_VISIBLE_TRUE) {
             /*
              * Ignore non-globally visible tombstones when we are doing history store scans in
