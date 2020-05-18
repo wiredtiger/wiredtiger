@@ -44,7 +44,7 @@ static const /* Output separator */
 
 static int __debug_col_skip(WT_DBG *, WT_INSERT_HEAD *, const char *, bool);
 static int __debug_config(WT_SESSION_IMPL *, WT_DBG *, const char *);
-static int __debug_modify(WT_DBG *, WT_UPDATE *, const char *);
+static int __debug_modify(WT_DBG *, const uint8_t *, const char *);
 static int __debug_page(WT_DBG *, WT_REF *, uint32_t);
 static int __debug_page_col_fix(WT_DBG *, WT_REF *);
 static int __debug_page_col_int(WT_DBG *, WT_PAGE *, uint32_t);
@@ -412,10 +412,8 @@ err:
 static int
 __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
 {
-    WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_TIME_WINDOW tw;
-    WT_UPDATE *upd;
     uint64_t hs_counter, hs_upd_type;
     uint32_t hs_btree_id;
     char time_string[WT_TIME_STRING_SIZE];
@@ -434,10 +432,7 @@ __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
           "\t"
           "hs-modify: %s\n",
           __wt_time_window_to_string(&tw, time_string)));
-        WT_RET(__wt_upd_alloc(session, ds->hs_value, hs_upd_type, &upd, NULL));
-        ret = __debug_modify(ds, upd, "V");
-        __wt_free(session, upd);
-        WT_RET(ret);
+        WT_RET(__debug_modify(ds, ds->hs_value->data, "V"));
         break;
     case WT_UPDATE_STANDARD:
         WT_RET(ds->f(ds,
@@ -1434,15 +1429,14 @@ __debug_row_skip(WT_DBG *ds, WT_INSERT_HEAD *head)
  *     Dump a modify update.
  */
 static int
-__debug_modify(WT_DBG *ds, WT_UPDATE *upd, const char *tag)
+__debug_modify(WT_DBG *ds, const uint8_t *data, const char *tag)
 {
     size_t nentries, data_size, offset, size;
     const size_t *p;
-    const uint8_t *data;
 
-    p = (size_t *)upd->data;
+    p = (size_t *)data;
     memcpy(&nentries, p++, sizeof(size_t));
-    data = upd->data + sizeof(size_t) + (nentries * 3 * sizeof(size_t));
+    data += sizeof(size_t) + (nentries * 3 * sizeof(size_t));
 
     WT_RET(ds->f(ds, "%s%" WT_SIZET_FMT ": ", tag != NULL ? tag : "", nentries));
     for (; nentries-- > 0; data += data_size) {
@@ -1475,7 +1469,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
             break;
         case WT_UPDATE_MODIFY:
             WT_RET(ds->f(ds, "\tvalue {modify: "));
-            WT_RET(__debug_modify(ds, upd, NULL));
+            WT_RET(__debug_modify(ds, upd->data, NULL));
             WT_RET(ds->f(ds, "}\n"));
             break;
         case WT_UPDATE_RESERVE:
