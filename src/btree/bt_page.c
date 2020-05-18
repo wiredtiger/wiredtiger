@@ -618,10 +618,9 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                 upd->txnid = unpack.tw.start_txn;
 
                 /*
-                 * If the prepared update is of tombstone, instantiating both update and tombstone
-                 * are required. As both update and tombstone are present in the update list, there
-                 * is no need to set the flag that is used to indicate restoring the history store
-                 * in case of a prepared transaction abort.
+                 * Instantiating both update and tombstone if the prepared update is of tombstone.
+                 * This is required to ensure that written prepared delete operation must be removed
+                 * from the data store, when the prepared transaction gets rollback.
                  */
                 if (WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
                     WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
@@ -629,6 +628,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                     tombstone->start_ts = unpack.tw.stop_ts;
                     tombstone->txnid = unpack.tw.stop_txn;
                     tombstone->prepare_state = WT_PREPARE_INPROGRESS;
+                    F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DISK);
                     tombstone->next = upd;
                 } else {
                     upd->durable_ts = WT_TS_NONE;
