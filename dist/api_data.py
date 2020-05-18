@@ -1378,7 +1378,7 @@ methods = {
 'WT_SESSION.upgrade' : Method([]),
 'WT_SESSION.verify' : Method([
     Config('dump_address', 'false', r'''
-        Display page addresses, start and stop time pairs and page types as
+        Display page addresses, time windows, and page types as
         pages are verified, using the application's message handler,
         intended for debugging''',
         type='boolean'),

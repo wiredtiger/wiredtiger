@@ -21,16 +21,18 @@ __wt_timestamp_to_string(wt_timestamp_t ts, char *ts_string)
 }
 
 /*
- * __wt_time_pair_to_string --
- *     Converts a time pair to a standard string representation.
+ * __wt_time_point_to_string --
+ *     Converts a time point to a standard string representation.
  */
 char *
-__wt_time_pair_to_string(wt_timestamp_t timestamp, uint64_t txn_id, char *tp_string)
+__wt_time_point_to_string(
+  wt_timestamp_t ts, wt_timestamp_t durable_ts, uint64_t txn_id, char *tp_string)
 {
     char ts_string[WT_TS_INT_STRING_SIZE];
 
-    WT_IGNORE_RET(__wt_snprintf(tp_string, WT_TP_STRING_SIZE, "%s/%" PRIu64,
-      __wt_timestamp_to_string(timestamp, ts_string), txn_id));
+    WT_IGNORE_RET(__wt_snprintf(tp_string, WT_TP_STRING_SIZE, "%s/%s/%" PRIu64,
+      __wt_timestamp_to_string(ts, ts_string), __wt_timestamp_to_string(durable_ts, ts_string),
+      txn_id));
     return (tp_string);
 }
 
@@ -158,7 +160,13 @@ __wt_time_aggregate_validate(
           "aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
-    if (ta->newest_start_durable_ts > ta->newest_stop_ts)
+    /*
+     * In the case of out of order timestamps, we assign the start point to the stop point and
+     * newest start durable timestamp may be larger than newest stop timestamp. Check whether start
+     * and stop are equal first.
+     */
+    if (ta->newest_start_durable_ts != ta->newest_stop_durable_ts &&
+      ta->newest_start_durable_ts > ta->newest_stop_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has a newest stop durable time after its newest stop time; time "
           "aggregate %s",
@@ -258,7 +266,12 @@ __wt_time_value_validate(
           "value time window has a stop time after its durable stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
-    if (tw->durable_start_ts > tw->stop_ts)
+    /*
+     * In the case of out of order timestamps, we assign start time point to the stop point and
+     * durable start timestamp may be larger than stop timestamp. Check whether start and stop are
+     * equal first.
+     */
+    if (tw->durable_start_ts != tw->durable_stop_ts && tw->durable_start_ts > tw->stop_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a durable start time after its stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));

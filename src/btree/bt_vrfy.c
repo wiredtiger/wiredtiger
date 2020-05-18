@@ -976,7 +976,7 @@ __verify_page_content_leaf(
         }
 
         /*
-         * Verify key-associated history-store entries, optionally dump historical time pairs and
+         * Verify key-associated history-store entries, optionally dump historical time windows and
          * values in debug mode.
          */
         if (page->type == WT_PAGE_ROW_LEAF) {
