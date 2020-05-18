@@ -675,9 +675,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * If the update is the second update older than the prepared update and we haven't seen
              * a tombstone. Mark the update.
              */
-            if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+            if (upd->prepare_state == WT_PREPARE_INPROGRESS) {
+                /*
+                 * No normal update between prepared updates and the first prepared update cannot be
+                 * a tombstone.
+                 */
+                WT_ASSERT(
+                  session, (track_prepare && upd_count == 0) || upd->type != WT_UPDATE_TOMBSTONE);
                 track_prepare = true;
-            else if (track_prepare) {
+            } else if (track_prepare) {
                 if (upd->type == WT_UPDATE_TOMBSTONE) {
                     upd_count = 0;
                     track_prepare = false;
