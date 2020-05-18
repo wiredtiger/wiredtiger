@@ -200,8 +200,8 @@ __verify_dsk_addr_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK_ADDR *unpack
 {
     WT_DECL_RET;
 
-    if ((ret = __wt_time_aggregate_validate(
-           session, &unpack->ta, &addr->ta, F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) == 0)
+    if ((ret = __wt_time_aggregate_validate(session, &unpack->ta, addr != NULL ? &addr->ta : NULL,
+           F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) == 0)
         return (0);
 
     WT_RET_VRFY_RETVAL(session, ret, "cell %" PRIu32 " on page at %s failed timestamp validation",
@@ -218,8 +218,8 @@ __verify_dsk_value_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack,
 {
     WT_DECL_RET;
 
-    if ((ret = __wt_time_value_validate(
-           session, &unpack->tw, &addr->ta, F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) == 0)
+    if ((ret = __wt_time_value_validate(session, &unpack->tw, addr != NULL ? &addr->ta : NULL,
+           F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) == 0)
         return (0);
 
     WT_RET_VRFY_RETVAL(session, ret, "cell %" PRIu32 " on page at %s failed timestamp validation",

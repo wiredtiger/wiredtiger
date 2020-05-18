@@ -703,8 +703,10 @@ static inline bool
 __wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp)
 {
     WT_TXN *txn;
+    WT_TXN_SHARED *txn_shared;
 
     txn = session->txn;
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     if (!__txn_visible_id(session, id))
         return (false);
@@ -717,7 +719,7 @@ __wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp
     if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) || timestamp == WT_TS_NONE)
         return (true);
 
-    return (timestamp <= txn->read_timestamp);
+    return (timestamp <= txn_shared->read_timestamp);
 }
 
 /*

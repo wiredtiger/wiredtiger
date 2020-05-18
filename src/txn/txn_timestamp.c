@@ -75,7 +75,7 @@ __wt_txn_parse_timestamp(
 static bool
 __txn_get_read_timestamp(WT_TXN_SHARED *txn_shared, wt_timestamp_t *read_timestampp)
 {
-    WT_ORDERED_READ(*read_timestampp, txn_shared->pinned_read_timestamp);
+    WT_ORDERED_READ(*read_timestampp, txn_shared->read_timestamp);
     return (!txn_shared->clear_read_q);
 }
 
@@ -256,7 +256,7 @@ __txn_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char 
     else if (WT_STRING_MATCH("prepare", cval.str, cval.len))
         *tsp = txn->prepare_timestamp;
     else if (WT_STRING_MATCH("read", cval.str, cval.len))
-        *tsp = txn_shared->pinned_read_timestamp;
+        *tsp = txn_shared->read_timestamp;
     else
         WT_RET_MSG(session, EINVAL, "unknown timestamp query %.*s", (int)cval.len, cval.str);
 
@@ -848,7 +848,7 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
          * oldest timestamp.
          */
         if (F_ISSET(txn, WT_TXN_TS_ROUND_READ)) {
-            txn->read_timestamp = txn_shared->pinned_read_timestamp = ts_oldest;
+            txn_shared->read_timestamp = ts_oldest;
             did_roundup_to_oldest = true;
         } else {
             __wt_readunlock(session, &txn_global->rwlock);
@@ -868,7 +868,7 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
             return (EINVAL);
         }
     } else
-        txn->read_timestamp = txn_shared->pinned_read_timestamp = read_ts;
+        txn_shared->read_timestamp = read_ts;
 
     __wt_txn_publish_read_timestamp(session);
     __wt_readunlock(session, &txn_global->rwlock);
@@ -1131,7 +1131,7 @@ __wt_txn_publish_read_timestamp(WT_SESSION_IMPL *session)
         qtxn_shared = TAILQ_LAST(&txn_global->read_timestamph, __wt_txn_rts_qh);
         while (qtxn_shared != NULL) {
             if (!__txn_get_read_timestamp(qtxn_shared, &tmp_timestamp) ||
-              tmp_timestamp > txn_shared->pinned_read_timestamp) {
+              tmp_timestamp > txn_shared->read_timestamp) {
                 ++walked;
                 qtxn_shared = TAILQ_PREV(qtxn_shared, __wt_txn_rts_qh, read_timestampq);
             } else
@@ -1171,8 +1171,7 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 
     if (F_ISSET(txn, WT_TXN_SHARED_TS_READ)) {
         /* Assert the read timestamp is greater than or equal to the pinned timestamp. */
-        WT_ASSERT(session, txn->read_timestamp == txn_shared->pinned_read_timestamp &&
-            txn->read_timestamp >= S2C(session)->txn_global.pinned_timestamp);
+        WT_ASSERT(session, txn_shared->read_timestamp >= S2C(session)->txn_global.pinned_timestamp);
 
         /*
          * Notify other threads that our transaction is inactive and can be cleaned up safely from
@@ -1184,7 +1183,7 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
     }
-    txn->read_timestamp = txn_shared->pinned_read_timestamp = WT_TS_NONE;
+    txn_shared->read_timestamp = WT_TS_NONE;
 }
 
 /*
