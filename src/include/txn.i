@@ -842,6 +842,7 @@ __wt_txn_read_upd_list(
     WT_VISIBLE_TYPE upd_visible;
     uint8_t type;
 
+    upd_visible = WT_VISIBLE_FALSE;
     if (prepare_updp != NULL)
         *prepare_updp = NULL;
     __wt_upd_value_clear(cbt->upd_value);
