@@ -756,8 +756,10 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **
     /* Ignore the prepared update, if transaction configuration says so. */
     if (prepare_state == WT_PREPARE_INPROGRESS) {
         if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
-            /* Save the prepared update to help us detect if we race with prepared commit or
-             * rollback. */
+            /* 
+             * Save the prepared update to help us detect if we race with prepared commit or
+             * rollback.
+             */
             if (prepare_updp != NULL)
                 *prepare_updp = upd;
             return (WT_VISIBLE_FALSE);
