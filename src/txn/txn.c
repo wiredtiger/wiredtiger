@@ -666,9 +666,9 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
         goto done;
 
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
-    upd->txnid = hs_cbt->upd_value->txnid;
-    upd->durable_ts = durable_ts;
-    upd->start_ts = hs_start_ts;
+    upd->txnid = hs_cbt->upd_value->tw.start_txn;
+    upd->durable_ts = hs_cbt->upd_value->tw.durable_start_ts;
+    upd->start_ts = hs_cbt->upd_value->tw.start_ts;
     *fix_updp = upd;
 
     /*
@@ -683,10 +683,9 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     /* If the history store record has a valid stop time point, append it. */
     if (hs_stop_durable_ts != WT_TS_MAX) {
         WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
-        tombstone->durable_ts = hs_stop_durable_ts;
-        /* FIXME: get the correct stop ts and txnid from the cell. */
-        tombstone->start_ts = hs_stop_durable_ts;
-        tombstone->txnid = WT_TXN_NONE;
+        tombstone->durable_ts = hs_cbt->upd_value->tw.durable_stop_ts;
+        tombstone->start_ts = hs_cbt->upd_value->tw.stop_ts;
+        tombstone->txnid = hs_cbt->upd_value->tw.stop_txn;
         tombstone->next = upd;
         total_size += size;
     } else

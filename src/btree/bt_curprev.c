@@ -300,7 +300,7 @@ restart_read:
         if (cbt->upd_value->type == WT_UPDATE_INVALID)
             continue;
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            if (cbt->upd_value->txnid != WT_TXN_NONE &&
+            if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
               __wt_txn_upd_value_visible_all(session, cbt->upd_value))
                 ++cbt->page_deleted_count;
             continue;
@@ -370,7 +370,7 @@ restart_read:
             WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                if (cbt->upd_value->txnid != WT_TXN_NONE &&
+                if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
                   __wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_deleted_count;
                 continue;
@@ -506,7 +506,7 @@ restart_read_insert:
             if (cbt->upd_value->type == WT_UPDATE_INVALID)
                 continue;
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                if (cbt->upd_value->txnid != WT_TXN_NONE &&
+                if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
                   __wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_deleted_count;
                 continue;
@@ -543,7 +543,7 @@ restart_read_page:
         if (cbt->upd_value->type == WT_UPDATE_INVALID)
             continue;
         if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-            if (cbt->upd_value->txnid != WT_TXN_NONE &&
+            if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
               __wt_txn_upd_value_visible_all(session, cbt->upd_value))
                 ++cbt->page_deleted_count;
             continue;

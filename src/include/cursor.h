@@ -187,10 +187,6 @@ struct __wt_cursor_btree {
     /* An intermediate structure to hold the update value to be assigned to the cursor buffer. */
     WT_UPDATE_VALUE *upd_value, _upd_value;
 
-    /* An intermediate values of a history store update that is returned. */
-    wt_timestamp_t hs_stop_ts;
-    uint64_t hs_stop_txnid;
-
     /*
      * Fixed-length column-store items are a single byte, and it's simpler and cheaper to allocate
      * the space for it now than keep checking to see if we need to grow the buffer.
