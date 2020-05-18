@@ -158,7 +158,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         /*
          * Track history store pages being force evicted while holding a history store cursor open.
          */
-        if (session->hs_cursor != NULL && F_ISSET(S2BT(session), WT_BTREE_HS)) {
+        if (session->hs_cursor != NULL && WT_IS_HS(S2BT(session))) {
             force_evict_hs = true;
             WT_STAT_CONN_INCR(session, cache_eviction_force_hs);
         }
