@@ -1515,7 +1515,7 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             ckpt->write_gen = btree->write_gen;
-            __wt_time_aggregate_copy(&ckpt->ta, ta);
+            WT_TIME_AGGREGATE_COPY(&ckpt->ta, ta);
         }
 }
 
@@ -1542,7 +1542,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     conn = S2C(session);
     dhandle = session->dhandle;
     fake_ckpt = resolve_bm = false;
-    __wt_time_aggregate_init(&ta);
+    WT_TIME_AGGREGATE_INIT(&ta);
 
     /*
      * Set the checkpoint LSN to the maximum LSN so that if logging is disabled, recovery will never
@@ -1828,7 +1828,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
      */
     if (btree->modified && !bulk && !__wt_btree_immediately_durable(session) &&
       (S2C(session)->txn_global.has_stable_timestamp ||
-          (!F_ISSET(S2C(session), WT_CONN_FILE_CLOSE_SYNC) && !metadata && !final)))
+          (!F_ISSET(S2C(session), WT_CONN_FILE_CLOSE_SYNC) && !metadata)))
         return (__wt_set_return(session, EBUSY));
 
     /*

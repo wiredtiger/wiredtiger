@@ -86,7 +86,7 @@ __rec_append_orig_value(
 
         /*
          * Done if the on page value already appears on the update list. We can't do the same check
-         * for stop time pair because we may still need to append the onpage value if only the
+         * for stop time point because we may still need to append the onpage value if only the
          * tombstone is on the update chain.
          */
         if (unpack->tw.start_ts == upd->start_ts && unpack->tw.start_txn == upd->txnid &&
@@ -113,16 +113,31 @@ __rec_append_orig_value(
     }
 
     /*
+     * We end up in this function because we have selected a newer value to write to disk. If we
+     * select the newest committed update, we should see a valid update here. We can only write
+     * uncommitted prepared updates in eviction and if the update chain only has uncommitted
+     * prepared updates, we cannot abort them concurrently when we are still evicting the page
+     * because we have to do a search for the prepared updates, which can not proceed until eviction
+     * finishes.
+     */
+    WT_ASSERT(session, oldest_upd != NULL);
+
+    /*
      * Additionally, we need to append a tombstone before the onpage value we're about to append to
-     * the list, if the onpage value has a valid stop pair. Imagine a case where we insert and
+     * the list, if the onpage value has a valid stop time point. Imagine a case where we insert and
      * delete a value respectively at timestamp 0 and 10, and later insert it again at 20. We need
      * the tombstone to tell us there is no value between 10 and 20.
      */
-    if (__wt_time_window_has_stop(&unpack->tw)) {
+    if (WT_TIME_WINDOW_HAS_STOP(&unpack->tw)) {
         tombstone_globally_visible = __wt_txn_tw_stop_visible_all(session, &unpack->tw);
 
-        /* No need to append the tombstone if it is already in the update chain. */
-        if (oldest_upd->type != WT_UPDATE_TOMBSTONE) {
+        /*
+         * No need to append the tombstone if it is already in the update chain.
+         *
+         * Don't append the onpage tombstone if it is a prepared update as it is either on the
+         * update chain or has been aborted. If it is aborted, discard it silently.
+         */
+        if (oldest_upd->type != WT_UPDATE_TOMBSTONE && !unpack->tw.prepare) {
             /*
              * We still need to append the globally visible tombstone if its timestamp is WT_TS_NONE
              * as we may need it to clear the history store content of the key. We don't append a
@@ -152,7 +167,12 @@ __rec_append_orig_value(
             if (tombstone_globally_visible)
                 return (0);
         }
-    }
+    } else if (unpack->tw.prepare)
+        /*
+         * Don't append the onpage value if it is a prepared update as it is either on the update
+         * chain or has been aborted. If it is aborted, discard it silently.
+         */
+        return (0);
 
     /* We need the original on-page value for some reader: get a copy. */
     if (!tombstone_globally_visible) {
@@ -200,8 +220,8 @@ __rec_need_save_upd(
 
     /*
      * Save updates for any reconciliation that doesn't involve history store (in-memory database
-     * and fixed length column store), except when the selected stop time pair or the selected start
-     * time pair is globally visible.
+     * and fixed length column store), except when the selected stop time point or the selected
+     * start time point is globally visible.
      */
     if (!F_ISSET(r, WT_REC_HS) && !F_ISSET(r, WT_REC_IN_MEMORY) && r->page->type != WT_PAGE_COL_FIX)
         return (false);
@@ -239,7 +259,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      */
     upd_select->upd = NULL;
     select_tw = &upd_select->tw;
-    __wt_time_window_init(select_tw);
+    WT_TIME_WINDOW_INIT(select_tw);
 
     page = r->page;
     first_txn_upd = upd = last_upd = tombstone = NULL;
@@ -382,14 +402,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
         /*
          * If the newest is a tombstone then select the update before it and set the end of the
-         * visibility window to its time pair as appropriate to indicate that we should return "not
+         * visibility window to its time point as appropriate to indicate that we should return "not
          * found" for reads after this point.
          *
          * Otherwise, leave the end of the visibility window at the maximum possible value to
          * indicate that the value is visible to any timestamp/transaction id ahead of it.
          */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
-            __wt_time_window_set_stop(select_tw, upd);
+            WT_TIME_WINDOW_SET_STOP(select_tw, upd);
             tombstone = upd;
 
             /* Find the update this tombstone applies to. */
@@ -403,8 +423,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             }
         }
         if (upd != NULL)
-            /* The beginning of the validity window is the selected update's time pair. */
-            __wt_time_window_set_start(select_tw, upd);
+            /* The beginning of the validity window is the selected update's time point. */
+            WT_TIME_WINDOW_SET_START(select_tw, upd);
         else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL && tombstone != NULL && last_upd->next == NULL);
@@ -415,7 +435,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * ONLY a tombstone in the update list.
              *
              * In this case, we should leave the selected update unset to indicate that we want to
-             * keep the same on-disk value but set the stop time pair to indicate that the validity
+             * keep the same on-disk value but set the stop time point to indicate that the validity
              * window ends when this tombstone started.
              */
             WT_ERR(__rec_append_orig_value(session, page, tombstone, vpack));
@@ -429,24 +449,28 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                     last_upd->next->start_ts == vpack->tw.start_ts &&
                     last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL);
                 upd_select->upd = last_upd->next;
-                __wt_time_window_set_start(select_tw, last_upd->next);
+                WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
             } else {
-                WT_ASSERT(
-                  session, __wt_txn_upd_visible_all(session, tombstone) && upd_select->upd == NULL);
+                /*
+                 * If the tombstone is aborted concurrently, we should still have appended the
+                 * onpage value.
+                 */
+                WT_ASSERT(session, tombstone->txnid != WT_TXN_ABORTED &&
+                    __wt_txn_upd_visible_all(session, tombstone) && upd_select->upd == NULL);
                 upd_select->upd = tombstone;
             }
         }
     }
 
     /*
-     * If we found a tombstone with a time pair earlier than the update it applies to, which can
+     * If we found a tombstone with a time point earlier than the update it applies to, which can
      * happen if the application performs operations with timestamps out-of-order, make it invisible
-     * by making the start time pair match the stop time pair of the tombstone. We don't guarantee
+     * by making the start time point match the stop time point of the tombstone. We don't guarantee
      * that older readers will be able to continue reading content that has been made invisible by
      * out-of-order updates.
      *
-     * Note that we carefully don't take this path when the stop time pair is equal to the start
-     * time pair. While unusual, it is permitted for a single transaction to insert and then remove
+     * Note that we carefully don't take this path when the stop time point is equal to the start
+     * time point. While unusual, it is permitted for a single transaction to insert and then remove
      * a record. We don't want to generate a warning in that case.
      */
     if (select_tw->stop_ts < select_tw->start_ts ||
@@ -521,6 +545,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
       (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_ERR(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
+    __wt_time_window_clear_obsolete(
+      session, &upd_select->tw, r->rec_start_oldest_id, r->rec_start_pinned_ts);
 err:
     __wt_scr_free(session, &tmp);
     return (ret);

@@ -608,7 +608,7 @@ __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_va
 static inline bool
 __wt_txn_tw_stop_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    return (__wt_time_window_has_stop(tw) && !tw->prepare &&
+    return (WT_TIME_WINDOW_HAS_STOP(tw) && !tw->prepare &&
       __wt_txn_visible(session, tw->stop_txn, tw->stop_ts));
 }
 
@@ -619,7 +619,7 @@ __wt_txn_tw_stop_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 static inline bool
 __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    return ((__wt_time_window_has_stop(tw) || !tw->prepare) &&
+    return ((WT_TIME_WINDOW_HAS_STOP(tw) || !tw->prepare) &&
       __wt_txn_visible(session, tw->start_txn, tw->start_ts));
 }
 
@@ -630,7 +630,7 @@ __wt_txn_tw_start_visible(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 static inline bool
 __wt_txn_tw_start_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    return ((__wt_time_window_has_stop(tw) || !tw->prepare) &&
+    return ((WT_TIME_WINDOW_HAS_STOP(tw) || !tw->prepare) &&
       __wt_txn_visible_all(session, tw->start_txn, tw->durable_start_ts));
 }
 
@@ -641,7 +641,7 @@ __wt_txn_tw_start_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 static inline bool
 __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
-    return (__wt_time_window_has_stop(tw) && !tw->prepare &&
+    return (WT_TIME_WINDOW_HAS_STOP(tw) && !tw->prepare &&
       __wt_txn_visible_all(session, tw->stop_txn, tw->durable_stop_ts));
 }
 
@@ -906,19 +906,19 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
 
     /* Check the ondisk value. */
     if (vpack == NULL) {
-        __wt_time_window_init(&tw);
+        WT_TIME_WINDOW_INIT(&tw);
         WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw));
     } else {
-        __wt_time_window_copy(&tw, &vpack->tw);
+        WT_TIME_WINDOW_COPY(&tw, &vpack->tw);
         cbt->upd_value->buf.data = vpack->data;
         cbt->upd_value->buf.size = vpack->size;
     }
 
     /*
-     * If the stop pair is set, that means that there is a tombstone at that time. If it is not
-     * prepared and the stop time pair is visible to our txn then that means we've just spotted a
-     * tombstone and should return "not found", except for history store scan during rollback to
-     * stable and when we are told to ignore non-globally visible tombstones.
+     * If the stop time point is set, that means that there is a tombstone at that time. If it is
+     * not prepared and the it is visible to our txn then that means we've just spotted a tombstone
+     * and should return "not found", except for history store scan during rollback to stable and
+     * when we are told to ignore non-globally visible tombstones.
      */
     if (__wt_txn_tw_stop_visible(session, &tw) &&
       ((!F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
@@ -939,7 +939,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
         cbt->hs_stop_txnid = tw.stop_txn;
     }
 
-    /* If the start time pair is visible then we need to return the ondisk value. */
+    /* If the start time point is visible then we need to return the ondisk value. */
     if (__wt_txn_tw_start_visible(session, &tw) || F_ISSET(session, WT_SESSION_RESOLVING_MODIFY)) {
         /* If we are resolving a modify then the btree must be the history store. */
         WT_ASSERT(

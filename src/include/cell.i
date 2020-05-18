@@ -14,41 +14,10 @@ static inline void
 __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 {
 #ifdef HAVE_DIAGNOSTIC
-    /*
-     * We're using WT_ERR_ASSERT rather than WT_ASSERT because we want to push out a message string.
-     * This usage of WT_ERR_ASSERT isn't "correct", because it jumps to a non-existent error label
-     * in non-diagnostic builds and returns WT_PANIC without calling the underlying panic routine.
-     * That's OK, we have to be in a diagnostic build to get here, and fixing it would require new
-     * macros that aren't needed anywhere else, so we're leaving it alone.
-     */
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    WT_DECL_RET;
 
-    if (tw->start_ts > tw->durable_start_ts)
-        WT_ERR_ASSERT(session, tw->start_ts <= tw->durable_start_ts, WT_PANIC,
-          "a start timestamp %s newer than its durable start timestamp %s",
-          __wt_timestamp_to_string(tw->start_ts, ts_string[0]),
-          __wt_timestamp_to_string(tw->durable_start_ts, ts_string[1]));
-
-    if (tw->start_ts != WT_TS_NONE && tw->stop_ts == WT_TS_NONE)
-        WT_ERR_ASSERT(session, tw->stop_ts != WT_TS_NONE, WT_PANIC, "stop timestamp of 0");
-
-    if (tw->start_ts > tw->stop_ts)
-        WT_ERR_ASSERT(session, tw->start_ts <= tw->stop_ts, WT_PANIC,
-          "a start timestamp %s newer than its stop timestamp %s",
-          __wt_timestamp_to_string(tw->start_ts, ts_string[0]),
-          __wt_timestamp_to_string(tw->stop_ts, ts_string[1]));
-
-    if (tw->start_txn > tw->stop_txn)
-        WT_ERR_ASSERT(session, tw->start_txn <= tw->stop_txn, WT_PANIC,
-          "a start transaction ID %" PRIu64 " newer than its stop transaction ID %" PRIu64,
-          tw->start_txn, tw->stop_txn);
-
-    if (tw->stop_ts != WT_TS_MAX && tw->stop_ts > tw->durable_stop_ts)
-        WT_ERR_ASSERT(session, tw->stop_ts <= tw->durable_stop_ts, WT_PANIC,
-          "a stop timestamp %s newer than its durable stop timestamp %s",
-          __wt_timestamp_to_string(tw->stop_ts, ts_string[0]),
-          __wt_timestamp_to_string(tw->durable_stop_ts, ts_string[1]));
-
+    if ((ret = __wt_time_value_validate(session, tw, NULL, false)) != 0)
+        WT_IGNORE_RET(__wt_panic(session, ret, "value timestamp window failed validation"));
 #else
     WT_UNUSED(session);
     WT_UNUSED(tw);
@@ -66,7 +35,7 @@ __cell_pack_value_validity(
     uint8_t flags, *flagsp;
 
     /* Globally visible values have no associated validity window. */
-    if (__wt_time_window_is_empty(tw)) {
+    if (WT_TIME_WINDOW_IS_EMPTY(tw)) {
         ++*pp;
         return;
     }
@@ -133,41 +102,10 @@ static inline void
 __wt_check_addr_validity(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
 {
 #ifdef HAVE_DIAGNOSTIC
-    /*
-     * We're using WT_ERR_ASSERT rather than WT_ASSERT because we want to push out a message string.
-     * This usage of WT_ERR_ASSERT isn't "correct", because it jumps to a non-existent error label
-     * in non-diagnostic builds and returns WT_PANIC without calling the underlying panic routine.
-     * That's OK, we have to be in a diagnostic build to get here, and fixing it would require new
-     * macros that aren't needed anywhere else, so we're leaving it alone.
-     */
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    WT_DECL_RET;
 
-    if (ta->oldest_start_ts != WT_TS_NONE && ta->newest_stop_ts == WT_TS_NONE)
-        WT_ERR_ASSERT(
-          session, ta->newest_stop_ts != WT_TS_NONE, WT_PANIC, "newest stop timestamp of 0");
-
-    if (ta->oldest_start_ts > ta->newest_stop_ts)
-        WT_ERR_ASSERT(session, ta->oldest_start_ts <= ta->newest_stop_ts, WT_PANIC,
-          "an oldest start timestamp %s newer than its newest stop timestamp %s",
-          __wt_timestamp_to_string(ta->oldest_start_ts, ts_string[0]),
-          __wt_timestamp_to_string(ta->newest_stop_ts, ts_string[1]));
-
-    if (ta->oldest_start_txn > ta->newest_stop_txn)
-        WT_ERR_ASSERT(session, ta->oldest_start_txn <= ta->newest_stop_txn, WT_PANIC,
-          "an oldest start transaction %" PRIu64 " newer than its newest stop transaction %" PRIu64,
-          ta->oldest_start_txn, ta->newest_stop_txn);
-
-    if (ta->oldest_start_ts > ta->newest_start_durable_ts)
-        WT_ERR_ASSERT(session, ta->oldest_start_ts <= ta->newest_start_durable_ts, WT_PANIC,
-          "an oldest start timestamp %s newer than its durable start timestamp %s",
-          __wt_timestamp_to_string(ta->oldest_start_ts, ts_string[0]),
-          __wt_timestamp_to_string(ta->newest_start_durable_ts, ts_string[1]));
-
-    if (ta->newest_stop_ts != WT_TS_MAX && ta->newest_stop_ts > ta->newest_stop_durable_ts)
-        WT_ERR_ASSERT(session, ta->newest_stop_ts <= ta->newest_stop_durable_ts, WT_PANIC,
-          "a newest stop timestamp %s newer than its durable stop timestamp %s",
-          __wt_timestamp_to_string(ta->newest_stop_ts, ts_string[0]),
-          __wt_timestamp_to_string(ta->newest_stop_durable_ts, ts_string[1]));
+    if ((ret = __wt_time_aggregate_validate(session, ta, NULL, false)) != 0)
+        WT_IGNORE_RET(__wt_panic(session, ret, "illegal address timestamp window"));
 #else
     WT_UNUSED(session);
     WT_UNUSED(ta);
@@ -184,7 +122,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
     uint8_t flags, *flagsp;
 
     /* Globally visible values have no associated validity window. */
-    if (__wt_time_aggregate_is_empty(ta)) {
+    if (WT_TIME_AGGREGATE_IS_EMPTY(ta)) {
         ++*pp;
         return;
     }
@@ -748,14 +686,14 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
     if (unpack_addr == NULL) {
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_value;
         tw = &unpack_value->tw;
-        __wt_time_window_init(tw);
+        WT_TIME_WINDOW_INIT(tw);
         ta = NULL;
     } else {
         WT_ASSERT(session, unpack_value == NULL);
 
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr;
         ta = &unpack_addr->ta;
-        __wt_time_aggregate_init(ta);
+        WT_TIME_AGGREGATE_INIT(ta);
         tw = NULL;
     }
 
@@ -950,7 +888,7 @@ copy_cell_restart:
         copy.v = unpack->v;
         copy.len = WT_PTRDIFF32(p, cell);
         tw = &copy.tw;
-        __wt_time_window_init(tw);
+        WT_TIME_WINDOW_INIT(tw);
         cell = (WT_CELL *)((uint8_t *)cell - v);
         goto copy_cell_restart;
 
@@ -1036,7 +974,7 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
      * Note that it is still necessary to unpack each value above even if we end up overwriting them
      * since values in a cell need to be unpacked sequentially.
      *
-     * This is how the stop time pair should be interpreted for each type of delete:
+     * This is how the stop time point should be interpreted for each type of delete:
      * -
      *                  Timestamp delete  Non-timestamp delete  No delete
      * Current startup  txnid=x, ts=y       txnid=x, ts=WT_TS_NONE           txnid=MAX, ts=MAX
@@ -1114,7 +1052,7 @@ __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL
          * If there isn't any value validity window (which is what it will take to get to a
          * zero-length item), the value must be stable.
          */
-        __wt_time_window_init(&unpack_value->tw);
+        WT_TIME_WINDOW_INIT(&unpack_value->tw);
 
         return;
     }

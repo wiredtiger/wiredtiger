@@ -153,7 +153,7 @@ __debug_item_value(WT_DBG *ds, const char *tag, const void *data_arg, size_t siz
 
 /*
  * __debug_time_window --
- *     Dump a set of start and stop time pairs, with an optional tag.
+ *     Dump a time window, with an optional tag.
  */
 static inline int
 __debug_time_window(WT_DBG *ds, const char *tag, WT_TIME_WINDOW *tw)
@@ -932,7 +932,7 @@ __wt_debug_cursor_hs(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor)
     uint8_t hs_upd_type;
 
     ds = &_ds;
-    __wt_time_window_init(&tw);
+    WT_TIME_WINDOW_INIT(&tw);
 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));

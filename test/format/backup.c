@@ -299,6 +299,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
             tmp = NULL;
         }
     }
+    testutil_assert(ret == WT_NOTFOUND);
     testutil_check(incr_cur->close(incr_cur));
     if (rfd != -1) {
         error_sys_check(close(rfd));
@@ -307,6 +308,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
     }
     free(tmp);
 }
+
 /*
  * copy_file --
  *     Copy a single file into the backup directories.
