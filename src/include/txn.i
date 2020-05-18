@@ -975,7 +975,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
      */
     if (prepare_upd != NULL) {
         WT_ORDERED_READ(prepare_state, prepare_upd->prepare_state);
-        if (prepare_state != WT_PREPARE_INPROGRESS || prepare_upd->txnid == WT_TXN_ABORTED)
+        if (prepare_upd->txnid == WT_TXN_ABORTED || prepare_state == WT_PREPARE_RESOLVED)
             return (WT_RESTART);
     }
 
