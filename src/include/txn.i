@@ -919,10 +919,10 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     }
 
     /*
-     * If the stop pair is set, that means that there is a tombstone at that time. If it is not
-     * prepared and the stop time pair is visible to our txn then that means we've just spotted a
-     * tombstone and should return "not found", except for history store scan during rollback to
-     * stable and when we are told to ignore non-globally visible tombstones.
+     * If the stop time point is set, that means that there is a tombstone at that time. If it is
+     * not prepared and the it is visible to our txn then that means we've just spotted a tombstone
+     * and should return "not found", except for history store scan during rollback to stable and
+     * when we are told to ignore non-globally visible tombstones.
      */
     if (__wt_txn_tw_stop_visible(session, &tw) &&
       ((!F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
