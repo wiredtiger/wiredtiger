@@ -160,7 +160,9 @@ __wt_time_aggregate_validate(
           "aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
-    if (ta->newest_start_durable_ts > ta->newest_stop_ts)
+    /* In the case of out of order timestamps, start is equal to stop. */
+    if (ta->newest_start_durable_ts != ta->newest_stop_durable_ts &&
+      ta->newest_start_durable_ts > ta->newest_stop_ts)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has a newest stop durable time after its newest stop time; time "
           "aggregate %s",
@@ -260,7 +262,8 @@ __wt_time_value_validate(
           "value time window has a stop time after its durable stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
 
-    if (tw->durable_start_ts > tw->stop_ts)
+    /* In the case of out of order timestamps, start is equal to stop. */
+    if (tw->durable_start_ts != tw->durable_stop_ts && tw->durable_start_ts > tw->stop_ts)
         WT_TIME_VALIDATE_RET(session,
           "value time window has a durable start time after its stop time; time window %s",
           __wt_time_window_to_string(tw, time_string[0]));
