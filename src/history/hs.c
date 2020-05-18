@@ -555,6 +555,31 @@ __hs_calculate_full_value(WT_SESSION_IMPL *session, WT_ITEM *full_value, WT_UPDA
 }
 
 /*
+ * __hs_second_update_after_prepare --
+ *     Get the second update that is not a tombstone after the prepared update if it exists
+ */
+static WT_UPDATE *
+__hs_second_update_after_prepare(WT_UPDATE *upd)
+{
+    if (upd->prepare_state != WT_PREPARE_INPROGRESS || upd->type == WT_UPDATE_TOMBSTONE)
+        return (NULL);
+
+    upd = upd->next;
+
+    if (upd == NULL || upd->prepare_state == WT_PREPARE_INPROGRESS ||
+      upd->type == WT_UPDATE_TOMBSTONE)
+        return (NULL);
+
+    upd = upd->next;
+
+    if (upd == NULL || upd->prepare_state == WT_PREPARE_INPROGRESS ||
+      upd->type == WT_UPDATE_TOMBSTONE)
+        return (NULL);
+
+    return (upd);
+}
+
+/*
  * __wt_hs_insert_updates --
  *     Copy one set of saved updates into the database's history store table.
  */
@@ -669,12 +694,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
 
             /* Mark the second update after the prepared update. */
-            if (upd->prepare_state == WT_PREPARE_INPROGRESS && upd->type != WT_UPDATE_TOMBSTONE &&
-              upd->next != NULL && upd->next->prepare_state != WT_PREPARE_INPROGRESS &&
-              upd->next->type != WT_UPDATE_TOMBSTONE && upd->next->next != NULL &&
-              upd->next->next->prepare_state != WT_PREPARE_INPROGRESS &&
-              upd->next->next->type != WT_UPDATE_TOMBSTONE)
-                second_after_prepare = upd->next->next;
+            if (second_after_prepare == NULL)
+                second_after_prepare = __hs_second_update_after_prepare(upd);
 
             /*
              * If we've reached a full update and its in the history store we don't need to continue

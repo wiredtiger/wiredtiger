@@ -868,23 +868,23 @@ __wt_txn_read_upd_list(
                 continue;
             break;
         }
+
+        if (upd_visible == WT_VISIBLE_PREPARE) {
+            /* Ignore the prepared update, if transaction configuration says so. */
+            if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
+                /*
+                 * Save the prepared update to help us detect if we race with prepared commit or
+                 * rollback.
+                 */
+                if (prepare_updp != NULL)
+                    *prepare_updp = upd;
+                return (WT_VISIBLE_FALSE);
+            }
+            return (WT_PREPARE_CONFLICT);
+        }
     }
     if (upd == NULL)
         return (0);
-
-    if (upd_visible == WT_VISIBLE_PREPARE) {
-        /* Ignore the prepared update, if transaction configuration says so. */
-        if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
-            /*
-             * Save the prepared update to help us detect if we race with prepared commit or
-             * rollback.
-             */
-            if (prepare_updp != NULL)
-                *prepare_updp = upd;
-            return (WT_VISIBLE_FALSE);
-        }
-        return (WT_PREPARE_CONFLICT);
-    }
 
     /*
      * Now assign to the update value. If it's not a modify, we're free to simply point the value at
