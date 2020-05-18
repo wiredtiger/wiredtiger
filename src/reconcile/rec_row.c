@@ -797,7 +797,7 @@ __wt_rec_row_leaf(
 
                     /* Rebuild the cell. */
                     val->cell_len = __wt_cell_pack_ovfl(
-                      session, r, &val->cell, vpack->raw, &tw, 0, val->buf.size);
+                      session, &r->cell_stats, &val->cell, vpack->raw, &tw, 0, val->buf.size);
                     val->len = val->cell_len + val->buf.size;
                 } else
                     WT_ERR(__rec_cell_repack(session, btree, r, vpack, &tw));
