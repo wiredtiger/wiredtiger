@@ -866,9 +866,11 @@ static int
 __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, WT_CURSOR **cursorp)
 {
     WT_CURSOR *hs_cursor;
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_TXN *txn;
-    WT_UPDATE *fix_upd, *upd;
+    WT_UPDATE *fix_upd, *tombstone, *upd;
+    size_t size;
     uint32_t hs_btree_id, session_flags;
     bool is_owner, upd_appended;
 
@@ -905,7 +907,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      */
     if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK) && upd->type != WT_UPDATE_TOMBSTONE) {
         hs_btree_id = S2BT(session)->id;
-
+        cbt = (WT_CURSOR_BTREE *)(*cursorp);
         /* Open a history store table cursor. */
         WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
         /* We must be the owner of the history store cursor. */
@@ -921,9 +923,20 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
           true);
 
         if (ret == 0)
-            WT_ERR(__txn_append_hs_record(session, hs_cursor, &op->u.op_row.key,
-              ((WT_CURSOR_BTREE *)(*cursorp))->ref->page, upd, commit, &fix_upd, &upd_appended));
-        else
+            WT_ERR(__txn_append_hs_record(session, hs_cursor, &op->u.op_row.key, cbt->ref->page,
+              upd, commit, &fix_upd, &upd_appended));
+        else if (ret == WT_NOTFOUND && !commit) {
+            /*
+             * Allocate a tombstone so that when we reconcile the update chain we don't copy the
+             * prepared cell, which is now associated with a rolled back prepare, and instead write
+             * nothing.
+             */
+            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
+            /* Apply the tombstone to the row. */
+            WT_WITH_BTREE(session, op->btree, ret = __wt_row_modify(cbt, &cbt->iface.key, NULL,
+                                                tombstone, WT_UPDATE_INVALID, true));
+            WT_ERR(ret);
+        } else
             ret = 0;
     }
 
