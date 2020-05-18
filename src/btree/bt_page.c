@@ -618,7 +618,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                 upd->txnid = unpack.tw.start_txn;
 
                 /*
-                 * Instantiating both update and tombstone if the prepared update is of tombstone.
+                 * Instantiating both update and tombstone if the prepared update is a tombstone.
                  * This is required to ensure that written prepared delete operation must be removed
                  * from the data store, when the prepared transaction gets rollback.
                  */
