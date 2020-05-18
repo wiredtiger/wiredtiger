@@ -908,7 +908,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
         /* Open a history store table cursor. */
         WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
-        /* We must be the owner of the history cursor. */
+        /* We must be the owner of the history store cursor. */
         WT_ASSERT(session, is_owner);
         hs_cursor = session->hs_cursor;
 
