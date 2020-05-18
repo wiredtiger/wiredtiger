@@ -878,11 +878,12 @@ __wt_txn_read_upd_list(
                  */
                 if (prepare_updp != NULL)
                     *prepare_updp = upd;
-                return (WT_VISIBLE_FALSE);
+                continue;
             }
             return (WT_PREPARE_CONFLICT);
         }
     }
+
     if (upd == NULL)
         return (0);
 
