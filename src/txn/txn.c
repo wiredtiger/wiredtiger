@@ -917,6 +917,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * Scan the history store for the given btree and key with maximum start timestamp to let
          * the search point to the last version of the key.
          */
+        F_SET(hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
         WT_ERR_NOTFOUND_OK(
           __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, &op->u.op_row.key, WT_TS_MAX),
           true);
@@ -998,8 +999,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd, commit));
 
 err:
-    if (hs_cursor != NULL)
+    if (hs_cursor != NULL) {
+        F_CLR(hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
         ret = __wt_hs_cursor_close(session, session_flags, is_owner);
+    }
     if (!upd_appended)
         __wt_free(session, fix_upd);
     return (ret);
