@@ -773,16 +773,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline bool
 __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    WT_VISIBLE_TYPE upd_visible;
-
-    upd_visible = __wt_txn_upd_visible_type(session, upd);
-    if (upd_visible == WT_VISIBLE_TRUE)
-        return true;
-    /* Ignore the prepared update, if transaction configuration says so. */
-    if (upd_visible == WT_VISIBLE_PREPARE)
-        return (
-          F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE) ? WT_VISIBLE_FALSE : WT_PREPARE_CONFLICT);
-    return (false);
+    return (__wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE);
 }
 
 /*
