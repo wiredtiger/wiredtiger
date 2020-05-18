@@ -876,7 +876,7 @@ __wt_txn_read_upd_list(
                  * Save the prepared update to help us detect if we race with prepared commit or
                  * rollback.
                  */
-                if (prepare_updp != NULL)
+                if (prepare_updp != NULL && *prepare_updp == NULL)
                     *prepare_updp = upd;
                 continue;
             }
