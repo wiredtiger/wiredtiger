@@ -574,7 +574,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
-    WT_UPDATE *prev_upd, *upd;
+    WT_UPDATE *prev_upd, *second_after_prepare, *upd;
     WT_HS_TIME_POINT stop_time_point;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size;
@@ -634,6 +634,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
           session, btree, upd = __wt_update_obsolete_check(session, page, list->onpage_upd, true));
         __wt_free_update_list(session, &upd);
         upd = list->onpage_upd;
+        second_after_prepare = NULL;
 
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
@@ -666,6 +667,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
+
+            /* Mark the second update after the prepared update. */
+            if (upd->prepare_state == WT_PREPARE_INPROGRESS && upd->type != WT_UPDATE_TOMBSTONE &&
+              upd->next != NULL && upd->next->prepare_state != WT_PREPARE_INPROGRESS &&
+              upd->next->type != WT_UPDATE_TOMBSTONE && upd->next->next != NULL &&
+              upd->next->next->prepare_state != WT_PREPARE_INPROGRESS &&
+              upd->next->next->type != WT_UPDATE_TOMBSTONE)
+                second_after_prepare = upd->next->next;
 
             /*
              * If we've reached a full update and its in the history store we don't need to continue
@@ -764,13 +773,16 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  * It is not correct to check prev_upd == list->onpage_upd as we may have aborted
                  * updates in the middle.
                  *
-                 * We can't calculate reverse modify based on an uncommitted prepared update because
-                 * it may be aborted.
+                 * We must insert the first and second updates after a prepared update as full
+                 * values because if the prepared update is aborted, we will remove the first update
+                 * after it from the history store to the update chain. Readers reading the older
+                 * values need a full update as the base value for constructing reverse modifies.
                  */
                 nentries = MAX_REVERSE_MODIFY_NUM;
                 if (!F_ISSET(upd, WT_UPDATE_HS)) {
                     if (upd->type == WT_UPDATE_MODIFY &&
                       prev_upd->prepare_state != WT_PREPARE_INPROGRESS &&
+                      (second_after_prepare == NULL || upd != second_after_prepare) &&
                       __wt_calc_modify(session, prev_full_value, full_value,
                         prev_full_value->size / 10, entries, &nentries) == 0) {
                         WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
@@ -884,7 +896,7 @@ err:
  */
 int
 __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
-  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf, WT_UPDATE *prepare_upd)
+  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_value);
@@ -898,7 +910,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     wt_timestamp_t hs_stop_durable_ts, hs_stop_durable_ts_tmp, read_timestamp;
     uint64_t hs_counter, hs_counter_tmp, upd_type_full;
     uint32_t hs_btree_id, session_flags;
-    uint8_t *p, prepare_state, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
+    uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
     bool is_owner, modify;
 
@@ -1032,20 +1044,6 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         }
         F_CLR(session, WT_SESSION_RESOLVING_MODIFY);
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
-
-        /*
-         * We are racing with prepare commit or rollback. It is not safe to reconstruct the modify
-         * value as the base value may have been removed from the history store and we may apply
-         * modify on the wrong base value. Restart the search.
-         */
-        if (prepare_upd != NULL) {
-            WT_ORDERED_READ(prepare_state, prepare_upd->prepare_state);
-            if (prepare_upd->txnid == WT_TXN_ABORTED || prepare_state == WT_PREPARE_RESOLVED) {
-                ret = WT_RESTART;
-                goto err;
-            }
-        }
-
         while (modifies.size > 0) {
             __wt_modify_vector_pop(&modifies, &mod_upd);
             WT_ERR(__wt_modify_apply_item(session, value_format, hs_value, mod_upd->data));
