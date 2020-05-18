@@ -725,7 +725,7 @@ __wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp
  *     Visible type of given update for the current transaction.
  */
 static inline WT_VISIBLE_TYPE
-__wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **prepare_updp)
+__wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
     uint8_t prepare_state, previous_state;
     bool upd_visible;
@@ -760,19 +760,8 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **
     if (!upd_visible)
         return (WT_VISIBLE_FALSE);
 
-    /* Ignore the prepared update, if transaction configuration says so. */
-    if (prepare_state == WT_PREPARE_INPROGRESS) {
-        if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
-            /* 
-             * Save the prepared update to help us detect if we race with prepared commit or
-             * rollback.
-             */
-            if (prepare_updp != NULL)
-                *prepare_updp = upd;
-            return (WT_VISIBLE_FALSE);
-        }
+    if (prepare_state == WT_PREPARE_INPROGRESS)
         return (WT_VISIBLE_PREPARE);
-    }
 
     return (WT_VISIBLE_TRUE);
 }
@@ -784,7 +773,16 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **
 static inline bool
 __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    return (__wt_txn_upd_visible_type(session, upd, NULL) == WT_VISIBLE_TRUE);
+    WT_VISIBLE_TYPE upd_visible;
+
+    upd_visible = __wt_txn_upd_visible_type(session, upd);
+    if (upd_visible == WT_VISIBLE_TRUE)
+        return true;
+    /* Ignore the prepared update, if transaction configuration says so. */
+    if (upd_visible == WT_VISIBLE_PREPARE)
+        return (
+          F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE) ? WT_VISIBLE_FALSE : WT_PREPARE_CONFLICT);
+    return (false);
 }
 
 /*
@@ -863,8 +861,7 @@ __wt_txn_read_upd_list(
         if (type == WT_UPDATE_RESERVE)
             continue;
         /* Save the first prepared update we see. */
-        upd_visible = __wt_txn_upd_visible_type(
-          session, upd, prepare_updp != NULL && *prepare_updp == NULL ? prepare_updp : NULL);
+        upd_visible = __wt_txn_upd_visible_type(session, upd);
         if (upd_visible == WT_VISIBLE_TRUE) {
             /*
              * Ignore non-globally visible tombstones when we are doing history store scans in
@@ -877,11 +874,24 @@ __wt_txn_read_upd_list(
                 continue;
             break;
         }
-        if (upd_visible == WT_VISIBLE_PREPARE)
-            return (WT_PREPARE_CONFLICT);
     }
     if (upd == NULL)
         return (0);
+
+    if (upd_visible == WT_VISIBLE_PREPARE) {
+        /* Ignore the prepared update, if transaction configuration says so. */
+        if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
+            /*
+             * Save the prepared update to help us detect if we race with prepared commit or
+             * rollback.
+             */
+            if (prepare_updp != NULL)
+                *prepare_updp = upd;
+            return (WT_VISIBLE_FALSE);
+        }
+        return (WT_PREPARE_CONFLICT);
+    }
+
     /*
      * Now assign to the update value. If it's not a modify, we're free to simply point the value at
      * the update's memory without owning it. If it is a modify, we need to reconstruct the full
