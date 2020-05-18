@@ -1253,7 +1253,7 @@ __checkpoint_lock_dirty_tree(
     WT_ASSERT(session, !need_tracking || WT_IS_METADATA(dhandle) || WT_META_TRACKING(session));
 
     /* Get the list of checkpoints for this file. */
-    WT_RET(__wt_meta_ckptlist_get(session, dhandle->name, &ckptbase));
+    WT_RET(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase));
 
     /* This may be a named checkpoint, check the configuration. */
     cval.len = 0;
@@ -1319,19 +1319,12 @@ __checkpoint_lock_dirty_tree(
             continue;
         is_wt_ckpt = WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT);
 
-/*
- * If there is a hot backup, don't delete any WiredTiger checkpoint that could possibly have been
- * created before the backup started. Fail if trying to delete any other named checkpoint.
- */
-#ifdef DISABLED_CODE
-        if (conn->hot_backup_start != 0 && ckpt->sec <= conn->hot_backup_start) {
-#else
         /*
-         * N.B. Despite the comment above, dropping checkpoints during backup can corrupt the
-         * backup. For now we retain all WiredTiger checkpoints.
+         * If there is a hot backup, don't delete any WiredTiger checkpoint that could possibly have
+         * been created before the backup started. Fail if trying to delete any other named
+         * checkpoint.
          */
-        if (conn->hot_backup_start != 0) {
-#endif
+        if (conn->hot_backup_start != 0 && ckpt->sec <= conn->hot_backup_start) {
             if (is_wt_ckpt) {
                 F_CLR(ckpt, WT_CKPT_DELETE);
                 continue;

@@ -41,7 +41,7 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
     conn->default_session = session;
 
     __wt_seconds(session, &most_recent);
-    conn->ckpt_most_recent = most_recent;
+    conn->ckpt_most_recent = (uint64_t)most_recent;
 
     /*
      * Publish: there must be a barrier to ensure the connection structure fields are set before
