@@ -759,8 +759,8 @@ __txn_fixup_prepared_update(
     WT_ASSERT(session, fix_upd->type == WT_UPDATE_STANDARD);
 
     /*
-     * If we found a history value that satisfied the given timestamp, add it to the update list.
-     * Otherwise remove the key by adding a tombstone.
+     * If the history update already has a stop time point and we are committing the prepared update
+     * there is no work to do.
      */
     if (commit) {
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
