@@ -763,7 +763,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **
     /* Ignore the prepared update, if transaction configuration says so. */
     if (prepare_state == WT_PREPARE_INPROGRESS) {
         if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
-            /* 
+            /*
              * Save the prepared update to help us detect if we race with prepared commit or
              * rollback.
              */
@@ -910,7 +910,6 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
 {
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd;
-    uint8_t prepare_state;
 
     prepare_upd = NULL;
 
@@ -976,17 +975,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
         WT_RET_NOTFOUND_OK(__wt_find_hs_upd(session, key, cbt->iface.value_format, recno,
-          cbt->upd_value, false, &cbt->upd_value->buf));
-
-    /*
-     * Retry if we race with prepared commit or rollback as the reader may have read changed history
-     * store content.
-     */
-    if (prepare_upd != NULL) {
-        WT_ORDERED_READ(prepare_state, prepare_upd->prepare_state);
-        if (prepare_upd->txnid == WT_TXN_ABORTED || prepare_state == WT_PREPARE_RESOLVED)
-            return (WT_RESTART);
-    }
+          cbt->upd_value, false, &cbt->upd_value->buf, prepare_upd));
 
     /* Return invalid not tombstone if nothing is found in history store. */
     WT_ASSERT(session, cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
