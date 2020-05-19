@@ -594,11 +594,10 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline bool
 __wt_txn_upd_value_visible_all(WT_SESSION_IMPL *session, WT_UPDATE_VALUE *upd_value)
 {
-    if (upd_value->prepare_state == WT_PREPARE_LOCKED ||
-      upd_value->prepare_state == WT_PREPARE_INPROGRESS)
-        return (false);
-
-    return (__wt_txn_visible_all(session, upd_value->txnid, upd_value->durable_ts));
+    WT_ASSERT(session, upd_value->tw.prepare == 0);
+    return (upd_value->type == WT_UPDATE_TOMBSTONE ?
+        __wt_txn_visible_all(session, upd_value->tw.stop_txn, upd_value->tw.durable_stop_ts) :
+        __wt_txn_visible_all(session, upd_value->tw.start_txn, upd_value->tw.durable_start_ts));
 }
 
 /*
@@ -864,8 +863,14 @@ __wt_txn_read_upd_list(
             if (type == WT_UPDATE_TOMBSTONE &&
               (F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) ||
                   (WT_IS_HS(S2BT(session)) && F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))) &&
-              !__wt_txn_upd_visible_all(session, upd))
+              !__wt_txn_upd_visible_all(session, upd)) {
+                cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
+                cbt->upd_value->tw.stop_ts = upd->start_ts;
+                cbt->upd_value->tw.stop_txn = upd->txnid;
+                cbt->upd_value->tw.prepare = upd->prepare_state == WT_PREPARE_INPROGRESS ||
+                  upd->prepare_state == WT_PREPARE_LOCKED;
                 continue;
+            }
             break;
         }
 
@@ -953,11 +958,20 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
           __wt_txn_tw_stop_visible_all(session, &tw))) {
         cbt->upd_value->buf.data = NULL;
         cbt->upd_value->buf.size = 0;
-        cbt->upd_value->durable_ts = tw.durable_stop_ts;
-        cbt->upd_value->txnid = tw.stop_txn;
+        cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
+        cbt->upd_value->tw.stop_ts = tw.stop_ts;
+        cbt->upd_value->tw.stop_txn = tw.stop_txn;
+        cbt->upd_value->tw.prepare = tw.prepare;
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
-        cbt->upd_value->prepare_state = WT_PREPARE_INIT;
         return (0);
+    }
+
+    /* Store the stop time pair of the history store record that is returning. */
+    if (WT_TIME_WINDOW_HAS_STOP(&tw) && WT_IS_HS(S2BT(session))) {
+        cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
+        cbt->upd_value->tw.stop_ts = tw.stop_ts;
+        cbt->upd_value->tw.stop_txn = tw.stop_txn;
+        cbt->upd_value->tw.prepare = tw.prepare;
     }
 
     /* If the start time point is visible then we need to return the ondisk value. */
@@ -971,10 +985,11 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
             cbt->upd_value->buf.data = NULL;
             cbt->upd_value->buf.size = 0;
         }
-        cbt->upd_value->durable_ts = tw.durable_start_ts;
-        cbt->upd_value->txnid = tw.start_txn;
+        cbt->upd_value->tw.durable_start_ts = tw.durable_start_ts;
+        cbt->upd_value->tw.start_ts = tw.start_ts;
+        cbt->upd_value->tw.start_txn = tw.start_txn;
+        cbt->upd_value->tw.prepare = tw.prepare;
         cbt->upd_value->type = WT_UPDATE_STANDARD;
-        cbt->upd_value->prepare_state = WT_PREPARE_INIT;
         return (0);
     }
 
@@ -1357,10 +1372,20 @@ __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd)
         upd_value->buf.data = upd->data;
         upd_value->buf.size = upd->size;
     }
-    upd_value->durable_ts = upd->durable_ts;
-    upd_value->txnid = upd->txnid;
+    if (upd->type == WT_UPDATE_TOMBSTONE) {
+        upd_value->tw.durable_stop_ts = upd->durable_ts;
+        upd_value->tw.stop_ts = upd->start_ts;
+        upd_value->tw.stop_txn = upd->txnid;
+        upd_value->tw.prepare =
+          upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
+    } else {
+        upd_value->tw.durable_start_ts = upd->durable_ts;
+        upd_value->tw.start_ts = upd->start_ts;
+        upd_value->tw.start_txn = upd->txnid;
+        upd_value->tw.prepare =
+          upd->prepare_state == WT_PREPARE_INPROGRESS || upd->prepare_state == WT_PREPARE_LOCKED;
+    }
     upd_value->type = upd->type;
-    upd_value->prepare_state = upd->prepare_state;
 }
 
 /*
@@ -1376,8 +1401,6 @@ __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value)
      */
     upd_value->buf.data = NULL;
     upd_value->buf.size = 0;
-    upd_value->durable_ts = WT_TS_NONE;
-    upd_value->txnid = WT_TXN_NONE;
+    WT_TIME_WINDOW_INIT(&upd_value->tw);
     upd_value->type = WT_UPDATE_INVALID;
-    upd_value->prepare_state = WT_PREPARE_INIT;
 }
