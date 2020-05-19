@@ -631,7 +631,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
 
     WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
-    /* Stop before crossing over to the next btree */
+    /* Not found if we cross the tree boundary. */
     if (hs_btree_id != S2BT(session)->id) {
         ret = WT_NOTFOUND;
         goto done;
@@ -929,6 +929,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
           true);
 
         if (ret == 0)
+            /* Not found if we cross the tree or key boundary. */
             WT_ERR_NOTFOUND_OK(__txn_append_hs_record(session, hs_cursor, &op->u.op_row.key,
                                  cbt->ref->page, upd, commit, &fix_upd, &upd_appended),
               true);
