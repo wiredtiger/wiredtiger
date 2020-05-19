@@ -145,18 +145,13 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
         # Search keys with timestamp 20, ignore_prepare=false and expect the cursor the cursor search to return prepare conflict message
         self.search_keys_timestamp_and_ignore(ds, txn_config, prepare_conflict_msg, True)
 
-        # If commit is True then commit the transactions else simulate a crash which would
+        # If commit is True then commit the transactions and simulate a crash which would
         # eventualy rollback transactions.
         if self.commit == True:
             # Commit the prepared_transactions with timestamp 30.
             for j in range (0, self.nsessions):
                 sessions[j].commit_transaction(
                     'commit_timestamp=' + timestamp_str(30) + ',durable_timestamp=' + timestamp_str(30))
-
-            # Close all cursors and sessions.
-            for j in range (0, self.nsessions):
-                cursors[j].close()
-                sessions[j].close()
 
         self.session.checkpoint()
 
