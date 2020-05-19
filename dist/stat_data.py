@@ -400,7 +400,6 @@ connection_stats = [
     HistoryStat('hs_gc_pages_evict', 'history pages added for eviction during garbage collection'),
     HistoryStat('hs_gc_pages_removed', 'history pages removed for garbage collection'),
     HistoryStat('hs_gc_pages_visited', 'history pages visited for garbage collection'),
-    HistoryStat('hs_write_addr_prepared', 'pages written that included at least one prepare state'),
 
     ##########################################
     # Locking statistics

@@ -516,7 +516,6 @@ struct __wt_connection_stats {
     int64_t hs_gc_pages_evict;
     int64_t hs_gc_pages_removed;
     int64_t hs_gc_pages_visited;
-    int64_t hs_write_addr_prepared;
     int64_t lock_checkpoint_count;
     int64_t lock_checkpoint_wait_application;
     int64_t lock_checkpoint_wait_internal;
