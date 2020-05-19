@@ -83,29 +83,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: update calls", "cursor: update key and value bytes", "cursor: update value size change",
   "history: history pages added for eviction during garbage collection",
   "history: history pages removed for garbage collection",
-  "history: history pages visited for garbage collection",
-  "history: page addresses written that include a newest start durable timestamp ",
-  "history: page addresses written that include a newest stop durable timestamp ",
-  "history: page addresses written that include a newest stop timestamp ",
-  "history: page addresses written that include a newest stop transaction ID",
-  "history: page addresses written that include a oldest start timestamp ",
-  "history: page addresses written that include a oldest start transaction ID ",
-  "history: page addresses written that included at least one prepare state",
-  "history: pages written that included at least one prepare state",
-  "history: pages written that included at least one start durable timestamp",
-  "history: pages written that included at least one start timestamp",
-  "history: pages written that included at least one start transaction ID",
-  "history: pages written that included at least one stop durable timestamp",
-  "history: pages written that included at least one stop timestamp",
-  "history: pages written that included at least one stop transaction ID",
-  "history: records written that included a prepare state",
-  "history: records written that included a start durable timestamp",
-  "history: records written that included a start timestamp",
-  "history: records written that included a start transaction ID",
-  "history: records written that included a stop durable timestamp",
-  "history: records written that included a stop timestamp",
-  "history: records written that included a stop transaction ID",
-  "reconciliation: dictionary matches", "reconciliation: fast-path pages deleted",
+  "history: history pages visited for garbage collection", "reconciliation: dictionary matches",
+  "reconciliation: fast-path pages deleted",
   "reconciliation: internal page key bytes discarded using suffix compression",
   "reconciliation: internal page multi-block writes", "reconciliation: internal-page overflow keys",
   "reconciliation: leaf page key bytes discarded using prefix compression",
@@ -113,7 +92,28 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: maximum blocks required for a page", "reconciliation: overflow values written",
   "reconciliation: page checksum matches", "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction", "reconciliation: pages deleted",
-  "session: object compaction", "transaction: update conflicts",
+  "reconciliation: pages written including an aggregated newest start durable timestamp ",
+  "reconciliation: pages written including an aggregated newest stop durable timestamp ",
+  "reconciliation: pages written including an aggregated newest stop timestamp ",
+  "reconciliation: pages written including an aggregated newest stop transaction ID",
+  "reconciliation: pages written including an aggregated oldest start timestamp ",
+  "reconciliation: pages written including an aggregated oldest start transaction ID ",
+  "reconciliation: pages written including an aggregated prepare",
+  "reconciliation: pages written including at least one prepare",
+  "reconciliation: pages written including at least one start durable timestamp",
+  "reconciliation: pages written including at least one start timestamp",
+  "reconciliation: pages written including at least one start transaction ID",
+  "reconciliation: pages written including at least one stop durable timestamp",
+  "reconciliation: pages written including at least one stop timestamp",
+  "reconciliation: pages written including at least one stop transaction ID",
+  "reconciliation: records written including a prepare",
+  "reconciliation: records written including a start durable timestamp",
+  "reconciliation: records written including a start timestamp",
+  "reconciliation: records written including a start transaction ID",
+  "reconciliation: records written including a stop durable timestamp",
+  "reconciliation: records written including a stop timestamp",
+  "reconciliation: records written including a stop transaction ID", "session: object compaction",
+  "transaction: update conflicts",
 };
 
 int
@@ -287,27 +287,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->hs_gc_pages_evict = 0;
     stats->hs_gc_pages_removed = 0;
     stats->hs_gc_pages_visited = 0;
-    stats->hs_write_addr_newest_start_durable_ts = 0;
-    stats->hs_write_addr_newest_stop_durable_ts = 0;
-    stats->hs_write_addr_newest_stop_ts = 0;
-    stats->hs_write_addr_newest_stop_txn = 0;
-    stats->hs_write_addr_oldest_start_ts = 0;
-    stats->hs_write_addr_oldest_start_txn = 0;
-    stats->hs_write_addr_prepared = 0;
-    stats->hs_write_pages_prepared = 0;
-    stats->hs_write_pages_durable_start_ts = 0;
-    stats->hs_write_pages_start_ts = 0;
-    stats->hs_write_pages_start_txn = 0;
-    stats->hs_write_pages_durable_stop_ts = 0;
-    stats->hs_write_pages_stop_ts = 0;
-    stats->hs_write_pages_stop_txn = 0;
-    stats->hs_write_rec_prepared = 0;
-    stats->hs_write_rec_durable_start_ts = 0;
-    stats->hs_write_rec_start_ts = 0;
-    stats->hs_write_rec_start_txn = 0;
-    stats->hs_write_rec_durable_stop_ts = 0;
-    stats->hs_write_rec_stop_ts = 0;
-    stats->hs_write_rec_stop_txn = 0;
     stats->rec_dictionary = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_suffix_compression = 0;
@@ -322,6 +301,27 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
     stats->rec_page_delete = 0;
+    stats->rec_time_aggr_newest_start_durable_ts = 0;
+    stats->rec_time_aggr_newest_stop_durable_ts = 0;
+    stats->rec_time_aggr_newest_stop_ts = 0;
+    stats->rec_time_aggr_newest_stop_txn = 0;
+    stats->rec_time_aggr_oldest_start_ts = 0;
+    stats->rec_time_aggr_oldest_start_txn = 0;
+    stats->rec_time_aggr_prepared = 0;
+    stats->rec_time_pages_prepared = 0;
+    stats->rec_time_pages_durable_start_ts = 0;
+    stats->rec_time_pages_start_ts = 0;
+    stats->rec_time_pages_start_txn = 0;
+    stats->rec_time_pages_durable_stop_ts = 0;
+    stats->rec_time_pages_stop_ts = 0;
+    stats->rec_time_pages_stop_txn = 0;
+    stats->rec_time_prepared = 0;
+    stats->rec_time_durable_start_ts = 0;
+    stats->rec_time_start_ts = 0;
+    stats->rec_time_start_txn = 0;
+    stats->rec_time_durable_stop_ts = 0;
+    stats->rec_time_stop_ts = 0;
+    stats->rec_time_stop_txn = 0;
     stats->session_compact = 0;
     stats->txn_update_conflict = 0;
 }
@@ -483,27 +483,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->hs_gc_pages_evict += from->hs_gc_pages_evict;
     to->hs_gc_pages_removed += from->hs_gc_pages_removed;
     to->hs_gc_pages_visited += from->hs_gc_pages_visited;
-    to->hs_write_addr_newest_start_durable_ts += from->hs_write_addr_newest_start_durable_ts;
-    to->hs_write_addr_newest_stop_durable_ts += from->hs_write_addr_newest_stop_durable_ts;
-    to->hs_write_addr_newest_stop_ts += from->hs_write_addr_newest_stop_ts;
-    to->hs_write_addr_newest_stop_txn += from->hs_write_addr_newest_stop_txn;
-    to->hs_write_addr_oldest_start_ts += from->hs_write_addr_oldest_start_ts;
-    to->hs_write_addr_oldest_start_txn += from->hs_write_addr_oldest_start_txn;
-    to->hs_write_addr_prepared += from->hs_write_addr_prepared;
-    to->hs_write_pages_prepared += from->hs_write_pages_prepared;
-    to->hs_write_pages_durable_start_ts += from->hs_write_pages_durable_start_ts;
-    to->hs_write_pages_start_ts += from->hs_write_pages_start_ts;
-    to->hs_write_pages_start_txn += from->hs_write_pages_start_txn;
-    to->hs_write_pages_durable_stop_ts += from->hs_write_pages_durable_stop_ts;
-    to->hs_write_pages_stop_ts += from->hs_write_pages_stop_ts;
-    to->hs_write_pages_stop_txn += from->hs_write_pages_stop_txn;
-    to->hs_write_rec_prepared += from->hs_write_rec_prepared;
-    to->hs_write_rec_durable_start_ts += from->hs_write_rec_durable_start_ts;
-    to->hs_write_rec_start_ts += from->hs_write_rec_start_ts;
-    to->hs_write_rec_start_txn += from->hs_write_rec_start_txn;
-    to->hs_write_rec_durable_stop_ts += from->hs_write_rec_durable_stop_ts;
-    to->hs_write_rec_stop_ts += from->hs_write_rec_stop_ts;
-    to->hs_write_rec_stop_txn += from->hs_write_rec_stop_txn;
     to->rec_dictionary += from->rec_dictionary;
     to->rec_page_delete_fast += from->rec_page_delete_fast;
     to->rec_suffix_compression += from->rec_suffix_compression;
@@ -519,6 +498,27 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_pages += from->rec_pages;
     to->rec_pages_eviction += from->rec_pages_eviction;
     to->rec_page_delete += from->rec_page_delete;
+    to->rec_time_aggr_newest_start_durable_ts += from->rec_time_aggr_newest_start_durable_ts;
+    to->rec_time_aggr_newest_stop_durable_ts += from->rec_time_aggr_newest_stop_durable_ts;
+    to->rec_time_aggr_newest_stop_ts += from->rec_time_aggr_newest_stop_ts;
+    to->rec_time_aggr_newest_stop_txn += from->rec_time_aggr_newest_stop_txn;
+    to->rec_time_aggr_oldest_start_ts += from->rec_time_aggr_oldest_start_ts;
+    to->rec_time_aggr_oldest_start_txn += from->rec_time_aggr_oldest_start_txn;
+    to->rec_time_aggr_prepared += from->rec_time_aggr_prepared;
+    to->rec_time_pages_prepared += from->rec_time_pages_prepared;
+    to->rec_time_pages_durable_start_ts += from->rec_time_pages_durable_start_ts;
+    to->rec_time_pages_start_ts += from->rec_time_pages_start_ts;
+    to->rec_time_pages_start_txn += from->rec_time_pages_start_txn;
+    to->rec_time_pages_durable_stop_ts += from->rec_time_pages_durable_stop_ts;
+    to->rec_time_pages_stop_ts += from->rec_time_pages_stop_ts;
+    to->rec_time_pages_stop_txn += from->rec_time_pages_stop_txn;
+    to->rec_time_prepared += from->rec_time_prepared;
+    to->rec_time_durable_start_ts += from->rec_time_durable_start_ts;
+    to->rec_time_start_ts += from->rec_time_start_ts;
+    to->rec_time_start_txn += from->rec_time_start_txn;
+    to->rec_time_durable_stop_ts += from->rec_time_durable_stop_ts;
+    to->rec_time_stop_ts += from->rec_time_stop_ts;
+    to->rec_time_stop_txn += from->rec_time_stop_txn;
     to->session_compact += from->session_compact;
     to->txn_update_conflict += from->txn_update_conflict;
 }
@@ -677,29 +677,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->hs_gc_pages_evict += WT_STAT_READ(from, hs_gc_pages_evict);
     to->hs_gc_pages_removed += WT_STAT_READ(from, hs_gc_pages_removed);
     to->hs_gc_pages_visited += WT_STAT_READ(from, hs_gc_pages_visited);
-    to->hs_write_addr_newest_start_durable_ts +=
-      WT_STAT_READ(from, hs_write_addr_newest_start_durable_ts);
-    to->hs_write_addr_newest_stop_durable_ts +=
-      WT_STAT_READ(from, hs_write_addr_newest_stop_durable_ts);
-    to->hs_write_addr_newest_stop_ts += WT_STAT_READ(from, hs_write_addr_newest_stop_ts);
-    to->hs_write_addr_newest_stop_txn += WT_STAT_READ(from, hs_write_addr_newest_stop_txn);
-    to->hs_write_addr_oldest_start_ts += WT_STAT_READ(from, hs_write_addr_oldest_start_ts);
-    to->hs_write_addr_oldest_start_txn += WT_STAT_READ(from, hs_write_addr_oldest_start_txn);
-    to->hs_write_addr_prepared += WT_STAT_READ(from, hs_write_addr_prepared);
-    to->hs_write_pages_prepared += WT_STAT_READ(from, hs_write_pages_prepared);
-    to->hs_write_pages_durable_start_ts += WT_STAT_READ(from, hs_write_pages_durable_start_ts);
-    to->hs_write_pages_start_ts += WT_STAT_READ(from, hs_write_pages_start_ts);
-    to->hs_write_pages_start_txn += WT_STAT_READ(from, hs_write_pages_start_txn);
-    to->hs_write_pages_durable_stop_ts += WT_STAT_READ(from, hs_write_pages_durable_stop_ts);
-    to->hs_write_pages_stop_ts += WT_STAT_READ(from, hs_write_pages_stop_ts);
-    to->hs_write_pages_stop_txn += WT_STAT_READ(from, hs_write_pages_stop_txn);
-    to->hs_write_rec_prepared += WT_STAT_READ(from, hs_write_rec_prepared);
-    to->hs_write_rec_durable_start_ts += WT_STAT_READ(from, hs_write_rec_durable_start_ts);
-    to->hs_write_rec_start_ts += WT_STAT_READ(from, hs_write_rec_start_ts);
-    to->hs_write_rec_start_txn += WT_STAT_READ(from, hs_write_rec_start_txn);
-    to->hs_write_rec_durable_stop_ts += WT_STAT_READ(from, hs_write_rec_durable_stop_ts);
-    to->hs_write_rec_stop_ts += WT_STAT_READ(from, hs_write_rec_stop_ts);
-    to->hs_write_rec_stop_txn += WT_STAT_READ(from, hs_write_rec_stop_txn);
     to->rec_dictionary += WT_STAT_READ(from, rec_dictionary);
     to->rec_page_delete_fast += WT_STAT_READ(from, rec_page_delete_fast);
     to->rec_suffix_compression += WT_STAT_READ(from, rec_suffix_compression);
@@ -715,6 +692,29 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_pages += WT_STAT_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_READ(from, rec_pages_eviction);
     to->rec_page_delete += WT_STAT_READ(from, rec_page_delete);
+    to->rec_time_aggr_newest_start_durable_ts +=
+      WT_STAT_READ(from, rec_time_aggr_newest_start_durable_ts);
+    to->rec_time_aggr_newest_stop_durable_ts +=
+      WT_STAT_READ(from, rec_time_aggr_newest_stop_durable_ts);
+    to->rec_time_aggr_newest_stop_ts += WT_STAT_READ(from, rec_time_aggr_newest_stop_ts);
+    to->rec_time_aggr_newest_stop_txn += WT_STAT_READ(from, rec_time_aggr_newest_stop_txn);
+    to->rec_time_aggr_oldest_start_ts += WT_STAT_READ(from, rec_time_aggr_oldest_start_ts);
+    to->rec_time_aggr_oldest_start_txn += WT_STAT_READ(from, rec_time_aggr_oldest_start_txn);
+    to->rec_time_aggr_prepared += WT_STAT_READ(from, rec_time_aggr_prepared);
+    to->rec_time_pages_prepared += WT_STAT_READ(from, rec_time_pages_prepared);
+    to->rec_time_pages_durable_start_ts += WT_STAT_READ(from, rec_time_pages_durable_start_ts);
+    to->rec_time_pages_start_ts += WT_STAT_READ(from, rec_time_pages_start_ts);
+    to->rec_time_pages_start_txn += WT_STAT_READ(from, rec_time_pages_start_txn);
+    to->rec_time_pages_durable_stop_ts += WT_STAT_READ(from, rec_time_pages_durable_stop_ts);
+    to->rec_time_pages_stop_ts += WT_STAT_READ(from, rec_time_pages_stop_ts);
+    to->rec_time_pages_stop_txn += WT_STAT_READ(from, rec_time_pages_stop_txn);
+    to->rec_time_prepared += WT_STAT_READ(from, rec_time_prepared);
+    to->rec_time_durable_start_ts += WT_STAT_READ(from, rec_time_durable_start_ts);
+    to->rec_time_start_ts += WT_STAT_READ(from, rec_time_start_ts);
+    to->rec_time_start_txn += WT_STAT_READ(from, rec_time_start_txn);
+    to->rec_time_durable_stop_ts += WT_STAT_READ(from, rec_time_durable_stop_ts);
+    to->rec_time_stop_ts += WT_STAT_READ(from, rec_time_stop_ts);
+    to->rec_time_stop_txn += WT_STAT_READ(from, rec_time_stop_txn);
     to->session_compact += WT_STAT_READ(from, session_compact);
     to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }
@@ -864,27 +864,7 @@ static const char *const __stats_connection_desc[] = {
   "history: history pages added for eviction during garbage collection",
   "history: history pages removed for garbage collection",
   "history: history pages visited for garbage collection",
-  "history: page addresses written that include a newest start durable timestamp ",
-  "history: page addresses written that include a newest stop durable timestamp ",
-  "history: page addresses written that include a newest stop timestamp ",
-  "history: page addresses written that include a newest stop transaction ID",
-  "history: page addresses written that include a oldest start timestamp ",
-  "history: page addresses written that include a oldest start transaction ID ",
-  "history: page addresses written that included at least one prepare state",
   "history: pages written that included at least one prepare state",
-  "history: pages written that included at least one start durable timestamp",
-  "history: pages written that included at least one start timestamp",
-  "history: pages written that included at least one start transaction ID",
-  "history: pages written that included at least one stop durable timestamp",
-  "history: pages written that included at least one stop timestamp",
-  "history: pages written that included at least one stop transaction ID",
-  "history: records written that included a prepare state",
-  "history: records written that included a start durable timestamp",
-  "history: records written that included a start timestamp",
-  "history: records written that included a start transaction ID",
-  "history: records written that included a stop durable timestamp",
-  "history: records written that included a stop timestamp",
-  "history: records written that included a stop transaction ID",
   "lock: checkpoint lock acquisitions",
   "lock: checkpoint lock application thread wait time (usecs)",
   "lock: checkpoint lock internal thread wait time (usecs)",
@@ -960,7 +940,29 @@ static const char *const __stats_connection_desc[] = {
   "metadata",
   "reconciliation: page reconciliation calls that resulted in values with timestamps",
   "reconciliation: page reconciliation calls that resulted in values with transaction ids",
-  "reconciliation: pages deleted", "reconciliation: split bytes currently awaiting free",
+  "reconciliation: pages deleted",
+  "reconciliation: pages written including an aggregated newest start durable timestamp ",
+  "reconciliation: pages written including an aggregated newest stop durable timestamp ",
+  "reconciliation: pages written including an aggregated newest stop timestamp ",
+  "reconciliation: pages written including an aggregated newest stop transaction ID",
+  "reconciliation: pages written including an aggregated oldest start timestamp ",
+  "reconciliation: pages written including an aggregated oldest start transaction ID ",
+  "reconciliation: pages written including an aggregated prepare",
+  "reconciliation: pages written including at least one prepare state",
+  "reconciliation: pages written including at least one start durable timestamp",
+  "reconciliation: pages written including at least one start timestamp",
+  "reconciliation: pages written including at least one start transaction ID",
+  "reconciliation: pages written including at least one stop durable timestamp",
+  "reconciliation: pages written including at least one stop timestamp",
+  "reconciliation: pages written including at least one stop transaction ID",
+  "reconciliation: records written including a prepare state",
+  "reconciliation: records written including a start durable timestamp",
+  "reconciliation: records written including a start timestamp",
+  "reconciliation: records written including a start transaction ID",
+  "reconciliation: records written including a stop durable timestamp",
+  "reconciliation: records written including a stop timestamp",
+  "reconciliation: records written including a stop transaction ID",
+  "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free", "session: open session count",
   "session: session query timestamp calls", "session: table alter failed calls",
   "session: table alter successful calls", "session: table alter unchanged and skipped",
@@ -1294,27 +1296,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->hs_gc_pages_evict = 0;
     stats->hs_gc_pages_removed = 0;
     stats->hs_gc_pages_visited = 0;
-    stats->hs_write_addr_newest_start_durable_ts = 0;
-    stats->hs_write_addr_newest_stop_durable_ts = 0;
-    stats->hs_write_addr_newest_stop_ts = 0;
-    stats->hs_write_addr_newest_stop_txn = 0;
-    stats->hs_write_addr_oldest_start_ts = 0;
-    stats->hs_write_addr_oldest_start_txn = 0;
     stats->hs_write_addr_prepared = 0;
-    stats->hs_write_pages_prepared = 0;
-    stats->hs_write_pages_durable_start_ts = 0;
-    stats->hs_write_pages_start_ts = 0;
-    stats->hs_write_pages_start_txn = 0;
-    stats->hs_write_pages_durable_stop_ts = 0;
-    stats->hs_write_pages_stop_ts = 0;
-    stats->hs_write_pages_stop_txn = 0;
-    stats->hs_write_rec_prepared = 0;
-    stats->hs_write_rec_durable_start_ts = 0;
-    stats->hs_write_rec_start_ts = 0;
-    stats->hs_write_rec_start_txn = 0;
-    stats->hs_write_rec_durable_stop_ts = 0;
-    stats->hs_write_rec_stop_ts = 0;
-    stats->hs_write_rec_stop_txn = 0;
     stats->lock_checkpoint_count = 0;
     stats->lock_checkpoint_wait_application = 0;
     stats->lock_checkpoint_wait_internal = 0;
@@ -1419,6 +1401,27 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_pages_with_ts = 0;
     stats->rec_pages_with_txn = 0;
     stats->rec_page_delete = 0;
+    stats->rec_time_aggr_newest_start_durable_ts = 0;
+    stats->rec_time_aggr_newest_stop_durable_ts = 0;
+    stats->rec_time_aggr_newest_stop_ts = 0;
+    stats->rec_time_aggr_newest_stop_txn = 0;
+    stats->rec_time_aggr_oldest_start_ts = 0;
+    stats->rec_time_aggr_oldest_start_txn = 0;
+    stats->rec_time_aggr_prepared = 0;
+    stats->rec_time_pages_prepared = 0;
+    stats->rec_time_pages_durable_start_ts = 0;
+    stats->rec_time_pages_start_ts = 0;
+    stats->rec_time_pages_start_txn = 0;
+    stats->rec_time_pages_durable_stop_ts = 0;
+    stats->rec_time_pages_stop_ts = 0;
+    stats->rec_time_pages_stop_txn = 0;
+    stats->rec_time_prepared = 0;
+    stats->rec_time_durable_start_ts = 0;
+    stats->rec_time_start_ts = 0;
+    stats->rec_time_start_txn = 0;
+    stats->rec_time_durable_stop_ts = 0;
+    stats->rec_time_stop_ts = 0;
+    stats->rec_time_stop_txn = 0;
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
     /* not clearing session_open */
@@ -1775,29 +1778,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->hs_gc_pages_evict += WT_STAT_READ(from, hs_gc_pages_evict);
     to->hs_gc_pages_removed += WT_STAT_READ(from, hs_gc_pages_removed);
     to->hs_gc_pages_visited += WT_STAT_READ(from, hs_gc_pages_visited);
-    to->hs_write_addr_newest_start_durable_ts +=
-      WT_STAT_READ(from, hs_write_addr_newest_start_durable_ts);
-    to->hs_write_addr_newest_stop_durable_ts +=
-      WT_STAT_READ(from, hs_write_addr_newest_stop_durable_ts);
-    to->hs_write_addr_newest_stop_ts += WT_STAT_READ(from, hs_write_addr_newest_stop_ts);
-    to->hs_write_addr_newest_stop_txn += WT_STAT_READ(from, hs_write_addr_newest_stop_txn);
-    to->hs_write_addr_oldest_start_ts += WT_STAT_READ(from, hs_write_addr_oldest_start_ts);
-    to->hs_write_addr_oldest_start_txn += WT_STAT_READ(from, hs_write_addr_oldest_start_txn);
     to->hs_write_addr_prepared += WT_STAT_READ(from, hs_write_addr_prepared);
-    to->hs_write_pages_prepared += WT_STAT_READ(from, hs_write_pages_prepared);
-    to->hs_write_pages_durable_start_ts += WT_STAT_READ(from, hs_write_pages_durable_start_ts);
-    to->hs_write_pages_start_ts += WT_STAT_READ(from, hs_write_pages_start_ts);
-    to->hs_write_pages_start_txn += WT_STAT_READ(from, hs_write_pages_start_txn);
-    to->hs_write_pages_durable_stop_ts += WT_STAT_READ(from, hs_write_pages_durable_stop_ts);
-    to->hs_write_pages_stop_ts += WT_STAT_READ(from, hs_write_pages_stop_ts);
-    to->hs_write_pages_stop_txn += WT_STAT_READ(from, hs_write_pages_stop_txn);
-    to->hs_write_rec_prepared += WT_STAT_READ(from, hs_write_rec_prepared);
-    to->hs_write_rec_durable_start_ts += WT_STAT_READ(from, hs_write_rec_durable_start_ts);
-    to->hs_write_rec_start_ts += WT_STAT_READ(from, hs_write_rec_start_ts);
-    to->hs_write_rec_start_txn += WT_STAT_READ(from, hs_write_rec_start_txn);
-    to->hs_write_rec_durable_stop_ts += WT_STAT_READ(from, hs_write_rec_durable_stop_ts);
-    to->hs_write_rec_stop_ts += WT_STAT_READ(from, hs_write_rec_stop_ts);
-    to->hs_write_rec_stop_txn += WT_STAT_READ(from, hs_write_rec_stop_txn);
     to->lock_checkpoint_count += WT_STAT_READ(from, lock_checkpoint_count);
     to->lock_checkpoint_wait_application += WT_STAT_READ(from, lock_checkpoint_wait_application);
     to->lock_checkpoint_wait_internal += WT_STAT_READ(from, lock_checkpoint_wait_internal);
@@ -1906,6 +1887,29 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_pages_with_ts += WT_STAT_READ(from, rec_pages_with_ts);
     to->rec_pages_with_txn += WT_STAT_READ(from, rec_pages_with_txn);
     to->rec_page_delete += WT_STAT_READ(from, rec_page_delete);
+    to->rec_time_aggr_newest_start_durable_ts +=
+      WT_STAT_READ(from, rec_time_aggr_newest_start_durable_ts);
+    to->rec_time_aggr_newest_stop_durable_ts +=
+      WT_STAT_READ(from, rec_time_aggr_newest_stop_durable_ts);
+    to->rec_time_aggr_newest_stop_ts += WT_STAT_READ(from, rec_time_aggr_newest_stop_ts);
+    to->rec_time_aggr_newest_stop_txn += WT_STAT_READ(from, rec_time_aggr_newest_stop_txn);
+    to->rec_time_aggr_oldest_start_ts += WT_STAT_READ(from, rec_time_aggr_oldest_start_ts);
+    to->rec_time_aggr_oldest_start_txn += WT_STAT_READ(from, rec_time_aggr_oldest_start_txn);
+    to->rec_time_aggr_prepared += WT_STAT_READ(from, rec_time_aggr_prepared);
+    to->rec_time_pages_prepared += WT_STAT_READ(from, rec_time_pages_prepared);
+    to->rec_time_pages_durable_start_ts += WT_STAT_READ(from, rec_time_pages_durable_start_ts);
+    to->rec_time_pages_start_ts += WT_STAT_READ(from, rec_time_pages_start_ts);
+    to->rec_time_pages_start_txn += WT_STAT_READ(from, rec_time_pages_start_txn);
+    to->rec_time_pages_durable_stop_ts += WT_STAT_READ(from, rec_time_pages_durable_stop_ts);
+    to->rec_time_pages_stop_ts += WT_STAT_READ(from, rec_time_pages_stop_ts);
+    to->rec_time_pages_stop_txn += WT_STAT_READ(from, rec_time_pages_stop_txn);
+    to->rec_time_prepared += WT_STAT_READ(from, rec_time_prepared);
+    to->rec_time_durable_start_ts += WT_STAT_READ(from, rec_time_durable_start_ts);
+    to->rec_time_start_ts += WT_STAT_READ(from, rec_time_start_ts);
+    to->rec_time_start_txn += WT_STAT_READ(from, rec_time_start_txn);
+    to->rec_time_durable_stop_ts += WT_STAT_READ(from, rec_time_durable_stop_ts);
+    to->rec_time_stop_ts += WT_STAT_READ(from, rec_time_stop_ts);
+    to->rec_time_stop_txn += WT_STAT_READ(from, rec_time_stop_txn);
     to->rec_split_stashed_bytes += WT_STAT_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_READ(from, rec_split_stashed_objects);
     to->session_open += WT_STAT_READ(from, session_open);
