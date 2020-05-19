@@ -915,7 +915,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
         /*
          * Scan the history store for the given btree and key with maximum start timestamp to let
-         * the search point to the last version of the key.
+         * the search point to the last version of the key. We must ignore tombstone in the history
+         * store while retrieving the update from the history store to replace the update in the
+         * data store.
          */
         F_SET(hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
         WT_ERR_NOTFOUND_OK(
