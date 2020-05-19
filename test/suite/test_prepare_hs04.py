@@ -50,6 +50,11 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
     nkeys = 40
     nrows = 100
 
+    scenarios = make_scenarios([
+        ('commit_transaction', dict(commit=True)),
+        ('rollback_transaction', dict(commit=False))
+    ])
+
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
         val = stat_cursor[stat][2]
@@ -77,7 +82,7 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
     def prepare_updates(self, ds):
 
         # Commit some updates to get eviction and history store fired up
-        # Insert a ket at timestamp 1
+        # Insert a key at timestamp 1
         commit_key = "C"
         commit_value = b"bbbbb" * 100
         cursor = self.session.open_cursor(self.uri)
@@ -93,8 +98,6 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
         # Call checkpoint
         self.session.checkpoint()
 
-        # Remove the committed key at timestamp 10
-        commit_value = b"bbbbb" * 100
         cursor = self.session.open_cursor(self.uri)
         for i in range(1, self.nsessions * self.nkeys):
             self.session.begin_transaction('isolation=snapshot')
@@ -142,12 +145,19 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
         # Search keys with timestamp 20, ignore_prepare=false and expect the cursor the cursor search to return prepare conflict message
         self.search_keys_timestamp_and_ignore(ds, txn_config, prepare_conflict_msg, True)
 
-        # Commit the prepared_transactions with timestamp 30.
-        for j in range (0, self.nsessions):
-            sessions[j].commit_transaction(
-                'commit_timestamp=' + timestamp_str(30) + ',durable_timestamp=' + timestamp_str(30))
+        # If commit is True then commit the transactions else simulate a crash which would
+        # eventualy rollback transactions.
+        if self.commit == True:
+            # Commit the prepared_transactions with timestamp 30.
+            for j in range (0, self.nsessions):
+                sessions[j].commit_transaction(
+                    'commit_timestamp=' + timestamp_str(30) + ',durable_timestamp=' + timestamp_str(30))
 
-        #self.session.commit_transaction()
+            # Close all cursors and sessions.
+            for j in range (0, self.nsessions):
+                cursors[j].close()
+                sessions[j].close()
+
         self.session.checkpoint()
 
         # Simulate a crash by copying to a new directory(RESTART).
@@ -171,31 +181,28 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
         # Search keys with timestamp 20, ignore_prepare=false and expect the cursor search to return WT_NOTFOUND.
         self.search_keys_timestamp_and_ignore(ds, txn_config, None)
 
-        txn_config = 'read_timestamp=' + timestamp_str(30) + ',ignore_prepare=true'
-        # Search keys with timestamp 30, ignore_prepare=true and expect the cursor value to be prepare_value.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, prepare_value)
+        # If commit is true then the commit_tramsactions was called and we will expect prepare_value.
+        if self.commit == True:
+            txn_config = 'read_timestamp=' + timestamp_str(30) + ',ignore_prepare=true'
+            # Search keys with timestamp 30, ignore_prepare=true and expect the cursor value to be prepare_value.
+            self.search_keys_timestamp_and_ignore(ds, txn_config, prepare_value)
+        else:
+            # Commit is false and we simulated a crash/restart which would have rolled-back the transactions, therefore we expect the
+            # cursor search to return WT_NOTFOUND.
+            txn_config = 'read_timestamp=' + timestamp_str(30) + ',ignore_prepare=true'
+            # Search keys with timestamp 30, ignore_prepare=true and expect the cursor value to return WT_NOTFOUND.
+            self.search_keys_timestamp_and_ignore(ds, txn_config, None)
 
-        txn_config = 'read_timestamp=' + timestamp_str(30) + ',ignore_prepare=false'
-        # Search keys with timestamp 30, ignore_prepare=false and expect the cursor value to be prepare_value.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, prepare_value)
-
-        # Close all cursors and sessions, this will cause prepared updates to be
-        # rollback-ed
-        for j in range (0, self.nsessions):
-            cursors[j].close()
-            sessions[j].close()
-
-        txn_config = 'read_timestamp=' + timestamp_str(5) + ',ignore_prepare=false'
-        # Search keys with timestamp 5, ignore_prepare=false and expect the cursor value to be prepare_value.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, commit_value)
-
-        txn_config = 'read_timestamp=' + timestamp_str(20) + ',ignore_prepare=true'
-        # Search keys with timestamp 20, ignore_prepare=true and expect the cursor search to return WT_NOTFOUND.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, None)
-
-        txn_config = 'read_timestamp=' + timestamp_str(20) + ',ignore_prepare=false'
-        # Search keys with timestamp 20, ignore_prepare=false and expect the cursor search to return WT_NOTFOUND.
-        self.search_keys_timestamp_and_ignore(ds, txn_config, None)
+        if self.commit == True:
+            txn_config = 'read_timestamp=' + timestamp_str(30) + ',ignore_prepare=false'
+            # Search keys with timestamp 30, ignore_prepare=false and expect the cursor value to be prepare_value.
+            self.search_keys_timestamp_and_ignore(ds, txn_config, prepare_value)
+        else:
+            # Commit is false and we simulated a crash/restart which would have rolled-back the transactions, therefore we expect the
+            # cursor search to return WT_NOTFOUND.
+            txn_config = 'read_timestamp=' + timestamp_str(30) + ',ignore_prepare=false'
+            # Search keys with timestamp 30, ignore_prepare=false and expect the cursor value to return WT_NOTFOUND.
+            self.search_keys_timestamp_and_ignore(ds, txn_config, None)
 
     def test_prepare_hs(self):
 
