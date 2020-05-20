@@ -1000,7 +1000,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
           cbt->upd_value, false, &cbt->upd_value->buf));
 
     /*
-     * Retry if we race with prepared rollback as the update the reader should read may have been
+     * Retry if we race with prepared rollback as the value the reader should read may have been
      * removed from the history store to the update chain.
      */
     if (prepare_upd != NULL) {
