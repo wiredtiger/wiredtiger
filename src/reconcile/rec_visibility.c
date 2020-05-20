@@ -334,7 +334,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             } else {
                 /*
                  * For prepared updates written to the date store in salvage, we write the same
-                 * prepared value to the date store. If there are still content for the key left in
+                 * prepared value to the date store. If there is still content for that key left in
                  * the history store, rollback to stable will bring it back to the data store.
                  * Otherwise, it removes the key.
                  */
