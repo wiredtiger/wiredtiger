@@ -332,11 +332,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 continue;
 
             } else {
-                /* For prepared updates written to disk in salvage, we ignore the prepared updates
-                 * restored from disk in the update chain and write the same prepared value to disk
-                 * to save the key. If there are still content for the key left in the history
-                 * store, rollback to stable will bring it back to the data store. Otherwise, it
-                 * removes the key. */
+                /*
+                 * For prepared updates written to the date store in salvage, we write the same
+                 * prepared value to the date store. If there are still content for the key left in
+                 * the history store, rollback to stable will bring it back to the data store.
+                 * Otherwise, it removes the key.
+                 */
                 WT_ASSERT(session, F_ISSET(r, WT_REC_EVICT) ||
                     (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
                                      F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK)));
