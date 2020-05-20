@@ -1008,7 +1008,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
         WT_ORDERED_READ(txnid, prepare_upd->txnid);
         if (txnid == WT_TXN_ABORTED)
             return (WT_RESTART);
-        WT_ASSERT(session, prepare_upd->prepare_state == WT_PREPARE_INPROGRESS || prepare_upd->prepare_state == WT_PREPARE_RESOLVED);
+        WT_ASSERT(session, prepare_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+            prepare_upd->prepare_state == WT_PREPARE_RESOLVED);
     }
 
     /* Return invalid not tombstone if nothing is found in history store. */
