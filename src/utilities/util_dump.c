@@ -51,6 +51,7 @@ int
 util_dump(WT_SESSION *session, int argc, char *argv[])
 {
     WT_CURSOR *cursor;
+    WT_CURSOR_DUMP *dump_cursor;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl;
@@ -154,8 +155,11 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
          * nothing will be visible. The only exception is if we've supplied a timestamp in which
          * case, we're specifically interested in what is visible at a given read timestamp.
          */
-        if (WT_STREQ(simpleuri, WT_HS_URI) && timestamp == NULL)
-            F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+        if (WT_STREQ(simpleuri, WT_HS_URI) && timestamp == NULL) {
+            dump_cursor = (WT_CURSOR_DUMP *)cursor;
+            /* Set the "ignore tombstone" flag on the underlying cursor. */
+            F_SET(dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
+        }
         if (dump_config(session, simpleuri, cursor, hex, json) != 0)
             goto err;
 

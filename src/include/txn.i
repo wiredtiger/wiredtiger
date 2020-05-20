@@ -955,7 +955,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     if (__wt_txn_tw_stop_visible(session, &tw) &&
       ((!F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
          (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))) ||
-          __wt_txn_tw_stop_visible_all(session, &tw))) {
+          (__wt_txn_tw_stop_visible_all(session, &tw) && !WT_CURSOR_IS_DUMP(&cbt->iface)))) {
         cbt->upd_value->buf.data = NULL;
         cbt->upd_value->buf.size = 0;
         cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
