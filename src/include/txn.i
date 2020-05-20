@@ -921,7 +921,6 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
 {
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd;
-    uint64_t txnid;
 
     prepare_upd = NULL;
 
@@ -1005,8 +1004,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
      */
     if (prepare_upd != NULL) {
         WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK));
-        WT_ORDERED_READ(txnid, prepare_upd->txnid);
-        if (txnid == WT_TXN_ABORTED)
+        if (prepare_upd->txnid == WT_TXN_ABORTED)
             return (WT_RESTART);
         WT_ASSERT(session, prepare_upd->prepare_state == WT_PREPARE_INPROGRESS ||
             prepare_upd->prepare_state == WT_PREPARE_RESOLVED);
