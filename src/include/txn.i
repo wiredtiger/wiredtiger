@@ -999,12 +999,12 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
           cbt->upd_value, false, &cbt->upd_value->buf));
 
     /*
-     * Retry if we race with prepared commit or rollback as the reader may have read changed history
-     * store content.
+     * Retry if we race with prepared rollback as the update the reader should read may have been
+     * removed from the history store to the update chain.
      */
     if (prepare_upd != NULL) {
         WT_ORDERED_READ(prepare_state, prepare_upd->prepare_state);
-        if (prepare_upd->txnid == WT_TXN_ABORTED || prepare_state == WT_PREPARE_RESOLVED)
+        if (prepare_upd->txnid == WT_TXN_ABORTED)
             return (WT_RESTART);
     }
 
