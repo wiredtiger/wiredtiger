@@ -15,9 +15,8 @@
 static inline bool
 __rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
 {
-    return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
-        __wt_txn_upd_visible_all(session, upd) :
-        __wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE &&
+    return (F_ISSET(r, WT_REC_VISIBLE_ALL) ? __wt_txn_upd_visible_all(session, upd) :
+                                             __wt_txn_upd_visible(session, upd) &&
           __wt_txn_visible(session, upd->txnid, upd->durable_ts));
 }
 
@@ -170,7 +169,7 @@ __rec_append_orig_value(
     } else if (unpack->tw.prepare)
         /*
          * Don't append the onpage value if it is a prepared update as it is either on the update
-         * chain or has been aborted. It it is aborted, discard it silently.
+         * chain or has been aborted. If it is aborted, discard it silently.
          */
         return (0);
 
