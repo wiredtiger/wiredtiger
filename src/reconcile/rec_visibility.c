@@ -330,7 +330,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 if (upd->start_ts < r->min_skipped_ts)
                     r->min_skipped_ts = upd->start_ts;
                 continue;
-
             } else {
                 /*
                  * For prepared updates written to the date store in salvage, we write the same
