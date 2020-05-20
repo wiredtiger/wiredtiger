@@ -921,7 +921,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
 {
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd;
-    uint8_t prepare_state;
+    uint64_t txnid;
 
     prepare_upd = NULL;
 
@@ -1004,10 +1004,11 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
      * removed from the history store to the update chain.
      */
     if (prepare_upd != NULL) {
-        WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK));
-        WT_ORDERED_READ(prepare_state, prepare_upd->prepare_state);
-        if (prepare_upd->txnid == WT_TXN_ABORTED)
+        WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK));
+        WT_ORDERED_READ(txnid, prepare_upd->txnid);
+        if (txnid == WT_TXN_ABORTED)
             return (WT_RESTART);
+        WT_ASSERT(session, prepare_upd->prepare_state == WT_PREPARE_RESOLVED);
     }
 
     /* Return invalid not tombstone if nothing is found in history store. */
