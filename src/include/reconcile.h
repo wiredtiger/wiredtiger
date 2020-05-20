@@ -156,13 +156,16 @@ struct __wt_reconcile {
     uint32_t count_stop_txn;
     uint32_t count_prepare;
 
-    bool has_newest_start_durable_ts;
-    bool has_newest_stop_durable_ts;
-    bool has_oldest_start_ts;
-    bool has_oldest_start_txn;
-    bool has_newest_stop_ts;
-    bool has_newest_stop_txn;
-    bool has_prepare;
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
+#define WT_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
+#define WT_REC_TIME_NEWEST_STOP_TS 0x04u
+#define WT_REC_TIME_NEWEST_STOP_TXN 0x08u
+#define WT_REC_TIME_OLDEST_START_TS 0x10u
+#define WT_REC_TIME_OLDEST_START_TXN 0x20u
+#define WT_REC_TIME_PREPARE 0x40u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint16_t ts_usage_flags;
 
     /*
      * Saved update list, supporting WT_REC_HS configurations. While reviewing updates for each

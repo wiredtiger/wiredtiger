@@ -123,13 +123,20 @@ __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
 static inline void
 __rec_cell_addr_stats(WT_RECONCILE *r, WT_TIME_AGGREGATE *ta)
 {
-    r->has_newest_start_durable_ts = ta->newest_start_durable_ts != WT_TS_NONE;
-    r->has_newest_stop_durable_ts = ta->newest_stop_durable_ts != WT_TS_NONE;
-    r->has_oldest_start_ts = ta->oldest_start_ts != WT_TS_NONE;
-    r->has_oldest_start_txn = ta->oldest_start_txn != WT_TXN_NONE;
-    r->has_newest_stop_ts = ta->newest_stop_ts != WT_TS_MAX;
-    r->has_newest_stop_txn = ta->newest_stop_txn != WT_TXN_MAX;
-    r->has_prepare = ta->prepare != 0;
+    if (ta->newest_start_durable_ts != WT_TS_NONE)
+        FLD_SET(r->ts_usage_flags, WT_REC_TIME_NEWEST_START_DURABLE_TS);
+    if (ta->newest_stop_durable_ts != WT_TS_NONE)
+        FLD_SET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_DURABLE_TS);
+    if (ta->oldest_start_ts != WT_TS_NONE)
+        FLD_SET(r->ts_usage_flags, WT_REC_TIME_OLDEST_START_TS);
+    if (ta->oldest_start_txn != WT_TXN_NONE)
+        FLD_SET(r->ts_usage_flags, WT_REC_TIME_OLDEST_START_TXN);
+    if (ta->newest_stop_ts != WT_TS_MAX)
+        FLD_SET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_TS);
+    if (ta->newest_stop_txn != WT_TXN_MAX)
+        FLD_SET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_TXN);
+    if (ta->prepare != 0)
+        FLD_SET(r->ts_usage_flags, WT_REC_TIME_PREPARE);
 }
 
 /*

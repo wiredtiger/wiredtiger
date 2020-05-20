@@ -1678,7 +1678,7 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
 
 /*
  * __rec_page_time_stats --
- *     Update statistics about this cell, don't bother clearing here - they are cleared in a
+ *     Update statistics about this page, don't bother clearing here - they are cleared in a
  *     different place, because sometimes we accumulate these stats and don't end up writing.
  */
 static void
@@ -1730,31 +1730,31 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     }
 
     /* Time aggregate statistics */
-    if (r->has_newest_start_durable_ts) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_START_DURABLE_TS)) {
         WT_STAT_CONN_INCR(session, rec_time_aggr_newest_start_durable_ts);
         WT_STAT_DATA_INCR(session, rec_time_aggr_newest_start_durable_ts);
     }
-    if (r->has_newest_stop_durable_ts) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_DURABLE_TS)) {
         WT_STAT_CONN_INCR(session, rec_time_aggr_newest_stop_durable_ts);
         WT_STAT_DATA_INCR(session, rec_time_aggr_newest_stop_durable_ts);
     }
-    if (r->has_oldest_start_ts) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_OLDEST_START_TS)) {
         WT_STAT_CONN_INCR(session, rec_time_aggr_oldest_start_ts);
         WT_STAT_DATA_INCR(session, rec_time_aggr_oldest_start_ts);
     }
-    if (r->has_oldest_start_txn) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_OLDEST_START_TXN)) {
         WT_STAT_CONN_INCR(session, rec_time_aggr_oldest_start_txn);
         WT_STAT_DATA_INCR(session, rec_time_aggr_oldest_start_txn);
     }
-    if (r->has_newest_stop_ts) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_TS)) {
         WT_STAT_CONN_INCR(session, rec_time_aggr_newest_stop_ts);
         WT_STAT_DATA_INCR(session, rec_time_aggr_newest_stop_ts);
     }
-    if (r->has_newest_stop_txn) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_TXN)) {
         WT_STAT_CONN_INCR(session, rec_time_aggr_newest_stop_txn);
         WT_STAT_DATA_INCR(session, rec_time_aggr_newest_stop_txn);
     }
-    if (r->has_prepare) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_PREPARE)) {
         WT_STAT_CONN_INCR(session, rec_time_aggr_prepared);
         WT_STAT_DATA_INCR(session, rec_time_aggr_prepared);
     }
@@ -1912,13 +1912,7 @@ copy_image:
     r->count_stop_ts = 0;
     r->count_stop_txn = 0;
     r->count_prepare = 0;
-    r->has_newest_start_durable_ts = false;
-    r->has_newest_stop_durable_ts = false;
-    r->has_oldest_start_ts = false;
-    r->has_oldest_start_txn = false;
-    r->has_newest_stop_ts = false;
-    r->has_newest_stop_txn = false;
-    r->has_prepare = false;
+    r->ts_usage_flags = 0;
 #ifdef HAVE_DIAGNOSTIC
     /*
      * The I/O routines verify all disk images we write, but there are paths in reconciliation that
