@@ -172,7 +172,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (hs_dump_cursor != NULL)
             F_CLR(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
         ret = cursor->close(cursor);
-        cursor = hs_dump_cursor = NULL;
+        cursor = NULL;
+        hs_dump_cursor = NULL;
         if (ret != 0) {
             (void)util_err(session, ret, NULL);
             goto err;
