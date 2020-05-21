@@ -773,8 +773,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     logging = FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED);
 
-    /* Reset the maximum page size seen by eviction. */
-    conn->cache->evict_max_page_size = 0;
+    /* Reset the statistics tracked per checkpoint. */
+    cache->evict_max_page_size = 0;
+    conn->rec_maximum_seconds = 0;
 
     /* Initialize the verbose tracking timer */
     __wt_epoch(session, &conn->ckpt_timer_start);
