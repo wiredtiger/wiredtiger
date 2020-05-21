@@ -610,10 +610,10 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
             if (unpack.tw.prepare) {
                 /* Take the value from the original page cell. */
                 if (value == NULL)
-                    WT_RET(__wt_scr_alloc(session, 0, &value));
-                WT_RET(__wt_page_cell_data_ref(session, page, &unpack, value));
+                    WT_ERR(__wt_scr_alloc(session, 0, &value));
+                WT_ERR(__wt_page_cell_data_ref(session, page, &unpack, value));
 
-                WT_RET(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
+                WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
                 upd->durable_ts = unpack.tw.durable_start_ts;
                 upd->start_ts = unpack.tw.start_ts;
                 upd->txnid = unpack.tw.start_txn;
