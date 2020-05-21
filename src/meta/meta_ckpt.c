@@ -792,7 +792,7 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
           ",newest_start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64
           ",oldest_start_txn=%" PRId64 ",newest_stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64
-          ",newest_stop_txn=%" PRId64 ",prepare:%d,write_gen=%" PRId64 ")",
+          ",newest_stop_txn=%" PRId64 ",prepare=%d,write_gen=%" PRId64 ")",
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
           (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.oldest_start_txn,
