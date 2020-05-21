@@ -2283,7 +2283,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     const WT_NAME_FLAG *ft;
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *session, *verify_session;
-    bool config_base_set, try_salvage, verify_meta;
+    bool config_base_set, dummy, try_salvage, verify_meta;
     const char *enc_cfg[] = {NULL, NULL}, *merge_cfg;
     char version[64];
 
@@ -2389,16 +2389,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     /*
      * Set compatibility versions early so that any subsystem sees it. Call after we own the
-     * database so that we can know if the database is new or not. Compatibility testing needs to
-     * know if salvage has been set, so parse that early.
+     * database so that we can know if the database is new or not.
      */
-    WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
-    if (cval.val) {
-        if (F_ISSET(conn, WT_CONN_READONLY))
-            WT_ERR_MSG(session, EINVAL, "Readonly configuration incompatible with salvage");
-        F_SET(conn, WT_CONN_SALVAGE);
-    }
-
     WT_ERR(__wt_conn_compat_config(session, cfg, false));
 
     /*
@@ -2592,6 +2584,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
     conn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
 
+    WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
+    if (cval.val) {
+        if (F_ISSET(conn, WT_CONN_READONLY))
+            WT_ERR_MSG(session, EINVAL, "Readonly configuration incompatible with salvage");
+        F_SET(conn, WT_CONN_SALVAGE);
+    }
+
     WT_ERR(__wt_conn_statistics_config(session, cfg));
     WT_ERR(__wt_lsm_manager_config(session, cfg));
     WT_ERR(__wt_sweep_config(session, cfg));
@@ -2621,6 +2620,17 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__conn_builtin_extensions(conn, cfg));
     WT_ERR(__conn_load_extensions(session, cfg, false));
+
+    /*
+     * We need to parse the logging configuration here to verify the compatibility settings because
+     * we may need the log path and encryption and compression settings. It will be parsed again
+     * when the logging subsystem starts up threads.
+     */
+    __wt_logmgr_compat_version(session);
+    if (!F_ISSET(conn, WT_CONN_SALVAGE)) {
+        WT_ERR(__wt_logmgr_config(session, cfg, &dummy, false));
+        WT_ERR(__wt_log_compat_verify(session));
+    }
 
     /*
      * The metadata/log encryptor is configured after extensions, since

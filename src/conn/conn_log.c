@@ -190,11 +190,11 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 }
 
 /*
- * __logmgr_config --
+ * __wt_logmgr_config --
  *     Parse and setup the logging server options.
  */
-static int
-__logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool reconfig)
+int
+__wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool reconfig)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -338,7 +338,7 @@ __wt_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 {
     bool dummy;
 
-    WT_RET(__logmgr_config(session, cfg, &dummy, true));
+    WT_RET(__wt_logmgr_config(session, cfg, &dummy, true));
     return (__logmgr_version(session, true));
 }
 
@@ -966,7 +966,7 @@ __wt_logmgr_create(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
 
     /* Handle configuration. */
-    WT_RET(__logmgr_config(session, cfg, &run, false));
+    WT_RET(__wt_logmgr_config(session, cfg, &run, false));
 
     /* If logging is not configured, we're done. */
     if (!run)
