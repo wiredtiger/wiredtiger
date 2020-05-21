@@ -22,6 +22,7 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, bool e
 #else
     WT_UNUSED(session);
     WT_UNUSED(tw);
+    WT_UNUSED(expected_error);
 #endif
     return (0);
 }
@@ -112,6 +113,7 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta, bool e
 #else
     WT_UNUSED(session);
     WT_UNUSED(ta);
+    WT_UNUSED(expected_error);
 #endif
     return (0);
 }
