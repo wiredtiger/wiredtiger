@@ -1003,8 +1003,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
      * value the reader should read may have been removed from the history store and appended to the
      * data store. If we race with prepared commit, imagine a case we read with timestamp 50 and we
      * have a prepared update with timestamp 30 and a history store record with timestamp 20,
-     * committing the prepared update will cause the stop timestamp of the history store being
-     * updated to 30 and the reader not seeing the value in the history store.
+     * committing the prepared update will cause the stop timestamp of the history store record
+     * being updated to 30 and the reader not seeing it.
      */
     if (prepare_upd != NULL) {
         WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK));
