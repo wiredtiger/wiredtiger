@@ -31,8 +31,10 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
 {
     WT_DECL_RET;
     WT_PAGE *page;
+    uint64_t start, now;
     bool no_reconcile_set, page_locked;
 
+    __wt_seconds(session, &start);
     page = ref->page;
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
@@ -91,6 +93,12 @@ err:
         WT_PAGE_UNLOCK(session, page);
     if (!no_reconcile_set)
         F_CLR(session, WT_SESSION_NO_RECONCILE);
+
+    /* Track the longest reconciliation, ignoring races (it's just a statistic). */
+    __wt_seconds(session, &now);
+    if (now - start > S2C(session)->rec_maximum_seconds)
+        S2C(session)->rec_maximum_seconds = now - start;
+
     return (ret);
 }
 

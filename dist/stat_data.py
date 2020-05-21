@@ -527,6 +527,7 @@ connection_stats = [
     ##########################################
     # Reconciliation statistics
     ##########################################
+    RecStat('rec_maximum_seconds', 'maximum seconds spent in a reconciliation call', 'no_clear,no_scale,size'),
     RecStat('rec_page_delete', 'pages deleted'),
     RecStat('rec_page_delete_fast', 'fast-path pages deleted'),
     RecStat('rec_pages', 'page reconciliation calls'),
