@@ -693,7 +693,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.prepare = (uint8_t)a.val;
 
-    __wt_check_addr_validity(session, &ckpt->ta);
+    WT_RET(__wt_check_addr_validity(session, &ckpt->ta, false));
 
     WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
     if (a.len == 0)
@@ -779,7 +779,7 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
                 WT_RET(__wt_raw_to_hex(session, ckpt->raw.data, ckpt->raw.size, &ckpt->addr));
         }
 
-        __wt_check_addr_validity(session, &ckpt->ta);
+        WT_RET(__wt_check_addr_validity(session, &ckpt->ta, false));
 
         WT_RET(__wt_buf_catfmt(session, buf, "%s%s", sep, ckpt->name));
         sep = ",";
