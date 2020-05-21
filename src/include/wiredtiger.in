@@ -5672,45 +5672,45 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! reconciliation: pages written including an aggregated prepare */
 #define	WT_STAT_CONN_REC_TIME_AGGR_PREPARED		1331
 /*! reconciliation: pages written including at least one prepare state */
-#define	WT_STAT_CONN_REC_TIME_PAGES_PREPARED		1332
+#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_PREPARED	1332
 /*!
  * reconciliation: pages written including at least one start durable
  * timestamp
  */
-#define	WT_STAT_CONN_REC_TIME_PAGES_DURABLE_START_TS	1333
+#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	1333
 /*! reconciliation: pages written including at least one start timestamp */
-#define	WT_STAT_CONN_REC_TIME_PAGES_START_TS		1334
+#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_START_TS	1334
 /*!
  * reconciliation: pages written including at least one start transaction
  * ID
  */
-#define	WT_STAT_CONN_REC_TIME_PAGES_START_TXN		1335
+#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_START_TXN	1335
 /*!
  * reconciliation: pages written including at least one stop durable
  * timestamp
  */
-#define	WT_STAT_CONN_REC_TIME_PAGES_DURABLE_STOP_TS	1336
+#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	1336
 /*! reconciliation: pages written including at least one stop timestamp */
-#define	WT_STAT_CONN_REC_TIME_PAGES_STOP_TS		1337
+#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_STOP_TS	1337
 /*!
  * reconciliation: pages written including at least one stop transaction
  * ID
  */
-#define	WT_STAT_CONN_REC_TIME_PAGES_STOP_TXN		1338
+#define	WT_STAT_CONN_REC_TIME_WINDOW_PAGES_STOP_TXN	1338
 /*! reconciliation: records written including a prepare state */
-#define	WT_STAT_CONN_REC_TIME_PREPARED			1339
+#define	WT_STAT_CONN_REC_TIME_WINDOW_PREPARED		1339
 /*! reconciliation: records written including a start durable timestamp */
-#define	WT_STAT_CONN_REC_TIME_DURABLE_START_TS		1340
+#define	WT_STAT_CONN_REC_TIME_WINDOW_DURABLE_START_TS	1340
 /*! reconciliation: records written including a start timestamp */
-#define	WT_STAT_CONN_REC_TIME_START_TS			1341
+#define	WT_STAT_CONN_REC_TIME_WINDOW_START_TS		1341
 /*! reconciliation: records written including a start transaction ID */
-#define	WT_STAT_CONN_REC_TIME_START_TXN			1342
+#define	WT_STAT_CONN_REC_TIME_WINDOW_START_TXN		1342
 /*! reconciliation: records written including a stop durable timestamp */
-#define	WT_STAT_CONN_REC_TIME_DURABLE_STOP_TS		1343
+#define	WT_STAT_CONN_REC_TIME_WINDOW_DURABLE_STOP_TS	1343
 /*! reconciliation: records written including a stop timestamp */
-#define	WT_STAT_CONN_REC_TIME_STOP_TS			1344
+#define	WT_STAT_CONN_REC_TIME_WINDOW_STOP_TS		1344
 /*! reconciliation: records written including a stop transaction ID */
-#define	WT_STAT_CONN_REC_TIME_STOP_TXN			1345
+#define	WT_STAT_CONN_REC_TIME_WINDOW_STOP_TXN		1345
 /*! reconciliation: split bytes currently awaiting free */
 #define	WT_STAT_CONN_REC_SPLIT_STASHED_BYTES		1346
 /*! reconciliation: split objects currently awaiting free */
@@ -6393,45 +6393,45 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! reconciliation: pages written including an aggregated prepare */
 #define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2153
 /*! reconciliation: pages written including at least one prepare */
-#define	WT_STAT_DSRC_REC_TIME_PAGES_PREPARED		2154
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED	2154
 /*!
  * reconciliation: pages written including at least one start durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_PAGES_DURABLE_START_TS	2155
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	2155
 /*! reconciliation: pages written including at least one start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_PAGES_START_TS		2156
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS	2156
 /*!
  * reconciliation: pages written including at least one start transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_PAGES_START_TXN		2157
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2157
 /*!
  * reconciliation: pages written including at least one stop durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_PAGES_DURABLE_STOP_TS	2158
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2158
 /*! reconciliation: pages written including at least one stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_PAGES_STOP_TS		2159
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2159
 /*!
  * reconciliation: pages written including at least one stop transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_PAGES_STOP_TXN		2160
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TXN	2160
 /*! reconciliation: records written including a prepare */
-#define	WT_STAT_DSRC_REC_TIME_PREPARED			2161
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED		2161
 /*! reconciliation: records written including a start durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_DURABLE_START_TS		2162
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS	2162
 /*! reconciliation: records written including a start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_START_TS			2163
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TS		2163
 /*! reconciliation: records written including a start transaction ID */
-#define	WT_STAT_DSRC_REC_TIME_START_TXN			2164
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN		2164
 /*! reconciliation: records written including a stop durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_DURABLE_STOP_TS		2165
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS	2165
 /*! reconciliation: records written including a stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_STOP_TS			2166
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2166
 /*! reconciliation: records written including a stop transaction ID */
-#define	WT_STAT_DSRC_REC_TIME_STOP_TXN			2167
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2167
 /*! session: object compaction */
 #define	WT_STAT_DSRC_SESSION_COMPACT			2168
 /*! transaction: update conflicts */

@@ -1677,90 +1677,6 @@ __rec_compression_adjust(WT_SESSION_IMPL *session, uint32_t max, size_t compress
 }
 
 /*
- * __rec_page_time_stats --
- *     Update statistics about this page, don't bother clearing here - they are cleared in a
- *     different place, because sometimes we accumulate these stats and don't end up writing.
- */
-static void
-__rec_page_time_stats(WT_SESSION_IMPL *session, WT_RECONCILE *r)
-{
-    /* Time window statistics */
-    if (r->count_durable_start_ts != 0) {
-        WT_STAT_CONN_INCRV(session, rec_time_durable_start_ts, r->count_durable_start_ts);
-        WT_STAT_DATA_INCRV(session, rec_time_durable_start_ts, r->count_durable_start_ts);
-        WT_STAT_CONN_INCR(session, rec_time_pages_durable_start_ts);
-        WT_STAT_DATA_INCR(session, rec_time_pages_durable_start_ts);
-    }
-    if (r->count_start_ts != 0) {
-        WT_STAT_CONN_INCRV(session, rec_time_start_ts, r->count_start_ts);
-        WT_STAT_DATA_INCRV(session, rec_time_start_ts, r->count_start_ts);
-        WT_STAT_CONN_INCR(session, rec_time_pages_start_ts);
-        WT_STAT_DATA_INCR(session, rec_time_pages_start_ts);
-    }
-    if (r->count_start_txn != 0) {
-        WT_STAT_CONN_INCRV(session, rec_time_start_txn, r->count_start_txn);
-        WT_STAT_DATA_INCRV(session, rec_time_start_txn, r->count_start_txn);
-        WT_STAT_CONN_INCR(session, rec_time_pages_start_txn);
-        WT_STAT_DATA_INCR(session, rec_time_pages_start_txn);
-    }
-    if (r->count_durable_stop_ts != 0) {
-        WT_STAT_CONN_INCRV(session, rec_time_durable_stop_ts, r->count_durable_stop_ts);
-        WT_STAT_DATA_INCRV(session, rec_time_durable_stop_ts, r->count_durable_stop_ts);
-        WT_STAT_CONN_INCR(session, rec_time_pages_durable_stop_ts);
-        WT_STAT_DATA_INCR(session, rec_time_pages_durable_stop_ts);
-    }
-    if (r->count_stop_ts != 0) {
-        WT_STAT_CONN_INCRV(session, rec_time_stop_ts, r->count_stop_ts);
-        WT_STAT_DATA_INCRV(session, rec_time_stop_ts, r->count_stop_ts);
-        WT_STAT_CONN_INCR(session, rec_time_pages_stop_ts);
-        WT_STAT_DATA_INCR(session, rec_time_pages_stop_ts);
-    }
-    if (r->count_stop_txn != 0) {
-        WT_STAT_CONN_INCRV(session, rec_time_stop_txn, r->count_stop_txn);
-        WT_STAT_DATA_INCRV(session, rec_time_stop_txn, r->count_stop_txn);
-        WT_STAT_CONN_INCR(session, rec_time_pages_stop_txn);
-        WT_STAT_DATA_INCR(session, rec_time_pages_stop_txn);
-    }
-
-    if (r->count_prepare != 0) {
-        WT_STAT_CONN_INCRV(session, rec_time_prepared, r->count_prepare);
-        WT_STAT_DATA_INCRV(session, rec_time_prepared, r->count_prepare);
-        WT_STAT_CONN_INCR(session, rec_time_pages_prepared);
-        WT_STAT_DATA_INCR(session, rec_time_pages_prepared);
-    }
-
-    /* Time aggregate statistics */
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_START_DURABLE_TS)) {
-        WT_STAT_CONN_INCR(session, rec_time_aggr_newest_start_durable_ts);
-        WT_STAT_DATA_INCR(session, rec_time_aggr_newest_start_durable_ts);
-    }
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_DURABLE_TS)) {
-        WT_STAT_CONN_INCR(session, rec_time_aggr_newest_stop_durable_ts);
-        WT_STAT_DATA_INCR(session, rec_time_aggr_newest_stop_durable_ts);
-    }
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_OLDEST_START_TS)) {
-        WT_STAT_CONN_INCR(session, rec_time_aggr_oldest_start_ts);
-        WT_STAT_DATA_INCR(session, rec_time_aggr_oldest_start_ts);
-    }
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_OLDEST_START_TXN)) {
-        WT_STAT_CONN_INCR(session, rec_time_aggr_oldest_start_txn);
-        WT_STAT_DATA_INCR(session, rec_time_aggr_oldest_start_txn);
-    }
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_TS)) {
-        WT_STAT_CONN_INCR(session, rec_time_aggr_newest_stop_ts);
-        WT_STAT_DATA_INCR(session, rec_time_aggr_newest_stop_ts);
-    }
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_TXN)) {
-        WT_STAT_CONN_INCR(session, rec_time_aggr_newest_stop_txn);
-        WT_STAT_DATA_INCR(session, rec_time_aggr_newest_stop_txn);
-    }
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_PREPARE)) {
-        WT_STAT_CONN_INCR(session, rec_time_aggr_prepared);
-        WT_STAT_DATA_INCR(session, rec_time_aggr_prepared);
-    }
-}
-
-/*
  * __rec_split_write --
  *     Write a disk block out for the split helper functions.
  */
@@ -1903,16 +1819,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     /* Update the per-page reconciliation time statistics now that we've written something. */
     __rec_page_time_stats(session, r);
+
 copy_image:
-    /* All non-error cases clear accumulated time statistics here. */
-    r->count_durable_start_ts = 0;
-    r->count_start_ts = 0;
-    r->count_start_txn = 0;
-    r->count_durable_stop_ts = 0;
-    r->count_stop_ts = 0;
-    r->count_stop_txn = 0;
-    r->count_prepare = 0;
-    r->ts_usage_flags = 0;
 #ifdef HAVE_DIAGNOSTIC
     /*
      * The I/O routines verify all disk images we write, but there are paths in reconciliation that
@@ -1928,6 +1836,9 @@ copy_image:
      */
     if (F_ISSET(r, WT_REC_SCRUB) || multi->supd_restore)
         WT_RET(__wt_memdup(session, chunk->image.data, chunk->image.size, &multi->disk_image));
+
+    /* Whether we wrote or not, clear the accumulated time statistics. */
+    __rec_page_time_stats_clear(r);
 
     return (0);
 }
