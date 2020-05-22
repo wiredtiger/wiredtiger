@@ -31,8 +31,8 @@
 static void
 track_ts(char *buf, size_t buf_size, const char *name, uint64_t old_ts, uint64_t this_ts)
 {
-    uint64_t diff;
     size_t len;
+    uint64_t diff;
     const char *indicator;
 
     len = strlen(buf);
@@ -43,8 +43,8 @@ track_ts(char *buf, size_t buf_size, const char *name, uint64_t old_ts, uint64_t
             indicator = "*";
         } else
             indicator = "+";
-        testutil_check(__wt_snprintf(&buf[len], buf_size - len, " %s %s0x%" PRIx64, name,
-            indicator, diff));
+        testutil_check(
+          __wt_snprintf(&buf[len], buf_size - len, " %s %s0x%" PRIx64, name, indicator, diff));
     } else
         testutil_check(__wt_snprintf(&buf[len], buf_size - len, " %s [< old]", name));
 }
@@ -269,7 +269,7 @@ fclose_and_clear(FILE **fpp)
  *     Update the timestamp once.
  */
 void
-timestamp_once(WT_SESSION *session, bool no_lag)
+timestamp_once(WT_SESSION *session, bool allow_lag)
 {
     static const char *oldest_timestamp_str = "oldest_timestamp=";
     static const char *stable_timestamp_str = "stable_timestamp=";
@@ -290,20 +290,19 @@ timestamp_once(WT_SESSION *session, bool no_lag)
     if (LOCK_INITIALIZED(&g.ts_lock))
         lock_writelock(session, &g.ts_lock);
 
-    ret = conn->query_timestamp(conn, tsbuf, "get=all_durable");
-    testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-    timestamp_parse(session, tsbuf, &all_durable);
+    if ((ret = conn->query_timestamp(conn, tsbuf, "get=all_durable")) == 0) {
+        timestamp_parse(session, tsbuf, &all_durable);
 
-    /*
-     * If a lag is permitted, move the oldest timestamp half the way to the current
-     * "all_durable" timestamp.
-     */
-    if (no_lag)
-        g.oldest_timestamp = all_durable;
-    else
-        g.oldest_timestamp = (all_durable + g.oldest_timestamp) / 2;
-    if (ret == 0) {
+        /*
+         * If a lag is permitted, move the oldest timestamp half the way to the current
+         * "all_durable" timestamp.
+         */
+        if (allow_lag)
+            g.oldest_timestamp = (all_durable + g.oldest_timestamp) / 2;
+        else
+            g.oldest_timestamp = all_durable;
         testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s", oldest_timestamp_str, tsbuf));
+
         /*
          * When we're doing rollback to stable operations, we'll advance the stable timestamp to the
          * current timestamp value.
@@ -316,7 +315,8 @@ timestamp_once(WT_SESSION *session, bool no_lag)
               stable_timestamp_str, g.stable_timestamp));
         }
         testutil_check(conn->set_timestamp(conn, buf));
-    }
+    } else
+        testutil_assert(ret == WT_NOTFOUND);
 
     if (LOCK_INITIALIZED(&g.ts_lock))
         lock_writeunlock(session, &g.ts_lock);
@@ -326,7 +326,8 @@ timestamp_once(WT_SESSION *session, bool no_lag)
  * timestamp_parse --
  *     Parse a timestamp to an integral value.
  */
-void timestamp_parse(WT_SESSION *session, const char *str, uint64_t *tsp)
+void
+timestamp_parse(WT_SESSION *session, const char *str, uint64_t *tsp)
 {
     char *p;
 
@@ -355,15 +356,24 @@ timestamp(void *arg)
     done = false;
     do {
         /*
-         * Do a final bump of the oldest timestamp as part of shutting down the worker threads,
-         * otherwise recent operations can prevent verify from running.
+         * If running without rollback_to_stable, do a final bump of the oldest timestamp as part of
+         * shutting down the worker threads, otherwise recent operations can prevent verify from
+         * running.
+         *
+         * With rollback_to_stable configured, don't do any bumps at the end of the run. We need the
+         * worker threads to have time to see any changes in the stable timestamp, so they can stash
+         * their stable state - if we bump they will have no time to do that. And when we rollback,
+         * we'd like to see a reasonable amount of data changed. So we don't bump the stable
+         * timestamp, and we can't bump the oldest timestamp as well, as it would get ahead of the
+         * stable timestamp, which is not allowed.
          */
         if (g.workers_finished)
             done = true;
         else
             random_sleep(&g.rnd, 15);
 
-        timestamp_once(session, done);
+        if (!g.c_txn_rollback_to_stable || !g.workers_finished)
+            timestamp_once(session, true);
 
     } while (!done);
 

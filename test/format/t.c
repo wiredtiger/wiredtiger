@@ -299,11 +299,8 @@ main(int argc, char *argv[])
         wts_checkpoints();
 
         /* Operations. */
-        for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps) {
+        for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
             operations(ops_seconds, reps == FORMAT_OPERATION_REPS);
-            if (g.c_txn_rollback_to_stable)
-                g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
-        }
 
         /* Copy out the run's statistics. */
         TIMED_MAJOR_OP(wts_stats());

@@ -186,10 +186,7 @@ tinfo_teardown(void)
          */
         testutil_assert(g.c_delete_pct != 0 || tinfo->remove == 0);
 
-        for (i = 0; i < WT_ELEMENTS(tinfo->snap_list); ++i) {
-            free(tinfo->snap_list[i].kdata);
-            free(tinfo->snap_list[i].vdata);
-        }
+        snap_teardown(tinfo);
         key_gen_teardown(tinfo->key);
         val_gen_teardown(tinfo->value);
         key_gen_teardown(tinfo->lastkey);
@@ -199,6 +196,38 @@ tinfo_teardown(void)
     }
     free(tinfo_list);
     tinfo_list = NULL;
+}
+
+/*
+ * tinfo_rollback_to_stable_check --
+ *     Check the worker thread structures after a rollback to stable
+ */
+static void
+tinfo_rollback_to_stable_check(void)
+{
+    WT_CURSOR *cursor;
+    WT_SESSION *session;
+    TINFO *tinfo;
+    int32_t check;
+    u_int i;
+    uint32_t tcount, vcount;
+
+    /* Open a session and cursor pair. */
+    testutil_check(g.wts_conn->open_session(g.wts_conn, NULL, NULL, &session));
+    testutil_check(session->open_cursor(session, g.uri, NULL, NULL, &cursor));
+
+    tcount = vcount = 0;
+    for (i = 0; i < g.c_threads; ++i) {
+        tinfo = tinfo_list[i];
+        check = snap_repeat_rollback(cursor, tinfo);
+        if (check >= 0) {
+            ++tcount;
+            vcount += (uint32_t)check;
+        }
+    }
+    printf("\nrollback_to_stable: %" PRIu32 " threads checked, %" PRIu32 " operations repeated\n",
+      tcount, vcount);
+    testutil_check(session->close(session, NULL));
 }
 
 /*
@@ -255,13 +284,14 @@ operations(u_int ops_seconds, bool lastrun)
     /* Get a session. */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
+    /* Initialize and start the worker threads. */
+    tinfo_init(session);
+    logop(session, "%s", "=============== thread start");
+
     /* Initialize locks to single-thread backups, failures, and timestamp updates. */
     lock_init(session, &g.backup_lock);
     lock_init(session, &g.ts_lock);
 
-    /* Initialize and start the worker threads. */
-    tinfo_init(session);
-    logop(session, "%s", "=============== thread start");
     for (i = 0; i < g.c_threads; ++i) {
         tinfo = tinfo_list[i];
         testutil_check(__wt_thread_create(NULL, &tinfo->tid, ops, tinfo));
@@ -367,6 +397,11 @@ operations(u_int ops_seconds, bool lastrun)
 
     logop(session, "%s", "=============== thread stop");
     testutil_check(session->close(session, NULL));
+
+    if (g.c_txn_rollback_to_stable) {
+        g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
+        tinfo_rollback_to_stable_check();
+    }
 
     if (lastrun)
         tinfo_teardown();

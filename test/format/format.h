@@ -334,7 +334,8 @@ typedef struct {
     uint64_t opid;         /* Operation ID */
     uint64_t read_ts;      /* read timestamp */
     uint64_t commit_ts;    /* commit timestamp */
-    SNAP_OPS *snap, *snap_first, snap_list[512];
+    uint64_t stable_ts;    /* stable timestamp */
+    SNAP_OPS *snap, *snap_end, *snap_first, *snap_list, *snap_lists[2];
 
     uint64_t insert_list[256]; /* column-store inserted records */
     u_int insert_list_cnt;
@@ -347,6 +348,8 @@ typedef struct {
     volatile int state;  /* state */
 } TINFO;
 extern TINFO **tinfo_list;
+
+#define SNAP_LIST_SIZE 512
 
 #define logop(wt_session, fmt, ...)                                                       \
     do {                                                                                  \
@@ -383,7 +386,9 @@ uint32_t rng_slow(WT_RAND_STATE *);
 void set_alarm(u_int);
 void set_core_off(void);
 void snap_init(TINFO *);
+void snap_teardown(TINFO *);
 void snap_op_init(TINFO *, uint64_t, bool);
+int32_t snap_repeat_rollback(WT_CURSOR *, TINFO *);
 void snap_repeat_single(WT_CURSOR *, TINFO *);
 int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
