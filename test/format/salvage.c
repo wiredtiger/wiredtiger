@@ -151,7 +151,7 @@ wts_salvage(void)
     free(cmd);
 
     /* Salvage, then verify. */
-    wts_open(g.home, true, &g.wts_conn, false);
+    wts_open(g.home, true, &g.wts_conn, true);
     salvage();
 #if 0
     wts_verify("post-salvage verify");
@@ -160,7 +160,7 @@ wts_salvage(void)
 
     /* Corrupt the file randomly, salvage, then verify. */
     if (corrupt()) {
-        wts_open(g.home, true, &g.wts_conn, true);
+        wts_open(g.home, true, &g.wts_conn, false);
         salvage();
         wts_close();
     }
