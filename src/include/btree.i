@@ -513,6 +513,7 @@ __wt_page_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
 static inline void
 __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+    wt_timestamp_t durable_ts;
     uint64_t last_running;
 
     WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
@@ -556,9 +557,16 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
             page->modify->first_dirty_txn = last_running;
     }
 
-    /* Check if this is the largest transaction ID to update the page. */
+    /* Check if this is the largest transaction to update the page. */
     if (WT_TXNID_LT(page->modify->update_txn, session->txn->id))
         page->modify->update_txn = session->txn->id;
+
+    /*
+     * Assume the update will be get a timestamp at least as large as the largest durable timestamp
+     * we've seen.
+     */
+    if (page->modify->update_ts < (durable_ts = S2C(session)->txn_global.durable_timestamp))
+        page->modify->update_ts = durable_ts;
 }
 
 /*

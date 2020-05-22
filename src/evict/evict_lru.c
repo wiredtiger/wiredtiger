@@ -85,19 +85,17 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * The base read-generation is skewed by the eviction priority. Internal pages are also
-     * adjusted, we prefer to evict leaf pages.
+     * adjusted, we prefer to evict leaf pages. Similarly, prefer pages where all updates are
+     * visible to avoid durable history overhead.
      */
-    if (page->modify != NULL && F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DIRTY) &&
-      !F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_CLEAN))
-        read_gen = page->modify->update_txn;
-    else
-        read_gen = page->read_gen;
+    read_gen = page->read_gen + btree->evict_priority;
 
-    read_gen += btree->evict_priority;
-
-#define WT_EVICT_INTL_SKEW 1000
+#define WT_EVICT_SCORE_SKEW 1000
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        read_gen += WT_EVICT_INTL_SKEW;
+        read_gen += 2 * WT_EVICT_SCORE_SKEW;
+    else if (__wt_page_is_modified(page) &&
+      !__wt_txn_visible_all(session, page->modify->update_txn, page->modify->update_ts))
+        read_gen += WT_EVICT_SCORE_SKEW;
 
     return (read_gen);
 }
