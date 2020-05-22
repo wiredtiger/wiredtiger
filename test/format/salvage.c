@@ -152,14 +152,18 @@ wts_salvage(void)
     /* Salvage, then verify. */
     wts_open(g.home, true, &g.wts_conn);
     salvage();
+#if 0
     wts_verify("post-salvage verify");
+#endif
     wts_close();
 
     /* Corrupt the file randomly, salvage, then verify. */
     if (corrupt()) {
         wts_open(g.home, true, &g.wts_conn);
         salvage();
+#if 0
         wts_verify("post-corrupt-salvage verify");
+#endif
         wts_close();
     }
 }
