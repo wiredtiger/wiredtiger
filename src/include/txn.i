@@ -737,7 +737,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
-        if (F_ISSET(session, WT_SESSION_RESOLVING_MODIFY) && upd->txnid != WT_TXN_ABORTED &&
+        if (F_ISSET(session, WT_SESSION_HS_IGNORE_VISIBILITY) && upd->txnid != WT_TXN_ABORTED &&
           upd->type == WT_UPDATE_STANDARD) {
             /* If we are resolving a modify then the btree must be the history store. */
             WT_ASSERT(session, WT_IS_HS(S2BT(session)));
@@ -975,11 +975,12 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     }
 
     /* If the start time point is visible then we need to return the ondisk value. */
-    if (F_ISSET(session, WT_SESSION_RESOLVING_MODIFY) || __wt_txn_tw_start_visible(session, &tw)) {
+    if (F_ISSET(session, WT_SESSION_HS_IGNORE_VISIBILITY) ||
+      __wt_txn_tw_start_visible(session, &tw)) {
         /* If we are resolving a modify then the btree must be the history store. */
         WT_ASSERT(
-          session, (F_ISSET(session, WT_SESSION_RESOLVING_MODIFY) && WT_IS_HS(S2BT(session))) ||
-            !F_ISSET(session, WT_SESSION_RESOLVING_MODIFY));
+          session, (F_ISSET(session, WT_SESSION_HS_IGNORE_VISIBILITY) && WT_IS_HS(S2BT(session))) ||
+            !F_ISSET(session, WT_SESSION_HS_IGNORE_VISIBILITY));
 
         if (cbt->upd_value->skip_buf) {
             cbt->upd_value->buf.data = NULL;
