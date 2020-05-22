@@ -118,7 +118,7 @@ struct __wt_track {
 };
 
 static int __slvg_cleanup(WT_SESSION_IMPL *, WT_STUFF *);
-static int __slvg_col_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *);
+static int __slvg_col_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *, WT_TIME_AGGREGATE *);
 static int __slvg_col_build_leaf(WT_SESSION_IMPL *, WT_TRACK *, WT_REF *);
 static int __slvg_col_ovfl(WT_SESSION_IMPL *, WT_TRACK *, WT_PAGE *, uint64_t, uint64_t, uint64_t);
 static int __slvg_col_range(WT_SESSION_IMPL *, WT_STUFF *);
@@ -130,9 +130,8 @@ static int WT_CDECL __slvg_ovfl_compare(const void *, const void *);
 static int __slvg_ovfl_discard(WT_SESSION_IMPL *, WT_STUFF *);
 static int __slvg_ovfl_reconcile(WT_SESSION_IMPL *, WT_STUFF *);
 static int __slvg_ovfl_ref(WT_SESSION_IMPL *, WT_TRACK *, bool);
-static int __slvg_ovfl_ref_all(WT_SESSION_IMPL *, WT_TRACK *);
 static int __slvg_read(WT_SESSION_IMPL *, WT_STUFF *);
-static int __slvg_row_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *);
+static int __slvg_row_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *, WT_TIME_AGGREGATE *);
 static int __slvg_row_build_leaf(WT_SESSION_IMPL *, WT_TRACK *, WT_REF *, WT_STUFF *);
 static int __slvg_row_ovfl(WT_SESSION_IMPL *, WT_TRACK *, WT_PAGE *, uint32_t, uint32_t);
 static int __slvg_row_range(WT_SESSION_IMPL *, WT_STUFF *);
@@ -156,7 +155,7 @@ static int __slvg_trk_ovfl(
  *     Create the post-salvage checkpoint.
  */
 static int
-__slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
+__slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root, WT_TIME_AGGREGATE *ta)
 {
     WT_BTREE *btree;
     WT_CKPT *ckptbase;
@@ -186,7 +185,7 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
     __wt_seconds(session, &ckptbase->sec);
     WT_ERR(__wt_metadata_search(session, dhandle->name, &config));
     WT_ERR(__wt_meta_block_metadata(session, config, ckptbase));
-    WT_TIME_AGGREGATE_INIT(&ckptbase->ta);
+    WT_TIME_AGGREGATE_COPY(&ckptbase->ta, ta);
     ckptbase->write_gen = btree->write_gen;
     F_SET(ckptbase, WT_CKPT_ADD);
 
@@ -230,6 +229,7 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
     WT_BTREE *btree;
     WT_DECL_RET;
     WT_STUFF *ss, stuff;
+    WT_TIME_AGGREGATE ta;
     uint32_t i, leaf_cnt;
 
     WT_UNUSED(cfg);
@@ -241,6 +241,8 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
     ss = &stuff;
     ss->session = session;
     ss->page_type = WT_PAGE_INVALID;
+
+    WT_TIME_AGGREGATE_INIT(&ta);
 
     /* Allocate temporary buffers. */
     WT_ERR(__wt_scr_alloc(session, 0, &ss->tmp1));
@@ -361,11 +363,13 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
         switch (ss->page_type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
-            WT_WITH_PAGE_INDEX(session, ret = __slvg_col_build_internal(session, leaf_cnt, ss));
+            WT_WITH_PAGE_INDEX(
+              session, ret = __slvg_col_build_internal(session, leaf_cnt, ss, &ta));
             WT_ERR(ret);
             break;
         case WT_PAGE_ROW_LEAF:
-            WT_WITH_PAGE_INDEX(session, ret = __slvg_row_build_internal(session, leaf_cnt, ss));
+            WT_WITH_PAGE_INDEX(
+              session, ret = __slvg_row_build_internal(session, leaf_cnt, ss, &ta));
             WT_ERR(ret);
             break;
         }
@@ -388,7 +392,7 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
      * Step 9:
      * Evict any newly created root page, creating a checkpoint.
      */
-    WT_ERR(__slvg_checkpoint(session, &ss->root_ref));
+    WT_ERR(__slvg_checkpoint(session, &ss->root_ref, &ta));
 
 err:
     /*
@@ -1134,7 +1138,8 @@ __slvg_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
  *     Build a column-store in-memory page that references all of the leaf pages we've found.
  */
 static int
-__slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF *ss)
+__slvg_col_build_internal(
+  WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF *ss, WT_TIME_AGGREGATE *ta)
 {
     WT_ADDR *addr;
     WT_DECL_RET;
@@ -1177,18 +1182,16 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
         /*
          * If the page's key range is unmodified from when we read it (in other words, we didn't
-         * merge part of this page with another page), we can use the page without change, and the
-         * only thing we need to do is mark all overflow records the page references as in-use.
+         * merge part of this page with another page), we still need to rebuild the page to
+         * aggregate the time window.
          *
          * If we did merge with another page, we have to build a page reflecting the updated key
          * range. Note, that requires an additional pass to free the merge page's backing blocks.
          */
-        if (F_ISSET(trk, WT_TRACK_MERGE)) {
+        if (F_ISSET(trk, WT_TRACK_MERGE))
             ss->merge_free = true;
-
-            WT_ERR(__slvg_col_build_leaf(session, trk, ref));
-        } else
-            WT_ERR(__slvg_ovfl_ref_all(session, trk));
+        WT_ERR(__slvg_col_build_leaf(session, trk, ref));
+        WT_TIME_AGGREGATE_MERGE(ta, &((WT_ADDR *)ref->addr)->ta);
         ++ref;
     }
 
@@ -1737,7 +1740,8 @@ err:
  *     Build a row-store in-memory page that references all of the leaf pages we've found.
  */
 static int
-__slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF *ss)
+__slvg_row_build_internal(
+  WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF *ss, WT_TIME_AGGREGATE *ta)
 {
     WT_ADDR *addr;
     WT_DECL_RET;
@@ -1780,22 +1784,16 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
         /*
          * If the page's key range is unmodified from when we read it (in other words, we didn't
-         * merge part of this page with another page), we can use the page without change, and the
-         * only thing we need to do is mark all overflow records the page references as in-use.
+         * merge part of this page with another page), we still need to rebuild the page to
+         * aggregate the time window..
          *
          * If we did merge with another page, we have to build a page reflecting the updated key
          * range. Note, that requires an additional pass to free the merge page's backing blocks.
          */
-        if (F_ISSET(trk, WT_TRACK_MERGE)) {
+        if (F_ISSET(trk, WT_TRACK_MERGE))
             ss->merge_free = true;
-
-            WT_ERR(__slvg_row_build_leaf(session, trk, ref, ss));
-        } else {
-            WT_ERR(
-              __wt_row_ikey_incr(session, page, 0, trk->row_start.data, trk->row_start.size, ref));
-
-            WT_ERR(__slvg_ovfl_ref_all(session, trk));
-        }
+        WT_ERR(__slvg_row_build_leaf(session, trk, ref, ss));
+        WT_TIME_AGGREGATE_MERGE(ta, &((WT_ADDR *)ref->addr)->ta);
         ++ref;
 
         /*
@@ -2256,21 +2254,6 @@ __slvg_ovfl_ref(WT_SESSION_IMPL *session, WT_TRACK *trk, bool multi_panic)
     }
 
     F_SET(trk, WT_TRACK_OVFL_REFD);
-    return (0);
-}
-
-/*
- * __slvg_ovfl_ref_all --
- *     Reference all of the page's overflow pages.
- */
-static int
-__slvg_ovfl_ref_all(WT_SESSION_IMPL *session, WT_TRACK *trk)
-{
-    uint32_t i;
-
-    for (i = 0; i < trk->trk_ovfl_cnt; ++i)
-        WT_RET(__slvg_ovfl_ref(session, trk->ss->ovfl[trk->trk_ovfl_slot[i]], 1));
-
     return (0);
 }
 
