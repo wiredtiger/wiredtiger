@@ -355,12 +355,14 @@ timestamp(void *arg)
     /* Update the oldest timestamp at least once every 15 seconds. */
     done = false;
     do {
+        random_sleep(&g.rnd, 15);
+
         /*
          * If running without rollback_to_stable, do a final bump of the oldest timestamp as part of
          * shutting down the worker threads, otherwise recent operations can prevent verify from
          * running.
          *
-         * With rollback_to_stable configured, don't do any bumps at the end of the run. We need the
+         * With rollback_to_stable configured, don't do a bump at the end of the run. We need the
          * worker threads to have time to see any changes in the stable timestamp, so they can stash
          * their stable state - if we bump they will have no time to do that. And when we rollback,
          * we'd like to see a reasonable amount of data changed. So we don't bump the stable
@@ -369,11 +371,12 @@ timestamp(void *arg)
          */
         if (g.workers_finished)
             done = true;
-        else
-            random_sleep(&g.rnd, 15);
 
-        if (!g.c_txn_rollback_to_stable || !g.workers_finished)
+        if (!done || !g.c_txn_rollback_to_stable) {
             timestamp_once(session, true);
+            if (done)
+                timestamp_once(session, true);
+        }
 
     } while (!done);
 

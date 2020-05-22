@@ -211,6 +211,7 @@ tinfo_rollback_to_stable_check(void)
     int32_t check;
     u_int i;
     uint32_t tcount, vcount;
+    char buf[512];
 
     /* Open a session and cursor pair. */
     testutil_check(g.wts_conn->open_session(g.wts_conn, NULL, NULL, &session));
@@ -225,8 +226,10 @@ tinfo_rollback_to_stable_check(void)
             vcount += (uint32_t)check;
         }
     }
-    printf("\nrollback_to_stable: %" PRIu32 " threads checked, %" PRIu32 " operations repeated\n",
-      tcount, vcount);
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+      "rollback_to_stable: %" PRIu32 " threads checked, %" PRIu32 " ops repeated\n", tcount,
+      vcount));
+    track(buf, 0ULL, NULL);
     testutil_check(session->close(session, NULL));
 }
 
@@ -399,6 +402,7 @@ operations(u_int ops_seconds, bool lastrun)
     testutil_check(session->close(session, NULL));
 
     if (g.c_txn_rollback_to_stable) {
+        track("rollback_to_stable", 0ULL, NULL);
         g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
         tinfo_rollback_to_stable_check();
     }
