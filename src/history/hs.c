@@ -1207,7 +1207,7 @@ __wt_hs_delete_key_from_ts(
 
     /*
      * In order to delete a key range, we need to be able to inspect all history store records
-     * regardless of their stop time points and the visiblity of their values.
+     * regardless of their stop time points and the visibility of their values.
      */
     F_SET(session->hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     F_SET(session, WT_SESSION_HS_IGNORE_VISIBILITY);
