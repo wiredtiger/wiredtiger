@@ -1183,6 +1183,8 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
     }
+
+    F_CLR(txn, WT_TXN_HAS_TS_READ);
     txn_shared->read_timestamp = WT_TS_NONE;
 }
 
