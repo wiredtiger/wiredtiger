@@ -45,7 +45,7 @@ check_copy(void)
     path = dmalloc(len);
     testutil_check(__wt_snprintf(path, len, "%s/BACKUP", g.home));
 
-    wts_open(path, false, &conn);
+    wts_open(path, false, &conn, true);
 
     testutil_checkfmt(conn->open_session(conn, NULL, NULL, &session), "%s", path);
 
@@ -299,7 +299,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
             tmp = NULL;
         }
     }
-    testutil_check(ret == WT_NOTFOUND);
+    testutil_assert(ret == WT_NOTFOUND);
     testutil_check(incr_cur->close(incr_cur));
     if (rfd != -1) {
         error_sys_check(close(rfd));
@@ -308,6 +308,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
     }
     free(tmp);
 }
+
 /*
  * copy_file --
  *     Copy a single file into the backup directories.

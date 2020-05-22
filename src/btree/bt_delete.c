@@ -108,7 +108,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * discarded. The way we figure that out is to check the page's cell type, cells for leaf pages
      * without overflow items are special.
      *
-     * Additionally, if the aggregated start time pair on the page is not visible to us then we
+     * Additionally, if the aggregated start time point on the page is not visible to us then we
      * cannot truncate the page.
      */
     if (!__wt_ref_addr_copy(session, ref, &addr))
@@ -379,11 +379,11 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         }
     WT_ROW_FOREACH (page, rip, i) {
         /*
-         * Retrieve the stop time pair from the page's row. If we find an existing stop time pair we
-         * don't need to append a tombstone.
+         * Retrieve the stop time point from the page's row. If we find an existing stop time point
+         * we don't need to append a tombstone.
          */
         __wt_read_row_time_window(session, page, rip, &tw);
-        if (!__wt_time_window_has_stop(&tw)) {
+        if (!WT_TIME_WINDOW_HAS_STOP(&tw)) {
             WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
             upd->next = upd_array[WT_ROW_SLOT(page, rip)];
             upd_array[WT_ROW_SLOT(page, rip)] = upd;

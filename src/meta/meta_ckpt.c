@@ -451,6 +451,46 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 }
 
 /*
+ * __wt_meta_get_oldest_ckpt_timestamp --
+ *     Get the oldest timestamp over all checkpoints.
+ */
+int
+__wt_meta_get_oldest_ckpt_timestamp(
+  WT_SESSION_IMPL *session, const char *fname, wt_timestamp_t *oldest_ckpt_ts)
+{
+    WT_CONFIG ckptconf;
+    WT_CONFIG_ITEM a, k, v;
+    WT_DECL_RET;
+    wt_timestamp_t ts;
+    char *config;
+
+    ts = WT_TS_MAX;
+    config = NULL;
+
+    /* Retrieve the metadata information for the file. */
+    WT_ERR(__wt_metadata_search(session, fname, &config));
+
+    /* Load any existing checkpoints into the array. */
+    if ((ret = __wt_config_getones(session, config, "checkpoint", &v)) == 0) {
+        __wt_config_subinit(session, &ckptconf, &v);
+        /*
+         * There may be multiple checkpoints for the file. Loop through to find the minimum oldest
+         * start timestamp over all of them.
+         */
+        for (; (ret = __wt_config_next(&ckptconf, &k, &v)) == 0;) {
+            if (__wt_config_subgets(session, &v, "oldest_start_ts", &a) == 0 && a.len != 0 &&
+              a.val != WT_TS_NONE && ts > (uint64_t)a.val)
+                ts = (uint64_t)a.val;
+        }
+    }
+
+err:
+    *oldest_ckpt_ts = ts != WT_TS_MAX ? ts : WT_TS_NONE;
+    __wt_free(session, config);
+    return (ret);
+}
+
+/*
  * __wt_meta_ckptlist_get --
  *     Load all available checkpoint information for a file.
  */
@@ -596,7 +636,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ckpt->size = (uint64_t)a.val;
 
     /* Default to durability. */
-    __wt_time_aggregate_init(&ckpt->ta);
+    WT_TIME_AGGREGATE_INIT(&ckpt->ta);
 
     ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
@@ -653,7 +693,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.prepare = (uint8_t)a.val;
 
-    __wt_check_addr_validity(session, &ckpt->ta);
+    WT_RET(__wt_check_addr_validity(session, &ckpt->ta, false));
 
     WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
     if (a.len == 0)
@@ -739,7 +779,7 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
                 WT_RET(__wt_raw_to_hex(session, ckpt->raw.data, ckpt->raw.size, &ckpt->addr));
         }
 
-        __wt_check_addr_validity(session, &ckpt->ta);
+        WT_RET(__wt_check_addr_validity(session, &ckpt->ta, false));
 
         WT_RET(__wt_buf_catfmt(session, buf, "%s%s", sep, ckpt->name));
         sep = ",";
@@ -752,7 +792,7 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
           ",newest_start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64
           ",oldest_start_txn=%" PRId64 ",newest_stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64
-          ",newest_stop_txn=%" PRId64 ",prepare:%d,write_gen=%" PRId64 ")",
+          ",newest_stop_txn=%" PRId64 ",prepare=%d,write_gen=%" PRId64 ")",
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
           (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.oldest_start_txn,
