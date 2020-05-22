@@ -153,7 +153,9 @@ wts_salvage(void)
     /* Salvage, then verify. */
     wts_open(g.home, true, &g.wts_conn, false);
     salvage();
+#if 0
     wts_verify("post-salvage verify");
+#endif
     wts_close();
 
     /* Corrupt the file randomly, salvage, then verify. */
