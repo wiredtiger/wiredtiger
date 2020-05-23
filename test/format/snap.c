@@ -97,12 +97,8 @@ snap_op_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
         tinfo->snap_end = &tinfo->snap[SNAP_LIST_SIZE];
 
         /* Clear out older info from the snap list. */
-        for (snap = tinfo->snap_list; snap < tinfo->snap_end; ++snap) {
-            snap->repeatable = false;
-            snap->opid = 0;
-            snap->op = 0;
-            snap->ts = 0;
-        }
+        for (snap = tinfo->snap_list; snap < tinfo->snap_end; ++snap)
+            WT_CLEAR(*snap);
     }
 
     tinfo->snap_first = tinfo->snap;
