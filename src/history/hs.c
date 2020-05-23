@@ -450,10 +450,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
   WT_HS_TIME_POINT *stop_time_point)
 {
-    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-
-    cbt = (WT_CURSOR_BTREE *)cursor;
 
     /*
      * The session should be pointing at the history store btree since this is the one that we'll be
@@ -514,7 +511,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      * begin iterating over the history store. This needs to be done otherwise the subsequent
      * "next" calls will blow up.
      */
-    WT_ERR(__wt_cursor_key_order_init(cbt));
+    WT_ERR(__wt_cursor_key_order_init((WT_CURSOR_BTREE *)cursor));
 #endif
     F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
 
