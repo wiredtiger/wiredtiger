@@ -452,12 +452,12 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
     WT_UNUSED(allow_verify);
 #endif
     testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
-    if (sessionp != NULL)
-        testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    *connp = conn;
-    if (sessionp != NULL)
+    if (sessionp != NULL) {
+        testutil_check(conn->open_session(conn, NULL, NULL, &session));
         *sessionp = session;
+    }
+    *connp = conn;
 }
 
 void
