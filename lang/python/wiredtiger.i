@@ -1135,6 +1135,7 @@ int diagnostic_build();
 %ignore __wt_connection::add_extractor;
 %ignore __wt_connection::get_extension_api;
 %ignore __wt_session::log_printf;
+%ignore __wt_session::log_vprintf;
 
 OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 

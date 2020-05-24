@@ -29,7 +29,6 @@
 #include "format.h"
 #include "config.h"
 
-static void config(void);
 static void config_backup_incr(void);
 static void config_backward_compatible(void);
 static void config_cache(void);
@@ -68,7 +67,7 @@ static void config_transaction(void);
 void
 config_final(void)
 {
-    config(); /* Finish up configuration and review it. */
+    handle_init();
 
     config_print(false);
 
@@ -82,8 +81,8 @@ config_final(void)
  * config --
  *     Initialize the configuration itself.
  */
-static void
-config(void)
+void
+config_run(void)
 {
     CONFIG *cp;
     char buf[128];

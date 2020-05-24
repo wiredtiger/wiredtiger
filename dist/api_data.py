@@ -522,6 +522,13 @@ connection_runtime_config = [
             is not limited to not skewing newest, not favoring leaf pages,
             and modifying the eviction score mechanism.''',
             type='boolean'),
+        Config('log_retain', '0', r'''
+            adjust log archiving to retain at least this number of log files''',
+            min='0', max='1024'),
+        Config('log_verbose', '0', r'''
+            Redirect verbose messages from the standard event handlers into the log files as
+            message-type log records''',
+            min='0', max='1024'),
         Config('realloc_exact', 'false', r'''
             if true, reallocation of memory will only provide the exact
             amount requested. This will help with spotting memory allocation
@@ -1222,6 +1229,7 @@ methods = {
 ]),
 
 'WT_SESSION.log_printf' : Method([]),
+'WT_SESSION.log_vprintf' : Method([]),
 
 'WT_SESSION.open_cursor' : Method(cursor_runtime_config + [
     Config('bulk', 'false', r'''

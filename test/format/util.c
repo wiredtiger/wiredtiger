@@ -102,12 +102,6 @@ path_setup(const char *home)
     g.home_rand = dmalloc(len);
     testutil_check(__wt_snprintf(g.home_rand, len, "%s/%s", g.home, name));
 
-    /* Log file. */
-    name = "OPERATIONS.log";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_log = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_log, len, "%s/%s", g.home, name));
-
     /* History store dump file. */
     name = "FAIL.HSdump";
     len = strlen(g.home) + strlen(name) + 2;
@@ -193,9 +187,7 @@ rng_slow(WT_RAND_STATE *rnd)
 void
 handle_init(void)
 {
-    /* Open/truncate logging/random number handles. */
-    if (g.logging && (g.logfp = fopen(g.home_log, "w")) == NULL)
-        testutil_die(errno, "fopen: %s", g.home_log);
+    /* Open/truncate random number handle. */
     if ((g.randfp = fopen(g.home_rand, g.replay ? "r" : "w")) == NULL)
         testutil_die(errno, "%s", g.home_rand);
 }
@@ -207,8 +199,7 @@ handle_init(void)
 void
 handle_teardown(void)
 {
-    /* Flush/close logging/random number handles. */
-    fclose_and_clear(&g.logfp);
+    /* Flush/close random number handle. */
     fclose_and_clear(&g.randfp);
 }
 

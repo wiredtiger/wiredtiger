@@ -951,7 +951,9 @@ localkey
 localtime
 localvalue
 logf
+logfile
 logmgr
+logmsg
 lognum
 logop
 logpath
@@ -1024,6 +1026,7 @@ multithreaded
 munmap
 mutex
 mutexes
+mx
 mytable
 mytxn
 namespace

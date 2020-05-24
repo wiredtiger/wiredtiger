@@ -164,7 +164,7 @@ main(int argc, char *argv[])
     /* Set values from the command line. */
     home = NULL;
     one_flag = quiet_flag = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:lqRrt:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:L:lqRrt:")) != EOF)
         switch (ch) {
         case '1': /* One run and quit */
             one_flag = true;
@@ -181,7 +181,13 @@ main(int argc, char *argv[])
         case 'h':
             home = __wt_optarg;
             break;
-        case 'l': /* Log operations to a file */
+        case 'L': /* Log operations specifics */
+            if (wts_log_config(__wt_optarg) != 0) {
+                fprintf(stderr, "unexpected log configuration \"%s\"\n", __wt_optarg);
+                usage();
+            }
+        /* FALLTHROUGH */
+        case 'l': /* Log operations */
             g.logging = true;
             break;
         case 'q': /* Quiet */
@@ -263,24 +269,25 @@ main(int argc, char *argv[])
 
     __wt_random_init_seed(NULL, &g.rnd); /* Initialize the RNG. */
 
+    testutil_check(__wt_thread_str(g.tidbuf, sizeof(g.tidbuf)));
+
     printf("%s: process %" PRIdMAX " running\n", progname, (intmax_t)getpid());
     fflush(stdout);
     while (++g.run_cnt <= g.c_runs || g.c_runs == 0) {
         __wt_seconds(NULL, &start);
         track("starting up", 0ULL, NULL);
 
-        if (!g.reopen)
-            wts_create(); /* Create and initialize the database and an object. */
+        config_run();
 
-        config_final(); /* Remaining configuration and validation */
+        if (g.reopen) {
+            config_final();
+            wts_open(g.home, &g.wts_conn, NULL, &g.wt_api, true);
+        } else {
+            wts_create(g.home);
+            config_final();
+            wts_open(g.home, &g.wts_conn, NULL, &g.wt_api, true);
+            wts_log_init();
 
-        handle_init();
-
-        if (g.reopen)
-            wts_reopen(); /* Reopen existing database. */
-        else {
-            wts_open(g.home, true, &g.wts_conn, true);
-            wts_init();
             TIMED_MAJOR_OP(wts_load()); /* Load and verify initial records */
             TIMED_MAJOR_OP(wts_verify("post-bulk verify"));
         }
@@ -303,7 +310,7 @@ main(int argc, char *argv[])
         TIMED_MAJOR_OP(wts_verify("post-ops verify"));
 
         track("shutting down", 0ULL, NULL);
-        wts_close();
+        wts_close(&g.wts_conn, NULL, &g.wt_api);
 
         /*
          * Rebalance testing.
@@ -316,6 +323,7 @@ main(int argc, char *argv[])
         TIMED_MAJOR_OP(wts_salvage());
 
         handle_teardown();
+        wts_log_teardown();
 
         /* Overwrite the progress line with a completion line. */
         if (!g.c_quiet)
@@ -356,9 +364,8 @@ format_die(void)
      */
     (void)pthread_rwlock_wrlock(&g.death_lock);
 
-    /* Flush/close any logging information. */
-    fclose_and_clear(&g.logfp);
-    fclose_and_clear(&g.randfp);
+    handle_teardown();
+    wts_log_teardown();
 
     fprintf(stderr, "\n%s: run FAILED\n", progname);
 
@@ -376,7 +383,7 @@ usage(void)
 {
     fprintf(stderr,
       "usage: %s [-1BlqRr] [-C wiredtiger-config]\n    "
-      "[-c config-file] [-h home] [name=value ...]\n",
+      "[-c config-file] [-h home] [-L log-options] [name=value ...]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-1 run once then quit\n"
@@ -384,7 +391,8 @@ usage(void)
       "\t-C specify wiredtiger_open configuration arguments\n"
       "\t-c read test program configuration from a file (default 'CONFIG')\n"
       "\t-h home directory (default 'RUNDIR')\n"
-      "\t-l log operations to a file\n"
+      "\t-L all|local\n"
+      "\t-l log operations\n"
       "\t-q run quietly\n"
       "\t-R run on an existing database\n"
       "\t-r replay the last run from the home directory configuration\n");

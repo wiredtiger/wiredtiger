@@ -236,3 +236,37 @@ lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
         testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
     }
 }
+
+/*
+ * log_worker --
+ *     Log an operation.
+ */
+static inline void
+log_worker(WT_SESSION *session, const char *fmt, ...)
+{
+    va_list ap;
+
+    va_start(ap, fmt);
+    testutil_check(session->log_vprintf(session, fmt, ap));
+    va_end(ap);
+}
+
+#define logmsg(fmt, ...)                                                               \
+    do {                                                                               \
+        if (g.logging) {                                                               \
+            struct timespec __ts;                                                      \
+            __wt_epoch((WT_SESSION_IMPL *)g.wts_log_session, &__ts);                   \
+            log_worker(g.wts_log_session, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt,      \
+              (uintmax_t)__ts.tv_sec, (uintmax_t)__ts.tv_nsec / WT_THOUSAND, g.tidbuf, \
+              __VA_ARGS__);                                                            \
+        }                                                                              \
+    } while (0)
+#define logop(tinfo, fmt, ...)                                                                     \
+    do {                                                                                           \
+        if (g.logging) {                                                                           \
+            struct timespec __ts;                                                                  \
+            __wt_epoch((WT_SESSION_IMPL *)tinfo->log, &__ts);                                      \
+            log_worker(tinfo->log, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt, (uintmax_t)__ts.tv_sec, \
+              (uintmax_t)__ts.tv_nsec / WT_THOUSAND, tinfo->tidbuf, __VA_ARGS__);                  \
+        }                                                                                          \
+    } while (0)
