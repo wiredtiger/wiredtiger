@@ -32,7 +32,7 @@
 #define LOG_INIT_CMD "rm -rf %s/" LOG_DIR " && mkdir %s/" LOG_DIR
 
 int
-wts_log_config(const char *config)
+oplog_config(const char *config)
 {
     WT_DECL_RET;
     char *copy, *p;
@@ -63,7 +63,7 @@ wts_log_config(const char *config)
 }
 
 void
-wts_log_init(void)
+oplog_init(void)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -101,17 +101,17 @@ wts_log_init(void)
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    g.wts_log_conn = conn;
-    g.wts_log_session = session;
+    g.oplog_conn = conn;
+    g.oplog_session = session;
 }
 
 void
-wts_log_teardown(void)
+oplog_teardown(void)
 {
     WT_CONNECTION *conn;
 
-    conn = g.wts_log_conn;
-    g.wts_log_conn = NULL;
+    conn = g.oplog_conn;
+    g.oplog_conn = NULL;
 
     if (!g.logging || g.log_local || conn == NULL)
         return;
@@ -120,13 +120,13 @@ wts_log_teardown(void)
 }
 
 void
-log_ops_init(TINFO *tinfo)
+oplog_ops_init(TINFO *tinfo)
 {
     WT_SESSION *session;
 
     if (!g.logging)
         return;
 
-    testutil_check(g.wts_log_conn->open_session(g.wts_log_conn, NULL, NULL, &session));
+    testutil_check(g.oplog_conn->open_session(g.oplog_conn, NULL, NULL, &session));
     tinfo->log = session;
 }

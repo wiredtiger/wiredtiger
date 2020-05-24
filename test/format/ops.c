@@ -642,8 +642,8 @@ ops(void *arg)
     /* Set the first operation where we'll truncate a range. */
     truncate_op = g.c_truncate == 0 ? UINT64_MAX : mmrand(&tinfo->rnd, 100, 10000);
 
-    /* Initialize logging. */
-    log_ops_init(tinfo);
+    /* Initialize operation logging. */
+    oplog_ops_init(tinfo);
 
     for (intxn = false; !tinfo->quit; ++tinfo->ops) {
         /* Periodically open up a new session and cursors. */

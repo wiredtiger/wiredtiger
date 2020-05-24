@@ -104,11 +104,11 @@ typedef struct {
 
     uint32_t run_cnt; /* Run counter */
 
-    bool logging;                /* log operations  */
-    bool log_all;                /* log all operations  */
-    bool log_local;              /* log to the primary database */
-    WT_CONNECTION *wts_log_conn; /* optional logging database */
-    WT_SESSION *wts_log_session;
+    bool logging;              /* log operations  */
+    bool log_all;              /* log all operations  */
+    bool log_local;            /* log to the primary database */
+    WT_CONNECTION *oplog_conn; /* optional logging database */
+    WT_SESSION *oplog_session;
 
     RWLOCK backup_lock; /* Backup running */
     uint64_t backup_id; /* Block incremental id */
@@ -374,10 +374,13 @@ void key_gen_teardown(WT_ITEM *);
 void key_init(void);
 void lock_destroy(WT_SESSION *, RWLOCK *);
 void lock_init(WT_SESSION *, RWLOCK *);
-void log_ops_init(TINFO *);
 void operations(u_int, bool);
-WT_THREAD_RET random_kv(void *);
+int oplog_config(const char *);
+void oplog_init(void);
+void oplog_ops_init(TINFO *);
+void oplog_teardown(void);
 void path_setup(const char *);
+WT_THREAD_RET random_kv(void *);
 uint32_t rng_slow(WT_RAND_STATE *);
 void set_alarm(u_int);
 void set_core_off(void);
@@ -398,9 +401,6 @@ void wts_close(WT_CONNECTION **, WT_SESSION **);
 void wts_create(const char *);
 void wts_dump(const char *, bool);
 void wts_load(void);
-int wts_log_config(const char *);
-void wts_log_init(void);
-void wts_log_teardown(void);
 void wts_open(const char *, WT_CONNECTION **, WT_SESSION **, bool);
 void wts_read_scan(void);
 void wts_rebalance(void);

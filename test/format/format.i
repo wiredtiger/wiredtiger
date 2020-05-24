@@ -255,8 +255,8 @@ log_worker(WT_SESSION *session, const char *fmt, ...)
     do {                                                                               \
         if (g.logging) {                                                               \
             struct timespec __ts;                                                      \
-            __wt_epoch((WT_SESSION_IMPL *)g.wts_log_session, &__ts);                   \
-            log_worker(g.wts_log_session, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt,      \
+            __wt_epoch((WT_SESSION_IMPL *)g.oplog_session, &__ts);                     \
+            log_worker(g.oplog_session, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt,        \
               (uintmax_t)__ts.tv_sec, (uintmax_t)__ts.tv_nsec / WT_THOUSAND, g.tidbuf, \
               __VA_ARGS__);                                                            \
         }                                                                              \

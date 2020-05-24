@@ -182,7 +182,7 @@ main(int argc, char *argv[])
             home = __wt_optarg;
             break;
         case 'L': /* Log operations specifics */
-            if (wts_log_config(__wt_optarg) != 0) {
+            if (oplog_config(__wt_optarg) != 0) {
                 fprintf(stderr, "unexpected log configuration \"%s\"\n", __wt_optarg);
                 usage();
             }
@@ -286,7 +286,7 @@ main(int argc, char *argv[])
             wts_create(g.home);
             config_final();
             wts_open(g.home, &g.wts_conn, NULL, true);
-            wts_log_init();
+            oplog_init();
 
             TIMED_MAJOR_OP(wts_load()); /* Load and verify initial records */
             TIMED_MAJOR_OP(wts_verify("post-bulk verify"));
@@ -323,7 +323,7 @@ main(int argc, char *argv[])
         TIMED_MAJOR_OP(wts_salvage());
 
         handle_teardown();
-        wts_log_teardown();
+        oplog_teardown();
 
         /* Overwrite the progress line with a completion line. */
         if (!g.c_quiet)
@@ -365,7 +365,7 @@ format_die(void)
     (void)pthread_rwlock_wrlock(&g.death_lock);
 
     handle_teardown();
-    wts_log_teardown();
+    oplog_teardown();
 
     fprintf(stderr, "\n%s: run FAILED\n", progname);
 
