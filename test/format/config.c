@@ -67,8 +67,6 @@ static void config_transaction(void);
 void
 config_final(void)
 {
-    handle_init();
-
     config_print(false);
 
     g.rows = g.c_rows; /* Set the key count. */

@@ -277,6 +277,7 @@ main(int argc, char *argv[])
         __wt_seconds(NULL, &start);
         track("starting up", 0ULL, NULL);
 
+        rng_file_init();
         config_run();
 
         if (g.reopen) {
@@ -322,7 +323,7 @@ main(int argc, char *argv[])
          */
         TIMED_MAJOR_OP(wts_salvage());
 
-        handle_teardown();
+        rng_file_teardown();
         oplog_teardown();
 
         /* Overwrite the progress line with a completion line. */
@@ -364,7 +365,7 @@ format_die(void)
      */
     (void)pthread_rwlock_wrlock(&g.death_lock);
 
-    handle_teardown();
+    rng_file_teardown();
     oplog_teardown();
 
     fprintf(stderr, "\n%s: run FAILED\n", progname);

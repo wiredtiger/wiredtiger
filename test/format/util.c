@@ -149,6 +149,30 @@ fp_readv(FILE *fp, char *name, bool eof_ok, uint32_t *vp)
 }
 
 /*
+ * rng_file_init --
+ *     Initialize random number handles for a run.
+ */
+void
+rng_file_init(void)
+{
+    /* Open/truncate random number handle. */
+    if ((g.randfp = fopen(g.home_rand, g.replay ? "r" : "w")) == NULL)
+        testutil_die(errno, "%s", g.home_rand);
+}
+
+/*
+ * rng_file_teardown --
+ *     Shutdown random number handles for a run.
+ */
+void
+rng_file_teardown(void)
+{
+    /* Flush/close random number handle. */
+    if (g.randfp != NULL)
+        fclose_and_clear(&g.randfp);
+}
+
+/*
  * rng_slow --
  *     Return a random number, doing the real work.
  */
@@ -178,29 +202,6 @@ rng_slow(WT_RAND_STATE *rnd)
     (void)fflush(g.randfp);
 
     return (v);
-}
-
-/*
- * handle_init --
- *     Initialize logging/random number handles for a run.
- */
-void
-handle_init(void)
-{
-    /* Open/truncate random number handle. */
-    if ((g.randfp = fopen(g.home_rand, g.replay ? "r" : "w")) == NULL)
-        testutil_die(errno, "%s", g.home_rand);
-}
-
-/*
- * handle_teardown --
- *     Shutdown logging/random number handles for a run.
- */
-void
-handle_teardown(void)
-{
-    /* Flush/close random number handle. */
-    fclose_and_clear(&g.randfp);
 }
 
 /*
