@@ -51,10 +51,10 @@ wts_rebalance(void)
     testutil_checkfmt(system(cmd), "command failed: %s", cmd);
 
     /* Open the database, rebalance and verify the object, then close the database. */
-    wts_open(g.home, &conn, &session, NULL, true);
+    wts_open(g.home, &conn, &session, true);
     testutil_check(session->rebalance(session, g.uri, NULL));
     testutil_check(session->verify(session, g.uri, "strict"));
-    wts_close(&conn, &session, NULL);
+    wts_close(&conn, &session);
 
     /* Dump the rebalanced object. */
     testutil_check(__wt_snprintf(cmd, len, REBALANCE_COPY_CMD, g.home, g.home, "new", g.uri));

@@ -434,8 +434,7 @@ wts_create(const char *home)
  *     Open a connection to a WiredTiger database.
  */
 void
-wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, WT_EXTENSION_API **apip,
-  bool allow_verify)
+wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool allow_verify)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -459,12 +458,10 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, WT_EXTE
     *connp = conn;
     if (sessionp != NULL)
         *sessionp = session;
-    if (apip != NULL)
-        *apip = conn->get_extension_api(conn);
 }
 
 void
-wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp, WT_EXTENSION_API **apip)
+wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
 {
     WT_CONNECTION *conn;
 
@@ -473,8 +470,6 @@ wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp, WT_EXTENSION_API **apip)
 
     if (sessionp != NULL)
         *sessionp = NULL;
-    if (apip != NULL)
-        *apip = NULL;
 
     if (g.backward_compatible)
         testutil_check(conn->reconfigure(conn, "compatibility=(release=3.3)"));

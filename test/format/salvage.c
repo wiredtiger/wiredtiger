@@ -137,18 +137,18 @@ wts_salvage(void)
     free(cmd);
 
     /* Salvage, then verify. */
-    wts_open(g.home, &conn, &session, NULL, true);
+    wts_open(g.home, &conn, &session, true);
     testutil_check(session->salvage(session, g.uri, "force=true"));
 
 #if 0
     wts_verify("post-salvage verify");
 #endif
-    wts_close(&conn, &session, NULL);
+    wts_close(&conn, &session);
 
     /* Corrupt the file randomly, salvage, then verify. */
     if (corrupt()) {
-        wts_open(g.home, &conn, &session, NULL, false);
+        wts_open(g.home, &conn, &session, false);
         testutil_check(session->salvage(session, g.uri, "force=true"));
-        wts_close(&conn, &session, NULL);
+        wts_close(&conn, &session);
     }
 }

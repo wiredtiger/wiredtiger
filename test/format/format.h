@@ -79,7 +79,6 @@ typedef struct {
     char tidbuf[128]; /* thread ID in printable form */
 
     WT_CONNECTION *wts_conn;
-    WT_EXTENSION_API *wt_api;
 
     char *uri; /* Object name */
 
@@ -395,14 +394,14 @@ void val_gen_init(WT_ITEM *);
 void val_gen_teardown(WT_ITEM *);
 void val_init(void);
 void wts_checkpoints(void);
-void wts_close(WT_CONNECTION **, WT_SESSION **, WT_EXTENSION_API **);
+void wts_close(WT_CONNECTION **, WT_SESSION **);
 void wts_create(const char *);
 void wts_dump(const char *, bool);
 void wts_load(void);
 int wts_log_config(const char *);
 void wts_log_init(void);
 void wts_log_teardown(void);
-void wts_open(const char *, WT_CONNECTION **, WT_SESSION **, WT_EXTENSION_API **, bool);
+void wts_open(const char *, WT_CONNECTION **, WT_SESSION **, bool);
 void wts_read_scan(void);
 void wts_rebalance(void);
 void wts_reopen(void);

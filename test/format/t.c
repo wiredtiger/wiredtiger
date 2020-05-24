@@ -281,11 +281,11 @@ main(int argc, char *argv[])
 
         if (g.reopen) {
             config_final();
-            wts_open(g.home, &g.wts_conn, NULL, &g.wt_api, true);
+            wts_open(g.home, &g.wts_conn, NULL, true);
         } else {
             wts_create(g.home);
             config_final();
-            wts_open(g.home, &g.wts_conn, NULL, &g.wt_api, true);
+            wts_open(g.home, &g.wts_conn, NULL, true);
             wts_log_init();
 
             TIMED_MAJOR_OP(wts_load()); /* Load and verify initial records */
@@ -310,7 +310,7 @@ main(int argc, char *argv[])
         TIMED_MAJOR_OP(wts_verify("post-ops verify"));
 
         track("shutting down", 0ULL, NULL);
-        wts_close(&g.wts_conn, NULL, &g.wt_api);
+        wts_close(&g.wts_conn, NULL);
 
         /*
          * Rebalance testing.
