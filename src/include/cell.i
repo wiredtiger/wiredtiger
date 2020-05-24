@@ -978,7 +978,6 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
         return;
 
     /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
-    /* FIXME-WT-6124: deal with durable timestamps. */
     if (unpack_addr != NULL) {
         ta = &unpack_addr->ta;
         if (ta->oldest_start_txn != WT_TXN_NONE) {
@@ -988,8 +987,17 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
         if (ta->newest_stop_txn != WT_TXN_MAX) {
             ta->newest_stop_txn = WT_TXN_NONE;
             F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-            if (ta->newest_stop_ts == WT_TS_MAX)
+
+            /*
+             * The newest_stop_ts is WT_TS_MAX when its newest_stop_txn is not WT_TXN_MAX is
+             * possible only for the non-timestamped tables. WT_TS_MAX is not considered for
+             * aggregated durable timestamp calculation, so the durable timestamp in this case must
+             * be WT_TS_NONE.
+             */
+            if (ta->newest_stop_ts == WT_TS_MAX) {
                 ta->newest_stop_ts = WT_TS_NONE;
+                WT_ASSERT(session, ta->newest_stop_durable_ts == WT_TS_NONE);
+            }
         } else
             WT_ASSERT(session, ta->newest_stop_ts == WT_TS_MAX);
     }
@@ -1002,8 +1010,16 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
         if (tw->stop_txn != WT_TXN_MAX) {
             tw->stop_txn = WT_TXN_NONE;
             F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-            if (tw->stop_ts == WT_TS_MAX)
+
+            /*
+             * The stop_ts is WT_TS_MAX when its stop_txn is not WT_TXN_MAX is possible only for the
+             * non-timestamped tables. WT_TS_MAX is not considered for durable timestamp
+             * calculation, so the durable timestamp in this case must be WT_TS_NONE.
+             */
+            if (tw->stop_ts == WT_TS_MAX) {
                 tw->stop_ts = WT_TS_NONE;
+                WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
+            }
         } else
             WT_ASSERT(session, tw->stop_ts == WT_TS_MAX);
     }
