@@ -491,7 +491,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_insert_record_with_btree_int(
               session, cursor, btree, key, upd, type, hs_value, stop_time_point)) == WT_RESTART)
-        ;
+        WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
     WT_ERR(ret);
 
     /* If we inserted a timestamped update, we don't need to delete any history store records. */
@@ -526,7 +526,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
     }
 
     while ((ret = __hs_delete_key_from_pos(session, cursor, btree->id, key)) == WT_RESTART)
-        ;
+        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts_restart);
     WT_ERR(ret);
     WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
 
@@ -1238,7 +1238,7 @@ __wt_hs_delete_key_from_ts(
 
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_delete_key_from_ts_int(session, btree_id, key, ts)) == WT_RESTART)
-        ;
+        WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
 
     F_CLR(session, WT_SESSION_HS_IGNORE_VISIBILITY);
     F_CLR(session->hs_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
