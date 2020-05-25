@@ -517,9 +517,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
     F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
 
     /* We're pointing at the newly inserted update. Iterate once more to avoid deleting it. */
-    while ((ret = cursor->next(cursor)) == WT_RESTART)
-        ;
-    WT_ERR_NOTFOUND_OK(ret, true);
+    WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
 
     /* No records to delete. */
     if (ret == WT_NOTFOUND) {
