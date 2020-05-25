@@ -426,7 +426,10 @@ wts_create(const char *home)
 
     create_database(home, &conn);
     create_object(conn);
-    testutil_check(conn->close(conn, NULL));
+    if (g.c_in_memory != 0)
+        g.wts_conn_inmemory = conn;
+    else
+        testutil_check(conn->close(conn, NULL));
 }
 
 /*
@@ -437,26 +440,28 @@ void
 wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool allow_verify)
 {
     WT_CONNECTION *conn;
-    WT_SESSION *session;
     const char *config;
 
     *connp = NULL;
     if (sessionp != NULL)
         *sessionp = NULL;
 
-    config = "";
+    /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
+    if (g.c_in_memory != 0)
+        conn = g.wts_conn_inmemory;
+    else {
+        config = "";
 #if WIREDTIGER_VERSION_MAJOR >= 10
-    if (g.c_verify && allow_verify)
-        config = ",verify_metadata=true";
+        if (g.c_verify && allow_verify)
+            config = ",verify_metadata=true";
 #else
-    WT_UNUSED(allow_verify);
+        WT_UNUSED(allow_verify);
 #endif
-    testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
-
-    if (sessionp != NULL) {
-        testutil_check(conn->open_session(conn, NULL, NULL, &session));
-        *sessionp = session;
+        testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
     }
+
+    if (sessionp != NULL)
+        testutil_check(conn->open_session(conn, NULL, NULL, sessionp));
     *connp = conn;
 }
 
@@ -468,6 +473,14 @@ wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
     conn = *connp;
     *connp = NULL;
 
+    /*
+     * If running in-memory, there's only a single, shared WT_CONNECTION handle. Format currently
+     * doesn't perform the operations coded to close and then re-open the database on in-memory
+     * databases (for example, salvage or rebalance), so the close gets all references, it doesn't
+     * have to avoid closing the real handle.
+     */
+    if (conn == g.wts_conn_inmemory)
+        g.wts_conn_inmemory = NULL;
     if (sessionp != NULL)
         *sessionp = NULL;
 

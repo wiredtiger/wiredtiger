@@ -78,6 +78,7 @@ typedef struct {
     char tidbuf[128]; /* thread ID in printable form */
 
     WT_CONNECTION *wts_conn;
+    WT_CONNECTION *wts_conn_inmemory;
 
     char *uri; /* Object name */
 
