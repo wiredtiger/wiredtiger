@@ -360,7 +360,8 @@ __hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
 
 /*
  * __hs_insert_record_with_btree_int --
- *     Internal helper for inserting history store records.
+ *     Internal helper for inserting history store records. If this call is successful, the cursor
+ *     parameter will be positioned on the newly inserted record. Otherwise, it will be reset.
  */
 static int
 __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
