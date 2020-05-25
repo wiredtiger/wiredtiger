@@ -119,10 +119,6 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *messa
     return (nw < 0 ? EIO : (ret == EOF ? errno : 0));
 }
 
-/*
- * __handle_progress_default --
- *     Default WT_EVENT_HANDLER->handle_progress implementation: ignore.
- */
 static int
 handle_progress(
   WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *operation, uint64_t progress)
