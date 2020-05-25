@@ -97,12 +97,7 @@ rng(WT_RAND_STATE *rnd)
     if (rnd == NULL)
         rnd = &g.rnd;
 
-    /*
-     * Multithreaded runs log/replay until they get to the operations phase, then turn off logging
-     * and replay because threaded operation order can't be replayed. Do that check inline so it's a
-     * cheap call once thread performance starts to matter.
-     */
-    return (g.randfp == NULL || g.rand_log_stop ? __wt_random(rnd) : rng_slow(rnd));
+    return (__wt_random(rnd));
 }
 
 /*

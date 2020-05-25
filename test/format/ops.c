@@ -152,13 +152,6 @@ operations(u_int ops_seconds, bool lastrun)
         quit_fourths = fourths + 15 * 4 * 60;
     }
 
-    /*
-     * We support replay of threaded runs, but don't log random numbers after threaded operations
-     * start, there's no point.
-     */
-    if (!SINGLETHREADED)
-        g.rand_log_stop = true;
-
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     logmsg("%s", "=============== thread ops start");
 

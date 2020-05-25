@@ -965,8 +965,8 @@ config_print(bool error_display)
     CONFIG *cp;
     FILE *fp;
 
-    /* Reopening or replaying an existing database should leave the existing CONFIG file. */
-    if (g.reopen || g.replay)
+    /* Reopening an existing database should leave the existing CONFIG file. */
+    if (g.reopen)
         return;
 
     if (error_display)

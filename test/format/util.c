@@ -126,19 +126,13 @@ path_setup(const char *home)
  *     Read and return a value from a file.
  */
 bool
-fp_readv(FILE *fp, char *name, bool eof_ok, uint32_t *vp)
+fp_readv(FILE *fp, char *name, uint32_t *vp)
 {
     u_long ulv;
     char *endptr, buf[100];
 
-    if (fgets(buf, sizeof(buf), fp) == NULL) {
-        if (feof(g.randfp)) {
-            if (eof_ok)
-                return (true);
-            testutil_die(errno, "%s: read-value EOF", name);
-        }
+    if (fgets(buf, sizeof(buf), fp) == NULL)
         testutil_die(errno, "%s: read-value error", name);
-    }
 
     errno = 0;
     ulv = strtoul(buf, &endptr, 10);
@@ -146,62 +140,6 @@ fp_readv(FILE *fp, char *name, bool eof_ok, uint32_t *vp)
     testutil_assert(ulv <= UINT32_MAX);
     *vp = (uint32_t)ulv;
     return (false);
-}
-
-/*
- * rng_file_init --
- *     Initialize random number handles for a run.
- */
-void
-rng_file_init(void)
-{
-    /* Open/truncate random number handle. */
-    if ((g.randfp = fopen(g.home_rand, g.replay ? "r" : "w")) == NULL)
-        testutil_die(errno, "%s", g.home_rand);
-}
-
-/*
- * rng_file_teardown --
- *     Shutdown random number handles for a run.
- */
-void
-rng_file_teardown(void)
-{
-    /* Flush/close random number handle. */
-    if (g.randfp != NULL)
-        fclose_and_clear(&g.randfp);
-}
-
-/*
- * rng_slow --
- *     Return a random number, doing the real work.
- */
-uint32_t
-rng_slow(WT_RAND_STATE *rnd)
-{
-    uint32_t v;
-
-    /*
-     * We can reproduce a single-threaded run based on the random numbers used in the initial run,
-     * plus the configuration files.
-     */
-    if (g.replay) {
-        if (fp_readv(g.randfp, g.home_rand, true, &v)) {
-            fprintf(stderr,
-              "\n"
-              "end of random number log reached\n");
-            exit(EXIT_SUCCESS);
-        }
-        return (v);
-    }
-
-    v = __wt_random(rnd);
-
-    /* Save and flush the random number so we're up-to-date on error. */
-    (void)fprintf(g.randfp, "%" PRIu32 "\n", v);
-    (void)fflush(g.randfp);
-
-    return (v);
 }
 
 /*

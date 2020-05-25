@@ -54,7 +54,6 @@
 #define WT_NAME "wt" /* Object name */
 
 #define DATASOURCE(v) (strcmp(v, g.c_data_source) == 0 ? 1 : 0)
-#define SINGLETHREADED (g.c_threads == 1)
 
 #define FORMAT_OPERATION_REPS 3 /* 3 thread operations sets */
 
@@ -84,7 +83,6 @@ typedef struct {
 
     bool backward_compatible; /* Backward compatibility testing */
     bool reopen;              /* Reopen an existing database */
-    bool replay;              /* Replaying a run. */
     bool workers_finished;    /* Operations completed */
 
     char *home;          /* Home directory */
@@ -98,9 +96,6 @@ typedef struct {
     char *home_stats;    /* Statistics file path */
 
     char *config_open; /* Command-line configuration */
-
-    bool rand_log_stop; /* Logging turned off */
-    FILE *randfp;       /* Random number log */
 
     uint32_t run_cnt; /* Run counter */
 
@@ -365,7 +360,7 @@ void config_print(bool);
 void config_run(void);
 void config_single(const char *, bool);
 void fclose_and_clear(FILE **);
-bool fp_readv(FILE *, char *, bool, uint32_t *);
+bool fp_readv(FILE *, char *, uint32_t *);
 void key_gen_common(WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
 void key_gen_teardown(WT_ITEM *);
@@ -379,9 +374,6 @@ void oplog_ops_init(TINFO *);
 void oplog_teardown(void);
 void path_setup(const char *);
 WT_THREAD_RET random_kv(void *);
-void rng_file_init(void);
-void rng_file_teardown(void);
-uint32_t rng_slow(WT_RAND_STATE *);
 void set_alarm(u_int);
 void set_core_off(void);
 void snap_init(TINFO *, uint64_t, bool);

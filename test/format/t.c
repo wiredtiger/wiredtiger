@@ -196,9 +196,6 @@ main(int argc, char *argv[])
         case 'R': /* Reopen (start running on an existing database) */
             g.reopen = true;
             break;
-        case 'r': /* Replay a run (use the configuration and random numbers from a previous run) */
-            g.replay = true;
-            break;
         default:
             usage();
         }
@@ -208,15 +205,15 @@ main(int argc, char *argv[])
     path_setup(home);
 
     /*
-     * If it's a replay or a reopen, use the already existing home directory's CONFIG file.
+     * If it's a reopen, use the already existing home directory's CONFIG file.
      *
      * If we weren't given a configuration file, set values from "CONFIG", if it exists. Small hack
      * to ignore any CONFIG file named ".", that just makes it possible to ignore any local CONFIG
      * file, used when running checks.
      */
-    if (g.reopen || g.replay) {
+    if (g.reopen) {
         if (config != NULL)
-            testutil_die(EINVAL, "-c incompatible with -R or -r");
+            testutil_die(EINVAL, "-c incompatible with -R");
         if (access(g.home_config, R_OK) != 0)
             testutil_die(ENOENT, "%s", g.home_config);
         config = g.home_config;
@@ -244,18 +241,6 @@ main(int argc, char *argv[])
         g.c_quiet = 1;
 
     /*
-     * Multithreaded runs can be replayed: it's useful and we'll get the configuration correct.
-     * Obviously the order of operations changes, warn the user.
-     *
-     * Single-threaded runs historically exited after a single replay, which makes sense when you're
-     * debugging, leave that semantic in place.
-     */
-    if (g.replay && !SINGLETHREADED)
-        printf("Warning: replaying a multi-threaded run\n");
-    if (g.replay && SINGLETHREADED)
-        g.c_runs = 1;
-
-    /*
      * Calculate how long each operations loop should run. Take any timer value and convert it to
      * seconds, then allocate 15 seconds to do initialization, verification, rebalance and/or
      * salvage tasks after the operations loop finishes. This is not intended to be exact in any
@@ -277,7 +262,6 @@ main(int argc, char *argv[])
         __wt_seconds(NULL, &start);
         track("starting up", 0ULL, NULL);
 
-        rng_file_init();
         config_run();
 
         if (g.reopen) {
@@ -323,7 +307,6 @@ main(int argc, char *argv[])
          */
         TIMED_MAJOR_OP(wts_salvage());
 
-        rng_file_teardown();
         oplog_teardown();
 
         /* Overwrite the progress line with a completion line. */
@@ -365,7 +348,6 @@ format_die(void)
      */
     (void)pthread_rwlock_wrlock(&g.death_lock);
 
-    rng_file_teardown();
     oplog_teardown();
 
     fprintf(stderr, "\n%s: run FAILED\n", progname);
@@ -383,7 +365,7 @@ static void
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-1BlqRr] [-C wiredtiger-config]\n    "
+      "usage: %s [-1BlqR] [-C wiredtiger-config]\n    "
       "[-c config-file] [-h home] [-L log-options] [name=value ...]\n",
       progname);
     fprintf(stderr, "%s",
@@ -395,8 +377,7 @@ usage(void)
       "\t-L all|local\n"
       "\t-l log operations\n"
       "\t-q run quietly\n"
-      "\t-R run on an existing database\n"
-      "\t-r replay the last run from the home directory configuration\n");
+      "\t-R run on an existing database\n");
 
     config_error();
     exit(EXIT_FAILURE);
