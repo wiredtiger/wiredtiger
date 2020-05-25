@@ -613,6 +613,9 @@ struct __wt_connection_stats {
     int64_t perf_hist_opwrite_latency_lt1000;
     int64_t perf_hist_opwrite_latency_lt10000;
     int64_t perf_hist_opwrite_latency_gt10000;
+    int64_t rec_time_window_bytes_prepare;
+    int64_t rec_time_window_bytes_ts;
+    int64_t rec_time_window_bytes_txn;
     int64_t rec_page_delete_fast;
     int64_t rec_maximum_seconds;
     int64_t rec_pages;
