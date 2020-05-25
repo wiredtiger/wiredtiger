@@ -164,7 +164,7 @@ main(int argc, char *argv[])
     /* Set values from the command line. */
     home = NULL;
     one_flag = quiet_flag = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:L:lqRrt:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:qRrT:t")) != EOF)
         switch (ch) {
         case '1': /* One run and quit */
             one_flag = true;
@@ -181,20 +181,20 @@ main(int argc, char *argv[])
         case 'h':
             home = __wt_optarg;
             break;
-        case 'L': /* Log operations specifics */
-            if (oplog_config(__wt_optarg) != 0) {
-                fprintf(stderr, "unexpected log configuration \"%s\"\n", __wt_optarg);
-                usage();
-            }
-        /* FALLTHROUGH */
-        case 'l': /* Log operations */
-            g.logging = true;
-            break;
         case 'q': /* Quiet */
             quiet_flag = true;
             break;
         case 'R': /* Reopen (start running on an existing database) */
             g.reopen = true;
+            break;
+        case 'T': /* Trace specifics. */
+            if (trace_config(__wt_optarg) != 0) {
+                fprintf(stderr, "unexpected trace configuration \"%s\"\n", __wt_optarg);
+                usage();
+            }
+        /* FALLTHROUGH */
+        case 't': /* Trace  */
+            g.trace = true;
             break;
         default:
             usage();
@@ -271,7 +271,7 @@ main(int argc, char *argv[])
             wts_create(g.home);
             config_final();
             wts_open(g.home, &g.wts_conn, NULL, true);
-            oplog_init();
+            trace_init();
 
             TIMED_MAJOR_OP(wts_load()); /* Load and verify initial records */
             TIMED_MAJOR_OP(wts_verify("post-bulk verify"));
@@ -307,7 +307,7 @@ main(int argc, char *argv[])
          */
         TIMED_MAJOR_OP(wts_salvage());
 
-        oplog_teardown();
+        trace_teardown();
 
         /* Overwrite the progress line with a completion line. */
         if (!g.c_quiet)
@@ -336,19 +336,19 @@ format_die(void)
 {
 
     /*
-     * Turn off tracking and logging so we don't obscure the error message. The lock we're about to
-     * acquire will act as a barrier to flush the writes. This is really a "best effort" more than a
-     * guarantee, there's too much stuff in flight to be sure.
+     * Turn off progress reports and logging so we don't obscure the error message. The lock we're
+     * about to acquire will act as a barrier to flush the writes. This is really a "best effort"
+     * more than a guarantee, there's too much stuff in flight to be sure.
      */
     g.c_quiet = 1;
-    g.logging = false;
+    g.trace = false;
 
     /*
      * Single-thread error handling, our caller exits after calling us (we never release the lock).
      */
     (void)pthread_rwlock_wrlock(&g.death_lock);
 
-    oplog_teardown();
+    trace_teardown();
 
     fprintf(stderr, "\n%s: run FAILED\n", progname);
 
@@ -365,8 +365,8 @@ static void
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-1BlqR] [-C wiredtiger-config]\n    "
-      "[-c config-file] [-h home] [-L log-options] [name=value ...]\n",
+      "usage: %s [-1BqRt] [-C wiredtiger-config]\n    "
+      "[-c config-file] [-h home] [-T trace-options] [name=value ...]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-1 run once then quit\n"

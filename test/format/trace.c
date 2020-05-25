@@ -28,11 +28,11 @@
 
 #include "format.h"
 
-#define LOG_DIR "OPS.LOG"
-#define LOG_INIT_CMD "rm -rf %s/" LOG_DIR " && mkdir %s/" LOG_DIR
+#define TRACE_DIR "OPS.TRACE"
+#define TRACE_INIT_CMD "rm -rf %s/" TRACE_DIR " && mkdir %s/" TRACE_DIR
 
 int
-oplog_config(const char *config)
+trace_config(const char *config)
 {
     WT_DECL_RET;
     char *copy, *p;
@@ -40,12 +40,12 @@ oplog_config(const char *config)
     copy = dstrdup(config);
     for (;;) {
         if ((p = strstr(copy, "all")) != NULL) {
-            g.log_all = true;
+            g.trace_all = true;
             memset(p, ' ', strlen("all"));
             continue;
         }
         if ((p = strstr(copy, "local")) != NULL) {
-            g.log_local = true;
+            g.trace_local = true;
             memset(p, ' ', strlen("local"));
             continue;
         }
@@ -63,7 +63,7 @@ oplog_config(const char *config)
 }
 
 void
-oplog_init(void)
+trace_init(void)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
@@ -71,11 +71,11 @@ oplog_init(void)
     char *p;
     const char *config;
 
-    if (!g.logging)
+    if (!g.trace)
         return;
 
-    /* Log to a separate database by default, optionally log to the primary. */
-    if (g.log_local) {
+    /* Write traces to a separate database by default, optionally write traces to the primary. */
+    if (g.trace_local) {
         if (!g.c_logging)
             testutil_die(EINVAL,
               "operation logging to the primary database requires logging be configured for that "
@@ -84,16 +84,16 @@ oplog_init(void)
         conn = g.wts_conn;
         testutil_check(conn->reconfigure(conn, "debug_mode=(log_retain=10)"));
     } else {
-        len = strlen(g.home) * 2 + strlen(LOG_INIT_CMD) + 10;
+        len = strlen(g.home) * 2 + strlen(TRACE_INIT_CMD) + 10;
         p = dmalloc(len);
-        testutil_check(__wt_snprintf(p, len, LOG_INIT_CMD, g.home, g.home));
+        testutil_check(__wt_snprintf(p, len, TRACE_INIT_CMD, g.home, g.home));
         testutil_checkfmt(system(p), "%s", "logging directory creation failed");
         free(p);
 
         /* Configure log archival, and keep the last 20 log files. */
-        len = strlen(g.home) * strlen(LOG_DIR) + 10;
+        len = strlen(g.home) * strlen(TRACE_DIR) + 10;
         p = dmalloc(len);
-        testutil_check(__wt_snprintf(p, len, "%s/%s", g.home, LOG_DIR));
+        testutil_check(__wt_snprintf(p, len, "%s/%s", g.home, TRACE_DIR));
         config = "create,log=(enabled,archive),debug_mode=(log_retain=10)";
         testutil_checkfmt(wiredtiger_open(p, NULL, config, &conn), "%s: %s", p, config);
         free(p);
@@ -101,32 +101,32 @@ oplog_init(void)
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    g.oplog_conn = conn;
-    g.oplog_session = session;
+    g.trace_conn = conn;
+    g.trace_session = session;
 }
 
 void
-oplog_teardown(void)
+trace_teardown(void)
 {
     WT_CONNECTION *conn;
 
-    conn = g.oplog_conn;
-    g.oplog_conn = NULL;
+    conn = g.trace_conn;
+    g.trace_conn = NULL;
 
-    if (!g.logging || g.log_local || conn == NULL)
+    if (!g.trace || g.trace_local || conn == NULL)
         return;
 
     testutil_check(conn->close(conn, NULL));
 }
 
 void
-oplog_ops_init(TINFO *tinfo)
+trace_ops_init(TINFO *tinfo)
 {
     WT_SESSION *session;
 
-    if (!g.logging)
+    if (!g.trace)
         return;
 
-    testutil_check(g.oplog_conn->open_session(g.oplog_conn, NULL, NULL, &session));
-    tinfo->log = session;
+    testutil_check(g.trace_conn->open_session(g.trace_conn, NULL, NULL, &session));
+    tinfo->trace = session;
 }

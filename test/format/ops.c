@@ -153,7 +153,7 @@ operations(u_int ops_seconds, bool lastrun)
     }
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    logmsg("%s", "=============== thread ops start");
+    tracemsg("%s", "=============== thread ops start");
 
     /* Initialize locks to single-thread backups, failures, and timestamp updates. */
     lock_init(session, &g.backup_lock);
@@ -272,7 +272,7 @@ operations(u_int ops_seconds, bool lastrun)
     lock_destroy(session, &g.backup_lock);
     lock_destroy(session, &g.ts_lock);
 
-    logmsg("%s", "=============== thread ops stop");
+    tracemsg("%s", "=============== thread ops stop");
     testutil_check(session->close(session, NULL));
 
     for (i = 0; i < g.c_threads; ++i) {
@@ -329,7 +329,7 @@ begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
         ret = session->timestamp_transaction(session, buf);
         if (ret == 0) {
             snap_init(tinfo, ts, true);
-            logop(tinfo, "begin snapshot read-ts=%" PRIu64 " (repeatable)", ts);
+            traceop(tinfo, "begin snapshot read-ts=%" PRIu64 " (repeatable)", ts);
             return;
         }
         if (ret != EINVAL)
@@ -357,7 +357,7 @@ begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
     lock_writeunlock(session, &g.ts_lock);
 
     snap_init(tinfo, ts, false);
-    logop(tinfo, "begin snapshot read-ts=%" PRIu64 " (not repeatable)", ts);
+    traceop(tinfo, "begin snapshot read-ts=%" PRIu64 " (not repeatable)", ts);
 }
 
 /*
@@ -398,7 +398,7 @@ begin_transaction(TINFO *tinfo, u_int *iso_configp)
     wiredtiger_begin_transaction(session, config);
 
     snap_init(tinfo, WT_TS_NONE, false);
-    logop(tinfo, "begin %s", log);
+    traceop(tinfo, "begin %s", log);
 }
 
 /*
@@ -437,7 +437,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
     /* Remember our oldest commit timestamp. */
     tinfo->commit_ts = ts;
 
-    logop(
+    traceop(
       tinfo, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts, tinfo->commit_ts);
 }
 
@@ -456,7 +456,7 @@ rollback_transaction(TINFO *tinfo)
 
     testutil_check(session->rollback_transaction(session, NULL));
 
-    logop(tinfo, "abort read-ts=%" PRIu64, tinfo->read_ts);
+    traceop(tinfo, "abort read-ts=%" PRIu64, tinfo->read_ts);
 }
 
 /*
@@ -492,7 +492,7 @@ prepare_transaction(TINFO *tinfo)
     testutil_check(__wt_snprintf(buf, sizeof(buf), "prepare_timestamp=%" PRIx64, ts));
     ret = session->prepare_transaction(session, buf);
 
-    logop(tinfo, "prepare ts=%" PRIu64, ts);
+    traceop(tinfo, "prepare ts=%" PRIu64, ts);
 
     lock_writeunlock(session, &g.ts_lock);
 
@@ -635,8 +635,8 @@ ops(void *arg)
     /* Set the first operation where we'll truncate a range. */
     truncate_op = g.c_truncate == 0 ? UINT64_MAX : mmrand(&tinfo->rnd, 100, 10000);
 
-    /* Initialize operation logging. */
-    oplog_ops_init(tinfo);
+    /* Initialize operation trace. */
+    trace_ops_init(tinfo);
 
     for (intxn = false; !tinfo->quit; ++tinfo->ops) {
         /* Periodically open up a new session and cursors. */
@@ -1126,19 +1126,20 @@ read_row_worker(
     if (ret == 0)
         switch (g.type) {
         case FIX:
-            if (tinfo == NULL && g.log_all)
-                logmsg("%-10s%" PRIu64 " {0x%02x}", "read", keyno, ((char *)value->data)[0]);
+            if (tinfo == NULL && g.trace_all)
+                tracemsg("%-10s%" PRIu64 " {0x%02x}", "read", keyno, ((char *)value->data)[0]);
             if (tinfo != NULL)
-                logop(tinfo, "%-10s%" PRIu64 " {0x%02x}", "read", keyno, ((char *)value->data)[0]);
+                traceop(
+                  tinfo, "%-10s%" PRIu64 " {0x%02x}", "read", keyno, ((char *)value->data)[0]);
 
             break;
         case ROW:
         case VAR:
-            if (tinfo == NULL && g.log_all)
-                logmsg(
+            if (tinfo == NULL && g.trace_all)
+                tracemsg(
                   "%-10s%" PRIu64 " {%.*s}", "read", keyno, (int)value->size, (char *)value->data);
             if (tinfo != NULL)
-                logop(tinfo, "%-10s%" PRIu64 " {%.*s}", "read", keyno, (int)value->size,
+                traceop(tinfo, "%-10s%" PRIu64 " {%.*s}", "read", keyno, (int)value->size,
                   (char *)value->data);
             break;
         }
@@ -1275,17 +1276,17 @@ order_error_row:
         return (ret);
     }
 
-    if (g.log_all && ret == 0)
+    if (g.trace_all && ret == 0)
         switch (g.type) {
         case FIX:
-            logop(tinfo, "%-10s%" PRIu64 " {0x%02x}", which, keyno, ((char *)value.data)[0]);
+            traceop(tinfo, "%-10s%" PRIu64 " {0x%02x}", which, keyno, ((char *)value.data)[0]);
             break;
         case ROW:
-            logop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", which, keyno, (int)key.size,
+            traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", which, keyno, (int)key.size,
               (char *)key.data, (int)value.size, (char *)value.data);
             break;
         case VAR:
-            logop(
+            traceop(
               tinfo, "%-10s%" PRIu64 " {%.*s}", which, keyno, (int)value.size, (char *)value.data);
             break;
         }
@@ -1310,7 +1311,7 @@ row_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if ((ret = cursor->reserve(cursor)) != 0)
         return (ret);
 
-    logop(tinfo, "%-10s%" PRIu64 " {%.*s}", "reserve", tinfo->keyno, (int)tinfo->key->size,
+    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}", "reserve", tinfo->keyno, (int)tinfo->key->size,
       (char *)tinfo->key->data);
 
     return (0);
@@ -1331,7 +1332,7 @@ col_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if ((ret = cursor->reserve(cursor)) != 0)
         return (ret);
 
-    logop(tinfo, "%-10s%" PRIu64, "reserve", tinfo->keyno);
+    traceop(tinfo, "%-10s%" PRIu64, "reserve", tinfo->keyno);
 
     return (0);
 }
@@ -1382,7 +1383,7 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
     testutil_check(cursor->get_value(cursor, tinfo->value));
 
-    logop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "modify", tinfo->keyno, (int)tinfo->key->size,
+    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "modify", tinfo->keyno, (int)tinfo->key->size,
       (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
 
     return (0);
@@ -1408,7 +1409,7 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
     testutil_check(cursor->get_value(cursor, tinfo->value));
 
-    logop(tinfo, "%-10s%" PRIu64 ", {%.*s}", "modify", tinfo->keyno, (int)tinfo->value->size,
+    traceop(tinfo, "%-10s%" PRIu64 ", {%.*s}", "modify", tinfo->keyno, (int)tinfo->value->size,
       (char *)tinfo->value->data);
 
     return (0);
@@ -1456,7 +1457,7 @@ row_truncate(TINFO *tinfo, WT_CURSOR *cursor)
     if (ret != 0)
         return (ret);
 
-    logop(tinfo, "%-10s%" PRIu64 ", %" PRIu64, "truncate", tinfo->keyno, tinfo->last);
+    traceop(tinfo, "%-10s%" PRIu64 ", %" PRIu64, "truncate", tinfo->keyno, tinfo->last);
 
     return (0);
 }
@@ -1498,7 +1499,7 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
     if (ret != 0)
         return (ret);
 
-    logop(tinfo, "%-10s%" PRIu64 "-%" PRIu64, "truncate", tinfo->keyno, tinfo->last);
+    traceop(tinfo, "%-10s%" PRIu64 "-%" PRIu64, "truncate", tinfo->keyno, tinfo->last);
 
     return (0);
 }
@@ -1522,7 +1523,7 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if ((ret = cursor->update(cursor)) != 0)
         return (ret);
 
-    logop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "update", tinfo->keyno, (int)tinfo->key->size,
+    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "update", tinfo->keyno, (int)tinfo->key->size,
       (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
 
     return (0);
@@ -1549,10 +1550,10 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
         return (ret);
 
     if (g.type == FIX)
-        logop(tinfo, "%-10s%" PRIu64 " {0x%02" PRIx8 "}", "update", tinfo->keyno,
+        traceop(tinfo, "%-10s%" PRIu64 " {0x%02" PRIx8 "}", "update", tinfo->keyno,
           ((uint8_t *)tinfo->value->data)[0]);
     else
-        logop(tinfo, "%-10s%" PRIu64 " {%.*s}", "update", tinfo->keyno, (int)tinfo->value->size,
+        traceop(tinfo, "%-10s%" PRIu64 " {%.*s}", "update", tinfo->keyno, (int)tinfo->value->size,
           (char *)tinfo->value->data);
 
     return (0);
@@ -1582,7 +1583,7 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
         return (ret);
 
     /* Log the operation */
-    logop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "insert", tinfo->keyno, (int)tinfo->key->size,
+    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "insert", tinfo->keyno, (int)tinfo->key->size,
       (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
 
     return (0);
@@ -1668,10 +1669,10 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor)
     col_insert_add(tinfo); /* Extend the object. */
 
     if (g.type == FIX)
-        logop(tinfo, "%-10s%" PRIu64 " {0x%02" PRIx8 "}", "insert", tinfo->keyno,
+        traceop(tinfo, "%-10s%" PRIu64 " {0x%02" PRIx8 "}", "insert", tinfo->keyno,
           ((uint8_t *)tinfo->value->data)[0]);
     else
-        logop(tinfo, "%-10s%" PRIu64 " {%.*s}", "insert", tinfo->keyno, (int)tinfo->value->size,
+        traceop(tinfo, "%-10s%" PRIu64 " {%.*s}", "insert", tinfo->keyno, (int)tinfo->value->size,
           (char *)tinfo->value->data);
 
     return (0);
@@ -1698,7 +1699,7 @@ row_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
 
-    logop(tinfo, "%-10s%" PRIu64, "remove", tinfo->keyno);
+    traceop(tinfo, "%-10s%" PRIu64, "remove", tinfo->keyno);
 
     return (ret);
 }
@@ -1722,7 +1723,7 @@ col_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
 
-    logop(tinfo, "%-10s%" PRIu64, "remove", tinfo->keyno);
+    traceop(tinfo, "%-10s%" PRIu64, "remove", tinfo->keyno);
 
     return (ret);
 }

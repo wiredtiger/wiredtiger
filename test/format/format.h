@@ -99,11 +99,11 @@ typedef struct {
 
     uint32_t run_cnt; /* Run counter */
 
-    bool logging;              /* log operations  */
-    bool log_all;              /* log all operations  */
-    bool log_local;            /* log to the primary database */
-    WT_CONNECTION *oplog_conn; /* optional logging database */
-    WT_SESSION *oplog_session;
+    bool trace;                /* trace operations  */
+    bool trace_all;            /* trace all operations  */
+    bool trace_local;          /* write trace to the primary database */
+    WT_CONNECTION *trace_conn; /* optional tracing database */
+    WT_SESSION *trace_session;
 
     RWLOCK backup_lock; /* Backup running */
     uint64_t backup_id; /* Block incremental id */
@@ -319,7 +319,7 @@ typedef struct {
     WT_SESSION *session; /* WiredTiger session */
     WT_CURSOR *cursor;   /* WiredTiger cursor */
 
-    WT_SESSION *log; /* WiredTiger logging session */
+    WT_SESSION *trace; /* WiredTiger operations tracing session */
 
     uint64_t keyno;     /* key */
     WT_ITEM *key, _key; /* key, value */
@@ -368,10 +368,6 @@ void key_init(void);
 void lock_destroy(WT_SESSION *, RWLOCK *);
 void lock_init(WT_SESSION *, RWLOCK *);
 void operations(u_int, bool);
-int oplog_config(const char *);
-void oplog_init(void);
-void oplog_ops_init(TINFO *);
-void oplog_teardown(void);
 void path_setup(const char *);
 WT_THREAD_RET random_kv(void *);
 void set_alarm(u_int);
@@ -383,6 +379,10 @@ void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
 WT_THREAD_RET timestamp(void *);
 void timestamp_once(WT_SESSION *);
+int trace_config(const char *);
+void trace_init(void);
+void trace_ops_init(TINFO *);
+void trace_teardown(void);
 void track(const char *, uint64_t, TINFO *);
 void val_gen(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void val_gen_init(WT_ITEM *);

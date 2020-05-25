@@ -87,7 +87,7 @@ wts_load(void)
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    logmsg("%s", "=============== bulk load start");
+    tracemsg("%s", "=============== bulk load start");
 
     /*
      * No bulk load with custom collators, the order of insertion will not match the collation
@@ -133,23 +133,23 @@ wts_load(void)
             if (!is_bulk)
                 cursor->set_key(cursor, keyno);
             cursor->set_value(cursor, *(uint8_t *)value.data);
-            if (g.log_all)
-                logmsg(
+            if (g.trace_all)
+                tracemsg(
                   "%-10s %" PRIu32 " {0x%02" PRIx8 "}", "bulk", keyno, ((uint8_t *)value.data)[0]);
             break;
         case VAR:
             if (!is_bulk)
                 cursor->set_key(cursor, keyno);
             cursor->set_value(cursor, &value);
-            if (g.log_all)
-                logmsg(
+            if (g.trace_all)
+                tracemsg(
                   "%-10s %" PRIu32 " {%.*s}", "bulk", keyno, (int)value.size, (char *)value.data);
             break;
         case ROW:
             cursor->set_key(cursor, &key);
             cursor->set_value(cursor, &value);
-            if (g.log_all)
-                logmsg("%-10s %" PRIu32 " {%.*s}, {%.*s}", "bulk", keyno, (int)key.size,
+            if (g.trace_all)
+                tracemsg("%-10s %" PRIu32 " {%.*s}, {%.*s}", "bulk", keyno, (int)key.size,
                   (char *)key.data, (int)value.size, (char *)value.data);
             break;
         }
@@ -199,7 +199,7 @@ wts_load(void)
 
     testutil_check(cursor->close(cursor));
 
-    logmsg("%s", "=============== bulk load stop");
+    tracemsg("%s", "=============== bulk load stop");
 
     testutil_check(session->close(session, NULL));
 

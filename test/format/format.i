@@ -233,11 +233,11 @@ lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
 }
 
 /*
- * log_worker --
- *     Log an operation.
+ * trace_worker --
+ *     Write an operations trace message.
  */
 static inline void
-log_worker(WT_SESSION *session, const char *fmt, ...)
+trace_worker(WT_SESSION *session, const char *fmt, ...)
 {
     va_list ap;
 
@@ -246,22 +246,23 @@ log_worker(WT_SESSION *session, const char *fmt, ...)
     va_end(ap);
 }
 
-#define logmsg(fmt, ...)                                                               \
+#define tracemsg(fmt, ...)                                                             \
     do {                                                                               \
-        if (g.logging) {                                                               \
+        if (g.trace) {                                                                 \
             struct timespec __ts;                                                      \
-            __wt_epoch((WT_SESSION_IMPL *)g.oplog_session, &__ts);                     \
-            log_worker(g.oplog_session, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt,        \
+            __wt_epoch((WT_SESSION_IMPL *)g.trace_session, &__ts);                     \
+            trace_worker(g.trace_session, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt,      \
               (uintmax_t)__ts.tv_sec, (uintmax_t)__ts.tv_nsec / WT_THOUSAND, g.tidbuf, \
               __VA_ARGS__);                                                            \
         }                                                                              \
     } while (0)
-#define logop(tinfo, fmt, ...)                                                                     \
-    do {                                                                                           \
-        if (g.logging) {                                                                           \
-            struct timespec __ts;                                                                  \
-            __wt_epoch((WT_SESSION_IMPL *)tinfo->log, &__ts);                                      \
-            log_worker(tinfo->log, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt, (uintmax_t)__ts.tv_sec, \
-              (uintmax_t)__ts.tv_nsec / WT_THOUSAND, tinfo->tidbuf, __VA_ARGS__);                  \
-        }                                                                                          \
+#define traceop(tinfo, fmt, ...)                                                            \
+    do {                                                                                    \
+        if (g.trace) {                                                                      \
+            struct timespec __ts;                                                           \
+            __wt_epoch((WT_SESSION_IMPL *)tinfo->trace, &__ts);                             \
+            trace_worker(tinfo->trace, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt,              \
+              (uintmax_t)__ts.tv_sec, (uintmax_t)__ts.tv_nsec / WT_THOUSAND, tinfo->tidbuf, \
+              __VA_ARGS__);                                                                 \
+        }                                                                                   \
     } while (0)
