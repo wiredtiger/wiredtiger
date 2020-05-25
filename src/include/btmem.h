@@ -265,9 +265,8 @@ struct __wt_page_modify {
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
-    /* The largest update transaction ID and timestamp (approximate). */
+    /* The largest update transaction ID (approximate). */
     uint64_t update_txn;
-    wt_timestamp_t update_ts;
 
     /* Dirty bytes added to the cache. */
     size_t bytes_dirty;
