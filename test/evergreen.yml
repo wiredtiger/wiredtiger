@@ -2410,7 +2410,7 @@ buildvariants:
   # - name: verify-datafile-from-little-endian
 
 - name: ubuntu1804-ppc
-  display_name: Ubuntu 18.04 PPC
+  display_name: "~ Ubuntu 18.04 PPC"
   run_on:
   - ubuntu1804-power8-test
   expansions:
@@ -2429,7 +2429,7 @@ buildvariants:
   - name: format-stress-sanitizer-smoke-ppc-test
 
 - name: ubuntu1804-zseries
-  display_name: Ubuntu 18.04 zSeries
+  display_name: "~ Ubuntu 18.04 zSeries"
   run_on:
   - ubuntu1804-zseries-test
   expansions:
