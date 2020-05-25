@@ -1182,8 +1182,8 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
         WT_WRITE_BARRIER();
 
         F_CLR(txn, WT_TXN_SHARED_TS_READ);
-        txn_shared->read_timestamp = WT_TS_NONE;
     }
+    txn_shared->read_timestamp = WT_TS_NONE;
 }
 
 /*
