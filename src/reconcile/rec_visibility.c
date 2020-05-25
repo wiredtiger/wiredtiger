@@ -15,9 +15,8 @@
 static inline bool
 __rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
 {
-    return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
-        __wt_txn_upd_visible_all(session, upd) :
-        __wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE &&
+    return (F_ISSET(r, WT_REC_VISIBLE_ALL) ? __wt_txn_upd_visible_all(session, upd) :
+                                             __wt_txn_upd_visible(session, upd) &&
           __wt_txn_visible(session, upd->txnid, upd->durable_ts));
 }
 
@@ -170,7 +169,7 @@ __rec_append_orig_value(
     } else if (unpack->tw.prepare)
         /*
          * Don't append the onpage value if it is a prepared update as it is either on the update
-         * chain or has been aborted. It it is aborted, discard it silently.
+         * chain or has been aborted. If it is aborted, discard it silently.
          */
         return (0);
 
@@ -315,11 +314,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             continue;
         }
 
-        /* Ignore prepared updates if it is not eviction. */
+        /* Ignore prepared updates if it is checkpoint. */
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid);
-            if (!F_ISSET(r, WT_REC_EVICT)) {
+            if (F_ISSET(r, WT_REC_CHECKPOINT)) {
                 has_newer_updates = true;
                 if (upd->start_ts > max_ts)
                     max_ts = upd->start_ts;
@@ -331,8 +330,18 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 if (upd->start_ts < r->min_skipped_ts)
                     r->min_skipped_ts = upd->start_ts;
                 continue;
-            } else
+            } else {
+                /*
+                 * For prepared updates written to the date store in salvage, we write the same
+                 * prepared value to the date store. If there is still content for that key left in
+                 * the history store, rollback to stable will bring it back to the data store.
+                 * Otherwise, it removes the key.
+                 */
+                WT_ASSERT(session, F_ISSET(r, WT_REC_EVICT) ||
+                    (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
+                                     F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK)));
                 WT_ASSERT(session, upd->prepare_state == WT_PREPARE_INPROGRESS);
+            }
         }
 
         /* Track the first update with non-zero timestamp. */
