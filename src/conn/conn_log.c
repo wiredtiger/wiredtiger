@@ -254,15 +254,13 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
      * See above: should never happen.
      */
     if (!reconfig) {
-        if (conn->log_compressor == NULL) {
-            WT_RET(__wt_config_gets_none(session, cfg, "log.compressor", &cval));
-            WT_RET(__wt_compressor_config(session, &cval, &conn->log_compressor));
-        }
+        conn->log_compressor = NULL;
+        WT_RET(__wt_config_gets_none(session, cfg, "log.compressor", &cval));
+        WT_RET(__wt_compressor_config(session, &cval, &conn->log_compressor));
 
-        if (conn->log_path == NULL) {
-            WT_RET(__wt_config_gets(session, cfg, "log.path", &cval));
-            WT_RET(__wt_strndup(session, cval.str, cval.len, &conn->log_path));
-        }
+        conn->log_path = NULL;
+        WT_RET(__wt_config_gets(session, cfg, "log.path", &cval));
+        WT_RET(__wt_strndup(session, cval.str, cval.len, &conn->log_path));
     }
 
     /* We are done if logging isn't enabled. */
