@@ -194,7 +194,7 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
  *     Parse and setup the logging server options.
  */
 int
-__wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool reconfig)
+__wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -245,7 +245,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool 
               "log=(enabled=true)");
     }
 
-    *runp = enabled;
+    FLD_SET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED);
 
     /*
      * Setup a log path and compression even if logging is disabled in case we are going to print a
@@ -266,7 +266,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool 
     }
 
     /* We are done if logging isn't enabled. */
-    if (!*runp)
+    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
         return (0);
 
     WT_RET(__wt_config_gets(session, cfg, "log.archive", &cval));
@@ -339,9 +339,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool 
 int
 __wt_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 {
-    bool dummy;
-
-    WT_RET(__wt_logmgr_config(session, cfg, &dummy, true));
+    WT_RET(__wt_logmgr_config(session, cfg, true));
     return (__logmgr_version(session, true));
 }
 
@@ -964,15 +962,14 @@ __wt_logmgr_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
-    bool run;
 
     conn = S2C(session);
 
-    /* Handle configuration. */
-    WT_RET(__wt_logmgr_config(session, cfg, &run, false));
-
-    /* If logging is not configured, we're done. */
-    if (!run)
+    /*
+     * Logging configuration is parsed early on for compatibility checking. It is separated from
+     * turning on the subsystem. We only need to proceed here if logging is enabled.
+     */
+    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
         return (0);
 
     FLD_SET(conn->log_flags, WT_CONN_LOG_ENABLED);
