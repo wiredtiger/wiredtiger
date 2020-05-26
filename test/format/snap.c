@@ -620,7 +620,7 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO *tinfo)
 
     count = 0;
     for (snap = tinfo->snap_list; snap < tinfo->snap_end; ++snap) {
-        if (snap->repeatable) {
+        if (snap->repeatable && snap->ts <= g.stable_timestamp) {
             ret = snap_verify(cursor, tinfo, snap);
 
             /* The only expected error is rollback. */
