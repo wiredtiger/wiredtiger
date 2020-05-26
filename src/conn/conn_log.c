@@ -392,7 +392,7 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
     /* Adjust the number of log files to retain based on debugging options. */
     if (conn->debug_ckpt_cnt != 0)
         min_lognum = WT_MIN(conn->debug_ckpt[conn->debug_ckpt_cnt - 1].l.file, min_lognum);
-    if (conn->debug_log_retain != 0) {
+    if (conn->debug_log_cnt != 0) {
         /*
          * If we're performing checkpoints apply the retain value as a maximum, increasing the
          * number the number of we keep. If not performing checkpoints, let it be an absolute number
@@ -400,12 +400,12 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
          *
          * Check for N+1, that is, we retain N full log files, and one partial.
          */
-        if ((conn->debug_log_retain + 1) >= log->fileid)
+        if ((conn->debug_log_cnt + 1) >= log->fileid)
             return (0);
         if (log->ckpt_lsn.l.file == 1 && log->ckpt_lsn.l.offset == 0)
-            min_lognum = log->fileid - (conn->debug_log_retain + 1);
+            min_lognum = log->fileid - (conn->debug_log_cnt + 1);
         else
-            min_lognum = WT_MIN(log->fileid - (conn->debug_log_retain + 1), min_lognum);
+            min_lognum = WT_MIN(log->fileid - (conn->debug_log_cnt + 1), min_lognum);
     }
     __wt_verbose(session, WT_VERB_LOG, "log_archive: archive to log number %" PRIu32, min_lognum);
 

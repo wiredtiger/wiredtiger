@@ -82,7 +82,9 @@ trace_init(void)
               "database");
 
         conn = g.wts_conn;
-        testutil_check(conn->reconfigure(conn, "debug_mode=(log_retain=10)"));
+
+        /* Keep the last N log files. */
+        testutil_check(conn->reconfigure(conn, "debug_mode=(log_retention=10)"));
     } else {
         len = strlen(g.home) * 2 + strlen(TRACE_INIT_CMD) + 10;
         p = dmalloc(len);
@@ -90,11 +92,11 @@ trace_init(void)
         testutil_checkfmt(system(p), "%s", "logging directory creation failed");
         free(p);
 
-        /* Configure log archival, and keep the last N log files. */
+        /* Configure logging with archival, and keep the last N log files. */
         len = strlen(g.home) * strlen(TRACE_DIR) + 10;
         p = dmalloc(len);
         testutil_check(__wt_snprintf(p, len, "%s/%s", g.home, TRACE_DIR));
-        config = "create,log=(enabled,archive),debug_mode=(log_retain=10)";
+        config = "create,log=(enabled,archive),debug_mode=(log_retention=10)";
         testutil_checkfmt(wiredtiger_open(p, NULL, config, &conn), "%s: %s", p, config);
         free(p);
     }

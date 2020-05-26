@@ -1799,8 +1799,8 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         F_CLR(cache, WT_CACHE_EVICT_DEBUG_MODE);
 
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.log_retain", &cval));
-    conn->debug_log_retain = (uint32_t)cval.val;
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.log_retention", &cval));
+    conn->debug_log_cnt = (uint32_t)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.realloc_exact", &cval));
     if (cval.val)

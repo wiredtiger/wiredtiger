@@ -208,9 +208,9 @@ struct __wt_connection_impl {
     WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
     uintmax_t optrack_pid;            /* Cache the process ID. */
 
-    WT_LSN *debug_ckpt;        /* Debug mode checkpoint LSNs. */
-    uint32_t debug_ckpt_cnt;   /* Checkpoint log file retention number */
-    uint32_t debug_log_retain; /* Log file retention count */
+    WT_LSN *debug_ckpt;      /* Debug mode checkpoint LSNs. */
+    uint32_t debug_ckpt_cnt; /* Checkpoint log file retention number */
+    uint32_t debug_log_cnt;  /* Log file retention count */
 
     void **foc;      /* Free-on-close array */
     size_t foc_cnt;  /* Array entries */

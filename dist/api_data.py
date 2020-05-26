@@ -522,7 +522,7 @@ connection_runtime_config = [
             is not limited to not skewing newest, not favoring leaf pages,
             and modifying the eviction score mechanism.''',
             type='boolean'),
-        Config('log_retain', '0', r'''
+        Config('log_retention', '0', r'''
             adjust log archiving to retain at least this number of log files''',
             min='0', max='1024'),
         Config('realloc_exact', 'false', r'''
