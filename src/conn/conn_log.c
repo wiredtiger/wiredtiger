@@ -396,7 +396,9 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
         /*
          * If we're performing checkpoints, apply the retain value as a minimum, increasing the
          * number the log files we keep. If not performing checkpoints, it's an absolute number of
-         * log files to keep.
+         * log files to keep. This means we can potentially remove log files required for recovery
+         * if the number of log files exceeds the configured value and the system has yet to be
+         * checkpointed.
          *
          * Check for N+1, that is, we retain N full log files, and one partial.
          */
