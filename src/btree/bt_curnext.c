@@ -689,8 +689,9 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
          * repeatedly deleting from the beginning of a tree can have quadratic performance. Take
          * care not to force eviction of pages that are genuinely empty, in new trees.
          */
-        if (page != NULL && (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
-                              (newpage && cbt->page_deleted_count > 0))) {
+        if (page != NULL && !WT_IS_HS(CUR2BT(cbt)) &&
+          (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
+              (newpage && cbt->page_deleted_count > 0))) {
             __wt_page_evict_soon(session, cbt->ref);
             WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
         }
