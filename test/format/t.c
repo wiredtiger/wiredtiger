@@ -374,10 +374,10 @@ usage(void)
       "\t-C specify wiredtiger_open configuration arguments\n"
       "\t-c read test program configuration from a file (default 'CONFIG')\n"
       "\t-h home directory (default 'RUNDIR')\n"
-      "\t-L all|local\n"
-      "\t-l log operations\n"
       "\t-q run quietly\n"
-      "\t-R run on an existing database\n");
+      "\t-R run on an existing database\n"
+      "\t-T all|local\n"
+      "\t-t log operations\n");
 
     config_error();
     exit(EXIT_FAILURE);
