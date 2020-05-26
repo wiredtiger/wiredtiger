@@ -1095,25 +1095,29 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
           (upd->txnid == WT_TXN_ABORTED || upd->txnid == WT_TXN_NONE || upd->txnid == txn->id))
             upd = upd->next;
 
+        if (upd == NULL)
+            continue;
+
         /*
          * Check the timestamp on this update with the first valid update in the chain. They're in
          * most recent order.
          */
-        if (upd != NULL) {
-            prev_op_timestamp = upd->start_ts;
-            durable_op_timestamp = upd->durable_ts;
-        }
+        prev_op_timestamp = upd->start_ts;
+        durable_op_timestamp = upd->durable_ts;
 
-        if (upd == NULL)
-            continue;
+        WT_ASSERT(session, upd->start_ts != WT_TS_NONE);
+
         /*
          * Check for consistent per-key timestamp usage. If timestamps are or are not used
          * originally then they should be used the same way always. For this transaction, timestamps
          * are in use anytime the commit timestamp is set. Check timestamps are used in order.
+         *
+         * We may see an update restored from the history store because of a prepared rollback if
+         * that update is behind the oldest timestamp when it is inserted into the history store.
          */
         op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
         upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
-        if (op_zero_ts != upd_zero_ts) {
+        if (op_zero_ts != upd_zero_ts && !F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK)) {
             WT_ERR(__wt_verbose_dump_update(session, upd));
             WT_ERR(__wt_verbose_dump_txn_one(session, session, EINVAL,
               "per-key timestamps used inconsistently, dumping relevant information"));
