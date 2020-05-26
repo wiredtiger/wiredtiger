@@ -245,7 +245,10 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
               "log=(enabled=true)");
     }
 
-    FLD_SET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED);
+    if (enabled)
+        FLD_SET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED);
+    else
+        FLD_CLR(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED);
 
     /*
      * Setup a log path and compression even if logging is disabled in case we are going to print a
