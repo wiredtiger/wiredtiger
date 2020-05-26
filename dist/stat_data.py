@@ -546,7 +546,6 @@ connection_stats = [
     RecStat('rec_time_aggr_oldest_start_ts', 'pages written including an aggregated oldest start timestamp '),
     RecStat('rec_time_aggr_oldest_start_txn', 'pages written including an aggregated oldest start transaction ID '),
     RecStat('rec_time_aggr_prepared', 'pages written including an aggregated prepare'),
-    RecStat('rec_time_window_bytes_prepare', 'byte size of prepare in pages written'),
     RecStat('rec_time_window_bytes_ts', 'byte size of timestamps in pages written'),
     RecStat('rec_time_window_bytes_txn', 'byte size of transaction IDs in pages written'),
     RecStat('rec_time_window_durable_start_ts', 'records written including a start durable timestamp'),

@@ -140,8 +140,6 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     }
 
     if (r->count_prepare != 0) {
-        WT_STAT_CONN_INCRV(
-          session, rec_time_window_bytes_prepare, r->count_prepare * sizeof(uint8_t));
         WT_STAT_CONN_INCRV(session, rec_time_window_prepared, r->count_prepare);
         WT_STAT_DATA_INCRV(session, rec_time_window_prepared, r->count_prepare);
         WT_STAT_CONN_INCR(session, rec_time_window_pages_prepared);
