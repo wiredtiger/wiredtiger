@@ -660,6 +660,10 @@ __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *
     /* First, peek at the log record type. */
     WT_RET(__wt_logrec_read(session, &p, end, &rectype));
 
+    /*
+     * When printing just the message records, display the message by itself without the usual log
+     * header information.
+     */
     if (F_ISSET(args, WT_TXN_PRINTLOG_MSG)) {
         if (rectype != WT_LOGREC_MESSAGE)
             return (0);
