@@ -1035,7 +1035,6 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 
     txn = session->txn;
     cursor = NULL;
-    durable_op_timestamp = prev_op_timestamp = WT_TS_NONE;
 
     /*
      * Debugging checks on timestamps, if user requested them.
@@ -1104,8 +1103,6 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
          */
         prev_op_timestamp = upd->start_ts;
         durable_op_timestamp = upd->durable_ts;
-
-        WT_ASSERT(session, upd->start_ts != WT_TS_NONE);
 
         /*
          * Check for consistent per-key timestamp usage. If timestamps are or are not used
