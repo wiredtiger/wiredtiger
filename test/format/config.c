@@ -895,6 +895,8 @@ config_transaction(void)
     if (g.c_txn_rollback_to_stable) {
         if (!g.c_txn_timestamps)
             config_single("transaction.timestamps=on", false);
+        if (g.c_logging)
+            config_single("logging=off", false);
     }
     if (g.c_txn_timestamps) {
         if (g.c_isolation_flag != ISOLATION_SNAPSHOT)
