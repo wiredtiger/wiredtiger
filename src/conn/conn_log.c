@@ -394,9 +394,9 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
         min_lognum = WT_MIN(conn->debug_ckpt[conn->debug_ckpt_cnt - 1].l.file, min_lognum);
     if (conn->debug_log_cnt != 0) {
         /*
-         * If we're performing checkpoints apply the retain value as a maximum, increasing the
-         * number the number of we keep. If not performing checkpoints, let it be an absolute number
-         * of log files to keep.
+         * If we're performing checkpoints, apply the retain value as a minimum, increasing the
+         * number the log files we keep. If not performing checkpoints, it's an absolute number of
+         * log files to keep.
          *
          * Check for N+1, that is, we retain N full log files, and one partial.
          */
