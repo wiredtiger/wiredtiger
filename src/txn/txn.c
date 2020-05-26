@@ -1112,8 +1112,8 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
          * originally then they should be used the same way always. For this transaction, timestamps
          * are in use anytime the commit timestamp is set. Check timestamps are used in order.
          *
-         * We may see an update restored from the history store because of a prepared rollback if
-         * that update is behind the oldest timestamp when it is inserted into the history store.
+         * We may see an update restored from the history store with 0 timestamp if that update is
+         * behind the oldest timestamp when the history store page is reconciled.
          */
         op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
         upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
