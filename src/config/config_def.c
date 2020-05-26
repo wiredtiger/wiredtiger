@@ -905,7 +905,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "strategy=",
     confchk_WT_SESSION_join, 7},
   {"WT_SESSION.log_flush", "sync=on", confchk_WT_SESSION_log_flush, 1},
-  {"WT_SESSION.log_printf", "", NULL, 0}, {"WT_SESSION.log_vprintf", "", NULL, 0},
+  {"WT_SESSION.log_printf", "", NULL, 0},
   {"WT_SESSION.open_cursor",
     "append=false,bulk=false,checkpoint=,checkpoint_wait=true,dump=,"
     "incremental=(enabled=false,file=,force_stop=false,"

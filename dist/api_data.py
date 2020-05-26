@@ -1225,7 +1225,6 @@ methods = {
 ]),
 
 'WT_SESSION.log_printf' : Method([]),
-'WT_SESSION.log_vprintf' : Method([]),
 
 'WT_SESSION.open_cursor' : Method(cursor_runtime_config + [
     Config('bulk', 'false', r'''
