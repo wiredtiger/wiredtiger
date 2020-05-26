@@ -90,7 +90,7 @@ trace_init(void)
         testutil_checkfmt(system(p), "%s", "logging directory creation failed");
         free(p);
 
-        /* Configure log archival, and keep the last 20 log files. */
+        /* Configure log archival, and keep the last N log files. */
         len = strlen(g.home) * strlen(TRACE_DIR) + 10;
         p = dmalloc(len);
         testutil_check(__wt_snprintf(p, len, "%s/%s", g.home, TRACE_DIR));
