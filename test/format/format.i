@@ -231,38 +231,25 @@ lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
         testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
     }
 }
-
-/*
- * trace_worker --
- *     Write an operations trace message.
- */
-static inline void
-trace_worker(WT_SESSION *session, const char *fmt, ...)
-{
-    va_list ap;
-
-    va_start(ap, fmt);
-    testutil_check(session->log_vprintf(session, fmt, ap));
-    va_end(ap);
-}
-
-#define tracemsg(fmt, ...)                                                             \
-    do {                                                                               \
-        if (g.trace) {                                                                 \
-            struct timespec __ts;                                                      \
-            __wt_epoch((WT_SESSION_IMPL *)g.trace_session, &__ts);                     \
-            trace_worker(g.trace_session, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt,      \
-              (uintmax_t)__ts.tv_sec, (uintmax_t)__ts.tv_nsec / WT_THOUSAND, g.tidbuf, \
-              __VA_ARGS__);                                                            \
-        }                                                                              \
+#define tracemsg(fmt, ...)                                                                         \
+    do {                                                                                           \
+        if (g.trace) {                                                                             \
+            struct timespec __ts;                                                                  \
+            WT_SESSION *__s = g.trace_session;                                                     \
+            __wt_epoch((WT_SESSION_IMPL *)__s, &__ts);                                             \
+            testutil_check(                                                                        \
+              __s->log_printf(__s, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt, (uintmax_t)__ts.tv_sec, \
+                (uintmax_t)__ts.tv_nsec / WT_THOUSAND, g.tidbuf, __VA_ARGS__));                    \
+        }                                                                                          \
     } while (0)
-#define traceop(tinfo, fmt, ...)                                                            \
-    do {                                                                                    \
-        if (g.trace) {                                                                      \
-            struct timespec __ts;                                                           \
-            __wt_epoch((WT_SESSION_IMPL *)tinfo->trace, &__ts);                             \
-            trace_worker(tinfo->trace, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt,              \
-              (uintmax_t)__ts.tv_sec, (uintmax_t)__ts.tv_nsec / WT_THOUSAND, tinfo->tidbuf, \
-              __VA_ARGS__);                                                                 \
-        }                                                                                   \
+#define traceop(tinfo, fmt, ...)                                                                   \
+    do {                                                                                           \
+        if (g.trace) {                                                                             \
+            struct timespec __ts;                                                                  \
+            WT_SESSION *__s = (tinfo)->trace;                                                      \
+            __wt_epoch((WT_SESSION_IMPL *)__s, &__ts);                                             \
+            testutil_check(                                                                        \
+              __s->log_printf(__s, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt, (uintmax_t)__ts.tv_sec, \
+                (uintmax_t)__ts.tv_nsec / WT_THOUSAND, tinfo->tidbuf, __VA_ARGS__));               \
+        }                                                                                          \
     } while (0)
