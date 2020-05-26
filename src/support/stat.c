@@ -81,7 +81,10 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: remove key bytes removed", "cursor: reserve calls", "cursor: reset calls",
   "cursor: search calls", "cursor: search near calls", "cursor: truncate calls",
   "cursor: update calls", "cursor: update key and value bytes", "cursor: update value size change",
-  "reconciliation: dictionary matches", "reconciliation: fast-path pages deleted",
+  "history: history pages added for eviction during garbage collection",
+  "history: history pages removed for garbage collection",
+  "history: history pages visited for garbage collection", "reconciliation: dictionary matches",
+  "reconciliation: fast-path pages deleted",
   "reconciliation: internal page key bytes discarded using suffix compression",
   "reconciliation: internal page multi-block writes", "reconciliation: internal-page overflow keys",
   "reconciliation: leaf page key bytes discarded using prefix compression",
@@ -89,7 +92,27 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: maximum blocks required for a page", "reconciliation: overflow values written",
   "reconciliation: page checksum matches", "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction", "reconciliation: pages deleted",
-  "reconciliation: prepared values written", "session: object compaction",
+  "reconciliation: pages written including an aggregated newest start durable timestamp ",
+  "reconciliation: pages written including an aggregated newest stop durable timestamp ",
+  "reconciliation: pages written including an aggregated newest stop timestamp ",
+  "reconciliation: pages written including an aggregated newest stop transaction ID",
+  "reconciliation: pages written including an aggregated oldest start timestamp ",
+  "reconciliation: pages written including an aggregated oldest start transaction ID ",
+  "reconciliation: pages written including an aggregated prepare",
+  "reconciliation: pages written including at least one prepare",
+  "reconciliation: pages written including at least one start durable timestamp",
+  "reconciliation: pages written including at least one start timestamp",
+  "reconciliation: pages written including at least one start transaction ID",
+  "reconciliation: pages written including at least one stop durable timestamp",
+  "reconciliation: pages written including at least one stop timestamp",
+  "reconciliation: pages written including at least one stop transaction ID",
+  "reconciliation: records written including a prepare",
+  "reconciliation: records written including a start durable timestamp",
+  "reconciliation: records written including a start timestamp",
+  "reconciliation: records written including a start transaction ID",
+  "reconciliation: records written including a stop durable timestamp",
+  "reconciliation: records written including a stop timestamp",
+  "reconciliation: records written including a stop transaction ID", "session: object compaction",
   "transaction: update conflicts",
 };
 
@@ -261,6 +284,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
+    stats->hs_gc_pages_evict = 0;
+    stats->hs_gc_pages_removed = 0;
+    stats->hs_gc_pages_visited = 0;
     stats->rec_dictionary = 0;
     stats->rec_page_delete_fast = 0;
     stats->rec_suffix_compression = 0;
@@ -275,7 +301,27 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
     stats->rec_page_delete = 0;
-    stats->rec_prepare_value = 0;
+    stats->rec_time_aggr_newest_start_durable_ts = 0;
+    stats->rec_time_aggr_newest_stop_durable_ts = 0;
+    stats->rec_time_aggr_newest_stop_ts = 0;
+    stats->rec_time_aggr_newest_stop_txn = 0;
+    stats->rec_time_aggr_oldest_start_ts = 0;
+    stats->rec_time_aggr_oldest_start_txn = 0;
+    stats->rec_time_aggr_prepared = 0;
+    stats->rec_time_window_pages_prepared = 0;
+    stats->rec_time_window_pages_durable_start_ts = 0;
+    stats->rec_time_window_pages_start_ts = 0;
+    stats->rec_time_window_pages_start_txn = 0;
+    stats->rec_time_window_pages_durable_stop_ts = 0;
+    stats->rec_time_window_pages_stop_ts = 0;
+    stats->rec_time_window_pages_stop_txn = 0;
+    stats->rec_time_window_prepared = 0;
+    stats->rec_time_window_durable_start_ts = 0;
+    stats->rec_time_window_start_ts = 0;
+    stats->rec_time_window_start_txn = 0;
+    stats->rec_time_window_durable_stop_ts = 0;
+    stats->rec_time_window_stop_ts = 0;
+    stats->rec_time_window_stop_txn = 0;
     stats->session_compact = 0;
     stats->txn_update_conflict = 0;
 }
@@ -434,6 +480,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
+    to->hs_gc_pages_evict += from->hs_gc_pages_evict;
+    to->hs_gc_pages_removed += from->hs_gc_pages_removed;
+    to->hs_gc_pages_visited += from->hs_gc_pages_visited;
     to->rec_dictionary += from->rec_dictionary;
     to->rec_page_delete_fast += from->rec_page_delete_fast;
     to->rec_suffix_compression += from->rec_suffix_compression;
@@ -449,7 +498,27 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_pages += from->rec_pages;
     to->rec_pages_eviction += from->rec_pages_eviction;
     to->rec_page_delete += from->rec_page_delete;
-    to->rec_prepare_value += from->rec_prepare_value;
+    to->rec_time_aggr_newest_start_durable_ts += from->rec_time_aggr_newest_start_durable_ts;
+    to->rec_time_aggr_newest_stop_durable_ts += from->rec_time_aggr_newest_stop_durable_ts;
+    to->rec_time_aggr_newest_stop_ts += from->rec_time_aggr_newest_stop_ts;
+    to->rec_time_aggr_newest_stop_txn += from->rec_time_aggr_newest_stop_txn;
+    to->rec_time_aggr_oldest_start_ts += from->rec_time_aggr_oldest_start_ts;
+    to->rec_time_aggr_oldest_start_txn += from->rec_time_aggr_oldest_start_txn;
+    to->rec_time_aggr_prepared += from->rec_time_aggr_prepared;
+    to->rec_time_window_pages_prepared += from->rec_time_window_pages_prepared;
+    to->rec_time_window_pages_durable_start_ts += from->rec_time_window_pages_durable_start_ts;
+    to->rec_time_window_pages_start_ts += from->rec_time_window_pages_start_ts;
+    to->rec_time_window_pages_start_txn += from->rec_time_window_pages_start_txn;
+    to->rec_time_window_pages_durable_stop_ts += from->rec_time_window_pages_durable_stop_ts;
+    to->rec_time_window_pages_stop_ts += from->rec_time_window_pages_stop_ts;
+    to->rec_time_window_pages_stop_txn += from->rec_time_window_pages_stop_txn;
+    to->rec_time_window_prepared += from->rec_time_window_prepared;
+    to->rec_time_window_durable_start_ts += from->rec_time_window_durable_start_ts;
+    to->rec_time_window_start_ts += from->rec_time_window_start_ts;
+    to->rec_time_window_start_txn += from->rec_time_window_start_txn;
+    to->rec_time_window_durable_stop_ts += from->rec_time_window_durable_stop_ts;
+    to->rec_time_window_stop_ts += from->rec_time_window_stop_ts;
+    to->rec_time_window_stop_txn += from->rec_time_window_stop_txn;
     to->session_compact += from->session_compact;
     to->txn_update_conflict += from->txn_update_conflict;
 }
@@ -605,6 +674,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_READ(from, cursor_update_bytes_changed);
+    to->hs_gc_pages_evict += WT_STAT_READ(from, hs_gc_pages_evict);
+    to->hs_gc_pages_removed += WT_STAT_READ(from, hs_gc_pages_removed);
+    to->hs_gc_pages_visited += WT_STAT_READ(from, hs_gc_pages_visited);
     to->rec_dictionary += WT_STAT_READ(from, rec_dictionary);
     to->rec_page_delete_fast += WT_STAT_READ(from, rec_page_delete_fast);
     to->rec_suffix_compression += WT_STAT_READ(from, rec_suffix_compression);
@@ -620,7 +692,31 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_pages += WT_STAT_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_READ(from, rec_pages_eviction);
     to->rec_page_delete += WT_STAT_READ(from, rec_page_delete);
-    to->rec_prepare_value += WT_STAT_READ(from, rec_prepare_value);
+    to->rec_time_aggr_newest_start_durable_ts +=
+      WT_STAT_READ(from, rec_time_aggr_newest_start_durable_ts);
+    to->rec_time_aggr_newest_stop_durable_ts +=
+      WT_STAT_READ(from, rec_time_aggr_newest_stop_durable_ts);
+    to->rec_time_aggr_newest_stop_ts += WT_STAT_READ(from, rec_time_aggr_newest_stop_ts);
+    to->rec_time_aggr_newest_stop_txn += WT_STAT_READ(from, rec_time_aggr_newest_stop_txn);
+    to->rec_time_aggr_oldest_start_ts += WT_STAT_READ(from, rec_time_aggr_oldest_start_ts);
+    to->rec_time_aggr_oldest_start_txn += WT_STAT_READ(from, rec_time_aggr_oldest_start_txn);
+    to->rec_time_aggr_prepared += WT_STAT_READ(from, rec_time_aggr_prepared);
+    to->rec_time_window_pages_prepared += WT_STAT_READ(from, rec_time_window_pages_prepared);
+    to->rec_time_window_pages_durable_start_ts +=
+      WT_STAT_READ(from, rec_time_window_pages_durable_start_ts);
+    to->rec_time_window_pages_start_ts += WT_STAT_READ(from, rec_time_window_pages_start_ts);
+    to->rec_time_window_pages_start_txn += WT_STAT_READ(from, rec_time_window_pages_start_txn);
+    to->rec_time_window_pages_durable_stop_ts +=
+      WT_STAT_READ(from, rec_time_window_pages_durable_stop_ts);
+    to->rec_time_window_pages_stop_ts += WT_STAT_READ(from, rec_time_window_pages_stop_ts);
+    to->rec_time_window_pages_stop_txn += WT_STAT_READ(from, rec_time_window_pages_stop_txn);
+    to->rec_time_window_prepared += WT_STAT_READ(from, rec_time_window_prepared);
+    to->rec_time_window_durable_start_ts += WT_STAT_READ(from, rec_time_window_durable_start_ts);
+    to->rec_time_window_start_ts += WT_STAT_READ(from, rec_time_window_start_ts);
+    to->rec_time_window_start_txn += WT_STAT_READ(from, rec_time_window_start_txn);
+    to->rec_time_window_durable_stop_ts += WT_STAT_READ(from, rec_time_window_durable_stop_ts);
+    to->rec_time_window_stop_ts += WT_STAT_READ(from, rec_time_window_stop_ts);
+    to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
     to->session_compact += WT_STAT_READ(from, session_compact);
     to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }
@@ -701,9 +797,11 @@ static const char *const __stats_connection_desc[] = {
   "cache: forced eviction - pages selected unable to be evicted time",
   "cache: hazard pointer blocked page eviction", "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked", "cache: hazard pointer maximum array length",
+  "cache: history store key truncation calls that returned restart",
   "cache: history store key truncation due to mixed timestamps",
   "cache: history store key truncation due to the key being removed from the data page",
   "cache: history store score", "cache: history store table insert calls",
+  "cache: history store table insert calls that returned restart",
   "cache: history store table max on-disk size", "cache: history store table on-disk size",
   "cache: history store table reads", "cache: history store table reads missed",
   "cache: history store table reads requiring squashed modifies",
@@ -844,13 +942,37 @@ static const char *const __stats_connection_desc[] = {
   "perf: operation write latency histogram (bucket 3) - 500-999us",
   "perf: operation write latency histogram (bucket 4) - 1000-9999us",
   "perf: operation write latency histogram (bucket 5) - 10000us+",
-  "reconciliation: fast-path pages deleted", "reconciliation: page reconciliation calls",
+  "reconciliation: fast-path pages deleted",
+  "reconciliation: maximum seconds spent in a reconciliation call",
+  "reconciliation: page reconciliation calls",
   "reconciliation: page reconciliation calls for eviction",
   "reconciliation: page reconciliation calls that resulted in values with prepared transaction "
   "metadata",
   "reconciliation: page reconciliation calls that resulted in values with timestamps",
   "reconciliation: page reconciliation calls that resulted in values with transaction ids",
-  "reconciliation: pages deleted", "reconciliation: split bytes currently awaiting free",
+  "reconciliation: pages deleted",
+  "reconciliation: pages written including an aggregated newest start durable timestamp ",
+  "reconciliation: pages written including an aggregated newest stop durable timestamp ",
+  "reconciliation: pages written including an aggregated newest stop timestamp ",
+  "reconciliation: pages written including an aggregated newest stop transaction ID",
+  "reconciliation: pages written including an aggregated oldest start timestamp ",
+  "reconciliation: pages written including an aggregated oldest start transaction ID ",
+  "reconciliation: pages written including an aggregated prepare",
+  "reconciliation: pages written including at least one prepare state",
+  "reconciliation: pages written including at least one start durable timestamp",
+  "reconciliation: pages written including at least one start timestamp",
+  "reconciliation: pages written including at least one start transaction ID",
+  "reconciliation: pages written including at least one stop durable timestamp",
+  "reconciliation: pages written including at least one stop timestamp",
+  "reconciliation: pages written including at least one stop transaction ID",
+  "reconciliation: records written including a prepare state",
+  "reconciliation: records written including a start durable timestamp",
+  "reconciliation: records written including a start timestamp",
+  "reconciliation: records written including a start transaction ID",
+  "reconciliation: records written including a stop durable timestamp",
+  "reconciliation: records written including a stop timestamp",
+  "reconciliation: records written including a stop transaction ID",
+  "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free", "session: open session count",
   "session: session query timestamp calls", "session: table alter failed calls",
   "session: table alter successful calls", "session: table alter unchanged and skipped",
@@ -1067,10 +1189,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hazard_checks = 0;
     stats->cache_hazard_walks = 0;
     stats->cache_hazard_max = 0;
+    stats->cache_hs_key_truncate_mix_ts_restart = 0;
     stats->cache_hs_key_truncate_mix_ts = 0;
     stats->cache_hs_key_truncate_onpage_removal = 0;
     /* not clearing cache_hs_score */
     stats->cache_hs_insert = 0;
+    stats->cache_hs_insert_restart = 0;
     /* not clearing cache_hs_ondisk_max */
     /* not clearing cache_hs_ondisk */
     stats->cache_hs_read = 0;
@@ -1285,12 +1409,34 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_opwrite_latency_lt10000 = 0;
     stats->perf_hist_opwrite_latency_gt10000 = 0;
     stats->rec_page_delete_fast = 0;
+    /* not clearing rec_maximum_seconds */
     stats->rec_pages = 0;
     stats->rec_pages_eviction = 0;
     stats->rec_pages_with_prepare = 0;
     stats->rec_pages_with_ts = 0;
     stats->rec_pages_with_txn = 0;
     stats->rec_page_delete = 0;
+    stats->rec_time_aggr_newest_start_durable_ts = 0;
+    stats->rec_time_aggr_newest_stop_durable_ts = 0;
+    stats->rec_time_aggr_newest_stop_ts = 0;
+    stats->rec_time_aggr_newest_stop_txn = 0;
+    stats->rec_time_aggr_oldest_start_ts = 0;
+    stats->rec_time_aggr_oldest_start_txn = 0;
+    stats->rec_time_aggr_prepared = 0;
+    stats->rec_time_window_pages_prepared = 0;
+    stats->rec_time_window_pages_durable_start_ts = 0;
+    stats->rec_time_window_pages_start_ts = 0;
+    stats->rec_time_window_pages_start_txn = 0;
+    stats->rec_time_window_pages_durable_stop_ts = 0;
+    stats->rec_time_window_pages_stop_ts = 0;
+    stats->rec_time_window_pages_stop_txn = 0;
+    stats->rec_time_window_prepared = 0;
+    stats->rec_time_window_durable_start_ts = 0;
+    stats->rec_time_window_start_ts = 0;
+    stats->rec_time_window_start_txn = 0;
+    stats->rec_time_window_durable_stop_ts = 0;
+    stats->rec_time_window_stop_ts = 0;
+    stats->rec_time_window_stop_txn = 0;
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
     /* not clearing session_open */
@@ -1518,11 +1664,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hazard_walks += WT_STAT_READ(from, cache_hazard_walks);
     if ((v = WT_STAT_READ(from, cache_hazard_max)) > to->cache_hazard_max)
         to->cache_hazard_max = v;
+    to->cache_hs_key_truncate_mix_ts_restart +=
+      WT_STAT_READ(from, cache_hs_key_truncate_mix_ts_restart);
     to->cache_hs_key_truncate_mix_ts += WT_STAT_READ(from, cache_hs_key_truncate_mix_ts);
     to->cache_hs_key_truncate_onpage_removal +=
       WT_STAT_READ(from, cache_hs_key_truncate_onpage_removal);
     to->cache_hs_score += WT_STAT_READ(from, cache_hs_score);
     to->cache_hs_insert += WT_STAT_READ(from, cache_hs_insert);
+    to->cache_hs_insert_restart += WT_STAT_READ(from, cache_hs_insert_restart);
     to->cache_hs_ondisk_max += WT_STAT_READ(from, cache_hs_ondisk_max);
     to->cache_hs_ondisk += WT_STAT_READ(from, cache_hs_ondisk);
     to->cache_hs_read += WT_STAT_READ(from, cache_hs_read);
@@ -1752,12 +1901,38 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->perf_hist_opwrite_latency_lt10000 += WT_STAT_READ(from, perf_hist_opwrite_latency_lt10000);
     to->perf_hist_opwrite_latency_gt10000 += WT_STAT_READ(from, perf_hist_opwrite_latency_gt10000);
     to->rec_page_delete_fast += WT_STAT_READ(from, rec_page_delete_fast);
+    to->rec_maximum_seconds += WT_STAT_READ(from, rec_maximum_seconds);
     to->rec_pages += WT_STAT_READ(from, rec_pages);
     to->rec_pages_eviction += WT_STAT_READ(from, rec_pages_eviction);
     to->rec_pages_with_prepare += WT_STAT_READ(from, rec_pages_with_prepare);
     to->rec_pages_with_ts += WT_STAT_READ(from, rec_pages_with_ts);
     to->rec_pages_with_txn += WT_STAT_READ(from, rec_pages_with_txn);
     to->rec_page_delete += WT_STAT_READ(from, rec_page_delete);
+    to->rec_time_aggr_newest_start_durable_ts +=
+      WT_STAT_READ(from, rec_time_aggr_newest_start_durable_ts);
+    to->rec_time_aggr_newest_stop_durable_ts +=
+      WT_STAT_READ(from, rec_time_aggr_newest_stop_durable_ts);
+    to->rec_time_aggr_newest_stop_ts += WT_STAT_READ(from, rec_time_aggr_newest_stop_ts);
+    to->rec_time_aggr_newest_stop_txn += WT_STAT_READ(from, rec_time_aggr_newest_stop_txn);
+    to->rec_time_aggr_oldest_start_ts += WT_STAT_READ(from, rec_time_aggr_oldest_start_ts);
+    to->rec_time_aggr_oldest_start_txn += WT_STAT_READ(from, rec_time_aggr_oldest_start_txn);
+    to->rec_time_aggr_prepared += WT_STAT_READ(from, rec_time_aggr_prepared);
+    to->rec_time_window_pages_prepared += WT_STAT_READ(from, rec_time_window_pages_prepared);
+    to->rec_time_window_pages_durable_start_ts +=
+      WT_STAT_READ(from, rec_time_window_pages_durable_start_ts);
+    to->rec_time_window_pages_start_ts += WT_STAT_READ(from, rec_time_window_pages_start_ts);
+    to->rec_time_window_pages_start_txn += WT_STAT_READ(from, rec_time_window_pages_start_txn);
+    to->rec_time_window_pages_durable_stop_ts +=
+      WT_STAT_READ(from, rec_time_window_pages_durable_stop_ts);
+    to->rec_time_window_pages_stop_ts += WT_STAT_READ(from, rec_time_window_pages_stop_ts);
+    to->rec_time_window_pages_stop_txn += WT_STAT_READ(from, rec_time_window_pages_stop_txn);
+    to->rec_time_window_prepared += WT_STAT_READ(from, rec_time_window_prepared);
+    to->rec_time_window_durable_start_ts += WT_STAT_READ(from, rec_time_window_durable_start_ts);
+    to->rec_time_window_start_ts += WT_STAT_READ(from, rec_time_window_start_ts);
+    to->rec_time_window_start_txn += WT_STAT_READ(from, rec_time_window_start_txn);
+    to->rec_time_window_durable_stop_ts += WT_STAT_READ(from, rec_time_window_durable_stop_ts);
+    to->rec_time_window_stop_ts += WT_STAT_READ(from, rec_time_window_stop_ts);
+    to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
     to->rec_split_stashed_bytes += WT_STAT_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_READ(from, rec_split_stashed_objects);
     to->session_open += WT_STAT_READ(from, session_open);

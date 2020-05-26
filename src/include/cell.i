@@ -10,18 +10,21 @@
  * __cell_check_value_validity --
  *     Check the value's validity window for sanity.
  */
-static inline void
-__cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
+static inline int
+__cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, bool expected_error)
 {
 #ifdef HAVE_DIAGNOSTIC
     WT_DECL_RET;
 
     if ((ret = __wt_time_value_validate(session, tw, NULL, false)) != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "value timestamp window failed validation"));
+        return (expected_error ? WT_ERROR : __wt_panic(session, ret,
+                                              "value timestamp window failed validation"));
 #else
     WT_UNUSED(session);
     WT_UNUSED(tw);
+    WT_UNUSED(expected_error);
 #endif
+    return (0);
 }
 
 /*
@@ -40,7 +43,7 @@ __cell_pack_value_validity(
         return;
     }
 
-    __cell_check_value_validity(session, tw);
+    WT_IGNORE_RET(__cell_check_value_validity(session, tw, false));
 
     **pp |= WT_CELL_SECOND_DESC;
     ++*pp;
@@ -98,18 +101,21 @@ __cell_pack_value_validity(
  * __wt_check_addr_validity --
  *     Check the address' validity window for sanity.
  */
-static inline void
-__wt_check_addr_validity(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
+static inline int
+__wt_check_addr_validity(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta, bool expected_error)
 {
 #ifdef HAVE_DIAGNOSTIC
     WT_DECL_RET;
 
     if ((ret = __wt_time_aggregate_validate(session, ta, NULL, false)) != 0)
-        WT_IGNORE_RET(__wt_panic(session, ret, "illegal address timestamp window"));
+        return (expected_error ? WT_ERROR : __wt_panic(session, ret,
+                                              "address timestamp window failed validation"));
 #else
     WT_UNUSED(session);
     WT_UNUSED(ta);
+    WT_UNUSED(expected_error);
 #endif
+    return (0);
 }
 
 /*
@@ -127,7 +133,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_AGGREG
         return;
     }
 
-    __wt_check_addr_validity(session, ta);
+    WT_IGNORE_RET(__wt_check_addr_validity(session, ta, false));
 
     **pp |= WT_CELL_SECOND_DESC;
     ++*pp;
@@ -762,13 +768,9 @@ copy_cell_restart:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        /*
-         * Skip if we know we're not unpacking a cell of this type. This is all inlined code, and
-         * ideally checking allows the compiler to discard big chunks of it.
-         */
-        WT_ASSERT(session, unpack_value == NULL);
-        if (unpack_value != NULL)
-            break;
+        /* Return an error if we're not unpacking a cell of this type. */
+        if (unpack_addr == NULL)
+            return (WT_ERROR);
 
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
@@ -803,20 +805,16 @@ copy_cell_restart:
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &ta->newest_stop_durable_ts));
             ta->newest_stop_durable_ts += ta->newest_stop_ts;
         }
-        __wt_check_addr_validity(session, ta);
+        WT_RET(__wt_check_addr_validity(session, ta, end != NULL));
         break;
     case WT_CELL_DEL:
     case WT_CELL_VALUE:
     case WT_CELL_VALUE_COPY:
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
-        /*
-         * Skip if we know we're not unpacking a cell of this type. This is all inlined code, and
-         * ideally checking allows the compiler to discard big chunks of it.
-         */
-        WT_ASSERT(session, unpack_addr == NULL);
-        if (unpack_addr != NULL)
-            break;
+        /* Return an error if we're not unpacking a cell of this type. */
+        if (unpack_value == NULL)
+            return (WT_ERROR);
 
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
@@ -852,7 +850,7 @@ copy_cell_restart:
         else
             tw->durable_stop_ts = WT_TS_NONE;
 
-        __cell_check_value_validity(session, tw);
+        WT_RET(__cell_check_value_validity(session, tw, end != NULL));
         break;
     }
 
@@ -869,13 +867,9 @@ copy_cell_restart:
      */
     switch (unpack->raw) {
     case WT_CELL_VALUE_COPY:
-        /*
-         * Skip if we know we're not unpacking a cell of this type. This is all inlined code, and
-         * ideally checking allows the compiler to discard big chunks of it.
-         */
-        WT_ASSERT(session, unpack_addr == NULL);
-        if (unpack_addr != NULL)
-            break;
+        /* Return an error if we're not unpacking a cell of this type. */
+        if (unpack_value == NULL)
+            return (WT_ERROR);
 
         copy_cell = true;
 
@@ -976,15 +970,18 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
      *
      * This is how the stop time point should be interpreted for each type of delete:
      * -
-     *                  Timestamp delete  Non-timestamp delete  No delete
-     * Current startup  txnid=x, ts=y       txnid=x, ts=WT_TS_NONE           txnid=MAX, ts=MAX
-     * Previous startup txnid=0, ts=y       txnid=0, ts=WT_TS_NONE           txnid=MAX, ts=MAX
+     *                        Current startup               Previous startup
+     * Timestamp delete       txnid=x, ts=y,                txnid=0, ts=y,
+     *                        durable_ts=z                  durable_ts=z
+     * Non-timestamp delete   txnid=x, ts=NONE,             txnid=0, ts=NONE,
+     *                        durable_ts=NONE               durable_ts=NONE
+     * No delete              txnid=MAX, ts=MAX,            txnid=MAX, ts=MAX,
+     *                        durable_ts=NONE               durable_ts=NONE
      */
     if (dsk->write_gen == 0 || dsk->write_gen > S2C(session)->base_write_gen)
         return;
 
     /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
-    /* FIXME-WT-6124: deal with durable timestamps. */
     if (unpack_addr != NULL) {
         ta = &unpack_addr->ta;
         if (ta->oldest_start_txn != WT_TXN_NONE) {
@@ -994,8 +991,17 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
         if (ta->newest_stop_txn != WT_TXN_MAX) {
             ta->newest_stop_txn = WT_TXN_NONE;
             F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-            if (ta->newest_stop_ts == WT_TS_MAX)
+
+            /*
+             * The combination of newest stop timestamp being WT_TS_MAX while the newest stop
+             * transaction not being WT_TXN_MAX is possible only for the non-timestamped tables. In
+             * this scenario there shouldn't be any timestamp value as part of durable stop
+             * timestamp other than the default value WT_TS_NONE.
+             */
+            if (ta->newest_stop_ts == WT_TS_MAX) {
                 ta->newest_stop_ts = WT_TS_NONE;
+                WT_ASSERT(session, ta->newest_stop_durable_ts == WT_TS_NONE);
+            }
         } else
             WT_ASSERT(session, ta->newest_stop_ts == WT_TS_MAX);
     }
@@ -1008,8 +1014,17 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
         if (tw->stop_txn != WT_TXN_MAX) {
             tw->stop_txn = WT_TXN_NONE;
             F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-            if (tw->stop_ts == WT_TS_MAX)
+
+            /*
+             * The combination of stop timestamp being WT_TS_MAX while the stop transaction not
+             * being WT_TXN_MAX is possible only for the non-timestamped tables. In this scenario
+             * there shouldn't be any timestamp value as part of durable stop timestamp other than
+             * the default value WT_TS_NONE.
+             */
+            if (tw->stop_ts == WT_TS_MAX) {
                 tw->stop_ts = WT_TS_NONE;
+                WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
+            }
         } else
             WT_ASSERT(session, tw->stop_ts == WT_TS_MAX);
     }

@@ -297,8 +297,10 @@ connection_stats = [
     CacheStat('cache_hazard_max', 'hazard pointer maximum array length', 'max_aggregate,no_scale'),
     CacheStat('cache_hazard_walks', 'hazard pointer check entries walked'),
     CacheStat('cache_hs_insert', 'history store table insert calls'),
+    CacheStat('cache_hs_insert_restart', 'history store table insert calls that returned restart'),
     CacheStat('cache_hs_key_truncate_onpage_removal', 'history store key truncation due to the key being removed from the data page'),
     CacheStat('cache_hs_key_truncate_mix_ts', 'history store key truncation due to mixed timestamps'),
+    CacheStat('cache_hs_key_truncate_mix_ts_restart', 'history store key truncation calls that returned restart'),
     CacheStat('cache_hs_ondisk', 'history store table on-disk size', 'no_clear,no_scale,size'),
     CacheStat('cache_hs_ondisk_max', 'history store table max on-disk size', 'no_clear,no_scale,size'),
     CacheStat('cache_hs_read', 'history store table reads'),
@@ -524,9 +526,10 @@ connection_stats = [
     PerfHistStat('perf_hist_opwrite_latency_lt1000', 'operation write latency histogram (bucket 3) - 500-999us'),
     PerfHistStat('perf_hist_opwrite_latency_lt10000', 'operation write latency histogram (bucket 4) - 1000-9999us'),
 
-##########################################
+    ##########################################
     # Reconciliation statistics
     ##########################################
+    RecStat('rec_maximum_seconds', 'maximum seconds spent in a reconciliation call', 'no_clear,no_scale,size'),
     RecStat('rec_page_delete', 'pages deleted'),
     RecStat('rec_page_delete_fast', 'fast-path pages deleted'),
     RecStat('rec_pages', 'page reconciliation calls'),
@@ -536,6 +539,27 @@ connection_stats = [
     RecStat('rec_pages_with_txn', 'page reconciliation calls that resulted in values with transaction ids'),
     RecStat('rec_split_stashed_bytes', 'split bytes currently awaiting free', 'no_clear,no_scale,size'),
     RecStat('rec_split_stashed_objects', 'split objects currently awaiting free', 'no_clear,no_scale'),
+    RecStat('rec_time_aggr_newest_start_durable_ts', 'pages written including an aggregated newest start durable timestamp '),
+    RecStat('rec_time_aggr_newest_stop_durable_ts', 'pages written including an aggregated newest stop durable timestamp '),
+    RecStat('rec_time_aggr_newest_stop_ts', 'pages written including an aggregated newest stop timestamp '),
+    RecStat('rec_time_aggr_newest_stop_txn', 'pages written including an aggregated newest stop transaction ID'),
+    RecStat('rec_time_aggr_oldest_start_ts', 'pages written including an aggregated oldest start timestamp '),
+    RecStat('rec_time_aggr_oldest_start_txn', 'pages written including an aggregated oldest start transaction ID '),
+    RecStat('rec_time_aggr_prepared', 'pages written including an aggregated prepare'),
+    RecStat('rec_time_window_durable_start_ts', 'records written including a start durable timestamp'),
+    RecStat('rec_time_window_durable_stop_ts', 'records written including a stop durable timestamp'),
+    RecStat('rec_time_window_pages_durable_start_ts', 'pages written including at least one start durable timestamp'),
+    RecStat('rec_time_window_pages_durable_stop_ts', 'pages written including at least one stop durable timestamp'),
+    RecStat('rec_time_window_pages_prepared', 'pages written including at least one prepare state'),
+    RecStat('rec_time_window_pages_start_ts', 'pages written including at least one start timestamp'),
+    RecStat('rec_time_window_pages_start_txn', 'pages written including at least one start transaction ID'),
+    RecStat('rec_time_window_pages_stop_ts', 'pages written including at least one stop timestamp'),
+    RecStat('rec_time_window_pages_stop_txn', 'pages written including at least one stop transaction ID'),
+    RecStat('rec_time_window_prepared', 'records written including a prepare state'),
+    RecStat('rec_time_window_start_ts', 'records written including a start timestamp'),
+    RecStat('rec_time_window_start_txn', 'records written including a start transaction ID'),
+    RecStat('rec_time_window_stop_ts', 'records written including a stop timestamp'),
+    RecStat('rec_time_window_stop_txn', 'records written including a stop transaction ID'),
 
     ##########################################
     # Session operations
@@ -804,6 +828,13 @@ dsrc_stats = [
     CursorStat('cursor_update_bytes_changed', 'update value size change', 'size'),
 
     ##########################################
+    # History statistics
+    ##########################################
+    HistoryStat('hs_gc_pages_evict', 'history pages added for eviction during garbage collection'),
+    HistoryStat('hs_gc_pages_removed', 'history pages removed for garbage collection'),
+    HistoryStat('hs_gc_pages_visited', 'history pages visited for garbage collection'),
+
+    ##########################################
     # LSM statistics
     ##########################################
     LSMStat('bloom_count', 'bloom filters in the LSM tree', 'no_scale'),
@@ -829,7 +860,6 @@ dsrc_stats = [
     RecStat('rec_overflow_key_internal', 'internal-page overflow keys'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_overflow_value', 'overflow values written'),
-    RecStat('rec_prepare_value', 'prepared values written'),
     RecStat('rec_page_delete', 'pages deleted'),
     RecStat('rec_page_delete_fast', 'fast-path pages deleted'),
     RecStat('rec_page_match', 'page checksum matches'),
@@ -837,6 +867,27 @@ dsrc_stats = [
     RecStat('rec_pages_eviction', 'page reconciliation calls for eviction'),
     RecStat('rec_prefix_compression', 'leaf page key bytes discarded using prefix compression', 'size'),
     RecStat('rec_suffix_compression', 'internal page key bytes discarded using suffix compression', 'size'),
+    RecStat('rec_time_aggr_newest_start_durable_ts', 'pages written including an aggregated newest start durable timestamp '),
+    RecStat('rec_time_aggr_newest_stop_durable_ts', 'pages written including an aggregated newest stop durable timestamp '),
+    RecStat('rec_time_aggr_newest_stop_ts', 'pages written including an aggregated newest stop timestamp '),
+    RecStat('rec_time_aggr_newest_stop_txn', 'pages written including an aggregated newest stop transaction ID'),
+    RecStat('rec_time_aggr_oldest_start_ts', 'pages written including an aggregated oldest start timestamp '),
+    RecStat('rec_time_aggr_oldest_start_txn', 'pages written including an aggregated oldest start transaction ID '),
+    RecStat('rec_time_aggr_prepared', 'pages written including an aggregated prepare'),
+    RecStat('rec_time_window_durable_start_ts', 'records written including a start durable timestamp'),
+    RecStat('rec_time_window_durable_stop_ts', 'records written including a stop durable timestamp'),
+    RecStat('rec_time_window_pages_durable_start_ts', 'pages written including at least one start durable timestamp'),
+    RecStat('rec_time_window_pages_durable_stop_ts', 'pages written including at least one stop durable timestamp'),
+    RecStat('rec_time_window_pages_prepared', 'pages written including at least one prepare'),
+    RecStat('rec_time_window_pages_start_ts', 'pages written including at least one start timestamp'),
+    RecStat('rec_time_window_pages_start_txn', 'pages written including at least one start transaction ID'),
+    RecStat('rec_time_window_pages_stop_ts', 'pages written including at least one stop timestamp'),
+    RecStat('rec_time_window_pages_stop_txn', 'pages written including at least one stop transaction ID'),
+    RecStat('rec_time_window_prepared', 'records written including a prepare'),
+    RecStat('rec_time_window_start_ts', 'records written including a start timestamp'),
+    RecStat('rec_time_window_start_txn', 'records written including a start transaction ID'),
+    RecStat('rec_time_window_stop_ts', 'records written including a stop timestamp'),
+    RecStat('rec_time_window_stop_txn', 'records written including a stop transaction ID'),
 
     ##########################################
     # Session operations

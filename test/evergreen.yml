@@ -2178,7 +2178,7 @@ tasks:
           posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
       - func: "format test script"
         vars:
-          test_env_vars: ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=`ls /usr/bin/llvm-symbolizer* | tail -1`
+          test_env_vars: ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
           # run for 2 hours ( 2 * 60 = 120 minutes), don't stop at failed tests, use default config
           format_test_script_args: -t 120
 
@@ -2196,13 +2196,13 @@ tasks:
         # to emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
         # run smoke tests, don't stop at failed tests, use default config
         vars:
-          test_env_vars: ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=`ls /usr/bin/llvm-symbolizer* | tail -1`
+          test_env_vars: ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/usr/bin/llvm-symbolizer
           format_test_script_args: -S
           times: 16
 
 buildvariants:
 - name: ubuntu1804
-  display_name: Ubuntu 18.04
+  display_name: "! Ubuntu 18.04"
   run_on:
   - ubuntu1804-test
   expansions:
@@ -2233,7 +2233,7 @@ buildvariants:
     - name: static-wt-build-test
 
 - name: ubuntu1804-compilers
-  display_name: Ubuntu 18.04 Compilers
+  display_name: "! Ubuntu 18.04 Compilers"
   run_on:
   - ubuntu1804-wt-build
   expansions:
@@ -2244,7 +2244,7 @@ buildvariants:
     - name: ".pull_request_compilers"
 
 - name: ubuntu1804-python3
-  display_name: Ubuntu 18.04 (Python3)
+  display_name: "! Ubuntu 18.04 (Python3)"
   run_on:
   - ubuntu1804-test
   expansions:
@@ -2281,7 +2281,7 @@ buildvariants:
     - name: checkpoint-stress-test
 
 - name: package
-  display_name: Package
+  display_name: "~ Package"
   batchtime: 1440 # 1 day
   run_on:
   - ubuntu1804-test
@@ -2338,7 +2338,7 @@ buildvariants:
     # - name: coverage-report
 
 - name: large-scale-tests
-  display_name: Large scale tests
+  display_name: "~ Large scale tests"
   batchtime: 1440 # 1 day
   run_on:
   - rhel80-build
@@ -2354,7 +2354,7 @@ buildvariants:
     - name: compatibility-test-for-releases
 
 - name: windows-64
-  display_name: Windows 64-bit
+  display_name: "! Windows 64-bit"
   run_on:
   - windows-64-vs2017-test
   tasks:
@@ -2380,7 +2380,7 @@ buildvariants:
     - name: fops
 
 - name: little-endian
-  display_name: Little-endian (x86)
+  display_name: "~ Little-endian (x86)"
   run_on:
   - ubuntu1804-test
   batchtime: 10080 # 7 days
@@ -2394,7 +2394,7 @@ buildvariants:
   # - name: verify-datafile-from-big-endian
 
 - name: big-endian
-  display_name: Big-endian (s390x/zSeries)
+  display_name: "~ Big-endian (s390x/zSeries)"
   modules:
   - enterprise
   run_on:
@@ -2410,7 +2410,7 @@ buildvariants:
   # - name: verify-datafile-from-little-endian
 
 - name: ubuntu1804-ppc
-  display_name: Ubuntu 18.04 PPC
+  display_name: "~ Ubuntu 18.04 PPC"
   run_on:
   - ubuntu1804-power8-test
   expansions:
@@ -2429,7 +2429,7 @@ buildvariants:
   - name: format-stress-sanitizer-smoke-ppc-test
 
 - name: ubuntu1804-zseries
-  display_name: Ubuntu 18.04 zSeries
+  display_name: "~ Ubuntu 18.04 zSeries"
   run_on:
   - ubuntu1804-zseries-test
   expansions:
