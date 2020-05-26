@@ -37,7 +37,6 @@ from wtscenario import make_scenarios
 # Test cursor backup with a duplicate backup cursor.
 class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
     dir='backup.dir'                    # Backup directory name
-    dir1='save.dir'                    # Backup directory name
     logmax="100K"
     uri="table:test"
     nops=100
@@ -46,9 +45,6 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
 
     scenarios = make_scenarios([
         ('archiving', dict(archive='true')),
-        ('not-archiving', dict(archive='false')),
-    ])
-    scenarios = make_scenarios([
         ('not-archiving', dict(archive='false')),
     ])
 
@@ -78,9 +74,7 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned.
-        self.session.checkpoint()
         os.mkdir(self.dir)
-        os.mkdir(self.dir1)
         bkup_c = self.session.open_cursor('backup:', None, None)
 
         # Add some data that will appear in log file 3.
@@ -89,10 +83,6 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
             key = 'key' + str(num)
             val = 'value' + str(num)
             c[key] = val
-            # Save a key/value added after backup started that we will check for later.
-            # This will ensure that recovery replayed the log to reapply this insert.
-            save = key
-            saveval = val
         loop += 1
         c.close()
         self.session.log_flush('sync=on')
@@ -107,7 +97,6 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
             sz = os.path.getsize(newfile)
             self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
             shutil.copy(newfile, self.dir)
-            shutil.copy(newfile, self.dir1)
             if "WiredTigerLog" in newfile:
                 orig_logs.append(newfile)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
@@ -126,7 +115,6 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
             if (newfile not in orig_logs):
                 self.pr('DUP: Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
                 shutil.copy(newfile, self.dir)
-                shutil.copy(newfile, self.dir1)
             # Record all log files returned for later verification.
             dup_logs.append(newfile)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
@@ -138,11 +126,7 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
         dup_set = set(dup_logs)
         self.assertTrue(dup_set.issuperset(orig_set))
         diff = dup_set.difference(orig_set)
-        #print "ORIG"
-        #print orig_logs
-        #print "DUP"
-        #print dup_logs
-        #self.assertEqual(len(diff), 1)
+        self.assertEqual(len(diff), 1)
         self.assertTrue(log3 in dup_set)
         self.assertFalse(log3 in orig_set)
 
@@ -186,17 +170,6 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
 
         # After the full backup, open and recover the backup database.
         backup_conn = self.wiredtiger_open(self.dir)
-        session2 = backup_conn.open_session()
-        c = session2.open_cursor(self.uri)
-        #
-        # Search for the saved key/value that was created after the backup started. This means
-        # that recovery correctly replayed the log.
-        #
-        c.set_key(save)
-        search_success = c.search()
-        self.assertEqual(search_success, 0)
-        val = c.get_value()
-        self.assertEqual(val, saveval)
         backup_conn.close()
 
 if __name__ == '__main__':
