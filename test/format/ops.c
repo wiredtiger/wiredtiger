@@ -403,6 +403,7 @@ operations(u_int ops_seconds, bool lastrun)
 
     if (g.c_txn_rollback_to_stable) {
         track("rollback_to_stable", 0ULL, NULL);
+        logop(NULL, "%-10s ts=%" PRIu64, "rts", g.stable_timestamp);
         g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
         tinfo_rollback_to_stable_check();
     }

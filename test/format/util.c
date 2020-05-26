@@ -315,6 +315,8 @@ timestamp_once(WT_SESSION *session, bool allow_lag)
               stable_timestamp_str, g.stable_timestamp));
         }
         testutil_check(conn->set_timestamp(conn, buf));
+        logop(session, "%-10s oldest=%" PRIu64 ", stable=" PRIu64, "setts", g.oldest_timestamp,
+          g.stable_timestamp);
     } else
         testutil_assert(ret == WT_NOTFOUND);
 
