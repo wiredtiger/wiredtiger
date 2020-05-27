@@ -2632,10 +2632,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * we may need the log path and encryption and compression settings.
      */
     __wt_logmgr_compat_version(session);
-    if (!F_ISSET(conn, WT_CONN_SALVAGE)) {
-        WT_ERR(__wt_logmgr_config(session, cfg, false));
+    WT_ERR(__wt_logmgr_config(session, cfg, false));
+    if (!F_ISSET(conn, WT_CONN_SALVAGE))
         WT_ERR(__wt_log_compat_verify(session));
-    }
 
     /*
      * The metadata/log encryptor is configured after extensions, since
