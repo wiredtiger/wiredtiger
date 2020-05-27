@@ -58,9 +58,11 @@ hs_cursor(void *arg)
      */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    hs_btree_id = 0;
     memset(&hs_key, 0, sizeof(hs_key));
     memset(&hs_value, 0, sizeof(hs_value));
+    hs_start_ts = 0; /* [-Wconditional-uninitialized] */
+    hs_counter = 0;  /* [-Wconditional-uninitialized] */
+    hs_btree_id = 0;
     for (;;) {
         /*
          * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
