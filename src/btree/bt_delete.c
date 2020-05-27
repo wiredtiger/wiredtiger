@@ -294,7 +294,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ROW *rip;
     WT_TIME_WINDOW tw;
     WT_UPDATE **upd_array, *upd;
-    size_t size;
+    size_t size, total_size;
     uint32_t count, i;
 
     btree = S2BT(session);
@@ -343,7 +343,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * because deletes are instantiated after the history store table updates.)
      */
     if (page->entries != 0 && page->modify->mod_row_update == NULL)
-        WT_RET(__wt_calloc_def(session, page->entries, &page->modify->mod_row_update));
+        WT_PAGE_ALLOC_AND_SWAP(
+          session, page, page->modify->mod_row_update, upd_array, page->entries);
 
     /*
      * Allocate the per-reference update array; in the case of instantiating a page deleted in a
@@ -362,10 +363,11 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                     ++count;
         }
         WT_RET(__wt_calloc_def(session, count + 1, &page_del->update_list));
+        __wt_cache_page_inmem_incr(session, page, (count + 1) * sizeof(page_del->update_list));
     }
 
     /* Walk the page entries, giving each one a tombstone. */
-    size = 0;
+    size = total_size = 0;
     count = 0;
     upd_array = page->modify->mod_row_update;
     if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
@@ -376,6 +378,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
             if (page_del != NULL)
                 page_del->update_list[count++] = upd;
+            total_size += size;
         }
     WT_ROW_FOREACH (page, rip, i) {
         /*
@@ -390,6 +393,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
             if (page_del != NULL)
                 page_del->update_list[count++] = upd;
+            total_size += size;
 
             if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
                 WT_SKIP_FOREACH (ins, insert) {
@@ -399,11 +403,12 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
                     if (page_del != NULL)
                         page_del->update_list[count++] = upd;
+                    total_size += size;
                 }
         }
     }
 
-    __wt_cache_page_inmem_incr(session, page, size);
+    __wt_cache_page_inmem_incr(session, page, total_size);
 
     return (0);
 

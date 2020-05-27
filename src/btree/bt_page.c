@@ -535,7 +535,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_ROW *rip;
-    WT_UPDATE *tombstone, **upd_array, *upd;
+    WT_UPDATE *tombstone, *upd, **upd_array;
     size_t size, total_size;
     uint32_t i;
     bool instantiate_prepared, prepare;
@@ -599,7 +599,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 
         /* Allocate the per-page update array if one doesn't already exist. */
         if (page->entries != 0 && page->modify->mod_row_update == NULL)
-            WT_RET(__wt_calloc_def(session, page->entries, &page->modify->mod_row_update));
+            WT_PAGE_ALLOC_AND_SWAP(
+              session, page, page->modify->mod_row_update, upd_array, page->entries);
 
         /* For each entry in the page */
         size = total_size = 0;
@@ -624,6 +625,11 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                  * from the data store, when the prepared transaction gets rollback.
                  */
                 if (WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
+                    /*
+                     * Increase the total allocation cache size before the size gets overwritten
+                     * with the tombstone allocation size.
+                     */
+                    total_size += size;
                     WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
                     tombstone->durable_ts = WT_TS_NONE;
                     tombstone->start_ts = unpack.tw.stop_ts;
