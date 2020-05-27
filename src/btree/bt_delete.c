@@ -373,12 +373,12 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
         WT_SKIP_FOREACH (ins, insert) {
             WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
+            total_size += size;
             upd->next = ins->upd;
             ins->upd = upd;
 
             if (page_del != NULL)
                 page_del->update_list[count++] = upd;
-            total_size += size;
         }
     WT_ROW_FOREACH (page, rip, i) {
         /*
@@ -388,22 +388,22 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         __wt_read_row_time_window(session, page, rip, &tw);
         if (!WT_TIME_WINDOW_HAS_STOP(&tw)) {
             WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
+            total_size += size;
             upd->next = upd_array[WT_ROW_SLOT(page, rip)];
             upd_array[WT_ROW_SLOT(page, rip)] = upd;
 
             if (page_del != NULL)
                 page_del->update_list[count++] = upd;
-            total_size += size;
 
             if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
                 WT_SKIP_FOREACH (ins, insert) {
                     WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
+                    total_size += size;
                     upd->next = ins->upd;
                     ins->upd = upd;
 
                     if (page_del != NULL)
                         page_del->update_list[count++] = upd;
-                    total_size += size;
                 }
         }
     }
