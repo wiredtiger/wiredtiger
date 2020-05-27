@@ -615,6 +615,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                 WT_ERR(__wt_page_cell_data_ref(session, page, &unpack, value));
 
                 WT_ERR(__wt_upd_alloc(session, value, WT_UPDATE_STANDARD, &upd, &size));
+                total_size += size;
                 upd->durable_ts = unpack.tw.durable_start_ts;
                 upd->start_ts = unpack.tw.start_ts;
                 upd->txnid = unpack.tw.start_txn;
@@ -625,12 +626,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                  * from the data store, when the prepared transaction gets rollback.
                  */
                 if (WT_TIME_WINDOW_HAS_STOP(&unpack.tw)) {
-                    /*
-                     * Increase the total allocation cache size before the size gets overwritten
-                     * with the tombstone allocation size.
-                     */
-                    total_size += size;
                     WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
+                    total_size += size;
                     tombstone->durable_ts = WT_TS_NONE;
                     tombstone->start_ts = unpack.tw.stop_ts;
                     tombstone->txnid = unpack.tw.stop_txn;
@@ -646,7 +643,6 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 
                 upd_array[WT_ROW_SLOT(page, rip)] = tombstone;
                 tombstone = upd = NULL;
-                total_size += size;
             }
         }
 
