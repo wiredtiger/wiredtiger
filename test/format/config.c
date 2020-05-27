@@ -29,7 +29,6 @@
 #include "format.h"
 #include "config.h"
 
-static void config(void);
 static void config_backup_incr(void);
 static void config_backward_compatible(void);
 static void config_cache(void);
@@ -68,8 +67,6 @@ static void config_transaction(void);
 void
 config_final(void)
 {
-    config(); /* Finish up configuration and review it. */
-
     config_print(false);
 
     g.rows = g.c_rows; /* Set the key count. */
@@ -82,8 +79,8 @@ config_final(void)
  * config --
  *     Initialize the configuration itself.
  */
-static void
-config(void)
+void
+config_run(void)
 {
     CONFIG *cp;
     char buf[128];
@@ -968,8 +965,8 @@ config_print(bool error_display)
     CONFIG *cp;
     FILE *fp;
 
-    /* Reopening or replaying an existing database should leave the existing CONFIG file. */
-    if (g.reopen || g.replay)
+    /* Reopening an existing database should leave the existing CONFIG file. */
+    if (g.reopen)
         return;
 
     if (error_display)
