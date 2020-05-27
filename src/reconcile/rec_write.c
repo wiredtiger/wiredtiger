@@ -219,11 +219,11 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_STAT_DATA_INCR(session, cache_write_restore);
     }
     if (!WT_IS_HS(btree)) {
-        if (r->cell_stats.rec_page_cell_with_txn_id)
+        if (r->rec_page_cell_with_txn_id)
             WT_STAT_CONN_INCR(session, rec_pages_with_txn);
-        if (r->cell_stats.rec_page_cell_with_ts)
+        if (r->rec_page_cell_with_ts)
             WT_STAT_CONN_INCR(session, rec_pages_with_ts);
-        if (r->cell_stats.rec_page_cell_with_prepared_txn)
+        if (r->rec_page_cell_with_prepared_txn)
             WT_STAT_CONN_INCR(session, rec_pages_with_prepare);
     }
     if (r->multi_next > btree->rec_multiblock_max)
@@ -619,9 +619,9 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     r->update_modify_cbt.upd_value = &r->update_modify_cbt._upd_value;
 
     /* Clear stats related data. */
-    r->cell_stats.rec_page_cell_with_ts = false;
-    r->cell_stats.rec_page_cell_with_txn_id = false;
-    r->cell_stats.rec_page_cell_with_prepared_txn = false;
+    r->rec_page_cell_with_ts = false;
+    r->rec_page_cell_with_txn_id = false;
+    r->rec_page_cell_with_prepared_txn = false;
 
 /*
  * If we allocated the reconciliation structure and there was an error, clean up. If our caller
