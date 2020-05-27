@@ -889,6 +889,8 @@ struct __wt_dsrc_stats {
     int64_t hs_gc_pages_evict;
     int64_t hs_gc_pages_removed;
     int64_t hs_gc_pages_visited;
+    int64_t rec_time_window_bytes_ts;
+    int64_t rec_time_window_bytes_txn;
     int64_t rec_dictionary;
     int64_t rec_page_delete_fast;
     int64_t rec_suffix_compression;
