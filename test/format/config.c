@@ -387,7 +387,11 @@ config_cache(void)
      * This code is what dramatically increases the cache size when there are lots of threads, it
      * grows the cache to several megabytes per thread.
      */
-    workers = g.c_threads + (g.c_random_cursor ? 1 : 0);
+    workers = g.c_threads;
+    if (g.c_hs_cursor)
+        ++workers;
+    if (g.c_random_cursor)
+        ++workers;
     g.c_cache = WT_MAX(g.c_cache, 2 * workers * g.c_memory_page_max);
 
     /*
