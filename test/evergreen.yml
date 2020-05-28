@@ -248,12 +248,14 @@ functions:
         done
   "upload artifact":
     - command: archive.targz_pack
+      timeout_secs: 3600
       params:
         target: "wiredtiger.tgz"
         source_dir: "wiredtiger"
         include:
           - "./**"
     - command: s3.put
+      timeout_secs: 3600
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
@@ -1523,7 +1525,8 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_releases_long.sh
+            test/evergreen/compatibility_test_for_releases.sh -l
+      - func: "archive-artifacts"
 
   - name: compatibility-test-for-releases-short
     commands:
@@ -1534,7 +1537,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_releases_short.sh
+            test/evergreen/compatibility_test_for_releases.sh
 
   - name: generate-datafile-little-endian
     depends_on:
@@ -2366,7 +2369,6 @@ buildvariants:
 
 - name: compatibility-tests-short
   display_name: Compatibility tests short
-  batchtime: 1440 # 1 day
   run_on:
   - ubuntu1804-test
   tasks:
