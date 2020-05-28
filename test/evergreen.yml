@@ -248,14 +248,12 @@ functions:
         done
   "upload artifact":
     - command: archive.targz_pack
-      timeout_secs: 3600
       params:
         target: "wiredtiger.tgz"
         source_dir: "wiredtiger"
         include:
           - "./**"
     - command: s3.put
-      timeout_secs: 3600
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
