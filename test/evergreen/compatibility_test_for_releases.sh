@@ -150,13 +150,26 @@ upgrade_downgrade()
         done
 }
 
+
+if [ $# -eq 1 ]; then
+    if [ $1 = "-l" ]; then
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+        echo "Performing long compatibility test run"
+        echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    else
+        echo "Usage: \tcompatibility_test_for_releases [-l]"
+        echo "\t-l\trun additional variants of wiredtiger"
+        exit 1
+    fi
+fi
+
 # Create a directory in which to do the work.
 top="test-compatibility-run"
 rm -rf "$top" && mkdir "$top"
 cd "$top"
 
 # Build the branches.
-if [ $# -eq 1 ] then
+if [ $# -eq 1 ]; then
     (build_branch mongodb-3.4)
 fi
 (build_branch mongodb-3.6)
@@ -168,7 +181,7 @@ fi
 # Get the names of the last two WiredTiger releases, wt1 is the most recent release, wt2 is the
 # release before that. Minor trickiness, we depend on the "develop" directory already existing
 # so we have a source in which to do git commands.
-if [ $# -eq 1 ] then
+if [ $# -eq 1 ]; then
     cd develop; wt1=$(get_prev_version 1); cd ..
     (build_branch "$wt1")
     cd develop; wt2=$(get_prev_version 2); cd ..
@@ -176,7 +189,7 @@ if [ $# -eq 1 ] then
 fi
 
 # Run format in each branch for supported access methods.
-if [ $# -eq 1 ] then
+if [ $# -eq 1 ]; then
     (run_format mongodb-3.4 "fix row var")
 fi
 (run_format mongodb-3.6 "fix row var")
@@ -188,7 +201,7 @@ fi
 (run_format "$wt2" "fix row var")
 
 # Verify backward compatibility for supported access methods.
-if [ $# -eq 1 ] then
+if [ $# -eq 1 ]; then
     (verify_branches mongodb-3.6 mongodb-3.4 "fix row var")
 fi
 (verify_branches mongodb-4.0 mongodb-3.6 "fix row var")
@@ -196,7 +209,7 @@ fi
 (verify_branches mongodb-4.4 mongodb-4.2 "fix row var")
 (verify_branches develop mongodb-4.4 "row")
 (verify_branches develop mongodb-4.2 "row")
-if [ $# -eq 1 ] then
+if [ $# -eq 1 ]; then
     (verify_branches "$wt1" "$wt2" "row")
     (verify_branches develop "$wt1" "row")
 fi
