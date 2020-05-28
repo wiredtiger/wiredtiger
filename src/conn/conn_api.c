@@ -2631,15 +2631,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__conn_load_extensions(session, cfg, false));
 
     /*
-     * We need to parse the logging configuration here to verify the compatibility settings because
-     * we may need the log path and encryption and compression settings.
-     */
-    __wt_logmgr_compat_version(session);
-    WT_ERR(__wt_logmgr_config(session, cfg, false));
-    if (!F_ISSET(conn, WT_CONN_SALVAGE))
-        WT_ERR(__wt_log_compat_verify(session));
-
-    /*
      * The metadata/log encryptor is configured after extensions, since
      * extensions may load encryptors.  We have to do this before creating
      * the metadata file.
@@ -2660,6 +2651,15 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     enc_cfg[0] = encbuf->data;
     WT_ERR(
       __wt_encryptor_config(session, &cval, &keyid, (WT_CONFIG_ARG *)enc_cfg, &conn->kencryptor));
+
+    /*
+     * We need to parse the logging configuration here to verify the compatibility settings because
+     * we may need the log path and encryption and compression settings.
+     */
+    __wt_logmgr_compat_version(session);
+    WT_ERR(__wt_logmgr_config(session, cfg, false));
+    if (!F_ISSET(conn, WT_CONN_SALVAGE) && FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
+        WT_ERR(__wt_log_compat_verify(session));
 
     /*
      * Configuration completed; optionally write a base configuration file.
