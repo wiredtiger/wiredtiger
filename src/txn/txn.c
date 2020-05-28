@@ -909,7 +909,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *
      * For prepared delete, we don't need to fix the history store.
      */
-    if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK) && upd->type != WT_UPDATE_TOMBSTONE) {
+    if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) && upd->type != WT_UPDATE_TOMBSTONE) {
         cbt = (WT_CURSOR_BTREE *)(*cursorp);
         hs_btree_id = S2BT(session)->id;
         /* Open a history store table cursor. */

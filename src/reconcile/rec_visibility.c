@@ -336,9 +336,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                  * the history store, rollback to stable will bring it back to the data store.
                  * Otherwise, it removes the key.
                  */
-                WT_ASSERT(session, F_ISSET(r, WT_REC_EVICT) ||
-                    (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
-                                     F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DISK)));
+                WT_ASSERT(session,
+                  F_ISSET(r, WT_REC_EVICT) || (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
+                                                F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)));
                 WT_ASSERT(session, upd->prepare_state == WT_PREPARE_INPROGRESS);
             }
         }
