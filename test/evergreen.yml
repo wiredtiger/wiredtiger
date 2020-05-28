@@ -1525,6 +1525,17 @@ tasks:
             set -o verbose
             test/evergreen/compatibility_test_for_releases.sh
 
+  - name: compatibility-test-for-releases-fast
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            test/evergreen/compatibility_test_for_releases_fast.sh
+
   - name: generate-datafile-little-endian
     depends_on:
       - name: compile
@@ -2352,6 +2363,14 @@ buildvariants:
   - ubuntu1804-test
   tasks:
     - name: compatibility-test-for-releases
+
+- name: compatibility-tests-fast
+  display_name: Compatibility tests fast
+  batchtime: 1440 # 1 day
+  run_on:
+  - ubuntu1804-test
+  tasks:
+    - name: compatibility-test-for-releases-fast
 
 - name: windows-64
   display_name: Windows 64-bit
