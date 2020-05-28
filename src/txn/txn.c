@@ -1120,7 +1120,6 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
         upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
         if (op_zero_ts != upd_zero_ts &&
           !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DS)) {
-            WT_ASSERT(session, false);
             WT_ERR(__wt_verbose_dump_update(session, upd));
             WT_ERR(__wt_verbose_dump_txn_one(session, session, EINVAL,
               "per-key timestamps used inconsistently, dumping relevant information"));
