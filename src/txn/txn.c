@@ -1111,10 +1111,10 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
          *
          * We may see an update restored from the data store or the history store with 0 timestamp
          * if that update is behind the oldest timestamp when the page is reconciled. If the update
-         * is restored from the history store, it must be appended by the prepared rollback. If the
-         * update is restored from the data store, it is either instantiated along with the prepared
-         * stop when the page is read into memory or appended by a failed eviction which attempted
-         * to write a prepared update to the data store.
+         * is restored from the history store, it is either appended by the prepared rollback or
+         * rollback to stable. If the update is restored from the data store, it is either
+         * instantiated along with the prepared stop when the page is read into memory or appended
+         * by a failed eviction which attempted to write a prepared update to the data store.
          */
         op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
         upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
