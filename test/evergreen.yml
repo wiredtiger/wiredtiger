@@ -1514,7 +1514,7 @@ tasks:
             ulimit -c unlimited
             largescale/run-million-collection-test.sh .
 
-  - name: compatibility-test-for-releases
+  - name: compatibility-test-for-releases-long
     commands:
       - func: "get project"
       - command: shell.exec
@@ -1523,9 +1523,9 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh
+            test/evergreen/compatibility_test_for_releases_long.sh
 
-  - name: compatibility-test-for-releases-fast
+  - name: compatibility-test-for-releases-short
     commands:
       - func: "get project"
       - command: shell.exec
@@ -2356,21 +2356,21 @@ buildvariants:
   tasks:
     - name: million-collection-test
 
-- name: compatibility-tests
-  display_name: Compatibility tests
+- name: compatibility-tests-long
+  display_name: Compatibility tests long
   batchtime: 10080 # 7 days
   run_on:
   - ubuntu1804-test
   tasks:
-    - name: compatibility-test-for-releases
+    - name: compatibility-test-for-releases-long
 
-- name: compatibility-tests-fast
-  display_name: Compatibility tests fast
+- name: compatibility-tests-short
+  display_name: Compatibility tests short
   batchtime: 1440 # 1 day
   run_on:
   - ubuntu1804-test
   tasks:
-    - name: compatibility-test-for-releases-fast
+    - name: compatibility-test-for-releases-short
 
 - name: windows-64
   display_name: Windows 64-bit
