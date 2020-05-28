@@ -2364,7 +2364,7 @@ buildvariants:
   tasks:
     - name: compatibility-test-for-releases-full
 
-- name: compatibility-tests-short
+- name: compatibility-tests
   display_name: Compatibility tests
   run_on:
   - ubuntu1804-test
