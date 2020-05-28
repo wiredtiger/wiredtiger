@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ##############################################################################################
 # Check branches to ensure forward/backward compatibility, including some upgrade/downgrade testing.
-# Pass in any flag to trigger the longer version of this test which tests more variants.
+# Pass in -l to trigger the longer version of this test which tests more variants.
 ##############################################################################################
 
 set -e
