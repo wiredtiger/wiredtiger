@@ -67,11 +67,11 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
         return val
 
     def test_checkpoint_stats(self):
-        nrows = 100
-        ntables = 5
+        nrows = 500
+        ntables = 10
 
         # Create many tables and perform many updates so our checkpoint stats are populated.
-        value = "wired" * 1000
+        value = "wired" * 500
         tables = self.create_tables(ntables)
         for uri, ds in tables.items():
             self.add_updates(uri, ds, value, nrows)
@@ -80,7 +80,7 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Update the tables.
-        value = "tiger" * 1000
+        value = "tiger" * 500
         tables = self.create_tables(ntables)
         for uri, ds in tables.items():
             self.add_updates(uri, ds, value, nrows)
