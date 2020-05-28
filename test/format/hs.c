@@ -99,13 +99,13 @@ hs_cursor(void *arg)
         }
 
         /*
-         * If we didn't hit the end of the store, save the current key to continue in the next
-	 * run. Otherwise, reset so we'll start ovre.
-	 */
+         * If we didn't hit the end of the store, save the current key to continue in the next run.
+         * Otherwise, reset so we'll start ovre.
+         */
         if (ret == 0)
             testutil_check(__wt_buf_grow(CUR2S(cursor), &hs_key, hs_key.size));
-	if (ret != 0)
-	    hs_btree_id = 0;
+        if (ret != 0)
+            hs_btree_id = 0;
 
         testutil_check(cursor->close(cursor));
 
