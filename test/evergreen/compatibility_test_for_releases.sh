@@ -185,8 +185,8 @@ cd "$top"
 # Build the branches.
 if [ "$long" = true ]; then
     (build_branch mongodb-3.4)
+    (build_branch mongodb-3.6)
 fi
-(build_branch mongodb-3.6)
 (build_branch mongodb-4.0)
 (build_branch mongodb-4.2)
 (build_branch mongodb-4.4)
@@ -205,22 +205,22 @@ fi
 # Run format in each branch for supported access methods.
 if [ "$long" = true ]; then
     (run_format mongodb-3.4 "fix row var")
+    (run_format mongodb-3.6 "fix row var")
 fi
-(run_format mongodb-3.6 "fix row var")
 (run_format mongodb-4.0 "fix row var")
 (run_format mongodb-4.2 "fix row var")
 (run_format mongodb-4.4 "row")
 (run_format develop "row")
 if [ "$long" = true ]; then
-(run_format "$wt1" "fix row var")
-(run_format "$wt2" "fix row var")
+    (run_format "$wt1" "fix row var")
+    (run_format "$wt2" "fix row var")
 fi
 
 # Verify backward compatibility for supported access methods.
 if [ "$long" = true ]; then
     (verify_branches mongodb-3.6 mongodb-3.4 "fix row var")
+    (verify_branches mongodb-4.0 mongodb-3.6 "fix row var")
 fi
-(verify_branches mongodb-4.0 mongodb-3.6 "fix row var")
 (verify_branches mongodb-4.2 mongodb-4.0 "fix row var")
 (verify_branches mongodb-4.4 mongodb-4.2 "fix row var")
 (verify_branches develop mongodb-4.4 "row")
