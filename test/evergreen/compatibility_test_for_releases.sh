@@ -211,8 +211,10 @@ fi
 (run_format mongodb-4.2 "fix row var")
 (run_format mongodb-4.4 "row")
 (run_format develop "row")
+if [ "$long" = true ]; then
 (run_format "$wt1" "fix row var")
 (run_format "$wt2" "fix row var")
+fi
 
 # Verify backward compatibility for supported access methods.
 if [ "$long" = true ]; then
