@@ -654,7 +654,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
          */
         if (page != NULL && (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
                               (newpage && cbt->page_deleted_count > 0))) {
-            if (cbt->ref->page->modify == NULL)
+            if (page->modify == NULL)
                 WT_ERR(__wt_page_modify_init(session, page));
             __wt_page_modify_set(session, page);
             __wt_page_evict_soon(session, cbt->ref);
