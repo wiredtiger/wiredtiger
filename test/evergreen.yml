@@ -1534,7 +1534,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_releases_fast.sh
+            test/evergreen/compatibility_test_for_releases_short.sh
 
   - name: generate-datafile-little-endian
     depends_on:
