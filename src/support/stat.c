@@ -829,8 +829,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages selected for eviction unable to be evicted because of active children on an "
   "internal page",
   "cache: pages selected for eviction unable to be evicted because of failure in reconciliation",
-  "cache: pages selected for eviction unable to be evicted due to newer modifications on a clean "
-  "page",
   "cache: pages walked for eviction", "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration", "cache: percentage overhead",
   "cache: tracked bytes belonging to internal pages in the cache",
@@ -1234,7 +1232,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_fail_parent_has_overflow_items = 0;
     stats->cache_eviction_fail_active_children_on_an_internal_page = 0;
     stats->cache_eviction_fail_in_reconciliation = 0;
-    stats->cache_eviction_fail_with_newer_modifications_on_a_clean_page = 0;
     stats->cache_eviction_walk = 0;
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
@@ -1721,8 +1718,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_fail_active_children_on_an_internal_page);
     to->cache_eviction_fail_in_reconciliation +=
       WT_STAT_READ(from, cache_eviction_fail_in_reconciliation);
-    to->cache_eviction_fail_with_newer_modifications_on_a_clean_page +=
-      WT_STAT_READ(from, cache_eviction_fail_with_newer_modifications_on_a_clean_page);
     to->cache_eviction_walk += WT_STAT_READ(from, cache_eviction_walk);
     to->cache_write += WT_STAT_READ(from, cache_write);
     to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);

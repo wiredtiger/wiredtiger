@@ -233,7 +233,6 @@ connection_stats = [
     CacheStat('cache_eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
     CacheStat('cache_eviction_fail_in_reconciliation', 'pages selected for eviction unable to be evicted because of failure in reconciliation'),
     CacheStat('cache_eviction_fail_parent_has_overflow_items', 'pages selected for eviction unable to be evicted as the parent page has overflow items'),
-    CacheStat('cache_eviction_fail_with_newer_modifications_on_a_clean_page', 'pages selected for eviction unable to be evicted due to newer modifications on a clean page'),
     CacheStat('cache_eviction_force', 'forced eviction - pages selected count'),
     CacheStat('cache_eviction_force_clean', 'forced eviction - pages evicted that were clean count'),
     CacheStat('cache_eviction_force_clean_time', 'forced eviction - pages evicted that were clean time (usecs)'),
