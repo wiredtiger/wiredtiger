@@ -1526,7 +1526,6 @@ tasks:
             set -o errexit
             set -o verbose
             test/evergreen/compatibility_test_for_releases.sh -l
-      - func: "archive-artifacts"
 
   - name: compatibility-test-for-releases
     commands:
