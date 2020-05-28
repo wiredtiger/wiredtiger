@@ -54,7 +54,6 @@
 #define WT_NAME "wt" /* Object name */
 
 #define DATASOURCE(v) (strcmp(v, g.c_data_source) == 0 ? 1 : 0)
-#define SINGLETHREADED (g.c_threads == 1)
 
 #define FORMAT_OPERATION_REPS 3 /* 3 thread operations sets */
 
@@ -75,14 +74,16 @@ typedef struct {
 #define LOCK_INITIALIZED(lock) ((lock)->lock_type != LOCK_NONE)
 
 typedef struct {
+    wt_thread_t tid;  /* thread ID */
+    char tidbuf[128]; /* thread ID in printable form */
+
     WT_CONNECTION *wts_conn;
-    WT_EXTENSION_API *wt_api;
+    WT_CONNECTION *wts_conn_inmemory;
 
     char *uri; /* Object name */
 
     bool backward_compatible; /* Backward compatibility testing */
     bool reopen;              /* Reopen an existing database */
-    bool replay;              /* Replaying a run. */
     bool workers_finished;    /* Operations completed */
 
     char *home;          /* Home directory */
@@ -95,16 +96,15 @@ typedef struct {
     char *home_rand;     /* RNG log file path */
     char *home_stats;    /* Statistics file path */
 
-    char *config_open;                     /* Command-line configuration */
-    char wiredtiger_open_config[8 * 1024]; /* Database open config */
-
-    bool rand_log_stop; /* Logging turned off */
-    FILE *randfp;       /* Random number log */
+    char *config_open; /* Command-line configuration */
 
     uint32_t run_cnt; /* Run counter */
 
-    bool logging; /* log operations  */
-    FILE *logfp;  /* log file */
+    bool trace;                /* trace operations  */
+    bool trace_all;            /* trace all operations  */
+    bool trace_local;          /* write trace to the primary database */
+    WT_CONNECTION *trace_conn; /* optional tracing database */
+    WT_SESSION *trace_session;
 
     RWLOCK backup_lock; /* Backup running */
     uint64_t backup_id; /* Block incremental id */
@@ -299,8 +299,9 @@ typedef struct {
 } SNAP_OPS;
 
 typedef struct {
-    int id;          /* simple thread ID */
-    wt_thread_t tid; /* thread ID */
+    int id;           /* simple thread ID */
+    wt_thread_t tid;  /* thread ID */
+    char tidbuf[128]; /* thread ID in printable form */
 
     WT_RAND_STATE rnd; /* thread RNG state */
 
@@ -318,6 +319,8 @@ typedef struct {
 
     WT_SESSION *session; /* WiredTiger session */
     WT_CURSOR *cursor;   /* WiredTiger cursor */
+
+    WT_SESSION *trace; /* WiredTiger operations tracing session */
 
     uint64_t keyno;     /* key */
     WT_ITEM *key, _key; /* key, value */
@@ -345,12 +348,6 @@ typedef struct {
 } TINFO;
 extern TINFO **tinfo_list;
 
-#define logop(wt_session, fmt, ...)                                                       \
-    do {                                                                                  \
-        if (g.logging)                                                                    \
-            testutil_check(g.wt_api->msg_printf(g.wt_api, wt_session, fmt, __VA_ARGS__)); \
-    } while (0)
-
 WT_THREAD_RET alter(void *);
 WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
@@ -361,11 +358,10 @@ void config_error(void);
 void config_file(const char *);
 void config_final(void);
 void config_print(bool);
+void config_run(void);
 void config_single(const char *, bool);
 void fclose_and_clear(FILE **);
-bool fp_readv(FILE *, char *, bool, uint32_t *);
-void handle_init(void);
-void handle_teardown(void);
+bool fp_readv(FILE *, char *, uint32_t *);
 void key_gen_common(WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
 void key_gen_teardown(WT_ITEM *);
@@ -373,10 +369,8 @@ void key_init(void);
 void lock_destroy(WT_SESSION *, RWLOCK *);
 void lock_init(WT_SESSION *, RWLOCK *);
 void operations(u_int, bool);
-WT_THREAD_RET random_kv(void *);
 void path_setup(const char *);
-int read_row_worker(WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
-uint32_t rng_slow(WT_RAND_STATE *);
+WT_THREAD_RET random_kv(void *);
 void set_alarm(u_int);
 void set_core_off(void);
 void snap_init(TINFO *, uint64_t, bool);
@@ -386,18 +380,21 @@ void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
 WT_THREAD_RET timestamp(void *);
 void timestamp_once(WT_SESSION *);
+int trace_config(const char *);
+void trace_init(void);
+void trace_ops_init(TINFO *);
+void trace_teardown(void);
 void track(const char *, uint64_t, TINFO *);
 void val_gen(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void val_gen_init(WT_ITEM *);
 void val_gen_teardown(WT_ITEM *);
 void val_init(void);
 void wts_checkpoints(void);
-void wts_close(void);
-void wts_create(void);
+void wts_close(WT_CONNECTION **, WT_SESSION **);
+void wts_create(const char *);
 void wts_dump(const char *, bool);
-void wts_init(void);
 void wts_load(void);
-void wts_open(const char *, bool, WT_CONNECTION **, bool);
+void wts_open(const char *, WT_CONNECTION **, WT_SESSION **, bool);
 void wts_read_scan(void);
 void wts_rebalance(void);
 void wts_reopen(void);

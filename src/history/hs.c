@@ -304,8 +304,12 @@ __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
             last_upd->next = mod->mod_row_update[hs_cbt->slot];
     }
 
+    /*
+     * We don't have exclusive access to the history store page so we need to pass "false" here to
+     * ensure that we're locking when inserting new keys to an insert list.
+     */
     WT_WITH_BTREE(session, CUR2BT(hs_cbt),
-      ret = __wt_row_modify(hs_cbt, &hs_cbt->iface.key, NULL, hs_upd, WT_UPDATE_INVALID, true));
+      ret = __wt_row_modify(hs_cbt, &hs_cbt->iface.key, NULL, hs_upd, WT_UPDATE_INVALID, false));
     return (ret);
 }
 
