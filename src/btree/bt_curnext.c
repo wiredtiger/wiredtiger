@@ -696,10 +696,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
          */
         if (page != NULL && (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
                               (newpage && cbt->page_deleted_count > 0))) {
-            if (page->modify == NULL)
-                WT_ERR(__wt_page_modify_init(session, page));
-            __wt_page_modify_set(session, page);
-            __wt_page_evict_soon(session, cbt->ref);
+            WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
             WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
         }
         cbt->page_deleted_count = 0;

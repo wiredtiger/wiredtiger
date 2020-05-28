@@ -190,7 +190,6 @@ static inline int
 __cursor_reset(WT_CURSOR_BTREE *cbt)
 {
     WT_DECL_RET;
-    WT_PAGE *page;
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cbt);
@@ -217,14 +216,8 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
      * reconciliation getting rid of the obsolete content. Hence mark the page dirty to force it
      * through reconciliation.
      */
-    page = cbt->ref->page;
     if (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD) {
-        if (page != NULL) {
-            if (page->modify == NULL)
-                WT_RET(__wt_page_modify_init(session, page));
-            __wt_page_modify_set(session, page);
-        }
-        __wt_page_evict_soon(session, cbt->ref);
+        WT_RET(__wt_page_dirty_and_evict_soon(session, cbt->ref));
         WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
     }
     cbt->page_deleted_count = 0;
