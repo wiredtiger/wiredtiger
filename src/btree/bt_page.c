@@ -633,6 +633,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                     tombstone->txnid = unpack.tw.stop_txn;
                     tombstone->prepare_state = WT_PREPARE_INPROGRESS;
                     F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DISK);
+                    F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
                     tombstone->next = upd;
                 } else {
                     upd->durable_ts = WT_TS_NONE;
