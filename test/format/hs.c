@@ -45,6 +45,7 @@ hs_cursor(void *arg)
     uint32_t hs_btree_id, i;
     u_int period;
     int exact;
+    bool restart;
 
     (void)(arg); /* Unused parameter */
 
@@ -62,8 +63,8 @@ hs_cursor(void *arg)
     memset(&hs_value, 0, sizeof(hs_value));
     hs_start_ts = 0; /* [-Wconditional-uninitialized] */
     hs_counter = 0;  /* [-Wconditional-uninitialized] */
-    hs_btree_id = 0;
-    for (;;) {
+    hs_btree_id = 0; /* [-Wconditional-uninitialized] */
+    for (restart = true;;) {
         /*
          * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
          */
@@ -79,7 +80,7 @@ hs_cursor(void *arg)
         F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
 
         /* Search to the last-known location. */
-        if (hs_btree_id != 0) {
+        if (!restart) {
             cursor->set_key(cursor, hs_btree_id, &hs_key, hs_start_ts, hs_counter);
             ret = cursor->search_near(cursor, &exact);
             testutil_assert(ret == 0 || ret == WT_NOTFOUND);
@@ -102,10 +103,11 @@ hs_cursor(void *arg)
          * If we didn't hit the end of the store, save the current key to continue in the next run.
          * Otherwise, reset so we'll start ovre.
          */
-        if (ret == 0)
+        if (ret == 0) {
             testutil_check(__wt_buf_grow(CUR2S(cursor), &hs_key, hs_key.size));
-        if (ret != 0)
-            hs_btree_id = 0;
+            restart = false;
+        } else
+            restart = true;
 
         testutil_check(cursor->close(cursor));
 
