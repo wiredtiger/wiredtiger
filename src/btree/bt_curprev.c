@@ -427,8 +427,8 @@ restart_read:
             WT_RET(__wt_bt_col_var_cursor_walk_txn_read(session, cbt, page, &unpack, cip));
             if (cbt->upd_value->type == WT_UPDATE_INVALID ||
               cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                continue;
                 ++*skippedp;
+                continue;
             }
             return (0);
         }
