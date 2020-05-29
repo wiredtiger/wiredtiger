@@ -190,11 +190,11 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 }
 
 /*
- * __wt_logmgr_config --
+ * __logmgr_config --
  *     Parse and setup the logging server options.
  */
-int
-__wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
+static int
+__logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool reconfig)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -245,10 +245,7 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
               "log=(enabled=true)");
     }
 
-    if (enabled)
-        FLD_SET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED);
-    else
-        FLD_CLR(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED);
+    *runp = enabled;
 
     /*
      * Setup a log path and compression even if logging is disabled in case we are going to print a
@@ -261,13 +258,12 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
         WT_RET(__wt_config_gets_none(session, cfg, "log.compressor", &cval));
         WT_RET(__wt_compressor_config(session, &cval, &conn->log_compressor));
 
-        conn->log_path = NULL;
         WT_RET(__wt_config_gets(session, cfg, "log.path", &cval));
         WT_RET(__wt_strndup(session, cval.str, cval.len, &conn->log_path));
     }
 
     /* We are done if logging isn't enabled. */
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
+    if (!*runp)
         return (0);
 
     WT_RET(__wt_config_gets(session, cfg, "log.archive", &cval));
@@ -340,7 +336,9 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
 int
 __wt_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 {
-    WT_RET(__wt_logmgr_config(session, cfg, true));
+    bool dummy;
+
+    WT_RET(__logmgr_config(session, cfg, &dummy, true));
     return (__logmgr_version(session, true));
 }
 
@@ -969,18 +967,19 @@ err:
  *     Initialize the log subsystem (before running recovery).
  */
 int
-__wt_logmgr_create(WT_SESSION_IMPL *session)
+__wt_logmgr_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
+    bool run;
 
     conn = S2C(session);
 
-    /*
-     * Logging configuration is parsed early on for compatibility checking. It is separated from
-     * turning on the subsystem. We only need to proceed here if logging is enabled.
-     */
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
+    /* Handle configuration. */
+    WT_RET(__logmgr_config(session, cfg, &run, false));
+
+    /* If logging is not configured, we're done. */
+    if (!run)
         return (0);
 
     FLD_SET(conn->log_flags, WT_CONN_LOG_ENABLED);
