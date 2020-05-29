@@ -1169,7 +1169,7 @@ __hs_delete_key_from_ts_int(
     hs_cursor = session->hs_cursor;
     WT_RET(__wt_scr_alloc(session, 0, &srch_key));
 
-    hs_cursor->set_key(hs_cursor, btree_id, key, ts, (uint64_t)0);
+    hs_cursor->set_key(hs_cursor, btree_id, key, ts, 0);
     WT_ERR(__wt_buf_set(session, srch_key, hs_cursor->key.data, hs_cursor->key.size));
     WT_ERR_NOTFOUND_OK(hs_cursor->search_near(hs_cursor, &exact), true);
     /* Empty history store is fine. */
@@ -1418,7 +1418,7 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
      * in the history store.
      */
     memset(&hs_key, 0, sizeof(hs_key));
-    cursor->set_key(cursor, btree_id, &hs_key, 0, 0, 0, 0);
+    cursor->set_key(cursor, btree_id, &hs_key, 0, 0);
     ret = cursor->search_near(cursor, &exact);
     if (ret == 0 && exact < 0)
         ret = cursor->next(cursor);
