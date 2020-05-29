@@ -127,7 +127,7 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
             self.assertEqual(prep_running, 0)
 
             # This condition is mainly to confirm that prep's stats time are always less than time's stats time.
-            # Run the loop again if any of the below condition fails.
+            # Run the loop again if any of the below condition fails and exit if the test passes.
             if prep_min < time_min and prep_max < time_max and prep_recent < time_recent and prep_total < time_total:
                 break
             else:
