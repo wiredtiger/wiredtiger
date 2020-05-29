@@ -38,7 +38,7 @@ hs_cursor(void *arg)
     WT_CONNECTION *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_ITEM hs_key, hs_value;
+    WT_ITEM hs_key, hs_value, key;
     WT_SESSION *session;
     wt_timestamp_t hs_durable_timestamp, hs_start_ts, hs_stop_durable_ts;
     uint64_t hs_counter, hs_upd_type;
@@ -61,6 +61,7 @@ hs_cursor(void *arg)
 
     memset(&hs_key, 0, sizeof(hs_key));
     memset(&hs_value, 0, sizeof(hs_value));
+    memset(&key, 0, sizeof(key));
     hs_start_ts = 0; /* [-Wconditional-uninitialized] */
     hs_counter = 0;  /* [-Wconditional-uninitialized] */
     hs_btree_id = 0; /* [-Wconditional-uninitialized] */
@@ -81,7 +82,7 @@ hs_cursor(void *arg)
 
         /* Search to the last-known location. */
         if (!restart) {
-            cursor->set_key(cursor, hs_btree_id, &hs_key, hs_start_ts, hs_counter);
+            cursor->set_key(cursor, hs_btree_id, &key, hs_start_ts, hs_counter);
             ret = cursor->search_near(cursor, &exact);
             testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         }
@@ -104,7 +105,7 @@ hs_cursor(void *arg)
          * Otherwise, reset so we'll start over.
          */
         if (ret == 0) {
-            testutil_check(__wt_buf_grow(CUR2S(cursor), &hs_key, hs_key.size));
+            testutil_check(__wt_buf_set(CUR2S(cursor), &key, hs_key.data, hs_key.size));
             restart = false;
         } else
             restart = true;
@@ -118,6 +119,7 @@ hs_cursor(void *arg)
             break;
     }
 
+    __wt_buf_free(CUR2S(cursor), &key);
     testutil_check(session->close(session, NULL));
 
     return (WT_THREAD_RET_VALUE);
