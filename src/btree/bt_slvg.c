@@ -30,8 +30,6 @@ struct __wt_stuff {
     uint32_t ovfl_next;    /* Next empty slot */
     size_t ovfl_allocated; /* Bytes allocated */
 
-    WT_TIME_AGGREGATE ckpt_ta; /* Checkpoint timestamp information */
-
     WT_REF root_ref; /* Created root page */
 
     uint8_t page_type; /* Page type */
@@ -160,19 +158,17 @@ static int __slvg_trk_ovfl(
  *     Create the post-salvage checkpoint.
  */
 static int
-__slvg_checkpoint(WT_SESSION_IMPL *session, WT_STUFF *ss)
+__slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
 {
     WT_BTREE *btree;
     WT_CKPT *ckptbase;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    WT_REF *root;
     char *config;
 
     btree = S2BT(session);
     ckptbase = NULL;
     dhandle = session->dhandle;
-    root = &ss->root_ref;
     config = NULL;
 
     /*
@@ -192,8 +188,6 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_STUFF *ss)
     __wt_seconds(session, &ckptbase->sec);
     WT_ERR(__wt_metadata_search(session, dhandle->name, &config));
     WT_ERR(__wt_meta_block_metadata(session, config, ckptbase));
-    WT_TIME_AGGREGATE_COPY(&ckptbase->ta, &ss->ckpt_ta);
-    ckptbase->write_gen = btree->write_gen;
     F_SET(ckptbase, WT_CKPT_ADD);
 
     /*
@@ -246,7 +240,6 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CLEAR(stuff);
     ss = &stuff;
     ss->session = session;
-    WT_TIME_AGGREGATE_INIT_MAX(&ss->ckpt_ta);
     ss->page_type = WT_PAGE_INVALID;
 
     /* Allocate temporary buffers. */
@@ -395,7 +388,7 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
      * Step 9:
      * Evict any newly created root page, creating a checkpoint.
      */
-    WT_ERR(__slvg_checkpoint(session, ss));
+    WT_ERR(__slvg_checkpoint(session, &ss->root_ref));
 
 err:
     /*
@@ -1172,8 +1165,6 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
         if ((trk = ss->pages[i]) == NULL)
             continue;
 
-        WT_TIME_AGGREGATE_MERGE(&ss->ckpt_ta, &trk->trk_ta);
-
         ref = *refp++;
         ref->home = page;
         ref->page = NULL;
@@ -1772,8 +1763,6 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     for (refp = pindex->index, i = 0; i < ss->pages_next; ++i) {
         if ((trk = ss->pages[i]) == NULL)
             continue;
-
-        WT_TIME_AGGREGATE_MERGE(&ss->ckpt_ta, &trk->trk_ta);
 
         ref = *refp++;
         ref->home = page;
