@@ -117,6 +117,8 @@ operations(u_int ops_seconds, bool lastrun)
     uint32_t i;
     bool running;
 
+    g.c_hs_cursor = 0; /* Disable the HS cursor scan for now. */
+
     conn = g.wts_conn;
 
     session = NULL; /* -Wconditional-uninitialized */
