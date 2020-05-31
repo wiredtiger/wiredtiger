@@ -401,6 +401,6 @@ void wts_rebalance(void);
 void wts_reopen(void);
 void wts_salvage(void);
 void wts_stats(void);
-void wts_verify(const char *);
+void wts_verify(WT_CONNECTION *, const char *);
 
 #include "format.i"
