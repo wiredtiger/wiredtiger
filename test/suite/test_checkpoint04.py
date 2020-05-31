@@ -125,6 +125,8 @@ class test_checkpoint04(wttest.WiredTigerTestCase):
             self.assertEqual(num_ckpt, 2 * multiplier)
             self.assertEqual(running, 0)
             self.assertEqual(prep_running, 0)
+            # Assert if this loop continues for more than 100 iterations.
+            self.assertLess(multiplier, 100)
 
             # This condition is mainly to confirm that prep's stats time are always less than time's stats time.
             # Run the loop again if any of the below condition fails and exit if the test passes.
