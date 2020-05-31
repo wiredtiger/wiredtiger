@@ -16,6 +16,9 @@ args="$args runs.threads=4 "
 # $TEST_WRAPPER ./t $args runs.type=row runs.source=lsm
 # $TEST_WRAPPER ./t $args runs.type=var
 
-$TEST_WRAPPER ./t $args runs.type=row
-# Force a rebalance to occur with statistics logging to test the utility
-$TEST_WRAPPER ./t $args runs.type=row statistics.server=1 ops.rebalance=1
+# Run this loop for 10 times, short running stress jobs.
+for i in $(seq 10); do
+    $TEST_WRAPPER ./t $args runs.type=row
+    # Force a rebalance to occur with statistics logging to test the utility
+    $TEST_WRAPPER ./t $args runs.type=row statistics.server=1 ops.rebalance=1
+done
