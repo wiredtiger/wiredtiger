@@ -803,13 +803,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 stop_time_point.txnid = prev_upd->txnid;
             }
 
+            /* Delete the history store entries if we see a mixed mode update. */
+            if (upd->start_ts !=WT_TS_NONE && prev_upd->start_ts == WT_TS_NONE) {
+                /* We can only delete history store entries that have timestamps. */
+                WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
+                WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+            }
+
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
-                if (prev_upd->start_ts == WT_TS_NONE) {
-                    /* We can only delete history store entries that have timestamps. */
-                    WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
-                    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
-                }
                 __wt_modify_vector_pop(&modifies, &prev_upd);
                 WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
                 prev_full_value->data = prev_upd->data;
