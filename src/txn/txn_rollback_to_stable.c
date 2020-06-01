@@ -168,7 +168,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     hs_upd = upd = NULL;
     durable_ts = hs_start_ts = WT_TS_NONE;
 #ifdef HAVE_DIAGNOSTIC
-    newer_hs_ts = WT_TS_NONE;
+    newer_hs_ts = WT_TS_MAX;
 #endif
     hs_btree_id = S2BT(session)->id;
     session_flags = 0;
