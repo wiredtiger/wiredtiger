@@ -750,6 +750,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  * a failed eviction.
                  */
                 if ((list->ins == NULL || updates_in_hs) && upd->start_ts == WT_TS_NONE) {
+                    /* We can only delete history store entries that have timestamps. */
                     WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
                     WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
                 }
@@ -885,6 +886,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          */
         if (!updates_older_than_onpage && (list->ins == NULL || updates_in_hs) &&
           upd->start_ts == WT_TS_NONE) {
+            /* We can only delete history store entries that have timestamps. */
             WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
         }
