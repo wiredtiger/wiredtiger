@@ -87,8 +87,11 @@ hs_cursor(void *arg)
             testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         }
 
-        /* Get some more key/value pairs. */
-        for (i = mmrand(NULL, 0, 1000); i > 0; --i) {
+        /*
+         * Get some more key/value pairs. Always retrieve at least one key, that ensures we have a
+         * valid key when we copy it to start the next run.
+         */
+        for (i = mmrand(NULL, 1, 1000); i > 0; --i) {
             if ((ret = cursor->next(cursor)) == 0) {
                 testutil_check(
                   cursor->get_key(cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
