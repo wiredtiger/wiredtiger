@@ -232,7 +232,7 @@ lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
     }
 }
 
-#define tracemsg(fmt, ...)                                                                         \
+#define trace_msg(fmt, ...)                                                                        \
     do {                                                                                           \
         if (g.trace) {                                                                             \
             struct timespec __ts;                                                                  \
@@ -243,7 +243,7 @@ lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
                 (uintmax_t)__ts.tv_nsec / WT_THOUSAND, g.tidbuf, __VA_ARGS__));                    \
         }                                                                                          \
     } while (0)
-#define traceop(tinfo, fmt, ...)                                                                   \
+#define trace_op(tinfo, fmt, ...)                                                                  \
     do {                                                                                           \
         if (g.trace) {                                                                             \
             struct timespec __ts;                                                                  \
@@ -256,7 +256,7 @@ lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
     } while (0)
 
 /*
- * trace_bytestr --
+ * trace_bytes --
  *     Return a byte string formatted for display.
  */
 static inline const char *
@@ -266,5 +266,4 @@ trace_bytes(TINFO *tinfo, const uint8_t *data, size_t size)
       __wt_raw_to_esc_hex((WT_SESSION_IMPL *)tinfo->session, data, size, &tinfo->vprint));
     return (tinfo->vprint.mem);
 }
-
 #define trace_item(tinfo, buf) trace_bytes(tinfo, (buf)->data, (buf)->size)
