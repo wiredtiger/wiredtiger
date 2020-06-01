@@ -140,9 +140,6 @@ __rec_append_orig_value(
              * timestamped globally visible tombstone because even if its timestamp is smaller than
              * the entries in the history store, we can't change the history store entries. This is
              * not correct but we hope we can get away with it.
-             *
-             * FIXME-WT-6171: remove this once we get rid of out of order timestamps and mixed mode
-             * transactions.
              */
             if (unpack->tw.durable_stop_ts != WT_TS_NONE && tombstone_globally_visible)
                 return (0);
@@ -153,6 +150,8 @@ __rec_append_orig_value(
             tombstone->start_ts = unpack->tw.stop_ts;
             tombstone->durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
+            WT_ASSERT(session,
+              tombstone->start_ts <= oldest_upd->start_ts && tombstone->txnid <= oldest_upd->txnid);
         } else {
             /*
              * Once the prepared update is resolved, the in-memory update and on-disk written copy
@@ -181,6 +180,8 @@ __rec_append_orig_value(
         append->start_ts = unpack->tw.start_ts;
         append->durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
+        WT_ASSERT(
+          session, append->start_ts <= oldest_upd->start_ts && append->txnid <= oldest_upd->txnid);
     }
 
     if (tombstone != NULL) {
