@@ -374,7 +374,7 @@ begin_transaction(TINFO *tinfo, u_int *iso_configp)
 {
     WT_SESSION *session;
     u_int v;
-    const char *config, *log;
+    const char *config;
 
     session = tinfo->session;
 
@@ -383,18 +383,15 @@ begin_transaction(TINFO *tinfo, u_int *iso_configp)
     switch (v) {
     case 1:
         v = ISOLATION_READ_UNCOMMITTED;
-        log = "read-uncommitted";
         config = "isolation=read-uncommitted";
         break;
     case 2:
         v = ISOLATION_READ_COMMITTED;
-        log = "read-committed";
         config = "isolation=read-committed";
         break;
     case 3:
     default:
         v = ISOLATION_SNAPSHOT;
-        log = "snapshot";
         config = "isolation=snapshot";
         break;
     }
@@ -403,7 +400,7 @@ begin_transaction(TINFO *tinfo, u_int *iso_configp)
     wiredtiger_begin_transaction(session, config);
 
     snap_init(tinfo, WT_TS_NONE, false);
-    traceop(tinfo, "begin %s", log);
+    traceop(tinfo, "begin %s", config);
 }
 
 /*
