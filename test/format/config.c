@@ -29,7 +29,6 @@
 #include "format.h"
 #include "config.h"
 
-static void config(void);
 static void config_backup_incr(void);
 static void config_backward_compatible(void);
 static void config_cache(void);
@@ -68,8 +67,6 @@ static void config_transaction(void);
 void
 config_final(void)
 {
-    config(); /* Finish up configuration and review it. */
-
     config_print(false);
 
     g.rows = g.c_rows; /* Set the key count. */
@@ -82,8 +79,8 @@ config_final(void)
  * config --
  *     Initialize the configuration itself.
  */
-static void
-config(void)
+void
+config_run(void)
 {
     CONFIG *cp;
     char buf[128];
@@ -390,7 +387,11 @@ config_cache(void)
      * This code is what dramatically increases the cache size when there are lots of threads, it
      * grows the cache to several megabytes per thread.
      */
-    workers = g.c_threads + (g.c_random_cursor ? 1 : 0);
+    workers = g.c_threads;
+    if (g.c_hs_cursor)
+        ++workers;
+    if (g.c_random_cursor)
+        ++workers;
     g.c_cache = WT_MAX(g.c_cache, 2 * workers * g.c_memory_page_max);
 
     /*
@@ -655,6 +656,8 @@ config_in_memory(void)
         return;
     if (config_is_perm("logging"))
         return;
+    if (config_is_perm("ops.hs_cursor"))
+        return;
     if (config_is_perm("ops.rebalance"))
         return;
     if (config_is_perm("ops.salvage"))
@@ -684,6 +687,8 @@ config_in_memory_reset(void)
         config_single("checkpoint=off", false);
     if (!config_is_perm("btree.compression"))
         config_single("btree.compression=none", false);
+    if (!config_is_perm("ops.hs_cursor"))
+        config_single("ops.hs_cursor=off", false);
     if (!config_is_perm("logging"))
         config_single("logging=off", false);
     if (!config_is_perm("ops.rebalance"))
@@ -968,8 +973,8 @@ config_print(bool error_display)
     CONFIG *cp;
     FILE *fp;
 
-    /* Reopening or replaying an existing database should leave the existing CONFIG file. */
-    if (g.reopen || g.replay)
+    /* Reopening an existing database should leave the existing CONFIG file. */
+    if (g.reopen)
         return;
 
     if (error_display)
