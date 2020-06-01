@@ -491,11 +491,18 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
               __wt_timestamp_to_string(upd->start_ts, ts_string[1]));
             return (0);
         } else
+            /* Timestamp is out of order. Something is wrong. */
             WT_ERR_PANIC(session, WT_PANIC,
               "timestamp is out of order %s; timestamp of the previous update %s",
               __wt_timestamp_to_string(stop_time_point->ts, ts_string[0]),
               __wt_timestamp_to_string(upd->start_ts, ts_string[1]));
     }
+
+    if (stop_time_point->txnid < upd->txnid)
+        /* Transaction id is out of order. Something is wrong. */
+        WT_ERR_PANIC(session, WT_PANIC, "transaction id is out of order %" PRIu64
+                                        "; transaction id of the previous update %" PRIu64,
+          stop_time_point->txnid, upd->txnid);
 
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_insert_record_with_btree_int(

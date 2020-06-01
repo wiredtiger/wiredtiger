@@ -471,11 +471,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
 
     /*
-     * If we found a tombstone with a time point earlier than the update it applies to, which can
-     * happen if the application performs operations with mixed mode transactions, make it invisible
-     * by making the start time point match the stop time point of the tombstone. We don't guarantee
-     * that older readers will be able to continue reading content that has been made invisible by
-     * mixed mode updates.
+     * If we found a mixed mode tombstone, reset the start timestamps to the timestamps of the mixed
+     * mode tombstone to make it invisible. We don't guarantee that older readers will be able to
+     * continue reading content that has been made invisible by mixed mode updates.
      *
      * Note that we carefully don't take this path when the stop time point is equal to the start
      * time point. While unusual, it is permitted for a single transaction to insert and then remove
@@ -490,9 +488,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             select_tw->durable_start_ts = select_tw->durable_stop_ts;
             select_tw->start_ts = select_tw->stop_ts;
         } else
-            WT_ERR_PANIC(session, WT_PANIC, "time window is out of order %s",
+            /* Stop timestamp is out of order. Something is wrong. */
+            WT_ERR_PANIC(session, WT_PANIC, "stop timestamp is out of order %s",
               __wt_time_window_to_string(select_tw, time_string));
     }
+
+    if (select_tw->stop_txn < select_tw->start_txn)
+        /* Stop transaction id is out of order. Something is wrong. */
+        WT_ERR_PANIC(session, WT_PANIC, "stop transaction id is out of order %s",
+          __wt_time_window_to_string(select_tw, time_string));
 
     /*
      * Track the most recent transaction in the page. We store this in the tree at the end of
