@@ -858,9 +858,7 @@ __wt_txn_read_upd_list(
              * Ignore non-globally visible tombstones when we are doing history store scans in
              * rollback to stable or when we are told to.
              */
-            if (type == WT_UPDATE_TOMBSTONE &&
-              (F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) ||
-                  (WT_IS_HS(S2BT(session)) && F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))) &&
+            if (type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
               !__wt_txn_upd_visible_all(session, upd)) {
                 cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
                 cbt->upd_value->tw.stop_ts = upd->start_ts;
@@ -951,8 +949,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
      * are told to ignore non-globally visible tombstones.
      */
     if (__wt_txn_tw_stop_visible(session, &tw) &&
-      ((!F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
-         (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))) ||
+      (!F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) ||
           (__wt_txn_tw_stop_visible_all(session, &tw) && !WT_CURSOR_IS_DUMP(&cbt->iface)))) {
         cbt->upd_value->buf.data = NULL;
         cbt->upd_value->buf.size = 0;
