@@ -168,7 +168,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     hs_upd = upd = NULL;
     durable_ts = hs_start_ts = WT_TS_NONE;
 #ifdef HAVE_DIAGNOSTIC
-    newer_hs_ts = WT_TS_NONE;
+    newer_hs_ts = WT_TS_MAX;
 #endif
     hs_btree_id = S2BT(session)->id;
     session_flags = 0;
@@ -238,12 +238,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             WT_ERR(__wt_buf_set(session, &full_value, hs_value->data, hs_value->size));
         }
 
-        /*
-         * Verify the history store timestamps are in order. The start timestamp may be equal to the
-         * stop timestamp if the original update's commit timestamp is out of order.
-         */
-        WT_ASSERT(session,
-          (newer_hs_ts == WT_TS_NONE || hs_stop_ts <= newer_hs_ts || hs_start_ts == hs_stop_ts));
+        /* Verify the history store timestamps are in order. */
+        WT_ASSERT(session, hs_stop_ts <= newer_hs_ts);
 
         /*
          * Stop processing when we find the newer version value of this key is stable according to
