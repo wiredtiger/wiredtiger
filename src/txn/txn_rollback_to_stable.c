@@ -695,7 +695,7 @@ __rollback_page_needs_abort(
     return (result);
 }
 
-#if 0
+#ifdef HAVE_DIAGNOSTIC
 /*
  * __rollback_verify_ondisk_page --
  *     Verify the on-disk page that it doesn't have updates newer than the timestamp.
@@ -749,16 +749,12 @@ __rollback_abort_newer_updates(
     if ((page = ref->page) == NULL || !__wt_page_is_modified(page)) {
         if (!__rollback_page_needs_abort(session, ref, rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RTS, "%p: page skipped", (void *)ref);
-#if 0
-            /*
-             * FIXME: Enable the clean page verification once the eviction is able to evict the
-             * newly loaded clean pages of this tree to avoid cache full.
-             */
+#ifdef HAVE_DIAGNOSTIC
             if (ref->page == NULL && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
                 WT_RET(__wt_page_in(session, ref, 0));
                 if (ref->page->type == WT_PAGE_ROW_LEAF)
                     __rollback_verify_ondisk_page(session, ref->page, rollback_timestamp);
-                WT_TRET(__wt_page_release(session, ref, 0));
+                WT_TRET(__wt_page_release_evict(session, ref, 0));
             }
 #endif
             return (0);
@@ -799,7 +795,7 @@ __rollback_abort_newer_updates(
 
 err:
     if (local_read)
-        WT_TRET(__wt_page_release(session, ref, 0));
+        WT_TRET(__wt_page_release_evict(session, ref, 0));
     return (ret);
 }
 
