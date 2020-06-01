@@ -88,6 +88,6 @@ class test_hs11(wttest.WiredTigerTestCase):
 
     def test_key_deletion_clears_hs(self):
         self.run_test('deletion')
-    
+
     def test_key_update_clears_hs(self):
         self.run_test('update')
