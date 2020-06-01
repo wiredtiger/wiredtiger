@@ -151,7 +151,8 @@ __rec_append_orig_value(
             tombstone->durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
             WT_ASSERT(session,
-              tombstone->start_ts <= oldest_upd->start_ts && tombstone->txnid < oldest_upd->txnid);
+              oldest_upd->start_ts == WT_TS_NONE || (tombstone->start_ts <= oldest_upd->start_ts &&
+                                                      tombstone->txnid < oldest_upd->txnid));
         } else {
             /*
              * Once the prepared update is resolved, the in-memory update and on-disk written copy
@@ -180,8 +181,8 @@ __rec_append_orig_value(
         append->start_ts = unpack->tw.start_ts;
         append->durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
-        WT_ASSERT(
-          session, append->start_ts <= oldest_upd->start_ts && append->txnid < oldest_upd->txnid);
+        WT_ASSERT(session, oldest_upd->start_ts == WT_TS_NONE ||
+            (append->start_ts <= oldest_upd->start_ts && append->txnid < oldest_upd->txnid));
     }
 
     if (tombstone != NULL) {
