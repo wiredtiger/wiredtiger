@@ -738,11 +738,9 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
             continue;
 
         if (WT_IS_HS(S2BT(session)) && upd->txnid != WT_TXN_ABORTED &&
-          upd->type == WT_UPDATE_STANDARD) {
-            /* If we are resolving a modify then the btree must be the history store. */
-            WT_ASSERT(session, WT_IS_HS(S2BT(session)));
+          upd->type == WT_UPDATE_STANDARD)
+            /* Entries in the history store are always visible. */
             return (WT_VISIBLE_TRUE);
-        }
 
         upd_visible = __wt_txn_visible(session, upd->txnid, upd->start_ts);
 
