@@ -480,10 +480,10 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
 
     /*
      * If the time points are out of order (which can happen if the application performs updates
-     * with out-of-order timestamps), so this value can never be seen, don't bother inserting it.
+     * with mixed mode transactions), so this value can never be seen, don't bother inserting it.
      */
-    if (stop_time_point->ts < upd->start_ts ||
-      (stop_time_point->ts == upd->start_ts && stop_time_point->txnid <= upd->txnid)) {
+    if (stop_time_point->ts < upd->start_ts) {
+        WT_ASSERT(session, stop_time_point == WT_TS_NONE);
         char ts_string[2][WT_TS_INT_STRING_SIZE];
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "Warning: fixing out-of-order timestamps %s earlier than previous update %s",
