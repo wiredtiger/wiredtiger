@@ -482,13 +482,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * a record. We don't want to generate a warning in that case.
      */
     if (select_tw->stop_ts < select_tw->start_ts) {
-        WT_ASSERT(session, select_tw->stop_ts == WT_TS_NONE);
-        __wt_verbose(session, WT_VERB_TIMESTAMP,
-          "Warning: fixing out-of-order timestamps remove earlier than value; time window %s",
-          __wt_time_window_to_string(select_tw, time_string));
+        if (select_tw->stop_ts == WT_TS_NONE) {
+            __wt_verbose(session, WT_VERB_TIMESTAMP,
+              "Warning: fixing mixed mode timestamps; time window %s",
+              __wt_time_window_to_string(select_tw, time_string));
 
-        select_tw->durable_start_ts = select_tw->durable_stop_ts;
-        select_tw->start_ts = select_tw->stop_ts;
+            select_tw->durable_start_ts = select_tw->durable_stop_ts;
+            select_tw->start_ts = select_tw->stop_ts;
+        } else
+            WT_ERR_PANIC(session, WT_PANIC, "time window is out of order %s",
+              __wt_time_window_to_string(select_tw, time_string));
     }
 
     /*
