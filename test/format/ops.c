@@ -207,31 +207,32 @@ tinfo_rollback_to_stable_check(void)
 {
     WT_CURSOR *cursor;
     WT_SESSION *session;
-    TINFO *tinfo;
-    int32_t check;
-    u_int i;
-    uint32_t tcount, vcount;
+    uint32_t count;
     char buf[512];
 
     /* Open a session and cursor pair. */
     testutil_check(g.wts_conn->open_session(g.wts_conn, NULL, NULL, &session));
     testutil_check(session->open_cursor(session, g.uri, NULL, NULL, &cursor));
 
-    tcount = vcount = 0;
-    for (i = 0; i < g.c_threads; ++i) {
-        tinfo = tinfo_list[i];
-        check = snap_repeat_rollback(cursor, tinfo);
-        if (check >= 0) {
-            ++tcount;
-            vcount += (uint32_t)check;
-        }
-    }
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "rollback_to_stable: %" PRIu32 " threads checked, %" PRIu32 " ops repeated\n", tcount,
-      vcount));
+    count = snap_repeat_rollback(cursor, tinfo_list, g.c_threads);
+    testutil_check(
+      __wt_snprintf(buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated\n", count));
+
     track(buf, 0ULL, NULL);
     testutil_check(session->close(session, NULL));
 }
+
+/*
+ * Command used before rollback to stable to save the interesting files so we can replay the command
+ * as necessary.
+ *
+ * Redirect the "cd" command to /dev/null so chatty cd implementations don't add the new working
+ * directory to our output.
+ */
+#define ROLLBACK_STABLE_COPY_CMD                      \
+    "cd %s > /dev/null && "                           \
+    "rm -rf ROLLBACK.copy && mkdir ROLLBACK.copy && " \
+    "cp WiredTiger* wt* ROLLBACK.copy/"
 
 /*
  * operations --
@@ -242,12 +243,14 @@ operations(u_int ops_seconds, bool lastrun)
 {
     TINFO *tinfo, total;
     WT_CONNECTION *conn;
+    WT_DECL_RET;
     WT_SESSION *session;
     wt_thread_t alter_tid, backup_tid, checkpoint_tid, compact_tid, random_tid;
     wt_thread_t timestamp_tid;
     int64_t fourths, quit_fourths, thread_ops;
     uint32_t i;
     bool running;
+    char cmd[1024];
 
     conn = g.wts_conn;
 
@@ -399,10 +402,18 @@ operations(u_int ops_seconds, bool lastrun)
     lock_destroy(session, &g.ts_lock);
 
     logop(session, "%s", "=============== thread stop");
+
+    // TODO: temporary debug - get it all on disk before copying for rolling back.
+    if (g.c_txn_rollback_to_stable)
+        testutil_check(session->checkpoint(session, NULL));
+
     testutil_check(session->close(session, NULL));
 
     if (g.c_txn_rollback_to_stable) {
         track("rollback_to_stable", 0ULL, NULL);
+        testutil_check(__wt_snprintf(cmd, sizeof(cmd), ROLLBACK_STABLE_COPY_CMD, g.home));
+        if ((ret = system(cmd)) != 0)
+            testutil_die(ret, "rollback to stable copy (\"%s\") failed", cmd);
         logop(NULL, "%-10s ts=%" PRIu64, "rts", g.stable_timestamp);
         g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
         tinfo_rollback_to_stable_check();
@@ -561,6 +572,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
     /* Remember our oldest commit timestamp. */
     tinfo->commit_ts = ts;
 
+    snap_op_end(tinfo, true);
     logop(
       session, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts, tinfo->commit_ts);
 }
@@ -580,6 +592,7 @@ rollback_transaction(TINFO *tinfo)
 
     testutil_check(session->rollback_transaction(session, NULL));
 
+    snap_op_end(tinfo, false);
     logop(session, "abort read-ts=%" PRIu64, tinfo->read_ts);
 }
 
