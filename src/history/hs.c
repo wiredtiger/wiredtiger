@@ -486,7 +486,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      */
     if (stop_time_point->ts < upd->start_ts) {
         char ts_string[2][WT_TS_INT_STRING_SIZE];
-        if (stop_time_point == WT_TS_NONE) {
+        if (stop_time_point->ts == WT_TS_NONE) {
             __wt_verbose(session, WT_VERB_TIMESTAMP,
               "Warning: fixing mix mode update %s; timestamp of the previous update %s",
               __wt_timestamp_to_string(stop_time_point->ts, ts_string[0]),
