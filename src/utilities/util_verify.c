@@ -11,13 +11,13 @@
 static int
 usage(void)
 {
-    static const char *options[] = {"-a", "verify the history store", "-d config",
+    static const char *options[] = {"-d config",
       "display underlying information during verification", "-s",
       "verify against the specified timestamp", NULL, NULL};
 
     util_usage(
-      "verify [-as] [-d dump_address | dump_blocks | dump_history | dump_layout | dump_offsets=#,# "
-      "| dump_pages] [uri]",
+      "verify [-as] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages] "
+      "[uri]",
       "options:", options);
 
     return (1);
@@ -41,8 +41,6 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
                 dump_address = true;
             else if (strcmp(__wt_optarg, "dump_blocks") == 0)
                 dump_blocks = true;
-            else if (strcmp(__wt_optarg, "dump_history") == 0)
-                dump_history = true;
             else if (strcmp(__wt_optarg, "dump_layout") == 0)
                 dump_layout = true;
             else if (WT_PREFIX_MATCH(__wt_optarg, "dump_offsets=")) {
