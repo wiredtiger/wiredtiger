@@ -880,7 +880,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
         /*
          * Delete the history store records if the onpage update's timestamp is WT_TS_NONE and we
-         * don't see any updates older than it. We don't need to do that if everything is still on
+         * don't see any update older than it. We don't need to do that if everything is still on
          * the insert list and there are no updates moved to the history store by checkpoint or a
          * failed eviction.
          */
