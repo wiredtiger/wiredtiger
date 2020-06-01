@@ -283,6 +283,8 @@ operations(u_int ops_seconds, bool lastrun)
     for (i = 0; i < g.c_threads; ++i) {
         tinfo = tinfo_list[i];
 
+        __wt_buf_free(NULL, &tinfo->vprint);
+
         /*
          * Assert records were not removed unless configured to do so, otherwise subsequent runs can
          * incorrectly report scan errors.
@@ -1139,8 +1141,7 @@ read_row_worker(
                 tracemsg(
                   "%-10s%" PRIu64 " {%.*s}", "read", keyno, (int)value->size, (char *)value->data);
             if (tinfo != NULL)
-                traceop(tinfo, "%-10s%" PRIu64 " {%.*s}", "read", keyno, (int)value->size,
-                  (char *)value->data);
+                traceop(tinfo, "%-10s%" PRIu64 " {%s}", "read", keyno, trace_item(tinfo, value));
             break;
         }
 
@@ -1279,12 +1280,11 @@ order_error_row:
             traceop(tinfo, "%-10s%" PRIu64 " {0x%02x}", which, keyno, ((char *)value.data)[0]);
             break;
         case ROW:
-            traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", which, keyno, (int)key.size,
-              (char *)key.data, (int)value.size, (char *)value.data);
+            traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%s}", which, keyno, (int)key.size,
+              (char *)key.data, trace_item(tinfo, &value));
             break;
         case VAR:
-            traceop(
-              tinfo, "%-10s%" PRIu64 " {%.*s}", which, keyno, (int)value.size, (char *)value.data);
+            traceop(tinfo, "%-10s%" PRIu64 " {%s}", which, keyno, trace_item(tinfo, &value));
             break;
         }
 
@@ -1380,8 +1380,8 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
     testutil_check(cursor->get_value(cursor, tinfo->value));
 
-    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "modify", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
+    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%s}", "modify", tinfo->keyno, (int)tinfo->key->size,
+      (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1406,8 +1406,8 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
     testutil_check(cursor->get_value(cursor, tinfo->value));
 
-    traceop(tinfo, "%-10s%" PRIu64 ", {%.*s}", "modify", tinfo->keyno, (int)tinfo->value->size,
-      (char *)tinfo->value->data);
+    traceop(
+      tinfo, "%-10s%" PRIu64 ", {%s}", "modify", tinfo->keyno, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1520,8 +1520,8 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if ((ret = cursor->update(cursor)) != 0)
         return (ret);
 
-    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "update", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
+    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%s}", "update", tinfo->keyno, (int)tinfo->key->size,
+      (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1550,8 +1550,8 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
         traceop(tinfo, "%-10s%" PRIu64 " {0x%02" PRIx8 "}", "update", tinfo->keyno,
           ((uint8_t *)tinfo->value->data)[0]);
     else
-        traceop(tinfo, "%-10s%" PRIu64 " {%.*s}", "update", tinfo->keyno, (int)tinfo->value->size,
-          (char *)tinfo->value->data);
+        traceop(
+          tinfo, "%-10s%" PRIu64 " {%s}", "update", tinfo->keyno, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1580,8 +1580,8 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
         return (ret);
 
     /* Log the operation */
-    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "insert", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
+    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%s}", "insert", tinfo->keyno, (int)tinfo->key->size,
+      (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1669,8 +1669,8 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor)
         traceop(tinfo, "%-10s%" PRIu64 " {0x%02" PRIx8 "}", "insert", tinfo->keyno,
           ((uint8_t *)tinfo->value->data)[0]);
     else
-        traceop(tinfo, "%-10s%" PRIu64 " {%.*s}", "insert", tinfo->keyno, (int)tinfo->value->size,
-          (char *)tinfo->value->data);
+        traceop(
+          tinfo, "%-10s%" PRIu64 " {%s}", "insert", tinfo->keyno, trace_item(tinfo, tinfo->value));
 
     return (0);
 }

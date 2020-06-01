@@ -231,6 +231,7 @@ lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
         testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
     }
 }
+
 #define tracemsg(fmt, ...)                                                                         \
     do {                                                                                           \
         if (g.trace) {                                                                             \
@@ -253,3 +254,17 @@ lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
                 (uintmax_t)__ts.tv_nsec / WT_THOUSAND, tinfo->tidbuf, __VA_ARGS__));               \
         }                                                                                          \
     } while (0)
+
+/*
+ * trace_bytestr --
+ *     Return a byte string formatted for display.
+ */
+static inline const char *
+trace_bytes(TINFO *tinfo, const uint8_t *data, size_t size)
+{
+    testutil_check(
+      __wt_raw_to_esc_hex((WT_SESSION_IMPL *)tinfo->session, data, size, &tinfo->vprint));
+    return (tinfo->vprint.mem);
+}
+
+#define trace_item(tinfo, buf) trace_bytes(tinfo, (buf)->data, (buf)->size)
