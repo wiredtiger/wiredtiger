@@ -150,9 +150,6 @@ __rec_append_orig_value(
             tombstone->start_ts = unpack->tw.stop_ts;
             tombstone->durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
-            WT_ASSERT(session, tombstone->txnid < oldest_upd->txnid &&
-                (oldest_upd->start_ts == WT_TS_NONE ||
-                                 tombstone->start_ts <= oldest_upd->start_ts));
         } else {
             /*
              * Once the prepared update is resolved, the in-memory update and on-disk written copy
@@ -181,8 +178,6 @@ __rec_append_orig_value(
         append->start_ts = unpack->tw.start_ts;
         append->durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
-        WT_ASSERT(session, append->txnid < oldest_upd->txnid &&
-            (oldest_upd->start_ts == WT_TS_NONE || append->start_ts <= oldest_upd->start_ts));
     }
 
     if (tombstone != NULL) {
@@ -473,32 +468,25 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
 
     /*
-     * If we found a mixed mode tombstone, reset the start timestamps to the timestamps of the mixed
-     * mode tombstone to make it invisible. We don't guarantee that older readers will be able to
-     * continue reading content that has been made invisible by mixed mode updates.
+     * If we found a tombstone with a time point earlier than the update it applies to, which can
+     * happen if the application performs operations with timestamps out-of-order, make it invisible
+     * by making the start time point match the stop time point of the tombstone. We don't guarantee
+     * that older readers will be able to continue reading content that has been made invisible by
+     * out-of-order updates.
      *
      * Note that we carefully don't take this path when the stop time point is equal to the start
      * time point. While unusual, it is permitted for a single transaction to insert and then remove
      * a record. We don't want to generate a warning in that case.
      */
-    if (select_tw->stop_ts < select_tw->start_ts) {
-        if (select_tw->stop_ts == WT_TS_NONE) {
-            __wt_verbose(session, WT_VERB_TIMESTAMP,
-              "Warning: fixing mixed mode timestamps; time window %s",
-              __wt_time_window_to_string(select_tw, time_string));
-
-            select_tw->durable_start_ts = select_tw->durable_stop_ts;
-            select_tw->start_ts = select_tw->stop_ts;
-        } else
-            /* Stop timestamp is out of order. Something is wrong. */
-            WT_ERR_PANIC(session, WT_PANIC, "stop timestamp is out of order %s",
-              __wt_time_window_to_string(select_tw, time_string));
-    }
-
-    if (select_tw->stop_txn < select_tw->start_txn)
-        /* Stop transaction id is out of order. Something is wrong. */
-        WT_ERR_PANIC(session, WT_PANIC, "stop transaction id is out of order %s",
+    if (select_tw->stop_ts < select_tw->start_ts ||
+      (select_tw->stop_ts == select_tw->start_ts && select_tw->stop_txn < select_tw->start_txn)) {
+        __wt_verbose(session, WT_VERB_TIMESTAMP,
+          "Warning: fixing out-of-order timestamps remove earlier than value; time window %s",
           __wt_time_window_to_string(select_tw, time_string));
+
+        select_tw->durable_start_ts = select_tw->durable_stop_ts;
+        select_tw->start_ts = select_tw->stop_ts;
+    }
 
     /*
      * Track the most recent transaction in the page. We store this in the tree at the end of

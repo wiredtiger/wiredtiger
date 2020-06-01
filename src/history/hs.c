@@ -482,29 +482,17 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
 
     /*
      * If the time points are out of order (which can happen if the application performs updates
-     * with mixed mode transactions), so this value can never be seen, don't bother inserting it.
+     * with out-of-order timestamps), so this value can never be seen, don't bother inserting it.
      */
-    if (stop_time_point->ts < upd->start_ts) {
+    if (stop_time_point->ts < upd->start_ts ||
+      (stop_time_point->ts == upd->start_ts && stop_time_point->txnid <= upd->txnid)) {
         char ts_string[2][WT_TS_INT_STRING_SIZE];
-        if (stop_time_point->ts == WT_TS_NONE) {
-            __wt_verbose(session, WT_VERB_TIMESTAMP,
-              "Warning: fixing mix mode update %s; timestamp of the previous update %s",
-              __wt_timestamp_to_string(stop_time_point->ts, ts_string[0]),
-              __wt_timestamp_to_string(upd->start_ts, ts_string[1]));
-            return (0);
-        } else
-            /* Timestamp is out of order. Something is wrong. */
-            WT_ERR_PANIC(session, WT_PANIC,
-              "timestamp is out of order %s; timestamp of the previous update %s",
-              __wt_timestamp_to_string(stop_time_point->ts, ts_string[0]),
-              __wt_timestamp_to_string(upd->start_ts, ts_string[1]));
+        __wt_verbose(session, WT_VERB_TIMESTAMP,
+          "Warning: fixing out-of-order timestamps %s earlier than previous update %s",
+          __wt_timestamp_to_string(stop_time_point->ts, ts_string[0]),
+          __wt_timestamp_to_string(upd->start_ts, ts_string[1]));
+        return (0);
     }
-
-    if (stop_time_point->txnid < upd->txnid)
-        /* Transaction id is out of order. Something is wrong. */
-        WT_ERR_PANIC(session, WT_PANIC, "transaction id is out of order %" PRIu64
-                                        "; transaction id of the previous update %" PRIu64,
-          stop_time_point->txnid, upd->txnid);
 
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_insert_record_with_btree_int(
@@ -619,7 +607,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     uint32_t i;
     uint8_t *p;
     int nentries;
-    bool squashed, track_prepare;
+    bool squashed, track_prepare, updates_in_hs, updates_older_than_onpage;
     uint8_t upd_count;
 
     btree = S2BT(session);
@@ -674,7 +662,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         __wt_free_update_list(session, &upd);
         upd = list->onpage_upd;
         second_older_than_prepare = NULL;
-        track_prepare = false;
+        track_prepare = updates_in_hs = updates_older_than_onpage = false;
         upd_count = 0;
 
         /*
@@ -734,12 +722,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 }
             }
 
-            /*
-             * If we've reached a full update and its in the history store we don't need to continue
-             * as anything beyond this point won't help with calculating deltas.
-             */
-            if (upd->type == WT_UPDATE_STANDARD && F_ISSET(upd, WT_UPDATE_HS))
-                break;
+            if (F_ISSET(upd, WT_UPDATE_HS)) {
+                updates_in_hs = true;
+                /*
+                 * If we've reached a full update and its in the history store we don't need to
+                 * continue as anything beyond this point won't help with calculating deltas.
+                 */
+                if (upd->type == WT_UPDATE_STANDARD)
+                    break;
+            }
         }
 
         upd = NULL;
@@ -749,11 +740,16 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         __wt_modify_vector_pop(&modifies, &upd);
 
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
+
         /* Skip TOMBSTONE at the end of the update chain. */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
-                if (upd->start_ts == WT_TS_NONE) {
-                    /* We can only delete history store entries that have timestamps. */
+                /*
+                 * We don't need to delete the history store records if everything is still on the
+                 * insert list and there are no updates moved to the history store by checkpoint or
+                 * a failed eviction.
+                 */
+                if ((list->ins == NULL || updates_in_hs) && upd->start_ts == WT_TS_NONE) {
                     WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
                     WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
                 }
@@ -778,6 +774,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
              upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
+            updates_older_than_onpage = true;
 
             __wt_modify_vector_pop(&modifies, &prev_upd);
 
@@ -803,13 +800,24 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 stop_time_point.txnid = prev_upd->txnid;
             }
 
+            /*
+             * Delete the history store records if we detect a mixed mode update. We don't need to
+             * do that if everything is still on the insert list and there are no updates moved to
+             * the history store by checkpoint or a failed eviction.
+             *
+             * Note that if the update is restored from data store or history store, we may have
+             * cleared its timestamp, remove the history store contents anyway in this case.
+             */
+            if ((list->ins == NULL || updates_in_hs) && prev_upd->start_ts == WT_TS_NONE &&
+              (upd->start_ts != WT_TS_NONE ||
+                  F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))) {
+                /* We can only delete history store entries that have timestamps. */
+                WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
+                WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+            }
+
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
-                if (prev_upd->start_ts == WT_TS_NONE) {
-                    /* We can only delete history store entries that have timestamps. */
-                    WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
-                    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
-                }
                 __wt_modify_vector_pop(&modifies, &prev_upd);
                 WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
                 prev_full_value->data = prev_upd->data;
@@ -863,8 +871,23 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 squashed = true;
         }
 
+        WT_ASSERT(session,
+          upd->txnid == list->onpage_upd->txnid && upd->start_ts == list->onpage_upd->start_ts);
+
         if (modifies.size > 0)
             WT_STAT_CONN_INCR(session, cache_hs_write_squash);
+
+        /*
+         * Delete the history store records if the onpage update's timestamp is WT_TS_NONE and we
+         * don't see any updates older than it. We don't need to do that if everything is still on
+         * the insert list and there are no updates moved to the history store by checkpoint or a
+         * failed eviction.
+         */
+        if (!updates_older_than_onpage && (list->ins == NULL || updates_in_hs) &&
+          upd->start_ts == WT_TS_NONE) {
+            WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
+            WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+        }
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
