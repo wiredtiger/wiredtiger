@@ -16,7 +16,7 @@ usage(void)
       "verify against the specified timestamp", NULL, NULL};
 
     util_usage(
-      "verify [-as] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages] "
+      "verify [-s] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages] "
       "[uri]",
       "options:", options);
 
