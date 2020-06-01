@@ -1129,19 +1129,17 @@ read_row_worker(
         switch (g.type) {
         case FIX:
             if (tinfo == NULL && g.trace_all)
-                trace_msg("%-10s%" PRIu64 " {0x%02x}", "read", keyno, ((char *)value->data)[0]);
+                trace_msg("read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
             if (tinfo != NULL)
-                trace_op(
-                  tinfo, "%-10s%" PRIu64 " {0x%02x}", "read", keyno, ((char *)value->data)[0]);
+                trace_op(tinfo, "read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
 
             break;
         case ROW:
         case VAR:
             if (tinfo == NULL && g.trace_all)
-                trace_msg(
-                  "%-10s%" PRIu64 " {%.*s}", "read", keyno, (int)value->size, (char *)value->data);
+                trace_msg("read %" PRIu64 " {%.*s}", keyno, (int)value->size, (char *)value->data);
             if (tinfo != NULL)
-                trace_op(tinfo, "%-10s%" PRIu64 " {%s}", "read", keyno, trace_item(tinfo, value));
+                trace_op(tinfo, "read %" PRIu64 " {%s}", keyno, trace_item(tinfo, value));
             break;
         }
 
@@ -1277,14 +1275,14 @@ order_error_row:
     if (g.trace_all && ret == 0)
         switch (g.type) {
         case FIX:
-            trace_op(tinfo, "%-10s%" PRIu64 " {0x%02x}", which, keyno, ((char *)value.data)[0]);
+            trace_op(tinfo, "%s %" PRIu64 " {0x%02x}", which, keyno, ((char *)value.data)[0]);
             break;
         case ROW:
-            trace_op(tinfo, "%-10s%" PRIu64 " {%.*s}, {%s}", which, keyno, (int)key.size,
+            trace_op(tinfo, "%s %" PRIu64 " {%.*s}, {%s}", which, keyno, (int)key.size,
               (char *)key.data, trace_item(tinfo, &value));
             break;
         case VAR:
-            trace_op(tinfo, "%-10s%" PRIu64 " {%s}", which, keyno, trace_item(tinfo, &value));
+            trace_op(tinfo, "%s %" PRIu64 " {%s}", which, keyno, trace_item(tinfo, &value));
             break;
         }
 
@@ -1308,7 +1306,7 @@ row_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if ((ret = cursor->reserve(cursor)) != 0)
         return (ret);
 
-    trace_op(tinfo, "%-10s%" PRIu64 " {%.*s}", "reserve", tinfo->keyno, (int)tinfo->key->size,
+    trace_op(tinfo, "reserve %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->key->size,
       (char *)tinfo->key->data);
 
     return (0);
@@ -1329,7 +1327,7 @@ col_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if ((ret = cursor->reserve(cursor)) != 0)
         return (ret);
 
-    trace_op(tinfo, "%-10s%" PRIu64, "reserve", tinfo->keyno);
+    trace_op(tinfo, "reserve %" PRIu64, tinfo->keyno);
 
     return (0);
 }
@@ -1380,7 +1378,7 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
     testutil_check(cursor->get_value(cursor, tinfo->value));
 
-    trace_op(tinfo, "%-10s%" PRIu64 " {%.*s}, {%s}", "modify", tinfo->keyno, (int)tinfo->key->size,
+    trace_op(tinfo, "modify %" PRIu64 " {%.*s}, {%s}", tinfo->keyno, (int)tinfo->key->size,
       (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
 
     return (0);
@@ -1406,8 +1404,7 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
     testutil_check(cursor->get_value(cursor, tinfo->value));
 
-    trace_op(
-      tinfo, "%-10s%" PRIu64 ", {%s}", "modify", tinfo->keyno, trace_item(tinfo, tinfo->value));
+    trace_op(tinfo, "modify %" PRIu64 ", {%s}", tinfo->keyno, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1454,7 +1451,7 @@ row_truncate(TINFO *tinfo, WT_CURSOR *cursor)
     if (ret != 0)
         return (ret);
 
-    trace_op(tinfo, "%-10s%" PRIu64 ", %" PRIu64, "truncate", tinfo->keyno, tinfo->last);
+    trace_op(tinfo, "truncate %" PRIu64 ", %" PRIu64, "truncate", tinfo->keyno, tinfo->last);
 
     return (0);
 }
@@ -1496,7 +1493,7 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
     if (ret != 0)
         return (ret);
 
-    trace_op(tinfo, "%-10s%" PRIu64 "-%" PRIu64, "truncate", tinfo->keyno, tinfo->last);
+    trace_op(tinfo, "truncate %" PRIu64 "-%" PRIu64, tinfo->keyno, tinfo->last);
 
     return (0);
 }
@@ -1520,7 +1517,7 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if ((ret = cursor->update(cursor)) != 0)
         return (ret);
 
-    trace_op(tinfo, "%-10s%" PRIu64 " {%.*s}, {%s}", "update", tinfo->keyno, (int)tinfo->key->size,
+    trace_op(tinfo, "update %" PRIu64 " {%.*s}, {%s}", tinfo->keyno, (int)tinfo->key->size,
       (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
 
     return (0);
@@ -1547,11 +1544,10 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
         return (ret);
 
     if (g.type == FIX)
-        trace_op(tinfo, "%-10s%" PRIu64 " {0x%02" PRIx8 "}", "update", tinfo->keyno,
+        trace_op(tinfo, "update %" PRIu64 " {0x%02" PRIx8 "}", tinfo->keyno,
           ((uint8_t *)tinfo->value->data)[0]);
     else
-        trace_op(
-          tinfo, "%-10s%" PRIu64 " {%s}", "update", tinfo->keyno, trace_item(tinfo, tinfo->value));
+        trace_op(tinfo, "update %" PRIu64 " {%s}", tinfo->keyno, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1580,7 +1576,7 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
         return (ret);
 
     /* Log the operation */
-    trace_op(tinfo, "%-10s%" PRIu64 " {%.*s}, {%s}", "insert", tinfo->keyno, (int)tinfo->key->size,
+    trace_op(tinfo, "insert %" PRIu64 " {%.*s}, {%s}", tinfo->keyno, (int)tinfo->key->size,
       (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
 
     return (0);
@@ -1666,11 +1662,10 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor)
     col_insert_add(tinfo); /* Extend the object. */
 
     if (g.type == FIX)
-        trace_op(tinfo, "%-10s%" PRIu64 " {0x%02" PRIx8 "}", "insert", tinfo->keyno,
+        trace_op(tinfo, "insert %" PRIu64 " {0x%02" PRIx8 "}", tinfo->keyno,
           ((uint8_t *)tinfo->value->data)[0]);
     else
-        trace_op(
-          tinfo, "%-10s%" PRIu64 " {%s}", "insert", tinfo->keyno, trace_item(tinfo, tinfo->value));
+        trace_op(tinfo, "insert %" PRIu64 " {%s}", tinfo->keyno, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1696,7 +1691,7 @@ row_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
 
-    trace_op(tinfo, "%-10s%" PRIu64, "remove", tinfo->keyno);
+    trace_op(tinfo, "remove %" PRIu64, tinfo->keyno);
 
     return (ret);
 }
@@ -1720,7 +1715,7 @@ col_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
 
-    trace_op(tinfo, "%-10s%" PRIu64, "remove", tinfo->keyno);
+    trace_op(tinfo, "remove %" PRIu64, tinfo->keyno);
 
     return (ret);
 }

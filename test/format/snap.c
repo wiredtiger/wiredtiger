@@ -498,7 +498,7 @@ snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
 
     ret = session->timestamp_transaction(session, buf);
     if (ret == 0) {
-        trace_op(tinfo, "%-10s%" PRIu64 " ts=%" PRIu64 " {%s}", "repeat", snap->keyno, snap->ts,
+        trace_op(tinfo, "repeat %" PRIu64 " ts=%" PRIu64 " {%s}", snap->keyno, snap->ts,
           trace_bytes(tinfo, snap->vdata, snap->vsize));
 
         /* The only expected error is rollback. */

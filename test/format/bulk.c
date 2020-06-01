@@ -134,23 +134,21 @@ wts_load(void)
                 cursor->set_key(cursor, keyno);
             cursor->set_value(cursor, *(uint8_t *)value.data);
             if (g.trace_all)
-                trace_msg(
-                  "%-10s %" PRIu32 " {0x%02" PRIx8 "}", "bulk", keyno, ((uint8_t *)value.data)[0]);
+                trace_msg("bulk %" PRIu32 " {0x%02" PRIx8 "}", keyno, ((uint8_t *)value.data)[0]);
             break;
         case VAR:
             if (!is_bulk)
                 cursor->set_key(cursor, keyno);
             cursor->set_value(cursor, &value);
             if (g.trace_all)
-                trace_msg(
-                  "%-10s %" PRIu32 " {%.*s}", "bulk", keyno, (int)value.size, (char *)value.data);
+                trace_msg("bulk %" PRIu32 " {%.*s}", keyno, (int)value.size, (char *)value.data);
             break;
         case ROW:
             cursor->set_key(cursor, &key);
             cursor->set_value(cursor, &value);
             if (g.trace_all)
-                trace_msg("%-10s %" PRIu32 " {%.*s}, {%.*s}", "bulk", keyno, (int)key.size,
-                  (char *)key.data, (int)value.size, (char *)value.data);
+                trace_msg("bulk %" PRIu32 " {%.*s}, {%.*s}", keyno, (int)key.size, (char *)key.data,
+                  (int)value.size, (char *)value.data);
             break;
         }
 
