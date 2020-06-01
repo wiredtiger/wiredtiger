@@ -472,9 +472,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
 
     /*
-     * If we found a mixed mode tombstone, reset the start timestamps to the timestamps of the mixed
-     * mode tombstone to make it invisible. We don't guarantee that older readers will be able to
-     * continue reading content that has been made invisible by mixed mode updates.
+     * If we found a mixed mode tombstone, reset the start timestamps to WT_TS_NONE to make it
+     * invisible. We don't guarantee that older readers will be able to continue reading content
+     * that has been made invisible by mixed mode updates.
      *
      * Note that we carefully don't take this path when the stop time point is equal to the start
      * time point. While unusual, it is permitted for a single transaction to insert and then remove
