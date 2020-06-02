@@ -145,7 +145,7 @@ err:
 }
 
 /*
- * __turtle_validate_version --
+ * __wt_turtle_validate_version --
  *     Retrieve version numbers from the turtle file and validate them against our WiredTiger
  *     version.
  */

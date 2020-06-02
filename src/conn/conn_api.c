@@ -1403,7 +1403,7 @@ __conn_config_file(
         /*
          * Replace any newline characters with commas (and strings of commas are safe).
          *
-         * After any newline, skip toy a non-white-space character; if the next character is a hash
+         * After any newline, skip to a non-white-space character; if the next character is a hash
          * mark, skip to the next newline.
          */
         for (;;) {
@@ -2591,11 +2591,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
     conn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
 
-    /*
-     * Set compatibility versions early so that any subsystem sees it. Call after we own the
-     * database so that we can know if the database is new or not. Compatibility testing needs to
-     * know if salvage has been set, so parse that early.
-     */
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
         if (F_ISSET(conn, WT_CONN_READONLY))
@@ -2662,7 +2657,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     __wt_logmgr_compat_version(session);
     WT_ERR(__wt_logmgr_config(session, cfg, false));
     if (!F_ISSET(conn, WT_CONN_SALVAGE) && FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
-        WT_RET(__wt_log_compat_verify(session));
+        WT_ERR(__wt_log_compat_verify(session));
 
     /*
      * Configuration completed; optionally write a base configuration file.
