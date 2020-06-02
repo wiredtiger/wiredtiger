@@ -32,8 +32,7 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, bool e
  *     Pack the validity window for a value.
  */
 static inline void
-__cell_pack_value_validity(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, uint8_t **pp, WT_TIME_WINDOW *tw)
+__cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp, WT_TIME_WINDOW *tw)
 {
     uint8_t flags, *flagsp;
 
@@ -85,15 +84,8 @@ __cell_pack_value_validity(
             LF_SET(WT_CELL_TS_DURABLE_STOP);
         }
     }
-    if (LF_ISSET(
-          WT_CELL_TS_START | WT_CELL_TS_DURABLE_START | WT_CELL_TS_STOP | WT_CELL_TS_DURABLE_STOP))
-        r->rec_page_cell_with_ts = true;
-    if (LF_ISSET(WT_CELL_TXN_START | WT_CELL_TXN_STOP))
-        r->rec_page_cell_with_txn_id = true;
-    if (tw->prepare) {
+    if (tw->prepare)
         LF_SET(WT_CELL_PREPARE);
-        r->rec_page_cell_with_prepared_txn = true;
-    }
     *flagsp = flags;
 }
 
@@ -228,8 +220,8 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session, WT_CELL *cell, u_int cell_type, ui
  *     Set a value item's WT_CELL contents.
  */
 static inline size_t
-__wt_cell_pack_value(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, WT_TIME_WINDOW *tw,
-  uint64_t rle, size_t size)
+__wt_cell_pack_value(
+  WT_SESSION_IMPL *session, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle, size_t size)
 {
     uint8_t byte, *p;
     bool validity;
@@ -238,7 +230,7 @@ __wt_cell_pack_value(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, W
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_value_validity(session, r, &p, tw);
+    __cell_pack_value_validity(session, &p, tw);
 
     /*
      * Short data cells without a validity window or run-length encoding have 6 bits of data length
@@ -360,8 +352,8 @@ __wt_cell_pack_value_match(
  *     Write a copy value cell.
  */
 static inline size_t
-__wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, WT_TIME_WINDOW *tw,
-  uint64_t rle, uint64_t v)
+__wt_cell_pack_copy(
+  WT_SESSION_IMPL *session, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle, uint64_t v)
 {
     uint8_t *p;
 
@@ -369,7 +361,7 @@ __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, WT
     p = cell->__chunk;
     *p = '\0';
 
-    __cell_pack_value_validity(session, r, &p, tw);
+    __cell_pack_value_validity(session, &p, tw);
 
     if (rle < 2)
         cell->__chunk[0] |= WT_CELL_VALUE_COPY; /* Type */
@@ -389,8 +381,7 @@ __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, WT
  *     Write a deleted value cell.
  */
 static inline size_t
-__wt_cell_pack_del(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle)
+__wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell, WT_TIME_WINDOW *tw, uint64_t rle)
 {
     uint8_t *p;
 
@@ -399,7 +390,7 @@ __wt_cell_pack_del(
     *p = '\0';
 
     /* FIXME-WT-6124: we should set the time window prepare value. */
-    __cell_pack_value_validity(session, r, &p, tw);
+    __cell_pack_value_validity(session, &p, tw);
 
     if (rle < 2)
         cell->__chunk[0] |= WT_CELL_DEL; /* Type */
@@ -485,8 +476,8 @@ __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
  *     Pack an overflow cell.
  */
 static inline size_t
-__wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, uint8_t type,
-  WT_TIME_WINDOW *tw, uint64_t rle, size_t size)
+__wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TIME_WINDOW *tw,
+  uint64_t rle, size_t size)
 {
     uint8_t *p;
 
@@ -502,7 +493,7 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CELL *cell, ui
         break;
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
-        __cell_pack_value_validity(session, r, &p, tw);
+        __cell_pack_value_validity(session, &p, tw);
         break;
     }
 
@@ -970,15 +961,18 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
      *
      * This is how the stop time point should be interpreted for each type of delete:
      * -
-     *                  Timestamp delete  Non-timestamp delete  No delete
-     * Current startup  txnid=x, ts=y       txnid=x, ts=WT_TS_NONE           txnid=MAX, ts=MAX
-     * Previous startup txnid=0, ts=y       txnid=0, ts=WT_TS_NONE           txnid=MAX, ts=MAX
+     *                        Current startup               Previous startup
+     * Timestamp delete       txnid=x, ts=y,                txnid=0, ts=y,
+     *                        durable_ts=z                  durable_ts=z
+     * Non-timestamp delete   txnid=x, ts=NONE,             txnid=0, ts=NONE,
+     *                        durable_ts=NONE               durable_ts=NONE
+     * No delete              txnid=MAX, ts=MAX,            txnid=MAX, ts=MAX,
+     *                        durable_ts=NONE               durable_ts=NONE
      */
     if (dsk->write_gen == 0 || dsk->write_gen > S2C(session)->base_write_gen)
         return;
 
     /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
-    /* FIXME-WT-6124: deal with durable timestamps. */
     if (unpack_addr != NULL) {
         ta = &unpack_addr->ta;
         if (ta->oldest_start_txn != WT_TXN_NONE) {
@@ -988,8 +982,17 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
         if (ta->newest_stop_txn != WT_TXN_MAX) {
             ta->newest_stop_txn = WT_TXN_NONE;
             F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-            if (ta->newest_stop_ts == WT_TS_MAX)
+
+            /*
+             * The combination of newest stop timestamp being WT_TS_MAX while the newest stop
+             * transaction not being WT_TXN_MAX is possible only for the non-timestamped tables. In
+             * this scenario there shouldn't be any timestamp value as part of durable stop
+             * timestamp other than the default value WT_TS_NONE.
+             */
+            if (ta->newest_stop_ts == WT_TS_MAX) {
                 ta->newest_stop_ts = WT_TS_NONE;
+                WT_ASSERT(session, ta->newest_stop_durable_ts == WT_TS_NONE);
+            }
         } else
             WT_ASSERT(session, ta->newest_stop_ts == WT_TS_MAX);
     }
@@ -1002,8 +1005,17 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
         if (tw->stop_txn != WT_TXN_MAX) {
             tw->stop_txn = WT_TXN_NONE;
             F_SET(unpack_kv, WT_CELL_UNPACK_TIME_WINDOW_CLEARED);
-            if (tw->stop_ts == WT_TS_MAX)
+
+            /*
+             * The combination of stop timestamp being WT_TS_MAX while the stop transaction not
+             * being WT_TXN_MAX is possible only for the non-timestamped tables. In this scenario
+             * there shouldn't be any timestamp value as part of durable stop timestamp other than
+             * the default value WT_TS_NONE.
+             */
+            if (tw->stop_ts == WT_TS_MAX) {
                 tw->stop_ts = WT_TS_NONE;
+                WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
+            }
         } else
             WT_ASSERT(session, tw->stop_ts == WT_TS_MAX);
     }

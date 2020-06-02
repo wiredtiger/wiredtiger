@@ -138,12 +138,6 @@ path_setup(const char *home)
     g.home_rand = dmalloc(len);
     testutil_check(__wt_snprintf(g.home_rand, len, "%s/%s", g.home, name));
 
-    /* Log file. */
-    name = "OPERATIONS.log";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_log = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_log, len, "%s/%s", g.home, name));
-
     /* History store dump file. */
     name = "FAIL.HSdump";
     len = strlen(g.home) + strlen(name) + 2;
@@ -168,19 +162,13 @@ path_setup(const char *home)
  *     Read and return a value from a file.
  */
 bool
-fp_readv(FILE *fp, char *name, bool eof_ok, uint32_t *vp)
+fp_readv(FILE *fp, char *name, uint32_t *vp)
 {
     u_long ulv;
     char *endptr, buf[100];
 
-    if (fgets(buf, sizeof(buf), fp) == NULL) {
-        if (feof(g.randfp)) {
-            if (eof_ok)
-                return (true);
-            testutil_die(errno, "%s: read-value EOF", name);
-        }
+    if (fgets(buf, sizeof(buf), fp) == NULL)
         testutil_die(errno, "%s: read-value error", name);
-    }
 
     errno = 0;
     ulv = strtoul(buf, &endptr, 10);
@@ -188,64 +176,6 @@ fp_readv(FILE *fp, char *name, bool eof_ok, uint32_t *vp)
     testutil_assert(ulv <= UINT32_MAX);
     *vp = (uint32_t)ulv;
     return (false);
-}
-
-/*
- * rng_slow --
- *     Return a random number, doing the real work.
- */
-uint32_t
-rng_slow(WT_RAND_STATE *rnd)
-{
-    uint32_t v;
-
-    /*
-     * We can reproduce a single-threaded run based on the random numbers used in the initial run,
-     * plus the configuration files.
-     */
-    if (g.replay) {
-        if (fp_readv(g.randfp, g.home_rand, true, &v)) {
-            fprintf(stderr,
-              "\n"
-              "end of random number log reached\n");
-            exit(EXIT_SUCCESS);
-        }
-        return (v);
-    }
-
-    v = __wt_random(rnd);
-
-    /* Save and flush the random number so we're up-to-date on error. */
-    (void)fprintf(g.randfp, "%" PRIu32 "\n", v);
-    (void)fflush(g.randfp);
-
-    return (v);
-}
-
-/*
- * handle_init --
- *     Initialize logging/random number handles for a run.
- */
-void
-handle_init(void)
-{
-    /* Open/truncate logging/random number handles. */
-    if (g.logging && (g.logfp = fopen(g.home_log, "w")) == NULL)
-        testutil_die(errno, "fopen: %s", g.home_log);
-    if ((g.randfp = fopen(g.home_rand, g.replay ? "r" : "w")) == NULL)
-        testutil_die(errno, "%s", g.home_rand);
-}
-
-/*
- * handle_teardown --
- *     Shutdown logging/random number handles for a run.
- */
-void
-handle_teardown(void)
-{
-    /* Flush/close logging/random number handles. */
-    fclose_and_clear(&g.logfp);
-    fclose_and_clear(&g.randfp);
 }
 
 /*
@@ -315,7 +245,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag)
               stable_timestamp_str, g.stable_timestamp));
         }
         testutil_check(conn->set_timestamp(conn, buf));
-        logop(session, "%-10s oldest=%" PRIu64 ", stable=%" PRIu64, "setts", g.oldest_timestamp,
+        tracemsg("%-10s oldest=%" PRIu64 ", stable=%" PRIu64, "setts", g.oldest_timestamp,
           g.stable_timestamp);
     } else
         testutil_assert(ret == WT_NOTFOUND);
