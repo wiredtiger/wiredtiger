@@ -737,10 +737,12 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
-        if (WT_IS_HS(S2BT(session)) && upd->txnid != WT_TXN_ABORTED &&
-          upd->type == WT_UPDATE_STANDARD)
-            /* Entries in the history store are always visible. */
+        if (F_ISSET(session, WT_SESSION_HS_IGNORE_VISIBILITY) && upd->txnid != WT_TXN_ABORTED &&
+          upd->type == WT_UPDATE_STANDARD) {
+            /* If we are resolving a modify then the btree must be the history store. */
+            WT_ASSERT(session, WT_IS_HS(S2BT(session)));
             return (WT_VISIBLE_TRUE);
+        }
 
         upd_visible = __wt_txn_visible(session, upd->txnid, upd->start_ts);
 
@@ -858,7 +860,9 @@ __wt_txn_read_upd_list(
              * Ignore non-globally visible tombstones when we are doing history store scans in
              * rollback to stable or when we are told to.
              */
-            if (type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
+            if (type == WT_UPDATE_TOMBSTONE &&
+              (F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) ||
+                  (WT_IS_HS(S2BT(session)) && F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))) &&
               !__wt_txn_upd_visible_all(session, upd)) {
                 cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
                 cbt->upd_value->tw.stop_ts = upd->start_ts;
@@ -949,7 +953,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
      * are told to ignore non-globally visible tombstones.
      */
     if (__wt_txn_tw_stop_visible(session, &tw) &&
-      (!F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) ||
+      ((!F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
+         (!WT_IS_HS(S2BT(session)) || !F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))) ||
           (__wt_txn_tw_stop_visible_all(session, &tw) && !WT_CURSOR_IS_DUMP(&cbt->iface)))) {
         cbt->upd_value->buf.data = NULL;
         cbt->upd_value->buf.size = 0;
@@ -970,7 +975,13 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     }
 
     /* If the start time point is visible then we need to return the ondisk value. */
-    if (WT_IS_HS(S2BT(session)) || __wt_txn_tw_start_visible(session, &tw)) {
+    if (F_ISSET(session, WT_SESSION_HS_IGNORE_VISIBILITY) ||
+      __wt_txn_tw_start_visible(session, &tw)) {
+        /* If we are resolving a modify then the btree must be the history store. */
+        WT_ASSERT(
+          session, (F_ISSET(session, WT_SESSION_HS_IGNORE_VISIBILITY) && WT_IS_HS(S2BT(session))) ||
+            !F_ISSET(session, WT_SESSION_HS_IGNORE_VISIBILITY));
+
         if (cbt->upd_value->skip_buf) {
             cbt->upd_value->buf.data = NULL;
             cbt->upd_value->buf.size = 0;
