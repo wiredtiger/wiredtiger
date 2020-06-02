@@ -29,7 +29,7 @@
 #include "format.h"
 
 static void
-track_ts(char *buf, size_t buf_size, const char *name, uint64_t old_ts, uint64_t this_ts)
+track_ts_diff(char *buf, size_t buf_size, const char *name, uint64_t old_ts, uint64_t this_ts)
 {
     size_t len;
     uint64_t diff;
@@ -78,14 +78,14 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
 
             testutil_check(__wt_snprintf(ts_msg, sizeof(ts_msg), " old 0x%" PRIx64, old_ts));
             if (g.c_txn_rollback_to_stable)
-                track_ts(ts_msg, sizeof(ts_msg), "stable", old_ts, stable_ts);
-            track_ts(ts_msg, sizeof(ts_msg), "cur", old_ts, cur_ts);
+                track_ts_diff(ts_msg, sizeof(ts_msg), "stbl", old_ts, stable_ts);
+            track_ts_diff(ts_msg, sizeof(ts_msg), "cur", old_ts, cur_ts);
         }
         testutil_check(__wt_snprintf_len_set(msg, sizeof(msg), &len, "%4" PRIu32 ": %s: "
-                                                                     "search %" PRIu64 "%s, "
-                                                                     "insert %" PRIu64 "%s, "
-                                                                     "update %" PRIu64 "%s, "
-                                                                     "remove %" PRIu64 "%s%s",
+                                                                     "srch %" PRIu64 "%s, "
+                                                                     "ins %" PRIu64 "%s, "
+                                                                     "upd %" PRIu64 "%s, "
+                                                                     "rm %" PRIu64 "%s%s",
           g.run_cnt, tag, tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search,
           tinfo->search > M(9) ? "M" : "",
           tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert,
