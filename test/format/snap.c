@@ -771,10 +771,10 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
         }
 
         /*
-         * If there aren't any entries older than the stable timestamp, we've wrapped around.
-         * This thread may have made changes to any key right up to the stable time that have
-         * now been overwritten. There's no way to get an accurate accounting, so we skip checking
-         * for this run.
+         * If there aren't any entries older than the stable timestamp, we've wrapped around. This
+         * thread may have made changes to any key right up to the stable time that have now been
+         * overwritten. There's no way to get an accurate accounting, so we skip checking for this
+         * run.
          */
         if (oldest_ts == UINT64_MAX)
             goto cleanup;
@@ -786,7 +786,8 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
      * affected.
      */
     newest_oldest_ts = WT_MAX(newest_oldest_ts, newest_truncate + 1);
-    qsort(sorted_snaps, (size_t)(sorted_end - sorted_snaps), sizeof(SNAP_OPS *), compare_snap_ts);
+    __wt_qsort(
+      sorted_snaps, (size_t)(sorted_end - sorted_snaps), sizeof(SNAP_OPS *), compare_snap_ts);
 
     /*
      * Start a new transaction. Verify all repeatable records. Discard the transaction.

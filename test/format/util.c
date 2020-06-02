@@ -78,7 +78,7 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
 
             testutil_check(__wt_snprintf(ts_msg, sizeof(ts_msg), " old 0x%" PRIx64, old_ts));
             if (g.c_txn_rollback_to_stable)
-                track_ts_diff(ts_msg, sizeof(ts_msg), "stbl", old_ts, stable_ts);
+                track_ts_diff(ts_msg, sizeof(ts_msg), "stb", old_ts, stable_ts);
             track_ts_diff(ts_msg, sizeof(ts_msg), "cur", old_ts, cur_ts);
         }
         testutil_check(__wt_snprintf_len_set(msg, sizeof(msg), &len, "%4" PRIu32 ": %s: "
