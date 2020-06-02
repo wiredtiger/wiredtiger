@@ -117,10 +117,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             if (cbt->compare == 0) {
                 for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
                     ;
-                if (cbt->ins != NULL)
-                    last_upd->next = cbt->ins->upd;
-                else if ((mod = cbt->ref->page->modify) != NULL && mod->mod_row_update != NULL)
-                    last_upd->next = mod->mod_row_update[cbt->slot];
+                last_upd->next = *upd_entry;
             }
 
             /*
