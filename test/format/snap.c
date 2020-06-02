@@ -173,6 +173,7 @@ snap_op_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
     uint64_t stable_ts;
 
     ++tinfo->opid;
+    tinfo->op_order = 0;
 
     if (g.c_txn_rollback_to_stable) {
         /*
@@ -214,6 +215,7 @@ snap_track(TINFO *tinfo, thread_op op)
     snap = tinfo->snap_current;
     snap->op = op;
     snap->opid = tinfo->opid;
+    snap->op_order = tinfo->op_order++;
     snap->keyno = tinfo->keyno;
     snap->ts = WT_TS_NONE;
     snap->repeatable = false;
@@ -682,18 +684,26 @@ snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
 static int
 compare_snap_ts(const void *a, const void *b)
 {
-    uint64_t ts_a, ts_b;
+    SNAP_OPS *snap_a, *snap_b;
 
-    ts_a = (*(SNAP_OPS **)a)->ts;
-    ts_b = (*(SNAP_OPS **)b)->ts;
+    snap_a = *(SNAP_OPS **)a;
+    snap_b = *(SNAP_OPS **)b;
 
-    /* Compare so that the highest timestamp sorts first. */
-    if (ts_a > ts_b)
+    /*
+     * Compare so that the highest timestamp sorts first.  If timestamps are equal, the operations
+     * are from the same transaction, and since it's possible that both operations modified the same
+     * record, choose the latest.
+     */
+    if (snap_a->ts > snap_b->ts)
         return (-1);
-    else if (ts_a == ts_b)
-        return (0);
-    else
+    else if (snap_a->ts < snap_b->ts)
         return (1);
+    else if (snap_a->op_order > snap_b->op_order)
+        return (-1);
+    else if (snap_a->op_order < snap_b->op_order)
+        return (1);
+    else
+        return (0);
 }
 
 /*
