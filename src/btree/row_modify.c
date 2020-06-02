@@ -59,6 +59,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     ins = NULL;
     page = cbt->ref->page;
     session = CUR2S(cbt);
+    last_upd = NULL;
     upd = upd_arg;
     logged = false;
 
@@ -226,6 +227,8 @@ err:
         cbt->ins = NULL;
         if (upd_arg == NULL)
             __wt_free(session, upd);
+        if (last_upd != NULL)
+            last_upd->next = NULL;
     }
 
     return (ret);
