@@ -1747,8 +1747,6 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ERR_MSG(session, EEXIST,
               "WiredTiger database already exists and exclusive "
               "option configured");
-        /* If we have a turtle file, validate versions. */
-        WT_ERR(__wt_turtle_validate_version(session));
     }
 
 err:
@@ -2268,6 +2266,37 @@ wiredtiger_dummy_session_init(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_
 }
 
 /*
+ * __conn_version_verify --
+ *     Verify the versions before modifying the database.
+ */
+static int
+__conn_version_verify(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    bool exist;
+
+    conn = S2C(session);
+
+    /* Always set the compatibility versions. */
+    __wt_logmgr_compat_version(session);
+    /*
+     * If we're salvaging, don't verify now.
+     */
+    if (F_ISSET(conn, WT_CONN_SALVAGE))
+        return (0);
+
+    /* If we have a turtle file, validate versions. */
+    WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist));
+    if (exist)
+        WT_RET(__wt_turtle_validate_version(session));
+
+    if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
+        WT_RET(__wt_log_compat_verify(session));
+
+    return (0);
+}
+
+/*
  * wiredtiger_open --
  *     Main library entry point: open a new connection to a WiredTiger database.
  */
@@ -2654,10 +2683,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * We need to parse the logging configuration here to verify the compatibility settings because
      * we may need the log path and encryption and compression settings.
      */
-    __wt_logmgr_compat_version(session);
     WT_ERR(__wt_logmgr_config(session, cfg, false));
-    if (!F_ISSET(conn, WT_CONN_SALVAGE) && FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
-        WT_ERR(__wt_log_compat_verify(session));
+    WT_ERR(__conn_version_verify(session));
 
     /*
      * Configuration completed; optionally write a base configuration file.
