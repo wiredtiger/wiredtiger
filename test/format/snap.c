@@ -690,7 +690,7 @@ compare_snap_ts(const void *a, const void *b)
     snap_b = *(SNAP_OPS **)b;
 
     /*
-     * Compare so that the highest timestamp sorts first.  If timestamps are equal, the operations
+     * Compare so that the highest timestamp sorts first. If timestamps are equal, the operations
      * are from the same transaction, and since it's possible that both operations modified the same
      * record, choose the latest.
      */
@@ -724,7 +724,7 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
     u_int64_t newest_oldest_ts, oldest_ts, newest_truncate;
     u_int count;
     size_t i, statenum;
-    static bool created = false;
+    char buf[64];
 
     count = 0;
     session = cursor->session;
@@ -806,9 +806,13 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
         __wt_yield();
     testutil_check(ret);
 
-    if (!created)
+    if (g.c_assert_read_timestamp) {
         testutil_check(
-          session->create(session, "table:wt_snap_keys", "key_format=u,value_format=u"));
+          __wt_snprintf(buf, sizeof(buf), "read_timestamp=%" PRIx64, g.stable_timestamp));
+        testutil_check(session->timestamp_transaction(session, buf));
+    }
+
+    testutil_check(session->create(session, "table:wt_snap_keys", "key_format=u,value_format=u"));
     testutil_check(session->truncate(session, "table:wt_snap_keys", NULL, NULL, NULL));
     testutil_check(session->open_cursor(session, "table:wt_snap_keys", NULL, NULL, &seen_cursor));
 
@@ -835,10 +839,7 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
             /*
              * The tinfo argument is used to stash the key value pair found during checking.
              */
-            ret = snap_verify(cursor, first_tinfo, snap);
-            /* The only expected error is rollback. */
-            if (ret != 0 && ret != WT_ROLLBACK)
-                testutil_check(ret);
+            testutil_check(snap_verify(cursor, first_tinfo, snap));
             count++;
         }
     }

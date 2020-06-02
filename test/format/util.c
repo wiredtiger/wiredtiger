@@ -206,10 +206,11 @@ timestamp_once(WT_SESSION *session, bool allow_lag)
     WT_CONNECTION *conn;
     WT_DECL_RET;
     size_t len;
-    uint64_t all_durable;
+    uint64_t all_durable, stable;
     char buf[WT_TS_HEX_STRING_SIZE * 2 + 64], tsbuf[WT_TS_HEX_STRING_SIZE];
 
     conn = g.wts_conn;
+    stable = 0ULL;
 
     /*
      * Lock out transaction timestamp operations. The lock acts as a barrier ensuring we've checked
@@ -238,15 +239,17 @@ timestamp_once(WT_SESSION *session, bool allow_lag)
          * current timestamp value.
          */
         if (g.c_txn_rollback_to_stable) {
-            g.stable_timestamp = g.timestamp;
+            stable = g.timestamp;
             len = strlen(buf);
             WT_ASSERT((WT_SESSION_IMPL *)session, len < sizeof(buf));
-            testutil_check(__wt_snprintf(buf + len, sizeof(buf) - len, ",%s%" PRIx64,
-              stable_timestamp_str, g.stable_timestamp));
+            testutil_check(__wt_snprintf(
+              buf + len, sizeof(buf) - len, ",%s%" PRIx64, stable_timestamp_str, stable));
         }
         testutil_check(conn->set_timestamp(conn, buf));
-        tracemsg("%-10s oldest=%" PRIu64 ", stable=%" PRIu64, "setts", g.oldest_timestamp,
-          g.stable_timestamp);
+        tracemsg("%-10s oldest=%" PRIu64 ", stable=%" PRIu64, "setts", g.oldest_timestamp, stable);
+        if (g.c_txn_rollback_to_stable)
+            g.stable_timestamp = stable;
+
     } else
         testutil_assert(ret == WT_NOTFOUND);
 
