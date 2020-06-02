@@ -771,9 +771,10 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
         }
 
         /*
-         * If we didn't have any entries older than the stable timestamp, we may have missed some
-         * relevant changes to keys in other threads. There's no way to get an accurate accounting,
-         * so we're done checking.
+         * If there aren't any entries older than the stable timestamp, we've wrapped around.
+         * This thread may have made changes to any key right up to the stable time that have
+         * now been overwritten. There's no way to get an accurate accounting, so we skip checking
+         * for this run.
          */
         if (oldest_ts == UINT64_MAX)
             goto cleanup;
