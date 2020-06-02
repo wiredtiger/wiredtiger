@@ -750,7 +750,7 @@ __rollback_abort_newer_updates(
                 WT_RET(__wt_page_in(session, ref, 0));
                 if (ref->page->type == WT_PAGE_ROW_LEAF)
                     __rollback_verify_ondisk_page(session, ref->page, rollback_timestamp);
-                WT_TRET(__wt_page_release(session, ref, 0));
+                WT_TRET_BUSY_OK(__wt_page_release_evict(session, ref, 0));
             }
 #endif
             return (0);
@@ -791,7 +791,7 @@ __rollback_abort_newer_updates(
 
 err:
     if (local_read)
-        WT_TRET(__wt_page_release(session, ref, 0));
+        WT_TRET_BUSY_OK(__wt_page_release_evict(session, ref, 0));
     return (ret);
 }
 
