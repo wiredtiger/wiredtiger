@@ -715,6 +715,7 @@ struct __wt_connection_stats {
     int64_t txn_rts_keys_restored;
     int64_t txn_rts_pages_visited;
     int64_t txn_rts_upd_aborted;
+    int64_t txn_rts_hs_keys_larger_than_datastore_removed;
     int64_t txn_rts_hs_removed;
     int64_t txn_set_ts;
     int64_t txn_set_ts_durable;
