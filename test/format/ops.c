@@ -202,6 +202,7 @@ tinfo_rollback_to_stable_check(void)
     testutil_check(g.wts_conn->open_session(g.wts_conn, NULL, NULL, &session));
     testutil_check(session->open_cursor(session, g.uri, NULL, NULL, &cursor));
 
+    track("rollback_to_stable: checking", 0ULL, NULL);
     count = snap_repeat_rollback(cursor, tinfo_list, g.c_threads);
     testutil_check(
       __wt_snprintf(buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated\n", count));
@@ -396,7 +397,7 @@ operations(u_int ops_seconds, bool lastrun)
 
     tracemsg("%s", "=============== thread ops stop");
 
-    // TODO: temporary debug - get it all on disk before copying for rolling back.
+    /* XXX: temporary debug - get all data to disk before copying for rolling back. */
     if (g.c_txn_rollback_to_stable)
         testutil_check(session->checkpoint(session, NULL));
 

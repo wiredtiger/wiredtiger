@@ -41,12 +41,12 @@ void
 snap_init(TINFO *tinfo)
 {
     /*
-     * We maintain two snap lists. The current one is indicated by tinfo->snap_list_index, and keeps
-     * the most recent operations. The other one is used when we are running with
-     * rollback_to_stable. When each thread notices that the stable timestamp has changed, it
-     * stashes the current snap list and starts fresh with the other snap list. After we've
-     * completed a rollback_to_stable, we can the secondary snap list to see the state of
-     * keys/values seen and updated at the time of the rollback.
+     * We maintain two snap lists. The current one is indicated by tinfo->s, and keeps the most
+     * recent operations. The other one is used when we are running with rollback_to_stable. When
+     * each thread notices that the stable timestamp has changed, it stashes the current snap list
+     * and starts fresh with the other snap list. After we've completed a rollback_to_stable, we can
+     * the secondary snap list to see the state of keys/values seen and updated at the time of the
+     * rollback.
      */
     if (g.c_txn_rollback_to_stable) {
         tinfo->s = &tinfo->snap_states[1];
@@ -84,12 +84,15 @@ snap_teardown(TINFO *tinfo)
  *     Clear the snap list.
  */
 void
-snap_clear(TINFO *tinfo)
+snap_clear_one(SNAP_OPS *snap, bool free_data)
 {
-    SNAP_OPS *snap;
     WT_ITEM *ksave, *vsave;
 
-    for (snap = tinfo->snap_list; snap < tinfo->snap_end; ++snap) {
+    if (free_data) {
+        free(snap->kdata);
+        free(snap->vdata);
+        WT_CLEAR(*snap);
+    } else {
         /* Preserve allocated memory */
         ksave = snap->kdata;
         vsave = snap->vdata;
@@ -100,6 +103,19 @@ snap_clear(TINFO *tinfo)
 }
 
 /*
+ * snap_clear --
+ *     Clear the snap list.
+ */
+void
+snap_clear(TINFO *tinfo)
+{
+    SNAP_OPS *snap;
+
+    for (snap = tinfo->snap_list; snap < tinfo->snap_end; ++snap)
+        snap_clear_one(snap, false);
+}
+
+/*
  * snap_clear_range --
  *     Clear a portion of the snap list.
  */
@@ -107,16 +123,9 @@ void
 snap_clear_range(TINFO *tinfo, SNAP_OPS *begin, SNAP_OPS *end)
 {
     SNAP_OPS *snap;
-    WT_ITEM *ksave, *vsave;
 
-    for (snap = begin; snap != end; snap = SNAP_NEXT(tinfo, snap)) {
-        /* Preserve allocated memory */
-        ksave = snap->kdata;
-        vsave = snap->vdata;
-        WT_CLEAR(*snap);
-        snap->kdata = ksave;
-        snap->vdata = vsave;
-    }
+    for (snap = begin; snap != end; snap = SNAP_NEXT(tinfo, snap))
+        snap_clear_one(snap, false);
 }
 
 /*
@@ -173,7 +182,6 @@ snap_op_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
          */
         stable_ts = __wt_atomic_addv64(&g.stable_timestamp, 0);
         if (stable_ts != tinfo->stable_ts && read_ts > stable_ts) {
-            tinfo->snap_first = NULL; /* TODO: may not be needed, could be an assert */
             tinfo->stable_ts = stable_ts;
             if (tinfo->s == &tinfo->snap_states[0])
                 tinfo->s = &tinfo->snap_states[1];
@@ -250,7 +258,6 @@ snap_track(TINFO *tinfo, thread_op op)
 static void
 print_item_data(const char *tag, const uint8_t *data, size_t size)
 {
-    static const char hex[] = "0123456789abcdef";
     u_char ch;
 
     fprintf(stderr, "%s {", tag);
@@ -259,11 +266,12 @@ print_item_data(const char *tag, const uint8_t *data, size_t size)
     else
         for (; size > 0; --size, ++data) {
             ch = data[0];
-            if (__wt_isprint(ch))
+            if (ch == '\\')
+                fprintf(stderr, "\\\\");
+            else if (__wt_isprint(ch))
                 fprintf(stderr, "%c", (int)ch);
             else
-                fprintf(
-                  stderr, "%x%x", (u_int)hex[(data[0] & 0xf0) >> 4], (u_int)hex[data[0] & 0x0f]);
+                fprintf(stderr, "\\%x%x", (u_int)((ch & 0xf0) >> 4), (u_int)(ch & 0x0f));
         }
     fprintf(stderr, "}\n");
 }
@@ -745,36 +753,38 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
         oldest_ts = UINT64_MAX;
         for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap) {
             /*
-             * Only keep entries that aren't cleared out and have relevant timestamps. Don't worry
-             * about the newest oldest check now, we'll do that later once the limit is fully
-             * computed.
+             * Only keep entries that aren't cleared out and may have relevant timestamps. We don't
+             * fully know which timestamps are relevant, since we haven't computed the newest oldest
+             * yet. We do keep entries that are not marked repeatable, we won't retry unrepeatable
+             * reads, but we need them to invalidate keys that we shouldn't check.
+             *
+             * Truncates change a range a records, and we don't really know which ones. So keep
+             * track of all truncates, we won't check any entries that are older than any truncate.
              */
             if (snap->op == TRUNCATE)
                 newest_truncate = WT_MAX(newest_truncate, snap->ts);
 
-            /*
-             * TODO: we use repeatable as a proxy for "committed", but it's not exact, there are
-             * more committed operations that aren't marked repeatable, and we're skipping over them
-             * here. We handle truncate, but we need to investigate this further. We already handle
-             * aborted ops by clearing them, so maybe we want to keep treat all items that aren't
-             * repeatable like truncate?? But we need to also throw away items marked not repeatable
-             * because they are part of transactions in flight, haven't been committed.
-             */
-            if (snap->op != 0 && snap->repeatable && snap->ts != 0 &&
-              snap->ts <= g.stable_timestamp) {
+            if (snap->op != 0 && snap->ts != 0 && snap->ts <= g.stable_timestamp) {
                 oldest_ts = WT_MIN(oldest_ts, snap->ts);
                 *sorted_end++ = snap;
             }
         }
-        if (oldest_ts != UINT64_MAX)
-            newest_oldest_ts = WT_MAX(newest_oldest_ts, oldest_ts);
+
+        /*
+         * If we didn't have any entries older than the stable timestamp, we may have missed some
+         * relevant changes to keys in other threads. There's no way to get an accurate accounting,
+         * so we're done checking.
+         */
+        if (oldest_ts == UINT64_MAX)
+            goto cleanup;
+        newest_oldest_ts = WT_MAX(newest_oldest_ts, oldest_ts);
     }
 
     /*
-     * Don't go further back that the last truncate, we don't know exactly which keys truncate has
+     * Don't go as far back as the last truncate, we don't know exactly which keys truncate has
      * affected.
      */
-    newest_oldest_ts = WT_MAX(newest_oldest_ts, newest_truncate);
+    newest_oldest_ts = WT_MAX(newest_oldest_ts, newest_truncate + 1);
     qsort(sorted_snaps, (size_t)(sorted_end - sorted_snaps), sizeof(SNAP_OPS *), compare_snap_ts);
 
     /*
@@ -809,35 +819,33 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
         seen_cursor->set_value(seen_cursor, &null_value);
         testutil_check(seen_cursor->insert(seen_cursor));
 
-        /*
-         * The tinfo argument is used to stash the key value pair found during checking.
-         */
-        ret = snap_verify(cursor, first_tinfo, snap);
-        /* The only expected error is rollback. */
-        if (ret != 0 && ret != WT_ROLLBACK)
-            testutil_check(ret);
-        count++;
+        if (snap->repeatable || snap->op != READ) {
+            /*
+             * The tinfo argument is used to stash the key value pair found during checking.
+             */
+            ret = snap_verify(cursor, first_tinfo, snap);
+            /* The only expected error is rollback. */
+            if (ret != 0 && ret != WT_ROLLBACK)
+                testutil_check(ret);
+            count++;
+        }
     }
     testutil_check(seen_cursor->close(seen_cursor));
 
     /* Discard the transaction. */
     testutil_check(session->rollback_transaction(session, NULL));
 
+cleanup:
     /*
-     * TODO: may not need. After a rollback_to_stable, we can't trust some of our snap data. Rather
-     * than figure out what is good or bad, we'll invalidate it all.
+     * After a rollback_to_stable, we can't trust some of our snap data. Rather than figure out what
+     * is good or bad, we'll invalidate it all.
      */
     for (i = 0, tinfop = tinfo_array; i < tinfo_count; ++i, ++tinfop) {
         tinfo = *tinfop;
         for (statenum = 0; statenum < WT_ELEMENTS(tinfo->snap_states); statenum++) {
             state = &tinfo->snap_states[statenum];
             for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap)
-            // snap->repeatable = false;
-            {
-                free(snap->kdata);
-                free(snap->vdata);
-                WT_CLEAR(*snap);
-            }
+                snap_clear_one(snap, true);
         }
     }
 
