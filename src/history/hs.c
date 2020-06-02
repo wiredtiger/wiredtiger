@@ -288,27 +288,12 @@ int
 __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
 {
     WT_DECL_RET;
-    WT_PAGE_MODIFY *mod;
-    WT_SESSION_IMPL *session;
-    WT_UPDATE *last_upd;
-
-    session = CUR2S(hs_cbt);
-
-    /* If there are existing updates, append them after the new updates. */
-    if (hs_cbt->compare == 0) {
-        for (last_upd = hs_upd; last_upd->next != NULL; last_upd = last_upd->next)
-            ;
-        if (hs_cbt->ins != NULL)
-            last_upd->next = hs_cbt->ins->upd;
-        else if ((mod = hs_cbt->ref->page->modify) != NULL && mod->mod_row_update != NULL)
-            last_upd->next = mod->mod_row_update[hs_cbt->slot];
-    }
 
     /*
      * We don't have exclusive access to the history store page so we need to pass "false" here to
      * ensure that we're locking when inserting new keys to an insert list.
      */
-    WT_WITH_BTREE(session, CUR2BT(hs_cbt),
+    WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
       ret = __wt_row_modify(hs_cbt, &hs_cbt->iface.key, NULL, hs_upd, WT_UPDATE_INVALID, false));
     return (ret);
 }

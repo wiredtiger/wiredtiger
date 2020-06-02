@@ -50,7 +50,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *old_upd, *upd, **upd_entry;
+    WT_UPDATE *last_upd, *old_upd, *upd, **upd_entry;
     size_t ins_size, upd_size;
     uint32_t ins_slot;
     u_int i, skipdepth;
@@ -113,9 +113,18 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
         } else {
             upd_size = __wt_update_list_memsize(upd);
 
+            /* If there are existing updates, append them after the new updates. */
+            if (cbt->compare == 0) {
+                for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
+                    ;
+                if (cbt->ins != NULL)
+                    last_upd->next = cbt->ins->upd;
+                else if ((mod = cbt->ref->page->modify) != NULL && mod->mod_row_update != NULL)
+                    last_upd->next = mod->mod_row_update[cbt->slot];
+            }
+
             /*
-             * If it's a full update list, we're trying to instantiate the row. Otherwise, it's just
-             * a single update that we'd like to append to the update list.
+             * We can either put multiple new updates or a single update on the update chain.
              *
              * Set the "old" entry to the second update in the list so that the serialization
              * function succeeds in swapping the first update into place.
