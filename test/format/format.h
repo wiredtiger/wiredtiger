@@ -403,7 +403,6 @@ void snap_repeat_single(WT_CURSOR *, TINFO *);
 int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
-WT_THREAD_RET timestamp(void *);
 void timestamp_once(WT_SESSION *, bool);
 void timestamp_parse(WT_SESSION *, const char *, uint64_t *);
 int trace_config(const char *);

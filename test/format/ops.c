@@ -106,7 +106,7 @@ TINFO **tinfo_list;
  *     Initialize the worker thread structures.
  */
 static void
-tinfo_init(WT_SESSION *session)
+tinfo_init(void)
 {
     TINFO *tinfo;
     u_int i;
@@ -281,7 +281,7 @@ operations(u_int ops_seconds, bool lastrun)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Initialize and start the worker threads. */
-    tinfo_init(session);
+    tinfo_init();
     tracemsg("%s", "=============== thread ops start");
 
     /* Initialize locks to single-thread backups, failures, and timestamp updates. */

@@ -83,7 +83,7 @@ snap_teardown(TINFO *tinfo)
  * snap_clear --
  *     Clear the snap list.
  */
-void
+static void
 snap_clear_one(SNAP_OPS *snap, bool free_data)
 {
     WT_ITEM *ksave, *vsave;
@@ -106,7 +106,7 @@ snap_clear_one(SNAP_OPS *snap, bool free_data)
  * snap_clear --
  *     Clear the snap list.
  */
-void
+static void
 snap_clear(TINFO *tinfo)
 {
     SNAP_OPS *snap;
@@ -119,7 +119,7 @@ snap_clear(TINFO *tinfo)
  * snap_clear_range --
  *     Clear a portion of the snap list.
  */
-void
+static void
 snap_clear_range(TINFO *tinfo, SNAP_OPS *begin, SNAP_OPS *end)
 {
     SNAP_OPS *snap;
@@ -679,7 +679,7 @@ snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
  * compare_snap_ts --
  *     Compare for qsort.
  */
-int
+static int
 compare_snap_ts(const void *a, const void *b)
 {
     uint64_t ts_a, ts_b;
