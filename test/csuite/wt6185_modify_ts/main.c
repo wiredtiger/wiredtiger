@@ -216,21 +216,18 @@ repeat(WT_SESSION *session, WT_CURSOR *c)
 
 /*
  * reset --
- *     Reset the cursor, evicting the underlying page.
+ *     Force eviction of the underlying page.
  */
 static void
 evict(WT_CURSOR *c)
 {
-    WT_CURSOR_BTREE *cbt;
-
     trace("%s", "eviction");
+
     c->set_key(c, key);
     testutil_check(c->search(c));
-
-    cbt = (WT_CURSOR_BTREE *)c;
-    cbt->xx = 1;
+    F_SET(c, WT_CURSTD_DEBUG_RESET_EVICT);
     testutil_check(c->reset(c));
-    cbt->xx = 0;
+    F_CLR(c, WT_CURSTD_DEBUG_RESET_EVICT);
 }
 
 /*

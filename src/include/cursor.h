@@ -82,8 +82,6 @@ struct __wt_cursor_btree {
 
     WT_DATA_HANDLE *dhandle; /* Data handle for the btree */
 
-    int xx;
-
     /*
      * The following fields are set by the search functions as a precursor to page modification: we
      * have a page, a WT_COL/WT_ROW slot on the page, an insert head, insert list and a skiplist
