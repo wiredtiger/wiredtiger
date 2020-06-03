@@ -31,10 +31,11 @@
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+#define MAX_MODIFY_ENTRIES 5
 #define OPS 20
 #define ROW 50
-#define MAX_MODIFY_ENTRIES 5
-#define RUNS 100
+#define RUNS 250
+#define VALUE_SIZE 80
 
 static struct { /* List of repeatable operations. */
     uint64_t ts;
@@ -123,12 +124,14 @@ modify_build(WT_SESSION *session, WT_MODIFY *entries, int *nentriesp)
     /* Randomly select a number of byte changes, offsets and lengths. */
     nentries = (int)mmrand(session, 1, MAX_MODIFY_ENTRIES);
     for (i = 0; i < nentries; ++i) {
+        /*
+         * Take between 0 and 10 bytes from a random spot in the modify data. Replace between 0 and
+         * 10 bytes in a random spot in the value, but start at least 11 bytes into the buffer so we
+         * skip leading key information.
+         */
         entries[i].data.data = modify_repl + mmrand(session, 1, sizeof(modify_repl) - 10);
         entries[i].data.size = (size_t)mmrand(session, 0, 10);
-        /*
-         * Start at least 11 bytes into the buffer so we skip leading key information.
-         */
-        entries[i].offset = (size_t)mmrand(session, 20, 40);
+        entries[i].offset = (size_t)mmrand(session, 15, VALUE_SIZE);
         entries[i].size = (size_t)mmrand(session, 0, 10);
     }
 
@@ -244,9 +247,13 @@ trace_die(void)
 
 #define SET_VALUE(key, value)                                                           \
     do {                                                                                \
+        char *__p;                                                                      \
         memset(value, '.', sizeof(value));                                              \
         value[sizeof(value) - 1] = '\0';                                                \
         testutil_check(__wt_snprintf(value, sizeof(value), "%010u.value", (u_int)key)); \
+        for (__p = value; *__p != '\0'; ++__p)                                          \
+            ;                                                                           \
+        *__p = '.';                                                                     \
     } while (0)
 
 int
@@ -257,7 +264,7 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     u_int i, j;
     int ch;
-    char path[1024], value[60];
+    char path[1024], value[VALUE_SIZE];
     const char *home, *v;
     bool no_checkpoint, no_eviction;
 
