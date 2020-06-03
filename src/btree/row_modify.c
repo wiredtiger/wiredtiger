@@ -115,11 +115,9 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             upd_size = __wt_update_list_memsize(upd);
 
             /* If there are existing updates, append them after the new updates. */
-            if (cbt->compare == 0) {
-                for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
-                    ;
-                last_upd->next = *upd_entry;
-            }
+            for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
+                ;
+            last_upd->next = *upd_entry;
 
             /*
              * We can either put multiple new updates or a single update on the update chain.
