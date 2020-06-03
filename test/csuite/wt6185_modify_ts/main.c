@@ -200,8 +200,8 @@ repeat(WT_SESSION *session, WT_CURSOR *c)
         testutil_check(c->get_value(c, &v));
 
         trace("repeat=ts=%" PRIu64, list[i].ts);
-        trace("expected {%s}", v);
-        trace("   found {%s}", list[i].v);
+        trace("expected {%s}", list[i].v);
+        trace("   found {%s}", v);
 
         testutil_assert(strcmp(v, list[i].v) == 0);
 
@@ -244,13 +244,9 @@ trace_die(void)
 
 #define SET_VALUE(key, value)                                                           \
     do {                                                                                \
-        char *__p;                                                                      \
         memset(value, '.', sizeof(value));                                              \
         value[sizeof(value) - 1] = '\0';                                                \
         testutil_check(__wt_snprintf(value, sizeof(value), "%010u.value", (u_int)key)); \
-        for (__p = value; *__p != '\0'; ++__p)                                          \
-            ;                                                                           \
-        *__p = '.';                                                                     \
     } while (0)
 
 int
