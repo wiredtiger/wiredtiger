@@ -1085,7 +1085,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt4891_meta_ckptlist_get_alloc 2>&1
 
-  - name: csuite-wt6185-modify-ts
+  - name: csuite-wt6185-modify-ts-test
     tags: ["pull_request"]
     depends_on:
       - name: compile
