@@ -166,17 +166,25 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     WT_VSTUFF *vs, _vstuff;
     size_t root_addr_size;
-    uint32_t session_flags;
     uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
     const char *name;
-    bool bm_start, is_owner, quit, skip_hs;
+    bool bm_start, quit;
+
+#if 0
+    /* FIXME-WT-6263: Temporarily disable history store verification. */
+    uint32_t session_flags;
+    bool is_owner, skip_hs;
+#endif
 
     btree = S2BT(session);
     bm = btree->bm;
     ckptbase = NULL;
-    session_flags = 0; /* -Wuninitialized */
     name = session->dhandle->name;
     bm_start = false;
+
+#if 0
+    /* FIXME-WT-6263: Temporarily disable history store verification. */
+    session_flags = 0; /* -Wuninitialized */
     is_owner = false; /* -Wuninitialized */
 
     /*
@@ -185,6 +193,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * the history store against itself.
      */
     skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0;
+#endif
 
     WT_CLEAR(_vstuff);
     vs = &_vstuff;
