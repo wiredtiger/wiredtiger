@@ -77,11 +77,11 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         case 'j':
             json = true;
             break;
-        case 'r':
-            reverse = true;
-            break;
         case 'p':
             pretty = true;
+            break;
+        case 'r':
+            reverse = true;
             break;
         case 't':
             timestamp = __wt_optarg;
