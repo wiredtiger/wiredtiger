@@ -289,6 +289,9 @@ static CONFIG c[] = {
   {"runs.type", "type of store to create (fix | var | row)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
     &g.c_file_type},
 
+  {"runs.verify_failure_dump", "attempt page dump on repeatable read error", C_IGNORE | C_BOOL, 0,
+    0, 1, &g.c_verify_failure_dump, NULL},
+
   /* 20% */
   {"statistics", "maintain statistics", C_BOOL, 20, 0, 0, &g.c_statistics, NULL},
 

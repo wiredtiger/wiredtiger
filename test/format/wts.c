@@ -439,8 +439,7 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
     const char *config;
 
     *connp = NULL;
-    if (sessionp != NULL)
-        *sessionp = NULL;
+    *sessionp = NULL;
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (g.c_in_memory != 0)
@@ -456,8 +455,7 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
         testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
     }
 
-    if (sessionp != NULL)
-        testutil_check(conn->open_session(conn, NULL, NULL, sessionp));
+    testutil_check(conn->open_session(conn, NULL, NULL, sessionp));
     *connp = conn;
 }
 
@@ -477,8 +475,7 @@ wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
      */
     if (conn == g.wts_conn_inmemory)
         g.wts_conn_inmemory = NULL;
-    if (sessionp != NULL)
-        *sessionp = NULL;
+    *sessionp = NULL;
 
     if (g.backward_compatible)
         testutil_check(conn->reconfigure(conn, "compatibility=(release=3.3)"));
