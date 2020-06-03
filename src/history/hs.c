@@ -592,7 +592,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     uint32_t i;
     uint8_t *p;
     int nentries;
-    bool squashed, track_prepare, updates_in_hs, updates_older_than_onpage;
+    bool squashed, track_prepare;
     uint8_t upd_count;
 
     btree = S2BT(session);
@@ -647,7 +647,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         __wt_free_update_list(session, &upd);
         upd = list->onpage_upd;
         second_older_than_prepare = NULL;
-        track_prepare = updates_in_hs = updates_older_than_onpage = false;
+        track_prepare = false;
         upd_count = 0;
 
         /*
@@ -707,15 +707,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 }
             }
 
-            if (F_ISSET(upd, WT_UPDATE_HS)) {
-                updates_in_hs = true;
-                /*
-                 * If we've reached a full update and its in the history store we don't need to
-                 * continue as anything beyond this point won't help with calculating deltas.
-                 */
-                if (upd->type == WT_UPDATE_STANDARD)
-                    break;
-            }
+            /*
+             * If we've reached a full update and its in the history store we don't need to continue
+             * as anything beyond this point won't help with calculating deltas.
+             */
+            if (upd->type == WT_UPDATE_STANDARD && F_ISSET(upd, WT_UPDATE_HS))
+                break;
         }
 
         upd = NULL;
@@ -725,16 +722,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         __wt_modify_vector_pop(&modifies, &upd);
 
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
-
         /* Skip TOMBSTONE at the end of the update chain. */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
-                /*
-                 * We don't need to delete the history store records if everything is still on the
-                 * insert list and there are no updates moved to the history store by checkpoint or
-                 * a failed eviction.
-                 */
-                if ((list->ins == NULL || updates_in_hs) && upd->start_ts == WT_TS_NONE) {
+                if (upd->start_ts == WT_TS_NONE) {
                     /* We can only delete history store entries that have timestamps. */
                     WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
                     WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
@@ -760,7 +751,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
              upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
-            updates_older_than_onpage = true;
 
             __wt_modify_vector_pop(&modifies, &prev_upd);
 
@@ -786,24 +776,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 stop_time_point.txnid = prev_upd->txnid;
             }
 
-            /*
-             * Delete the history store records if we detect a mixed mode update. We don't need to
-             * do that if everything is still on the insert list and there are no updates moved to
-             * the history store by checkpoint or a failed eviction.
-             *
-             * Note that if the update is restored from data store or history store, we may have
-             * cleared its timestamp, remove the history store contents anyway in this case.
-             */
-            if ((list->ins == NULL || updates_in_hs) && prev_upd->start_ts == WT_TS_NONE &&
-              (upd->start_ts != WT_TS_NONE ||
-                  F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))) {
-                /* We can only delete history store entries that have timestamps. */
-                WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
-                WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
-            }
-
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
+                if (prev_upd->start_ts == WT_TS_NONE) {
+                    /* We can only delete history store entries that have timestamps. */
+                    WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
+                    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+                }
                 __wt_modify_vector_pop(&modifies, &prev_upd);
                 WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
                 prev_full_value->data = prev_upd->data;
@@ -857,24 +836,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 squashed = true;
         }
 
-        WT_ASSERT(session,
-          upd->txnid == list->onpage_upd->txnid && upd->start_ts == list->onpage_upd->start_ts);
-
         if (modifies.size > 0)
             WT_STAT_CONN_INCR(session, cache_hs_write_squash);
-
-        /*
-         * Delete the history store records if the onpage update's timestamp is WT_TS_NONE and we
-         * don't see any update older than it. We don't need to do that if everything is still on
-         * the insert list and there are no updates moved to the history store by checkpoint or a
-         * failed eviction.
-         */
-        if (!updates_older_than_onpage && (list->ins == NULL || updates_in_hs) &&
-          upd->start_ts == WT_TS_NONE) {
-            /* We can only delete history store entries that have timestamps. */
-            WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
-            WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
-        }
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
