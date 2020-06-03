@@ -119,7 +119,7 @@ modify_repl_init(void)
  *     Generate a set of modify vectors.
  */
 static void
-modify_build(WT_MODIFY *entries, int *nentriesp)
+modify_build(WT_MODIFY *entries, int *nentriesp, const char *tag)
 {
     int i, nentries;
 
@@ -135,6 +135,9 @@ modify_build(WT_MODIFY *entries, int *nentriesp)
         entries[i].data.size = (size_t)mmrand(0, 10);
         entries[i].offset = (size_t)mmrand(15, VALUE_SIZE);
         entries[i].size = (size_t)mmrand(0, 10);
+        trace("modify %s: off=%" WT_SIZET_FMT ", size=%" WT_SIZET_FMT ", data=\"%.*s\"", tag,
+          entries[i].offset, entries[i].size, (int)entries[i].data.size,
+          (char *)entries[i].data.data);
     }
 
     *nentriesp = (int)nentries;
@@ -155,11 +158,11 @@ modify(WT_SESSION *session, WT_CURSOR *c)
     testutil_check(__wt_snprintf(tmp, sizeof(tmp), "read_timestamp=%" PRIx64, ts));
     testutil_check(session->timestamp_transaction(session, tmp));
 
-    modify_build(entries, &nentries);
+    modify_build(entries, &nentries, "1");
     c->set_key(c, key);
     testutil_check(c->modify(c, entries, nentries));
 
-    modify_build(entries, &nentries);
+    modify_build(entries, &nentries, "2");
     c->set_key(c, key);
     testutil_check(c->modify(c, entries, nentries));
 
@@ -204,7 +207,7 @@ repeat(WT_SESSION *session, WT_CURSOR *c)
         testutil_check(c->search(c));
         testutil_check(c->get_value(c, &v));
 
-        trace("repeat=ts=%" PRIu64, list[i].ts);
+        trace("repeat ts=%" PRIu64, list[i].ts);
         trace("expected {%s}", list[i].v);
         trace("   found {%s}", v);
 
