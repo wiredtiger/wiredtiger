@@ -174,9 +174,8 @@ static inline void
 __cursor_leave(WT_SESSION_IMPL *session)
 {
     /*
-     * Decrement the count of active cursors in the session. When that goes to zero and
-     * WT_CBT_NO_TXN is not set, there are no active cursors, and we can release any snapshot we're
-     * holding for read committed isolation.
+     * Decrement the count of active cursors in the session. When that goes to zero, there are no
+     * active cursors, and we can release any snapshot we're holding for read committed isolation.
      */
     WT_ASSERT(session, session->ncursors > 0);
     if (--session->ncursors == 0 && !F_ISSET(session, WT_CBT_NO_TXN))

@@ -203,7 +203,7 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
     WT_RET(ret);
 
     /*
-     * Set the WT_CBT_NO_TXN flag to stop creating snapshots for history store cursors
+     * Set the flag to stop creating snapshots for history store cursors
      */
     F_SET((WT_CURSOR_BTREE *)cursor, WT_CBT_NO_TXN);
     /* History store cursors should always ignore tombstones. */
