@@ -37,6 +37,8 @@ extern char *__wt_optarg;
 #define RUNS 250
 #define VALUE_SIZE 80
 
+WT_RAND_STATE rnd;
+
 static struct { /* List of repeatable operations. */
     uint64_t ts;
     char *v;
@@ -58,7 +60,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-ce] [-h home]\n", progname);
+    fprintf(stderr, "usage: %s [-ce] [-h home] [-S seed]\n", progname);
     exit(EXIT_FAILURE);
 }
 
@@ -80,7 +82,7 @@ usage(void)
  *     Return a random value between a min/max pair, inclusive.
  */
 static inline uint32_t
-mmrand(WT_SESSION *session, u_int min, u_int max)
+mmrand(u_int min, u_int max)
 {
     uint32_t v;
     u_int range;
@@ -92,7 +94,7 @@ mmrand(WT_SESSION *session, u_int min, u_int max)
     if (max <= min)
         return (min);
 
-    v = __wt_random(&((WT_SESSION_IMPL *)session)->rnd);
+    v = __wt_random(&rnd);
     range = (max - min) + 1;
     v %= range;
     v += min;
@@ -117,22 +119,22 @@ modify_repl_init(void)
  *     Generate a set of modify vectors.
  */
 static void
-modify_build(WT_SESSION *session, WT_MODIFY *entries, int *nentriesp)
+modify_build(WT_MODIFY *entries, int *nentriesp)
 {
     int i, nentries;
 
     /* Randomly select a number of byte changes, offsets and lengths. */
-    nentries = (int)mmrand(session, 1, MAX_MODIFY_ENTRIES);
+    nentries = (int)mmrand(1, MAX_MODIFY_ENTRIES);
     for (i = 0; i < nentries; ++i) {
         /*
          * Take between 0 and 10 bytes from a random spot in the modify data. Replace between 0 and
          * 10 bytes in a random spot in the value, but start at least 11 bytes into the buffer so we
          * skip leading key information.
          */
-        entries[i].data.data = modify_repl + mmrand(session, 1, sizeof(modify_repl) - 10);
-        entries[i].data.size = (size_t)mmrand(session, 0, 10);
-        entries[i].offset = (size_t)mmrand(session, 15, VALUE_SIZE);
-        entries[i].size = (size_t)mmrand(session, 0, 10);
+        entries[i].data.data = modify_repl + mmrand(1, sizeof(modify_repl) - 10);
+        entries[i].data.size = (size_t)mmrand(0, 10);
+        entries[i].offset = (size_t)mmrand(15, VALUE_SIZE);
+        entries[i].size = (size_t)mmrand(0, 10);
     }
 
     *nentriesp = (int)nentries;
@@ -153,15 +155,15 @@ modify(WT_SESSION *session, WT_CURSOR *c)
     testutil_check(__wt_snprintf(tmp, sizeof(tmp), "read_timestamp=%" PRIx64, ts));
     testutil_check(session->timestamp_transaction(session, tmp));
 
-    modify_build(session, entries, &nentries);
+    modify_build(entries, &nentries);
     c->set_key(c, key);
     testutil_check(c->modify(c, entries, nentries));
 
-    modify_build(session, entries, &nentries);
+    modify_build(entries, &nentries);
     c->set_key(c, key);
     testutil_check(c->modify(c, entries, nentries));
 
-    if (mmrand(session, 1, 10) > 1) {
+    if (mmrand(1, 10) > 1) {
         c->set_key(c, key);
         testutil_check(c->search(c));
         testutil_check(c->get_value(c, &v));
@@ -271,9 +273,12 @@ main(int argc, char *argv[])
     (void)testutil_set_progname(argv);
     custom_die = trace_die;
 
+    __wt_random_init_seed(NULL, &rnd);
+    modify_repl_init();
+
     no_checkpoint = no_eviction = false;
     home = "WT_TEST.wt6185_modify_ts";
-    while ((ch = __wt_getopt(progname, argc, argv, "ceh:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "ceh:S:")) != EOF)
         switch (ch) {
         case 'c':
             no_checkpoint = true;
@@ -283,6 +288,9 @@ main(int argc, char *argv[])
             break;
         case 'h':
             home = __wt_optarg;
+            break;
+        case 'S':
+            rnd.v = strtoul(__wt_optarg, NULL, 10);
             break;
         default:
             usage();
@@ -320,8 +328,6 @@ main(int argc, char *argv[])
     SET_VALUE(ROW, value);
     testutil_assert(strcmp(v, value) == 0);
 
-    /* Setup */
-    modify_repl_init();
     testutil_check(conn->set_timestamp(conn, "oldest_timestamp=1"));
 
     /*
@@ -330,14 +336,14 @@ main(int argc, char *argv[])
      */
     for (i = 0, ts = 1; i < RUNS; ++i) {
         lnext = tnext = 0;
-        trace("run %u", i);
+        trace("run %u, seed %" PRIu64, i, rnd.v);
 
         for (j = 0; j < OPS; ++j) {
             modify(session, c);
             repeat(session, c);
-            if (!no_eviction && mmrand(session, 1, 10) > 8)
+            if (!no_eviction && mmrand(1, 10) > 8)
                 evict(c);
-            if (!no_checkpoint && mmrand(session, 1, 10) > 8) {
+            if (!no_checkpoint && mmrand(1, 10) > 8) {
                 trace("%s", "checkpoint");
                 testutil_check(session->checkpoint(session, NULL));
             }
