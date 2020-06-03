@@ -228,7 +228,10 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
      *
      * Clear the reference regardless, so we don't try the release twice.
      */
-    ret = __wt_page_release(session, cbt->ref, 0);
+    if (cbt->xx)
+        ret = __wt_page_release_evict(session, cbt->ref, 0);
+    else
+        ret = __wt_page_release(session, cbt->ref, 0);
     cbt->ref = NULL;
 
     return (ret);
