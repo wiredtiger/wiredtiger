@@ -174,11 +174,12 @@ static inline void
 __cursor_leave(WT_SESSION_IMPL *session)
 {
     /*
-     * Decrement the count of active cursors in the session. When that goes to zero, there are no
-     * active cursors, and we can release any snapshot we're holding for read committed isolation.
+     * Decrement the count of active cursors in the session. When that goes to zero and
+     * WT_CBT_NO_TXN is not set, there are no active cursors, and we can release any snapshot we're
+     * holding for read committed isolation.
      */
     WT_ASSERT(session, session->ncursors > 0);
-    if (--session->ncursors == 0)
+    if (--session->ncursors == 0 && !F_ISSET(session, WT_CBT_NO_TXN))
         __wt_txn_read_last(session);
 }
 
@@ -198,7 +199,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
 
     /* If the cursor was active, deactivate it. */
     if (F_ISSET(cbt, WT_CBT_ACTIVE)) {
-        if (!F_ISSET(cbt, WT_CBT_NO_TXN))
+        if (!F_ISSET(cbt, WT_CBT_NO_TRACKING))
             __cursor_leave(session);
         F_CLR(cbt, WT_CBT_ACTIVE);
     }
@@ -395,7 +396,7 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 
     /* Activate the file cursor. */
     if (!F_ISSET(cbt, WT_CBT_ACTIVE)) {
-        if (!F_ISSET(cbt, WT_CBT_NO_TXN))
+        if (!F_ISSET(cbt, WT_CBT_NO_TRACKING))
             WT_RET(__cursor_enter(session));
         F_SET(cbt, WT_CBT_ACTIVE);
     }

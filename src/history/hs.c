@@ -202,6 +202,11 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
       session, ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &cursor));
     WT_RET(ret);
 
+    /*
+     * Set the WT_CBT_NO_TXN flag to stop creating snapshots for history store cursors
+     */
+    F_SET((WT_CURSOR_BTREE *)cursor, WT_CBT_NO_TXN);
+
     session->hs_cursor = cursor;
     F_SET(session, WT_SESSION_HS_CURSOR);
 
