@@ -1032,11 +1032,13 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool durable_ts_found;
 
+    config = NULL;
+
     WT_RET(__wt_metadata_search(session, WT_HS_URI, &config));
     /* Find out the max durable timestamp of the object from checkpoint. */
     newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
     durable_ts_found = false;
-    WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
+    WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
     for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
         ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &durableval);
@@ -1045,16 +1047,16 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
               WT_MAX(newest_start_durable_ts, (wt_timestamp_t)durableval.val);
             durable_ts_found = true;
         }
-        WT_RET_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret, false);
         ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &durableval);
         if (ret == 0) {
             newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)durableval.val);
             durable_ts_found = true;
         }
-        WT_RET_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret, false);
     }
     max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
-    WT_RET(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
+    WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
 
     /*
      * The rollback operation should be performed on this file based on the following:
@@ -1076,6 +1078,9 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
 
     WT_TRET(__wt_session_release_dhandle(session));
+
+err:
+    __wt_free(session, config);
     return (ret);
 }
 
