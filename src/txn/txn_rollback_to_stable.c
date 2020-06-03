@@ -365,15 +365,15 @@ __rollback_abort_row_ondisk_kv(
     if (WT_IS_HS(S2BT(session))) {
         if (vpack->tw.durable_stop_ts > rollback_timestamp) {
             __wt_verbose(session, WT_VERB_RTS,
-              "hs update aborted with start durable timestamp: %s, commit timestamp: %s, "
-              "stop durable timestamp: %s, commit timestamp: %s and stable timestamp: %s",
+              "hs update aborted with start durable/commit timestamp: %s, %s, "
+              "stop durable/commit timestamp: %s, %s and stable timestamp: %s",
               __wt_timestamp_to_string(vpack->tw.durable_start_ts, ts_string[0]),
               __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]),
               __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[2]),
               __wt_timestamp_to_string(vpack->tw.stop_ts, ts_string[3]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[4]));
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
-            WT_STAT_CONN_INCR(session, txn_rts_hs_keys_larger_than_datastore_removed);
+            WT_STAT_CONN_INCR(session, txn_rts_sweep_hs_keys);
         } else
             return (0);
     } else if (vpack->tw.durable_start_ts > rollback_timestamp ||
@@ -1018,7 +1018,7 @@ err:
 
 /*
  * __rollback_to_stable_hs_final_pass --
- *     Perform rollback to stable on the history store to remove any updates more than stable
+ *     Perform rollback to stable on the history store to remove any entries newer than the stable
  *     timestamp.
  */
 static int
@@ -1030,46 +1030,36 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
     wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool durable_ts_found;
 
     config = NULL;
 
     WT_RET(__wt_metadata_search(session, WT_HS_URI, &config));
+
     /* Find out the max durable timestamp of the object from checkpoint. */
     newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
-    durable_ts_found = false;
     WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
     for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
         ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &durableval);
-        if (ret == 0) {
+        if (ret == 0)
             newest_start_durable_ts =
               WT_MAX(newest_start_durable_ts, (wt_timestamp_t)durableval.val);
-            durable_ts_found = true;
-        }
         WT_ERR_NOTFOUND_OK(ret, false);
         ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &durableval);
-        if (ret == 0) {
+        if (ret == 0)
             newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)durableval.val);
-            durable_ts_found = true;
-        }
         WT_ERR_NOTFOUND_OK(ret, false);
     }
     max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
     WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
 
     /*
-     * The rollback operation should be performed on this file based on the following:
-     * 1. The tree is modified.
-     * 2. The checkpoint durable start/stop timestamp is greater than the rollback timestamp.
-     * 3. There is no durable timestamp in any checkpoint.
+     * The rollback operation should be performed on the history store file when the checkpoint
+     * durable start/stop timestamp is greater than the rollback timestamp.
      */
-    if (S2BT(session)->modified || max_durable_ts > rollback_timestamp || !durable_ts_found) {
-        __wt_verbose(session, WT_VERB_RTS,
-          "tree rolled back with durable timestamp: %s, or when tree is modified: %s or "
-          "or when durable time is not found: %s",
-          __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
-          S2BT(session)->modified ? "true" : "false", !durable_ts_found ? "true" : "false");
+    if (max_durable_ts > rollback_timestamp) {
+        __wt_verbose(session, WT_VERB_RTS, "tree rolled back with durable timestamp: %s",
+          __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
         WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp));
     } else
         __wt_verbose(session, WT_VERB_RTS,
