@@ -1114,8 +1114,10 @@ __wt_cursor_init(
     if (cval.len != 0 && owner == NULL) {
         F_SET(cursor, WT_STRING_MATCH("json", cval.str, cval.len) ?
             WT_CURSTD_DUMP_JSON :
-            (WT_STRING_MATCH("print", cval.str, cval.len) ? WT_CURSTD_DUMP_PRINT :
-                                                            WT_CURSTD_DUMP_HEX));
+            (WT_STRING_MATCH("print", cval.str, cval.len) ?
+                  WT_CURSTD_DUMP_PRINT :
+                  (WT_STRING_MATCH("pretty", cval.str, cval.len) ? WT_CURSTD_DUMP_PRETTY :
+                                                                   WT_CURSTD_DUMP_HEX)));
         /*
          * Dump cursors should not have owners: only the top-level cursor should be wrapped in a
          * dump cursor.
