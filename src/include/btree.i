@@ -404,19 +404,15 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     cache = S2C(session)->cache;
 
-    /*
-     * * Always decrease the size in sequence of page, btree, and cache as we may race with other
-     * threads that are trying to increase the sizes concurrently.
-     */
-    modify = page->modify;
-    if (modify != NULL && modify->bytes_dirty != 0)
-        __wt_cache_page_byte_dirty_decr(session, page, modify->bytes_dirty);
-
     if (WT_PAGE_IS_INTERNAL(page))
         __wt_cache_decr_check_uint64(
           session, &cache->pages_dirty_intl, 1, "dirty internal page count");
     else
         __wt_cache_decr_check_uint64(session, &cache->pages_dirty_leaf, 1, "dirty leaf page count");
+
+    modify = page->modify;
+    if (modify != NULL && modify->bytes_dirty != 0)
+        __wt_cache_page_byte_dirty_decr(session, page, modify->bytes_dirty);
 }
 
 /*
