@@ -292,6 +292,9 @@ __wt_cache_page_byte_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t 
      * without underflow. If we can't decrement the dirty byte counts after
      * few tries, give up: the cache's value will be wrong, but consistent,
      * and we'll fix it the next time this page is marked clean, or evicted.
+     *
+     * Always decrease the size in sequence of page, btree, and cache to avoid racing with other
+     *threads that are trying to increase the size concurrently.
      */
     for (i = 0; i < 5; ++i) {
         /*
@@ -332,6 +335,10 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 
     WT_ASSERT(session, size < WT_EXABYTE);
 
+    /*
+     * Always increase the size in sequence of cache, btree, and page to avoid racing with other
+     * threads that are trying to decrease the size concurrently.
+     */
     __wt_cache_decr_check_uint64(
       session, &S2BT(session)->bytes_inmem, size, "WT_BTREE.bytes_inmem");
     __wt_cache_decr_check_uint64(session, &cache->bytes_inmem, size, "WT_CACHE.bytes_inmem");
