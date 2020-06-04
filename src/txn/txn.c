@@ -937,11 +937,11 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * and instead write nothing.
              */
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
-            __wt_cache_page_inmem_incr(session, cbt->ref->page, size);
             WT_WITH_BTREE(session, op->btree, ret = __wt_row_modify(cbt, &cbt->iface.key, NULL,
                                                 tombstone, WT_UPDATE_INVALID, false));
             WT_ERR(ret);
             tombstone = NULL;
+            __wt_cache_page_inmem_incr(session, cbt->ref->page, size);
         } else
             ret = 0;
     }
