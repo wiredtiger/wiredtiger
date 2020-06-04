@@ -851,10 +851,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 /* Flag the update as now in the history store. */
                 F_SET(upd, WT_UPDATE_HS);
                 ++insert_cnt;
-                if (squashed) {
+                if (squashed)
                     WT_STAT_CONN_INCR(session, cache_hs_write_squash);
-                    squashed = false;
-                }
             }
         }
 
