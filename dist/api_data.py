@@ -1260,10 +1260,11 @@ methods = {
         configure the cursor for dump format inputs and outputs: "hex"
         selects a simple hexadecimal format, "json" selects a JSON format
         with each record formatted as fields named by column names if
-        available, and "print" selects a format where only non-printing
-        characters are hexadecimal encoded.  These formats are compatible
-        with the @ref util_dump and @ref util_load commands''',
-        choices=['hex', 'json', 'print']),
+        available, "pretty" selects a human-readable format (making it
+        incompatible with the "load") and "print" selects a format where only
+        non-printing characters are hexadecimal encoded.  These formats are
+        compatible with the @ref util_dump and @ref util_load commands''',
+        choices=['hex', 'json', 'pretty', 'print']),
     Config('incremental', '', r'''
         configure the cursor for block incremental backup usage. These formats
         are only compatible with the backup data source; see @ref backup''',
