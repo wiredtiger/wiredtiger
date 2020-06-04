@@ -294,7 +294,7 @@ __wt_cache_page_byte_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t 
      * and we'll fix it the next time this page is marked clean, or evicted.
      *
      * Always decrease the size in sequence of page, btree, and cache to avoid racing with other
-     *threads that are trying to increase the sizes concurrently.
+     * threads that are trying to increase the sizes concurrently.
      */
     for (i = 0; i < 5; ++i) {
         /*
