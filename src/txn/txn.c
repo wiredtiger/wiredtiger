@@ -877,6 +877,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     uint32_t hs_btree_id, session_flags;
     bool is_owner, upd_appended;
 
+    hs_cursor = NULL;
     txn = session->txn;
     fix_upd = tombstone = NULL;
     session_flags = 0;
