@@ -195,18 +195,18 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
     if (size == 0)
         return;
 
-    (void)__wt_atomic_add64(&btree->bytes_inmem, size);
     (void)__wt_atomic_add64(&cache->bytes_inmem, size);
+    (void)__wt_atomic_add64(&btree->bytes_inmem, size);
     (void)__wt_atomic_addsize(&page->memory_footprint, size);
     if (__wt_page_is_modified(page)) {
-        (void)__wt_atomic_addsize(&page->modify->bytes_dirty, size);
         if (WT_PAGE_IS_INTERNAL(page)) {
-            (void)__wt_atomic_add64(&btree->bytes_dirty_intl, size);
             (void)__wt_atomic_add64(&cache->bytes_dirty_intl, size);
+            (void)__wt_atomic_add64(&btree->bytes_dirty_intl, size);
         } else if (!btree->lsm_primary) {
-            (void)__wt_atomic_add64(&btree->bytes_dirty_leaf, size);
             (void)__wt_atomic_add64(&cache->bytes_dirty_leaf, size);
+            (void)__wt_atomic_add64(&btree->bytes_dirty_leaf, size);
         }
+        (void)__wt_atomic_addsize(&page->modify->bytes_dirty, size);
     }
     /* Track internal size in cache. */
     if (WT_PAGE_IS_INTERNAL(page))
