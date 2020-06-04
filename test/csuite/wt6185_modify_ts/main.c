@@ -170,8 +170,12 @@ modify(WT_SESSION *session, WT_CURSOR *c)
     const char *v;
 
     testutil_check(session->begin_transaction(session, "isolation=snapshot"));
-    testutil_check(__wt_snprintf(tmp, sizeof(tmp), "read_timestamp=%" PRIx64, ts));
-    testutil_check(session->timestamp_transaction(session, tmp));
+
+    /* Set a read timestamp 90% of the time. */
+    if (mmrand(1, 10) != 1) {
+        testutil_check(__wt_snprintf(tmp, sizeof(tmp), "read_timestamp=%" PRIx64, ts));
+        testutil_check(session->timestamp_transaction(session, tmp));
+    }
 
     /* Up to 4 modify operations, 80% chance for each. */
     for (cnt = loop = 1; loop < 5; ++cnt, ++loop)
@@ -182,7 +186,7 @@ modify(WT_SESSION *session, WT_CURSOR *c)
         }
 
     /* Commit 90% of the time, else rollback. */
-    if (mmrand(1, 10) > 1) {
+    if (mmrand(1, 10) != 1) {
         c->set_key(c, key);
         testutil_check(c->search(c));
         testutil_check(c->get_value(c, &v));
