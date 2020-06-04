@@ -178,7 +178,7 @@ __cursor_leave(WT_SESSION_IMPL *session)
      * active cursors, and we can release any snapshot we're holding for read committed isolation.
      */
     WT_ASSERT(session, session->ncursors > 0);
-    if (--session->ncursors == 0 && !F_ISSET(session, WT_CBT_NO_TXN))
+    if (--session->ncursors == 0)
         __wt_txn_read_last(session);
 }
 
