@@ -294,7 +294,7 @@ __wt_cache_page_byte_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t 
      * and we'll fix it the next time this page is marked clean, or evicted.
      *
      * Always decrease the size in sequence of page, btree, and cache to avoid racing with other
-     *threads that are trying to increase the size concurrently.
+     *threads that are trying to increase the sizes concurrently.
      */
     for (i = 0; i < 5; ++i) {
         /*
@@ -337,7 +337,7 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 
     /*
      * Always increase the size in sequence of cache, btree, and page to avoid racing with other
-     * threads that are trying to decrease the size concurrently.
+     * threads that are trying to decrease the sizes concurrently.
      */
     __wt_cache_decr_check_uint64(
       session, &S2BT(session)->bytes_inmem, size, "WT_BTREE.bytes_inmem");
