@@ -873,7 +873,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_DECL_RET;
     WT_TXN *txn;
     WT_UPDATE *fix_upd, *tombstone, *upd;
-    size_t size;
+    size_t not_used;
     uint32_t hs_btree_id, session_flags;
     bool is_owner, upd_appended;
 
@@ -936,12 +936,11 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * we don't copy the prepared cell, which is now associated with a rolled back prepare,
              * and instead write nothing.
              */
-            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
+            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
             WT_WITH_BTREE(session, op->btree, ret = __wt_row_modify(cbt, &cbt->iface.key, NULL,
                                                 tombstone, WT_UPDATE_INVALID, false));
             WT_ERR(ret);
             tombstone = NULL;
-            __wt_cache_page_inmem_incr(session, cbt->ref->page, size);
         } else
             ret = 0;
     }
