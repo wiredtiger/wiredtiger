@@ -307,6 +307,10 @@ static CONFIG c[] = {
   {"stress.checkpoint", "stress checkpoints", C_BOOL, 2, 0, 0, &g.c_timing_stress_checkpoint, NULL},
 
   /* 2% */
+  {"stress.hs_checkpoint_delay", "stress history store checkpoint delay", C_BOOL, 2, 0, 0,
+    &g.c_timing_stress_hs_checkpoint_delay, NULL},
+
+  /* 2% */
   {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0, &g.c_timing_stress_hs_sweep,
     NULL},
 
