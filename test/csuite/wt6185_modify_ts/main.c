@@ -31,9 +31,9 @@
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+#define KEYNO 50
 #define MAX_MODIFY_ENTRIES 5
-#define OPS 20
-#define ROW 50
+#define MAX_OPS 25
 #define RUNS 250
 #define VALUE_SIZE 80
 
@@ -42,15 +42,28 @@ static WT_RAND_STATE rnd;
 static struct { /* List of repeatable operations. */
     uint64_t ts;
     char *v;
-} list[OPS];
+} list[MAX_OPS];
 static u_int lnext;
 
-static char *tlist[1000]; /* List of traced operations. */
+static char *tlist[MAX_OPS * 100]; /* List of traced operations. */
 static u_int tnext;
 
 static uint64_t ts; /* Current timestamp. */
 
 static char key[100], modify_repl[256], tmp[4 * 1024];
+
+/*
+ * trace --
+ *     Trace an operation.
+ */
+#define trace(fmt, ...)                                                    \
+    do {                                                                   \
+        testutil_assert(tnext < WT_ELEMENTS(tlist));                       \
+        testutil_check(__wt_snprintf(tmp, sizeof(tmp), fmt, __VA_ARGS__)); \
+        free(tlist[tnext]);                                                \
+        tlist[tnext] = dstrdup(tmp);                                       \
+        ++tnext;                                                           \
+    } while (0)
 
 /*
  * usage --
@@ -65,17 +78,19 @@ usage(void)
 }
 
 /*
- * trace --
- *     Trace an operation.
+ * cleanup --
+ *     Discard allocated memory in case it's a sanitizer run.
  */
-#define trace(fmt, ...)                                                    \
-    do {                                                                   \
-        testutil_assert(tnext < WT_ELEMENTS(tlist));                       \
-        testutil_check(__wt_snprintf(tmp, sizeof(tmp), fmt, __VA_ARGS__)); \
-        free(tlist[tnext]);                                                \
-        tlist[tnext] = dstrdup(tmp);                                       \
-        ++tnext;                                                           \
-    } while (0)
+static void
+cleanup(void)
+{
+    u_int i;
+
+    for (i = 0; i < WT_ELEMENTS(list); ++i)
+        free(list[i].v);
+    for (i = 0; i < WT_ELEMENTS(tlist); ++i)
+        free(tlist[i]);
+}
 
 /*
  * mmrand --
@@ -119,7 +134,7 @@ modify_repl_init(void)
  *     Generate a set of modify vectors.
  */
 static void
-modify_build(WT_MODIFY *entries, int *nentriesp, const char *tag)
+modify_build(WT_MODIFY *entries, int *nentriesp, int tag)
 {
     int i, nentries;
 
@@ -135,7 +150,7 @@ modify_build(WT_MODIFY *entries, int *nentriesp, const char *tag)
         entries[i].data.size = (size_t)mmrand(0, 10);
         entries[i].offset = (size_t)mmrand(15, VALUE_SIZE);
         entries[i].size = (size_t)mmrand(0, 10);
-        trace("modify %s: off=%" WT_SIZET_FMT ", size=%" WT_SIZET_FMT ", data=\"%.*s\"", tag,
+        trace("modify %d: off=%" WT_SIZET_FMT ", size=%" WT_SIZET_FMT ", data=\"%.*s\"", tag,
           entries[i].offset, entries[i].size, (int)entries[i].data.size,
           (char *)entries[i].data.data);
     }
@@ -151,21 +166,22 @@ static void
 modify(WT_SESSION *session, WT_CURSOR *c)
 {
     WT_MODIFY entries[MAX_MODIFY_ENTRIES];
-    int nentries;
+    int cnt, loop, nentries;
     const char *v;
 
     testutil_check(session->begin_transaction(session, "isolation=snapshot"));
     testutil_check(__wt_snprintf(tmp, sizeof(tmp), "read_timestamp=%" PRIx64, ts));
     testutil_check(session->timestamp_transaction(session, tmp));
 
-    modify_build(entries, &nentries, "1");
-    c->set_key(c, key);
-    testutil_check(c->modify(c, entries, nentries));
+    /* Up to 4 modify operations, 80% chance for each. */
+    for (cnt = loop = 1; loop < 5; ++cnt, ++loop)
+        if (mmrand(1, 10) <= 8) {
+            modify_build(entries, &nentries, cnt);
+            c->set_key(c, key);
+            testutil_check(c->modify(c, entries, nentries));
+        }
 
-    modify_build(entries, &nentries, "2");
-    c->set_key(c, key);
-    testutil_check(c->modify(c, entries, nentries));
-
+    /* Commit 90% of the time, else rollback. */
     if (mmrand(1, 10) > 1) {
         c->set_key(c, key);
         testutil_check(c->search(c));
@@ -321,37 +337,43 @@ main(int argc, char *argv[])
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->create(session, "file:xxx", NULL));
     testutil_check(session->open_cursor(session, "file:xxx", NULL, NULL, &c));
-    testutil_check(__wt_snprintf(key, sizeof(key), "%010d.key", ROW));
+    testutil_check(__wt_snprintf(key, sizeof(key), "%010d.key", KEYNO));
     c->set_key(c, key);
     testutil_check(c->search(c));
     testutil_check(c->get_value(c, &v));
-    SET_VALUE(ROW, value);
+    SET_VALUE(KEYNO, value);
     testutil_assert(strcmp(v, value) == 0);
 
     testutil_check(conn->set_timestamp(conn, "oldest_timestamp=1"));
 
     /*
-     * Loop doing N operations per loop. Each operation consists of two modify operations and then
-     * re-reading all previous committed transactions, then an optional eviction and checkpoint.
+     * Loop doing N operations per loop. Each operation consists of modify operations and re-reading
+     * all previous committed transactions, then optional page evictions and checkpoints.
      */
     for (i = 0, ts = 1; i < RUNS; ++i) {
         lnext = tnext = 0;
         trace("run %u, seed %" PRIu64, i, rnd.v);
 
-        for (j = 0; j < OPS; ++j) {
+        for (j = mmrand(10, MAX_OPS); j > 0; --j) {
             modify(session, c);
             repeat(session, c);
+
+            /* 20% chance we evict the page. */
             if (!no_eviction && mmrand(1, 10) > 8)
                 evict(c);
+
+            /* 80% chance we checkpoint. */
             if (!no_checkpoint && mmrand(1, 10) > 8) {
                 trace("%s", "checkpoint");
                 testutil_check(session->checkpoint(session, NULL));
             }
         }
-        testutil_assert(write(STDIN_FILENO, ".", 1) == 1);
+        testutil_assert(write(STDOUT_FILENO, ".", 1) == 1);
     }
-    testutil_assert(write(STDIN_FILENO, "\n", 1) == 1);
+    testutil_assert(write(STDOUT_FILENO, "\n", 1) == 1);
 
     testutil_check(conn->close(conn, NULL));
+
+    cleanup();
     return (EXIT_SUCCESS);
 }
