@@ -323,8 +323,7 @@ config_backup_incr(void)
 static void
 config_backup_incr_granularity(void)
 {
-    uint32_t granularity;
-    uint32_t i;
+    uint32_t granularity, i;
     char confbuf[128];
 
     if (config_is_perm("backup.incr_granularity"))
