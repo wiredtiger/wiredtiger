@@ -174,12 +174,10 @@ static inline void
 __cursor_leave(WT_SESSION_IMPL *session)
 {
     /*
-     * Decrement the count of active cursors in the session. When that goes to zero, there are no
-     * active cursors, and we can release any snapshot we're holding for read committed isolation.
+     * Decrement the count of active cursors in the session.
      */
     WT_ASSERT(session, session->ncursors > 0);
-    if (--session->ncursors == 0)
-        __wt_txn_read_last(session);
+    --session->ncursors;
 }
 
 /*
@@ -202,6 +200,12 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
             __cursor_leave(session);
         F_CLR(cbt, WT_CBT_ACTIVE);
     }
+
+    /* When the count of active cursors in the session goes to zero, there are no
+    * active cursors, and we can release any snapshot we're holding for read committed isolation.
+    */
+    if (session->ncursors == 0 && !F_ISSET(cbt, WT_CBT_NO_TXN))
+        __wt_txn_read_last(session);
 
     /* If we're not holding a cursor reference, we're done. */
     if (cbt->ref == NULL)
