@@ -389,7 +389,7 @@ __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
     (void)__wt_atomic_add64(&cache->bytes_dirty_total, size);
     (void)__wt_atomic_add64(&btree->bytes_dirty_total, size);
-    (void)__wt_atomic_add64(&page->modify->bytes_dirty, size);
+    (void)__wt_atomic_addsize(&page->modify->bytes_dirty, size);
 }
 
 /*
