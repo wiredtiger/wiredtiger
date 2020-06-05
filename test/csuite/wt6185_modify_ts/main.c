@@ -37,7 +37,7 @@ extern char *__wt_optarg;
 #define RUNS 250
 #define VALUE_SIZE 80
 
-static WT_RAND_STATE rnd;
+WT_RAND_STATE rnd;
 
 static struct { /* List of repeatable operations. */
     uint64_t ts;
