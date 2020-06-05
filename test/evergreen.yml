@@ -317,7 +317,7 @@ post:
 tasks:
   # Base compile task on posix flavours
   - name: compile
-    tags: ["pull_request"]
+    tags: ["pull_request", "pull_request_macos"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2393,6 +2393,7 @@ buildvariants:
     test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
     - name: compile
+    - name: ".pull_request_macos"
     - name: make-check-test
     - name: unit-test
     - name: fops
