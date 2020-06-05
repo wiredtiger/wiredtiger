@@ -27,6 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
+from wtscenario import make_scenarios 
 
 def timestamp_str(t):
     return '%x' % t
@@ -36,8 +37,12 @@ def timestamp_str(t):
 class test_hs11(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
+    scenarios = make_scenarios([
+        ('deletion', dict(update_type='deletion')),
+        ('update', dict(update_type='update')),
+    ])
 
-    def run_test(self, update_type):
+    def test_mixed_mode_operations_clears_hs(self):
         uri = 'table:test_hs11'
         create_params = 'key_format=S,value_format=S'
         self.session.create(uri, create_params)
@@ -60,7 +65,7 @@ class test_hs11(wttest.WiredTigerTestCase):
         # Apply a mixed mode update.
         for i in range(1, 10000):
             if i % 2 == 0:
-                if update_type == 'deletion':
+                if self.update_type == 'deletion':
                     cursor.set_key(str(i))
                     cursor.remove()
                 else:
@@ -77,7 +82,7 @@ class test_hs11(wttest.WiredTigerTestCase):
             self.session.begin_transaction('read_timestamp=' + timestamp_str(ts))
             for i in range(1, 10000):
                 if i % 2 == 0:
-                    if update_type == 'deletion':
+                    if self.update_type == 'deletion':
                         cursor.set_key(str(i))
                         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
                     else:
@@ -85,9 +90,3 @@ class test_hs11(wttest.WiredTigerTestCase):
                 else:
                     self.assertEqual(cursor[str(i)], value1)
             self.session.rollback_transaction()
-
-    def test_key_deletion_clears_hs(self):
-        self.run_test('deletion')
-
-    def test_key_update_clears_hs(self):
-        self.run_test('update')
