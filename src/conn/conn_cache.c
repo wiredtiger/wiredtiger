@@ -125,14 +125,14 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     cache->eviction_updates_target = (double)cval.val;
     WT_RET(__cache_config_abs_to_pct(
       session, &(cache->eviction_updates_target), "eviction updates target", shared));
-    if (cache->eviction_updates_target == 0)
+    if (cache->eviction_updates_target < DBL_EPSILON)
         cache->eviction_updates_target = cache->eviction_dirty_target / 5;
 
     WT_RET(__wt_config_gets(session, cfg, "eviction_updates_trigger", &cval));
     cache->eviction_updates_trigger = (double)cval.val;
     WT_RET(__cache_config_abs_to_pct(
       session, &(cache->eviction_updates_trigger), "eviction updates trigger", shared));
-    if (cache->eviction_updates_trigger == 0)
+    if (cache->eviction_updates_trigger < DBL_EPSILON)
         cache->eviction_updates_trigger = cache->eviction_dirty_trigger / 5;
 
     /* Don't allow the trigger to be larger than the overall trigger. */
