@@ -687,11 +687,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 enable_reverse_modify = false;
 
             /* Only insert full update to the history store if we need to squash the updates. */
-            if (prev_upd->txnid == upd->txnid && prev_upd->start_ts == upd->start_ts)
+            if (prev_upd != NULL && prev_upd->txnid == upd->txnid && prev_upd->start_ts == upd->start_ts)
                 enable_reverse_modify = false;
 
             /* Only insert full update to the history store if the timestamps are not in order. */
-            if (prev_upd->start_ts < upd->start_ts)
+            if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts)
                 enable_reverse_modify = false;
 
             /*
