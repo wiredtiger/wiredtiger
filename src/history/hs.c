@@ -821,7 +821,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 squashed = true;
         }
 
-        if (modifies.size > 0 || squashed)
+        if (modifies.size > 0)
             WT_STAT_CONN_INCR(session, cache_hs_write_squash);
     }
 
