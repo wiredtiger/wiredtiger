@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios 
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
