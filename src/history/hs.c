@@ -287,7 +287,7 @@ __hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
 {
     WT_DECL_RET;
 
-    WT_WITH_BTREE(CUR2BT(hs_cbt), CUR2BT(hs_cbt),
+    WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
       ret = __wt_row_search(hs_cbt, srch_key, insert, NULL, false, NULL));
     return (ret);
 }
