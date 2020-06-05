@@ -1613,10 +1613,10 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
     uint64_t btree_inuse, bytes_per_slot, cache_inuse;
-    uint32_t target_pages_clean, target_pages_dirty, target_pages;
+    uint32_t target_pages, target_pages_clean, target_pages_dirty, target_pages_updates;
 
     cache = S2C(session)->cache;
-    target_pages_clean = target_pages_dirty = 0;
+    target_pages_clean = target_pages_dirty = target_pages_updates = 0;
 
 /*
  * The minimum number of pages we should consider per tree.
@@ -1635,14 +1635,22 @@ __evict_walk_target(WT_SESSION_IMPL *session)
         target_pages_clean = (uint32_t)((btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
 
-    if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_UPDATES)) {
+    if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY)) {
         btree_inuse = __wt_btree_dirty_leaf_inuse(session);
         cache_inuse = __wt_cache_dirty_leaf_inuse(cache);
         bytes_per_slot = 1 + cache_inuse / cache->evict_slots;
         target_pages_dirty = (uint32_t)((btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
 
+    if (F_ISSET(cache, WT_CACHE_EVICT_UPDATES)) {
+        btree_inuse = __wt_btree_bytes_updates(session);
+        cache_inuse = __wt_cache_bytes_updates(cache);
+        bytes_per_slot = 1 + cache_inuse / cache->evict_slots;
+        target_pages_updates = (uint32_t)((btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
+    }
+
     target_pages = WT_MAX(target_pages_clean, target_pages_dirty);
+    target_pages = WT_MAX(target_pages, target_pages_updates);
 
     /*
      * Walk trees with a small fraction of the cache in case there are so many trees that none of

@@ -192,6 +192,8 @@ struct __wt_btree {
     ((btree)->syncing != WT_BTREE_SYNC_RUNNING || (btree)->sync_session == (session))
 
     uint64_t bytes_inmem;       /* Cache bytes in memory. */
+    uint64_t bytes_internal;    /* Bytes in internal pages. */
+    uint64_t bytes_new_leaf;    /* Bytes in new leaf pages. */
     uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
     uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
     uint64_t bytes_dirty_lsm;   /* Bytes in dirty LSM pages. */
