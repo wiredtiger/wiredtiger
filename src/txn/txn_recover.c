@@ -732,6 +732,16 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         goto done;
     }
 
+    if (!hs_exists) {
+        __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "%s",
+          "Creating the history store before applying log records. Likely recovering after an"
+          "unclean shutdown on an earlier version");
+        /*
+         * TODO: Get configuration options in here. Re-create the table.
+         */
+        WT_RET(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
+    }
+
     /*
      * Recovery can touch more data than fits in cache, so it relies on regular eviction to manage
      * paging. Start eviction threads for recovery without history store cursors.
