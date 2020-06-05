@@ -505,18 +505,6 @@ __wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
 }
 
 /*
- * __wt_modify_vector_peek --
- *     Peek the head of the vector.
- */
-void
-__wt_modify_vector_peek(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
-{
-    WT_ASSERT(modifies->session, modifies->size > 0);
-
-    *updp = modifies->listp[modifies->size - 1];
-}
-
-/*
  * __wt_modify_vector_free --
  *     Free any resources associated with a modify vector. If we exceeded the allowed stack space on
  *     the vector and had to fallback to dynamic allocations, we'll be doing a free here.

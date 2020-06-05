@@ -574,7 +574,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
-    WT_DECL_ITEM(base_full_value);
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(modify_value);
@@ -586,14 +585,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
-    WT_UPDATE *peek_upd, *prev_upd, *first_older_than_prepare, *second_older_than_prepare, *upd;
+    WT_UPDATE *prev_upd, *second_older_than_prepare, *upd;
     WT_HS_TIME_POINT stop_time_point;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size;
     uint32_t i;
     uint8_t *p;
     int nentries;
-    bool prev_squashed, squashed, track_prepare;
+    bool squashed, track_prepare;
+    uint8_t upd_count;
 
     btree = S2BT(session);
     cursor = session->hs_cursor;
@@ -646,8 +646,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
           session, btree, upd = __wt_update_obsolete_check(session, page, list->onpage_upd, true));
         __wt_free_update_list(session, &upd);
         upd = list->onpage_upd;
-        first_older_than_prepare = second_older_than_prepare = NULL;
+        second_older_than_prepare = NULL;
         track_prepare = false;
+        upd_count = 0;
 
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
@@ -690,17 +691,18 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  * No normal update between prepared updates and the first prepared update cannot be
                  * a tombstone.
                  */
-                WT_ASSERT(session, (track_prepare && first_older_than_prepare == NULL) ||
+                WT_ASSERT(session, (track_prepare && upd_count == 0) ||
                     (!track_prepare && upd->type != WT_UPDATE_TOMBSTONE));
                 track_prepare = true;
             } else if (track_prepare) {
                 if (upd->type == WT_UPDATE_TOMBSTONE) {
+                    upd_count = 0;
                     track_prepare = false;
-                } else if (first_older_than_prepare == NULL)
-                    first_older_than_prepare = upd;
-                else if (first_older_than_prepare->txnid != upd->txnid ||
-                  first_older_than_prepare->start_ts != upd->start_ts) {
+                } else if (upd_count == 0)
+                    ++upd_count;
+                else {
                     second_older_than_prepare = upd;
+                    upd_count = 0;
                     track_prepare = false;
                 }
             }
@@ -713,44 +715,31 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 break;
         }
 
-        peek_upd = upd = NULL;
+        upd = NULL;
 
+        /* Construct the oldest full update. */
         WT_ASSERT(session, modifies.size > 0);
         __wt_modify_vector_pop(&modifies, &upd);
 
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
+        /* Skip TOMBSTONE at the end of the update chain. */
+        if (upd->type == WT_UPDATE_TOMBSTONE) {
+            if (modifies.size > 0) {
+                if (upd->start_ts == WT_TS_NONE) {
+                    /* We can only delete history store entries that have timestamps. */
+                    WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
+                    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+                }
+                __wt_modify_vector_pop(&modifies, &upd);
+            } else
+                continue;
+        }
+
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
+        full_value->data = upd->data;
+        full_value->size = upd->size;
 
         squashed = false;
-
-        /* Construct the oldest full update and squash the updates from the same transaction. */
-        do {
-            /* Skip TOMBSTONE at the end of the update chain. */
-            if (upd->type == WT_UPDATE_TOMBSTONE) {
-                if (modifies.size > 0) {
-                    if (upd->start_ts == WT_TS_NONE) {
-                        /* We can only delete history store entries that have timestamps. */
-                        WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
-                        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
-                    }
-                    __wt_modify_vector_pop(&modifies, &upd);
-                    WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
-                } else
-                    break;
-            }
-
-            WT_ERR(__hs_calculate_full_value(
-              session, full_value, upd, full_value->data, full_value->size));
-
-            if (modifies.size > 0) {
-                __wt_modify_vector_peek(&modifies, &peek_upd);
-                if (peek_upd->txnid != upd->txnid || peek_upd->start_ts != upd->start_ts)
-                    break;
-                else {
-                    squashed = true;
-                    __wt_modify_vector_pop(&modifies, &upd);
-                }
-            }
-        } while (modifies.size > 0);
 
         /*
          * Flush the updates on stack. Stopping once we run out or we reach the onpage upd start
@@ -759,34 +748,23 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         for (; modifies.size > 0 &&
              !(upd->txnid == list->onpage_upd->txnid &&
                  upd->start_ts == list->onpage_upd->start_ts);
-             tmp = full_value, full_value = prev_full_value, prev_full_value = tmp, upd = prev_upd,
-             squashed = prev_squashed) {
+             tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
+             upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
-            prev_squashed = false;
-            /*
-             * Skip the updates have the same start timestamp and transaction id
-             *
-             * Modifies that have the same start time point as the onpage_upd can be squashed away.
-             */
-            for (base_full_value = full_value; modifies.size > 0;
-                 base_full_value = prev_full_value) {
-                __wt_modify_vector_pop(&modifies, &prev_upd);
-                /*
-                 * For any uncommitted prepared updates written to disk, the stop timestamp of the
-                 * last update moved into the history store should be with max visibility to protect
-                 * its removal by checkpoint garbage collection until the data store update is
-                 * committed.
-                 */
-                if (prev_upd->prepare_state == WT_PREPARE_INPROGRESS) {
-                    WT_ASSERT(session,
-                      list->onpage_upd == prev_upd || list->onpage_upd->txnid == prev_upd->txnid);
-                    stop_time_point.durable_ts = stop_time_point.ts = WT_TS_MAX;
-                    stop_time_point.txnid = WT_TXN_MAX;
-                    WT_ASSERT(session, prev_upd->txnid == list->onpage_upd->txnid &&
-                        prev_upd->start_ts == list->onpage_upd->start_ts);
-                    break;
-                }
 
+            __wt_modify_vector_pop(&modifies, &prev_upd);
+
+            /*
+             * For any uncommitted prepared updates written to disk, the stop timestamp of the last
+             * update moved into the history store should be with max visibility to protect its
+             * removal by checkpoint garbage collection until the data store update is committed.
+             */
+            if (prev_upd->prepare_state == WT_PREPARE_INPROGRESS) {
+                WT_ASSERT(session,
+                  list->onpage_upd == prev_upd || list->onpage_upd->txnid == prev_upd->txnid);
+                stop_time_point.durable_ts = stop_time_point.ts = WT_TS_MAX;
+                stop_time_point.txnid = WT_TXN_MAX;
+            } else {
                 /*
                  * Set the stop timestamp from durable timestamp instead of commit timestamp. The
                  * garbage collection of history store removes the history values once the stop
@@ -796,66 +774,66 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 stop_time_point.durable_ts = prev_upd->durable_ts;
                 stop_time_point.ts = prev_upd->start_ts;
                 stop_time_point.txnid = prev_upd->txnid;
-
-                if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
-                    WT_ASSERT(session, modifies.size > 0);
-                    if (prev_upd->start_ts == WT_TS_NONE) {
-                        /* We can only delete history store entries that have timestamps. */
-                        WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
-                        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
-                    }
-                    __wt_modify_vector_pop(&modifies, &prev_upd);
-                    WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
-                }
-
-                WT_ERR(__hs_calculate_full_value(session, prev_full_value, prev_upd,
-                  base_full_value->data, base_full_value->size));
-
-                if (modifies.size > 0) {
-                    __wt_modify_vector_peek(&modifies, &peek_upd);
-                    if (peek_upd->txnid != prev_upd->txnid ||
-                      peek_upd->start_ts != prev_upd->start_ts)
-                        break;
-                    else
-                        prev_squashed = true;
-                }
             }
+
+            if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
+                WT_ASSERT(session, modifies.size > 0);
+                if (prev_upd->start_ts == WT_TS_NONE) {
+                    /* We can only delete history store entries that have timestamps. */
+                    WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
+                    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+                }
+                __wt_modify_vector_pop(&modifies, &prev_upd);
+                WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
+                prev_full_value->data = prev_upd->data;
+                prev_full_value->size = prev_upd->size;
+            } else
+                WT_ERR(__hs_calculate_full_value(
+                  session, prev_full_value, prev_upd, full_value->data, full_value->size));
 
             /*
-             * Calculate reverse delta. Insert full update for the newest historical record even
-             * it's a MODIFY.
+             * Skip the updates have the same start timestamp and transaction id
              *
-             * It is not correct to check prev_upd == list->onpage_upd as we may have aborted
-             * updates in the middle.
-             *
-             * We must insert the first and second updates after a prepared update as full values
-             * because if the prepared update is aborted, we will remove the first update after it
-             * from the history store to the update chain. Readers reading the older values need a
-             * full update as the base value for constructing reverse modifies.
+             * Modifies that have the same start time point as the onpage_upd can be squashed away.
              */
-            nentries = MAX_REVERSE_MODIFY_NUM;
-            if (!F_ISSET(upd, WT_UPDATE_HS)) {
-                if (upd->type == WT_UPDATE_MODIFY &&
-                  prev_upd->prepare_state != WT_PREPARE_INPROGRESS &&
-                  (second_older_than_prepare == NULL || upd != second_older_than_prepare) &&
-                  __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
-                    entries, &nentries) == 0) {
-                    WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
-                    WT_ERR(__hs_insert_record(session, cursor, btree, key, upd, WT_UPDATE_MODIFY,
-                      modify_value, &stop_time_point));
-                    __wt_scr_free(session, &modify_value);
-                } else
-                    WT_ERR(__hs_insert_record(session, cursor, btree, key, upd, WT_UPDATE_STANDARD,
-                      full_value, &stop_time_point));
+            if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid) {
+                /*
+                 * Calculate reverse delta. Insert full update for the newest historical record even
+                 * it's a MODIFY.
+                 *
+                 * It is not correct to check prev_upd == list->onpage_upd as we may have aborted
+                 * updates in the middle.
+                 *
+                 * We must insert the first and second updates after a prepared update as full
+                 * values because if the prepared update is aborted, we will remove the first update
+                 * after it from the history store to the update chain. Readers reading the older
+                 * values need a full update as the base value for constructing reverse modifies.
+                 */
+                nentries = MAX_REVERSE_MODIFY_NUM;
+                if (!F_ISSET(upd, WT_UPDATE_HS)) {
+                    if (upd->type == WT_UPDATE_MODIFY &&
+                      prev_upd->prepare_state != WT_PREPARE_INPROGRESS &&
+                      (second_older_than_prepare == NULL || upd != second_older_than_prepare) &&
+                      __wt_calc_modify(session, prev_full_value, full_value,
+                        prev_full_value->size / 10, entries, &nentries) == 0) {
+                        WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
+                        WT_ERR(__hs_insert_record(session, cursor, btree, key, upd,
+                          WT_UPDATE_MODIFY, modify_value, &stop_time_point));
+                        __wt_scr_free(session, &modify_value);
+                    } else
+                        WT_ERR(__hs_insert_record(session, cursor, btree, key, upd,
+                          WT_UPDATE_STANDARD, full_value, &stop_time_point));
 
-                /* Flag the update as now in the history store. */
-                F_SET(upd, WT_UPDATE_HS);
-                ++insert_cnt;
-                if (squashed) {
-                    WT_STAT_CONN_INCR(session, cache_hs_write_squash);
-                    squashed = false;
+                    /* Flag the update as now in the history store. */
+                    F_SET(upd, WT_UPDATE_HS);
+                    ++insert_cnt;
+                    if (squashed) {
+                        WT_STAT_CONN_INCR(session, cache_hs_write_squash);
+                        squashed = false;
+                    }
                 }
-            }
+            } else
+                squashed = true;
         }
 
         if (modifies.size > 0 || squashed)
