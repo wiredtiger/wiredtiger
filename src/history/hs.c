@@ -585,15 +585,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
-    WT_UPDATE *prev_upd, *second_older_than_prepare, *upd;
+    WT_UPDATE *prev_upd, *upd;
     WT_HS_TIME_POINT stop_time_point;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size;
     uint32_t i;
     uint8_t *p;
     int nentries;
-    bool squashed, track_prepare;
-    uint8_t upd_count;
+    bool enable_reverse_modify, squashed;
 
     btree = S2BT(session);
     cursor = session->hs_cursor;
@@ -646,9 +645,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
           session, btree, upd = __wt_update_obsolete_check(session, page, list->onpage_upd, true));
         __wt_free_update_list(session, &upd);
         upd = list->onpage_upd;
-        second_older_than_prepare = NULL;
-        track_prepare = false;
-        upd_count = 0;
+        enable_reverse_modify = true;
 
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
@@ -677,35 +674,25 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * tombstone.
          * 4) We have a single tombstone on the chain, it is simply ignored.
          */
-        for (; upd != NULL; upd = upd->next) {
+        for (prev_upd = NULL; upd != NULL; prev_upd = upd, upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
 
             /*
-             * If the update is the second update older than the prepared update and we haven't seen
-             * a tombstone. Mark the update.
+             * Only insert full update to the history store if we write a prepared update to the
+             * data store.
              */
-            if (upd->prepare_state == WT_PREPARE_INPROGRESS) {
-                /*
-                 * No normal update between prepared updates and the first prepared update cannot be
-                 * a tombstone.
-                 */
-                WT_ASSERT(session, (track_prepare && upd_count == 0) ||
-                    (!track_prepare && upd->type != WT_UPDATE_TOMBSTONE));
-                track_prepare = true;
-            } else if (track_prepare) {
-                if (upd->type == WT_UPDATE_TOMBSTONE) {
-                    upd_count = 0;
-                    track_prepare = false;
-                } else if (upd_count == 0)
-                    ++upd_count;
-                else {
-                    second_older_than_prepare = upd;
-                    upd_count = 0;
-                    track_prepare = false;
-                }
-            }
+            if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+                enable_reverse_modify = false;
+
+            /* Only insert full update to the history store if we need to squash the updates. */
+            if (prev_upd->txnid == upd->txnid && prev_upd->start_ts == upd->start_ts)
+                enable_reverse_modify = false;
+
+            /* Only insert full update to the history store if the timestamps are not in order. */
+            if (prev_upd->start_ts < upd->start_ts)
+                enable_reverse_modify = false;
 
             /*
              * If we've reached a full update and its in the history store we don't need to continue
@@ -811,9 +798,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  */
                 nentries = MAX_REVERSE_MODIFY_NUM;
                 if (!F_ISSET(upd, WT_UPDATE_HS)) {
-                    if (upd->type == WT_UPDATE_MODIFY &&
-                      prev_upd->prepare_state != WT_PREPARE_INPROGRESS &&
-                      (second_older_than_prepare == NULL || upd != second_older_than_prepare) &&
+                    if (upd->type == WT_UPDATE_MODIFY && enable_reverse_modify &&
                       __wt_calc_modify(session, prev_full_value, full_value,
                         prev_full_value->size / 10, entries, &nentries) == 0) {
                         WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
