@@ -549,7 +549,7 @@ __wt_cursor_key_order_reset(WT_CURSOR_BTREE *cbt)
      * Clear the last-key returned, it doesn't apply.
      */
     if (cbt->lastkey != NULL)
-	cbt->lastkey->size = 0;
+        cbt->lastkey->size = 0;
     cbt->lastrecno = WT_RECNO_OOB;
 }
 #endif
