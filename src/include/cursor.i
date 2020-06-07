@@ -203,6 +203,10 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
         F_CLR(cbt, WT_CBT_ACTIVE);
     }
 
+#ifdef HAVE_DIAGNOSTIC
+    __wt_cursor_key_order_reset(cbt); /* Clear key-order checks. */
+#endif
+
     /* If we're not holding a cursor reference, we're done. */
     if (cbt->ref == NULL)
         return (0);
@@ -377,12 +381,8 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 
     session = CUR2S(cbt);
 
-    if (reenter) {
-#ifdef HAVE_DIAGNOSTIC
-        __wt_cursor_key_order_reset(cbt);
-#endif
+    if (reenter)
         WT_RET(__cursor_reset(cbt));
-    }
 
     /*
      * Any old insert position is now invalid. We rely on this being cleared to detect if a new

@@ -289,6 +289,9 @@ __hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
 
     WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
       ret = __wt_row_search(hs_cbt, srch_key, insert, NULL, false, NULL));
+#ifdef HAVE_DIAGNOSTIC
+    WT_TRET(__wt_cursor_key_order_init(hs_cbt));
+#endif
     return (ret);
 }
 
@@ -416,10 +419,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
     else
         hs_upd = upd_local;
 
-    /*
-     * Search the page and insert the updates. We expect there will be no existing data: assert that
-     * we don't find a matching key.
-     */
+    /* Search the page and insert the updates. */
     WT_WITH_PAGE_INDEX(session, ret = __hs_row_search(cbt, &cursor->key, true));
     WT_ERR(ret);
     WT_ERR(__wt_hs_modify(cbt, hs_upd));
@@ -503,23 +503,15 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
     if (upd->start_ts != WT_TS_NONE)
         goto done;
 
-/*
- * If we inserted an update with no timestamp, we need to delete all history records for that key
- * that are further in the history table than us (the key is lexicographically greater). For
- * timestamped tables that are occasionally getting a non-timestamped update, that means that all
- * timestamped updates should get removed. In the case of non-timestamped tables, that means that
- * all updates with higher transaction ids will get removed (which could happen at some more relaxed
- * isolation levels).
- */
-#ifdef HAVE_DIAGNOSTIC
     /*
-     * We need to initialize the last searched key so that we can do key comparisons when we
-     * begin iterating over the history store. This needs to be done otherwise the subsequent
-     * "next" calls will blow up.
+     * If we inserted an update with no timestamp, we need to delete all history records for that
+     * key that are further in the history table than us (the key is lexicographically greater). For
+     * timestamped tables that are occasionally getting a non-timestamped update, that means that
+     * all timestamped updates should get removed. In the case of non-timestamped tables, that means
+     * that all updates with higher transaction ids will get removed (which could happen at some
+     * more relaxed isolation levels). We're pointing at the newly inserted update, iterate once
+     * more to avoid deleting it.
      */
-    WT_ERR(__wt_cursor_key_order_init((WT_CURSOR_BTREE *)cursor));
-#endif
-    /* We're pointing at the newly inserted update. Iterate once more to avoid deleting it. */
     WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
 
     /* No records to delete. */
