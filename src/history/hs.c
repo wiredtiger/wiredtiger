@@ -1222,8 +1222,7 @@ __wt_hs_delete_key_from_ts(
 
     WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
 
-    /* The tree structure can change while we try to insert the mod list, retry if that happens.
-     */
+    /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_delete_key_from_ts_int(session, btree_id, key, ts)) == WT_RESTART)
         WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
 
