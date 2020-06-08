@@ -797,14 +797,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             /*
              * Calculate reverse delta. Insert full update for the newest historical record even
              * it's a MODIFY.
-             *
-             * It is not correct to check prev_upd == list->onpage_upd as we may have aborted
-             * updates in the middle.
-             *
-             * We must insert the first and second updates after a prepared update as full values
-             * because if the prepared update is aborted, we will remove the first update after it
-             * from the history store to the update chain. Readers reading the older values need a
-             * full update as the base value for constructing reverse modifies.
              */
             nentries = MAX_REVERSE_MODIFY_NUM;
             if (upd->type == WT_UPDATE_MODIFY && enable_reverse_modify &&
