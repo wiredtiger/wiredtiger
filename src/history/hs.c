@@ -824,10 +824,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                     squashed = false;
                 }
             }
-
-            if (modifies.size > 0)
-                WT_STAT_CONN_INCR(session, cache_hs_write_squash);
         }
+
+        if (modifies.size > 0)
+                WT_STAT_CONN_INCR(session, cache_hs_write_squash);
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
