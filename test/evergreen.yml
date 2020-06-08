@@ -2132,10 +2132,9 @@ tasks:
 
   - name: format-stress-test-pull-request
     tags: ["pull_request"]
-    depends_on:
-      - name: compile
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
       - func: "format test script"
         vars:
           # run for 10 minutes, use default config
