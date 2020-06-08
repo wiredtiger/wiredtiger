@@ -2130,6 +2130,17 @@ tasks:
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 120
 
+  - name: format-stress-test-pull-request
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "format test script"
+        vars:
+          # run for 10 minutes, use default config
+          format_test_script_args: -t 10
+
   - name: format-wtperf-test
     commands:
       - func: "get project"
