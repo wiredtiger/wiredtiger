@@ -781,11 +781,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             WT_ERR(__hs_next_upd_full_value(
               session, &modifies, full_value, btree->id, key, prev_full_value, &prev_upd));
 
-            /*
-             * Skip the updates have the same start timestamp and transaction id.
-             *
-             * Modifies that have the same start time point as the onpage_upd can be squashed away.
-             */
+            /* Squash the updates from the same transaction. */
             if (upd->start_ts == prev_upd->start_ts && upd->txnid == prev_upd->txnid) {
                 squashed = true;
                 continue;
