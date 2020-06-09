@@ -293,9 +293,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             max_txn = txnid;
 
         /*
-         * If we're seeing out of order updates, we need to pin these updates into the cache.
+         * If we're seeing out-of-order updates, we need to pin these updates into the cache.
          *
-         * If the previous update is globally visible, we don't need to care about out of order ids
+         * We're also clearing the selected update since nothing newer than this out-of-order update
+         * is allowed to be written to the disk. If we find something older in the update list that
+         * can be written to the disk, that's ok and we should go ahead and select it.
+         *
+         * If the previous update is globally visible, we don't need to care about out-of-order ids
          * or timestamps since the offending update will be removed by an obsolete check further
          * down the line.
          *
@@ -375,8 +379,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
 
     /*
-     * Check whether the earliest update in the chain is out of order in relation to the current
-     * on-disk value.
+     * Check whether the earliest update in the chain is out-of-order in relation to the current
+     * on-disk value. If the chain is out-of-order, the updates need to be pinned to the cache.
+     *
+     * If the update has been restored from the data or history store, it may not have a valid
+     * transaction id due to it being wiped in between restarts. In that case, we can't meaningfully
+     * compare it. However, if it has been restored from the disk in some way, it has already been
+     * made durable previously so we shouldn't worry about trying to pin it to the cache.
      */
     if (prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED &&
       !F_ISSET(prev_upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS) &&
@@ -425,7 +434,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
 
     /*
-     * We expect the page to be clean after reconciliation. If there are invisible updates, abort
+     * We expect the page to be clean after reconciliation. If there are pinned updates, abort
      * eviction.
      */
     if (has_pinned_updates && F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBILITY_ERR)) {
