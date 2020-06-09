@@ -617,7 +617,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     uint32_t i;
     uint8_t *p;
     int nentries;
-    bool enable_reverse_modify, non_ts_update, squashed, updates_in_hs;
+    bool enable_reverse_modify, non_ts_updates, non_ts_updates_in_hs, squashed;
 
     btree = S2BT(session);
     cursor = session->hs_cursor;
@@ -671,7 +671,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         __wt_free_update_list(session, &upd);
         upd = list->onpage_upd;
 
-        non_ts_update = updates_in_hs = false;
+        non_ts_updates = non_ts_updates_in_hs = false;
         enable_reverse_modify = true;
 
         /*
@@ -724,19 +724,19 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 enable_reverse_modify = false;
 
             if (upd->start_ts == WT_TS_NONE)
-                non_ts_update = true;
-            else if (non_ts_update)
+                non_ts_updates = true;
+            else if (non_ts_updates) {
                 F_SET(upd, WT_UPDATE_MASKED_BY_NON_TS_UPDATE);
-
-            if (F_ISSET(upd, WT_UPDATE_HS)) {
-                updates_in_hs = true;
-                /*
-                 * If we've reached a full update and its in the history store we don't need to
-                 * continue as anything beyond this point won't help with calculating deltas.
-                 */
-                if (upd->type == WT_UPDATE_STANDARD)
-                    break;
+                if (F_ISSET(upd, WT_UPDATE_HS))
+                    non_ts_updates_in_hs = true;
             }
+
+            /*
+             * If we've reached a full update and its in the history store we don't need to continue
+             * as anything beyond this point won't help with calculating deltas.
+             */
+            if (F_ISSET(upd, WT_UPDATE_HS) && upd->type == WT_UPDATE_STANDARD)
+                break;
         }
 
         prev_upd = upd = NULL;
@@ -758,7 +758,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * list and there are no updates moved to the history store by checkpoint or a failed
          * eviction.
          */
-        if ((list->ins == NULL || updates_in_hs) && non_ts_update) {
+        if (non_ts_updates && (list->ins == NULL || non_ts_updates_in_hs)) {
             /* We can only delete history store entries that have timestamps. */
             WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
@@ -836,9 +836,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 squashed = false;
             }
         }
-
-        WT_ASSERT(session,
-          upd->txnid == list->onpage_upd->txnid && upd->start_ts == list->onpage_upd->start_ts);
 
         if (modifies.size > 0)
             WT_STAT_CONN_INCR(session, cache_hs_write_squash);
