@@ -478,7 +478,7 @@ thread_ts_run(void *arg)
              * availability at older timestamps.
              */
             testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-              "oldest_timestamp=%" PRIx64 ",stable_timestamp=%" PRIx64, oldest_ts, oldest_ts));
+              "stable_timestamp=%" PRIx64 ",oldest_timestamp=%" PRIx64, oldest_ts, oldest_ts));
             testutil_check(td->conn->set_timestamp(td->conn, tscfg));
             last_ts = oldest_ts;
             if (!stable_set) {
