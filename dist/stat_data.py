@@ -614,6 +614,7 @@ connection_stats = [
     TxnStat('txn_checkpoint_prep_max', 'transaction checkpoint prepare max time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_prep_min', 'transaction checkpoint prepare min time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_prep_recent', 'transaction checkpoint prepare most recent time (msecs)', 'no_clear,no_scale'),
+    TxnStat('txn_checkpoint_prep_retry', 'transaction checkpoint prepare restarted due to timestamp conflict','no_clear,no_scale'),
     TxnStat('txn_checkpoint_prep_running', 'transaction checkpoint prepare currently running', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_prep_total', 'transaction checkpoint prepare total time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_running', 'transaction checkpoint currently running', 'no_clear,no_scale'),

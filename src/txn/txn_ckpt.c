@@ -530,6 +530,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
+    wt_timestamp_t stable_timestamp;
     const char *txn_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
     bool use_timestamp;
@@ -561,6 +562,14 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_RET(__wt_meta_track_on(session));
     *trackingp = true;
 
+    __wt_writelock(session, &txn_global->rwlock);
+    if (stable_timestamp < txn_global->oldest_timestamp) {
+        WT_STAT_CONN_INCR(session, txn_checkpoint_prep_retry);
+        __wt_writeunlock(session, &txn_global->rwlock);
+        WT_RET(__wt_txn_rollback(session, NULL));
+        WT_RET(__wt_meta_track_off(session, false, true));
+        goto retry;
+    }
     /*
      * Mark the connection as clean. If some data gets modified after generating checkpoint
      * transaction id, connection will be reset to dirty when reconciliation marks the btree dirty
@@ -582,7 +591,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * This allows ordinary visibility checks to move forward because checkpoints often take a long
      * time and only write to the metadata.
      */
-    __wt_writelock(session, &txn_global->rwlock);
     txn_global->checkpoint_txn_shared = *txn_shared;
     txn_global->checkpoint_txn_shared.pinned_id = txn->snap_min;
 
@@ -615,7 +623,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          * because recovery doesn't set the recovery timestamp until its checkpoint is complete.
          */
         if (txn_global->has_stable_timestamp) {
-            txn_global->checkpoint_timestamp = txn_global->stable_timestamp;
+            txn_global->checkpoint_timestamp = stable_timestamp;
             if (!F_ISSET(conn, WT_CONN_RECOVERING))
                 txn_global->meta_ckpt_timestamp = txn_global->checkpoint_timestamp;
         } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
