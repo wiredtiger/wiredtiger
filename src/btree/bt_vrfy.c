@@ -166,12 +166,10 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     WT_VSTUFF *vs, _vstuff;
     size_t root_addr_size;
+    uint32_t session_flags;
     uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
     const char *name;
-    bool bm_start, quit;
-
-    uint32_t session_flags;
-    bool is_owner, skip_hs;
+    bool bm_start, is_owner, quit, skip_hs;
 
     btree = S2BT(session);
     bm = btree->bm;
