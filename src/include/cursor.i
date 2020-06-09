@@ -185,11 +185,16 @@ __cursor_leave(WT_SESSION_IMPL *session)
 static inline int
 __cursor_reset(WT_CURSOR_BTREE *cbt)
 {
+    WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
+    cursor = &cbt->iface;
     session = CUR2S(cbt);
 
+#ifdef HAVE_DIAGNOSTIC
+    __wt_cursor_key_order_reset(cbt); /* Clear key-order checks. */
+#endif
     __cursor_pos_clear(cbt);
 
     /* If the cursor was active, deactivate it. */
@@ -226,12 +231,15 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
     cbt->page_deleted_count = 0;
 
     /*
-     * Release any page references we're holding. This can trigger eviction (e.g., forced eviction
-     * of big pages), so it's important to do after releasing our snapshot above.
-     *
-     * Clear the reference regardless, so we don't try the release twice.
+     * Release any page references we're holding. This can trigger eviction (for example, forced
+     * eviction of big pages), so it must happen after releasing our snapshot above. Additionally,
+     * there's a debug mode where an application can force the eviction in order to test or stress
+     * the system. Clear the reference so we never try the release twice.
      */
-    ret = __wt_page_release(session, cbt->ref, 0);
+    if (F_ISSET(cursor, WT_CURSTD_DEBUG_RESET_EVICT))
+        WT_TRET_BUSY_OK(__wt_page_release_evict(session, cbt->ref, 0));
+    else
+        ret = __wt_page_release(session, cbt->ref, 0);
     cbt->ref = NULL;
 
     return (ret);
@@ -380,12 +388,8 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 
     session = CUR2S(cbt);
 
-    if (reenter) {
-#ifdef HAVE_DIAGNOSTIC
-        __wt_cursor_key_order_reset(cbt);
-#endif
+    if (reenter)
         WT_RET(__cursor_reset(cbt));
-    }
 
     /*
      * Any old insert position is now invalid. We rely on this being cleared to detect if a new
