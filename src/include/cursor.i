@@ -192,6 +192,9 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
     cursor = &cbt->iface;
     session = CUR2S(cbt);
 
+#ifdef HAVE_DIAGNOSTIC
+    __wt_cursor_key_order_reset(cbt); /* Clear key-order checks. */
+#endif
     __cursor_pos_clear(cbt);
 
     /* If the cursor was active, deactivate it. */
@@ -385,12 +388,8 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 
     session = CUR2S(cbt);
 
-    if (reenter) {
-#ifdef HAVE_DIAGNOSTIC
-        __wt_cursor_key_order_reset(cbt);
-#endif
+    if (reenter)
         WT_RET(__cursor_reset(cbt));
-    }
 
     /*
      * Any old insert position is now invalid. We rely on this being cleared to detect if a new
