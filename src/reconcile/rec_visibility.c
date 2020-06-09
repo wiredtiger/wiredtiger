@@ -208,12 +208,12 @@ err:
  */
 static inline bool
 __rec_need_save_upd(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select, bool has_newer_updates)
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select, bool has_pinned_updates)
 {
     if (upd_select->tw.prepare)
         return (true);
 
-    if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)
+    if (F_ISSET(r, WT_REC_EVICT) && has_pinned_updates)
         return (true);
 
     /*
@@ -249,7 +249,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     size_t upd_memsize;
     uint64_t max_txn, txnid;
     char time_string[WT_TIME_STRING_SIZE];
-    bool has_newer_updates, has_out_of_order_updates, is_hs_page, supd_restore, upd_saved;
+    bool has_pinned_updates, is_hs_page, supd_restore, upd_saved;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -264,7 +264,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
-    has_newer_updates = has_out_of_order_updates = upd_saved = false;
+    has_pinned_updates = upd_saved = false;
     is_hs_page = F_ISSET(S2BT(session), WT_BTREE_HS);
 
     /*
@@ -306,7 +306,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                   (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < upd->start_ts)) &&
               !__wt_txn_upd_visible_all(session, prev_upd)) {
                 upd_select->upd = NULL;
-                has_out_of_order_updates = true;
+                has_pinned_updates = true;
             }
 
         /*
@@ -326,7 +326,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             if (upd_select->upd != NULL)
                 return (__wt_set_return(session, EBUSY));
 
-            has_newer_updates = true;
+            has_pinned_updates = true;
             continue;
         }
 
@@ -335,7 +335,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid);
             if (F_ISSET(r, WT_REC_CHECKPOINT)) {
-                has_newer_updates = true;
+                has_pinned_updates = true;
                 if (upd->start_ts > max_ts)
                     max_ts = upd->start_ts;
 
@@ -390,14 +390,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                   (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < vpack->tw.stop_ts)) &&
               !__wt_txn_upd_visible_all(session, prev_upd)) {
                 upd_select->upd = NULL;
-                has_out_of_order_updates = true;
+                has_pinned_updates = true;
             }
         } else {
             if ((WT_TXNID_LT(prev_upd->txnid, vpack->tw.start_txn) ||
                   (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < vpack->tw.start_ts)) &&
               !__wt_txn_upd_visible_all(session, prev_upd)) {
                 upd_select->upd = NULL;
-                has_out_of_order_updates = true;
+                has_pinned_updates = true;
             }
         }
     }
@@ -428,8 +428,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * We expect the page to be clean after reconciliation. If there are invisible updates, abort
      * eviction.
      */
-    if ((has_newer_updates || has_out_of_order_updates) &&
-      F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBILITY_ERR)) {
+    if (has_pinned_updates && F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBILITY_ERR)) {
         if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
             WT_RET_PANIC(session, EINVAL, "reconciliation error, update not visible");
         return (__wt_set_return(session, EBUSY));
@@ -550,7 +549,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         r->max_ts = max_ts;
 
     /* Mark the page dirty after reconciliation. */
-    if (has_newer_updates || has_out_of_order_updates)
+    if (has_pinned_updates)
         r->leave_dirty = true;
 
     /*
@@ -560,16 +559,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      *
      * Additionally, if history store reconciliation is not set, skip saving an update.
      */
-    if (__rec_need_save_upd(
-          session, r, upd_select, has_newer_updates || has_out_of_order_updates)) {
+    if (__rec_need_save_upd(session, r, upd_select, has_pinned_updates)) {
         /*
          * We should restore the update chains to the new disk image if there are newer updates in
          * eviction, or for cases that don't support history store, such as in-memory database and
          * fixed length column store.
          */
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
-          (has_newer_updates || has_out_of_order_updates ||
-                         F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || page->type == WT_PAGE_COL_FIX);
+          (has_pinned_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
+                         page->type == WT_PAGE_COL_FIX);
         if (supd_restore)
             r->cache_write_restore = true;
         WT_ERR(__rec_update_save(session, r, ins, ripcip,
