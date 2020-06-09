@@ -245,9 +245,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_PAGE *page;
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *first_txn_upd, *first_upd, *last_upd, *prev_upd, *tombstone, *upd;
-    wt_timestamp_t max_ts;
+    wt_timestamp_t cmp_ts, max_ts;
     size_t upd_memsize;
-    uint64_t max_txn, txnid;
+    uint64_t cmp_txnid, max_txn, txnid;
     char time_string[WT_TIME_STRING_SIZE];
     bool has_pinned_updates, is_hs_page, supd_restore, upd_saved;
 
@@ -302,8 +302,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * If the previous update is globally visible, we don't need to care about out-of-order ids
          * or timestamps since the offending update will be removed by an obsolete check further
          * down the line.
-         *
-         * FIXME-WT-6388: Assert that the previous update isn't stable.
          */
         if (prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED)
             if ((WT_TXNID_LT(prev_upd->txnid, upd->txnid) ||
@@ -311,6 +309,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
               !__wt_txn_upd_visible_all(session, prev_upd)) {
                 upd_select->upd = NULL;
                 has_pinned_updates = true;
+
+                /*
+                 * Skipping this update and pinning it to the cache is only acceptable for updates
+                 * that are not yet stable. It's not ok if our checkpoint is skipping over stable
+                 * updates without making them durable.
+                 */
+                WT_ASSERT(session, !S2C(session)->txn_global.has_stable_timestamp ||
+                    S2C(session)->txn_global.stable_timestamp > prev_upd->start_ts);
             }
 
         /*
@@ -391,23 +397,29 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
       !F_ISSET(prev_upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS) &&
       vpack != NULL) {
         /*
-         * If the on-disk value has a stop, then let's compare with the implicit tombstone that it
-         * represents.
+         * If the on-disk value has a stop time point, then let's compare with the implicit
+         * tombstone that it represents.
          */
         if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
-            if ((WT_TXNID_LT(prev_upd->txnid, vpack->tw.stop_txn) ||
-                  (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < vpack->tw.stop_ts)) &&
-              !__wt_txn_upd_visible_all(session, prev_upd)) {
-                upd_select->upd = NULL;
-                has_pinned_updates = true;
-            }
+            cmp_ts = vpack->tw.stop_ts;
+            cmp_txnid = vpack->tw.stop_txn;
         } else {
-            if ((WT_TXNID_LT(prev_upd->txnid, vpack->tw.start_txn) ||
-                  (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < vpack->tw.start_ts)) &&
-              !__wt_txn_upd_visible_all(session, prev_upd)) {
-                upd_select->upd = NULL;
-                has_pinned_updates = true;
-            }
+            cmp_ts = vpack->tw.start_ts;
+            cmp_txnid = vpack->tw.start_txn;
+        }
+        if ((WT_TXNID_LT(prev_upd->txnid, cmp_txnid) ||
+              (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < cmp_ts)) &&
+          !__wt_txn_upd_visible_all(session, prev_upd)) {
+            upd_select->upd = NULL;
+            has_pinned_updates = true;
+
+            /*
+             * Again, if we're pinning this update to the cache instead of writing it to the disk
+             * because it is out-of-order, then it cannot be stable. If our checkpoint is skipping
+             * writing stable updates to the disk then we need to know about it.
+             */
+            WT_ASSERT(session, !S2C(session)->txn_global.has_stable_timestamp ||
+                S2C(session)->txn_global.stable_timestamp > prev_upd->start_ts);
         }
     }
 
