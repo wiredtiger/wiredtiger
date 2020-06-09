@@ -184,7 +184,7 @@ timestamp_once(WT_SESSION *session)
     testutil_assert(ret == 0 || ret == WT_NOTFOUND);
     if (ret == 0) {
         testutil_check(__wt_snprintf(
-          tscfg, sizeof(tscfg), "stable_timestamp=%s,oldest_timestamp=%s", ts_string, ts_string));
+          tscfg, sizeof(tscfg), "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
         testutil_check(conn->set_timestamp(conn, tscfg));
     }
 

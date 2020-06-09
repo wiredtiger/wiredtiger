@@ -150,7 +150,7 @@ thread_ts_run(void *arg)
              * availability at older timestamps.
              */
             testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-              "stable_timestamp=%s,oldest_timestamp=%s", ts_string, ts_string));
+              "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
             testutil_check(td->conn->set_timestamp(td->conn, tscfg));
         }
         __wt_sleep(0, 1000);
