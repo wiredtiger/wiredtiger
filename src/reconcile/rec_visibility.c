@@ -302,7 +302,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * FIXME-WT-6388: Assert that the previous update isn't stable.
          */
         if (prev_upd != NULL)
-            if ((WT_TXNID_LT(prev_upd->txnid, upd->txnid) || prev_upd->start_ts < upd->start_ts) &&
+            if ((WT_TXNID_LT(prev_upd->txnid, upd->txnid) ||
+                  (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < upd->start_ts)) &&
               !__wt_txn_upd_visible_all(session, prev_upd)) {
                 upd_select->upd = NULL;
                 has_out_of_order_updates = true;
@@ -384,14 +385,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          */
         if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
             if ((WT_TXNID_LT(prev_upd->txnid, vpack->tw.stop_txn) ||
-                  prev_upd->start_ts < vpack->tw.stop_ts) &&
+                  (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < vpack->tw.stop_ts)) &&
               !__wt_txn_upd_visible_all(session, prev_upd)) {
                 upd_select->upd = NULL;
                 has_out_of_order_updates = true;
             }
         } else {
             if ((WT_TXNID_LT(prev_upd->txnid, vpack->tw.start_txn) ||
-                  prev_upd->start_ts < vpack->tw.start_ts) &&
+                  (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < vpack->tw.start_ts)) &&
               !__wt_txn_upd_visible_all(session, prev_upd)) {
                 upd_select->upd = NULL;
                 has_out_of_order_updates = true;
