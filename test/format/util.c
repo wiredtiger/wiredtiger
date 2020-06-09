@@ -165,14 +165,12 @@ fclose_and_clear(FILE **fpp)
 void
 timestamp_once(WT_SESSION *session)
 {
-    static const char *oldest_timestamp_str = "oldest_timestamp=";
     WT_CONNECTION *conn;
     WT_DECL_RET;
-    char buf[WT_TS_HEX_STRING_SIZE + 64];
+    char ts_hex_buf[WT_TS_HEX_STRING_SIZE];
+    char tscfg[64];
 
     conn = g.wts_conn;
-
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", oldest_timestamp_str));
 
     /*
      * Lock out transaction timestamp operations. The lock acts as a barrier ensuring we've checked
@@ -183,10 +181,13 @@ timestamp_once(WT_SESSION *session)
     if (LOCK_INITIALIZED(&g.ts_lock))
         lock_writelock(session, &g.ts_lock);
 
-    ret = conn->query_timestamp(conn, buf + strlen(oldest_timestamp_str), "get=all_durable");
+    ret = conn->query_timestamp(conn, ts_hex_buf, "get=all_durable");
     testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-    if (ret == 0)
-        testutil_check(conn->set_timestamp(conn, buf));
+    if (ret == 0) {
+        testutil_check(__wt_snprintf(
+          tscfg, sizeof(tscfg), "stable_timestamp=%s,oldest_timestamp=%s", ts_hex_buf, ts_hex_buf));
+        testutil_check(conn->set_timestamp(conn, tscfg));
+    }
 
     if (LOCK_INITIALIZED(&g.ts_lock))
         lock_writeunlock(session, &g.ts_lock);
