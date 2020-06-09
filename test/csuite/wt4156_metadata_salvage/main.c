@@ -518,7 +518,7 @@ main(int argc, char *argv[])
      * We need to set up the string before we clean up the structure. Then after the clean up we
      * will run this command.
      */
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf core* %s*", home));
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf core* *.core %s*", home));
     testutil_cleanup(opts);
 
     /*
