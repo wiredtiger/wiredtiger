@@ -718,18 +718,18 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
 
             /*
-             * Only insert full update to the history store if we write a prepared update to the
+             * Always insert full update to the history store if we write a prepared update to the
              * data store.
              */
             if (upd->prepare_state == WT_PREPARE_INPROGRESS)
                 enable_reverse_modify = false;
 
-            /* Only insert full update to the history store if we need to squash the updates. */
+            /* Always insert full update to the history store if we need to squash the updates. */
             if (prev_upd != NULL && prev_upd->txnid == upd->txnid &&
               prev_upd->start_ts == upd->start_ts)
                 enable_reverse_modify = false;
 
-            /* Only insert full update to the history store if the timestamps are not in order. */
+            /* Always insert full update to the history store if the timestamps are not in order. */
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts)
                 enable_reverse_modify = false;
 
