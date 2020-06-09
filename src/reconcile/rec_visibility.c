@@ -301,7 +301,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          *
          * FIXME-WT-6388: Assert that the previous update isn't stable.
          */
-        if (prev_upd != NULL)
+        if (prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED)
             if ((WT_TXNID_LT(prev_upd->txnid, upd->txnid) ||
                   (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < upd->start_ts)) &&
               !__wt_txn_upd_visible_all(session, prev_upd)) {
@@ -378,7 +378,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Check whether the earliest update in the chain is out of order in relation to the current
      * on-disk value.
      */
-    if (prev_upd != NULL && vpack != NULL) {
+    if (prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED && vpack != NULL) {
         /*
          * If the on-disk value has a stop, then let's compare with the implicit tombstone that it
          * represents.
