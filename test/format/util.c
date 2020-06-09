@@ -167,8 +167,7 @@ timestamp_once(WT_SESSION *session)
 {
     WT_CONNECTION *conn;
     WT_DECL_RET;
-    char ts_hex_buf[WT_TS_HEX_STRING_SIZE];
-    char tscfg[64];
+    char tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
 
     conn = g.wts_conn;
 
@@ -181,11 +180,11 @@ timestamp_once(WT_SESSION *session)
     if (LOCK_INITIALIZED(&g.ts_lock))
         lock_writelock(session, &g.ts_lock);
 
-    ret = conn->query_timestamp(conn, ts_hex_buf, "get=all_durable");
+    ret = conn->query_timestamp(conn, ts_string, "get=all_durable");
     testutil_assert(ret == 0 || ret == WT_NOTFOUND);
     if (ret == 0) {
         testutil_check(__wt_snprintf(
-          tscfg, sizeof(tscfg), "stable_timestamp=%s,oldest_timestamp=%s", ts_hex_buf, ts_hex_buf));
+          tscfg, sizeof(tscfg), "stable_timestamp=%s,oldest_timestamp=%s", ts_string, ts_string));
         testutil_check(conn->set_timestamp(conn, tscfg));
     }
 
