@@ -244,12 +244,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TIME_WINDOW *select_tw;
-    WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd, *tombstone;
+    WT_UPDATE *first_txn_upd, *first_upd, *last_upd, *prev_upd, *tombstone, *upd;
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, txnid;
     char time_string[WT_TIME_STRING_SIZE];
-    bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
+    bool has_newer_updates, has_out_of_order_updates, is_hs_page, supd_restore, upd_saved;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -260,11 +260,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_TIME_WINDOW_INIT(select_tw);
 
     page = r->page;
-    first_txn_upd = upd = last_upd = tombstone = NULL;
+    first_txn_upd = last_upd = prev_upd = tombstone = upd = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
-    has_newer_updates = upd_saved = false;
+    has_newer_updates = has_out_of_order_updates = upd_saved = false;
     is_hs_page = F_ISSET(S2BT(session), WT_BTREE_HS);
 
     /*
@@ -277,7 +277,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     else if ((first_upd = WT_ROW_UPDATE(page, ripcip)) == NULL)
         return (0);
 
-    for (upd = first_upd; upd != NULL; upd = upd->next) {
+    for (upd = first_upd; upd != NULL; prev_upd = upd, upd = upd->next) {
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 
@@ -291,6 +291,22 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             first_txn_upd = upd;
         if (WT_TXNID_LT(max_txn, txnid))
             max_txn = txnid;
+
+        /*
+         * If we're seeing out of order updates, we need to pin these updates into the cache.
+         *
+         * If the previous update is globally visible, we don't need to care about out of order ids
+         * or timestamps since the offending update will be removed by an obsolete check further
+         * down the line.
+         *
+         * FIXME-WT-6388: Assert that the previous update isn't stable.
+         */
+        if (prev_upd != NULL)
+            if ((WT_TXNID_LT(prev_upd->txnid, upd->txnid) || prev_upd->start_ts < upd->start_ts) &&
+              !__wt_txn_upd_visible_all(session, prev_upd)) {
+                upd_select->upd = NULL;
+                has_out_of_order_updates = true;
+            }
 
         /*
          * Check whether the update was committed before reconciliation started. The global commit
@@ -357,6 +373,32 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             break;
     }
 
+    /*
+     * Check whether the earliest update in the chain is out of order in relation to the current
+     * on-disk value.
+     */
+    if (prev_upd != NULL && vpack != NULL) {
+        /*
+         * If the on-disk value has a stop, then let's compare with the implicit tombstone that it
+         * represents.
+         */
+        if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
+            if ((WT_TXNID_LT(prev_upd->txnid, vpack->tw.stop_txn) ||
+                  prev_upd->start_ts < vpack->tw.stop_ts) &&
+              !__wt_txn_upd_visible_all(session, prev_upd)) {
+                upd_select->upd = NULL;
+                has_out_of_order_updates = true;
+            }
+        } else {
+            if ((WT_TXNID_LT(prev_upd->txnid, vpack->tw.start_txn) ||
+                  prev_upd->start_ts < vpack->tw.start_ts) &&
+              !__wt_txn_upd_visible_all(session, prev_upd)) {
+                upd_select->upd = NULL;
+                has_out_of_order_updates = true;
+            }
+        }
+    }
+
     /* Keep track of the selected update. */
     upd = upd_select->upd;
 
@@ -383,7 +425,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * We expect the page to be clean after reconciliation. If there are invisible updates, abort
      * eviction.
      */
-    if (has_newer_updates && F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBILITY_ERR)) {
+    if ((has_newer_updates || has_out_of_order_updates) &&
+      F_ISSET(r, WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBILITY_ERR)) {
         if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
             WT_RET_PANIC(session, EINVAL, "reconciliation error, update not visible");
         return (__wt_set_return(session, EBUSY));
@@ -504,7 +547,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         r->max_ts = max_ts;
 
     /* Mark the page dirty after reconciliation. */
-    if (has_newer_updates)
+    if (has_newer_updates || has_out_of_order_updates)
         r->leave_dirty = true;
 
     /*
@@ -512,17 +555,18 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * skip saving the update as saving the update will cause reconciliation to think there is work
      * that needs to be done when there might not be.
      *
-     * Additionally history store reconciliation is not set skip saving an update.
+     * Additionally, if history store reconciliation is not set, skip saving an update.
      */
-    if (__rec_need_save_upd(session, r, upd_select, has_newer_updates)) {
+    if (__rec_need_save_upd(
+          session, r, upd_select, has_newer_updates || has_out_of_order_updates)) {
         /*
          * We should restore the update chains to the new disk image if there are newer updates in
          * eviction, or for cases that don't support history store, such as in-memory database and
          * fixed length column store.
          */
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
-          (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
-                         page->type == WT_PAGE_COL_FIX);
+          (has_newer_updates || has_out_of_order_updates ||
+                         F_ISSET(S2C(session), WT_CONN_IN_MEMORY) || page->type == WT_PAGE_COL_FIX);
         if (supd_restore)
             r->cache_write_restore = true;
         WT_ERR(__rec_update_save(session, r, ins, ripcip,
