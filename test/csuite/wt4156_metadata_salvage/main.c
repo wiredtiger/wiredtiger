@@ -522,19 +522,17 @@ main(int argc, char *argv[])
         testutil_die(ret, "system: %s", buf);
     run_all_verification(NULL, &table_data[0]);
 
-    /*
-     * We need to set up the string before we clean up the structure. Then after the clean up we
-     * will run this command.
-     */
+    /* Remove saved copy of the original database directory. */
     testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s.%s", home, SAVE));
-
-    /* Clean up database directory and any core files left there. */
-    testutil_cleanup(opts);
-
-    /* Remove saved copy of original database directory. */
     printf("cleanup and remove: %s\n", buf);
     if ((ret = system(buf)) < 0)
         testutil_die(ret, "system: %s", buf);
+
+    /* 
+     * Cleanup from test.  This will delete the database directory along with the core files
+     * left there by our children.
+     */
+    testutil_cleanup(opts);
 
     return (EXIT_SUCCESS);
 }
