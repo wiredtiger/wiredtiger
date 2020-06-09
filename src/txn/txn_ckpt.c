@@ -550,6 +550,17 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * which applications can hold open across calls to checkpoint.
      */
     WT_STAT_CONN_SET(session, txn_checkpoint_prep_running, 1);
+
+retry:
+    /*
+     * It is possible for the stable timestamp to move between the start of our transaction and the
+     * time we acquire the global write lock. To handle this we grab the stable timestamp and use it
+     * later as the checkpoint timestamp, however if it ends up being less than the oldest timestamp
+     * by the time we've acquired the write lock we must retry acquisition.
+     */
+    stable_timestamp = txn_global->stable_timestamp;
+    WT_READ_BARRIER();
+
     __wt_epoch(session, &conn->ckpt_prep_start);
     WT_RET(__wt_txn_begin(session, txn_cfg));
 
