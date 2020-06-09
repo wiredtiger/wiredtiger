@@ -567,8 +567,6 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
     *updp = NULL;
     __wt_modify_vector_pop(modifies, &upd);
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        WT_ASSERT(session, modifies->size > 0);
-
         if (modifies->size == 0) {
             WT_ASSERT(session, older_full_value == NULL);
             *updp = upd;
