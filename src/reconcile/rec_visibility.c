@@ -378,7 +378,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Check whether the earliest update in the chain is out of order in relation to the current
      * on-disk value.
      */
-    if (prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED && vpack != NULL) {
+    if (prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED &&
+      !F_ISSET(prev_upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS) &&
+      vpack != NULL) {
         /*
          * If the on-disk value has a stop, then let's compare with the implicit tombstone that it
          * represents.
