@@ -410,9 +410,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             /*
              * If we had pinned updates last reconciliation, it's possible that the tombstone and
              * update that form the onpage value may still be in the update list. If that's the
-             * case, we can't expect the last update (which corresponds to the start pair of the
-             * onpage value), to be later than the stop pair. We can easily check if that is the
-             * case by comparing the last update in the chain with the start pair.
+             * case, we can't expect the last update (which corresponds to the start time point of
+             * the onpage value), to be later than the stop time point. We can easily check if that
+             * is the case by comparing the last update in the chain with the start time point.
              */
             if (prev_upd->start_ts == vpack->tw.start_ts &&
               prev_upd->txnid == vpack->tw.start_txn) {
