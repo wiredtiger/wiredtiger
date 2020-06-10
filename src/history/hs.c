@@ -869,8 +869,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * we will clear the history store again once that update is moved to the history store.
          *
          * e.g., U@0 -> U@10 -> U@5 and U@1 in the history store. U@10 and U@5 are not inserted to
-         * the history store and U@1 is not removed from the history store. U@1 will be removed once
-         * U@0 is moved to the history store.
+         * the history store and U@1 is not removed from the history store. U@1 will be removed from
+         * the history store once U@0 is moved to the history store.
          */
         if (clear_hs && (first_non_ts_upd->txnid != list->onpage_upd->txnid ||
                           first_non_ts_upd->start_ts != list->onpage_upd->start_ts)) {
