@@ -568,7 +568,6 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
     *updp = NULL;
     __wt_modify_vector_pop(modifies, &upd);
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        WT_ASSERT(session, modifies->size > 0);
         if (upd->start_ts == WT_TS_NONE) {
             /* We can only delete history store entries that have timestamps. */
             WT_RET(__wt_hs_delete_key_from_ts(session, btree_id, key, 1));
