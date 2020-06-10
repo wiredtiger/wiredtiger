@@ -501,36 +501,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
     while ((ret = __hs_insert_record_with_btree_int(
               session, cursor, btree, key, upd, type, hs_value, stop_time_point)) == WT_RESTART)
         WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
-    WT_ERR(ret);
 
-    /* If we inserted a timestamped update, we don't need to delete any history store records. */
-    if (upd->start_ts != WT_TS_NONE)
-        goto done;
-
-    /*
-     * If we inserted an update with no timestamp, we need to delete all history records for that
-     * key that are further in the history table than us (the key is lexicographically greater). For
-     * timestamped tables that are occasionally getting a non-timestamped update, that means that
-     * all timestamped updates should get removed. In the case of non-timestamped tables, that means
-     * that all updates with higher transaction ids will get removed (which could happen at some
-     * more relaxed isolation levels). We're pointing at the newly inserted update, iterate once
-     * more to avoid deleting it.
-     */
-    WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
-
-    /* No records to delete. */
-    if (ret == WT_NOTFOUND) {
-        ret = 0;
-        goto done;
-    }
-
-    while ((ret = __hs_delete_key_from_pos(session, cursor, btree->id, key)) == WT_RESTART)
-        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts_restart);
-    WT_ERR(ret);
-    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
-
-done:
-err:
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
 
@@ -567,12 +538,6 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
     *updp = NULL;
     __wt_modify_vector_pop(modifies, &upd);
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        if (upd->start_ts == WT_TS_NONE) {
-            /* We can only delete history store entries that have timestamps. */
-            WT_RET(__wt_hs_delete_key_from_ts(session, btree_id, key, 1));
-            WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
-        }
-
         if (modifies->size == 0) {
             WT_ASSERT(session, older_full_value == NULL);
             *updp = upd;
