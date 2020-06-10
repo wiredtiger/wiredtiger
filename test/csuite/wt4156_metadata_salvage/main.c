@@ -528,9 +528,9 @@ main(int argc, char *argv[])
     if ((ret = system(buf)) < 0)
         testutil_die(ret, "system: %s", buf);
 
-    /* 
-     * Cleanup from test.  This will delete the database directory along with the core files
-     * left there by our children.
+    /*
+     * Cleanup from test. This will delete the database directory along with the core files left
+     * there by our children.
      */
     testutil_cleanup(opts);
 
