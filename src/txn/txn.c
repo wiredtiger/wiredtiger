@@ -151,7 +151,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session, bool publish)
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s, *txn_shared;
-    uint64_t commit_gen, current_id, id, metadata_pinned_id, prev_oldest_id, pinned_id;
+    uint64_t commit_gen, current_id, id, prev_oldest_id, pinned_id;
     uint32_t i, n, session_cnt;
 
     conn = S2C(session);
