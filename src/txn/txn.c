@@ -145,13 +145,13 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
  *     Allocate a snapshot.
  */
 void
-__wt_txn_get_snapshot(WT_SESSION_IMPL *session)
+__wt_txn_get_snapshot(WT_SESSION_IMPL *session, bool publish)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s, *txn_shared;
-    uint64_t commit_gen, current_id, id, prev_oldest_id, pinned_id;
+    uint64_t commit_gen, current_id, id, metadata_pinned_id, prev_oldest_id, pinned_id;
     uint32_t i, n, session_cnt;
 
     conn = S2C(session);
@@ -177,16 +177,20 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
     /*
      * Include the checkpoint transaction, if one is running: we should ignore any uncommitted
      * changes the checkpoint has written to the metadata. We don't have to keep the checkpoint's
-     * changes pinned so don't including it in the published pinned ID.
+     * changes pinned so don't go including it in the published pinned ID.
+     *
+     * Checkpoint calls this function twice in which case don't include the checkpoint id if that is
+     * our id.
      */
-    if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE) {
+    if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE &&
+      txn_shared->id != txn_global->checkpoint_txn_shared.id) {
         txn->snapshot[n++] = id;
-        txn_shared->metadata_pinned = id;
+        metadata_pinned_id = id;
     }
 
     /* For pure read-only workloads, avoid scanning. */
     if (prev_oldest_id == current_id) {
-        txn_shared->pinned_id = current_id;
+        pinned_id = current_id;
         /* Check that the oldest ID has not moved in the meantime. */
         WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
         goto done;
@@ -240,9 +244,11 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
      */
     WT_ASSERT(session, WT_TXNID_LE(prev_oldest_id, pinned_id));
     WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
-    txn_shared->pinned_id = pinned_id;
-
 done:
+    if (publish) {
+        txn_shared->metadata_pinned = metadata_pinned_id;
+        txn_shared->pinned_id = pinned_id;
+    }
     __wt_readunlock(session, &txn_global->rwlock);
     __txn_sort_snapshot(session, n, current_id);
 }

@@ -628,6 +628,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
 
     __wt_writeunlock(session, &txn_global->rwlock);
 
+    __wt_txn_get_snapshot(session, false);
+
     if (use_timestamp)
         __wt_verbose_timestamp(
           session, txn_global->checkpoint_timestamp, "Checkpoint requested at stable timestamp");

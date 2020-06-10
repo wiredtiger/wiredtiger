@@ -888,7 +888,7 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
      * we just read, if rounding to oldest). Get a new one.
      */
     if (F_ISSET(txn, WT_TXN_RUNNING))
-        __wt_txn_get_snapshot(session);
+        __wt_txn_get_snapshot(session, true);
 
     return (0);
 }

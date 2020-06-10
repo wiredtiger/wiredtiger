@@ -1758,7 +1758,7 @@ extern void __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session);
 extern void __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session);
 extern void __wt_txn_clear_timestamp_queues(WT_SESSION_IMPL *session);
 extern void __wt_txn_destroy(WT_SESSION_IMPL *session);
-extern void __wt_txn_get_snapshot(WT_SESSION_IMPL *session);
+extern void __wt_txn_get_snapshot(WT_SESSION_IMPL *session, bool publish);
 extern void __wt_txn_global_destroy(WT_SESSION_IMPL *session);
 extern void __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op);
 extern void __wt_txn_publish_durable_timestamp(WT_SESSION_IMPL *session);
