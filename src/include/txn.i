@@ -1038,7 +1038,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
          */
         WT_RET_ERROR_OK(__wt_cache_eviction_check(session, false, true, NULL), WT_ROLLBACK);
 
-        __wt_txn_get_snapshot(session, true);
+        __wt_txn_get_snapshot(session);
     }
 
     F_SET(txn, WT_TXN_RUNNING);
@@ -1323,7 +1323,7 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
         if (txn_shared->metadata_pinned == WT_TXN_NONE)
             txn_shared->metadata_pinned = txn_shared->pinned_id;
     } else if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
-        __wt_txn_get_snapshot(session, true);
+        __wt_txn_get_snapshot(session);
 }
 
 /*

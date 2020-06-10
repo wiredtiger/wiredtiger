@@ -441,7 +441,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             page = walk->page;
             if (__wt_page_is_modified(page) && WT_TXNID_LT(page->modify->update_txn, oldest_id)) {
                 if (txn->isolation == WT_ISO_READ_COMMITTED)
-                    __wt_txn_get_snapshot(session, true);
+                    __wt_txn_get_snapshot(session);
                 leaf_bytes += page->memory_footprint;
                 ++leaf_pages;
                 WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT));
@@ -459,7 +459,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * isolation ensures that all metadata updates completed before the checkpoint are included.
          */
         if (txn->isolation == WT_ISO_READ_COMMITTED)
-            __wt_txn_get_snapshot(session, true);
+            __wt_txn_get_snapshot(session);
 
         /*
          * We cannot check the tree modified flag in the case of a checkpoint, the checkpoint code

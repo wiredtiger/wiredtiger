@@ -637,7 +637,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * timestamp moves after we begin the checkpoint transaction but before we set the checkpoint
      * timestamp we can end up missing updates in our checkpoint.
      */
-    __wt_txn_get_snapshot(session, false);
+    __wt_txn_bump_snapshot(session);
 
     /* Assert that our snapshot min didn't somehow move backwards. */
     WT_ASSERT(session, session->txn->snap_min >= original_snap_min);

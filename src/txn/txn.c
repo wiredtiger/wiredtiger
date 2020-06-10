@@ -141,11 +141,11 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_get_snapshot --
- *     Allocate a snapshot.
+ * __txn_get_snapshot_int --
+ *     Allocate a snapshot, optionally update our shared txn ids.
  */
-void
-__wt_txn_get_snapshot(WT_SESSION_IMPL *session, bool publish)
+static void
+__txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
@@ -182,9 +182,11 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session, bool publish)
      * We can assume that if a function calls without intention to publish then it is the special
      * case of checkpoint calling it twice. In which case do not include the checkpoint id.
      */
-    if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE && publish) {
-        txn->snapshot[n++] = id;
-        txn_shared->metadata_pinned = id;
+    if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE) {
+        if (txn->id != txn_global->checkpoint_txn_shared.id)
+            txn->snapshot[n++] = id;
+        if (publish)
+            txn_shared->metadata_pinned = id;
     }
 
     /* For pure read-only workloads, avoid scanning. */
@@ -248,6 +250,26 @@ done:
         txn_shared->pinned_id = pinned_id;
     __wt_readunlock(session, &txn_global->rwlock);
     __txn_sort_snapshot(session, n, current_id);
+}
+
+/*
+ * __wt_txn_get_snapshot --
+ *     Common case, allocate a snapshot and update our shared ids.
+ */
+void
+__wt_txn_get_snapshot(WT_SESSION_IMPL *session)
+{
+    __txn_get_snapshot_int(session, true);
+}
+
+/*
+ * __wt_txn_bump_snapshot --
+ *     Uncommon case, allocate a snapshot but skip updating our shared ids.
+ */
+void
+__wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
+{
+    __txn_get_snapshot_int(session, true);
 }
 
 /*
