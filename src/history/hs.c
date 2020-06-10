@@ -742,15 +742,26 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
           oldest_upd->type == WT_UPDATE_STANDARD || oldest_upd->type == WT_UPDATE_TOMBSTONE);
 
         /*
-         * Clear the content with timestamps in the history store if we see non timestamped updates
-         * on the update chain.
-         *
-         * We don't need to clear the history store records if everything is still on the insert
-         * list and there are no updates moved to the history store by checkpoint or a failed
-         * eviction.
+         * Clear the history store here if the oldest update is a tombstone and it is the first
+         * update without timestamp on the update chain because we don't have the cursor placed at
+         * the correct place to delete the history store records when inserting the first update and
+         * it may be skipped if there is nothing to insert to the history store.
          */
-        clear_hs = first_non_ts_upd != NULL && !F_ISSET(first_non_ts_upd, WT_UPDATE_HS) &&
-          (list->ins == NULL || ts_updates_in_hs);
+        if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd == first_non_ts_upd) {
+            /* We can only delete history store entries that have timestamps. */
+            WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
+            WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+        } else
+            /*
+             * Clear the content with timestamps in the history store if we see updates without
+             * timestamps on the update chain.
+             *
+             * We don't need to clear the history store records if everything is still on the insert
+             * list and there are no updates moved to the history store by checkpoint or a failed
+             * eviction.
+             */
+            clear_hs = first_non_ts_upd != NULL && !F_ISSET(first_non_ts_upd, WT_UPDATE_HS) &&
+              (list->ins == NULL || ts_updates_in_hs);
 
         WT_ERR(__hs_next_upd_full_value(session, &modifies, NULL, full_value, &upd));
 
@@ -845,20 +856,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
         if (modifies.size > 0)
             WT_STAT_CONN_INCR(session, cache_hs_write_squash);
-
-        /*
-         * Clear the history store here if insert nothing to the history store and the oldest update
-         * is a tombstone without timestamp as we have skipped it.
-         */
-        if (clear_hs && oldest_upd->type == WT_UPDATE_TOMBSTONE &&
-          oldest_upd->start_ts == WT_TS_NONE) {
-            /* We can only delete history store entries that have timestamps. */
-            WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
-            WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
-        } else
-            WT_ASSERT(
-              session, !clear_hs || (first_non_ts_upd->txnid == list->onpage_upd->txnid &&
-                                      first_non_ts_upd->start_ts == list->onpage_upd->start_ts));
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
