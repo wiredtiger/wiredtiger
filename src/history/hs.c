@@ -724,9 +724,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts)
                 enable_reverse_modify = false;
 
+            /* Find the first update without timestamp. */
             if (first_non_ts_upd == NULL && upd->start_ts == WT_TS_NONE) {
                 first_non_ts_upd = upd;
             } else if (first_non_ts_upd != NULL && upd->start_ts != WT_TS_NONE) {
+                /*
+                 * Don't insert updates with timestamps after updates without timestamps to the
+                 * history store.
+                 */
                 F_SET(upd, WT_UPDATE_MASKED_BY_NON_TS_UPDATE);
                 if (F_ISSET(upd, WT_UPDATE_HS))
                     non_ts_updates_in_hs = true;
@@ -755,7 +760,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * Clear the content with timestamps in the history store if we see non timestamped updates
          * on the update chain.
          *
-         * We don't need to delete the history store records if everything is still on the insert
+         * We don't need to clear the history store records if everything is still on the insert
          * list and there are no updates moved to the history store by checkpoint or a failed
          * eviction.
          */
@@ -814,6 +819,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 continue;
             }
 
+            /* Skip updates already in the history store or masked by updates without timestamps. */
             if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_MASKED_BY_NON_TS_UPDATE))
                 continue;
 
