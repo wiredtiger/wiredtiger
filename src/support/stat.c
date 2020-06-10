@@ -1070,7 +1070,6 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction checkpoint prepare max time (msecs)",
   "transaction: transaction checkpoint prepare min time (msecs)",
   "transaction: transaction checkpoint prepare most recent time (msecs)",
-  "transaction: transaction checkpoint prepare restarted due to timestamp conflict",
   "transaction: transaction checkpoint prepare total time (msecs)",
   "transaction: transaction checkpoint scrub dirty target",
   "transaction: transaction checkpoint scrub time (msecs)",
@@ -1569,7 +1568,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing txn_checkpoint_prep_max */
     /* not clearing txn_checkpoint_prep_min */
     /* not clearing txn_checkpoint_prep_recent */
-    /* not clearing txn_checkpoint_prep_retry */
     /* not clearing txn_checkpoint_prep_total */
     /* not clearing txn_checkpoint_scrub_target */
     /* not clearing txn_checkpoint_scrub_time */
@@ -2073,7 +2071,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_checkpoint_prep_max += WT_STAT_READ(from, txn_checkpoint_prep_max);
     to->txn_checkpoint_prep_min += WT_STAT_READ(from, txn_checkpoint_prep_min);
     to->txn_checkpoint_prep_recent += WT_STAT_READ(from, txn_checkpoint_prep_recent);
-    to->txn_checkpoint_prep_retry += WT_STAT_READ(from, txn_checkpoint_prep_retry);
     to->txn_checkpoint_prep_total += WT_STAT_READ(from, txn_checkpoint_prep_total);
     to->txn_checkpoint_scrub_target += WT_STAT_READ(from, txn_checkpoint_scrub_target);
     to->txn_checkpoint_scrub_time += WT_STAT_READ(from, txn_checkpoint_scrub_time);

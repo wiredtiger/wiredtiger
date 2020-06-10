@@ -531,8 +531,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
     wt_timestamp_t stable_timestamp;
+    char timestamp_cfg[WT_TS_HEX_STRING_SIZE + 16 + 1];
+    char ts_string[WT_TS_HEX_STRING_SIZE];
     const char *txn_cfg[] = {
-      WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
+      WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL, NULL};
     bool use_timestamp;
 
     conn = S2C(session);
@@ -551,15 +553,23 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      */
     WT_STAT_CONN_SET(session, txn_checkpoint_prep_running, 1);
 
-retry:
     /*
      * It is possible for the stable timestamp to move between the start of our transaction and the
      * time we acquire the global write lock. To handle this we grab the stable timestamp and use it
-     * later as the checkpoint timestamp, however if it ends up being less than the oldest timestamp
-     * by the time we've acquired the write lock we must retry acquisition.
+     * later as the checkpoint timestamp. In order to pin the oldest timestamp behind the stable for
+     * the duration that we don't hold the lock we set the read timestamp of the checkpoint,
+     * transaction.
      */
-    stable_timestamp = txn_global->stable_timestamp;
-    WT_READ_BARRIER();
+    if (use_timestamp) {
+        stable_timestamp = txn_global->stable_timestamp;
+        WT_READ_BARRIER();
+        if (stable_timestamp != 0) {
+            __wt_timestamp_to_hex_string(stable_timestamp, ts_string);
+            WT_RET(__wt_snprintf(
+              timestamp_cfg, WT_TS_HEX_STRING_SIZE + 16 + 1, "read_timestamp=%s", ts_string));
+            txn_cfg[2] = timestamp_cfg;
+        }
+    }
 
     __wt_epoch(session, &conn->ckpt_prep_start);
     WT_RET(__wt_txn_begin(session, txn_cfg));
@@ -573,14 +583,6 @@ retry:
     WT_RET(__wt_meta_track_on(session));
     *trackingp = true;
 
-    __wt_writelock(session, &txn_global->rwlock);
-    if (stable_timestamp < txn_global->oldest_timestamp) {
-        WT_STAT_CONN_INCR(session, txn_checkpoint_prep_retry);
-        __wt_writeunlock(session, &txn_global->rwlock);
-        WT_RET(__wt_txn_rollback(session, NULL));
-        WT_RET(__wt_meta_track_off(session, false, true));
-        goto retry;
-    }
     /*
      * Mark the connection as clean. If some data gets modified after generating checkpoint
      * transaction id, connection will be reset to dirty when reconciliation marks the btree dirty
@@ -595,6 +597,7 @@ retry:
      */
     WT_ASSERT(session, session->id != 0 && txn_global->checkpoint_id == 0);
     txn_global->checkpoint_id = session->id;
+    __wt_writelock(session, &txn_global->rwlock);
 
     /*
      * Remove the checkpoint transaction from the global table.
@@ -624,8 +627,7 @@ retry:
      * We rely on having the global transaction data locked so the oldest timestamp can't move past
      * the stable timestamp.
      */
-    WT_ASSERT(session,
-      !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_SHARED_TS_DURABLE | WT_TXN_SHARED_TS_READ));
+    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_SHARED_TS_DURABLE));
 
     if (use_timestamp) {
         /*
@@ -647,9 +649,11 @@ retry:
 
     __wt_writeunlock(session, &txn_global->rwlock);
 
-    if (use_timestamp)
+    if (use_timestamp && stable_timestamp != 0) {
         __wt_verbose_timestamp(
           session, txn_global->checkpoint_timestamp, "Checkpoint requested at stable timestamp");
+        __wt_txn_clear_read_timestamp(session);
+    }
 
     /*
      * Get a list of handles we want to flush; for named checkpoints this may pull closed objects
