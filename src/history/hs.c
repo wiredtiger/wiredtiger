@@ -610,14 +610,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
-    WT_UPDATE *prev_upd, *upd;
+    WT_UPDATE *first_non_ts_upd, *prev_upd, *upd;
     WT_HS_TIME_POINT stop_time_point;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size;
     uint32_t i;
     uint8_t *p;
     int nentries;
-    bool enable_reverse_modify, non_ts_updates, non_ts_updates_in_hs, squashed;
+    bool enable_reverse_modify, non_ts_updates_in_hs, squashed;
 
     btree = S2BT(session);
     cursor = session->hs_cursor;
@@ -671,7 +671,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         __wt_free_update_list(session, &upd);
         upd = list->onpage_upd;
 
-        non_ts_updates = non_ts_updates_in_hs = false;
+        first_non_ts_upd = NULL;
+        non_ts_updates_in_hs = false;
         enable_reverse_modify = true;
 
         /*
@@ -723,9 +724,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts)
                 enable_reverse_modify = false;
 
-            if (upd->start_ts == WT_TS_NONE)
-                non_ts_updates = true;
-            else if (non_ts_updates) {
+            if (first_non_ts_upd == NULL && upd->start_ts == WT_TS_NONE) {
+                first_non_ts_upd = upd;
+            } else if (first_non_ts_upd != NULL) {
                 F_SET(upd, WT_UPDATE_MASKED_BY_NON_TS_UPDATE);
                 if (F_ISSET(upd, WT_UPDATE_HS))
                     non_ts_updates_in_hs = true;
@@ -758,7 +759,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * list and there are no updates moved to the history store by checkpoint or a failed
          * eviction.
          */
-        if (non_ts_updates && (list->ins == NULL || non_ts_updates_in_hs)) {
+        if (first_non_ts_upd != NULL && !F_ISSET(upd, WT_UPDATE_HS) &&
+          (list->ins == NULL || non_ts_updates_in_hs)) {
             /* We can only delete history store entries that have timestamps. */
             WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
