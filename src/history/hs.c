@@ -617,7 +617,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     uint32_t i;
     uint8_t *p;
     int nentries;
-    bool enable_reverse_modify, non_ts_updates_in_hs, squashed;
+    bool enable_reverse_modify, squashed, ts_updates_in_hs;
 
     btree = S2BT(session);
     cursor = session->hs_cursor;
@@ -672,7 +672,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         upd = list->onpage_upd;
 
         first_non_ts_upd = NULL;
-        non_ts_updates_in_hs = false;
+        ts_updates_in_hs = false;
         enable_reverse_modify = true;
 
         /*
@@ -734,7 +734,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  */
                 F_SET(upd, WT_UPDATE_MASKED_BY_NON_TS_UPDATE);
                 if (F_ISSET(upd, WT_UPDATE_HS))
-                    non_ts_updates_in_hs = true;
+                    ts_updates_in_hs = true;
             }
 
             /*
@@ -765,7 +765,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * eviction.
          */
         if (first_non_ts_upd != NULL && !F_ISSET(upd, WT_UPDATE_HS) &&
-          (list->ins == NULL || non_ts_updates_in_hs)) {
+          (list->ins == NULL || ts_updates_in_hs)) {
             /* We can only delete history store entries that have timestamps. */
             WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
