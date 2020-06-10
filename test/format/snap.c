@@ -692,9 +692,9 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
     TINFO *first_tinfo, *tinfo, **tinfop;
     WT_CURSOR *seen_cursor;
     WT_DECL_RET;
-    WT_ITEM null_value;
+    WT_ITEM null_value, value;
     WT_SESSION *session;
-    u_int64_t newest_oldest_ts, oldest_ts, newest_truncate;
+    u_int64_t keyno, last_keyno, newest_oldest_ts, oldest_ts;
     u_int count;
     size_t i, statenum;
     char buf[64];
@@ -709,14 +709,13 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
      * stable, repeating each one. To do this, we first collect all snap operations from all threads
      * that may be relevant.
      *
-     * We need to limit how back we can examine. For example, if we see a modification for key X in
-     * thread T, there may in fact have been a more recent modification for key X in thread U, but
-     * we can't see it because the snap list for U has wrapped past the modification for key X. We
-     * need to look at the oldest timestamp recorded in the snaps for each thread, and use the
+     * We need to limit how far back we can examine. For example, if we see a modification for key X
+     * in thread T, there may in fact have been a more recent modification for key X in thread U,
+     * but we can't see it because the snap list for U has wrapped past the modification for key X.
+     * We need to look at the oldest timestamp recorded in the snaps for each thread, and use the
      * maximum of all of these for our limit. That's the newest, oldest timestamp.
      */
     newest_oldest_ts = 0ULL;
-    newest_truncate = 0ULL;
     sorted_end = sorted_snaps = dcalloc(SNAP_LIST_SIZE * tinfo_count, sizeof(SNAP_OPS *));
 
     for (i = 0, tinfop = tinfo_array; i < tinfo_count; ++i, ++tinfop) {
@@ -740,13 +739,7 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
              * fully know which timestamps are relevant, since we haven't computed the newest oldest
              * yet. We do keep entries that are not marked repeatable, we won't retry unrepeatable
              * reads, but we need them to invalidate keys that we shouldn't check.
-             *
-             * Truncates change a range a records, and we don't really know which ones. So keep
-             * track of all truncates, we won't check any entries that are older than any truncate.
              */
-            if (snap->op == TRUNCATE)
-                newest_truncate = WT_MAX(newest_truncate, snap->ts);
-
             if (snap->op != 0 && snap->ts != 0 && snap->ts <= g.stable_timestamp) {
                 oldest_ts = WT_MIN(oldest_ts, snap->ts);
                 *sorted_end++ = snap;
@@ -764,11 +757,6 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
         newest_oldest_ts = WT_MAX(newest_oldest_ts, oldest_ts);
     }
 
-    /*
-     * Don't go as far back as the last truncate, we don't know exactly which keys truncate has
-     * affected.
-     */
-    newest_oldest_ts = WT_MAX(newest_oldest_ts, newest_truncate + 1);
     __wt_qsort(
       sorted_snaps, (size_t)(sorted_end - sorted_snaps), sizeof(SNAP_OPS *), compare_snap_ts);
 
@@ -799,21 +787,47 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
         snap = *psnap;
         if (snap->ts < newest_oldest_ts)
             continue;
-        key_gen(first_tinfo->key, snap->keyno);
-        seen_cursor->set_key(seen_cursor, first_tinfo->key);
-        if ((ret = seen_cursor->search(seen_cursor)) == 0)
-            continue;
-        if (ret != WT_NOTFOUND)
-            testutil_check(ret);
-        seen_cursor->set_value(seen_cursor, &null_value);
-        testutil_check(seen_cursor->insert(seen_cursor));
+        last_keyno = (snap->op == TRUNCATE) ? snap->last : snap->keyno;
+        for (keyno = snap->keyno; keyno <= last_keyno; ++keyno) {
+            key_gen(first_tinfo->key, keyno);
+            seen_cursor->set_key(seen_cursor, first_tinfo->key);
+            if ((ret = seen_cursor->search(seen_cursor)) == 0)
+                continue;
+            if (ret != WT_NOTFOUND)
+                testutil_check(ret);
+            seen_cursor->set_value(seen_cursor, &null_value);
+            testutil_check(seen_cursor->insert(seen_cursor));
 
-        if (snap->repeatable || snap->op != READ) {
-            /*
-             * The tinfo argument is used to stash the key value pair found during checking.
-             */
-            testutil_check(snap_verify(cursor, first_tinfo, snap));
-            count++;
+            if (snap->op == TRUNCATE) {
+                cursor->set_key(cursor, first_tinfo->key);
+                if ((ret = read_op(cursor, SEARCH, NULL)) != WT_NOTFOUND) {
+                    testutil_check(ret);
+
+                    /* A truncated record was unexpectedly found. */
+                    seen_cursor->get_value(seen_cursor, &value);
+                    if (g.type == FIX) {
+                        /* A zero value is equivalent to not found for fixed length stores. */
+                        if (value.size == 1 && *(uint8_t *)value.data == 0)
+                            continue;
+                        fprintf(stderr, "snapshot-isolation: %" PRIu64
+                                        " search: expected {0x00}, found {0x%02x}\n",
+                          keyno, *(uint8_t *)value.data);
+                    } else {
+                        fprintf(stderr, "snapshot-isolation %.*s search mismatch\n",
+                          (int)first_tinfo->key->size, (char *)first_tinfo->key->data);
+                        fprintf(stderr, "expected {deleted}\n");
+                        print_item_data("   found", value.data, value.size);
+                    }
+                    testutil_assert(0);
+                }
+                count++;
+            } else if (snap->repeatable || snap->op != READ) {
+                /*
+                 * The tinfo argument is used to stash the key value pair found during checking.
+                 */
+                testutil_check(snap_verify(cursor, first_tinfo, snap));
+                count++;
+            }
         }
     }
     testutil_check(seen_cursor->close(seen_cursor));

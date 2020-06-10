@@ -82,10 +82,10 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
             track_ts_diff(ts_msg, sizeof(ts_msg), "cur", old_ts, cur_ts);
         }
         testutil_check(__wt_snprintf_len_set(msg, sizeof(msg), &len, "%4" PRIu32 ": %s: "
-                                                                     "srch %" PRIu64 "%s, "
-                                                                     "ins %" PRIu64 "%s, "
-                                                                     "upd %" PRIu64 "%s, "
-                                                                     "rm %" PRIu64 "%s%s",
+                                                                     "S %" PRIu64 "%s, "
+                                                                     "I %" PRIu64 "%s, "
+                                                                     "U %" PRIu64 "%s, "
+                                                                     "R %" PRIu64 "%s%s",
           g.run_cnt, tag, tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search,
           tinfo->search > M(9) ? "M" : "",
           tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert,

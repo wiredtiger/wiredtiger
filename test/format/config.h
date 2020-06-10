@@ -349,7 +349,7 @@ static CONFIG c[] = {
     0, 0, 0, NULL, &g.c_isolation},
 
   /* 60% */
-  {"transaction.rollback_to_stable", "if rollback_to_stable should be called", C_BOOL, 40, 0, 0,
+  {"transaction.rollback_to_stable", "if rollback_to_stable should be called", C_BOOL, 60, 0, 0,
     &g.c_txn_rollback_to_stable, NULL},
 
   /* 70% */
