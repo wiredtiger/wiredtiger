@@ -185,7 +185,8 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session, bool publish)
     if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE &&
       txn_shared->id != txn_global->checkpoint_txn_shared.id) {
         txn->snapshot[n++] = id;
-        metadata_pinned_id = id;
+        if (publish)
+            txn_shared->metadata_pinned = id;
     }
 
     /* For pure read-only workloads, avoid scanning. */
@@ -245,10 +246,8 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session, bool publish)
     WT_ASSERT(session, WT_TXNID_LE(prev_oldest_id, pinned_id));
     WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
 done:
-    if (publish) {
-        txn_shared->metadata_pinned = metadata_pinned_id;
+    if (publish)
         txn_shared->pinned_id = pinned_id;
-    }
     __wt_readunlock(session, &txn_global->rwlock);
     __txn_sort_snapshot(session, n, current_id);
 }
