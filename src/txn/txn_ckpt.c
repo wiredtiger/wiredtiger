@@ -531,14 +531,11 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
     wt_timestamp_t stable_timestamp;
-    char timestamp_cfg[WT_TS_HEX_STRING_SIZE + 16 + 1];
-    char ts_string[WT_TS_HEX_STRING_SIZE];
     const char *txn_cfg[] = {
-      WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL, NULL};
-    bool retry_set_stable, use_timestamp;
+      WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
+    bool use_timestamp;
 
     conn = S2C(session);
-    retry_set_stable = false;
     stable_timestamp = 0;
     txn = session->txn;
     txn_global = &conn->txn_global;
@@ -567,21 +564,19 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
 retry:
         stable_timestamp = txn_global->stable_timestamp;
         WT_READ_BARRIER();
-        if (stable_timestamp != 0) {
-            __wt_timestamp_to_hex_string(stable_timestamp, ts_string);
-            WT_RET(__wt_snprintf(
-              timestamp_cfg, WT_TS_HEX_STRING_SIZE + 16 + 1, "read_timestamp=%s", ts_string));
-            txn_cfg[2] = timestamp_cfg;
-        }
     }
 
     WT_RET(__wt_txn_begin(session, txn_cfg));
     if (use_timestamp && stable_timestamp != 0) {
         __wt_readlock(session, &txn_global->rwlock);
-        retry_set_stable = stable_timestamp < txn_global->oldest_timestamp;
-        __wt_readunlock(session, &txn_global->rwlock);
-        if (retry_set_stable)
+        if (stable_timestamp < txn_global->oldest_timestamp) {
+            __wt_readunlock(session, &txn_global->rwlock);
+            WT_RET(__wt_txn_rollback(session, cfg));
             goto retry;
+        }
+        txn_shared->read_timestamp = stable_timestamp;
+        __wt_txn_publish_read_timestamp(session);
+        __wt_readunlock(session, &txn_global->rwlock);
     }
     WT_DIAGNOSTIC_YIELD;
 
