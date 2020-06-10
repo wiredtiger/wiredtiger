@@ -425,6 +425,7 @@ __rollback_abort_row_ondisk_kv(
           __wt_timestamp_to_string(vpack->tw.stop_ts, ts_string[2]),
           __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[3]), vpack->tw.stop_txn,
           prepared ? "true" : "false");
+        F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
     } else
         /* Stable version according to the timestamp. */
         return (0);
