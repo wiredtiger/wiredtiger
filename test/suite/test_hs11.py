@@ -33,7 +33,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_hs11.py
-# Ensure that mixed mode updates clear the history store records.
+# Ensure that updates without timestamps clear the history store records.
 class test_hs11(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
@@ -42,7 +42,7 @@ class test_hs11(wttest.WiredTigerTestCase):
         ('update', dict(update_type='update')),
     ])
 
-    def test_mixed_mode_operations_clears_hs(self):
+    def test_non_ts_updates_clears_hs(self):
         uri = 'table:test_hs11'
         create_params = 'key_format=S,value_format=S'
         self.session.create(uri, create_params)
@@ -62,7 +62,7 @@ class test_hs11(wttest.WiredTigerTestCase):
         # Reconcile and flush versions 1-3 to the history store.
         self.session.checkpoint()
 
-        # Apply a mixed mode update.
+        # Apply an update without timestamp.
         for i in range(1, 10000):
             if i % 2 == 0:
                 if self.update_type == 'deletion':

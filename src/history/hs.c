@@ -738,8 +738,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             }
 
             /*
-             * If we've reached a full update and its in the history store we don't need to continue
-             * as anything beyond this point won't help with calculating deltas.
+             * If we've reached a full update and it's in the history store we don't need to
+             * continue as anything beyond this point won't help with calculating deltas.
              */
             if (F_ISSET(upd, WT_UPDATE_HS) && upd->type == WT_UPDATE_STANDARD)
                 break;
