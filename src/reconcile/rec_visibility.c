@@ -303,7 +303,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * or timestamps since the offending update will be removed by an obsolete check further
          * down the line.
          */
-        if (prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED)
+        if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED)
             if ((WT_TXNID_LT(prev_upd->txnid, upd->txnid) ||
                   (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < upd->start_ts)) &&
               !__wt_txn_upd_visible_all(session, prev_upd)) {
@@ -393,7 +393,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * compare it. However, if it has been restored from the disk in some way, it has already been
      * made durable previously so we shouldn't worry about trying to pin it to the cache.
      */
-    if (prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED &&
+    if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED &&
       !F_ISSET(prev_upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS) &&
       vpack != NULL) {
         /*
@@ -403,6 +403,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
             cmp_ts = vpack->tw.stop_ts;
             cmp_txnid = vpack->tw.stop_txn;
+
+            if (prev_upd->start_ts == vpack->tw.start_ts &&
+              prev_upd->txnid == vpack->tw.start_txn) {
+                cmp_ts = WT_TS_NONE;
+                cmp_txnid = WT_TXN_NONE;
+            }
         } else {
             cmp_ts = vpack->tw.start_ts;
             cmp_txnid = vpack->tw.start_txn;
