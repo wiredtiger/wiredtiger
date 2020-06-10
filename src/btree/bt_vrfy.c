@@ -161,7 +161,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_BM *bm;
     WT_BTREE *btree;
-    WT_CELL_UNPACK_ADDR addr_unpack;
+    WT_CELL_UNPACK_ADDR parent;
     WT_CKPT *ckptbase, *ckpt;
     WT_DECL_RET;
     WT_VSTUFF *vs, _vstuff;
@@ -260,19 +260,18 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /*
              * Create a fake, unpacked parent cell for the tree based on the checkpoint information.
              */
-            memset(&addr_unpack, 0, sizeof(addr_unpack));
-            WT_TIME_AGGREGATE_COPY(&addr_unpack.ta, &ckpt->ta);
+            memset(&parent, 0, sizeof(parent));
+            WT_TIME_AGGREGATE_COPY(&parent.ta, &ckpt->ta);
             if (ckpt->write_gen <= S2C(session)->base_write_gen) {
-                addr_unpack.ta.oldest_start_txn = WT_TXN_NONE;
-                addr_unpack.ta.newest_stop_txn = WT_TXN_MAX;
+                parent.ta.oldest_start_txn = WT_TXN_NONE;
+                parent.ta.newest_stop_txn = WT_TXN_MAX;
             }
             if (ckpt->ta.prepare)
-                addr_unpack.ta.prepare = 1;
-            addr_unpack.raw = WT_CELL_ADDR_INT;
+                parent.ta.prepare = 1;
+            parent.raw = WT_CELL_ADDR_INT;
 
             /* Verify the tree. */
-            WT_WITH_PAGE_INDEX(
-              session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
+            WT_WITH_PAGE_INDEX(session, ret = __verify_tree(session, &btree->root, &parent, vs));
 
 #if 0
             /*
@@ -412,8 +411,7 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *unp
  *     Our job is to check logical relationships in the page and in the tree.
  */
 static int
-__verify_tree(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *addr_unpack, WT_VSTUFF *vs)
+__verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent, WT_VSTUFF *vs)
 {
     WT_BM *bm;
     WT_CELL_UNPACK_ADDR *unpack, _unpack;
@@ -498,37 +496,37 @@ __verify_tree(
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
-        WT_RET(__verify_page_content_int(session, ref, addr_unpack, vs));
+        WT_RET(__verify_page_content_int(session, ref, parent, vs));
         break;
     case WT_PAGE_COL_VAR:
     case WT_PAGE_ROW_LEAF:
-        WT_RET(__verify_page_content_leaf(session, ref, addr_unpack, vs));
+        WT_RET(__verify_page_content_leaf(session, ref, parent, vs));
         break;
     }
 
     /* Compare the address type against the page type. */
     switch (page->type) {
     case WT_PAGE_COL_FIX:
-        if (addr_unpack->raw != WT_CELL_ADDR_LEAF_NO)
+        if (parent->raw != WT_CELL_ADDR_LEAF_NO)
             goto celltype_err;
         break;
     case WT_PAGE_COL_VAR:
-        if (addr_unpack->raw != WT_CELL_ADDR_LEAF && addr_unpack->raw != WT_CELL_ADDR_LEAF_NO)
+        if (parent->raw != WT_CELL_ADDR_LEAF && parent->raw != WT_CELL_ADDR_LEAF_NO)
             goto celltype_err;
         break;
     case WT_PAGE_ROW_LEAF:
-        if (addr_unpack->raw != WT_CELL_ADDR_DEL && addr_unpack->raw != WT_CELL_ADDR_LEAF &&
-          addr_unpack->raw != WT_CELL_ADDR_LEAF_NO)
+        if (parent->raw != WT_CELL_ADDR_DEL && parent->raw != WT_CELL_ADDR_LEAF &&
+          parent->raw != WT_CELL_ADDR_LEAF_NO)
             goto celltype_err;
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
-        if (addr_unpack->raw != WT_CELL_ADDR_INT)
+        if (parent->raw != WT_CELL_ADDR_INT)
 celltype_err:
         WT_RET_MSG(session, WT_ERROR,
           "page at %s, of type %s, is referenced in its parent by a cell of type %s",
           __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
-          __wt_cell_type_string(addr_unpack->raw));
+          __wt_cell_type_string(parent->raw));
         break;
     }
 
