@@ -597,7 +597,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      */
     WT_ASSERT(session, session->id != 0 && txn_global->checkpoint_id == 0);
     txn_global->checkpoint_id = session->id;
-    __wt_writelock(session, &txn_global->rwlock);
 
     /*
      * Remove the checkpoint transaction from the global table.
@@ -605,6 +604,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * This allows ordinary visibility checks to move forward because checkpoints often take a long
      * time and only write to the metadata.
      */
+    __wt_writelock(session, &txn_global->rwlock);
     txn_global->checkpoint_txn_shared = *txn_shared;
     txn_global->checkpoint_txn_shared.pinned_id = txn->snap_min;
 
