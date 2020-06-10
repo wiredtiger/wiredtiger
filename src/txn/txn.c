@@ -182,7 +182,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session, bool publish)
      * We can assume that if a function calls without intention to publish then it is the special
      * case of checkpoint calling it twice. In which case do not include the checkpoint id.
      */
-    if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE && !publish) {
+    if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE && publish) {
         txn->snapshot[n++] = id;
         txn_shared->metadata_pinned = id;
     }
