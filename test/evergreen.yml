@@ -2139,7 +2139,7 @@ tasks:
         vars:
           # run for 10 minutes, number of parallel jobs equal to number of cores in machine,
           # rows and ops value as similar to smoke.sh.
-          format_test_script_args: -t 10 -j 4 rows=10000 ops=50000
+          format_test_script_args: -t 15 -j 4 rows=10000 ops=50000
 
   - name: format-wtperf-test
     commands:
