@@ -303,8 +303,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * or timestamps since the offending update will be removed by an obsolete check further
          * down the line.
          */
-        if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED &&
-            !F_ISSET(prev_upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) {
+        if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL &&
+          prev_upd->txnid != WT_TXN_ABORTED &&
+          !F_ISSET(
+            prev_upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
             if ((WT_TXNID_LT(prev_upd->txnid, upd->txnid) ||
                   (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < upd->start_ts)) &&
               !__wt_txn_upd_visible_all(session, prev_upd)) {
