@@ -739,7 +739,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         /*
          * TODO: Get configuration options in here. Re-create the table.
          */
-        WT_RET(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
+        WT_ERR(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
     }
 
     /*
