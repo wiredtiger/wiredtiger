@@ -497,10 +497,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      * If we need to clear the history store content, we need to delete all history records for that
      * key that are further in the history table than us (the key is lexicographically greater). For
      * timestamped tables that are occasionally getting a non-timestamped update, that means that
-     * all timestamped updates should get removed. In the case of non-timestamped tables, that means
-     * that all updates with higher transaction ids will get removed (which could happen at some
-     * more relaxed isolation levels). We're pointing at the newly inserted update, iterate once
-     * more to avoid deleting it.
+     * all timestamped updates should get removed.
      */
     WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
 
