@@ -820,6 +820,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
             /* Calculate reverse modify and clear the history store when inserting the first update.
              */
+            WT_ASSERT(session, !clear_hs || upd->start_ts == WT_TS_NONE);
             nentries = MAX_REVERSE_MODIFY_NUM;
             if (upd->type == WT_UPDATE_MODIFY && enable_reverse_modify &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
