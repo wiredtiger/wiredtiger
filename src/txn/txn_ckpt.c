@@ -535,9 +535,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     char ts_string[WT_TS_HEX_STRING_SIZE];
     const char *txn_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL, NULL};
-    bool use_timestamp;
+    bool retry_set_stable, use_timestamp;
 
     conn = S2C(session);
+    retry_set_stable = false;
     stable_timestamp = 0;
     txn = session->txn;
     txn_global = &conn->txn_global;
@@ -562,6 +563,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * transaction.
      */
     if (use_timestamp) {
+retry:
         stable_timestamp = txn_global->stable_timestamp;
         WT_READ_BARRIER();
         if (stable_timestamp != 0) {
@@ -574,7 +576,13 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
 
     __wt_epoch(session, &conn->ckpt_prep_start);
     WT_RET(__wt_txn_begin(session, txn_cfg));
-
+    if (use_timestamp && stable_timestamp != 0) {
+        __wt_readlock(session, &txn_global->rwlock);
+        retry_set_stable = stable_timestamp < txn_global->oldest_timestamp;
+        __wt_readunlock(session, &txn_global->rwlock);
+        if (retry_set_stable)
+            goto retry;
+    }
     WT_DIAGNOSTIC_YIELD;
 
     /* Ensure a transaction ID is allocated prior to sharing it globally */
