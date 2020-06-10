@@ -567,7 +567,7 @@ retry:
     }
 
     WT_RET(__wt_txn_begin(session, txn_cfg));
-    if (use_timestamp && stable_timestamp != 0) {
+    if (stable_timestamp != 0) {
         __wt_readlock(session, &txn_global->rwlock);
         if (stable_timestamp < txn_global->oldest_timestamp) {
             __wt_readunlock(session, &txn_global->rwlock);
@@ -653,7 +653,7 @@ retry:
 
     __wt_writeunlock(session, &txn_global->rwlock);
 
-    if (use_timestamp && stable_timestamp != 0) {
+    if (stable_timestamp != 0) {
         __wt_verbose_timestamp(
           session, txn_global->checkpoint_timestamp, "Checkpoint requested at stable timestamp");
         __wt_txn_clear_read_timestamp(session);
