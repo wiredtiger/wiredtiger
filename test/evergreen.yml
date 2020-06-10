@@ -2138,6 +2138,7 @@ tasks:
               exit 1
             fi
 
+            
   - name: format-stress-sanitizer-lsm-test
     # Temporarily disabled (WT-6255)
     # tags: ["stress-test-1"]
