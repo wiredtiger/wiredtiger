@@ -184,6 +184,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session, bool publish)
      */
     if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE && !publish) {
         txn->snapshot[n++] = id;
+        txn_shared->metadata_pinned = id;
     }
 
     /* For pure read-only workloads, avoid scanning. */
