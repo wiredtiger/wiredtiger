@@ -303,7 +303,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * or timestamps since the offending update will be removed by an obsolete check further
          * down the line.
          */
-        if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED)
+        if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED &&
+            !F_ISSET(prev_upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) {
             if ((WT_TXNID_LT(prev_upd->txnid, upd->txnid) ||
                   (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < upd->start_ts)) &&
               !__wt_txn_upd_visible_all(session, prev_upd)) {
@@ -404,6 +405,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             cmp_ts = vpack->tw.stop_ts;
             cmp_txnid = vpack->tw.stop_txn;
 
+            /*
+             * If we had pinned updates last reconciliation, it's possible that the tombstone and
+             * update that form the onpage value may still be in the update list. If that's the
+             * case, we can't expect the last update (which corresponds to the start pair of the
+             * onpage value), to be later than the stop pair. We can easily check if that is the
+             * case by comparing the last update in the chain with the start pair.
+             */
             if (prev_upd->start_ts == vpack->tw.start_ts &&
               prev_upd->txnid == vpack->tw.start_txn) {
                 cmp_ts = WT_TS_NONE;
