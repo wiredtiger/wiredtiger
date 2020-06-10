@@ -726,7 +726,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
             if (first_non_ts_upd == NULL && upd->start_ts == WT_TS_NONE) {
                 first_non_ts_upd = upd;
-            } else if (first_non_ts_upd != NULL) {
+            } else if (first_non_ts_upd != NULL && upd->start_ts != WT_TS_NONE) {
                 F_SET(upd, WT_UPDATE_MASKED_BY_NON_TS_UPDATE);
                 if (F_ISSET(upd, WT_UPDATE_HS))
                     non_ts_updates_in_hs = true;
