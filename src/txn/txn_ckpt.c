@@ -554,6 +554,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * which applications can hold open across calls to checkpoint.
      */
     WT_STAT_CONN_SET(session, txn_checkpoint_prep_running, 1);
+    __wt_epoch(session, &conn->ckpt_prep_start);
 
     /*
      * It is possible for the stable timestamp to move between the start of our transaction and the
@@ -574,7 +575,6 @@ retry:
         }
     }
 
-    __wt_epoch(session, &conn->ckpt_prep_start);
     WT_RET(__wt_txn_begin(session, txn_cfg));
     if (use_timestamp && stable_timestamp != 0) {
         __wt_readlock(session, &txn_global->rwlock);
