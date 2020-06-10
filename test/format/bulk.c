@@ -161,10 +161,8 @@ wts_load(void)
         if ((ret = cursor->insert(cursor)) != 0) {
             testutil_assert(ret == WT_CACHE_FULL || ret == WT_ROLLBACK);
 
-            if (g.c_txn_timestamps) {
+            if (g.c_txn_timestamps)
                 bulk_rollback_transaction(session);
-                bulk_begin_transaction(session);
-            }
 
             /*
              * Decrease inserts since they won't be successful if we're hitting cache limits, and
@@ -178,6 +176,8 @@ wts_load(void)
             }
             g.c_delete_pct += g.c_write_pct / 2;
             g.c_write_pct = g.c_write_pct / 2;
+
+            break;
         }
     }
 
