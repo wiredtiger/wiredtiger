@@ -493,6 +493,10 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
     if (!clear_hs)
         goto done;
 
+    /* We can only insert tupdate without timestamp into the history store if we need to clear the
+     * history store record. */
+    WT_ASSERT(session, upd->start_ts == WT_TS_NONE);
+
     /*
      * If we need to clear the history store content, we need to delete all history records for that
      * key that are further in the history table than us (the key is lexicographically greater). For
@@ -815,9 +819,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 continue;
             }
 
-            /* Calculate reverse modify and clear the history store when inserting the first update.
-             */
-            WT_ASSERT(session, !clear_hs || upd->start_ts == WT_TS_NONE);
+            /* Calculate reverse modify and clear the history store records with timestamps when
+             * inserting the first update. */
             nentries = MAX_REVERSE_MODIFY_NUM;
             if (upd->type == WT_UPDATE_MODIFY && enable_reverse_modify &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
@@ -852,7 +855,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             /* We can only delete history store entries that have timestamps. */
             WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
-        }
+        } else
+            WT_ASSERT(
+              session, !clear_hs || (first_non_ts_upd->txnid == list->onpage_upd->txnid &&
+                                      first_non_ts_upd->start_ts == list->onpage_upd->start_ts));
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
