@@ -161,7 +161,7 @@ struct __wt_session_impl {
     u_int stat_bucket; /* Statistics bucket offset */
 
 #ifdef HAVE_DIAGNOSTIC
-    u_int8_t dump_raw; /* Configure debugging page dump */
+    uint8_t dump_raw; /* Configure debugging page dump */
 #endif
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
