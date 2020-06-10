@@ -89,8 +89,10 @@ __wt_key_string(
 {
     WT_ITEM tmp;
 
+#ifdef HAVE_DIAGNOSTIC
     if (session->dump_raw)
         return (__wt_buf_set_printable(session, data_arg, size, buf));
+#endif
 
     /*
      * If the format is 'S', it's a string and our version of it may not yet be nul-terminated.
