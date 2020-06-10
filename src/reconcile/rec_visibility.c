@@ -394,7 +394,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * made durable previously so we shouldn't worry about trying to pin it to the cache.
      */
     if (prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED &&
-      !F_ISSET(prev_upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS) &&
+      !F_ISSET(prev_upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS) &&
       vpack != NULL) {
         /*
          * If the on-disk value has a stop time point, then let's compare with the implicit
