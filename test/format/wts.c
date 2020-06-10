@@ -232,6 +232,8 @@ create_database(const char *home, WT_CONNECTION **connp)
         CONFIG_APPEND(p, ",aggressive_sweep");
     if (g.c_timing_stress_checkpoint)
         CONFIG_APPEND(p, ",checkpoint_slow");
+    if (g.c_timing_stress_hs_checkpoint_delay)
+        CONFIG_APPEND(p, ",history_store_checkpoint_delay");
     if (g.c_timing_stress_hs_sweep)
         CONFIG_APPEND(p, ",history_store_sweep_race");
     if (g.c_timing_stress_split_1)
@@ -439,8 +441,7 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
     const char *config;
 
     *connp = NULL;
-    if (sessionp != NULL)
-        *sessionp = NULL;
+    *sessionp = NULL;
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (g.c_in_memory != 0)
@@ -456,8 +457,7 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
         testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
     }
 
-    if (sessionp != NULL)
-        testutil_check(conn->open_session(conn, NULL, NULL, sessionp));
+    testutil_check(conn->open_session(conn, NULL, NULL, sessionp));
     *connp = conn;
 }
 
@@ -477,8 +477,7 @@ wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
      */
     if (conn == g.wts_conn_inmemory)
         g.wts_conn_inmemory = NULL;
-    if (sessionp != NULL)
-        *sessionp = NULL;
+    *sessionp = NULL;
 
     if (g.backward_compatible)
         testutil_check(conn->reconfigure(conn, "compatibility=(release=3.3)"));
@@ -498,7 +497,7 @@ wts_verify(WT_CONNECTION *conn, const char *tag)
     track("verify", 0ULL, NULL);
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    tracemsg("%s", "=============== verify start");
+    trace_msg("%s", "=============== verify start");
 
     /*
      * Verify can return EBUSY if the handle isn't available. Don't yield and retry, in the case of
@@ -507,7 +506,7 @@ wts_verify(WT_CONNECTION *conn, const char *tag)
     ret = session->verify(session, g.uri, "strict");
     testutil_assertfmt(ret == 0 || ret == EBUSY, "session.verify: %s: %s", g.uri, tag);
 
-    tracemsg("%s", "=============== verify stop");
+    trace_msg("%s", "=============== verify stop");
     testutil_check(session->close(session, NULL));
 }
 

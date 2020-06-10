@@ -74,6 +74,9 @@ static CONFIG c[] = {
   {"backup.incremental", "type of backup (block | log | off)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
     &g.c_backup_incremental},
 
+  {"backup.incr_granularity", "incremental backup block granularity in KB", 0x0, 4, 16384, 16384,
+    &g.c_backup_incr_granularity, NULL},
+
   {"btree.bitcnt", "number of bits for fixed-length column-store files", 0x0, 1, 8, 8, &g.c_bitcnt,
     NULL},
 
@@ -103,7 +106,12 @@ static CONFIG c[] = {
 
   {"btree.key_max", "maximum size of keys", 0x0, 20, 128, MEGABYTE(10), &g.c_key_max, NULL},
 
-  {"btree.key_min", "minimum size of keys", 0x0, 10, 32, 256, &g.c_key_min, NULL},
+  /*
+   * A minimum key size of 11 is necessary. Row-store keys have a leading 10-digit number and the
+   * 11 guarantees we never see a key that we can't convert to a numeric value without formatting
+   * it first because there's a trailing non-digit character in every key.
+   */
+  {"btree.key_min", "minimum size of keys", 0x0, 11, 32, 256, &g.c_key_min, NULL},
 
   {"btree.leaf_page_max", "maximum size of Btree leaf nodes", 0x0, 9, 17, 27, &g.c_leaf_page_max,
     NULL},
@@ -284,6 +292,9 @@ static CONFIG c[] = {
   {"runs.type", "type of store to create (fix | var | row)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
     &g.c_file_type},
 
+  {"runs.verify_failure_dump", "attempt page dump on repeatable read error", C_IGNORE | C_BOOL, 0,
+    0, 1, &g.c_verify_failure_dump, NULL},
+
   /* 20% */
   {"statistics", "maintain statistics", C_BOOL, 20, 0, 0, &g.c_statistics, NULL},
 
@@ -297,6 +308,10 @@ static CONFIG c[] = {
 
   /* 2% */
   {"stress.checkpoint", "stress checkpoints", C_BOOL, 2, 0, 0, &g.c_timing_stress_checkpoint, NULL},
+
+  /* 2% */
+  {"stress.hs_checkpoint_delay", "stress history store checkpoint delay", C_BOOL, 2, 0, 0,
+    &g.c_timing_stress_hs_checkpoint_delay, NULL},
 
   /* 2% */
   {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0, &g.c_timing_stress_hs_sweep,

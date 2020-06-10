@@ -260,22 +260,17 @@ snap_track(TINFO *tinfo, thread_op op)
 static void
 print_item_data(const char *tag, const uint8_t *data, size_t size)
 {
-    u_char ch;
+    WT_ITEM tmp;
 
-    fprintf(stderr, "%s {", tag);
-    if (g.type == FIX)
-        fprintf(stderr, "0x%02x", data[0]);
-    else
-        for (; size > 0; --size, ++data) {
-            ch = data[0];
-            if (ch == '\\')
-                fprintf(stderr, "\\\\");
-            else if (__wt_isprint(ch))
-                fprintf(stderr, "%c", (int)ch);
-            else
-                fprintf(stderr, "\\%x%x", (u_int)((ch & 0xf0) >> 4), (u_int)(ch & 0x0f));
-        }
-    fprintf(stderr, "}\n");
+    if (g.type == FIX) {
+        fprintf(stderr, "%s {0x%02x}\n", tag, data[0]);
+        return;
+    }
+
+    memset(&tmp, 0, sizeof(tmp));
+    testutil_check(__wt_raw_to_esc_hex(NULL, data, size, &tmp));
+    fprintf(stderr, "%s {%s}\n", tag, (char *)tmp.mem);
+    __wt_buf_free(NULL, &tmp);
 }
 
 /*
@@ -385,29 +380,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
         break;
     }
 
-#ifdef HAVE_DIAGNOSTIC
-    /*
-     * We have a mismatch. Try to print out as much information as we can. In doing so, we are
-     * calling into the debug code directly and that does not take locks, so it's possible we will
-     * simply drop core. The most important information is the key/value mismatch information. Then
-     * try to dump out the other information. Right now we dump the entire history store table
-     * including what is on disk. That can potentially be very large. If it becomes a problem, this
-     * can be modified to just dump out the page this key is on. Write a failure message into the
-     * log file first so format.sh knows we failed, and turn off core dumps.
-     */
-    fprintf(stderr, "\n%s: run FAILED\n", progname);
-    set_core_off();
-
-    fprintf(stderr, "snapshot-isolation error: Dumping page to %s\n", g.home_pagedump);
-    testutil_check(__wt_debug_cursor_page(cursor, g.home_pagedump));
-    fprintf(stderr, "snapshot-isolation error: Dumping HS to %s\n", g.home_hsdump);
-#if WIREDTIGER_VERSION_MAJOR >= 10
-    testutil_check(__wt_debug_cursor_tree_hs(cursor, g.home_hsdump));
-#endif
-    if (g.c_logging)
-        testutil_check(cursor->session->log_flush(cursor->session, "sync=off"));
-#endif
-
+    g.page_dump_cursor = cursor;
     testutil_assert(0);
 
     /* NOTREACHED */
@@ -660,8 +633,8 @@ snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
 
     ret = session->timestamp_transaction(session, buf);
     if (ret == 0) {
-        traceop(tinfo, "%-10s%" PRIu64 " ts=%" PRIu64 " {%.*s}", "repeat", snap->keyno, snap->ts,
-          (int)snap->vsize, (char *)snap->vdata);
+        trace_op(tinfo, "repeat %" PRIu64 " ts=%" PRIu64 " {%s}", snap->keyno, snap->ts,
+          trace_bytes(tinfo, snap->vdata, snap->vsize));
 
         /* The only expected error is rollback. */
         ret = snap_verify(cursor, tinfo, snap);

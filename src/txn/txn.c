@@ -765,8 +765,8 @@ __txn_fixup_prepared_update(
      * If the history update already has a stop time point and we are committing the prepared update
      * there is no work to do.
      */
+    WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
     if (commit) {
-        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         hs_upd->start_ts = txn->commit_timestamp;
         hs_upd->durable_ts = txn->durable_timestamp;
         hs_upd->txnid = txn->id;
@@ -784,9 +784,7 @@ __txn_fixup_prepared_update(
         hs_upd->next->durable_ts = fix_upd->durable_ts;
         hs_upd->next->start_ts = fix_upd->start_ts;
         hs_upd->next->txnid = fix_upd->txnid;
-    } else
-        /* Remove the restored update from history store. */
-        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
+    }
 
     WT_ERR(__wt_hs_modify(hs_cbt, hs_upd));
 
@@ -873,15 +871,15 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_DECL_RET;
     WT_TXN *txn;
     WT_UPDATE *fix_upd, *tombstone, *upd;
-    size_t size;
+    size_t not_used;
     uint32_t hs_btree_id, session_flags;
     bool is_owner, upd_appended;
 
-    fix_upd = NULL;
     hs_cursor = NULL;
     txn = session->txn;
+    fix_upd = tombstone = NULL;
     session_flags = 0;
-    upd_appended = is_owner = false;
+    is_owner = upd_appended = false;
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
@@ -933,15 +931,15 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
               true);
         if (ret == WT_NOTFOUND && !commit) {
             /*
-             * Allocate a tombstone so that when we reconcile the update chain we don't copy the
-             * prepared cell, which is now associated with a rolled back prepare, and instead write
-             * nothing.
+             * Allocate a tombstone and prepend it to the row so when we reconcile the update chain
+             * we don't copy the prepared cell, which is now associated with a rolled back prepare,
+             * and instead write nothing.
              */
-            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
-            /* Apply the tombstone to the row. */
+            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
             WT_WITH_BTREE(session, op->btree, ret = __wt_row_modify(cbt, &cbt->iface.key, NULL,
-                                                tombstone, WT_UPDATE_INVALID, true));
+                                                tombstone, WT_UPDATE_INVALID, false));
             WT_ERR(ret);
+            tombstone = NULL;
         } else
             ret = 0;
     }
@@ -1005,10 +1003,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd, commit));
 
 err:
-    if (hs_cursor != NULL)
-        ret = __wt_hs_cursor_close(session, session_flags, is_owner);
+    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
     if (!upd_appended)
         __wt_free(session, fix_upd);
+    __wt_free(session, tombstone);
     return (ret);
 }
 
