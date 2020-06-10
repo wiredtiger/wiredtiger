@@ -857,6 +857,27 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
         if (modifies.size > 0)
             WT_STAT_CONN_INCR(session, cache_hs_write_squash);
+
+        /*
+         * We need to clear the history store if we haven't inserted anything into the history store
+         * and there are updates without timestamps in the middle of the update chain.
+         *
+         * e.g., U@10 -> T@0 -> U@5.
+         *
+         * But we don't need to clear the history store if we write an update without timestamp to
+         * the data store because we don't insert any update with timestamp to the history store and
+         * we will clear the history store again once that update is moved to the history store.
+         *
+         * e.g., U@0 -> U@10 -> U@5 and U@1 in the history store. U@10 and U@5 are not inserted to
+         * the history store and U@1 is not removed from the history store. U@1 will be removed once
+         * U@0 is moved to the history store.
+         */
+        if (clear_hs && (first_non_ts_upd->txnid != list->onpage_upd->txnid ||
+                          first_non_ts_upd->start_ts != list->onpage_upd->start_ts)) {
+            /* We can only delete history store entries that have timestamps. */
+            WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
+            WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+        }
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
