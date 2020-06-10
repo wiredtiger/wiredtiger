@@ -641,6 +641,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
 
     /* Assert that our snapshot min didn't somehow move backwards. */
     WT_ASSERT(session, session->txn->snap_min >= original_snap_min);
+    /* Flag as unused for non diagnostic builds. */
+    WT_UNUSED(original_snap_min);
 
     if (use_timestamp)
         __wt_verbose_timestamp(

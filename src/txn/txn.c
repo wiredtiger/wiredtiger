@@ -179,14 +179,11 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session, bool publish)
      * changes the checkpoint has written to the metadata. We don't have to keep the checkpoint's
      * changes pinned so don't go including it in the published pinned ID.
      *
-     * Checkpoint calls this function twice in which case don't include the checkpoint id if that is
-     * our id.
+     * We can assume that if a function calls without intention to publish then it is the special
+     * case of checkpoint calling it twice. In which case do not include the checkpoint id.
      */
-    if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE &&
-      txn_shared->id != txn_global->checkpoint_txn_shared.id) {
+    if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE && !publish) {
         txn->snapshot[n++] = id;
-        if (publish)
-            txn_shared->metadata_pinned = id;
     }
 
     /* For pure read-only workloads, avoid scanning. */
