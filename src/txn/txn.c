@@ -269,7 +269,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 void
 __wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
 {
-    __txn_get_snapshot_int(session, true);
+    __txn_get_snapshot_int(session, false);
 }
 
 /*
