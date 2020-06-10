@@ -538,6 +538,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     bool use_timestamp;
 
     conn = S2C(session);
+    stable_timestamp = 0;
     txn = session->txn;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
