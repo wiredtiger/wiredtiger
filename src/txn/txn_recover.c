@@ -737,9 +737,9 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
           "Creating the history store before applying log records. Likely recovering after an"
           "unclean shutdown on an earlier version");
         /*
-         * TODO: Get configuration options in here. Re-create the table.
+         * Create the history store as we might need it while applying log records in recovery.
          */
-        WT_ERR(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
+        WT_ERR(__wt_hs_create(session, cfg));
     }
 
     /*
