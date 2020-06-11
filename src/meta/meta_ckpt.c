@@ -600,52 +600,66 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 
     ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
-    if (ret != WT_NOTFOUND && a.len != 0)
+    if (ret != WT_NOTFOUND && a.len != 0) {
+        F_SET(ckpt, WT_CKPT_TIME_AGGREGATE);
         ckpt->ta.oldest_start_ts = (uint64_t)a.val;
+    }
 
     ret = __wt_config_subgets(session, v, "oldest_start_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
-    if (ret != WT_NOTFOUND && a.len != 0)
+    if (ret != WT_NOTFOUND && a.len != 0) {
+        F_SET(ckpt, WT_CKPT_TIME_AGGREGATE);
         ckpt->ta.oldest_start_txn = (uint64_t)a.val;
+    }
 
     ret = __wt_config_subgets(session, v, "newest_start_durable_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
-    if (ret != WT_NOTFOUND && a.len != 0)
+    if (ret != WT_NOTFOUND && a.len != 0) {
+        F_SET(ckpt, WT_CKPT_TIME_AGGREGATE);
         ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
-    else {
+    } else {
         /*
          * Backward compatibility changes, as the parameter name is different in older versions of
          * WT, make sure that we read older format in case if we didn't find the newer format name.
          */
         ret = __wt_config_subgets(session, v, "start_durable_ts", &a);
         WT_RET_NOTFOUND_OK(ret);
-        if (ret != WT_NOTFOUND && a.len != 0)
+        if (ret != WT_NOTFOUND && a.len != 0) {
+            F_SET(ckpt, WT_CKPT_TIME_AGGREGATE);
             ckpt->ta.newest_start_durable_ts = (uint64_t)a.val;
+        }
     }
 
     ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
-    if (ret != WT_NOTFOUND && a.len != 0)
+    if (ret != WT_NOTFOUND && a.len != 0) {
+        F_SET(ckpt, WT_CKPT_TIME_AGGREGATE);
         ckpt->ta.newest_stop_ts = (uint64_t)a.val;
+    }
 
     ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
-    if (ret != WT_NOTFOUND && a.len != 0)
+    if (ret != WT_NOTFOUND && a.len != 0) {
+        F_SET(ckpt, WT_CKPT_TIME_AGGREGATE);
         ckpt->ta.newest_stop_txn = (uint64_t)a.val;
+    }
 
     ret = __wt_config_subgets(session, v, "newest_stop_durable_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
-    if (ret != WT_NOTFOUND && a.len != 0)
+    if (ret != WT_NOTFOUND && a.len != 0) {
+        F_SET(ckpt, WT_CKPT_TIME_AGGREGATE);
         ckpt->ta.newest_stop_durable_ts = (uint64_t)a.val;
-    else {
+    } else {
         /*
          * Backward compatibility changes, as the parameter name is different in older versions of
          * WT, make sure that we read older format in case if we didn't find the newer format name.
          */
         ret = __wt_config_subgets(session, v, "stop_durable_ts", &a);
         WT_RET_NOTFOUND_OK(ret);
-        if (ret != WT_NOTFOUND && a.len != 0)
+        if (ret != WT_NOTFOUND && a.len != 0) {
+            F_SET(ckpt, WT_CKPT_TIME_AGGREGATE);
             ckpt->ta.newest_stop_durable_ts = (uint64_t)a.val;
+        }
     }
 
     ret = __wt_config_subgets(session, v, "prepare", &a);

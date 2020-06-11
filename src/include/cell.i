@@ -766,6 +766,7 @@ copy_cell_restart:
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
         flags = *p++; /* skip second descriptor byte */
+        F_SET(unpack_addr, WT_CELL_UNPACK_TIME_WINDOW_SET);
 
         if (LF_ISSET(WT_CELL_PREPARE))
             ta->prepare = 1;
@@ -810,6 +811,7 @@ copy_cell_restart:
         if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
             break;
         flags = *p++; /* skip second descriptor byte */
+        F_SET(unpack_value, WT_CELL_UNPACK_TIME_WINDOW_SET);
 
         if (LF_ISSET(WT_CELL_PREPARE))
             tw->prepare = 1;

@@ -38,13 +38,13 @@ typedef struct {
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
 static int __verify_page_content_int(
-  WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+  WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, bool, bool *, WT_VSTUFF *);
 static int __verify_page_content_leaf(
-  WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+  WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, bool, bool *, WT_VSTUFF *);
 static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
-static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, bool, WT_VSTUFF *);
 
 /*
  * __verify_config --
@@ -168,7 +168,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     size_t root_addr_size;
     uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
     const char *name;
-    bool bm_start, quit;
+    bool bm_start, parent_ta, quit;
 
 #if 0
     /* FIXME-WT-6263: Temporarily disable history store verification. */
@@ -268,10 +268,12 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             }
             if (ckpt->ta.prepare)
                 parent.ta.prepare = 1;
+            parent_ta = F_ISSET(ckpt, WT_CKPT_TIME_AGGREGATE);
             parent.raw = WT_CELL_ADDR_INT;
 
             /* Verify the tree. */
-            WT_WITH_PAGE_INDEX(session, ret = __verify_tree(session, &btree->root, &parent, vs));
+            WT_WITH_PAGE_INDEX(
+              session, ret = __verify_tree(session, &btree->root, &parent, parent_ta, vs));
 
 #if 0
             /*
@@ -411,7 +413,8 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *unp
  *     Our job is to check logical relationships in the page and in the tree.
  */
 static int
-__verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent, WT_VSTUFF *vs)
+__verify_tree(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent, bool parent_ta, WT_VSTUFF *vs)
 {
     WT_BM *bm;
     WT_CELL_UNPACK_ADDR *unpack, _unpack;
@@ -419,6 +422,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent
     WT_PAGE *page;
     WT_REF *child_ref;
     uint32_t entry;
+    bool child_ta;
 
     bm = S2BT(session)->bm;
     unpack = &_unpack;
@@ -496,11 +500,11 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
-        WT_RET(__verify_page_content_int(session, ref, parent, vs));
+        WT_RET(__verify_page_content_int(session, ref, parent, parent_ta, &child_ta, vs));
         break;
     case WT_PAGE_COL_VAR:
     case WT_PAGE_ROW_LEAF:
-        WT_RET(__verify_page_content_leaf(session, ref, parent, vs));
+        WT_RET(__verify_page_content_leaf(session, ref, parent, parent_ta, &child_ta, vs));
         break;
     }
 
@@ -557,7 +561,7 @@ celltype_err:
             /* Verify the subtree. */
             ++vs->depth;
             WT_RET(__wt_page_in(session, child_ref, 0));
-            ret = __verify_tree(session, child_ref, unpack, vs);
+            ret = __verify_tree(session, child_ref, unpack, child_ta, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
             --vs->depth;
             WT_RET(ret);
@@ -587,7 +591,7 @@ celltype_err:
             /* Verify the subtree. */
             ++vs->depth;
             WT_RET(__wt_page_in(session, child_ref, 0));
-            ret = __verify_tree(session, child_ref, unpack, vs);
+            ret = __verify_tree(session, child_ref, unpack, child_ta, vs);
             WT_TRET(__wt_page_release(session, child_ref, 0));
             --vs->depth;
             WT_RET(ret);
@@ -850,8 +854,8 @@ __verify_key_hs(
  *     Verify an internal page's content.
  */
 static int
-__verify_page_content_int(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent, WT_VSTUFF *vs)
+__verify_page_content_int(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent,
+  bool parent_ta, bool *child_tap, WT_VSTUFF *vs)
 {
     WT_CELL_UNPACK_ADDR unpack;
     WT_DECL_RET;
@@ -859,6 +863,8 @@ __verify_page_content_int(
     const WT_PAGE_HEADER *dsk;
     WT_TIME_AGGREGATE *ta;
     uint32_t cell_num;
+
+    *child_tap = false;
 
     page = ref->page;
     ta = &unpack.ta;
@@ -881,6 +887,9 @@ __verify_page_content_int(
               cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
               __wt_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
 
+        if (F_ISSET(&unpack, WT_CELL_UNPACK_TIME_WINDOW_SET))
+            *child_tap = true;
+
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
             if ((ret = __verify_overflow(session, unpack.data, unpack.size, vs)) != 0)
@@ -897,7 +906,13 @@ __verify_page_content_int(
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
-            if ((ret = __wt_time_aggregate_validate(session, ta, &parent->ta, false)) != 0)
+            /*
+             * Database that are downgraded and then upgraded may have internal pages with incorrect
+             * aggregated time window information. Assume that case if we don't see any time window
+             * information anywhere on a page.
+             */
+            if ((ret = __wt_time_aggregate_validate(
+                   session, ta, parent_ta ? &parent->ta : NULL, false)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32 " on page at %s failed timestamp validation", cell_num - 1,
                   __verify_addr_string(session, ref, vs->tmp1));
@@ -918,8 +933,8 @@ __verify_page_content_int(
  *     Verify the page's content.
  */
 static int
-__verify_page_content_leaf(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent, WT_VSTUFF *vs)
+__verify_page_content_leaf(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent,
+  bool parent_ta, bool *child_tap, WT_VSTUFF *vs)
 {
     WT_CELL_UNPACK_KV unpack;
     WT_DECL_RET;
@@ -931,6 +946,8 @@ __verify_page_content_leaf(
     uint32_t cell_num;
     uint8_t *p;
     bool found_ovfl;
+
+    *child_tap = false;
 
     page = ref->page;
     rip = page->pg_row;
@@ -956,6 +973,9 @@ __verify_page_content_leaf(
               cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
               __wt_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
 
+        if (F_ISSET(&unpack, WT_CELL_UNPACK_TIME_WINDOW_SET))
+            *child_tap = true;
+
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
         case WT_CELL_VALUE_OVFL:
@@ -975,7 +995,13 @@ __verify_page_content_leaf(
         case WT_CELL_VALUE_COPY:
         case WT_CELL_VALUE_OVFL:
         case WT_CELL_VALUE_SHORT:
-            if ((ret = __wt_time_value_validate(session, tw, &parent->ta, false)) != 0)
+            /*
+             * Database that are downgraded and then upgraded may have internal pages with incorrect
+             * aggregated time window information. Assume that case if we don't see any time window
+             * information anywhere on a page.
+             */
+            if ((ret = __wt_time_value_validate(
+                   session, tw, parent_ta ? &parent->ta : NULL, false)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32 " on page at %s failed timestamp validation", cell_num - 1,
                   __verify_addr_string(session, ref, vs->tmp1));
