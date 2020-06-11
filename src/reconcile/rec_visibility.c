@@ -329,8 +329,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                  * that are not yet stable. It's not ok if our checkpoint is skipping over stable
                  * updates without making them durable.
                  */
-                WT_ASSERT(session, !S2C(session)->txn_global.has_stable_timestamp ||
-                    S2C(session)->txn_global.stable_timestamp < prev_upd->start_ts);
+                if (S2C(session)->txn_global.has_stable_timestamp &&
+                  S2C(session)->txn_global.stable_timestamp >= prev_upd->start_ts)
+                    WT_RET_PANIC(session, WT_PANIC,
+                      "Attempted to pin a stable out-of-order update to the cache; "
+                      "start_ts=%" PRIu64 ", stable_ts=%" PRIu64,
+                      prev_upd->start_ts, S2C(session)->txn_global.stable_timestamp);
             }
 
         /*
@@ -430,8 +434,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * because it is out-of-order, then it cannot be stable. If our checkpoint is skipping
              * writing stable updates to the disk then we need to know about it.
              */
-            WT_ASSERT(session, !S2C(session)->txn_global.has_stable_timestamp ||
-                S2C(session)->txn_global.stable_timestamp < prev_upd->start_ts);
+            if (S2C(session)->txn_global.has_stable_timestamp &&
+              S2C(session)->txn_global.stable_timestamp >= prev_upd->start_ts)
+                WT_RET_PANIC(session, WT_PANIC,
+                  "Attempted to pin a stable out-of-order update to the cache; start_ts=%" PRIu64
+                  ", stable_ts=%" PRIu64,
+                  prev_upd->start_ts, S2C(session)->txn_global.stable_timestamp);
         }
     }
 
