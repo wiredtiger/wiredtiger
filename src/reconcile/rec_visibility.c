@@ -317,8 +317,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * list.
          */
         if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL)
-            if ((WT_TXNID_LT(prev_upd->txnid, upd->txnid) ||
-                  (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < upd->start_ts)) &&
+            if (prev_upd->start_ts != WT_TS_NONE &&
+              (WT_TXNID_LT(prev_upd->txnid, upd->txnid) || prev_upd->start_ts < upd->start_ts) &&
               !(__wt_txn_upd_visible_all(session, upd) &&
                   __wt_txn_upd_visible_all(session, prev_upd))) {
                 upd_select->upd = NULL;
@@ -434,8 +434,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             cmp_ts = vpack->tw.start_ts;
             cmp_txnid = vpack->tw.start_txn;
         }
-        if ((WT_TXNID_LT(prev_upd->txnid, cmp_txnid) ||
-              (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < cmp_ts)) &&
+        if (prev_upd->start_ts != WT_TS_NONE &&
+          (WT_TXNID_LT(prev_upd->txnid, cmp_txnid) || prev_upd->start_ts < cmp_ts) &&
           !__wt_txn_upd_visible_all(session, prev_upd)) {
             upd_select->upd = NULL;
             has_pinned_updates = true;
