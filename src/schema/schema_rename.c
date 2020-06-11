@@ -9,13 +9,44 @@
 #include "wt_internal.h"
 
 /*
+ * __rename_blkmods --
+ *     Reset the incremental backup information for a rename.
+ */
+static int
+__rename_blkmods(WT_SESSION_IMPL *session, const char *oldvalue, wt_off_t size, WT_ITEM *buf)
+{
+    WT_BLOCK_MODS *blk;
+    WT_CKPT ckpt;
+    uint32_t i;
+
+    WT_CLEAR(ckpt);
+    /*
+     * Replace the old file entries with new file entries. We need to recreate the incremental
+     * backup information to indicate copying the entire file in its bitmap.
+     */
+    /* First load any existing backup information into a temp checkpoint structure. */
+    WT_RET(__wt_ckpt_load_blk_mods(session, oldvalue, &ckpt));
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blk = &ckpt.backup_blocks[i];
+        if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
+            continue;
+        /* Set the bitstring to the entire size. */
+        WT_RET(__wt_ckpt_add_blkmod_entry(session, blk, 0, size));
+    }
+    /* Take the checkpoint structure and generate the metadata string. */
+    return (__wt_ckpt_blkmod_to_meta(session, buf, &ckpt));
+}
+
+/*
  * __rename_file --
  *     WT_SESSION::rename for a file.
  */
 static int
 __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
 {
+    WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    wt_off_t size;
     char *newvalue, *oldvalue;
     const char *filecfg[3] = {NULL, NULL, NULL};
     const char *filename, *newfile;
@@ -34,6 +65,7 @@ __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, false));
     WT_ERR(ret);
+    WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
     /*
      * First, check if the file being renamed exists in the system. Doing this check first matches
@@ -60,14 +92,15 @@ __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
     if (exist)
         WT_ERR_MSG(session, EEXIST, "%s", newfile);
 
-    /*
-     * Replace the old file entries with new file entries. We need to remove any backup information
-     * from the old value before writing the new one out.
-     */
+    /* Grab the file size before removing the entry. */
+    WT_ERR(__wt_fs_size(session, filename, &size));
     WT_ERR(__wt_metadata_remove(session, uri));
+    WT_ERR(__rename_blkmods(session, oldvalue, size, buf));
     filecfg[0] = oldvalue;
-    filecfg[1] = "checkpoint_backup_info=";
+    filecfg[1] = buf->mem;
     WT_ERR(__wt_config_collapse(session, filecfg, &newvalue));
+    __wt_errx(session, "RENAME: OLD: %s", oldvalue);
+    __wt_errx(session, "RENAME: NEW: %s", newvalue);
     WT_ERR(__wt_metadata_insert(session, newuri, newvalue));
 
     /* Rename the underlying file. */
@@ -76,6 +109,7 @@ __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
         WT_ERR(__wt_meta_track_fileop(session, uri, newuri));
 
 err:
+    __wt_scr_free(session, &buf);
     __wt_free(session, newvalue);
     __wt_free(session, oldvalue);
     return (ret);

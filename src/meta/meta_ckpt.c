@@ -11,17 +11,16 @@
 static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
 static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
-static int __ckpt_load_blk_mods(WT_SESSION_IMPL *, const char *, WT_CKPT *);
 static int __ckpt_named(WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
 static int __ckpt_set(WT_SESSION_IMPL *, const char *, const char *, bool);
 static int __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
 
 /*
- * __ckpt_load_blk_mods --
+ * __wt_ckpt_load_blk_mods --
  *     Load the block information from the config string.
  */
-static int
-__ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
+int
+__wt_ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
 {
     WT_BLKINCR *blkincr;
     WT_BLOCK_MODS *blk_mod;
@@ -527,7 +526,7 @@ __wt_meta_ckptlist_get(
         /*
          * Load most recent checkpoint backup blocks to this checkpoint.
          */
-        WT_ERR(__ckpt_load_blk_mods(session, config, ckpt));
+        WT_ERR(__wt_ckpt_load_blk_mods(session, config, ckpt));
 
         WT_ERR(__wt_meta_block_metadata(session, config, ckpt));
 
@@ -765,11 +764,11 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
 }
 
 /*
- * __ckpt_blkmod_to_meta --
+ * __wt_ckpt_blkmod_to_meta --
  *     Add in any modification block string needed, including an empty one.
  */
-static int
-__ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
+int
+__wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
 {
     WT_BLOCK_MODS *blk;
     WT_ITEM bitstring;
@@ -829,7 +828,7 @@ __wt_meta_ckptlist_set(
     /* Add backup block modifications for any added checkpoint. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_ADD))
-            WT_ERR(__ckpt_blkmod_to_meta(session, buf, ckpt));
+            WT_ERR(__wt_ckpt_blkmod_to_meta(session, buf, ckpt));
 
     has_lsn = ckptlsn != NULL;
     if (ckptlsn != NULL)
