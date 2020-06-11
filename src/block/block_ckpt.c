@@ -309,44 +309,6 @@ __ckpt_extlist_fblocks(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el
     return (__wt_block_insert_ext(session, block, &block->live.ckpt_avail, el->offset, el->size));
 }
 
-#ifdef HAVE_DIAGNOSTIC
-/*
- * __ckpt_verify --
- *     Diagnostic code, confirm we get what we expect in the checkpoint array.
- */
-static int
-__ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
-{
-    WT_CKPT *ckpt;
-
-    /*
-     * Fast check that we're seeing what we expect to see: some number of checkpoints to add, delete
-     * or ignore, terminated by a new checkpoint.
-     */
-    WT_CKPT_FOREACH (ckptbase, ckpt) {
-        if (F_ISSET(ckpt, WT_CKPT_TIME_AGGREGATE)) {
-            /* Maybe do something with the aggregate here? */
-            F_CLR(ckpt, WT_CKPT_TIME_AGGREGATE);
-        }
-        switch (ckpt->flags) {
-        case 0:
-        case WT_CKPT_DELETE:
-        case WT_CKPT_DELETE | WT_CKPT_FAKE:
-        case WT_CKPT_FAKE:
-            break;
-        case WT_CKPT_ADD | WT_CKPT_BLOCK_MODS:
-        case WT_CKPT_ADD:
-            if (ckpt[1].name == NULL)
-                break;
-        /* FALLTHROUGH */
-        default:
-            return (__wt_illegal_value(session, ckpt->flags));
-        }
-    }
-    return (0);
-}
-#endif
-
 /*
  * __ckpt_add_blkmod_entry --
  *     Add an offset/length entry to the bitstring based on granularity.
@@ -478,10 +440,6 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 
     ci = &block->live;
     fatal = locked = false;
-
-#ifdef HAVE_DIAGNOSTIC
-    WT_RET(__ckpt_verify(session, ckptbase));
-#endif
 
     /*
      * Checkpoints are a two-step process: first, write a new checkpoint to disk (including all the
