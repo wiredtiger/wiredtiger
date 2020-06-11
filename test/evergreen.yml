@@ -1167,6 +1167,21 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt4891_meta_ckptlist_get_alloc 2>&1
 
+  - name: csuite-wt6185-modify-ts-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt6185_modify_ts 2>&1
+
   - name: csuite-rwlock-test
     tags: ["pull_request"]
     depends_on:
@@ -2075,6 +2090,17 @@ tasks:
             set -o verbose
 
             ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
+
+  - name: format-stress-pull-request-test
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "format test script"
+        vars:
+          smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+          # run for 10 minutes.
+          format_test_script_args: -t 10 rows=10000 ops=50000
 
   - name: format-wtperf-test
     commands:
