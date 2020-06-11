@@ -1110,9 +1110,6 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
     WT_RET(__wt_metadata_cursor(session, &cursor));
 
-    fprintf(stderr, "\nRollback_to_stable called\n");
-    if (true)
-        goto err;
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &uri));
 
@@ -1123,7 +1120,6 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         if (!WT_PREFIX_MATCH(uri, "file:"))
             continue;
 
-        fprintf(stderr, "\nRollback_to_stable called on: %s\n", uri);
         WT_ERR(cursor->get_value(cursor, &config));
 
         /* Find out the max durable timestamp of the object from checkpoint. */
