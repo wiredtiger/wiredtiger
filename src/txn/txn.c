@@ -183,7 +183,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
      * case of checkpoint calling it twice. In which case do not include the checkpoint id.
      */
     if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE) {
-        if (txn->id != txn_global->checkpoint_txn_shared.id)
+        if (txn->id != id)
             txn->snapshot[n++] = id;
         if (publish)
             txn_shared->metadata_pinned = id;
