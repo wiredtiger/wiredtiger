@@ -195,15 +195,15 @@ tinfo_teardown(void)
  * Redirect the "cd" command to /dev/null so chatty cd implementations don't add the new working
  * directory to our output.
  */
-#define ROLLBACK_STABLE_COPY_CMD                        \
-    "cd %s > /dev/null && "                             \
-    "rm -rf ROLLBACK.copy && mkdir ROLLBACK.copy && "   \
+#define ROLLBACK_STABLE_COPY_CMD                      \
+    "cd %s > /dev/null && "                           \
+    "rm -rf ROLLBACK.copy && mkdir ROLLBACK.copy && " \
     "cp WiredTiger* wt* ROLLBACK.copy/"
 
 /*
  * tinfo_rollback_to_stable_and_check --
- *     Do a rollback to stable, then check that changes are correct from what we know in the
- * worker thread structures.
+ *     Do a rollback to stable, then check that changes are correct from what we know in the worker
+ *     thread structures.
  */
 static void
 tinfo_rollback_to_stable_and_check(WT_SESSION *session)

@@ -111,7 +111,8 @@ typedef struct {
 
     WT_RAND_STATE rnd; /* Global RNG state */
 
-    uint32_t rts_no_check;     /* track unsuccessful RTS checking */
+    uint32_t rts_no_check; /* track unsuccessful RTS checking */
+
     /*
      * Prepare will return an error if the prepare timestamp is less than any active read timestamp.
      * Lock across allocating prepare and read timestamps.

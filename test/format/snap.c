@@ -592,37 +592,17 @@ snap_repeat_update(TINFO *tinfo, bool committed)
 }
 
 /*
- * snap_repeat_single --
- *     Repeat an historic operation.
+ * snap_repeat --
+ *     Repeat one operation.
  */
 void
-snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
+snap_repeat(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap, bool rollback_allowed)
 {
-    SNAP_OPS *snap;
     WT_DECL_RET;
     WT_SESSION *session;
-    int count;
-    u_int v;
     char buf[64];
 
     session = cursor->session;
-
-    /*
-     * Start at a random spot in the list of operations and look for a read to retry. Stop when
-     * we've walked the entire list or found one.
-     */
-    v = mmrand(&tinfo->rnd, 1, SNAP_LIST_SIZE) - 1;
-    for (snap = &tinfo->snap_list[v], count = SNAP_LIST_SIZE; count > 0; --count, ++snap) {
-        /* Wrap at the end of the circular buffer. */
-        if (snap >= tinfo->snap_end)
-            snap = tinfo->snap_list;
-
-        if (snap->repeatable)
-            break;
-    }
-
-    if (count == 0)
-        return;
 
     /*
      * Start a new transaction. Set the read timestamp. Verify the record. Discard the transaction.
@@ -644,7 +624,7 @@ snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
         /* The only expected error is rollback. */
         ret = snap_verify(cursor, tinfo, snap);
 
-        if (ret != 0 && ret != WT_ROLLBACK)
+        if (ret != 0 && (!rollback_allowed || ret != WT_ROLLBACK))
             testutil_check(ret);
     } else if (ret == EINVAL)
         snap_ts_clear(tinfo, snap->ts);
@@ -656,32 +636,34 @@ snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
 }
 
 /*
- * compare_snap_ts --
- *     Compare for qsort.
+ * snap_repeat_single --
+ *     Repeat a random historic operation.
  */
-static int
-compare_snap_ts(const void *a, const void *b)
+void
+snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
 {
-    SNAP_OPS *snap_a, *snap_b;
-
-    snap_a = *(SNAP_OPS **)a;
-    snap_b = *(SNAP_OPS **)b;
+    SNAP_OPS *snap;
+    u_int v;
+    int count;
 
     /*
-     * Compare so that the highest timestamp sorts first. If timestamps are equal, the operations
-     * are from the same transaction, and since it's possible that both operations modified the same
-     * record, choose the latest.
+     * Start at a random spot in the list of operations and look for a read to retry. Stop when
+     * we've walked the entire list or found one.
      */
-    if (snap_a->ts > snap_b->ts)
-        return (-1);
-    else if (snap_a->ts < snap_b->ts)
-        return (1);
-    else if (snap_a->op_order > snap_b->op_order)
-        return (-1);
-    else if (snap_a->op_order < snap_b->op_order)
-        return (1);
-    else
-        return (0);
+    v = mmrand(&tinfo->rnd, 1, SNAP_LIST_SIZE) - 1;
+    for (snap = &tinfo->snap_list[v], count = SNAP_LIST_SIZE; count > 0; --count, ++snap) {
+        /* Wrap at the end of the circular buffer. */
+        if (snap >= tinfo->snap_end)
+            snap = tinfo->snap_list;
+
+        if (snap->repeatable)
+            break;
+    }
+
+    if (count == 0)
+        return;
+
+    snap_repeat(cursor, tinfo, snap, true);
 }
 
 /*
@@ -691,38 +673,16 @@ compare_snap_ts(const void *a, const void *b)
 void
 snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
 {
+    SNAP_OPS *snap;
     SNAP_STATE *state;
-    SNAP_OPS **psnap, *snap, **sorted_end, **sorted_snaps;
-    TINFO *first_tinfo, *tinfo, **tinfop;
-    WT_CURSOR *seen_cursor;
-    WT_DECL_RET;
-    WT_ITEM null_value, value;
-    WT_SESSION *session;
-    u_int64_t keyno, last_keyno, newest_oldest_ts, oldest_ts;
+    TINFO *tinfo, **tinfop;
     u_int count;
     size_t i, statenum;
     char buf[100];
 
     count = 0;
-    session = cursor->session;
-    first_tinfo = *tinfo_array;
 
     track("rollback_to_stable: checking", 0ULL, NULL);
-    /*
-     * Since rolling back to stable effects all changes made, we need to look at changes made by all
-     * threads collectively. We'll work backwards from the most recent operations since rollback to
-     * stable, repeating each one. To do this, we first collect all snap operations from all threads
-     * that may be relevant.
-     *
-     * We need to limit how far back we can examine. For example, if we see a modification for key X
-     * in thread T, there may in fact have been a more recent modification for key X in thread U,
-     * but we can't see it because the snap list for U has wrapped past the modification for key X.
-     * We need to look at the oldest timestamp recorded in the snaps for each thread, and use the
-     * maximum of all of these for our limit. That's the newest, oldest timestamp.
-     */
-    newest_oldest_ts = 0ULL;
-    sorted_end = sorted_snaps = dcalloc(SNAP_LIST_SIZE * tinfo_count, sizeof(SNAP_OPS *));
-
     for (i = 0, tinfop = tinfo_array; i < tinfo_count; ++i, ++tinfop) {
         tinfo = *tinfop;
         /*
@@ -737,127 +697,32 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
             state = &tinfo->snap_states[1];
         else
             state = &tinfo->snap_states[0];
-        oldest_ts = UINT64_MAX;
         for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap) {
-            /*
-             * Only keep entries that aren't cleared out and may have relevant timestamps. We don't
-             * fully know which timestamps are relevant, since we haven't computed the newest oldest
-             * yet. We do keep entries that are not marked repeatable, we won't retry unrepeatable
-             * reads, but we need them to invalidate keys that we shouldn't check.
-             */
+            /* Only repeat entries that aren't cleared out and have relevant timestamps. */
             if (snap->op != 0 && snap->ts != 0 && snap->ts <= g.stable_timestamp) {
-                oldest_ts = WT_MIN(oldest_ts, snap->ts);
-                *sorted_end++ = snap;
-            }
-        }
-
-        /*
-         * If there aren't any entries older than the stable timestamp, we've wrapped around. This
-         * thread may have made changes to any key right up to the stable time that have now been
-         * overwritten. There's no way to get an accurate accounting, so we skip checking for this
-         * run.
-         */
-        if (oldest_ts == UINT64_MAX)
-            goto cleanup;
-        newest_oldest_ts = WT_MAX(newest_oldest_ts, oldest_ts);
-    }
-
-    __wt_qsort(
-      sorted_snaps, (size_t)(sorted_end - sorted_snaps), sizeof(SNAP_OPS *), compare_snap_ts);
-
-    /*
-     * Start a new transaction. Verify all repeatable records. Discard the transaction.
-     */
-    while ((ret = session->begin_transaction(session, "isolation=snapshot")) == WT_CACHE_FULL)
-        __wt_yield();
-    testutil_check(ret);
-
-    if (g.c_assert_read_timestamp) {
-        testutil_check(
-          __wt_snprintf(buf, sizeof(buf), "read_timestamp=%" PRIx64, g.stable_timestamp));
-        testutil_check(session->timestamp_transaction(session, buf));
-    }
-
-    testutil_check(session->create(session, "table:wt_snap_keys", "key_format=u,value_format=u"));
-    testutil_check(session->truncate(session, "table:wt_snap_keys", NULL, NULL, NULL));
-    testutil_check(session->open_cursor(session, "table:wt_snap_keys", NULL, NULL, &seen_cursor));
-
-    /*
-     * Now apply them, taking note of what keys have been seen. If we've seen a key previously,
-     * we've already checked it, against a more recent value.
-     */
-    null_value.data = NULL;
-    null_value.size = 0;
-    for (psnap = sorted_snaps; psnap < sorted_end; ++psnap) {
-        snap = *psnap;
-        if (snap->ts < newest_oldest_ts)
-            continue;
-        last_keyno = (snap->op == TRUNCATE) ? snap->last : snap->keyno;
-        for (keyno = snap->keyno; keyno <= last_keyno; ++keyno) {
-            key_gen(first_tinfo->key, keyno);
-            seen_cursor->set_key(seen_cursor, first_tinfo->key);
-            if ((ret = seen_cursor->search(seen_cursor)) == 0)
-                continue;
-            if (ret != WT_NOTFOUND)
-                testutil_check(ret);
-            seen_cursor->set_value(seen_cursor, &null_value);
-            testutil_check(seen_cursor->insert(seen_cursor));
-
-            if (snap->op == TRUNCATE) {
-                cursor->set_key(cursor, first_tinfo->key);
-                if ((ret = read_op(cursor, SEARCH, NULL)) != WT_NOTFOUND) {
-                    testutil_check(ret);
-
-                    /* A truncated record was unexpectedly found. */
-                    seen_cursor->get_value(seen_cursor, &value);
-                    if (g.type == FIX) {
-                        /* A zero value is equivalent to not found for fixed length stores. */
-                        if (value.size == 1 && *(uint8_t *)value.data == 0)
-                            continue;
-                        fprintf(stderr, "snapshot-isolation: %" PRIu64
-                                        " search: expected {0x00}, found {0x%02x}\n",
-                          keyno, *(uint8_t *)value.data);
-                    } else {
-                        fprintf(stderr, "snapshot-isolation %.*s search mismatch\n",
-                          (int)first_tinfo->key->size, (char *)first_tinfo->key->data);
-                        fprintf(stderr, "expected {deleted}\n");
-                        print_item_data("   found", value.data, value.size);
-                    }
-                    testutil_assert(0);
+                snap_repeat(cursor, tinfo, snap, false);
+                ++count;
+                if (count % 100 == 0) {
+                    testutil_check(__wt_snprintf(
+                      buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count));
+                    track(buf, 0ULL, NULL);
+                    __wt_sleep(0, 250000); /* 1/4th of a second */
                 }
-            } else if (snap->repeatable || snap->op != READ)
-                /*
-                 * The tinfo argument is used to stash the key value pair found during checking.
-                 */
-                testutil_check(snap_verify(cursor, first_tinfo, snap));
-
-            ++count;
-            if (count % 100 == 0) {
-                testutil_check(__wt_snprintf(buf, sizeof(buf),
-                    "rollback_to_stable: %" PRIu32 " ops repeated", count));
-                track(buf, 0ULL, NULL);
             }
         }
     }
-    /*
-     * Show the final result and check that we're accomplishing some checking.
-     */
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-        "rollback_to_stable: %" PRIu32 " ops repeated", count));
+
+    /* Show the final result and check that we're accomplishing some checking. */
+    testutil_check(
+      __wt_snprintf(buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count));
     track(buf, 0ULL, NULL);
     if (count == 0) {
         if (++g.rts_no_check >= WARN_RTS_NO_CHECK)
-            fprintf(stderr, "Warning: %d consecutive runs with no rollback_to_stable checking\n",
-              count);
+            fprintf(
+              stderr, "Warning: %d consecutive runs with no rollback_to_stable checking\n", count);
     } else
-            g.rts_no_check = 0;
+        g.rts_no_check = 0;
 
-    testutil_check(seen_cursor->close(seen_cursor));
-
-    /* Discard the transaction. */
-    testutil_check(session->rollback_transaction(session, NULL));
-
-cleanup:
     /*
      * After a rollback_to_stable, we can't trust some of our snap data. Rather than figure out what
      * is good or bad, we'll invalidate it all.
