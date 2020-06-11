@@ -435,8 +435,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
                 counter = hs_counter + 1;
         }
         cursor->reset(cursor);
-    } else
-        ret = 0;
+    }
 
     /*
      * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to
