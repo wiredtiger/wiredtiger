@@ -300,8 +300,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * can be written to the disk, that's ok and we should go ahead and select it.
          *
          * If the previous update is globally visible, we don't need to care about out-of-order ids
-         * or timestamps since the offending update will be removed by an obsolete check further
-         * down the line.
+         * or timestamps since the offending update will usually be removed by an obsolete check
+         * further down the line. If there is a non-globally visible update further in the chain,
+         * the obsolete check won't remove these updates. However, that non-globally visible update
+         * must be out-of-order by definition and will therefore trigger this check and pin the
+         * list.
          */
         if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED)
             if ((WT_TXNID_LT(prev_upd->txnid, upd->txnid) ||
