@@ -493,8 +493,10 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
     if (!clear_hs)
         goto done;
 
-    /* We can only insert tupdate without timestamp into the history store if we need to clear the
-     * history store record. */
+    /*
+     * We can only insert update without timestamp into the history store if we need to clear the
+     * history store record.
+     */
     WT_ASSERT(session, upd->start_ts == WT_TS_NONE);
 
     /*
@@ -727,7 +729,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * If we've reached a full update and it's in the history store we don't need to
              * continue as anything beyond this point won't help with calculating deltas.
              */
-            if (F_ISSET(upd, WT_UPDATE_HS) && upd->type == WT_UPDATE_STANDARD)
+            if (upd->type == WT_UPDATE_STANDARD && F_ISSET(upd, WT_UPDATE_HS))
                 break;
         }
 
@@ -831,8 +833,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 continue;
             }
 
-            /* Calculate reverse modify and clear the history store records with timestamps when
-             * inserting the first update. */
+            /*
+             * Calculate reverse modify and clear the history store records with timestamps when
+             * inserting the first update.
+             */
             nentries = MAX_REVERSE_MODIFY_NUM;
             if (upd->type == WT_UPDATE_MODIFY && enable_reverse_modify &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
@@ -869,8 +873,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * we will clear the history store again once that update is moved to the history store.
          *
          * e.g., U@0 -> U@10 -> U@5 and U@1 in the history store. U@10 and U@5 are not inserted to
-         * the history store and U@1 is not removed from the history store. U@1 will be removed from
-         * the history store once U@0 is moved to the history store.
+         * the history store as they are flagged as WT_UPDATE_MASKED_BY_NON_TS_UPDATE and U@1 is not
+         * removed from the history store. U@1 will be removed from the history store once U@0 is
+         * moved to the history store.
          */
         if (clear_hs && (first_non_ts_upd->txnid != list->onpage_upd->txnid ||
                           first_non_ts_upd->start_ts != list->onpage_upd->start_ts)) {
