@@ -243,9 +243,9 @@ __wt_evict_server_wake(WT_SESSION_IMPL *session)
         bytes_inuse = __wt_cache_bytes_inuse(cache);
         bytes_max = conn->cache_size;
         __wt_verbose(session, WT_VERB_EVICTSERVER,
-          "waking, bytes inuse %s max (%" PRIu64 "KB %s %" PRIu64 "KB)",
-          bytes_inuse <= bytes_max ? "<=" : ">", bytes_inuse / WT_KILOBYTE,
-          bytes_inuse <= bytes_max ? "<=" : ">", bytes_max / WT_KILOBYTE);
+          "waking, bytes inuse %s max (%" PRIu64 "MB %s %" PRIu64 "MB)",
+          bytes_inuse <= bytes_max ? "<=" : ">", bytes_inuse / WT_MEGABYTE,
+          bytes_inuse <= bytes_max ? "<=" : ">", bytes_max / WT_MEGABYTE);
     }
 
     __wt_cond_signal(session, cache->evict_cond);
@@ -2545,14 +2545,14 @@ __verbose_dump_cache_single(
           __wt_msg(session,
             "internal: "
             "%" PRIu64 " pages, "
-            "%" PRIu64 "KB, "
+            "%" PRIu64 "MB, "
             "%" PRIu64 "/%" PRIu64 " clean/dirty pages, "
-            "%" PRIu64 "/%" PRIu64 " clean/dirty KB, "
-            "%" PRIu64 "KB max page, "
-            "%" PRIu64 "KB max dirty page",
-            intl_pages, intl_bytes / WT_KILOBYTE, intl_pages - intl_dirty_pages, intl_dirty_pages,
-            (intl_bytes - intl_dirty_bytes) / WT_KILOBYTE, intl_dirty_bytes / WT_KILOBYTE,
-            intl_bytes_max / WT_KILOBYTE, intl_dirty_bytes_max / WT_KILOBYTE));
+            "%" PRIu64 "/%" PRIu64 " clean/dirty MB, "
+            "%" PRIu64 "MB max page, "
+            "%" PRIu64 "MB max dirty page",
+            intl_pages, intl_bytes / WT_MEGABYTE, intl_pages - intl_dirty_pages, intl_dirty_pages,
+            (intl_bytes - intl_dirty_bytes) / WT_MEGABYTE, intl_dirty_bytes / WT_MEGABYTE,
+            intl_bytes_max / WT_MEGABYTE, intl_dirty_bytes_max / WT_MEGABYTE));
     if (leaf_pages == 0)
         WT_RET(__wt_msg(session, "leaf: 0 pages"));
     else
@@ -2560,15 +2560,14 @@ __verbose_dump_cache_single(
           __wt_msg(session,
             "leaf: "
             "%" PRIu64 " pages, "
-            "%" PRIu64 "KB, "
+            "%" PRIu64 "MB, "
             "%" PRIu64 "/%" PRIu64 " clean/dirty pages, "
-            "%" PRIu64 "/%" PRIu64 "/%" PRIu64 " clean/dirty KB, "
-            "%" PRIu64 "KB max page, "
-            "%" PRIu64 "KB max dirty page",
-            leaf_pages, leaf_bytes / WT_KILOBYTE, leaf_pages - leaf_dirty_pages, leaf_dirty_pages,
-            (leaf_bytes - leaf_dirty_bytes) / WT_KILOBYTE, leaf_dirty_bytes / WT_KILOBYTE,
-            leaf_updates_bytes / WT_KILOBYTE, leaf_bytes_max / WT_KILOBYTE,
-            leaf_dirty_bytes_max / WT_KILOBYTE));
+            "%" PRIu64 "/%" PRIu64 " clean/dirty MB, "
+            "%" PRIu64 "MB max page, "
+            "%" PRIu64 "MB max dirty page",
+            leaf_pages, leaf_bytes / WT_MEGABYTE, leaf_pages - leaf_dirty_pages, leaf_dirty_pages,
+            (leaf_bytes - leaf_dirty_bytes) / WT_MEGABYTE, leaf_dirty_bytes / WT_MEGABYTE,
+            leaf_bytes_max / WT_MEGABYTE, leaf_dirty_bytes_max / WT_MEGABYTE));
 
     *total_bytesp += intl_bytes + leaf_bytes;
     *total_dirty_bytesp += intl_dirty_bytes + leaf_dirty_bytes;
@@ -2646,9 +2645,9 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 
     WT_RET(__wt_msg(session,
       "cache dump: "
-      "total found: %" PRIu64 "KB vs tracked inuse %" PRIu64 "KB",
-      total_bytes / WT_KILOBYTE, __wt_cache_bytes_inuse(conn->cache) / WT_KILOBYTE));
-    WT_RET(__wt_msg(session, "total dirty bytes: %" PRIu64 "KB", total_dirty_bytes / WT_KILOBYTE));
+      "total found: %" PRIu64 "MB vs tracked inuse %" PRIu64 "MB",
+      total_bytes / WT_MEGABYTE, __wt_cache_bytes_inuse(conn->cache) / WT_MEGABYTE));
+    WT_RET(__wt_msg(session, "total dirty bytes: %" PRIu64 "MB", total_dirty_bytes / WT_MEGABYTE));
 
     return (0);
 }
