@@ -278,13 +278,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         return (0);
 
     /*
-     * As part of update selection, we also detect out-of-order timestamps. If we find out-of-order
-     * timestamps, we will pin the update list until the out-of-order part of the list becomes
-     * obsolete and can be discarded.
+     * As part of update selection, we also detect out-of-order updates. If we find out-of-order
+     * updates, we will pin the update list until the out-of-order part of the list becomes obsolete
+     * and can be discarded.
      *
      * In order to do this, we need to keep track of the last non-aborted update that we've come
      * across. This is the "previous" update in the chain that we want to compare the current update
-     * to.
+     * to to determine whether it is out-of-order.
      */
     for (upd = first_upd; upd != NULL; prev_upd = non_abort_upd, upd = upd->next) {
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
