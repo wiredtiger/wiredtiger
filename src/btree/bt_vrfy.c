@@ -427,6 +427,7 @@ __verify_tree(
     bm = S2BT(session)->bm;
     unpack = &_unpack;
     page = ref->page;
+    child_ta = false; /* [-Wconditional-uninitialized] */
 
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
       __wt_page_type_string(page->type));
