@@ -330,7 +330,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                  * updates without making them durable.
                  */
                 WT_ASSERT(session, !S2C(session)->txn_global.has_stable_timestamp ||
-                    S2C(session)->txn_global.stable_timestamp > prev_upd->start_ts);
+                    S2C(session)->txn_global.stable_timestamp < prev_upd->start_ts);
             }
 
         /*
@@ -446,7 +446,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * writing stable updates to the disk then we need to know about it.
              */
             WT_ASSERT(session, !S2C(session)->txn_global.has_stable_timestamp ||
-                S2C(session)->txn_global.stable_timestamp > prev_upd->start_ts);
+                S2C(session)->txn_global.stable_timestamp < prev_upd->start_ts);
         }
     }
 
