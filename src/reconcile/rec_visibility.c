@@ -316,7 +316,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * must be out-of-order by definition and will therefore trigger this check and pin the
          * list.
          */
-        if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED)
+        if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL)
             if ((WT_TXNID_LT(prev_upd->txnid, upd->txnid) ||
                   (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < upd->start_ts)) &&
               !(__wt_txn_upd_visible_all(session, upd) &&
@@ -407,7 +407,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * store), then we know that the update has already been made durable so we shouldn't worry
      * about trying to pin it to the cache.
      */
-    if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED &&
+    if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL &&
       !F_ISSET(prev_upd, WT_UPDATE_HS | WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS) &&
       vpack != NULL) {
         /*
