@@ -74,7 +74,6 @@ typedef struct {
 #define LOCK_INITIALIZED(lock) ((lock)->lock_type != LOCK_NONE)
 
 typedef struct {
-    wt_thread_t tid;  /* thread ID */
     char tidbuf[128]; /* thread ID in printable form */
 
     WT_CONNECTION *wts_conn;
@@ -112,6 +111,7 @@ typedef struct {
 
     WT_RAND_STATE rnd; /* Global RNG state */
 
+    uint32_t rts_no_check;     /* track unsuccessful RTS checking */
     /*
      * Prepare will return an error if the prepare timestamp is less than any active read timestamp.
      * Lock across allocating prepare and read timestamps.
@@ -407,7 +407,7 @@ void snap_init(TINFO *);
 void snap_teardown(TINFO *);
 void snap_op_end(TINFO *, bool);
 void snap_op_init(TINFO *, uint64_t, bool);
-uint32_t snap_repeat_rollback(WT_CURSOR *, TINFO **, size_t);
+void snap_repeat_rollback(WT_CURSOR *, TINFO **, size_t);
 void snap_repeat_single(WT_CURSOR *, TINFO *);
 int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);

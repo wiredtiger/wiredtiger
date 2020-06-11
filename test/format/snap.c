@@ -34,6 +34,11 @@
 #define SNAP_NEXT(tinfo, snap) (((snap) + 1 >= (tinfo)->snap_end) ? (tinfo)->snap_list : (snap) + 1)
 
 /*
+ * Issue a warning when there enough consecutive unsuccessful checks for rollback to stable.
+ */
+#define WARN_RTS_NO_CHECK 5
+
+/*
  * snap_init --
  *     Initialize the repeatable operation tracking.
  */
@@ -681,10 +686,9 @@ compare_snap_ts(const void *a, const void *b)
 
 /*
  * snap_repeat_rollback --
- *     Repeat all known operations after a rollback. Returns the number of verified ops, or -1 if we
- *     haven't kept data for the stable timestamp.
+ *     Repeat all known operations after a rollback.
  */
-uint32_t
+void
 snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
 {
     SNAP_STATE *state;
@@ -697,12 +701,13 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
     u_int64_t keyno, last_keyno, newest_oldest_ts, oldest_ts;
     u_int count;
     size_t i, statenum;
-    char buf[64];
+    char buf[100];
 
     count = 0;
     session = cursor->session;
     first_tinfo = *tinfo_array;
 
+    track("rollback_to_stable: checking", 0ULL, NULL);
     /*
      * Since rolling back to stable effects all changes made, we need to look at changes made by all
      * threads collectively. We'll work backwards from the most recent operations since rollback to
@@ -820,16 +825,33 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
                     }
                     testutil_assert(0);
                 }
-                count++;
-            } else if (snap->repeatable || snap->op != READ) {
+            } else if (snap->repeatable || snap->op != READ)
                 /*
                  * The tinfo argument is used to stash the key value pair found during checking.
                  */
                 testutil_check(snap_verify(cursor, first_tinfo, snap));
-                count++;
+
+            ++count;
+            if (count % 100 == 0) {
+                testutil_check(__wt_snprintf(buf, sizeof(buf),
+                    "rollback_to_stable: %" PRIu32 " ops repeated", count));
+                track(buf, 0ULL, NULL);
             }
         }
     }
+    /*
+     * Show the final result and check that we're accomplishing some checking.
+     */
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+        "rollback_to_stable: %" PRIu32 " ops repeated", count));
+    track(buf, 0ULL, NULL);
+    if (count == 0) {
+        if (++g.rts_no_check >= WARN_RTS_NO_CHECK)
+            fprintf(stderr, "Warning: %d consecutive runs with no rollback_to_stable checking\n",
+              count);
+    } else
+            g.rts_no_check = 0;
+
     testutil_check(seen_cursor->close(seen_cursor));
 
     /* Discard the transaction. */
@@ -848,6 +870,4 @@ cleanup:
                 snap_clear_one(snap, true);
         }
     }
-
-    return (count);
 }
