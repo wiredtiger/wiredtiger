@@ -232,7 +232,8 @@ timestamp_once(WT_SESSION *session, bool allow_lag)
             g.oldest_timestamp = (all_durable + g.oldest_timestamp) / 2;
         else
             g.oldest_timestamp = all_durable;
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%s", oldest_timestamp_str, tsbuf));
+        testutil_check(
+          __wt_snprintf(buf, sizeof(buf), "%s%" PRIx64, oldest_timestamp_str, g.oldest_timestamp));
 
         /*
          * When we're doing rollback to stable operations, we'll advance the stable timestamp to the
