@@ -699,14 +699,14 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
             state = &tinfo->snap_states[0];
         for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap) {
             /* Only repeat entries that aren't cleared out and have relevant timestamps. */
-            if (snap->op != 0 && snap->ts != 0 && snap->ts <= g.stable_timestamp) {
+            if (snap->op != 0 && snap->op != TRUNCATE && snap->ts != 0 &&
+              snap->ts <= g.stable_timestamp) {
                 snap_repeat(cursor, tinfo, snap, false);
                 ++count;
                 if (count % 100 == 0) {
                     testutil_check(__wt_snprintf(
                       buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count));
                     track(buf, 0ULL, NULL);
-                    __wt_sleep(0, 250000); /* 1/4th of a second */
                 }
             }
         }
