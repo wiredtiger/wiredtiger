@@ -43,7 +43,8 @@ Barack
 BerkeleyDB
 Bitfield
 Bitwise
-BlqRr
+BlqR
+BqRt
 Brueckner
 Bsearch
 Btree
@@ -562,6 +563,8 @@ cb
 ccc
 ccr
 cd
+ce
+ceh
 centric
 cfg
 cfko
@@ -910,7 +913,7 @@ iteratively
 iters
 jjj
 jnr
-jrx
+jprx
 json
 kb
 kbits
@@ -951,7 +954,9 @@ localkey
 localtime
 localvalue
 logf
+logfile
 logmgr
+logmsg
 lognum
 logop
 logpath
@@ -963,7 +968,6 @@ lookaside
 lookup
 lookups
 lossy
-lqRrt
 lr
 lrt
 lru
@@ -1024,6 +1028,7 @@ multithreaded
 munmap
 mutex
 mutexes
+mx
 mytable
 mytxn
 namespace
@@ -1147,6 +1152,7 @@ pv
 pvA
 pwrite
 py
+qRrT
 qdown
 qqq
 qrrSS
@@ -1208,6 +1214,7 @@ rwlock
 sH
 sHQ
 sT
+sanitizer
 sanitizers
 scalability
 sched

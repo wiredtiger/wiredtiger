@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-static void __checkpoint_timing_stress(WT_SESSION_IMPL *);
+static void __checkpoint_timing_stress(WT_SESSION_IMPL *, bool);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
@@ -530,6 +530,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
+    uint64_t original_snap_min;
     const char *txn_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
     bool use_timestamp;
@@ -550,7 +551,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      */
     WT_STAT_CONN_SET(session, txn_checkpoint_prep_running, 1);
     __wt_epoch(session, &conn->ckpt_prep_start);
+
     WT_RET(__wt_txn_begin(session, txn_cfg));
+    original_snap_min = session->txn->snap_min;
 
     WT_DIAGNOSTIC_YIELD;
 
@@ -605,8 +608,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * We rely on having the global transaction data locked so the oldest timestamp can't move past
      * the stable timestamp.
      */
-    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ |
-                           WT_TXN_SHARED_TS_DURABLE | WT_TXN_SHARED_TS_READ));
+    WT_ASSERT(session,
+      !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_SHARED_TS_DURABLE | WT_TXN_SHARED_TS_READ));
 
     if (use_timestamp) {
         /*
@@ -623,10 +626,23 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     } else {
         if (!F_ISSET(conn, WT_CONN_RECOVERING))
             txn_global->meta_ckpt_timestamp = WT_TS_NONE;
-        txn->read_timestamp = txn_shared->pinned_read_timestamp = WT_TS_NONE;
+        txn_shared->read_timestamp = WT_TS_NONE;
     }
 
     __wt_writeunlock(session, &txn_global->rwlock);
+
+    /*
+     * Refresh our snapshot here without publishing our shared ids to the world, doing so prevents
+     * us from racing with the stable timestamp moving ahead of current snapshot. i.e. if the stable
+     * timestamp moves after we begin the checkpoint transaction but before we set the checkpoint
+     * timestamp we can end up missing updates in our checkpoint.
+     */
+    __wt_txn_bump_snapshot(session);
+
+    /* Assert that our snapshot min didn't somehow move backwards. */
+    WT_ASSERT(session, session->txn->snap_min >= original_snap_min);
+    /* Flag as unused for non diagnostic builds. */
+    WT_UNUSED(original_snap_min);
 
     if (use_timestamp)
         __wt_verbose_timestamp(
@@ -773,8 +789,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     logging = FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED);
 
-    /* Reset the maximum page size seen by eviction. */
-    conn->cache->evict_max_page_size = 0;
+    /* Reset the statistics tracked per checkpoint. */
+    cache->evict_max_page_size = 0;
+    conn->rec_maximum_seconds = 0;
 
     /* Initialize the verbose tracking timer */
     __wt_epoch(session, &conn->ckpt_timer_start);
@@ -858,8 +875,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     if (full && logging)
         WT_ERR(__wt_txn_checkpoint_log(session, full, WT_TXN_LOG_CKPT_START, NULL));
 
-    __checkpoint_timing_stress(session);
+    __checkpoint_timing_stress(session, false);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
+
+    /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
+    __checkpoint_timing_stress(session, true);
 
     /*
      * Get a history store dhandle. If the history store file is opened for a special operation this
@@ -1702,20 +1722,20 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
     txn = session->txn;
 
     /* Are we using a read timestamp for this checkpoint transaction? */
-    with_timestamp = F_ISSET(txn, WT_TXN_HAS_TS_READ);
+    with_timestamp = F_ISSET(txn, WT_TXN_SHARED_TS_READ);
 
     /*
      * For tables with immediate durability (indicated by having logging enabled), ignore any read
      * timestamp configured for the checkpoint.
      */
     if (__wt_btree_immediately_durable(session))
-        F_CLR(txn, WT_TXN_HAS_TS_READ);
+        F_CLR(txn, WT_TXN_SHARED_TS_READ);
 
     ret = __checkpoint_tree(session, true, cfg);
 
     /* Restore the use of the timestamp for other tables. */
     if (with_timestamp)
-        F_SET(txn, WT_TXN_HAS_TS_READ);
+        F_SET(txn, WT_TXN_SHARED_TS_READ);
 
     /*
      * Whatever happened, we aren't visiting this tree again in this checkpoint. Don't keep updates
@@ -1861,7 +1881,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
  *     for a checkpoint to complete.
  */
 static void
-__checkpoint_timing_stress(WT_SESSION_IMPL *session)
+__checkpoint_timing_stress(WT_SESSION_IMPL *session, bool history_store_stress)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -1872,6 +1892,9 @@ __checkpoint_timing_stress(WT_SESSION_IMPL *session)
      * the session used is either of the two sessions set aside for internal checkpoints.
      */
     if (conn->ckpt_session != session && conn->meta_ckpt_session != session &&
-      FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_SLOW))
+      ((FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_CHECKPOINT_SLOW) &&
+         !history_store_stress) ||
+          (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY) &&
+            history_store_stress)))
         __wt_sleep(10, 0);
 }

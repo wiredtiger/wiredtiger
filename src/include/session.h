@@ -160,6 +160,10 @@ struct __wt_session_impl {
     /* Sessions have an associated statistics bucket based on its ID. */
     u_int stat_bucket; /* Statistics bucket offset */
 
+#ifdef HAVE_DIAGNOSTIC
+    uint8_t dump_raw; /* Configure debugging page dump */
+#endif
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_SESSION_BACKUP_CURSOR 0x00000001u
 #define WT_SESSION_BACKUP_DUP 0x00000002u
@@ -188,11 +192,10 @@ struct __wt_session_impl {
 #define WT_SESSION_NO_SCHEMA_LOCK 0x01000000u
 #define WT_SESSION_QUIET_CORRUPT_FILE 0x02000000u
 #define WT_SESSION_READ_WONT_NEED 0x04000000u
-#define WT_SESSION_RESOLVING_MODIFY 0x08000000u
-#define WT_SESSION_RESOLVING_TXN 0x10000000u
-#define WT_SESSION_ROLLBACK_TO_STABLE 0x20000000u
-#define WT_SESSION_SCHEMA_TXN 0x40000000u
-#define WT_SESSION_SERVER_ASYNC 0x80000000u
+#define WT_SESSION_RESOLVING_TXN 0x08000000u
+#define WT_SESSION_ROLLBACK_TO_STABLE 0x10000000u
+#define WT_SESSION_SCHEMA_TXN 0x20000000u
+#define WT_SESSION_SERVER_ASYNC 0x40000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 

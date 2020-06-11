@@ -205,8 +205,11 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     val = &r->v;
     WT_RET(__rec_cell_build_leaf_key(session, r, /* Build key cell */
       cursor->key.data, cursor->key.size, &ovfl_key));
-    WT_RET(__wt_rec_cell_build_val(session, r, cursor->value.data, /* Build value cell */
-      cursor->value.size, &tw, 0));
+    if (cursor->value.size == 0)
+        val->len = 0;
+    else
+        WT_RET(__wt_rec_cell_build_val(session, r, cursor->value.data, /* Build value cell */
+          cursor->value.size, &tw, 0));
 
     /* Boundary: split or write the page. */
     if (WT_CROSSING_SPLIT_BND(r, key->len + val->len)) {
@@ -582,8 +585,11 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
               session, r, cbt->iface.value.data, cbt->iface.value.size, &tw, 0));
             break;
         case WT_UPDATE_STANDARD:
-            /* Take the value from the update. */
-            WT_RET(__wt_rec_cell_build_val(session, r, upd->data, upd->size, &tw, 0));
+            if (upd->size == 0 && WT_TIME_WINDOW_IS_EMPTY(&tw))
+                val->len = 0;
+            else
+                /* Take the value from the update. */
+                WT_RET(__wt_rec_cell_build_val(session, r, upd->data, upd->size, &tw, 0));
             break;
         case WT_UPDATE_TOMBSTONE:
             continue;
@@ -752,7 +758,7 @@ __wt_rec_row_leaf(
 
         /*
          * Figure out the timestamps. If there's no update and salvaging the file, clear the time
-         * pair information, else take the time pairs from the cell.
+         * pair information, else take the time window from the cell.
          */
         if (upd == NULL) {
             if (!salvage)
@@ -763,7 +769,7 @@ __wt_rec_row_leaf(
             WT_TIME_WINDOW_COPY(&tw, &upd_select.tw);
 
         /*
-         * If we reconcile an on disk key with a globally visible stop time pair and there are no
+         * If we reconcile an on disk key with a globally visible stop time point and there are no
          * new updates for that key, skip writing that key.
          */
         if (upd == NULL && __wt_txn_tw_stop_visible_all(session, &tw))
@@ -796,8 +802,8 @@ __wt_rec_row_leaf(
                     val->buf.size = vpack->size;
 
                     /* Rebuild the cell. */
-                    val->cell_len = __wt_cell_pack_ovfl(
-                      session, r, &val->cell, vpack->raw, &tw, 0, val->buf.size);
+                    val->cell_len =
+                      __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, &tw, 0, val->buf.size);
                     val->len = val->cell_len + val->buf.size;
                 } else
                     WT_ERR(__rec_cell_repack(session, btree, r, vpack, &tw));
