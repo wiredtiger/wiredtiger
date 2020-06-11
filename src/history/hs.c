@@ -394,22 +394,55 @@ __hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
  */
 static int
 __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
-  const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
+  WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
   WT_HS_TIME_POINT *stop_time_point)
 {
     WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
     WT_UPDATE *hs_upd, *upd_local;
+    wt_timestamp_t hs_start_ts;
+    uint64_t counter, hs_counter;
+    uint32_t hs_btree_id;
+    int cmp;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = upd_local = NULL;
+
+    /* Allocate buffers for the data store and history store key. */
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+
+    /*
+     * Adjust counter if there exists an update in the history store with same btree id, key and
+     * timestamp. Otherwise the newly inserting history store record may fall behind the existing
+     * one can lead to wrong order.
+     */
+    counter = __wt_atomic_add64(&btree->hs_counter, 1);
+    WT_ERR_NOTFOUND_OK(
+      __wt_hs_cursor_position(session, cursor, btree->id, key, upd->start_ts), true);
+    if (ret == 0) {
+        WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
+
+        /*
+         * Check the whether the existing record is also from the same timestamp.
+         *
+         * Verify simple checks first to confirm whether the retrieved update same or not before
+         * performing the expensive key comparison.
+         */
+        if (hs_btree_id == btree->id && upd->start_ts == hs_start_ts && counter < hs_counter) {
+            WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+            if (cmp == 0)
+                counter = hs_counter + 1;
+        }
+        cursor->reset(cursor);
+    } else
+        ret = 0;
 
     /*
      * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to
      * create an update chain for a direct insertion onto the history store page.
      */
-    cursor->set_key(
-      cursor, btree->id, key, upd->start_ts, __wt_atomic_add64(&btree->hs_counter, 1));
+    cursor->set_key(cursor, btree->id, key, upd->start_ts, counter);
     cursor->set_value(
       cursor, stop_time_point->durable_ts, upd->durable_ts, (uint64_t)type, hs_value);
 
@@ -452,6 +485,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
     WT_STAT_CONN_INCR(session, cache_hs_insert);
 
 err:
+    __wt_scr_free(session, &hs_key);
     if (ret != 0) {
         __wt_free_update_list(session, &hs_upd);
 
@@ -474,7 +508,7 @@ err:
  */
 static int
 __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
-  const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
+  WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
   WT_HS_TIME_POINT *stop_time_point)
 {
     WT_DECL_RET;
@@ -559,7 +593,7 @@ err:
  *     Temporarily switches to history store btree and calls the helper routine to insert records.
  */
 static int
-__hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, const WT_ITEM *key,
+__hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, WT_ITEM *key,
   const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
   WT_HS_TIME_POINT *stop_time_point)
 {
