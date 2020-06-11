@@ -284,7 +284,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      *
      * In order to do this, we need to keep track of the last non-aborted update that we've come
      * across. This is the "previous" update in the chain that we want to compare the current update
-     * to to determine whether it is out-of-order.
+     * to determine whether it is out-of-order.
      */
     for (upd = first_upd; upd != NULL; prev_upd = non_abort_upd, upd = upd->next) {
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
@@ -319,7 +319,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (!F_ISSET(r, WT_REC_IN_MEMORY) && prev_upd != NULL && prev_upd->txnid != WT_TXN_ABORTED)
             if ((WT_TXNID_LT(prev_upd->txnid, upd->txnid) ||
                   (prev_upd->start_ts != WT_TS_NONE && prev_upd->start_ts < upd->start_ts)) &&
-              !__wt_txn_upd_visible_all(session, prev_upd)) {
+              !(__wt_txn_upd_visible_all(session, upd) &&
+                  __wt_txn_upd_visible_all(session, prev_upd))) {
                 upd_select->upd = NULL;
                 has_pinned_updates = true;
 
