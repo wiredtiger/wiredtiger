@@ -323,7 +323,11 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
      * Fast check that we're seeing what we expect to see: some number of checkpoints to add, delete
      * or ignore, terminated by a new checkpoint.
      */
-    WT_CKPT_FOREACH (ckptbase, ckpt)
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (F_ISSET(ckpt, WT_CKPT_TIME_AGGREGATE)) {
+            /* Maybe do something with the aggregate here? */
+            F_CLR(ckpt, WT_CKPT_TIME_AGGREGATE);
+        }
         switch (ckpt->flags) {
         case 0:
         case WT_CKPT_DELETE:
@@ -338,6 +342,7 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
         default:
             return (__wt_illegal_value(session, ckpt->flags));
         }
+    }
     return (0);
 }
 #endif
