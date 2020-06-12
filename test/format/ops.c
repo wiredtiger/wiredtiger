@@ -552,7 +552,6 @@ commit_transaction(TINFO *tinfo, bool prepared)
     /* Remember our oldest commit timestamp. */
     tinfo->commit_ts = ts;
 
-    snap_op_end(tinfo, true);
     trace_op(
       tinfo, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts, tinfo->commit_ts);
 }
@@ -572,7 +571,6 @@ rollback_transaction(TINFO *tinfo)
 
     testutil_check(session->rollback_transaction(session, NULL));
 
-    snap_op_end(tinfo, false);
     trace_op(tinfo, "abort read-ts=%" PRIu64, tinfo->read_ts);
 }
 

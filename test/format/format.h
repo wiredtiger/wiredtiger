@@ -404,7 +404,6 @@ void set_alarm(u_int);
 void set_core_off(void);
 void snap_init(TINFO *);
 void snap_teardown(TINFO *);
-void snap_op_end(TINFO *, bool);
 void snap_op_init(TINFO *, uint64_t, bool);
 void snap_repeat_rollback(WT_CURSOR *, TINFO **, size_t);
 void snap_repeat_single(WT_CURSOR *, TINFO *);

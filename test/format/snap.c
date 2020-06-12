@@ -108,54 +108,6 @@ snap_clear(TINFO *tinfo)
 }
 
 /*
- * snap_clear_range --
- *     Clear a portion of the snap list.
- */
-static void
-snap_clear_range(TINFO *tinfo, SNAP_OPS *begin, SNAP_OPS *end)
-{
-    SNAP_OPS *snap;
-
-    for (snap = begin; snap != end; snap = SNAP_NEXT(tinfo, snap))
-        snap_clear_one(snap);
-}
-
-/*
- * snap_op_end --
- *     Finish a set of repeatable operations (transaction).
- */
-void
-snap_op_end(TINFO *tinfo, bool committed)
-{
-    SNAP_OPS *snap;
-
-    /*
-     * There's some extra work we need to do that's only applicable to rollback_to_stable checking.
-     */
-    if (g.c_txn_rollback_to_stable) {
-        /*
-         * If we wrapped the buffer, clear it out, it won't be useful for rollback checking.
-         */
-        if (tinfo->repeatable_wrap)
-            snap_clear(tinfo);
-        else if (!committed) {
-            snap_clear_range(tinfo, tinfo->snap_first, tinfo->snap_current);
-            tinfo->snap_current = tinfo->snap_first;
-        } else
-            /*
-             * For write operations in this transaction, set the timestamp to be the commit
-             * timestamp.
-             */
-            for (snap = tinfo->snap_first; snap != tinfo->snap_current;
-                 snap = SNAP_NEXT(tinfo, snap)) {
-                testutil_assert(snap->opid == tinfo->opid);
-                if (snap->op != READ)
-                    snap->ts = tinfo->commit_ts;
-            }
-    }
-}
-
-/*
  * snap_op_init --
  *     Initialize the repeatable operation tracking for each new operation.
  */
@@ -592,9 +544,7 @@ snap_repeat(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap, bool rollback_allow
     /*
      * Start a new transaction. Set the read timestamp. Verify the record. Discard the transaction.
      */
-    while ((ret = session->begin_transaction(session, "isolation=snapshot")) == WT_CACHE_FULL)
-        __wt_yield();
-    testutil_check(ret);
+    wiredtiger_begin_transaction(session, "isolation=snapshot");
 
     /*
      * If the timestamp has aged out of the system, we'll get EINVAL when we try and set it.
@@ -680,13 +630,9 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
          */
         for (statenum = 0; statenum < WT_ELEMENTS(tinfo->snap_states); statenum++) {
             state = &tinfo->snap_states[statenum];
-            for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap)
-                /*
-                 * Any operation that is past the stable timestamp is invalid after the rollback.
-                 */
-                if (snap->ts > g.stable_timestamp)
-                    snap_clear_one(snap);
-                else if (snap->repeatable && snap->op != 0 && snap->ts != 0) {
+            for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap) {
+                if (snap->repeatable && snap->ts <= g.stable_timestamp &&
+                  snap->ts >= g.oldest_timestamp) {
                     snap_repeat(cursor, tinfo, snap, false);
                     ++count;
                     if (count % 100 == 0) {
@@ -695,6 +641,8 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
                         track(buf, 0ULL, NULL);
                     }
                 }
+                snap_clear_one(snap);
+            }
         }
     }
 
