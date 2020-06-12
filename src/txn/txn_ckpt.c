@@ -523,6 +523,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
+    uint64_t original_snap_min;
     const char *txn_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
     bool use_timestamp;
@@ -543,7 +544,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      */
     WT_STAT_CONN_SET(session, txn_checkpoint_prep_running, 1);
     __wt_epoch(session, &conn->ckpt_prep_start);
+
     WT_RET(__wt_txn_begin(session, txn_cfg));
+    original_snap_min = session->txn->snap_min;
 
     WT_DIAGNOSTIC_YIELD;
 
@@ -620,6 +623,19 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     }
 
     __wt_writeunlock(session, &txn_global->rwlock);
+
+    /*
+     * Refresh our snapshot here without publishing our shared ids to the world, doing so prevents
+     * us from racing with the stable timestamp moving ahead of current snapshot. i.e. if the stable
+     * timestamp moves after we begin the checkpoint transaction but before we set the checkpoint
+     * timestamp we can end up missing updates in our checkpoint.
+     */
+    __wt_txn_bump_snapshot(session);
+
+    /* Assert that our snapshot min didn't somehow move backwards. */
+    WT_ASSERT(session, session->txn->snap_min >= original_snap_min);
+    /* Flag as unused for non diagnostic builds. */
+    WT_UNUSED(original_snap_min);
 
     if (use_timestamp)
         __wt_verbose_timestamp(
@@ -1808,15 +1824,9 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     if (final && !metadata)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
-    /*
-     * If closing an unmodified file, check that no update is required for active readers.
-     */
-    if (!btree->modified && !bulk) {
-        WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
-        return (__wt_txn_visible_all(session, btree->rec_max_txn, btree->rec_max_timestamp) ?
-            __wt_evict_file(session, WT_SYNC_DISCARD) :
-            EBUSY);
-    }
+    /* Closing an unmodified file. */
+    if (!btree->modified && !bulk)
+        return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /*
      * Don't flush data from modified trees independent of system-wide checkpoint when either there
