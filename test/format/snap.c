@@ -595,7 +595,7 @@ snap_repeat_update(TINFO *tinfo, bool committed)
  * snap_repeat --
  *     Repeat one operation.
  */
-void
+static void
 snap_repeat(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap, bool rollback_allowed)
 {
     WT_DECL_RET;
@@ -676,7 +676,7 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
     SNAP_OPS *snap;
     SNAP_STATE *state;
     TINFO *tinfo, **tinfop;
-    u_int count;
+    uint32_t count;
     size_t i, statenum;
     char buf[100];
 
@@ -718,8 +718,8 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
     track(buf, 0ULL, NULL);
     if (count == 0) {
         if (++g.rts_no_check >= WARN_RTS_NO_CHECK)
-            fprintf(
-              stderr, "Warning: %d consecutive runs with no rollback_to_stable checking\n", count);
+            fprintf(stderr,
+              "Warning: %" PRIu32 " consecutive runs with no rollback_to_stable checking\n", count);
     } else
         g.rts_no_check = 0;
 
