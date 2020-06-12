@@ -632,6 +632,9 @@ config_directio(void)
     if (g.c_rebalance) {
         if (config_is_perm("ops.rebalance"))
             testutil_die(EINVAL, "direct I/O is incompatible with rebalance configurations");
+        /* FIXME-WT-6410: rebalance cannot run with timestamp for now. */
+        if (config_is_perm("transaction.timestamps"))
+            testutil_die(EINVAL, "timestamp is incompatible with rebalance configurations");
         config_single("ops.rebalance=off", false);
     }
     if (g.c_salvage) {
