@@ -29,11 +29,6 @@
 #include "format.h"
 
 /*
- * Increment the snap pointer, wrapping around as needed.
- */
-#define SNAP_NEXT(tinfo, snap) (((snap) + 1 >= (tinfo)->snap_end) ? (tinfo)->snap_list : (snap) + 1)
-
-/*
  * Issue a warning when there enough consecutive unsuccessful checks for rollback to stable.
  */
 #define WARN_RTS_NO_CHECK 5
