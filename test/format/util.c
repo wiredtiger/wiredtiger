@@ -28,31 +28,43 @@
 
 #include "format.h"
 
-static void
-track_ts_diff(char *buf, size_t buf_size, const char *name, uint64_t old_ts, uint64_t this_ts)
+/*
+ * track_ts_diff --
+ *     Return a one character descriptor of relative timestamp values.
+ */
+static const char *
+track_ts_diff(uint64_t left_ts, uint64_t right_ts)
 {
-    size_t len;
-    uint64_t diff;
-    const char *indicator;
-
-    len = strlen(buf);
-    if (old_ts <= this_ts) {
-        diff = this_ts - old_ts;
-        if (diff > 0xFFFFFF) {
-            diff = diff & 0xFFFFFF;
-            indicator = "*";
-        } else
-            indicator = "+";
-        testutil_check(
-          __wt_snprintf(&buf[len], buf_size - len, " %s %s0x%" PRIx64, name, indicator, diff));
-    } else
-        testutil_check(__wt_snprintf(&buf[len], buf_size - len, " %s [< old]", name));
+    if (left_ts < right_ts)
+        return "+";
+    else if (left_ts == right_ts)
+        return "=";
+    else
+        return "-";
 }
 
+/*
+ * track_ts_dots --
+ *     Return an entry in the time stamp progress indicator.
+ */
+static const char *
+track_ts_dots(uint dot_count)
+{
+    static const char *dots[] = {"   ", ".  ", ".. ", "..."};
+
+    return (dots[dot_count % WT_ELEMENTS(dots)]);
+}
+
+/*
+ * track --
+ *     Show a status line of operations and time stamp progress.
+ */
 void
 track(const char *tag, uint64_t cnt, TINFO *tinfo)
 {
-    static size_t lastlen = 0;
+    static size_t last_len = 0;
+    static uint64_t last_cur = 0, last_old = 0, last_stable = 0;
+    static uint cur_dot_cnt = 0, old_dot_cnt = 0, stable_dot_cnt = 0;
     size_t len;
     uint64_t cur_ts, old_ts, stable_ts;
     char msg[128], ts_msg[64];
@@ -76,10 +88,28 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
             stable_ts = g.stable_timestamp;
             cur_ts = g.timestamp;
 
-            testutil_check(__wt_snprintf(ts_msg, sizeof(ts_msg), " old 0x%" PRIx64, old_ts));
+            if (old_ts != last_old) {
+                ++old_dot_cnt;
+                last_old = old_ts;
+            }
+            if (stable_ts != last_stable) {
+                ++stable_dot_cnt;
+                last_stable = stable_ts;
+            }
+            if (cur_ts != last_cur) {
+                ++cur_dot_cnt;
+                last_cur = cur_ts;
+            }
+
             if (g.c_txn_rollback_to_stable)
-                track_ts_diff(ts_msg, sizeof(ts_msg), "stb", old_ts, stable_ts);
-            track_ts_diff(ts_msg, sizeof(ts_msg), "cur", old_ts, cur_ts);
+                testutil_check(__wt_snprintf(ts_msg, sizeof(ts_msg), " old%sstb%s%sts%s%s",
+                  track_ts_dots(old_dot_cnt), track_ts_diff(old_ts, stable_ts),
+                  track_ts_dots(stable_dot_cnt), track_ts_diff(stable_ts, cur_ts),
+                  track_ts_dots(cur_dot_cnt)));
+            else
+                testutil_check(
+                  __wt_snprintf(ts_msg, sizeof(ts_msg), " old%sts%s%s", track_ts_dots(old_dot_cnt),
+                    track_ts_diff(old_ts, cur_ts), track_ts_dots(cur_dot_cnt)));
         }
         testutil_check(__wt_snprintf_len_set(msg, sizeof(msg), &len, "%4" PRIu32 ": %s: "
                                                                      "S %" PRIu64 "%s, "
@@ -95,11 +125,11 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
           tinfo->remove > M(9) ? tinfo->remove / M(1) : tinfo->remove,
           tinfo->remove > M(9) ? "M" : "", ts_msg));
     }
-    if (lastlen > len) {
-        memset(msg + len, ' ', (size_t)(lastlen - len));
-        msg[lastlen] = '\0';
+    if (last_len > len) {
+        memset(msg + len, ' ', (size_t)(last_len - len));
+        msg[last_len] = '\0';
     }
-    lastlen = len;
+    last_len = len;
 
     if (printf("%s\r", msg) < 0)
         testutil_die(EIO, "printf");
