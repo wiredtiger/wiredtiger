@@ -178,6 +178,9 @@ __wt_cache_bytes_updates(WT_CACHE *cache)
 {
     uint64_t bytes_updates;
 
+    /*
+     * Reads can race with changes to the values, so check that the calculation doesn't go negative.
+     */
     bytes_updates = __wt_safe_sub(
       cache->bytes_inmem, cache->bytes_internal + cache->bytes_new_leaf + cache->bytes_dirty_lsm);
     return (__wt_cache_bytes_plus_overhead(cache, bytes_updates));
@@ -201,16 +204,14 @@ __wt_cache_bytes_image(WT_CACHE *cache)
 static inline uint64_t
 __wt_cache_bytes_other(WT_CACHE *cache)
 {
-    uint64_t bytes_image, bytes_inmem;
+    uint64_t bytes_other;
 
     /*
-     * Reads can race with changes to the values, so only read once and check for the race.
+     * Reads can race with changes to the values, so check that the calculation doesn't go negative.
      */
-    bytes_image = *(volatile uint64_t *)&cache->bytes_image_intl;
-    bytes_image += *(volatile uint64_t *)&cache->bytes_image_leaf;
-    bytes_inmem = *(volatile uint64_t *)&cache->bytes_inmem;
-    return ((bytes_image > bytes_inmem) ? 0 : __wt_cache_bytes_plus_overhead(
-                                                cache, bytes_inmem - bytes_image));
+    bytes_other =
+      __wt_safe_sub(cache->bytes_inmem, cache->bytes_image_intl + cache->bytes_image_leaf);
+    return (__wt_cache_bytes_plus_overhead(cache, bytes_other));
 }
 
 /*

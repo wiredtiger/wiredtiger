@@ -748,9 +748,7 @@ __evict_pass(WT_SESSION_IMPL *session)
          * rolling back transactions and writing updates to the history store table.
          */
         if (eviction_progress == cache->eviction_progress) {
-            if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 &&
-              F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD |
-                    WT_CACHE_EVICT_UPDATES_HARD)) {
+            if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(cache, WT_CACHE_EVICT_HARD)) {
                 if (cache->evict_aggressive_score < 100)
                     ++cache->evict_aggressive_score;
                 oldest_id = txn_global->oldest_id;
@@ -1185,8 +1183,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
      * queued.
      */
     if (__evict_queue_empty(queue, false)) {
-        if (F_ISSET(cache,
-              WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD))
+        if (F_ISSET(cache, WT_CACHE_EVICT_HARD))
             cache->evict_empty_score =
               WT_MIN(cache->evict_empty_score + WT_EVICT_SCORE_BUMP, WT_EVICT_SCORE_MAX);
         WT_STAT_CONN_INCR(session, cache_eviction_queue_empty);
@@ -1698,7 +1695,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     uint64_t min_pages, pages_already_queued, pages_seen, pages_queued, refs_walked;
     uint32_t read_flags, remaining_slots, target_pages, walk_flags;
     int restarts;
-    bool give_up, modified, urgent_queued;
+    bool give_up, modified, urgent_queued, want_page;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -1923,25 +1920,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
             goto fast;
 
-        {
-            // TODO fix this so it reads cleanly.
-            bool want = false;
+        /* Skip pages we don't want. */
+        want_page = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !modified) ||
+          (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && modified) ||
+          (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && page->modify != NULL);
 
-            /* Skip clean pages if appropriate. */
-            if (!modified && F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
-                want = true;
-
-            /* Skip dirty pages if appropriate. */
-            if (modified && F_ISSET(cache, WT_CACHE_EVICT_DIRTY))
-                want = true;
-
-            /* Skip unmodified pages if appropriate. */
-            if (page->modify != NULL && F_ISSET(cache, WT_CACHE_EVICT_UPDATES))
-                want = true;
-
-            if (!want)
-                continue;
-        }
+        if (!want_page)
+            continue;
 
         /*
          * Don't attempt eviction of internal pages with children in cache (indicated by seeing an
@@ -2078,7 +2063,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
     server_only = is_server && !WT_EVICT_HAS_WORKERS(session);
     /* Application threads do eviction when cache is full of dirty data */
     urgent_ok = (!is_app && !is_server) || !WT_EVICT_HAS_WORKERS(session) ||
-      (is_app && F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD));
+      (is_app && F_ISSET(cache, WT_CACHE_EVICT_DIRTY_HARD));
     urgent_queue = cache->evict_urgent_queue;
 
     WT_STAT_CONN_INCR(session, cache_eviction_get_ref);
