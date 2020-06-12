@@ -1245,6 +1245,8 @@ __hs_delete_key_from_ts_int(
     WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
     if (cmp != 0)
         goto done;
+
+    WT_ASSERT(session, ts == WT_TS_NONE || hs_start_ts != WT_TS_NONE);
     WT_ERR(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key));
 done:
     ret = 0;
