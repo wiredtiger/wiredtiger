@@ -307,9 +307,22 @@ static int
 __hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
 {
     WT_DECL_RET;
+    bool leaf_found;
 
-    WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
-      ret = __wt_row_search(hs_cbt, srch_key, insert, NULL, false, NULL));
+    leaf_found = false;
+
+    /*
+     * Check whether the search key can be find in the provided leaf page, if exists. Otherwise
+     * perform a full search.
+     */
+    if (hs_cbt->ref != NULL)
+        WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
+          ret = __wt_row_search(hs_cbt, srch_key, insert, hs_cbt->ref, false, &leaf_found));
+
+    if (!leaf_found)
+        WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
+          ret = __wt_row_search(hs_cbt, srch_key, insert, NULL, false, NULL));
+
 #ifdef HAVE_DIAGNOSTIC
     WT_TRET(__wt_cursor_key_order_init(hs_cbt));
 #endif
@@ -394,7 +407,7 @@ __hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
  */
 static int
 __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
-  WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
+  const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
   WT_HS_TIME_POINT *stop_time_point)
 {
     WT_CURSOR_BTREE *cbt;
@@ -434,7 +447,6 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
             if (cmp == 0)
                 counter = hs_counter + 1;
         }
-        cursor->reset(cursor);
     }
 
     /*
@@ -507,7 +519,7 @@ err:
  */
 static int
 __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
-  WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
+  const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
   WT_HS_TIME_POINT *stop_time_point, bool clear_hs)
 {
     WT_DECL_RET;
@@ -580,7 +592,7 @@ err:
  *     Temporarily switches to history store btree and calls the helper routine to insert records.
  */
 static int
-__hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, WT_ITEM *key,
+__hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, const WT_ITEM *key,
   const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
   WT_HS_TIME_POINT *stop_time_point, bool clear_hs)
 {
@@ -965,7 +977,7 @@ err:
  */
 int
 __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
-  WT_ITEM *key, wt_timestamp_t timestamp)
+  const WT_ITEM *key, wt_timestamp_t timestamp)
 {
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
