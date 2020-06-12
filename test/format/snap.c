@@ -685,30 +685,31 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
     track("rollback_to_stable: checking", 0ULL, NULL);
     for (i = 0, tinfop = tinfo_array; i < tinfo_count; ++i, ++tinfop) {
         tinfo = *tinfop;
+
         /*
-         * If this thread has knowledge of the current stable timestamp, that means its "other" snap
-         * list stores up to the stable timestamp, it's the one we want to use. If this thread
-         * doesn't yet have knowledge of the current stable, that means the current snap list is the
-         * one we want.
+         * For this thread, walk through both sets of snaps ("states"), looking for entries that are
+         * repeatable and have relevant timestamps. One set of will have the most current
+         * operations, meaning they will likely be newer than the stable timestamp, and thus not
+         * checkable. The other set typically has operations that are just before the stable
+         * timestamp, so are candidates for checking.
          */
-        if (tinfo->stable_ts != g.stable_timestamp)
-            state = tinfo->s;
-        else if (tinfo->s == &tinfo->snap_states[0])
-            state = &tinfo->snap_states[1];
-        else
-            state = &tinfo->snap_states[0];
-        for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap) {
-            /* Only repeat entries that aren't cleared out and have relevant timestamps. */
-            if (snap->repeatable && snap->op != 0 && snap->ts != 0 &&
-              snap->ts <= g.stable_timestamp) {
-                snap_repeat(cursor, tinfo, snap, false);
-                ++count;
-                if (count % 100 == 0) {
-                    testutil_check(__wt_snprintf(
-                      buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count));
-                    track(buf, 0ULL, NULL);
+        for (statenum = 0; statenum < WT_ELEMENTS(tinfo->snap_states); statenum++) {
+            state = &tinfo->snap_states[statenum];
+            for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap)
+                /*
+                 * Any operation that is past the stable timestamp is invalid after the rollback.
+                 */
+                if (snap->ts > g.stable_timestamp)
+                    snap_clear_one(snap, false);
+                else if (snap->repeatable && snap->op != 0 && snap->ts != 0) {
+                    snap_repeat(cursor, tinfo, snap, false);
+                    ++count;
+                    if (count % 100 == 0) {
+                        testutil_check(__wt_snprintf(
+                          buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count));
+                        track(buf, 0ULL, NULL);
+                    }
                 }
-            }
         }
     }
 
@@ -722,17 +723,4 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
               "Warning: %" PRIu32 " consecutive runs with no rollback_to_stable checking\n", count);
     } else
         g.rts_no_check = 0;
-
-    /*
-     * After a rollback_to_stable, we can't trust some of our snap data. Rather than figure out what
-     * is good or bad, we'll invalidate it all.
-     */
-    for (i = 0, tinfop = tinfo_array; i < tinfo_count; ++i, ++tinfop) {
-        tinfo = *tinfop;
-        for (statenum = 0; statenum < WT_ELEMENTS(tinfo->snap_states); statenum++) {
-            state = &tinfo->snap_states[statenum];
-            for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap)
-                snap_clear_one(snap, true);
-        }
-    }
 }
