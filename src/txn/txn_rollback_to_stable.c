@@ -830,14 +830,16 @@ __wt_rts_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *s
     rollback_timestamp = *(wt_timestamp_t *)(context);
     *skipp = false; /* Default to reading */
 
-    /* Leaf pages must be skipped. */
-    if (!F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-        *skipp = true;
-        return (0);
-    }
-
     /* If the page is in-memory, we want to look at it. */
     if (ref->state != WT_REF_DISK)
+        return (0);
+
+    /*
+     * Rollback to stable doesn't read leaf pages into memory as part of the tree walk. The leaf
+     * page is loaded into memory in the caller functions if it has newer updates that are need to
+     * be aborted. Don't process further on leaf pages as part of tree walk function.
+     */
+    if (!F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (0);
 
     /* Check whether this ref has any possible updates to be aborted. */
