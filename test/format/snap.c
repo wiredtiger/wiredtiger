@@ -618,10 +618,10 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
 
         /*
          * For this thread, walk through both sets of snaps ("states"), looking for entries that are
-         * repeatable and have relevant timestamps. One set of will have the most current
-         * operations, meaning they will likely be newer than the stable timestamp, and thus not
-         * checkable. The other set typically has operations that are just before the stable
-         * timestamp, so are candidates for checking.
+         * repeatable and have relevant timestamps. One set will have the most current operations,
+         * meaning they will likely be newer than the stable timestamp, and thus cannot be checked.
+         * The other set typically has operations that are just before the stable timestamp, so are
+         * candidates for checking.
          */
         for (statenum = 0; statenum < WT_ELEMENTS(tinfo->snap_states); statenum++) {
             state = &tinfo->snap_states[statenum];
