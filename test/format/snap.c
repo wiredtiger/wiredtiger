@@ -165,7 +165,6 @@ snap_op_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
     uint64_t stable_ts;
 
     ++tinfo->opid;
-    tinfo->op_order = 0;
 
     if (g.c_txn_rollback_to_stable) {
         /*
@@ -207,7 +206,6 @@ snap_track(TINFO *tinfo, thread_op op)
     snap = tinfo->snap_current;
     snap->op = op;
     snap->opid = tinfo->opid;
-    snap->op_order = tinfo->op_order++;
     snap->keyno = tinfo->keyno;
     snap->ts = WT_TS_NONE;
     snap->repeatable = false;
@@ -624,7 +622,7 @@ snap_repeat(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap, bool rollback_allow
 
 /*
  * snap_repeat_single --
- *     Repeat a random historic operation.
+ *     Repeat an historic operation.
  */
 void
 snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)

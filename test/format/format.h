@@ -289,9 +289,8 @@ typedef enum { INSERT = 1, MODIFY, READ, REMOVE, TRUNCATE, UPDATE } thread_op;
 typedef enum { NEXT, PREV, SEARCH, SEARCH_NEAR } read_operation;
 
 typedef struct {
-    thread_op op;      /* Operation */
-    uint64_t opid;     /* Operation ID */
-    uint64_t op_order; /* Order within an operation ID */
+    thread_op op;  /* Operation */
+    uint64_t opid; /* Operation ID */
 
     uint64_t keyno; /* Row number */
 
@@ -350,7 +349,6 @@ typedef struct {
     bool repeatable_reads; /* if read ops repeatable */
     bool repeatable_wrap;  /* if circular buffer wrapped */
     uint64_t opid;         /* Operation ID */
-    uint64_t op_order;     /* Order within an operation ID */
     uint64_t read_ts;      /* read timestamp */
     uint64_t commit_ts;    /* commit timestamp */
     uint64_t stable_ts;    /* stable timestamp */
