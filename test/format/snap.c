@@ -699,7 +699,7 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
             state = &tinfo->snap_states[0];
         for (snap = state->snap_state_list; snap < state->snap_state_end; ++snap) {
             /* Only repeat entries that aren't cleared out and have relevant timestamps. */
-            if (snap->op != 0 && snap->op != TRUNCATE && snap->ts != 0 &&
+            if (snap->repeatable && snap->op != 0 && snap->ts != 0 &&
               snap->ts <= g.stable_timestamp) {
                 snap_repeat(cursor, tinfo, snap, false);
                 ++count;
