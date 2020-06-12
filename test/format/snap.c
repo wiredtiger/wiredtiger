@@ -86,25 +86,12 @@ snap_teardown(TINFO *tinfo)
 
 /*
  * snap_clear --
- *     Clear the snap list.
+ *     Clear a single snap entry.
  */
 static void
-snap_clear_one(SNAP_OPS *snap, bool free_data)
+snap_clear_one(SNAP_OPS *snap)
 {
-    WT_ITEM *ksave, *vsave;
-
-    if (free_data) {
-        free(snap->kdata);
-        free(snap->vdata);
-        WT_CLEAR(*snap);
-    } else {
-        /* Preserve allocated memory */
-        ksave = snap->kdata;
-        vsave = snap->vdata;
-        WT_CLEAR(*snap);
-        snap->kdata = ksave;
-        snap->vdata = vsave;
-    }
+    snap->repeatable = false;
 }
 
 /*
@@ -117,7 +104,7 @@ snap_clear(TINFO *tinfo)
     SNAP_OPS *snap;
 
     for (snap = tinfo->snap_list; snap < tinfo->snap_end; ++snap)
-        snap_clear_one(snap, false);
+        snap_clear_one(snap);
 }
 
 /*
@@ -130,7 +117,7 @@ snap_clear_range(TINFO *tinfo, SNAP_OPS *begin, SNAP_OPS *end)
     SNAP_OPS *snap;
 
     for (snap = begin; snap != end; snap = SNAP_NEXT(tinfo, snap))
-        snap_clear_one(snap, false);
+        snap_clear_one(snap);
 }
 
 /*
@@ -700,7 +687,7 @@ snap_repeat_rollback(WT_CURSOR *cursor, TINFO **tinfo_array, size_t tinfo_count)
                  * Any operation that is past the stable timestamp is invalid after the rollback.
                  */
                 if (snap->ts > g.stable_timestamp)
-                    snap_clear_one(snap, false);
+                    snap_clear_one(snap);
                 else if (snap->repeatable && snap->op != 0 && snap->ts != 0) {
                     snap_repeat(cursor, tinfo, snap, false);
                     ++count;
