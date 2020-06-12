@@ -48,7 +48,7 @@ track_ts_diff(uint64_t left_ts, uint64_t right_ts)
  *     Return an entry in the time stamp progress indicator.
  */
 static const char *
-track_ts_dots(uint dot_count)
+track_ts_dots(u_int dot_count)
 {
     static const char *dots[] = {"   ", ".  ", ".. ", "..."};
 
@@ -62,9 +62,9 @@ track_ts_dots(uint dot_count)
 void
 track(const char *tag, uint64_t cnt, TINFO *tinfo)
 {
-    static size_t last_len = 0;
-    static uint64_t last_cur = 0, last_old = 0, last_stable = 0;
-    static uint cur_dot_cnt = 0, old_dot_cnt = 0, stable_dot_cnt = 0;
+    static size_t last_len;
+    static uint64_t last_cur, last_old, last_stable;
+    static u_int cur_dot_cnt, old_dot_cnt, stable_dot_cnt;
     size_t len;
     uint64_t cur_ts, old_ts, stable_ts;
     char msg[128], ts_msg[64];
