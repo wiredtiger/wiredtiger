@@ -707,7 +707,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * tombstone.
          * 4) We have a single tombstone on the chain, it is simply ignored.
          */
-        for (non_aborted_upd, prev_upd = NULL; upd != NULL; prev_upd = non_aborted_upd, upd = upd->next) {
+        for (non_aborted_upd = prev_upd = NULL; upd != NULL;
+             prev_upd = non_aborted_upd, upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
