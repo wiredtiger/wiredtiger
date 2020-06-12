@@ -80,7 +80,7 @@ wts_load(void)
     WT_DECL_RET;
     WT_ITEM key, value;
     WT_SESSION *session;
-    uint32_t committed_keyno, keyno;
+    uint32_t committed_keyno, keyno, v;
     bool is_bulk;
 
     conn = g.wts_conn;
@@ -164,8 +164,9 @@ wts_load(void)
                 g.c_delete_pct += g.c_insert_pct - 5;
                 g.c_insert_pct = 5;
             }
-            g.c_delete_pct += g.c_write_pct / 2;
-            g.c_write_pct = g.c_write_pct / 2;
+            v = g.c_write_pct / 2;
+            g.c_delete_pct += v;
+            g.c_write_pct -= v;
 
             break;
         }
