@@ -102,14 +102,19 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
             }
 
             if (g.c_txn_rollback_to_stable)
-                testutil_check(__wt_snprintf(ts_msg, sizeof(ts_msg), " old%sstb%s%sts%s%s",
+                testutil_check(__wt_snprintf(ts_msg, sizeof(ts_msg),
+                  " old%s"
+                  "stb%s%s"
+                  "ts%s%s",
                   track_ts_dots(old_dot_cnt), track_ts_diff(old_ts, stable_ts),
                   track_ts_dots(stable_dot_cnt), track_ts_diff(stable_ts, cur_ts),
                   track_ts_dots(cur_dot_cnt)));
             else
-                testutil_check(
-                  __wt_snprintf(ts_msg, sizeof(ts_msg), " old%sts%s%s", track_ts_dots(old_dot_cnt),
-                    track_ts_diff(old_ts, cur_ts), track_ts_dots(cur_dot_cnt)));
+                testutil_check(__wt_snprintf(ts_msg, sizeof(ts_msg),
+                  " old%s"
+                  "ts%s%s",
+                  track_ts_dots(old_dot_cnt), track_ts_diff(old_ts, cur_ts),
+                  track_ts_dots(cur_dot_cnt)));
         }
         testutil_check(__wt_snprintf_len_set(msg, sizeof(msg), &len, "%4" PRIu32 ": %s: "
                                                                      "S %" PRIu64 "%s, "
