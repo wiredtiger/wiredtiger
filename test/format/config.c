@@ -930,6 +930,9 @@ config_transaction(void)
         if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
             testutil_die(EINVAL, "timestamps require transaction frequency set to 100");
     }
+    if (g.c_txn_timestamps && config_is_perm("ops.rebalance"))
+        /* FIXME-WT-6410: reenable when rebalance can run with timestamps. */
+        testutil_die(EINVAL, "rebalance cannot run with timestamps");
     if (g.c_isolation_flag == ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation")) {
         if (!g.c_txn_timestamps && config_is_perm("transaction.timestamps"))
             testutil_die(EINVAL, "snapshot isolation requires timestamps");
