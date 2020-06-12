@@ -408,6 +408,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = upd_local = NULL;
+    counter = 0;
 
     /* Allocate buffers for the data store and history store key. */
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
@@ -417,7 +418,6 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
      * timestamp. Otherwise the newly inserting history store record may fall behind the existing
      * one can lead to wrong order.
      */
-    counter = __wt_atomic_add64(&btree->hs_counter, 1);
     WT_ERR_NOTFOUND_OK(
       __wt_hs_cursor_position(session, cursor, btree->id, key, upd->start_ts), true);
     if (ret == 0) {
@@ -429,7 +429,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
          * Verify simple checks first to confirm whether the retrieved update same or not before
          * performing the expensive key comparison.
          */
-        if (hs_btree_id == btree->id && upd->start_ts == hs_start_ts && counter < hs_counter) {
+        if (hs_btree_id == btree->id && upd->start_ts == hs_start_ts) {
             WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
             if (cmp == 0)
                 counter = hs_counter + 1;
