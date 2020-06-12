@@ -615,7 +615,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
-    WT_UPDATE *first_non_ts_upd, *oldest_upd, *prev_upd, *upd;
+    WT_UPDATE *first_non_ts_upd, *non_aborted_upd, *oldest_upd, *prev_upd, *upd;
     WT_HS_TIME_POINT stop_time_point;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size;
@@ -707,9 +707,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * tombstone.
          * 4) We have a single tombstone on the chain, it is simply ignored.
          */
-        for (prev_upd = NULL; upd != NULL; prev_upd = upd, upd = upd->next) {
+        for (non_aborted_upd = prev_upd = NULL; upd != NULL;
+             prev_upd = non_aborted_upd, upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
+
+            non_aborted_upd = upd;
 
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
 
