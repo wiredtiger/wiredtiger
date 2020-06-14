@@ -753,15 +753,16 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         prev_upd = upd = NULL;
 
         /*
-         * Trim from the end until there is a full update. We need this if we are dealing with mixed
-         * mode operation and there are modify updates at the end of update chain that are not
-         * relevant due to newer full updates without timestamps.
+         * Trim from the end until there is a full update. We need this if we are dealing with
+         * updates without timestamps, and there are timestamped modify updates at the end of update
+         * chain that are not relevant due to newer full updates without timestamps.
          */
         for (; modifies.size > 0;) {
             __wt_modify_vector_peek(&modifies, &upd);
-            if (upd->type == WT_UPDATE_MODIFY && F_ISSET(upd, WT_UPDATE_MASKED_BY_NON_TS_UPDATE))
+            if (upd->type == WT_UPDATE_MODIFY) {
+                WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_MASKED_BY_NON_TS_UPDATE));
                 __wt_modify_vector_pop(&modifies, &upd);
-            else
+            } else
                 break;
         }
         upd = NULL;
