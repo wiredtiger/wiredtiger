@@ -319,9 +319,14 @@ __hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
         WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
           ret = __wt_row_search(hs_cbt, srch_key, insert, hs_cbt->ref, false, &leaf_found));
 
-    if (!leaf_found)
+    if (!leaf_found) {
+        /* Reset the cursor if there exists a reference to a page to avoid page leak. */
+        if (hs_cbt->ref != NULL)
+            hs_cbt->iface->reset(hs_cbt->iface);
+
         WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
           ret = __wt_row_search(hs_cbt, srch_key, insert, NULL, false, NULL));
+    }
 
 #ifdef HAVE_DIAGNOSTIC
     WT_TRET(__wt_cursor_key_order_init(hs_cbt));
