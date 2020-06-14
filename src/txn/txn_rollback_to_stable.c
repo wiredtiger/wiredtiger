@@ -820,7 +820,7 @@ err:
 
 /*
  * __wt_rts_page_skip --
- *     Skip if rts doesn't requires to read this page.
+ *     Skip if rollback to stable doesn't requires to read this page.
  */
 int
 __wt_rts_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
