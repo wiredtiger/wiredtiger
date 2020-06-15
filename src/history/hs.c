@@ -306,27 +306,35 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags, bool is_o
 static int
 __hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
 {
+    WT_CURSOR *hs_cursor;
     WT_DECL_RET;
     bool leaf_found;
 
+    hs_cursor = &hs_cbt->iface;
     leaf_found = false;
 
     /*
      * Check whether the search key can be find in the provided leaf page, if exists. Otherwise
      * perform a full search.
      */
-    if (hs_cbt->ref != NULL)
+    if (hs_cbt->ref != NULL) {
         WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
           ret = __wt_row_search(hs_cbt, srch_key, insert, hs_cbt->ref, false, &leaf_found));
+        /*
+         * Only use the pinned page search results if search returns an exact match or a slot other
+         * than the page's boundary slots, if that's not the case, the record might belong on an
+         * entirely different page.
+         */
+        if (leaf_found && (hs_cbt->compare != 0 &&
+                            (hs_cbt->slot == 0 || hs_cbt->slot == hs_cbt->ref->page->entries - 1)))
+            leaf_found = false;
+        if (!leaf_found)
+            hs_cursor->reset(hs_cursor);
+    }
 
-    if (!leaf_found) {
-        /* Reset the cursor if there exists a reference to a page to avoid page leak. */
-        if (hs_cbt->ref != NULL)
-            hs_cbt->iface.reset(&hs_cbt->iface);
-
+    if (!leaf_found)
         WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
           ret = __wt_row_search(hs_cbt, srch_key, insert, NULL, false, NULL));
-    }
 
 #ifdef HAVE_DIAGNOSTIC
     WT_TRET(__wt_cursor_key_order_init(hs_cbt));
