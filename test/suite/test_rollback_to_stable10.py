@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import fnmatch, os, shutil, threading, time
+import fnmatch, os, shutil, threading, time, unittest
 from helper import copy_wiredtiger_home
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 from wiredtiger import stat
@@ -76,6 +76,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)
 
+    @unittest.skip("Skipping until the follow on work from WT-6280 is completed.")
     def test_rollback_to_stable(self):
         nrows = 1000
 
