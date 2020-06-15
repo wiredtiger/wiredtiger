@@ -929,9 +929,12 @@ config_transaction(void)
             testutil_die(EINVAL, "timestamps require snapshot isolation");
         if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
             testutil_die(EINVAL, "timestamps require transaction frequency set to 100");
-        /* FIXME-WT-6410: temporarily disable rebalance with timestamps. */
-        if (g.c_rebalance && config_is_perm("ops.rebalance"))
+    }
+    /* FIXME-WT-6410: temporarily disable rebalance with timestamps. */
+    if (g.c_txn_timestamps && g.c_rebalance) {
+        if (config_is_perm("ops.rebalance"))
             testutil_die(EINVAL, "rebalance cannot run with timestamps");
+        config_single("ops.rebalance=off", false);
     }
     if (g.c_isolation_flag == ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation")) {
         if (!g.c_txn_timestamps && config_is_perm("transaction.timestamps"))
