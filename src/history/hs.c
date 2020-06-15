@@ -624,11 +624,13 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
  */
 static inline int
 __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
-  WT_ITEM *older_full_value, WT_ITEM *full_value, WT_UPDATE **updp)
+  WT_ITEM *older_full_value, WT_ITEM *full_value, WT_UPDATE **updp, wt_timestamp_t *insert_tsp)
 {
     WT_UPDATE *upd;
+    wt_timestamp_t insert_ts;
     *updp = NULL;
-    __wt_modify_vector_pop(modifies, &upd);
+    insert_ts = WT_TS_NONE;
+    __wt_modify_vector_pop(modifies, &upd, &insert_ts);
     if (upd->type == WT_UPDATE_TOMBSTONE) {
         if (modifies->size == 0) {
             WT_ASSERT(session, older_full_value == NULL);
@@ -636,7 +638,7 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
             return (0);
         }
 
-        __wt_modify_vector_pop(modifies, &upd);
+        __wt_modify_vector_pop(modifies, &upd, &insert_ts);
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         full_value->data = upd->data;
         full_value->size = upd->size;
@@ -650,6 +652,8 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
     }
 
     *updp = upd;
+    if (insert_tsp)
+        *insert_tsp = insert_ts;
     return (0);
 }
 
@@ -765,6 +769,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * tombstone.
          * 4) We have a single tombstone on the chain, it is simply ignored.
          */
+        wt_timestamp_t min_ts = WT_TS_MAX;
         for (non_aborted_upd = prev_upd = NULL; upd != NULL;
              prev_upd = non_aborted_upd, upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
@@ -772,7 +777,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
             non_aborted_upd = upd;
 
-            WT_ERR(__wt_modify_vector_push(&modifies, upd));
+            /* If we've seen a smaller timestamp before, use that instead. */
+            min_ts = WT_MIN(min_ts, upd->start_ts);
+            WT_ERR(__wt_modify_vector_push(&modifies, upd, min_ts));
 
             /*
              * Always insert full update to the history store if we write a prepared update to the
@@ -819,10 +826,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * chain that are not relevant due to newer full updates without timestamps.
          */
         for (; modifies.size > 0;) {
-            __wt_modify_vector_peek(&modifies, &upd);
+            __wt_modify_vector_peek(&modifies, &upd, NULL);
             if (upd->type == WT_UPDATE_MODIFY) {
                 WT_ASSERT(session, F_ISSET(upd, WT_UPDATE_MASKED_BY_NON_TS_UPDATE));
-                __wt_modify_vector_pop(&modifies, &upd);
+                __wt_modify_vector_pop(&modifies, &upd, NULL);
             } else
                 break;
         }
@@ -831,7 +838,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         /* Construct the oldest full update. */
         WT_ASSERT(session, modifies.size > 0);
 
-        __wt_modify_vector_peek(&modifies, &oldest_upd);
+        __wt_modify_vector_peek(&modifies, &oldest_upd, NULL);
 
         WT_ASSERT(session,
           oldest_upd->type == WT_UPDATE_STANDARD || oldest_upd->type == WT_UPDATE_TOMBSTONE);
@@ -859,7 +866,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             clear_hs = first_non_ts_upd != NULL && !F_ISSET(first_non_ts_upd, WT_UPDATE_HS) &&
               (list->ins == NULL || ts_updates_in_hs);
 
-        WT_ERR(__hs_next_upd_full_value(session, &modifies, NULL, full_value, &upd));
+        wt_timestamp_t insert_ts;
+        WT_ERR(__hs_next_upd_full_value(session, &modifies, NULL, full_value, &upd, NULL));
 
         squashed = false;
 
@@ -874,7 +882,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
-            __wt_modify_vector_peek(&modifies, &prev_upd);
+            __wt_modify_vector_peek(&modifies, &prev_upd, NULL);
 
             /*
              * For any uncommitted prepared updates written to disk, the stop timestamp of the last
@@ -898,8 +906,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 stop_time_point.txnid = prev_upd->txnid;
             }
 
-            WT_ERR(
-              __hs_next_upd_full_value(session, &modifies, full_value, prev_full_value, &prev_upd));
+            WT_ERR(__hs_next_upd_full_value(
+              session, &modifies, full_value, prev_full_value, &prev_upd, NULL));
 
             /* Squash the updates from the same transaction. */
             if (upd->start_ts == prev_upd->start_ts && upd->txnid == prev_upd->txnid) {
@@ -1192,7 +1200,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
          */
         while (upd_type == WT_UPDATE_MODIFY) {
             WT_ERR(__wt_upd_alloc(session, hs_value, upd_type, &mod_upd, NULL));
-            WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
+            WT_ERR(__wt_modify_vector_push(&modifies, mod_upd, WT_TS_NONE));
             mod_upd = NULL;
 
             /*
@@ -1234,7 +1242,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         }
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
-            __wt_modify_vector_pop(&modifies, &mod_upd);
+            __wt_modify_vector_pop(&modifies, &mod_upd, NULL);
             WT_ERR(__wt_modify_apply_item(session, value_format, hs_value, mod_upd->data));
             __wt_free_update_list(session, &mod_upd);
             mod_upd = NULL;
@@ -1265,7 +1273,7 @@ err:
 
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
-        __wt_modify_vector_pop(&modifies, &upd);
+        __wt_modify_vector_pop(&modifies, &upd, NULL);
         __wt_free_update_list(session, &upd);
     }
     __wt_modify_vector_free(&modifies);

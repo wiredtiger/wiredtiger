@@ -455,7 +455,7 @@ __wt_modify_vector_init(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies)
  *     vector, we'll be doing malloc here.
  */
 int
-__wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd)
+__wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd, wt_timestamp_t adjusted_ts)
 {
     WT_DECL_RET;
     bool migrate_from_stack;
@@ -472,7 +472,8 @@ __wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd)
         if (migrate_from_stack)
             memcpy(modifies->listp, modifies->list, sizeof(modifies->list));
     }
-    modifies->listp[modifies->size++] = upd;
+    modifies->listp[modifies->size++].upd = upd;
+    modifies->listp[modifies->size++].adjusted_ts = WT_TS_NONE;
     return (0);
 
 err:
@@ -497,11 +498,13 @@ err:
  *     Pop an update pointer off a modify vector.
  */
 void
-__wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
+__wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp, wt_timestamp_t *adjusted_tsp)
 {
     WT_ASSERT(modifies->session, modifies->size > 0);
 
-    *updp = modifies->listp[--modifies->size];
+    *updp = modifies->listp[--modifies->size].upd;
+    if (adjusted_tsp)
+        *adjusted_tsp = modifies->listp[--modifies->size].adjusted_ts;
 }
 
 /*
@@ -509,11 +512,13 @@ __wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
  *     Peek an update pointer off a modify vector.
  */
 void
-__wt_modify_vector_peek(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
+__wt_modify_vector_peek(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp, wt_timestamp_t *adjusted_tsp)
 {
     WT_ASSERT(modifies->session, modifies->size > 0);
 
-    *updp = modifies->listp[modifies->size - 1];
+    *updp = modifies->listp[modifies->size - 1].upd;
+    if (adjusted_tsp)
+        *adjusted_tsp = modifies->listp[modifies->size - 1].adjusted_ts;
 }
 
 /*
@@ -561,7 +566,7 @@ __wt_modify_reconstruct_from_upd_list(
             break;
 
         if (upd->type == WT_UPDATE_MODIFY)
-            WT_ERR(__wt_modify_vector_push(&modifies, upd));
+            WT_ERR(__wt_modify_vector_push(&modifies, upd, WT_TS_NONE));
     }
     /*
      * If there's no full update, the base item is the on-page item. If the update is a tombstone,
@@ -590,7 +595,7 @@ __wt_modify_reconstruct_from_upd_list(
     }
     /* Once we have a base item, roll forward through any visible modify updates. */
     while (modifies.size > 0) {
-        __wt_modify_vector_pop(&modifies, &upd);
+        __wt_modify_vector_pop(&modifies, &upd, NULL);
         WT_ERR(__wt_modify_apply_item(session, cursor->value_format, &upd_value->buf, upd->data));
     }
     upd_value->type = WT_UPDATE_STANDARD;
