@@ -339,17 +339,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             }
         }
 
-        /*
-         * Handle double tombstone scenario that can happen in the history store when we add zero
-         * timestamped tombstones to the front of the update chain.
-         */
-        if (upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL &&
-          upd->next->type == WT_UPDATE_TOMBSTONE) {
-            WT_ASSERT(session, upd->start_ts == 0);
-            has_newer_updates = true;
-            continue;
-        }
-
         /* Track the first update with non-zero timestamp. */
         if (upd->start_ts > max_ts)
             max_ts = upd->start_ts;
@@ -429,6 +418,21 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
             /* Find the update this tombstone applies to. */
             if (!__wt_txn_upd_visible_all(session, upd)) {
+                /*
+                 * Handle double tombstone scenario that can happen in the history store when we add
+                 * zero timestamped tombstones to the front of the update chain.
+                 */
+                if (upd->next != NULL && upd->next->type == WT_UPDATE_TOMBSTONE) {
+                    WT_ASSERT(session, upd->start_ts == 0 && WT_IS_HS(S2BT(session)));
+                    upd = upd->next;
+                    WT_TIME_WINDOW_SET_STOP(select_tw, upd);
+                    tombstone = upd;
+                    /*
+                     * Pin the 0 timestamped tombstone in cache until it becomes globally visible.
+                     */
+                    has_newer_updates = true;
+                }
+
                 while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED)
                     upd = upd->next;
                 WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
