@@ -299,12 +299,6 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         WT_FULL_BARRIER();
         if (!S2C(session)->modified)
             S2C(session)->modified = true;
-
-        /*
-         * Eviction should only be here if allowing writes to history store or in the in-memory
-         * eviction case. Otherwise, we must be reconciling a fixed length column store page (which
-         * does not allow history store content).
-         */
     } else {
         /*
          * Track the page's maximum transaction ID (used to decide if we can evict a clean page and
@@ -467,7 +461,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
         /* Disk buffers need to be aligned for writing. */
         F_SET(&r->chunkA.image, WT_ITEM_ALIGNED);
-        F_SET(&r->chunkB.image, WT_ITEM_ALIGNED);
+        F_SET(&r->chunkB.image, WT _ITEM_ALIGNED);
     }
 
     /* Remember the configuration. */

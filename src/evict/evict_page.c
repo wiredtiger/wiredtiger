@@ -674,8 +674,12 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         return (__wt_set_return(session, EBUSY));
 
     /*
-     * Success: assert that the page is clean or reconciliation was configured to save updates.
+     * Success: assert that the page is clean or reconciliation was configured to save updates. We
+     * could also be evicting a history store page which in certain circumstances needs to be left
+     * dirty.
      */
+    WT_ASSERT(session, !__wt_page_is_modified(page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
+        WT_IS_HS(S2BT(session)));
 
     return (0);
 }
