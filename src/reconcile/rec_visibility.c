@@ -413,28 +413,33 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * indicate that the value is visible to any timestamp/transaction id ahead of it.
          */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
+tombstone_retry:
             WT_TIME_WINDOW_SET_STOP(select_tw, upd);
             tombstone = upd;
 
             /* Find the update this tombstone applies to. */
             if (!__wt_txn_upd_visible_all(session, upd)) {
-                /*
-                 * Handle double tombstone scenario that can happen in the history store when we add
-                 * zero timestamped tombstones to the front of the update chain.
-                 */
-                if (upd->next != NULL && upd->next->type == WT_UPDATE_TOMBSTONE) {
-                    WT_ASSERT(session, upd->start_ts == 0 && WT_IS_HS(S2BT(session)));
-                    upd = upd->next;
-                    WT_TIME_WINDOW_SET_STOP(select_tw, upd);
-                    tombstone = upd;
-                    /*
-                     * Pin the 0 timestamped tombstone in cache until it becomes globally visible.
-                     */
-                    has_newer_updates = true;
-                }
-
                 while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED)
                     upd = upd->next;
+                /*
+                 * Handle double tombstone scenario that can happen in the history store when we add
+                 * zero timestamped tombstones to the front of the update chain. In that scenario we
+                 * could have a tombstone with timestamp 0 followed by a tombstone with a non-zero
+                 * timestamp.
+                 *
+                 * We will set the non-zero timestamped tombstone as our currently selected update
+                 * and pin the zero timestamped tombstone in cache. Check that our update isn't the
+                 * same as the update we had further up in order to avoid looping infinitely.
+                 */
+                if (upd->type == WT_UPDATE_TOMBSTONE && upd != tombstone) {
+                    WT_ASSERT(session, tombstone->start_ts == 0 && WT_IS_HS(S2BT(session)));
+                    /*
+                     * Pin the tombstone in cache until it becomes globally visible.
+                     */
+                    has_newer_updates = true;
+                    upd_select->upd = upd;
+                    goto tombstone_retry;
+                }
                 WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
                 if (upd->next == NULL)
                     last_upd = upd;
