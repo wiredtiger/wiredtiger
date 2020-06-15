@@ -445,7 +445,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             /* The beginning of the validity window is the selected update's time point. */
             WT_TIME_WINDOW_SET_START(select_tw, upd);
         else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
-            /* If we only have a tombstone in the update list, we must have an ondisk value. */
+            /* If we only have a tombstones in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL && tombstone != NULL && last_upd->next == NULL);
             /*
              * It's possible to have a tombstone as the only update in the update list. If we
