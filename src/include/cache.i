@@ -182,7 +182,7 @@ __wt_cache_bytes_updates(WT_CACHE *cache)
      * Reads can race with changes to the values, so check that the calculation doesn't go negative.
      */
     bytes_updates = __wt_safe_sub(
-      cache->bytes_inmem, cache->bytes_internal + cache->bytes_new_leaf + cache->bytes_dirty_lsm);
+      cache->bytes_inmem, cache->bytes_internal + cache->bytes_new_leaf + cache->bytes_lsm);
     return (__wt_cache_bytes_plus_overhead(cache, bytes_updates));
 }
 

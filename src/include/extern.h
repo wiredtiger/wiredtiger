@@ -2152,8 +2152,6 @@ static inline void __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page
 static inline void __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cache_page_byte_dirty_decr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
-static inline void __wt_cache_page_byte_lsm_decr(
-  WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
 static inline void __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cache_page_image_decr(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cache_page_image_incr(WT_SESSION_IMPL *session, WT_PAGE *page);
