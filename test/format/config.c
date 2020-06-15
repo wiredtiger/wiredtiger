@@ -898,10 +898,14 @@ static void
 config_transaction(void)
 {
     /*
-     * WiredTiger cannot support relaxed isolation levels. Turn off everything but snapshot isolation.
+     * WiredTiger cannot support relaxed isolation levels. Turn off everything but timestamps with
+     * snapshot isolation.
      */
-    if (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation"))
+    if ((!g.c_txn_timestamps && config_is_perm("transaction.timestamps")) ||
+      (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation")))
         testutil_die(EINVAL, "format limited to timestamp and snapshot-isolation testing");
+    if (!g.c_txn_timestamps)
+        config_single("transaction.timestamps=on", false);
     if (g.c_isolation_flag != ISOLATION_SNAPSHOT)
         config_single("transaction.isolation=snapshot", false);
 
@@ -933,6 +937,8 @@ config_transaction(void)
         config_single("ops.rebalance=off", false);
     }
     if (g.c_isolation_flag == ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation")) {
+        if (!g.c_txn_timestamps && config_is_perm("transaction.timestamps"))
+            testutil_die(EINVAL, "snapshot isolation requires timestamps");
         if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
             testutil_die(EINVAL, "snapshot isolation requires transaction frequency set to 100");
     }
