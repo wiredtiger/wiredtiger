@@ -320,6 +320,8 @@ __hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
     if (hs_cbt->ref != NULL) {
         WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
           ret = __wt_row_search(hs_cbt, srch_key, insert, hs_cbt->ref, false, &leaf_found));
+        WT_RET(ret);
+
         /*
          * Only use the pinned page search results if search returns an exact match or a slot other
          * than the page's boundary slots, if that's not the case, the record might belong on an
