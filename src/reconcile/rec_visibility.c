@@ -431,7 +431,7 @@ tombstone_retry:
                  * and pin the zero timestamped tombstone in cache. Check that our update isn't the
                  * same as the update we had further up in order to avoid looping infinitely.
                  */
-                if (upd->type == WT_UPDATE_TOMBSTONE && upd != tombstone) {
+                if (upd->type == WT_UPDATE_TOMBSTONE && upd->next != NULL && upd != tombstone) {
                     WT_ASSERT(session, tombstone->start_ts == 0 && WT_IS_HS(S2BT(session)));
                     /*
                      * Pin the tombstone in cache until it becomes globally visible.
