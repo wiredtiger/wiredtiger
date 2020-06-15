@@ -241,13 +241,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TIME_WINDOW *select_tw;
-    WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd, *tombstone;
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, txnid;
     char time_string[WT_TIME_STRING_SIZE];
-    bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
+    bool has_newer_updates, supd_restore, upd_saved;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -263,8 +262,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     has_newer_updates = upd_saved = false;
-    is_hs_page = F_ISSET(S2BT(session), WT_BTREE_HS);
-    txn_global = &S2C(session)->txn_global;
 
     /*
      * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
@@ -298,10 +295,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * check is not required for history store updates as they are implicitly committed. As
          * prepared transaction IDs are globally visible, need to check the update state as well.
          */
-        if ((F_ISSET(r, WT_REC_EVICT) && txn_global->checkpoint_running && is_hs_page &&
-              WT_TXNID_LT(txn_global->checkpoint_id, txnid)) ||
-          (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
-                                            !__txn_visible_id(session, txnid))) {
+        if (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
+                                             !__txn_visible_id(session, txnid)) {
             /*
              * Rare case: when applications run at low isolation levels, eviction may see a
              * committed update followed by uncommitted updates. Give up in that case because we
