@@ -322,7 +322,7 @@ __hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
     if (!leaf_found) {
         /* Reset the cursor if there exists a reference to a page to avoid page leak. */
         if (hs_cbt->ref != NULL)
-            hs_cbt->iface->reset(hs_cbt->iface);
+            hs_cbt->iface.reset(&hs_cbt->iface);
 
         WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
           ret = __wt_row_search(hs_cbt, srch_key, insert, NULL, false, NULL));
