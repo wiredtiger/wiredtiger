@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __rename_blkmods --
+ * __rename_blkmod --
  *     Reset the incremental backup information for a rename.
  */
 static int
-__rename_blkmods(WT_SESSION_IMPL *session, const char *oldvalue, wt_off_t size, WT_ITEM *buf)
+__rename_blkmod(WT_SESSION_IMPL *session, const char *oldvalue, wt_off_t size, WT_ITEM *buf)
 {
     WT_BLOCK_MODS *blk;
     WT_CKPT ckpt;
@@ -25,11 +25,12 @@ __rename_blkmods(WT_SESSION_IMPL *session, const char *oldvalue, wt_off_t size, 
      * backup information to indicate copying the entire file in its bitmap.
      */
     /* First load any existing backup information into a temp checkpoint structure. */
-    WT_RET(__wt_ckpt_load_blk_mods(session, oldvalue, &ckpt));
+    WT_RET(__wt_ckpt_load_blk_mods(session, oldvalue, &ckpt, true));
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &ckpt.backup_blocks[i];
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
+
         /* Set the bitstring to the entire size. */
         WT_RET(__wt_ckpt_add_blkmod_entry(session, blk, 0, size));
     }
@@ -95,12 +96,10 @@ __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
     /* Grab the file size before removing the entry. */
     WT_ERR(__wt_fs_size(session, filename, &size));
     WT_ERR(__wt_metadata_remove(session, uri));
-    WT_ERR(__rename_blkmods(session, oldvalue, size, buf));
+    WT_ERR(__rename_blkmod(session, oldvalue, size, buf));
     filecfg[0] = oldvalue;
     filecfg[1] = buf->mem;
     WT_ERR(__wt_config_collapse(session, filecfg, &newvalue));
-    __wt_errx(session, "RENAME: OLD: %s", oldvalue);
-    __wt_errx(session, "RENAME: NEW: %s", newvalue);
     WT_ERR(__wt_metadata_insert(session, newuri, newvalue));
 
     /* Rename the underlying file. */

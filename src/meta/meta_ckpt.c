@@ -20,7 +20,8 @@ static int __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
  *     Load the block information from the config string.
  */
 int
-__wt_ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
+__wt_ckpt_load_blk_mods(
+  WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt, bool retain_all)
 {
     WT_BLKINCR *blkincr;
     WT_BLOCK_MODS *blk_mod;
@@ -41,9 +42,8 @@ __wt_ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *c
         return (ret == WT_NOTFOUND ? 0 : ret);
     __wt_config_subinit(session, &blkconf, &v);
     /*
-     * Load block lists. Ignore any that have an id string that is not known.
-     *
-     * Remove those not known (TODO).
+     * Load block lists. Ignore any that have an id string that is not known unless told to retain
+     * all information (such as a rename).
      */
     blkincr = NULL;
     while ((ret = __wt_config_next(&blkconf, &k, &v)) == 0) {
@@ -52,7 +52,8 @@ __wt_ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *c
          */
         for (i = 0; i < WT_BLKINCR_MAX; ++i) {
             blkincr = &conn->incr_backups[i];
-            if (blkincr->id_str != NULL && WT_STRING_MATCH(blkincr->id_str, k.str, k.len))
+            if (blkincr->id_str != NULL &&
+              (retain_all || WT_STRING_MATCH(blkincr->id_str, k.str, k.len)))
                 break;
         }
         if (i == WT_BLKINCR_MAX)
@@ -526,7 +527,7 @@ __wt_meta_ckptlist_get(
         /*
          * Load most recent checkpoint backup blocks to this checkpoint.
          */
-        WT_ERR(__wt_ckpt_load_blk_mods(session, config, ckpt));
+        WT_ERR(__wt_ckpt_load_blk_mods(session, config, ckpt, false));
 
         WT_ERR(__wt_meta_block_metadata(session, config, ckpt));
 
