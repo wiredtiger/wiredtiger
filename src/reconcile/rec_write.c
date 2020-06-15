@@ -461,7 +461,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
         /* Disk buffers need to be aligned for writing. */
         F_SET(&r->chunkA.image, WT_ITEM_ALIGNED);
-        F_SET(&r->chunkB.image, WT _ITEM_ALIGNED);
+        F_SET(&r->chunkB.image, WT_ITEM_ALIGNED);
     }
 
     /* Remember the configuration. */
