@@ -24,8 +24,8 @@ typedef struct {
  */
 #define WT_HS_SESSION_FLAGS WT_SESSION_IGNORE_CACHE_SIZE
 
-static int __hs_delete_key_from_pos(
-  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key);
+static int __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
+  uint64_t tombstone_txnid, uint32_t btree_id, const WT_ITEM *key);
 
 /*
  * __hs_start_internal_session --
@@ -541,7 +541,8 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
         goto done;
     }
 
-    while ((ret = __hs_delete_key_from_pos(session, cursor, btree->id, key)) == WT_RESTART)
+    while (
+      (ret = __hs_delete_key_from_pos(session, cursor, upd->txnid, btree->id, key)) == WT_RESTART)
         WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts_restart);
     WT_ERR(ret);
     WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
@@ -587,7 +588,7 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
     if (upd->type == WT_UPDATE_TOMBSTONE) {
         if (upd->start_ts == WT_TS_NONE) {
             /* We can only delete history store entries that have timestamps. */
-            WT_RET(__wt_hs_delete_key_from_ts(session, btree_id, key, 1));
+            WT_RET(__wt_hs_delete_key_from_ts(session, upd->txnid, btree_id, key, 1));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
         }
 
@@ -1155,8 +1156,8 @@ err:
  *     Internal helper for deleting history store content of a given key from a timestamp.
  */
 static int
-__hs_delete_key_from_ts_int(
-  WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts)
+__hs_delete_key_from_ts_int(WT_SESSION_IMPL *session, uint64_t tombstone_txnid, uint32_t btree_id,
+  const WT_ITEM *key, wt_timestamp_t ts)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(srch_key);
@@ -1202,7 +1203,7 @@ __hs_delete_key_from_ts_int(
     WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
     if (cmp != 0)
         goto done;
-    WT_ERR(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key));
+    WT_ERR(__hs_delete_key_from_pos(session, hs_cursor, tombstone_txnid, btree_id, key));
 done:
     ret = 0;
 err:
@@ -1215,8 +1216,8 @@ err:
  *     Delete history store content of a given key from a timestamp.
  */
 int
-__wt_hs_delete_key_from_ts(
-  WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts)
+__wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, uint64_t tombstone_txnid, uint32_t btree_id,
+  const WT_ITEM *key, wt_timestamp_t ts)
 {
     WT_DECL_RET;
     uint32_t session_flags;
@@ -1235,7 +1236,8 @@ __wt_hs_delete_key_from_ts(
     WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
 
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
-    while ((ret = __hs_delete_key_from_ts_int(session, btree_id, key, ts)) == WT_RESTART)
+    while ((ret = __hs_delete_key_from_ts_int(session, tombstone_txnid, btree_id, key, ts)) ==
+      WT_RESTART)
         WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
 
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
@@ -1248,8 +1250,8 @@ __wt_hs_delete_key_from_ts(
  *     positioned at the beginning of the key range.
  */
 static int
-__hs_delete_key_from_pos(
-  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key)
+__hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint64_t tombstone_txnid,
+  uint32_t btree_id, const WT_ITEM *key)
 {
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_RET;
@@ -1285,7 +1287,7 @@ __hs_delete_key_from_pos(
          * value invisible and the key itself will eventually get removed during reconciliation.
          */
         WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
-        upd->txnid = WT_TXN_NONE;
+        upd->txnid = tombstone_txnid;
         upd->start_ts = upd->durable_ts = WT_TS_NONE;
         WT_ERR(__wt_hs_modify(hs_cbt, upd));
         upd = NULL;

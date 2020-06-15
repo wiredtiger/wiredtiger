@@ -305,8 +305,6 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * eviction case. Otherwise, we must be reconciling a fixed length column store page (which
          * does not allow history store content).
          */
-        WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) ||
-            (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX));
     } else {
         /*
          * Track the page's maximum transaction ID (used to decide if we can evict a clean page and
