@@ -560,8 +560,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
     WT_BTREE *hs_tree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    double dirty_target, dirty_trigger, target, trigger;
-    uint64_t bytes_inuse, bytes_max, dirty_inuse;
+    double dirty_target, dirty_trigger, target, trigger, updates_target, updates_trigger;
+    uint64_t bytes_dirty, bytes_inuse, bytes_max, bytes_updates;
     uint32_t flags;
 
     conn = S2C(session);
@@ -571,6 +571,8 @@ __evict_update_work(WT_SESSION_IMPL *session)
     dirty_trigger = cache->eviction_dirty_trigger;
     target = cache->eviction_target;
     trigger = cache->eviction_trigger;
+    updates_target = cache->eviction_updates_target;
+    updates_trigger = cache->eviction_updates_trigger;
 
     /* Build up the new state. */
     flags = 0;
@@ -598,11 +600,18 @@ __evict_update_work(WT_SESSION_IMPL *session)
     else if (bytes_inuse > (target * bytes_max) / 100)
         LF_SET(WT_CACHE_EVICT_CLEAN);
 
-    dirty_inuse = __wt_cache_dirty_leaf_inuse(cache);
+    bytes_dirty = __wt_cache_dirty_leaf_inuse(cache);
     if (__wt_eviction_dirty_needed(session, NULL))
         LF_SET(WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_DIRTY_HARD);
-    else if (dirty_inuse > (uint64_t)(dirty_target * bytes_max) / 100)
+    else if (bytes_dirty > (uint64_t)(dirty_target * bytes_max) / 100)
         LF_SET(WT_CACHE_EVICT_DIRTY);
+
+    bytes_updates = __wt_cache_bytes_updates(cache);
+    if (bytes_updates > (uint64_t)(updates_trigger * bytes_max) / 100)
+        LF_SET(WT_CACHE_EVICT_UPDATES | WT_CACHE_EVICT_UPDATES_HARD | WT_CACHE_EVICT_DIRTY |
+          WT_CACHE_EVICT_DIRTY_HARD);
+    else if (bytes_updates > (uint64_t)(updates_target * bytes_max) / 100)
+        LF_SET(WT_CACHE_EVICT_UPDATES);
 
     /*
      * If application threads are blocked by the total volume of data in cache, try dirty pages as
@@ -616,22 +625,10 @@ __evict_update_work(WT_SESSION_IMPL *session)
      * trigger.
      */
     if (bytes_inuse < (uint64_t)((target + trigger) * bytes_max) / 200) {
-        if (dirty_inuse < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200)
+        if (bytes_dirty < (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200)
             LF_SET(WT_CACHE_EVICT_SCRUB);
     } else
         LF_SET(WT_CACHE_EVICT_NOKEEP);
-
-    /*
-     * Try history store evict when:
-     * (1) the cache is stuck; OR
-     * (2) the history store score goes over 80; and
-     * (3) the cache is more than half way from the dirty target to the
-     *     dirty trigger.
-     */
-    if (__wt_cache_stuck(session) ||
-      (__wt_cache_hs_score(cache) > 80 &&
-          dirty_inuse > (uint64_t)((dirty_target + dirty_trigger) * bytes_max) / 200))
-        LF_SET(WT_CACHE_EVICT_HS);
 
     /*
      * With an in-memory cache, we only do dirty eviction in order to scrub pages.
@@ -751,8 +748,7 @@ __evict_pass(WT_SESSION_IMPL *session)
          * rolling back transactions and writing updates to the history store table.
          */
         if (eviction_progress == cache->eviction_progress) {
-            if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 &&
-              F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD)) {
+            if (WT_CLOCKDIFF_MS(time_now, time_prev) >= 20 && F_ISSET(cache, WT_CACHE_EVICT_HARD)) {
                 if (cache->evict_aggressive_score < 100)
                     ++cache->evict_aggressive_score;
                 oldest_id = txn_global->oldest_id;
@@ -1187,7 +1183,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
      * queued.
      */
     if (__evict_queue_empty(queue, false)) {
-        if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD))
+        if (F_ISSET(cache, WT_CACHE_EVICT_HARD))
             cache->evict_empty_score =
               WT_MIN(cache->evict_empty_score + WT_EVICT_SCORE_BUMP, WT_EVICT_SCORE_MAX);
         WT_STAT_CONN_INCR(session, cache_eviction_queue_empty);
@@ -1614,10 +1610,10 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 {
     WT_CACHE *cache;
     uint64_t btree_inuse, bytes_per_slot, cache_inuse;
-    uint32_t target_pages_clean, target_pages_dirty, target_pages;
+    uint32_t target_pages, target_pages_clean, target_pages_dirty, target_pages_updates;
 
     cache = S2C(session)->cache;
-    target_pages_clean = target_pages_dirty = 0;
+    target_pages_clean = target_pages_dirty = target_pages_updates = 0;
 
 /*
  * The minimum number of pages we should consider per tree.
@@ -1643,7 +1639,15 @@ __evict_walk_target(WT_SESSION_IMPL *session)
         target_pages_dirty = (uint32_t)((btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
     }
 
+    if (F_ISSET(cache, WT_CACHE_EVICT_UPDATES)) {
+        btree_inuse = __wt_btree_bytes_updates(session);
+        cache_inuse = __wt_cache_bytes_updates(cache);
+        bytes_per_slot = 1 + cache_inuse / cache->evict_slots;
+        target_pages_updates = (uint32_t)((btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
+    }
+
     target_pages = WT_MAX(target_pages_clean, target_pages_dirty);
+    target_pages = WT_MAX(target_pages, target_pages_updates);
 
     /*
      * Walk trees with a small fraction of the cache in case there are so many trees that none of
@@ -1651,8 +1655,9 @@ __evict_walk_target(WT_SESSION_IMPL *session)
      * interest.
      */
     if (target_pages == 0) {
-        btree_inuse = F_ISSET(cache, WT_CACHE_EVICT_CLEAN) ? __wt_btree_bytes_evictable(session) :
-                                                             __wt_btree_dirty_leaf_inuse(session);
+        btree_inuse = F_ISSET(cache, WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_UPDATES) ?
+          __wt_btree_bytes_evictable(session) :
+          __wt_btree_dirty_leaf_inuse(session);
 
         if (btree_inuse == 0)
             return (0);
@@ -1690,7 +1695,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     uint64_t min_pages, pages_already_queued, pages_seen, pages_queued, refs_walked;
     uint32_t read_flags, remaining_slots, target_pages, walk_flags;
     int restarts;
-    bool give_up, modified, urgent_queued;
+    bool give_up, modified, urgent_queued, want_page;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -1915,12 +1920,12 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
             goto fast;
 
-        /* Skip clean pages if appropriate. */
-        if (!modified && !F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
-            continue;
+        /* Skip pages we don't want. */
+        want_page = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !modified) ||
+          (F_ISSET(cache, WT_CACHE_EVICT_DIRTY) && modified) ||
+          (F_ISSET(cache, WT_CACHE_EVICT_UPDATES) && page->modify != NULL);
 
-        /* Skip dirty pages if appropriate. */
-        if (modified && !F_ISSET(cache, WT_CACHE_EVICT_DIRTY))
+        if (!want_page)
             continue;
 
         /*
@@ -1949,7 +1954,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * evict the same page.
          */
         if (!__wt_page_evict_retry(session, page) ||
-          (modified && !__txn_visible_all_id(session, page->modify->update_txn)))
+          (modified && page->modify->update_txn >= conn->txn_global.last_running))
             continue;
 
 fast:
@@ -2465,12 +2470,12 @@ __verbose_dump_cache_single(
     uint64_t intl_bytes, intl_bytes_max, intl_dirty_bytes;
     uint64_t intl_dirty_bytes_max, intl_dirty_pages, intl_pages;
     uint64_t leaf_bytes, leaf_bytes_max, leaf_dirty_bytes;
-    uint64_t leaf_dirty_bytes_max, leaf_dirty_pages, leaf_pages;
+    uint64_t leaf_dirty_bytes_max, leaf_dirty_pages, leaf_pages, leaf_updates_bytes;
 
     intl_bytes = intl_bytes_max = intl_dirty_bytes = 0;
     intl_dirty_bytes_max = intl_dirty_pages = intl_pages = 0;
     leaf_bytes = leaf_bytes_max = leaf_dirty_bytes = 0;
-    leaf_dirty_bytes_max = leaf_dirty_pages = leaf_pages = 0;
+    leaf_dirty_bytes_max = leaf_dirty_pages = leaf_pages = leaf_updates_bytes = 0;
 
     dhandle = session->dhandle;
     btree = dhandle->handle;
@@ -2513,6 +2518,8 @@ __verbose_dump_cache_single(
                 leaf_dirty_bytes += size;
                 leaf_dirty_bytes_max = WT_MAX(leaf_dirty_bytes_max, size);
             }
+            if (page->modify != NULL)
+                leaf_updates_bytes += page->memory_footprint - page->bytes_when_new;
         }
     }
 
@@ -2609,6 +2616,8 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
     WT_RET(__wt_msg(session, "cache clean check: %s (%2.3f%%)", needed ? "yes" : "no", pct));
     needed = __wt_eviction_dirty_needed(session, &pct);
     WT_RET(__wt_msg(session, "cache dirty check: %s (%2.3f%%)", needed ? "yes" : "no", pct));
+    needed = __wt_eviction_updates_needed(session, &pct);
+    WT_RET(__wt_msg(session, "cache updates check: %s (%2.3f%%)", needed ? "yes" : "no", pct));
 
     WT_WITH_HANDLE_LIST_READ_LOCK(
       session, ret = __verbose_dump_cache_apply(session, &total_bytes, &total_dirty_bytes));
