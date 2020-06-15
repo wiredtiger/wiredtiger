@@ -179,25 +179,6 @@ __wt_btree_dirty_leaf_inuse(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_btree_bytes_updates --
- *     Return the number of bytes in use by dirty leaf pages.
- */
-static inline uint64_t
-__wt_btree_bytes_updates(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-    WT_CACHE *cache;
-    uint64_t bytes_updates;
-
-    btree = S2BT(session);
-    cache = S2C(session)->cache;
-
-    bytes_updates = __wt_safe_sub(
-      btree->bytes_inmem, btree->bytes_internal + btree->bytes_new_leaf + btree->bytes_dirty_lsm);
-    return (__wt_cache_bytes_plus_overhead(cache, bytes_updates));
-}
-
-/*
  * __wt_cache_page_inmem_incr --
  *     Increment a page's memory footprint in the cache.
  */
@@ -221,10 +202,6 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
     (void)__wt_atomic_add64(&cache->bytes_inmem, size);
     (void)__wt_atomic_add64(&btree->bytes_inmem, size);
     (void)__wt_atomic_addsize(&page->memory_footprint, size);
-    if (btree->lsm_primary) {
-        (void)__wt_atomic_add64(&btree->bytes_dirty_lsm, size);
-        (void)__wt_atomic_add64(&cache->bytes_dirty_lsm, size);
-    }
     if (__wt_page_is_modified(page)) {
         if (WT_PAGE_IS_INTERNAL(page)) {
             (void)__wt_atomic_add64(&cache->bytes_dirty_intl, size);
@@ -236,10 +213,8 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
         (void)__wt_atomic_addsize(&page->modify->bytes_dirty, size);
     }
     /* Track internal size in cache. */
-    if (WT_PAGE_IS_INTERNAL(page)) {
+    if (WT_PAGE_IS_INTERNAL(page))
         (void)__wt_atomic_add64(&cache->bytes_internal, size);
-        (void)__wt_atomic_add64(&btree->bytes_internal, size);
-    }
 }
 
 /*
@@ -352,37 +327,14 @@ __wt_cache_page_byte_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t 
 }
 
 /*
- * __wt_cache_page_byte_lsm_decr --
- *     Decrement the page's dirty byte count, guarding from underflow.
- */
-static inline void
-__wt_cache_page_byte_lsm_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
-{
-    WT_BTREE *btree;
-    WT_CACHE *cache;
-
-    btree = S2BT(session);
-    cache = S2C(session)->cache;
-    WT_UNUSED(page);
-
-    WT_ASSERT(session, btree->lsm_primary);
-    __wt_cache_decr_check_uint64(
-      session, &btree->bytes_dirty_lsm, size, "WT_BTREE.bytes_dirty_lsm");
-    __wt_cache_decr_check_uint64(
-      session, &cache->bytes_dirty_lsm, size, "WT_CACHE.bytes_dirty_lsm");
-}
-
-/*
  * __wt_cache_page_inmem_decr --
  *     Decrement a page's memory footprint in the cache.
  */
 static inline void
 __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 {
-    WT_BTREE *btree;
     WT_CACHE *cache;
 
-    btree = S2BT(session);
     cache = S2C(session)->cache;
 
     WT_ASSERT(session, size < WT_EXABYTE);
@@ -392,19 +344,15 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
      * threads that are trying to increase the sizes concurrently.
      */
     __wt_cache_decr_check_size(session, &page->memory_footprint, size, "WT_PAGE.memory_footprint");
-    __wt_cache_decr_check_uint64(session, &btree->bytes_inmem, size, "WT_BTREE.bytes_inmem");
+    __wt_cache_decr_check_uint64(
+      session, &S2BT(session)->bytes_inmem, size, "WT_BTREE.bytes_inmem");
     __wt_cache_decr_check_uint64(session, &cache->bytes_inmem, size, "WT_CACHE.bytes_inmem");
-    if (btree->lsm_primary)
-        __wt_cache_page_byte_lsm_decr(session, page, size);
     if (__wt_page_is_modified(page))
         __wt_cache_page_byte_dirty_decr(session, page, size);
     /* Track internal size in cache. */
-    if (WT_PAGE_IS_INTERNAL(page)) {
-        __wt_cache_decr_check_uint64(
-          session, &btree->bytes_internal, size, "WT_BTREE.bytes_internal");
+    if (WT_PAGE_IS_INTERNAL(page))
         __wt_cache_decr_check_uint64(
           session, &cache->bytes_internal, size, "WT_CACHE.bytes_internal");
-    }
 }
 
 /*
@@ -433,14 +381,11 @@ __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
         (void)__wt_atomic_add64(&cache->bytes_dirty_intl, size);
         (void)__wt_atomic_add64(&btree->bytes_dirty_intl, size);
     } else {
-        if (btree->lsm_primary) {
-            (void)__wt_atomic_add64(&cache->bytes_dirty_lsm, size);
-            (void)__wt_atomic_add64(&btree->bytes_dirty_lsm, size);
-        } else {
+        (void)__wt_atomic_add64(&cache->pages_dirty_leaf, 1);
+        if (!btree->lsm_primary) {
             (void)__wt_atomic_add64(&cache->bytes_dirty_leaf, size);
             (void)__wt_atomic_add64(&btree->bytes_dirty_leaf, size);
         }
-        (void)__wt_atomic_add64(&cache->pages_dirty_leaf, 1);
     }
     (void)__wt_atomic_add64(&cache->bytes_dirty_total, size);
     (void)__wt_atomic_add64(&btree->bytes_dirty_total, size);
@@ -475,18 +420,13 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
  *     Decrement a page image's size to the cache.
  */
 static inline void
-__wt_cache_page_image_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_cache_page_image_decr(WT_SESSION_IMPL *session, uint32_t size)
 {
     WT_CACHE *cache;
 
     cache = S2C(session)->cache;
 
-    if (WT_PAGE_IS_INTERNAL(page))
-        __wt_cache_decr_check_uint64(
-          session, &cache->bytes_image_intl, page->dsk->mem_size, "WT_CACHE.bytes_image");
-    else
-        __wt_cache_decr_check_uint64(
-          session, &cache->bytes_image_leaf, page->dsk->mem_size, "WT_CACHE.bytes_image");
+    __wt_cache_decr_check_uint64(session, &cache->bytes_image, size, "WT_CACHE.image_inmem");
 }
 
 /*
@@ -494,53 +434,12 @@ __wt_cache_page_image_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
  *     Increment a page image's size to the cache.
  */
 static inline void
-__wt_cache_page_image_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_cache_page_image_incr(WT_SESSION_IMPL *session, uint32_t size)
 {
     WT_CACHE *cache;
 
     cache = S2C(session)->cache;
-    if (WT_PAGE_IS_INTERNAL(page))
-        (void)__wt_atomic_add64(&cache->bytes_image_intl, page->dsk->mem_size);
-    else
-        (void)__wt_atomic_add64(&cache->bytes_image_leaf, page->dsk->mem_size);
-}
-
-/*
- * __wt_cache_page_new_decr --
- *     Decrement a page's size when new from the cache.
- */
-static inline void
-__wt_cache_page_new_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
-{
-    WT_CACHE *cache;
-
-    cache = S2C(session)->cache;
-
-    if (!WT_PAGE_IS_INTERNAL(page)) {
-        __wt_cache_decr_check_uint64(
-          session, &S2BT(session)->bytes_new_leaf, page->bytes_when_new, "WT_BTREE.bytes_new_leaf");
-        __wt_cache_decr_check_uint64(
-          session, &cache->bytes_new_leaf, page->bytes_when_new, "WT_CACHE.bytes_new_leaf");
-    }
-}
-
-/*
- * __wt_cache_page_new_incr --
- *     Increment a new page's size to the cache.
- */
-static inline void
-__wt_cache_page_new_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
-{
-    WT_CACHE *cache;
-
-    cache = S2C(session)->cache;
-
-    if (!WT_PAGE_IS_INTERNAL(page)) {
-        WT_ASSERT(session, page->bytes_when_new == 0);
-        page->bytes_when_new = page->memory_footprint;
-        (void)__wt_atomic_add64(&cache->bytes_new_leaf, page->bytes_when_new);
-        (void)__wt_atomic_add64(&S2BT(session)->bytes_new_leaf, page->bytes_when_new);
-    }
+    (void)__wt_atomic_add64(&cache->bytes_image, size);
 }
 
 /*
@@ -559,19 +458,15 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
     modify = page->modify;
 
     /* Update the bytes in-memory to reflect the eviction. */
-    __wt_cache_page_new_decr(session, page);
     __wt_cache_decr_check_uint64(
       session, &btree->bytes_inmem, page->memory_footprint, "WT_BTREE.bytes_inmem");
     __wt_cache_decr_check_uint64(
       session, &cache->bytes_inmem, page->memory_footprint, "WT_CACHE.bytes_inmem");
 
     /* Update the bytes_internal value to reflect the eviction */
-    if (WT_PAGE_IS_INTERNAL(page)) {
-        __wt_cache_decr_check_uint64(
-          session, &btree->bytes_internal, page->memory_footprint, "WT_BTREE.bytes_internal");
+    if (WT_PAGE_IS_INTERNAL(page))
         __wt_cache_decr_check_uint64(
           session, &cache->bytes_internal, page->memory_footprint, "WT_CACHE.bytes_internal");
-    }
 
     /* Update the cache's dirty-byte count. */
     if (modify != NULL && modify->bytes_dirty != 0) {
@@ -586,12 +481,6 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
             __wt_cache_decr_check_uint64(
               session, &cache->bytes_dirty_leaf, modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf");
         }
-    }
-    if (btree->lsm_primary) {
-        __wt_cache_decr_check_uint64(
-          session, &btree->bytes_dirty_lsm, page->memory_footprint, "WT_BTREE.bytes_dirty_lsm");
-        __wt_cache_decr_check_uint64(
-          session, &cache->bytes_dirty_lsm, page->memory_footprint, "WT_CACHE.bytes_dirty_lsm");
     }
 
     /* Update bytes and pages evicted. */

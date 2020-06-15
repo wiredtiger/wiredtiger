@@ -669,7 +669,6 @@ struct __wt_page {
     uint64_t read_gen;
 
     size_t memory_footprint; /* Memory attached to the page */
-    size_t bytes_when_new;   /* Memory attached to the page */
 
     /* Page's on-disk representation: NULL for pages created in memory. */
     const WT_PAGE_HEADER *dsk;
