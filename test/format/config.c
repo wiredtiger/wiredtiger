@@ -898,8 +898,7 @@ static void
 config_transaction(void)
 {
     /*
-     * WiredTiger cannot support relaxed isolation levels. Turn off everything but snapshot
-     * isolation.
+     * WiredTiger cannot support relaxed isolation levels. Turn off everything but snapshot isolation.
      */
     if (g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation"))
         testutil_die(EINVAL, "format limited to timestamp and snapshot-isolation testing");
