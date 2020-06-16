@@ -1424,6 +1424,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
 
     insert_cursor = NULL;
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
+    insert_cbt = NULL;
     WT_CLEAR(hs_key);
     fixed_upd = tombstone = NULL;
 
