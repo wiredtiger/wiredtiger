@@ -276,6 +276,7 @@ create_database(const char *home, WT_CONNECTION **connp)
         testutil_die(ENOMEM, "wiredtiger_open configuration buffer too small");
 
     testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
+    timestamp_init(conn);
 
     *connp = conn;
 }
@@ -455,6 +456,7 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
         WT_UNUSED(allow_verify);
 #endif
         testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
+        timestamp_init(conn);
     }
 
     testutil_check(conn->open_session(conn, NULL, NULL, sessionp));

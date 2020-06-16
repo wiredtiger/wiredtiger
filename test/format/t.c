@@ -267,6 +267,7 @@ main(int argc, char *argv[])
         if (g.reopen) {
             config_final();
             wts_open(g.home, &g.wts_conn, &g.wts_session, true);
+            TIMED_MAJOR_OP(wts_verify(g.wts_conn, "post-reopen verify"));
         } else {
             wts_create(g.home);
             config_final();

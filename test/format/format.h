@@ -410,8 +410,8 @@ void snap_repeat_single(WT_CURSOR *, TINFO *);
 int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
+void timestamp_init(WT_CONNECTION *);
 void timestamp_once(WT_SESSION *, bool);
-void timestamp_parse(WT_SESSION *, const char *, uint64_t *);
 int trace_config(const char *);
 void trace_init(void);
 void trace_ops_init(TINFO *);
@@ -433,5 +433,9 @@ void wts_reopen(void);
 void wts_salvage(void);
 void wts_stats(void);
 void wts_verify(WT_CONNECTION *, const char *);
+
+#if !defined(CUR2S)
+#define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
+#endif
 
 #include "format.i"
