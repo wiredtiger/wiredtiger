@@ -693,6 +693,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_UPDATE *first_non_ts_upd, *non_aborted_upd, *oldest_upd, *prev_upd, *upd;
     WT_HS_TIME_POINT stop_time_point;
     wt_off_t hs_size;
+    wt_timestamp_t insert_ts, min_insert_ts, prev_insert_ts;
     uint64_t insert_cnt, max_hs_size;
     uint32_t i;
     uint8_t *p;
@@ -782,7 +783,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * tombstone.
          * 4) We have a single tombstone on the chain, it is simply ignored.
          */
-        wt_timestamp_t min_ts = WT_TS_MAX;
+        min_insert_ts = WT_TS_MAX;
         for (non_aborted_upd = prev_upd = NULL; upd != NULL;
              prev_upd = non_aborted_upd, upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
@@ -791,8 +792,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             non_aborted_upd = upd;
 
             /* If we've seen a smaller timestamp before, use that instead. */
-            min_ts = WT_MIN(min_ts, upd->start_ts);
-            WT_ERR(__wt_modify_vector_push(&modifies, upd, min_ts));
+            min_insert_ts = WT_MIN(min_insert_ts, upd->start_ts);
+            WT_ERR(__wt_modify_vector_push(&modifies, upd, min_insert_ts));
 
             /*
              * Always insert full update to the history store if we write a prepared update to the
@@ -879,7 +880,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             clear_hs = first_non_ts_upd != NULL && !F_ISSET(first_non_ts_upd, WT_UPDATE_HS) &&
               (list->ins == NULL || ts_updates_in_hs);
 
-        wt_timestamp_t insert_ts, prev_insert_ts;
         WT_ERR(__hs_next_upd_full_value(session, &modifies, NULL, full_value, &upd, &insert_ts));
 
         squashed = false;
