@@ -376,7 +376,7 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double 
     clean_needed = __wt_eviction_clean_needed(session, &pct_full);
     if (readonly) {
         dirty_needed = updates_needed = false;
-        pct_dirty = 0.0;
+        pct_dirty = pct_updates = 0.0;
     } else {
         dirty_needed = __wt_eviction_dirty_needed(session, &pct_dirty);
         updates_needed = __wt_eviction_updates_needed(session, &pct_updates);
