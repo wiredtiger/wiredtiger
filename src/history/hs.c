@@ -425,7 +425,7 @@ __hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
 static int
 __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_HS_TIME_POINT *stop_time_point, wt_timestamp_t adjusted_ts)
+  WT_HS_TIME_POINT *stop_time_point, wt_timestamp_t insert_ts)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(hs_key);
@@ -470,7 +470,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
             WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
             if (ret == 0)
                 WT_ERR(__hs_fixup_out_of_order_from_pos(
-                  session, cursor, btree->id, key, adjusted_ts, &counter));
+                  session, cursor, btree->id, key, insert_ts, &counter));
         }
     }
 
@@ -499,7 +499,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
      * current update start time point as the commit time point to the history store record.
      */
     WT_ERR(__wt_upd_alloc(session, &cursor->value, WT_UPDATE_STANDARD, &upd_local, NULL));
-    upd_local->start_ts = adjusted_ts;
+    upd_local->start_ts = insert_ts;
     upd_local->durable_ts = upd->durable_ts;
     upd_local->txnid = upd->txnid;
 
@@ -545,7 +545,7 @@ err:
 static int
 __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_HS_TIME_POINT *stop_time_point, bool clear_hs, wt_timestamp_t adjusted_ts)
+  WT_HS_TIME_POINT *stop_time_point, bool clear_hs, wt_timestamp_t insert_ts)
 {
     WT_DECL_RET;
 
@@ -572,7 +572,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
 
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_insert_record_with_btree_int(session, cursor, btree, key, upd, type,
-              hs_value, stop_time_point, adjusted_ts)) == WT_RESTART)
+              hs_value, stop_time_point, insert_ts)) == WT_RESTART)
         WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
     WT_ERR(ret);
 
@@ -619,7 +619,7 @@ err:
 static int
 __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, const WT_ITEM *key,
   const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_HS_TIME_POINT *stop_time_point, bool clear_hs, wt_timestamp_t adjusted_ts)
+  WT_HS_TIME_POINT *stop_time_point, bool clear_hs, wt_timestamp_t insert_ts)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -627,7 +627,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     cbt = (WT_CURSOR_BTREE *)cursor;
     WT_WITH_BTREE(
       session, CUR2BT(cbt), ret = __hs_insert_record_with_btree(session, cursor, btree, key, upd,
-                              type, hs_value, stop_time_point, clear_hs, adjusted_ts));
+                              type, hs_value, stop_time_point, clear_hs, insert_ts));
     return (ret);
 }
 

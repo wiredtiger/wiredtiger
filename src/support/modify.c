@@ -455,7 +455,7 @@ __wt_modify_vector_init(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies)
  *     vector, we'll be doing malloc here.
  */
 int
-__wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd, wt_timestamp_t adjusted_ts)
+__wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd, wt_timestamp_t insert_ts)
 {
     WT_DECL_RET;
     bool migrate_from_stack;
@@ -473,7 +473,7 @@ __wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd, wt_timestamp
             memcpy(modifies->listp, modifies->list, sizeof(modifies->list));
     }
     modifies->listp[modifies->size].upd = upd;
-    modifies->listp[modifies->size].adjusted_ts = adjusted_ts;
+    modifies->listp[modifies->size].insert_ts = insert_ts;
     ++modifies->size;
     return (0);
 
@@ -499,13 +499,13 @@ err:
  *     Pop an update pointer off a modify vector.
  */
 void
-__wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp, wt_timestamp_t *adjusted_tsp)
+__wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp, wt_timestamp_t *insert_tsp)
 {
     WT_ASSERT(modifies->session, modifies->size > 0);
 
     *updp = modifies->listp[--modifies->size].upd;
-    if (adjusted_tsp)
-        *adjusted_tsp = modifies->listp[modifies->size].adjusted_ts;
+    if (insert_tsp)
+        *insert_tsp = modifies->listp[modifies->size].insert_ts;
 }
 
 /*
@@ -513,13 +513,13 @@ __wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp, wt_timestam
  *     Peek an update pointer off a modify vector.
  */
 void
-__wt_modify_vector_peek(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp, wt_timestamp_t *adjusted_tsp)
+__wt_modify_vector_peek(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp, wt_timestamp_t *insert_tsp)
 {
     WT_ASSERT(modifies->session, modifies->size > 0);
 
     *updp = modifies->listp[modifies->size - 1].upd;
-    if (adjusted_tsp)
-        *adjusted_tsp = modifies->listp[modifies->size - 1].adjusted_ts;
+    if (insert_tsp)
+        *insert_tsp = modifies->listp[modifies->size - 1].insert_ts;
 }
 
 /*
