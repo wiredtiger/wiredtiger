@@ -240,12 +240,10 @@ timestamp_once(WT_SESSION *session, bool allow_lag)
     static const char *stable_timestamp_str = "stable_timestamp=";
     WT_CONNECTION *conn;
     WT_DECL_RET;
-    size_t len;
-    uint64_t all_durable, stable;
-    char buf[WT_TS_HEX_STRING_SIZE * 2 + 64], tsbuf[WT_TS_HEX_STRING_SIZE];
+    uint64_t all_durable;
+    char buf[WT_TS_HEX_STRING_SIZE * 2 + 64];
 
     conn = g.wts_conn;
-    stable = 0ULL;
 
     /*
      * Lock out transaction timestamp operations. The lock acts as a barrier ensuring we've checked
@@ -256,36 +254,25 @@ timestamp_once(WT_SESSION *session, bool allow_lag)
     if (LOCK_INITIALIZED(&g.ts_lock))
         lock_writelock(session, &g.ts_lock);
 
-    if ((ret = conn->query_timestamp(conn, tsbuf, "get=all_durable")) == 0) {
-        timestamp_parse(session, tsbuf, &all_durable);
+    if ((ret = conn->query_timestamp(conn, buf, "get=all_durable")) == 0) {
+        timestamp_parse(session, buf, &all_durable);
 
         /*
          * If a lag is permitted, move the oldest timestamp half the way to the current
-         * "all_durable" timestamp.
+         * "all_durable" timestamp.  Move the stable timestamp to "all_durable".
          */
         if (allow_lag)
             g.oldest_timestamp = (all_durable + g.oldest_timestamp) / 2;
         else
             g.oldest_timestamp = all_durable;
-        testutil_check(
-          __wt_snprintf(buf, sizeof(buf), "%s%" PRIx64, oldest_timestamp_str, g.oldest_timestamp));
+        g.stable_timestamp = all_durable;
 
-        /*
-         * When we're doing rollback to stable operations, we'll advance the stable timestamp to the
-         * current timestamp value.
-         */
-        if (g.c_txn_rollback_to_stable) {
-            stable = g.timestamp;
-            len = strlen(buf);
-            WT_ASSERT((WT_SESSION_IMPL *)session, len < sizeof(buf));
-            testutil_check(__wt_snprintf(
-              buf + len, sizeof(buf) - len, ",%s%" PRIx64, stable_timestamp_str, stable));
-        }
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%" PRIx64 "%s%" PRIx64,
+          oldest_timestamp_str, g.oldest_timestamp, stable_timestamp_str, g.stable_timestamp));
+
         testutil_check(conn->set_timestamp(conn, buf));
-        trace_msg("%-10s oldest=%" PRIu64 ", stable=%" PRIu64, "setts", g.oldest_timestamp, stable);
-        if (g.c_txn_rollback_to_stable)
-            g.stable_timestamp = stable;
-
+        trace_msg("%-10s oldest=%" PRIu64 ", stable=%" PRIu64, "setts", g.oldest_timestamp,
+          g.stable_timestamp);
     } else
         testutil_assert(ret == WT_NOTFOUND);
 
