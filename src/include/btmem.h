@@ -270,6 +270,7 @@ struct __wt_page_modify {
 
     /* Dirty bytes added to the cache. */
     size_t bytes_dirty;
+    size_t bytes_updates;
 
     /*
      * When pages are reconciled, the result is one or more replacement blocks. A replacement block
@@ -669,7 +670,6 @@ struct __wt_page {
     uint64_t read_gen;
 
     size_t memory_footprint; /* Memory attached to the page */
-    size_t bytes_when_new;   /* Memory attached to the page */
 
     /* Page's on-disk representation: NULL for pages created in memory. */
     const WT_PAGE_HEADER *dsk;

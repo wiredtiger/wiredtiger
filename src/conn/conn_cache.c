@@ -313,8 +313,6 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, cache_pages_inuse, __wt_cache_pages_inuse(cache));
     WT_STAT_SET(session, stats, cache_bytes_internal, intl);
     WT_STAT_SET(session, stats, cache_bytes_leaf, leaf);
-    WT_STAT_SET(session, stats, cache_bytes_new,
-      __wt_cache_bytes_plus_overhead(cache, cache->bytes_new_leaf));
     WT_STAT_SET(session, stats, cache_bytes_other, __wt_cache_bytes_other(cache));
     WT_STAT_SET(session, stats, cache_bytes_updates, __wt_cache_bytes_updates(cache));
 

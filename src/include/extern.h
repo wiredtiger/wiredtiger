@@ -2152,13 +2152,13 @@ static inline void __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page
 static inline void __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cache_page_byte_dirty_decr(
   WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
+static inline void __wt_cache_page_byte_updates_decr(
+  WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
 static inline void __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cache_page_image_decr(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cache_page_image_incr(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
 static inline void __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size);
-static inline void __wt_cache_page_new_decr(WT_SESSION_IMPL *session, WT_PAGE *page);
-static inline void __wt_cache_page_new_incr(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cache_read_gen_bump(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_cache_read_gen_incr(WT_SESSION_IMPL *session);
 static inline void __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page);

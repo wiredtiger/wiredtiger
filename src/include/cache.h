@@ -66,24 +66,24 @@ struct __wt_cache {
      * the values don't have to be exact, they can't be garbage, we track what comes in and what
      * goes out and calculate the difference as needed.
      */
+
     uint64_t bytes_dirty_intl; /* Bytes/pages currently dirty */
-    uint64_t pages_dirty_intl;
     uint64_t bytes_dirty_leaf;
     uint64_t bytes_dirty_total;
-    uint64_t pages_dirty_leaf;
-    uint64_t bytes_evict; /* Bytes/pages discarded by eviction */
-    uint64_t pages_evicted;
-    uint64_t bytes_image_leaf; /* Bytes of disk images (leaf) */
+    uint64_t bytes_evict;      /* Bytes/pages discarded by eviction */
+    uint64_t bytes_hs;         /* History store bytes inmem */
     uint64_t bytes_image_intl; /* Bytes of disk images (internal) */
+    uint64_t bytes_image_leaf; /* Bytes of disk images (leaf) */
     uint64_t bytes_inmem;      /* Bytes/pages in memory */
-    uint64_t bytes_lsm;
-    uint64_t bytes_new_leaf; /* Bytes of new pages (disk images plus indexes) */
-    uint64_t pages_inmem;
-    uint64_t bytes_internal; /* Bytes of internal pages */
-    uint64_t bytes_read;     /* Bytes read into memory */
+    uint64_t bytes_internal;   /* Bytes of internal pages */
+    uint64_t bytes_read;       /* Bytes read into memory */
+    uint64_t bytes_updates;    /* Bytes of updates to pages */
     uint64_t bytes_written;
 
-    uint64_t bytes_hs; /* History store bytes inmem */
+    uint64_t pages_dirty_intl;
+    uint64_t pages_dirty_leaf;
+    uint64_t pages_evicted;
+    uint64_t pages_inmem;
 
     volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;     /* Tracked eviction progress */

@@ -84,9 +84,8 @@ __wt_cache_stuck(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
 
     cache = S2C(session)->cache;
-    return (cache->evict_aggressive_score == WT_EVICT_SCORE_MAX &&
-      F_ISSET(cache,
-              WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD));
+    return (
+      cache->evict_aggressive_score == WT_EVICT_SCORE_MAX && F_ISSET(cache, WT_CACHE_EVICT_HARD));
 }
 
 /*
@@ -176,14 +175,7 @@ __wt_cache_dirty_leaf_inuse(WT_CACHE *cache)
 static inline uint64_t
 __wt_cache_bytes_updates(WT_CACHE *cache)
 {
-    uint64_t bytes_updates;
-
-    /*
-     * Reads can race with changes to the values, so check that the calculation doesn't go negative.
-     */
-    bytes_updates = __wt_safe_sub(
-      cache->bytes_inmem, cache->bytes_internal + cache->bytes_new_leaf + cache->bytes_lsm);
-    return (__wt_cache_bytes_plus_overhead(cache, bytes_updates));
+    return (__wt_cache_bytes_plus_overhead(cache, cache->bytes_updates));
 }
 
 /*
@@ -388,7 +380,6 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double 
     } else {
         dirty_needed = __wt_eviction_dirty_needed(session, &pct_dirty);
         updates_needed = __wt_eviction_updates_needed(session, &pct_updates);
-        WT_UNUSED(pct_updates);
     }
 
     /*
@@ -396,8 +387,9 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double 
      * application thread.
      */
     if (pct_fullp != NULL)
-        *pct_fullp = WT_MAX(0.0, 100.0 -
-            WT_MIN(cache->eviction_trigger - pct_full, cache->eviction_dirty_trigger - pct_dirty));
+        *pct_fullp = WT_MAX(0.0, 100.0 - WT_MIN(WT_MIN(cache->eviction_trigger - pct_full,
+                                                  cache->eviction_dirty_trigger - pct_dirty),
+                                           cache->eviction_updates_trigger - pct_updates));
 
     /*
      * Only check the dirty trigger when the session is not busy.
