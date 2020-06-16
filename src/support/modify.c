@@ -472,8 +472,9 @@ __wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd, wt_timestamp
         if (migrate_from_stack)
             memcpy(modifies->listp, modifies->list, sizeof(modifies->list));
     }
-    modifies->listp[modifies->size++].upd = upd;
-    modifies->listp[modifies->size++].adjusted_ts = WT_TS_NONE;
+    modifies->listp[modifies->size].upd = upd;
+    modifies->listp[modifies->size].adjusted_ts = adjusted_ts;
+    ++modifies->size;
     return (0);
 
 err:
@@ -504,7 +505,7 @@ __wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp, wt_timestam
 
     *updp = modifies->listp[--modifies->size].upd;
     if (adjusted_tsp)
-        *adjusted_tsp = modifies->listp[--modifies->size].adjusted_ts;
+        *adjusted_tsp = modifies->listp[modifies->size].adjusted_ts;
 }
 
 /*
