@@ -5915,12 +5915,12 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1419
 /*! transaction: rollback to stable pages visited */
 #define	WT_STAT_CONN_TXN_RTS_PAGES_VISITED		1420
+/*! transaction: rollback to stable restored tombstones from history store */
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1421
 /*! transaction: rollback to stable skipping internal pages tree walk */
-#define	WT_STAT_CONN_TXN_RTS_SKIP_INTERAL_PAGES_WALK	1421
+#define	WT_STAT_CONN_TXN_RTS_SKIP_INTERAL_PAGES_WALK	1422
 /*! transaction: rollback to stable sweeping history store keys */
-#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1422
-/*! transaction: rollback to stable tombstones restored from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1423
+#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1423
 /*! transaction: rollback to stable updates aborted */
 #define	WT_STAT_CONN_TXN_RTS_UPD_ABORTED		1424
 /*! transaction: rollback to stable updates removed from history store */
