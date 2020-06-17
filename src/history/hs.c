@@ -464,14 +464,14 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
             if (cmp == 0)
                 counter = hs_counter + 1;
         }
+    }
 
-        /* Now handle the out-of-order case. */
-        if (upd->start_ts != WT_TS_NONE) {
-            WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
-            if (ret == 0)
-                WT_ERR(__hs_fixup_out_of_order_from_pos(
-                  session, cursor, btree->id, key, upd->start_ts, &counter));
-        }
+    /* Now handle the out-of-order case. */
+    if (upd->start_ts != WT_TS_NONE) {
+        WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
+        if (ret == 0)
+            WT_ERR(__hs_fixup_out_of_order_from_pos(
+              session, cursor, btree->id, key, upd->start_ts, &counter));
     }
 
     /*
@@ -1475,9 +1475,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         (*counter)++;
 
         WT_ERR(__wt_upd_alloc(session, &hs_cursor->value, WT_UPDATE_STANDARD, &fixed_upd, NULL));
-        fixed_upd->start_ts = ts;
+        fixed_upd->start_ts = fixed_upd->durable_ts = ts;
         fixed_upd->txnid = hs_cbt->upd_value->tw.start_txn;
-        fixed_upd->durable_ts = hs_cbt->upd_value->tw.durable_start_ts;
         WT_WITH_PAGE_INDEX(session, ret = __hs_row_search(insert_cbt, &insert_cursor->key, true));
         WT_ERR(ret);
         WT_ERR(__wt_hs_modify(insert_cbt, fixed_upd));
