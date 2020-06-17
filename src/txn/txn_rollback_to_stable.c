@@ -363,9 +363,10 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
     if (0) {
 err:
-        __wt_free_update_list(session, &hs_upd);
+        if (upd != tombstone)
+            __wt_free_update_list(session, &tombstone);
         __wt_free_update_list(session, &upd);
-        __wt_free_update_list(session, &tombstone);
+        __wt_free_update_list(session, &hs_upd);
     }
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &hs_key);
