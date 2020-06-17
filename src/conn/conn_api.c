@@ -1798,8 +1798,6 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_READ_BARRIER();
     conn->debug_ckpt_cnt = (uint32_t)cval.val;
-    __wt_errx(session, "DEBUG_MODE: ckpt_cnt = %" PRIu32 " flags %" PRIx32, conn->debug_ckpt_cnt,
-      conn->flags);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.cursor_copy", &cval));
     if (cval.val)

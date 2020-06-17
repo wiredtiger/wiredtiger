@@ -26,11 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from suite_subprocess import suite_subprocess
 import fnmatch, os, time, wiredtiger, wttest
 
 # test_debug_mode02.py
 #    Test the debug mode settings. Test checkpoint_retention use.
-class test_debug_mode02(wttest.WiredTigerTestCase):
+class test_debug_mode02(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'file:test_debug'
 
     entries = 100
@@ -107,23 +108,25 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
         self.advance_log_checkpoint()
         self.check_archive(self.log1)
 
-        self.conn.reconfigure("debug_mode=(checkpoint_retention=6)")
+        cfg = 'debug_mode=(checkpoint_retention=%d)' % self.retain
+        self.conn.reconfigure(cfg)
         self.advance_log_checkpoint()
         self.assertTrue(os.path.exists(self.log2))
 
-        self.conn.reconfigure("debug_mode=(checkpoint_retention=6)")
+        self.conn.reconfigure(cfg)
         self.advance_log_checkpoint()
         self.assertTrue(os.path.exists(self.log2))
 
-        msg = '/Cannot change value for checkpoint retention/'
+        msg = '/Cannot change value/'
+        cfg1 = 'debug_mode=(checkpoint_retention=%d)' % (self.retain - 1)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.conn.reconfigure("debug_mode=(checkpoint_retention=4)"), msg)
+            lambda: self.conn.reconfigure(cfg1), msg)
 
         self.conn.reconfigure("debug_mode=(checkpoint_retention=0)")
         self.advance_log_checkpoint()
         self.check_archive(self.log2)
 
-        self.conn.reconfigure("debug_mode=(checkpoint_retention=6)")
+        self.conn.reconfigure(cfg)
 
 if __name__ == '__main__':
     wttest.run()

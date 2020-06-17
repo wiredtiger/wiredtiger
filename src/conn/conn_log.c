@@ -393,13 +393,8 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 
     /* Adjust the number of log files to retain based on debugging options. */
     dbg_val = conn->debug_ckpt_cnt;
-    __wt_errx(session, "ARCHIVE: debug_ckpt %d cnt %" PRIu32,
-      conn->debug_ckpt_enabled, dbg_val);
-    if (conn->debug_ckpt_enabled && dbg_val != 0) {
+    if (conn->debug_ckpt_enabled && dbg_val != 0)
         min_lognum = WT_MIN(conn->debug_ckpt[dbg_val - 1].l.file, min_lognum);
-        __wt_errx(session, "ARCHIVE: debug_ckpt %" PRIu32 " min %" PRIu32,
-          conn->debug_ckpt[dbg_val - 1].l.file, min_lognum);
-    }
     dbg_val = conn->debug_log_cnt;
     if (dbg_val != 0) {
         /*

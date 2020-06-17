@@ -127,11 +127,14 @@ static WT_THREAD_RET
 thread_ts_run(void *arg)
 {
     WT_DECL_RET;
+    WT_RAND_STATE rnd;
     WT_SESSION *session;
     THREAD_DATA *td;
+    int dbg;
     char tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
 
     td = (THREAD_DATA *)arg;
+    __wt_random_init(&rnd);
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
     /* Update the oldest timestamp every 1 millisecond. */
@@ -152,6 +155,18 @@ thread_ts_run(void *arg)
             testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
               "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
             testutil_check(td->conn->set_timestamp(td->conn, tscfg));
+            /*
+             * Set and reset the checkpoint retention setting on a regular basis. We want to test
+             * racing with the internal archive thread while we're here.
+             */
+            dbg = __wt_random(&rnd) % 2;
+            if (dbg == 0)
+                testutil_check(
+                  __wt_snprintf(tscfg, sizeof(tscfg), "debug_mode=(checkpoint_retention=0)"));
+            else
+                testutil_check(
+                  __wt_snprintf(tscfg, sizeof(tscfg), "debug_mode=(checkpoint_retention=5)"));
+            testutil_check(td->conn->reconfigure(td->conn, tscfg));
         }
         __wt_sleep(0, 1000);
     }
