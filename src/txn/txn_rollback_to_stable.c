@@ -180,15 +180,12 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
-    unpack = &_unpack;
-    WT_TIME_WINDOW_INIT(&unpack->tw);
 
     /* Get the full update value from the data store. */
     WT_CLEAR(full_value);
-    if (!__wt_row_leaf_value(page, rip, &full_value)) {
-        __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
-        WT_ERR(__wt_page_cell_data_ref(session, page, unpack, &full_value));
-    }
+    unpack = &_unpack;
+    __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
+    WT_ERR(__wt_page_cell_data_ref(session, page, unpack, &full_value));
     WT_ERR(__wt_buf_set(session, &full_value, full_value.data, full_value.size));
     newer_hs_durable_ts = unpack->tw.durable_start_ts;
 
@@ -303,7 +300,6 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
-        hs_upd = NULL;
     }
 
     if (replace) {
@@ -356,8 +352,6 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         }
 
         WT_ERR(__rollback_row_add_update(session, page, rip, upd));
-        upd = NULL;
-        tombstone = NULL;
     }
 
     /* Finally remove that update from history store. */
@@ -365,19 +359,19 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
-        hs_upd = NULL;
     }
 
+    if (0) {
 err:
+        __wt_free_update_list(session, &hs_upd);
+        __wt_free_update_list(session, &upd);
+        __wt_free_update_list(session, &tombstone);
+    }
     __wt_scr_free(session, &key);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
     __wt_buf_free(session, &full_value);
-    __wt_free_update_list(session, &hs_upd);
-    __wt_free_update_list(session, &upd);
-    __wt_free_update_list(session, &tombstone);
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
-
     return (ret);
 }
 
