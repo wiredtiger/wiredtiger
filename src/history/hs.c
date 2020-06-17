@@ -1450,9 +1450,9 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
      *
      * For example, if we're inserting an update at timestamp 3 with value ddd:
      * btree key ts counter value
-     * 2     foo 5  1       aaa
-     * 2     foo 6  1       bbb
-     * 2     foo 7  1       ccc
+     * 2     foo 5  0       aaa
+     * 2     foo 6  0       bbb
+     * 2     foo 7  0       ccc
      *
      * We want to end up with this:
      * btree key ts counter value
