@@ -285,7 +285,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         /*
          * Start time point of the current record may be used as stop time point of the previous
          * record. Save it to verify against the previous record and check if we need to append the
-         * stop time point when we rollback the history store record.
+         * stop time point as a tombstone when we rollback the history store record.
          */
         newer_hs_durable_ts = durable_ts;
         newer_hs_start_ts = hs_start_ts;
@@ -318,8 +318,10 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
              */
             F_SET(upd, WT_UPDATE_RESTORED_FROM_HS);
 
-            /* We have a tombstone on the original update chain and it is behind the stable
-             * timestamp, we need to restore that as well. */
+            /*
+             * We have a tombstone on the original update chain and it is behind the stable
+             * timestamp, we need to restore that as well.
+             */
             if (hs_stop_durable_ts <= rollback_timestamp &&
               hs_stop_durable_ts < newer_hs_durable_ts) {
                 WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
