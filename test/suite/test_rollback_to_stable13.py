@@ -120,7 +120,7 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         self.check(None, uri, 0, 50)
 
         # Check that we restore the correct value from the history store.
-        self.check(value_a, uri, nrows, 30)
+        self.check(value_a, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         restored_tombstones = stat_cursor[stat.conn.txn_rts_hs_restore_tombstones][2]
