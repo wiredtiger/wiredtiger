@@ -167,7 +167,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
     hs_cursor = NULL;
     hs_upd = upd = NULL;
-    hs_durable_ts = hs_start_ts = WT_TS_NONE;
+    hs_durable_ts = hs_start_ts = hs_stop_durable_ts = WT_TS_NONE;
     hs_btree_id = S2BT(session)->id;
     session_flags = 0;
     is_owner = valid_update_found = false;
