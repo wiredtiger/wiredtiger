@@ -210,8 +210,9 @@ struct __wt_connection_impl {
 
     WT_LSN *debug_ckpt;      /* Debug mode checkpoint LSNs. */
     size_t debug_ckpt_alloc; /* Checkpoint retention allocated. */
-    bool debug_ckpt_enabled; /* Checkpoint retention enabled. */
     uint32_t debug_ckpt_cnt; /* Checkpoint retention number. */
+    /* XXX This can become a connection flag when more bits are available. */
+    bool debug_ckpt_enabled; /* Checkpoint retention enabled. */
     uint32_t debug_log_cnt;  /* Log file retention count */
 
     void **foc;      /* Free-on-close array */
