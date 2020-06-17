@@ -335,6 +335,13 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
                 tombstone->txnid = cbt->upd_value->tw.stop_txn;
                 tombstone->durable_ts = cbt->upd_value->tw.durable_stop_ts;
                 tombstone->start_ts = cbt->upd_value->tw.stop_ts;
+
+                /*
+                 * Set the flag to indicate that this update has been restored from history store
+                 * for the rollback to stable operation.
+                 */
+                F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS);
+
                 tombstone->next = upd;
                 upd = tombstone;
             }
