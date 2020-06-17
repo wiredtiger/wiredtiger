@@ -252,6 +252,9 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ASSERT(session, hs_stop_durable_ts <= newer_hs_durable_ts ||
             hs_start_ts == hs_stop_durable_ts || first_record);
 
+        if (hs_stop_durable_ts < newer_hs_durable_ts)
+            WT_STAT_CONN_INCR(session, txn_rts_hs_stop_older_than_newer_start);
+
         /*
          * Stop processing when we find the newer version value of this key is stable according to
          * the current version stop timestamp when it is not appending the selected update to the
@@ -344,6 +347,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
                 tombstone->next = upd;
                 upd = tombstone;
+                WT_STAT_CONN_INCR(session, txn_rts_hs_restore_tombstones);
             }
         } else {
             WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
