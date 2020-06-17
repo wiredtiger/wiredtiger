@@ -209,7 +209,9 @@ struct __wt_connection_impl {
     uintmax_t optrack_pid;            /* Cache the process ID. */
 
     WT_LSN *debug_ckpt;      /* Debug mode checkpoint LSNs. */
-    uint32_t debug_ckpt_cnt; /* Checkpoint log file retention number */
+    size_t debug_ckpt_alloc; /* Checkpoint retention allocated. */
+    bool debug_ckpt_enabled; /* Checkpoint retention enabled. */
+    uint32_t debug_ckpt_cnt; /* Checkpoint retention number. */
     uint32_t debug_log_cnt;  /* Log file retention count */
 
     void **foc;      /* Free-on-close array */

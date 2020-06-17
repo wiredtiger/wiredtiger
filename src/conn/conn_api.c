@@ -1777,15 +1777,29 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     txn_global = &conn->txn_global;
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.checkpoint_retention", &cval));
+
+    /*
+     * Checkpoint retention has some rules to avoid needing a lock to coordinate with the archive
+     * thread and avoid memory issues. You can turn it on to some value. You can turn it off. You
+     * can reconfigure to the same value again. You cannot change the non-zero value. Once it was on
+     * in the past and then turned off, you cannot turn it back on again.
+     */
+    if (cval.val != 0) {
+        if (conn->debug_ckpt_cnt != 0 && cval.val != conn->debug_ckpt_cnt)
+            WT_RET_MSG(session, EINVAL, "Cannot change value for checkpoint retention");
+        WT_RET(
+          __wt_realloc_def(session, &conn->debug_ckpt_alloc, (size_t)cval.val, &conn->debug_ckpt));
+        conn->debug_ckpt_enabled = true;
+    } else
+        conn->debug_ckpt_enabled = false;
+    /*
+     * We need to make sure all writes to other fields are visible before setting the count because
+     * the archive thread may walk the array using this value.
+     */
+    WT_READ_BARRIER();
     conn->debug_ckpt_cnt = (uint32_t)cval.val;
-    if (cval.val == 0) {
-        if (conn->debug_ckpt != NULL)
-            __wt_free(session, conn->debug_ckpt);
-        conn->debug_ckpt = NULL;
-    } else if (conn->debug_ckpt != NULL)
-        WT_RET(__wt_realloc(session, NULL, conn->debug_ckpt_cnt, &conn->debug_ckpt));
-    else
-        WT_RET(__wt_calloc_def(session, conn->debug_ckpt_cnt, &conn->debug_ckpt));
+    __wt_errx(session, "DEBUG_MODE: ckpt_cnt = %" PRIu32 " flags %" PRIx32, conn->debug_ckpt_cnt,
+      conn->flags);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.cursor_copy", &cval));
     if (cval.val)
