@@ -1247,9 +1247,9 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
       cbt->ins == NULL) {
         __wt_read_cell_time_window(cbt, cbt->ref, &tw);
         if (WT_TIME_WINDOW_HAS_STOP(&tw))
-            rollback = !__wt_txn_tw_stop_visible(&tw);
+            rollback = !__wt_txn_tw_stop_visible(session, &tw);
         else
-            rollback = !__wt_txn_tw_start_visible(&tw);
+            rollback = !__wt_txn_tw_start_visible(session, &tw);
     }
 
     if (rollback) {
