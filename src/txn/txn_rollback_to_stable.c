@@ -326,8 +326,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
               hs_stop_durable_ts < newer_hs_durable_ts) {
                 WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
                 tombstone->txnid = WT_TXN_NONE;
-                tombstone->durable_ts = newer_hs_start_ts;
-                tombstone->start_ts = hs_stop_durable_ts;
+                tombstone->durable_ts = hs_stop_durable_ts;
+                tombstone->start_ts = newer_hs_start_ts;
                 tombstone->next = upd;
                 upd = tombstone;
             }
