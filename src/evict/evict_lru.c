@@ -302,9 +302,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         F_CLR(cache->walk_session, WT_SESSION_LOCKED_PASS);
         F_CLR(session, WT_SESSION_LOCKED_PASS);
         was_intr = cache->pass_intr != 0;
-        if (ret != 0) {
-            __wt_spin_unlock(session, &cache->evict_pass_lock);
-        }
+        __wt_spin_unlock(session, &cache->evict_pass_lock);
         WT_ERR(ret);
 
         /*
@@ -322,7 +320,6 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
             __wt_cond_auto_wait(session, cache->evict_cond, did_work, NULL);
             __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "waking");
         }
-        __wt_spin_unlock(session, &cache->evict_pass_lock);
     } else
         WT_ERR(__evict_lru_pages(session, false));
 
