@@ -564,7 +564,10 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
         }
     }
 
-    /* Now handle the out-of-order case. */
+    /*
+     * If we're inserting a non-zero timestamp, look ahead for any higher timestamps. If we find
+     * updates, we should remove them and reinsert them at the current timestamp.
+     */
     if (upd->start_ts != WT_TS_NONE) {
         WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
         if (ret == 0)
@@ -801,7 +804,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             if (min_insert_ts < upd->start_ts)
                 upd->start_ts = upd->durable_ts = min_insert_ts;
             else
-                min_insert_ts = WT_MIN(min_insert_ts, upd->start_ts);
+                min_insert_ts = upd->start_ts;
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
 
             /*
@@ -1440,6 +1443,24 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     WT_CLEAR(hs_key);
     tombstone = NULL;
 
+    /*
+     * The goal of this fixup function is to move out-of-order content to maintain ordering in the
+     * history store. We do this by removing content with higher timestamps and reinserting it
+     * behind (from search's point of view) the newly inserted update.
+     *
+     * For example, if we're inserting an update at timestamp 3 with value ddd:
+     * btree key ts counter value
+     * 2     foo 5  1       aaa
+     * 2     foo 6  1       bbb
+     * 2     foo 7  1       ccc
+     *
+     * We want to end up with this:
+     * btree key ts counter value
+     * 2     foo 3  0       aaa
+     * 2     foo 3  1       bbb
+     * 2     foo 3  2       ccc
+     * 2     foo 3  3       ddd
+     */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* The normal case will break out of the first loop in one of the conditions below. */
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
