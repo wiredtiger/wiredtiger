@@ -1145,15 +1145,6 @@ struct __wt_update_value {
 #define WT_MODIFY_VECTOR_STACK_SIZE (WT_MAX_MODIFY_UPDATE + 10)
 
 /*
- * WT_UPDATE_INSERT_TS --
- * 	A hack to keep track of the adjusted timestamp when inserting into history store.
- */
-struct __wt_update_insert_ts {
-    WT_UPDATE *upd;
-    wt_timestamp_t insert_ts;
-};
-
-/*
  * WT_MODIFY_VECTOR --
  * 	A resizable array for storing modify updates. The allocation strategy is similar to that of
  *	llvm::SmallVector<T> where we keep space on the stack for the regular case but fall back to
@@ -1161,8 +1152,8 @@ struct __wt_update_insert_ts {
  */
 struct __wt_modify_vector {
     WT_SESSION_IMPL *session;
-    WT_UPDATE_INSERT_TS list[WT_MODIFY_VECTOR_STACK_SIZE];
-    WT_UPDATE_INSERT_TS *listp;
+    WT_UPDATE *list[WT_MODIFY_VECTOR_STACK_SIZE];
+    WT_UPDATE **listp;
     size_t allocated_bytes;
     size_t size;
 };
