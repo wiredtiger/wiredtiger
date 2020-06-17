@@ -29,6 +29,7 @@
 import fnmatch, os, shutil, time
 from helper import copy_wiredtiger_home
 from test_rollback_to_stable01 import test_rollback_to_stable_base
+from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -117,3 +118,7 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
 
         # Check that the correct data is seen at and after the stable timestamp.
         self.check(None, uri, 0, 50)
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        restored_tombstones = stat_cursor[stat.conn.txn_rts_hs_restore_tombstones][2]
+        self.assertEqual(restored_tombstones, nrows)
