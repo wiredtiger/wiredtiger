@@ -851,24 +851,20 @@ __wt_txn_read_upd_list(
         if (type == WT_UPDATE_RESERVE)
             continue;
 
+        if (type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
+          !__wt_txn_upd_visible_all(session, upd)) {
+            cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
+            cbt->upd_value->tw.stop_ts = upd->start_ts;
+            cbt->upd_value->tw.stop_txn = upd->txnid;
+            cbt->upd_value->tw.prepare = upd->prepare_state == WT_PREPARE_INPROGRESS ||
+              upd->prepare_state == WT_PREPARE_LOCKED;
+            continue;
+        }
+
         upd_visible = __wt_txn_upd_visible_type(session, upd);
 
-        if (upd_visible == WT_VISIBLE_TRUE) {
-            /*
-             * Ignore non-globally visible tombstones when we are doing history store scans in
-             * rollback to stable or when we are told to.
-             */
-            if (type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
-              !__wt_txn_upd_visible_all(session, upd)) {
-                cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
-                cbt->upd_value->tw.stop_ts = upd->start_ts;
-                cbt->upd_value->tw.stop_txn = upd->txnid;
-                cbt->upd_value->tw.prepare = upd->prepare_state == WT_PREPARE_INPROGRESS ||
-                  upd->prepare_state == WT_PREPARE_LOCKED;
-                continue;
-            }
+        if (upd_visible == WT_VISIBLE_TRUE)
             break;
-        }
 
         if (upd_visible == WT_VISIBLE_PREPARE) {
             /* Ignore the prepared update, if transaction configuration says so. */
