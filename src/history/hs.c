@@ -1508,8 +1508,11 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         stop_time_point.txnid = hs_cbt->upd_value->tw.stop_txn;
 
         /* Reinsert entry with earlier timestamp. */
-        WT_ERR(__hs_insert_record_with_btree_int(session, insert_cursor, btree, key,
-          WT_UPDATE_STANDARD, &hs_cursor->value, &start_time_point, &stop_time_point, *counter));
+        while ((ret = __hs_insert_record_with_btree_int(session, insert_cursor, btree, key,
+                  WT_UPDATE_STANDARD, &hs_cursor->value, &start_time_point, &stop_time_point,
+                  *counter)) == WT_RESTART)
+            ;
+        WT_ERR(ret);
         ++(*counter);
 
         /* Delete entry with higher timestamp. */
@@ -1517,7 +1520,9 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->txnid = WT_TXN_NONE;
         tombstone->start_ts = tombstone->durable_ts = WT_TS_NONE;
-        WT_ERR(__wt_hs_modify(hs_cbt, tombstone));
+        while ((ret = __wt_hs_modify(hs_cbt, tombstone)) == WT_RESTART)
+            ;
+        WT_ERR(ret);
         tombstone = NULL;
     }
     if (ret == WT_NOTFOUND)
