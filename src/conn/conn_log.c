@@ -392,8 +392,8 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
                                     WT_MIN(log->ckpt_lsn.l.file, backup_file);
 
     /* Adjust the number of log files to retain based on debugging options. */
-    dbg_val = conn->debug_ckpt_cnt;
-    if (conn->debug_ckpt_enabled && dbg_val != 0)
+    WT_ORDERED_READ(dbg_val, conn->debug_ckpt_cnt);
+    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN) && dbg_val != 0)
         min_lognum = WT_MIN(conn->debug_ckpt[dbg_val - 1].l.file, min_lognum);
     dbg_val = conn->debug_log_cnt;
     if (dbg_val != 0) {
