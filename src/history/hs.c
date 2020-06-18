@@ -27,7 +27,8 @@ typedef struct {
 static int __hs_delete_key_from_pos(
   WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key);
 static int __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
-  WT_BTREE *btree, const WT_ITEM *key, wt_timestamp_t ts, uint64_t *hs_counter);
+  WT_BTREE *btree, const WT_ITEM *key, wt_timestamp_t ts, uint64_t *hs_counter,
+  const WT_ITEM *srch_key);
 
 /*
  * __hs_start_internal_session --
@@ -507,6 +508,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
   WT_HS_TIME_POINT *stop_time_point, bool clear_hs)
 {
     WT_DECL_ITEM(hs_key);
+    WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
     WT_HS_TIME_POINT start_time_point;
     wt_timestamp_t hs_start_ts;
@@ -516,8 +518,9 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
 
     counter = 0;
 
-    /* Allocate buffers for the data store and history store key. */
+    /* Allocate buffers for the history store and search key. */
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+    WT_ERR(__wt_scr_alloc(session, 0, &srch_key));
 
     /*
      * The session should be pointing at the history store btree since this is the one that we'll be
@@ -546,7 +549,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      * one can lead to wrong order.
      */
     WT_ERR_NOTFOUND_OK(
-      __wt_hs_cursor_position(session, cursor, btree->id, key, upd->start_ts), true);
+      __wt_hs_cursor_position(session, cursor, btree->id, key, upd->start_ts, srch_key), true);
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
@@ -571,7 +574,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
         WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
         if (ret == 0)
             WT_ERR(__hs_fixup_out_of_order_from_pos(
-              session, cursor, btree, key, upd->start_ts, &counter));
+              session, cursor, btree, key, upd->start_ts, &counter, srch_key));
     }
 
     start_time_point.ts = upd->start_ts;
@@ -615,6 +618,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
 done:
 err:
     __wt_scr_free(session, &hs_key);
+    __wt_scr_free(session, &srch_key);
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
 
@@ -1038,17 +1042,22 @@ err:
  * __wt_hs_cursor_position --
  *     Position a history store cursor at the end of a set of updates for a given btree id, record
  *     key and timestamp. There may be no history store entries for the given btree id and record
- *     key if they have been removed by WT_CONNECTION::rollback_to_stable.
+ *     key if they have been removed by WT_CONNECTION::rollback_to_stable. There is an optional
+ *     argument to store the key that we used to position the cursor which can be used to assess
+ *     where the cursor is relative to it.
  */
 int
 __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t timestamp)
+  const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
 {
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
     int cmp, exact;
 
-    WT_RET(__wt_scr_alloc(session, 0, &srch_key));
+    if (user_srch_key == NULL)
+        WT_RET(__wt_scr_alloc(session, 0, &srch_key));
+    else
+        srch_key = user_srch_key;
 
     /*
      * Because of the special visibility rules for the history store, a new key can appear in
@@ -1086,7 +1095,8 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
     }
 #endif
 err:
-    __wt_scr_free(session, &srch_key);
+    if (user_srch_key == NULL)
+        __wt_scr_free(session, &srch_key);
     return (ret);
 }
 
@@ -1158,7 +1168,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
      */
     read_timestamp = allow_prepare ? txn->prepare_timestamp : txn_shared->read_timestamp;
     WT_ERR_NOTFOUND_OK(
-      __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp), true);
+      __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp, NULL), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
@@ -1422,7 +1432,7 @@ __wt_hs_delete_key_from_ts(
  */
 static int
 __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTREE *btree,
-  const WT_ITEM *key, wt_timestamp_t ts, uint64_t *counter)
+  const WT_ITEM *key, wt_timestamp_t ts, uint64_t *counter, const WT_ITEM *srch_key)
 {
     WT_CURSOR *insert_cursor;
     WT_CURSOR_BTREE *hs_cbt, *insert_cbt;
@@ -1441,6 +1451,30 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     insert_cbt = NULL;
     WT_CLEAR(hs_key);
     tombstone = NULL;
+
+    /*
+     * Position ourselves at the beginning of the key range that we may have to fixup. Prior to
+     * getting here, we've positioned our cursor at the end of a key/timestamp range and then done a
+     * "next". Normally that would leave us pointing at higher timestamps for the same key (if any)
+     * but in the case where our insertion timestamp is the lowest for that key, our cursor may be
+     * pointing at the previous key and can potentially race with additional key insertions. We need
+     * to keep doing "next" until we've got a key greater than the one we attempted to position
+     * ourselves with.
+     */
+    for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
+        /*
+         * Prior to getting here, we've done a "search near" on our key for the timestamp we're
+         * inserting and then a "next". In the regular case, our cursor will be positioned on the
+         * next key and we'll break out of the first iteration in one of the conditions below.
+         */
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
+        WT_ERR(__wt_compare(session, NULL, &hs_cursor->key, srch_key, &cmp));
+        if (cmp > 0)
+            break;
+    }
+    if (ret == WT_NOTFOUND)
+        return (0);
+    WT_ERR(ret);
 
     /*
      * The goal of this fixup function is to move out-of-order content to maintain ordering in the
