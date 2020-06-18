@@ -1042,6 +1042,9 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
          * backwards until we land on our key.
          */
         while ((ret = cursor->prev(cursor)) == 0) {
+            WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
+            WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
+
             WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
             if (cmp <= 0)
                 break;
@@ -1098,6 +1101,9 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     WT_NOT_READ(modify, false);
     is_owner = false;
+
+    WT_STAT_CONN_INCR(session, cursor_search_hs);
+    WT_STAT_DATA_INCR(session, cursor_search_hs);
 
     /* Row-store key is as passed to us, create the column-store key as needed. */
     WT_ASSERT(
