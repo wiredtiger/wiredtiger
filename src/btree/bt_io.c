@@ -9,6 +9,11 @@
 #include "wt_internal.h"
 
 /*
+ * Define a function that increments histogram statistics compression ratios.
+ */
+WT_STAT_COMPR_RATIO_HIST_INCR_FUNC(ratio)
+
+/*
  * __wt_bt_read --
  *     Read a cookie referenced block into a buffer.
  */
@@ -167,6 +172,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
     WT_KEYED_ENCRYPTOR *kencryptor;
     WT_PAGE_HEADER *dsk;
     size_t dst_len, len, result_len, size, src_len;
+    uint16_t compression_ratio;
     uint64_t time_diff, time_start, time_stop;
     uint8_t *dst, *src;
     int compression_failed; /* Extension API, so not a bool. */
@@ -243,6 +249,9 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
         else
             WT_ERR(
               btree->compressor->pre_size(btree->compressor, &session->iface, src, src_len, &len));
+
+	compression_ratio = src_len / len;
+	__wt_stat_compr_ratio_hist_incr(session, compression_ratio);
 
         size = len + WT_BLOCK_COMPRESS_SKIP;
         WT_ERR(bm->write_size(bm, session, &size));

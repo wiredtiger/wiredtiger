@@ -6310,194 +6310,208 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_COMPRESS_READ			2103
 /*! compression: compressed pages written */
 #define	WT_STAT_DSRC_COMPRESS_WRITE			2104
+/*! compression: number of blocks with compress ratio greater than 64 */
+#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_MAX		2105
+/*! compression: number of blocks with compress ratio smaller than 16 */
+#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_16		2106
+/*! compression: number of blocks with compress ratio smaller than 32 */
+#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_32		2107
+/*! compression: number of blocks with compress ratio smaller than 64 */
+#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_64		2108
+/*! compression: number of blocks with compress ratio smaller than eight */
+#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_8		2109
+/*! compression: number of blocks with compress ratio smaller than four */
+#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_4		2110
+/*! compression: number of blocks with compress ratio smaller than two */
+#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_2		2111
 /*! compression: page written failed to compress */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2105
+#define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2112
 /*! compression: page written was too small to compress */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2106
+#define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2113
 /*! cursor: Total number of entries skipped by cursor next calls */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL		2107
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL		2114
 /*! cursor: Total number of entries skipped by cursor prev calls */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_TOTAL		2108
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_TOTAL		2115
 /*! cursor: bulk loaded cursor insert calls */
-#define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2109
+#define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2116
 /*! cursor: cache cursors reuse count */
-#define	WT_STAT_DSRC_CURSOR_REOPEN			2110
+#define	WT_STAT_DSRC_CURSOR_REOPEN			2117
 /*! cursor: close calls that result in cache */
-#define	WT_STAT_DSRC_CURSOR_CACHE			2111
+#define	WT_STAT_DSRC_CURSOR_CACHE			2118
 /*! cursor: create calls */
-#define	WT_STAT_DSRC_CURSOR_CREATE			2112
+#define	WT_STAT_DSRC_CURSOR_CREATE			2119
 /*!
  * cursor: cursor next calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100		2113
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100		2120
 /*! cursor: cursor next calls that skip less than 100 entries */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100		2114
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100		2121
 /*!
  * cursor: cursor prev calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100		2115
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100		2122
 /*! cursor: cursor prev calls that skip less than 100 entries */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_LT_100		2116
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_LT_100		2123
 /*! cursor: insert calls */
-#define	WT_STAT_DSRC_CURSOR_INSERT			2117
+#define	WT_STAT_DSRC_CURSOR_INSERT			2124
 /*! cursor: insert key and value bytes */
-#define	WT_STAT_DSRC_CURSOR_INSERT_BYTES		2118
+#define	WT_STAT_DSRC_CURSOR_INSERT_BYTES		2125
 /*! cursor: modify */
-#define	WT_STAT_DSRC_CURSOR_MODIFY			2119
+#define	WT_STAT_DSRC_CURSOR_MODIFY			2126
 /*! cursor: modify key and value bytes affected */
-#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES		2120
+#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES		2127
 /*! cursor: modify value bytes modified */
-#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES_TOUCH		2121
+#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES_TOUCH		2128
 /*! cursor: next calls */
-#define	WT_STAT_DSRC_CURSOR_NEXT			2122
+#define	WT_STAT_DSRC_CURSOR_NEXT			2129
 /*! cursor: open cursor count */
-#define	WT_STAT_DSRC_CURSOR_OPEN_COUNT			2123
+#define	WT_STAT_DSRC_CURSOR_OPEN_COUNT			2130
 /*! cursor: operation restarted */
-#define	WT_STAT_DSRC_CURSOR_RESTART			2124
+#define	WT_STAT_DSRC_CURSOR_RESTART			2131
 /*! cursor: prev calls */
-#define	WT_STAT_DSRC_CURSOR_PREV			2125
+#define	WT_STAT_DSRC_CURSOR_PREV			2132
 /*! cursor: remove calls */
-#define	WT_STAT_DSRC_CURSOR_REMOVE			2126
+#define	WT_STAT_DSRC_CURSOR_REMOVE			2133
 /*! cursor: remove key bytes removed */
-#define	WT_STAT_DSRC_CURSOR_REMOVE_BYTES		2127
+#define	WT_STAT_DSRC_CURSOR_REMOVE_BYTES		2134
 /*! cursor: reserve calls */
-#define	WT_STAT_DSRC_CURSOR_RESERVE			2128
+#define	WT_STAT_DSRC_CURSOR_RESERVE			2135
 /*! cursor: reset calls */
-#define	WT_STAT_DSRC_CURSOR_RESET			2129
+#define	WT_STAT_DSRC_CURSOR_RESET			2136
 /*! cursor: search calls */
-#define	WT_STAT_DSRC_CURSOR_SEARCH			2130
+#define	WT_STAT_DSRC_CURSOR_SEARCH			2137
 /*! cursor: search near calls */
-#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR			2131
+#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR			2138
 /*! cursor: truncate calls */
-#define	WT_STAT_DSRC_CURSOR_TRUNCATE			2132
+#define	WT_STAT_DSRC_CURSOR_TRUNCATE			2139
 /*! cursor: update calls */
-#define	WT_STAT_DSRC_CURSOR_UPDATE			2133
+#define	WT_STAT_DSRC_CURSOR_UPDATE			2140
 /*! cursor: update key and value bytes */
-#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2134
+#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2141
 /*! cursor: update value size change */
-#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED	2135
+#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED	2142
 /*! history: history pages added for eviction during garbage collection */
-#define	WT_STAT_DSRC_HS_GC_PAGES_EVICT			2136
+#define	WT_STAT_DSRC_HS_GC_PAGES_EVICT			2143
 /*! history: history pages removed for garbage collection */
-#define	WT_STAT_DSRC_HS_GC_PAGES_REMOVED		2137
+#define	WT_STAT_DSRC_HS_GC_PAGES_REMOVED		2144
 /*! history: history pages visited for garbage collection */
-#define	WT_STAT_DSRC_HS_GC_PAGES_VISITED		2138
+#define	WT_STAT_DSRC_HS_GC_PAGES_VISITED		2145
 /*! reconciliation: approximate byte size of timestamps in pages written */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TS		2139
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TS		2146
 /*!
  * reconciliation: approximate byte size of transaction IDs in pages
  * written
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TXN		2140
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TXN		2147
 /*! reconciliation: dictionary matches */
-#define	WT_STAT_DSRC_REC_DICTIONARY			2141
+#define	WT_STAT_DSRC_REC_DICTIONARY			2148
 /*! reconciliation: fast-path pages deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELETE_FAST		2142
+#define	WT_STAT_DSRC_REC_PAGE_DELETE_FAST		2149
 /*!
  * reconciliation: internal page key bytes discarded using suffix
  * compression
  */
-#define	WT_STAT_DSRC_REC_SUFFIX_COMPRESSION		2143
+#define	WT_STAT_DSRC_REC_SUFFIX_COMPRESSION		2150
 /*! reconciliation: internal page multi-block writes */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_INTERNAL		2144
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_INTERNAL		2151
 /*! reconciliation: internal-page overflow keys */
-#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_INTERNAL		2145
+#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_INTERNAL		2152
 /*! reconciliation: leaf page key bytes discarded using prefix compression */
-#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION		2146
+#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION		2153
 /*! reconciliation: leaf page multi-block writes */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_LEAF		2147
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_LEAF		2154
 /*! reconciliation: leaf-page overflow keys */
-#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_LEAF		2148
+#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_LEAF		2155
 /*! reconciliation: maximum blocks required for a page */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2149
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2156
 /*! reconciliation: overflow values written */
-#define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2150
+#define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2157
 /*! reconciliation: page checksum matches */
-#define	WT_STAT_DSRC_REC_PAGE_MATCH			2151
+#define	WT_STAT_DSRC_REC_PAGE_MATCH			2158
 /*! reconciliation: page reconciliation calls */
-#define	WT_STAT_DSRC_REC_PAGES				2152
+#define	WT_STAT_DSRC_REC_PAGES				2159
 /*! reconciliation: page reconciliation calls for eviction */
-#define	WT_STAT_DSRC_REC_PAGES_EVICTION			2153
+#define	WT_STAT_DSRC_REC_PAGES_EVICTION			2160
 /*! reconciliation: pages deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELETE			2154
+#define	WT_STAT_DSRC_REC_PAGE_DELETE			2161
 /*!
  * reconciliation: pages written including an aggregated newest start
  * durable timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2155
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_START_DURABLE_TS	2162
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * durable timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2156
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_DURABLE_TS	2163
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS	2157
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TS	2164
 /*!
  * reconciliation: pages written including an aggregated newest stop
  * transaction ID
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TXN	2158
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TXN	2165
 /*!
  * reconciliation: pages written including an aggregated oldest start
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2159
+#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2166
 /*!
  * reconciliation: pages written including an aggregated oldest start
  * transaction ID
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TXN	2160
+#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TXN	2167
 /*! reconciliation: pages written including an aggregated prepare */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2161
+#define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2168
 /*! reconciliation: pages written including at least one prepare */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED	2162
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_PREPARED	2169
 /*!
  * reconciliation: pages written including at least one start durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	2163
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_START_TS	2170
 /*! reconciliation: pages written including at least one start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS	2164
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TS	2171
 /*!
  * reconciliation: pages written including at least one start transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2165
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2172
 /*!
  * reconciliation: pages written including at least one stop durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2166
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2173
 /*! reconciliation: pages written including at least one stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2167
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2174
 /*!
  * reconciliation: pages written including at least one stop transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TXN	2168
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TXN	2175
 /*! reconciliation: records written including a prepare */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED		2169
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PREPARED		2176
 /*! reconciliation: records written including a start durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS	2170
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_START_TS	2177
 /*! reconciliation: records written including a start timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TS		2171
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TS		2178
 /*! reconciliation: records written including a start transaction ID */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN		2172
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_START_TXN		2179
 /*! reconciliation: records written including a stop durable timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS	2173
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_DURABLE_STOP_TS	2180
 /*! reconciliation: records written including a stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2174
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2181
 /*! reconciliation: records written including a stop transaction ID */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2175
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2182
 /*! session: object compaction */
-#define	WT_STAT_DSRC_SESSION_COMPACT			2176
+#define	WT_STAT_DSRC_SESSION_COMPACT			2183
 /*! transaction: update conflicts */
-#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2177
+#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2184
 
 /*!
  * @}
