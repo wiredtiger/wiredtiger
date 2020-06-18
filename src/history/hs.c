@@ -1496,18 +1496,11 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
 
         /*
          * We're going to be inserting something immediately after with the same timestamp. Either
-         * another moved update OR the update itself that triggered the correction.
+         * another moved update OR the update itself that triggered the correction. In either case,
+         * we should preserve the stop transaction id.
          */
         stop_time_point.ts = stop_time_point.durable_ts = ts;
-
-        /*
-         * This means it's the latest record for that key. We should give it a stop pair to
-         * correspond to the update we're inserting.
-         */
-        if (hs_cbt->upd_value->tw.stop_txn == WT_TXN_MAX)
-            stop_time_point.txnid = current_txnid;
-        else
-            stop_time_point.txnid = hs_cbt->upd_value->tw.stop_txn;
+        stop_time_point.txnid = hs_cbt->upd_value->tw.stop_txn;
 
         /* Reinsert entry with earlier timestamp. */
         WT_ERR(__hs_insert_record_with_btree_int(session, insert_cursor, btree, key,
