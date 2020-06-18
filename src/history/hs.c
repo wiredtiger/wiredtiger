@@ -802,7 +802,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             /*
              * If we've seen a smaller timestamp before, use that instead.
              *
-             * FIXME-WT-6388: Perhaps these writes need to be ordered.
+             * FIXME-WT-6442: Resolved prepared updates will lose their durable timestamp here. We
+             * should add a statistic to keep track of how often this happens.
              */
             if (min_insert_ts < upd->start_ts)
                 upd->start_ts = upd->durable_ts = min_insert_ts;
@@ -952,7 +953,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * updates with out-of-order timestamps), so this value can never be seen, don't bother
              * inserting it.
              *
-             * FIXME-WT-6388: We should be able to replace this with an assertion.
+             * FIXME-WT-6443: We should be able to replace this with an assertion.
              */
             if (stop_time_point.ts < upd->start_ts ||
               (stop_time_point.ts == upd->start_ts && stop_time_point.txnid <= upd->txnid)) {
