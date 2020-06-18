@@ -1446,7 +1446,9 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     /*
      * The goal of this fixup function is to move out-of-order content to maintain ordering in the
      * history store. We do this by removing content with higher timestamps and reinserting it
-     * behind (from search's point of view) the newly inserted update.
+     * behind (from search's point of view) the newly inserted update. Even though these updates
+     * will all have the same timestamp, they cannot be discarded since older readers may need to
+     * see them after they've been moved due to their transaction id.
      *
      * For example, if we're inserting an update at timestamp 3 with value ddd:
      * btree key ts counter value
