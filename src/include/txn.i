@@ -851,6 +851,11 @@ __wt_txn_read_upd_list(
         if (type == WT_UPDATE_RESERVE)
             continue;
 
+        /*
+         * If the cursor is configured to ignore tombstones, copy the timestamps from the tombstones
+         * to the stop time window of the update value being returned to the caller. Caller can
+         * process the stop time window to decide if there was a tombstone on the update chain.
+         */
         if (type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
           !__wt_txn_upd_visible_all(session, upd)) {
             cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
