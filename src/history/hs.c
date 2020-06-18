@@ -27,8 +27,7 @@ typedef struct {
 static int __hs_delete_key_from_pos(
   WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key);
 static int __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
-  WT_BTREE *btree, const WT_ITEM *key, wt_timestamp_t ts, uint64_t current_txnid,
-  uint64_t *hs_counter);
+  WT_BTREE *btree, const WT_ITEM *key, wt_timestamp_t ts, uint64_t *hs_counter);
 
 /*
  * __hs_start_internal_session --
@@ -572,7 +571,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
         WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
         if (ret == 0)
             WT_ERR(__hs_fixup_out_of_order_from_pos(
-              session, cursor, btree, key, upd->start_ts, upd->txnid, &counter));
+              session, cursor, btree, key, upd->start_ts, &counter));
     }
 
     start_time_point.ts = upd->start_ts;
@@ -1423,7 +1422,7 @@ __wt_hs_delete_key_from_ts(
  */
 static int
 __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTREE *btree,
-  const WT_ITEM *key, wt_timestamp_t ts, uint64_t current_txnid, uint64_t *counter)
+  const WT_ITEM *key, wt_timestamp_t ts, uint64_t *counter)
 {
     WT_CURSOR *insert_cursor;
     WT_CURSOR_BTREE *hs_cbt, *insert_cbt;
