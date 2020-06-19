@@ -273,6 +273,8 @@ typedef struct {
 #define ISOLATION_SNAPSHOT 4
     u_int c_isolation_flag; /* Isolation flag value */
 
+/* The page must be a multiple of the allocation size, and 512 always works. */
+#define BLOCK_ALLOCATION_SIZE 512
     uint32_t intl_page_max; /* Maximum page sizes */
     uint32_t leaf_page_max;
 
@@ -410,8 +412,9 @@ void snap_repeat_single(WT_CURSOR *, TINFO *);
 int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
-void timestamp_once(WT_SESSION *, bool);
+void timestamp_once(WT_SESSION *, bool, bool);
 void timestamp_parse(WT_SESSION *, const char *, uint64_t *);
+void timestamp_teardown(WT_SESSION *);
 int trace_config(const char *);
 void trace_init(void);
 void trace_ops_init(TINFO *);
