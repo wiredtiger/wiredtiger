@@ -336,6 +336,7 @@ struct __wt_connection_stats {
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
     int64_t cache_write_app_time;
+    int64_t cache_bytes_updates;
     int64_t cache_bytes_image;
     int64_t cache_bytes_hs;
     int64_t cache_bytes_inuse;
@@ -711,9 +712,12 @@ struct __wt_connection_stats {
     int64_t txn_read_queue_inserts;
     int64_t txn_read_queue_len;
     int64_t txn_rts;
+    int64_t txn_rts_hs_stop_older_than_newer_start;
     int64_t txn_rts_keys_removed;
     int64_t txn_rts_keys_restored;
     int64_t txn_rts_pages_visited;
+    int64_t txn_rts_hs_restore_tombstones;
+    int64_t txn_rts_skip_interal_pages_walk;
     int64_t txn_rts_sweep_hs_keys;
     int64_t txn_rts_upd_aborted;
     int64_t txn_rts_hs_removed;

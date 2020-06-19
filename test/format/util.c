@@ -28,12 +28,46 @@
 
 #include "format.h"
 
+/*
+ * track_ts_diff --
+ *     Return a one character descriptor of relative timestamp values.
+ */
+static const char *
+track_ts_diff(uint64_t left_ts, uint64_t right_ts)
+{
+    if (left_ts < right_ts)
+        return "+";
+    else if (left_ts == right_ts)
+        return "=";
+    else
+        return "-";
+}
+
+/*
+ * track_ts_dots --
+ *     Return an entry in the time stamp progress indicator.
+ */
+static const char *
+track_ts_dots(u_int dot_count)
+{
+    static const char *dots[] = {"   ", ".  ", ".. ", "..."};
+
+    return (dots[dot_count % WT_ELEMENTS(dots)]);
+}
+
+/*
+ * track --
+ *     Show a status line of operations and time stamp progress.
+ */
 void
 track(const char *tag, uint64_t cnt, TINFO *tinfo)
 {
-    static size_t lastlen = 0;
+    static size_t last_len;
+    static uint64_t last_cur, last_old, last_stable;
+    static u_int cur_dot_cnt, old_dot_cnt, stable_dot_cnt;
     size_t len;
-    char msg[128];
+    uint64_t cur_ts, old_ts, stable_ts;
+    char msg[128], ts_msg[64];
 
     if (g.c_quiet || tag == NULL)
         return;
@@ -44,12 +78,42 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
     else if (tinfo == NULL)
         testutil_check(__wt_snprintf_len_set(
           msg, sizeof(msg), &len, "%4" PRIu32 ": %s: %" PRIu64, g.run_cnt, tag, cnt));
-    else
+    else {
+        ts_msg[0] = '\0';
+        if (g.c_txn_timestamps) {
+            /*
+             * Don't worry about having a completely consistent set of timestamps.
+             */
+            old_ts = g.oldest_timestamp;
+            stable_ts = g.stable_timestamp;
+            cur_ts = g.timestamp;
+
+            if (old_ts != last_old) {
+                ++old_dot_cnt;
+                last_old = old_ts;
+            }
+            if (stable_ts != last_stable) {
+                ++stable_dot_cnt;
+                last_stable = stable_ts;
+            }
+            if (cur_ts != last_cur) {
+                ++cur_dot_cnt;
+                last_cur = cur_ts;
+            }
+
+            testutil_check(__wt_snprintf(ts_msg, sizeof(ts_msg),
+              " old%s"
+              "stb%s%s"
+              "ts%s%s",
+              track_ts_dots(old_dot_cnt), track_ts_diff(old_ts, stable_ts),
+              track_ts_dots(stable_dot_cnt), track_ts_diff(stable_ts, cur_ts),
+              track_ts_dots(cur_dot_cnt)));
+        }
         testutil_check(__wt_snprintf_len_set(msg, sizeof(msg), &len, "%4" PRIu32 ": %s: "
-                                                                     "search %" PRIu64 "%s, "
-                                                                     "insert %" PRIu64 "%s, "
-                                                                     "update %" PRIu64 "%s, "
-                                                                     "remove %" PRIu64 "%s",
+                                                                     "S %" PRIu64 "%s, "
+                                                                     "I %" PRIu64 "%s, "
+                                                                     "U %" PRIu64 "%s, "
+                                                                     "R %" PRIu64 "%s%s",
           g.run_cnt, tag, tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search,
           tinfo->search > M(9) ? "M" : "",
           tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert,
@@ -57,13 +121,13 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
           tinfo->update > M(9) ? tinfo->update / M(1) : tinfo->update,
           tinfo->update > M(9) ? "M" : "",
           tinfo->remove > M(9) ? tinfo->remove / M(1) : tinfo->remove,
-          tinfo->remove > M(9) ? "M" : ""));
-
-    if (lastlen > len) {
-        memset(msg + len, ' ', (size_t)(lastlen - len));
-        msg[lastlen] = '\0';
+          tinfo->remove > M(9) ? "M" : "", ts_msg));
     }
-    lastlen = len;
+    if (last_len > len) {
+        memset(msg + len, ' ', (size_t)(last_len - len));
+        msg[last_len] = '\0';
+    }
+    last_len = len;
 
     if (printf("%s\r", msg) < 0)
         testutil_die(EIO, "printf");
@@ -163,33 +227,57 @@ fclose_and_clear(FILE **fpp)
  *     Update the timestamp once.
  */
 void
-timestamp_once(WT_SESSION *session)
+timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
 {
+    static const char *oldest_timestamp_str = "oldest_timestamp=";
+    static const char *stable_timestamp_str = "stable_timestamp=";
     WT_CONNECTION *conn;
     WT_DECL_RET;
-    char tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
+    uint64_t all_durable;
+    char buf[WT_TS_HEX_STRING_SIZE * 2 + 64];
 
     conn = g.wts_conn;
 
-    /*
-     * Lock out transaction timestamp operations. The lock acts as a barrier ensuring we've checked
-     * if the workers have finished, we don't want that line reordered. We can also be called from
-     * places, such as bulk load, where we are single-threaded and the locks haven't been
-     * initialized.
-     */
-    if (LOCK_INITIALIZED(&g.ts_lock))
-        lock_writelock(session, &g.ts_lock);
+    if (final)
+        g.oldest_timestamp = g.stable_timestamp = ++g.timestamp;
+    else {
+        if ((ret = conn->query_timestamp(conn, buf, "get=all_durable")) == 0)
+            timestamp_parse(session, buf, &all_durable);
+        else {
+            testutil_assert(ret == WT_NOTFOUND);
+            return;
+        }
 
-    ret = conn->query_timestamp(conn, ts_string, "get=all_durable");
-    testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-    if (ret == 0) {
-        testutil_check(__wt_snprintf(
-          tscfg, sizeof(tscfg), "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
-        testutil_check(conn->set_timestamp(conn, tscfg));
+        /*
+         * If a lag is permitted, move the oldest timestamp half the way to the current
+         * "all_durable" timestamp.  Move the stable timestamp to "all_durable".
+         */
+        if (allow_lag)
+            g.oldest_timestamp = (all_durable + g.oldest_timestamp) / 2;
+        else
+            g.oldest_timestamp = all_durable;
+        g.stable_timestamp = all_durable;
     }
 
-    if (LOCK_INITIALIZED(&g.ts_lock))
-        lock_writeunlock(session, &g.ts_lock);
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%" PRIx64 ",%s%" PRIx64, oldest_timestamp_str,
+      g.oldest_timestamp, stable_timestamp_str, g.stable_timestamp));
+
+    testutil_check(conn->set_timestamp(conn, buf));
+    trace_msg(
+      "%-10s oldest=%" PRIu64 ", stable=%" PRIu64, "setts", g.oldest_timestamp, g.stable_timestamp);
+}
+
+/*
+ * timestamp_parse --
+ *     Parse a timestamp to an integral value.
+ */
+void
+timestamp_parse(WT_SESSION *session, const char *str, uint64_t *tsp)
+{
+    char *p;
+
+    *tsp = strtoull(str, &p, 16);
+    WT_ASSERT((WT_SESSION_IMPL *)session, p - str <= 16);
 }
 
 /*
@@ -201,7 +289,6 @@ timestamp(void *arg)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    bool done;
 
     (void)(arg);
     conn = g.wts_conn;
@@ -209,24 +296,31 @@ timestamp(void *arg)
     /* Locks need session */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /* Update the oldest timestamp at least once every 15 seconds. */
-    done = false;
-    do {
-        /*
-         * Do a final bump of the oldest timestamp as part of shutting down the worker threads,
-         * otherwise recent operations can prevent verify from running.
-         */
-        if (g.workers_finished)
-            done = true;
-        else
-            random_sleep(&g.rnd, 15);
+    /* Update the oldest and stable timestamps at least once every 15 seconds. */
+    while (!g.workers_finished) {
+        random_sleep(&g.rnd, 15);
 
-        timestamp_once(session);
-
-    } while (!done);
+        lock_writelock(session, &g.ts_lock); /* Lock out transaction timestamp operations. */
+        timestamp_once(session, true, false);
+        lock_writeunlock(session, &g.ts_lock);
+    }
 
     testutil_check(session->close(session, NULL));
     return (WT_THREAD_RET_VALUE);
+}
+
+/*
+ * timestamp_teardown --
+ *     Wrap up timestamp operations.
+ */
+void
+timestamp_teardown(WT_SESSION *session)
+{
+    /*
+     * Do a final bump of the oldest and stable timestamps, otherwise recent operations can prevent
+     * salvage or verify from running.
+     */
+    timestamp_once(session, false, true);
 }
 
 /*
