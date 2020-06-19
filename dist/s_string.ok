@@ -325,7 +325,6 @@ RCS
 RDNOLOCK
 RDONLY
 READONLY
-REBALANCE
 RECNO
 REF's
 REFs
@@ -343,7 +342,6 @@ RXB
 Radu
 ReadFile
 Readonly
-Rebalance
 RedHat
 Redistributions
 Refactor
@@ -1178,7 +1176,6 @@ readunlock
 readv
 realloc
 rebalance
-rebalanced
 rebalancing
 recno
 recnos
