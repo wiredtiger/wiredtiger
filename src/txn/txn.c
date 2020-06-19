@@ -2232,3 +2232,5 @@ __wt_verbose_dump_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
       upd->size, upd_type, prepare_state);
     return (0);
 }
+
+// no-op change
