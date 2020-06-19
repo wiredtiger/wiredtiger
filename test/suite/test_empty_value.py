@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_dictionary.py
+# test_empty_value.py
 #       Smoke test empty row-store values.
 
 from wtdataset import simple_key
@@ -39,8 +39,6 @@ class test_row_store_empty_values(wttest.WiredTigerTestCase):
 
     # Smoke test empty row-store values.
     def test_row_store_empty_values(self):
-        self.skipTest('empty row values are currently not working')
-
         nentries = 25000
         uri = 'file:test_empty_values'          # This is a btree layer test.
 
@@ -54,7 +52,7 @@ class test_row_store_empty_values(wttest.WiredTigerTestCase):
         # Reopen to force the object to disk.
         self.reopen_conn()
 
-        # Confirm the values weren't stored..
+        # Confirm the values weren't stored.
         cursor = self.session.open_cursor('statistics:' + uri, None, 'statistics=(tree_walk)')
         self.assertEqual(cursor[stat.dsrc.btree_row_empty_values][2], nentries)
 
