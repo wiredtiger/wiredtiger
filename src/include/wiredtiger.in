@@ -5368,7 +5368,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CURSOR_NEXT_SKIP_TOTAL		1183
 /*! cursor: Total number of entries skipped by cursor prev calls */
 #define	WT_STAT_CONN_CURSOR_PREV_SKIP_TOTAL		1184
-/*! cursor: Total number of entries skipped to position the hs cursor */
+/*!
+ * cursor: Total number of entries skipped to position the history store
+ * cursor
+ */
 #define	WT_STAT_CONN_CURSOR_SKIP_HS_CUR_POSITION	1185
 /*! cursor: cached cursor count */
 #define	WT_STAT_CONN_CURSOR_CACHED_COUNT		1186
@@ -6360,7 +6363,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL		2107
 /*! cursor: Total number of entries skipped by cursor prev calls */
 #define	WT_STAT_DSRC_CURSOR_PREV_SKIP_TOTAL		2108
-/*! cursor: Total number of entries skipped to position the hs cursor */
+/*!
+ * cursor: Total number of entries skipped to position the history store
+ * cursor
+ */
 #define	WT_STAT_DSRC_CURSOR_SKIP_HS_CUR_POSITION	2109
 /*! cursor: bulk loaded cursor insert calls */
 #define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2110
