@@ -1113,12 +1113,11 @@ err:
  */
 int
 __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
-  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf)
+  WT_UPDATE_VALUE *upd_value, bool allow_prepare)
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_ITEM(hs_value);
-    WT_DECL_ITEM(orig_hs_value_buf);
     WT_DECL_RET;
     WT_ITEM hs_key, recno_key;
     WT_MODIFY_VECTOR modifies;
@@ -1135,7 +1134,6 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
 
     hs_cursor = NULL;
     mod_upd = upd = NULL;
-    orig_hs_value_buf = NULL;
     WT_CLEAR(hs_key);
     __wt_modify_vector_init(session, &modifies);
     txn = session->txn;
@@ -1252,9 +1250,10 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
              * timestamp then we return not found.
              */
             if ((ret = hs_cursor->next(hs_cursor)) == WT_NOTFOUND) {
-                /* Fallback to the onpage value as the base value. */
-                orig_hs_value_buf = hs_value;
-                hs_value = on_disk_buf;
+                /*
+                 * Fallback to the onpage value as the base value and upd_select->buf already points
+                 * to the onpage value.
+                 */
                 upd_type = WT_UPDATE_STANDARD;
                 break;
             }
@@ -1270,12 +1269,22 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
             WT_ERR(hs_cursor->get_key(
               hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts_tmp, &hs_counter_tmp));
 
+            if (hs_btree_id != S2BT(session)->id) {
+                /*
+                 * Fallback to the onpage value as the base value and upd_select->buf already points
+                 * to the onpage value.
+                 */
+                upd_type = WT_UPDATE_STANDARD;
+                break;
+            }
+
             WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
 
             if (cmp != 0) {
-                /* Fallback to the onpage value as the base value. */
-                orig_hs_value_buf = hs_value;
-                hs_value = on_disk_buf;
+                /*
+                 * Fallback to the onpage value as the base value and upd_select->buf already points
+                 * to the onpage value.
+                 */
                 upd_type = WT_UPDATE_STANDARD;
                 break;
             }
@@ -1283,23 +1292,21 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
             WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts_tmp, &durable_timestamp_tmp,
               &upd_type_full, hs_value));
             upd_type = (uint8_t)upd_type_full;
+            if (upd_type == WT_UPDATE_STANDARD) {
+                WT_ERR(__wt_buf_set(session, &upd_value->buf, hs_value->data, hs_value->size));
+                break;
+            }
         }
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
             __wt_modify_vector_pop(&modifies, &mod_upd);
-            WT_ERR(__wt_modify_apply_item(session, value_format, hs_value, mod_upd->data));
+            WT_ERR(__wt_modify_apply_item(session, value_format, &upd_value->buf, mod_upd->data));
             __wt_free_update_list(session, &mod_upd);
             mod_upd = NULL;
         }
         WT_STAT_CONN_INCR(session, cache_hs_read_squash);
     }
 
-    /*
-     * Potential optimization: We can likely get rid of this copy and the update allocation above.
-     * We already have buffers containing the modify values so there's no good reason to allocate an
-     * update other than to work with our modify vector implementation.
-     */
-    WT_ERR(__wt_buf_set(session, &upd_value->buf, hs_value->data, hs_value->size));
 skip_buf:
     upd_value->tw.durable_start_ts = durable_timestamp;
     upd_value->tw.start_txn = WT_TXN_NONE;
@@ -1307,10 +1314,7 @@ skip_buf:
 
 done:
 err:
-    if (orig_hs_value_buf != NULL)
-        __wt_scr_free(session, &orig_hs_value_buf);
-    else
-        __wt_scr_free(session, &hs_value);
+    __wt_scr_free(session, &hs_value);
     WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
 
     WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
