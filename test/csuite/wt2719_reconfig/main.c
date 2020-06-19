@@ -95,10 +95,10 @@ static const char *const list[] = {",async=(enabled=0)", ",async=(enabled=1)",
   ",verbose=(\"compact\")", ",verbose=(\"evict\")", ",verbose=(\"evictserver\")",
   ",verbose=(\"fileops\")", ",verbose=(\"handleops\")", ",verbose=(\"log\")", ",verbose=(\"lsm\")",
   ",verbose=(\"lsm_manager\")", ",verbose=(\"metadata\")", ",verbose=(\"mutex\")",
-  ",verbose=(\"overflow\")", ",verbose=(\"read\")", ",verbose=(\"rebalance\")",
-  ",verbose=(\"reconcile\")", ",verbose=(\"recovery\")", ",verbose=(\"salvage\")",
-  ",verbose=(\"shared_cache\")", ",verbose=(\"split\")", ",verbose=(\"transaction\")",
-  ",verbose=(\"verify\")", ",verbose=(\"version\")", ",verbose=(\"write\")", ",verbose=()"};
+  ",verbose=(\"overflow\")", ",verbose=(\"read\")", ",verbose=(\"reconcile\")",
+  ",verbose=(\"recovery\")", ",verbose=(\"salvage\")", ",verbose=(\"shared_cache\")",
+  ",verbose=(\"split\")", ",verbose=(\"transaction\")", ",verbose=(\"verify\")",
+  ",verbose=(\"version\")", ",verbose=(\"write\")", ",verbose=()"};
 
 static int
 handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
