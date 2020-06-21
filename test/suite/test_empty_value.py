@@ -29,7 +29,6 @@
 # test_empty_value.py
 #       Smoke test empty row-store values.
 
-from wtdataset import simple_key
 from wiredtiger import stat
 import wiredtiger, wttest
 
@@ -43,10 +42,10 @@ class test_row_store_empty_values(wttest.WiredTigerTestCase):
         uri = 'file:test_empty_values'          # This is a btree layer test.
 
         # Create the object, open the cursor, insert some records with zero-length values.
-        self.session.create(uri, 'value_format=u,key_format=S')
+        self.session.create(uri, 'key_format=S,value_format=u')
         cursor = self.session.open_cursor(uri, None)
         for i in range(1, nentries + 1):
-            cursor[simple_key(cursor, i)] = ""
+            cursor[str(i)] = b''
         cursor.close()
 
         # Reopen to force the object to disk.
