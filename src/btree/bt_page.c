@@ -537,7 +537,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_DECL_ITEM(value);
     WT_DECL_RET;
     WT_ROW *rip;
-    WT_UPDATE *tombstone, *upd, **upd_array;
+    WT_UPDATE *tombstone, *upd;
     size_t size, total_size;
 
     btree = S2BT(session);
@@ -602,7 +602,6 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 
             /* Allocate the per-page update array. */
             WT_ERR(__wt_calloc_def(session, page->entries, &page->modify->mod_row_update));
-            upd_array = page->modify->mod_row_update;
 
             WT_ERR(__wt_scr_alloc(session, 0, &value));
 
@@ -640,7 +639,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
             tombstone = upd;
         }
 
-        upd_array[WT_ROW_SLOT(page, rip - 1)] = tombstone;
+        page->modify->mod_row_update[WT_ROW_SLOT(page, rip - 1)] = tombstone;
         tombstone = upd = NULL;
     }
     WT_CELL_FOREACH_END;
