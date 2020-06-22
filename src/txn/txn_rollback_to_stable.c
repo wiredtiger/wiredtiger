@@ -97,6 +97,7 @@ __rollback_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
     WT_UPDATE *last_upd, *old_upd, **upd_entry;
     size_t upd_size;
 
+    last_upd = NULL;
     /* If we don't yet have a modify structure, we'll need one. */
     WT_RET(__wt_page_modify_init(session, page));
     mod = page->modify;
@@ -138,7 +139,8 @@ __rollback_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
 
     if (0) {
 err:
-        last_upd->next = NULL;
+        if (last_upd != NULL)
+            last_upd->next = NULL;
     }
 
     return (ret);
