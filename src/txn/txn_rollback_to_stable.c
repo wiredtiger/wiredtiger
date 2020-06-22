@@ -115,8 +115,7 @@ __rollback_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
     last_upd->next = *upd_entry;
 
     /*
-     * If it's a full update list, we're trying to instantiate the row. Otherwise, it's just a
-     * single update that we'd like to append to the update list.
+     * We can either put a tombstone plus an update or a single update on the update chain.
      *
      * Set the "old" entry to the second update in the list so that the serialization function
      * succeeds in swapping the first update into place.
