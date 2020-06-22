@@ -882,8 +882,8 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting due to total capacity (usecs)",
   "capacity: time waiting during checkpoint (usecs)",
   "capacity: time waiting during eviction (usecs)", "capacity: time waiting during logging (usecs)",
-  "capacity: time waiting during read (usecs)", "connection: auto adjusting condition resets",
-  "connection: auto adjusting condition wait calls",
+  "capacity: time waiting during read (usecs)", "connection: adjusting condition wait failed",
+  "connection: auto adjusting condition resets", "connection: auto adjusting condition wait calls",
   "connection: detected system time went backwards", "connection: files currently open",
   "connection: memory allocations", "connection: memory frees", "connection: memory re-allocations",
   "connection: pthread mutex condition wait calls",
@@ -1311,6 +1311,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_evict = 0;
     stats->capacity_time_log = 0;
     stats->capacity_time_read = 0;
+    stats->cond_wait_adjust_failed = 0;
     stats->cond_auto_wait_reset = 0;
     stats->cond_auto_wait = 0;
     stats->time_travel = 0;
@@ -1812,6 +1813,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_evict += WT_STAT_READ(from, capacity_time_evict);
     to->capacity_time_log += WT_STAT_READ(from, capacity_time_log);
     to->capacity_time_read += WT_STAT_READ(from, capacity_time_read);
+    to->cond_wait_adjust_failed += WT_STAT_READ(from, cond_wait_adjust_failed);
     to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
     to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);
     to->time_travel += WT_STAT_READ(from, time_travel);
