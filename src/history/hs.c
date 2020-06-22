@@ -1205,7 +1205,9 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
          * If the stop time point of a record is visible to us, we won't be able to see anything for
          * this entire key. Just jump straight to the end.
          */
-        if (__wt_txn_tw_stop_visible(session, &hs_cbt->upd_value->tw))
+        if (__wt_txn_visible_all(
+              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts) ||
+          __wt_txn_tw_stop_visible(session, &hs_cbt->upd_value->tw))
             goto done;
         /* If the start time point is visible to us, let's return that record. */
         if (__wt_txn_tw_start_visible(session, &hs_cbt->upd_value->tw))
@@ -1617,6 +1619,12 @@ __hs_delete_key_from_pos(
         WT_RET(__wt_compare(session, NULL, &hs_key, key, &cmp));
         if (cmp != 0)
             break;
+
+        /* If the stop time pair on the tombstone in the history store is already globally visible
+         * we can skip it. */
+        if (__wt_txn_visible_all(
+              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
+            continue;
         /*
          * Since we're using internal functions to modify the row structure, we need to manually set
          * the comparison to an exact match.
