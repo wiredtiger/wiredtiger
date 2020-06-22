@@ -94,7 +94,7 @@ __rollback_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
 {
     WT_DECL_RET;
     WT_PAGE_MODIFY *mod;
-    WT_UPDATE *old_upd, **upd_entry;
+    WT_UPDATE *last_upd, *old_upd, **upd_entry;
     size_t upd_size;
 
     /* If we don't yet have a modify structure, we'll need one. */
@@ -107,6 +107,11 @@ __rollback_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
     /* Set the WT_UPDATE array reference. */
     upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
     upd_size = __wt_update_list_memsize(upd);
+
+    /* If there are existing updates, append them after the new updates. */
+    for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
+        ;
+    last_upd->next = *upd_entry;
 
     /*
      * If it's a full update list, we're trying to instantiate the row. Otherwise, it's just a
@@ -131,7 +136,11 @@ __rollback_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
      */
     WT_ERR(__wt_update_serial(session, NULL, page, upd_entry, &upd, upd_size, true));
 
+    if (0) {
 err:
+        last_upd->next = NULL;
+    }
+
     return (ret);
 }
 
