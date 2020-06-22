@@ -64,7 +64,7 @@ __wt_cond_auto_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, bool prog
         WT_ORDERED_READ(saved_prev_wait, cond->prev_wait);
         if (!__wt_atomic_cas64(
               &cond->prev_wait, saved_prev_wait, WT_MIN(cond->max_wait, saved_prev_wait + delta)))
-            WT_STAT_CONN_INCR(session, cond_wait_adjust_failed);
+            WT_STAT_CONN_INCR(session, cond_auto_wait_skipped);
     }
 
     __wt_cond_wait_signal(session, cond, cond->prev_wait, run_func, signalled);

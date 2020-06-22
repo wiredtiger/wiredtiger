@@ -465,9 +465,9 @@ struct __wt_connection_stats {
     int64_t capacity_time_evict;
     int64_t capacity_time_log;
     int64_t capacity_time_read;
-    int64_t cond_wait_adjust_failed;
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
+    int64_t cond_auto_wait_skipped;
     int64_t time_travel;
     int64_t file_open;
     int64_t memory_allocation;
