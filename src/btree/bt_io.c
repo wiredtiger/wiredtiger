@@ -30,6 +30,7 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
     const WT_PAGE_HEADER *dsk;
     size_t result_len;
     const char *fail_msg;
+    uint16_t compression_ratio;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -111,6 +112,10 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
             fail_msg = "block decompression failed";
             goto corrupt;
         }
+
+	compression_ratio = result_len / (tmp->size - WT_BLOCK_COMPRESS_SKIP);
+	__wt_stat_compr_ratio_hist_incr(session, compression_ratio);
+
     } else {
         /*
          * If we uncompressed above, the page is in the correct buffer. If we get here the data may
@@ -172,7 +177,6 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
     WT_KEYED_ENCRYPTOR *kencryptor;
     WT_PAGE_HEADER *dsk;
     size_t dst_len, len, result_len, size, src_len;
-    uint16_t compression_ratio;
     uint64_t time_diff, time_start, time_stop;
     uint8_t *dst, *src;
     int compression_failed; /* Extension API, so not a bool. */
@@ -249,9 +253,6 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
         else
             WT_ERR(
               btree->compressor->pre_size(btree->compressor, &session->iface, src, src_len, &len));
-
-	compression_ratio = src_len / len;
-	__wt_stat_compr_ratio_hist_incr(session, compression_ratio);
 
         size = len + WT_BLOCK_COMPRESS_SKIP;
         WT_ERR(bm->write_size(bm, session, &size));
