@@ -755,9 +755,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         /*
          * Trim any updates before writing to history store. This saves wasted work.
          */
-        WT_WITH_BTREE(
-          session, btree, upd = __wt_update_obsolete_check(session, page, list->onpage_upd, true));
-        __wt_free_update_list(session, &upd);
+        if (WT_PAGE_TRYLOCK(session, page)) {
+            WT_WITH_BTREE(session, btree,
+              upd = __wt_update_obsolete_check(session, page, list->onpage_upd, true));
+            __wt_free_update_list(session, &upd);
+            WT_PAGE_UNLOCK(session, page);
+        }
         upd = list->onpage_upd;
 
         first_non_ts_upd = NULL;
