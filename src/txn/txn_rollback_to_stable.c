@@ -780,9 +780,9 @@ __rollback_abort_newer_updates(
      * modifications that are newer than the given timestamp. As eviction writes the newest version
      * to page, even a clean page may also contain modifications that need rollback.
      */
-    if ((page = ref->page) == NULL ||
-      (!__wt_page_is_modified(page) &&
-          !__rollback_page_needs_abort(session, ref, rollback_timestamp)))
+    page = ref->page;
+    if (page == NULL || (!__wt_page_is_modified(page) &&
+                          !__rollback_page_needs_abort(session, ref, rollback_timestamp)))
         return (0);
 
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
