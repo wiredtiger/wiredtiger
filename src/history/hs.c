@@ -1051,9 +1051,17 @@ int
 __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
 {
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
+    WT_ITEM hs_key;
+    wt_timestamp_t hs_start_ts;
+    uint64_t hs_counter;
+    uint32_t hs_btree_id;
     int cmp, exact;
+
+    cbt = (WT_CURSOR_BTREE *)cursor;
+    WT_CLEAR(hs_key);
 
     if (user_srch_key == NULL)
         WT_RET(__wt_scr_alloc(session, 0, &srch_key));
@@ -1074,10 +1082,13 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
      */
     cursor->set_key(
       cursor, btree_id, key, timestamp != WT_TS_NONE ? timestamp : WT_TS_MAX, UINT64_MAX);
+
     /* Copy the raw key before searching as a basis for comparison. */
     WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
     WT_ERR(cursor->search_near(cursor, &exact));
-    if (exact > 0) {
+    if (__wt_txn_visible_all(
+          session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts) ||
+      exact > 0) {
         /*
          * It's possible that we may race with a history store insert for another key. So we may be
          * more than one record away the end of our target key/timestamp range. Keep iterating
@@ -1088,7 +1099,16 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
             WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
 
             WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
-            if (cmp <= 0)
+            WT_ERR(cursor->get_key(cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
+
+            /* Stop before crossing over to the next btree */
+            if (hs_btree_id != btree_id) {
+                ret = WT_NOTFOUND;
+                break;
+            }
+            if (cmp <= 0 &&
+              !__wt_txn_visible_all(
+                  session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts))
                 break;
         }
     }
