@@ -775,9 +775,10 @@ __rollback_abort_newer_updates(
         WT_RET(__wt_delete_page_rollback(session, ref));
     }
 
-    /* The tree walk function should have read the page. */
-    WT_ASSERT(session, ref->page != NULL);
-    page = ref->page;
+    /* If there is no in-memory page associated with the ref, there is nothing to rollback. */
+    if ((page = ref->page) == NULL)
+        return (0);
+
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
     __wt_verbose(session, WT_VERB_RTS, "%p: page rolled back when page is modified: %s",
       (void *)ref, __wt_page_is_modified(page) ? "true" : "false");
@@ -842,14 +843,19 @@ static int
 __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     WT_DECL_RET;
-    WT_REF *ref;
+    WT_REF *child_ref, *ref;
 
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while ((ret = __wt_tree_walk_custom_skip(session, &ref, __wt_rts_page_skip, &rollback_timestamp,
               WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL)
-        if (F_ISSET(ref, WT_REF_FLAG_LEAF))
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+            WT_INTL_FOREACH_BEGIN (session, ref->page, child_ref) {
+                WT_RET(__rollback_abort_newer_updates(session, child_ref, rollback_timestamp));
+            }
+            WT_INTL_FOREACH_END;
+        } else 
             WT_RET(__rollback_abort_newer_updates(session, ref, rollback_timestamp));
 
     return (ret);
