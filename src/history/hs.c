@@ -1054,14 +1054,14 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
-    WT_ITEM hs_key;
-    wt_timestamp_t hs_start_ts;
-    uint64_t hs_counter;
-    uint32_t hs_btree_id;
+    WT_ITEM ds_key;
+    wt_timestamp_t ds_start_ts;
+    uint64_t counter;
+    uint32_t ds_btree_id;
     int cmp, exact;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    WT_CLEAR(hs_key);
+    WT_CLEAR(ds_key);
 
     if (user_srch_key == NULL)
         WT_RET(__wt_scr_alloc(session, 0, &srch_key));
@@ -1099,10 +1099,10 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
             WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
 
             WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
-            WT_ERR(cursor->get_key(cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
+            WT_ERR(cursor->get_key(cursor, &ds_btree_id, &ds_key, &ds_start_ts, &counter));
 
             /* Stop before crossing over to the next btree */
-            if (hs_btree_id != btree_id) {
+            if (ds_btree_id != btree_id) {
                 ret = WT_NOTFOUND;
                 break;
             }
@@ -1221,6 +1221,10 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         if (cmp != 0)
             goto done;
 
+        /*
+         * If the stop time pair on the tombstone in the history store is already globally visible
+         * we can skip it.
+         */
         if (__wt_txn_visible_all(
               session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
             continue;
@@ -1548,7 +1552,10 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
         if (cmp != 0)
             break;
-
+        /*
+         * If the stop time pair on the tombstone in the history store is already globally visible
+         * we can skip it.
+         */
         if (__wt_txn_visible_all(
               session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
             continue;
@@ -1645,8 +1652,10 @@ __hs_delete_key_from_pos(
         if (cmp != 0)
             break;
 
-        /* If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it. */
+        /*
+         * If the stop time pair on the tombstone in the history store is already globally visible
+         * we can skip it.
+         */
         if (__wt_txn_visible_all(
               session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
             continue;
