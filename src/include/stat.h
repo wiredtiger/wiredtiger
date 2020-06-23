@@ -480,6 +480,7 @@ struct __wt_connection_stats {
     int64_t write_io;
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
+    int64_t cursor_skip_hs_cur_position;
     int64_t cursor_cached_count;
     int64_t cursor_insert_bulk;
     int64_t cursor_cache;
@@ -501,6 +502,7 @@ struct __wt_connection_stats {
     int64_t cursor_reserve;
     int64_t cursor_reset;
     int64_t cursor_search;
+    int64_t cursor_search_hs;
     int64_t cursor_search_near;
     int64_t cursor_sweep_buckets;
     int64_t cursor_sweep_closed;
@@ -712,9 +714,11 @@ struct __wt_connection_stats {
     int64_t txn_read_queue_inserts;
     int64_t txn_read_queue_len;
     int64_t txn_rts;
+    int64_t txn_rts_hs_stop_older_than_newer_start;
     int64_t txn_rts_keys_removed;
     int64_t txn_rts_keys_restored;
     int64_t txn_rts_pages_visited;
+    int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_skip_interal_pages_walk;
     int64_t txn_rts_sweep_hs_keys;
     int64_t txn_rts_upd_aborted;
@@ -873,6 +877,7 @@ struct __wt_dsrc_stats {
     int64_t compress_write_too_small;
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
+    int64_t cursor_skip_hs_cur_position;
     int64_t cursor_insert_bulk;
     int64_t cursor_reopen;
     int64_t cursor_cache;
@@ -895,6 +900,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_reserve;
     int64_t cursor_reset;
     int64_t cursor_search;
+    int64_t cursor_search_hs;
     int64_t cursor_search_near;
     int64_t cursor_truncate;
     int64_t cursor_update;
