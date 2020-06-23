@@ -282,18 +282,17 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags, bool is_o
     WT_ASSERT(session, session->hs_cursor != NULL);
 
     /*
+     * Restore previous values of history store session flags.
+     */
+    F_CLR(session, WT_HS_SESSION_FLAGS);
+    F_SET(session, session_flags);
+
+    /*
      * If we're not the owner, we're not responsible for closing this cursor. Reset the cursor to
      * avoid pinning the page in cache.
      */
     if (!is_owner)
         return (session->hs_cursor->reset(session->hs_cursor));
-
-    /*
-     * We turned off caching and eviction while the history store cursor was in use, restore the
-     * session's flags.
-     */
-    F_CLR(session, WT_HS_SESSION_FLAGS);
-    F_SET(session, session_flags);
 
     WT_RET(session->hs_cursor->close(session->hs_cursor));
     session->hs_cursor = NULL;
