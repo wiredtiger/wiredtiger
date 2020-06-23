@@ -775,8 +775,14 @@ __rollback_abort_newer_updates(
         WT_RET(__wt_delete_page_rollback(session, ref));
     }
 
-    /* If there is no in-memory page associated with the ref, there is nothing to rollback. */
-    if ((page = ref->page) == NULL)
+    /*
+     * If we have a ref with no page, or the page is clean, find out whether the page has any
+     * modifications that are newer than the given timestamp. As eviction writes the newest version
+     * to page, even a clean page may also contain modifications that need rollback.
+     */
+    if ((page = ref->page) == NULL ||
+      (!__wt_page_is_modified(page) &&
+          !__rollback_page_needs_abort(session, ref, rollback_timestamp)))
         return (0);
 
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
@@ -855,7 +861,7 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
                 WT_RET(__rollback_abort_newer_updates(session, child_ref, rollback_timestamp));
             }
             WT_INTL_FOREACH_END;
-        } else 
+        } else
             WT_RET(__rollback_abort_newer_updates(session, ref, rollback_timestamp));
 
     return (ret);
