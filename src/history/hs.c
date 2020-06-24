@@ -802,8 +802,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             /* If we've seen a smaller timestamp before, use that instead. */
             if (min_insert_ts < upd->start_ts) {
                 /*
-                 * Resolved prepared updates potentially lose their durable timestamp here. This is
-                 * a wrinkle in our handling of out-of-order updates.
+                 * Resolved prepared updates will lose their durable timestamp here. This is a
+                 * wrinkle in our handling of out-of-order updates.
                  */
                 if (upd->start_ts != upd->durable_ts) {
                     WT_ASSERT(session, min_insert_ts < upd->durable_ts);
@@ -1549,6 +1549,14 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
             insert_cbt = (WT_CURSOR_BTREE *)insert_cursor;
             F_SET(insert_cbt, WT_CBT_NO_TXN);
         }
+
+        /*
+         * If these history store records are resolved prepared updates, their durable timestamps
+         * will be clobbered by our fix-up process. Keep track of how often this is happening.
+         */
+        if (hs_cbt->upd_value->tw.start_ts != hs_cbt->upd_value->tw.start_durable_ts ||
+          hs_cbt->upd_value->tw.stop_ts != hs_cbt->upd_value->tw.stop_durable_ts)
+            WT_STAT_CONN_INCR(session, cache_hs_order_resolved);
 
         start_time_point.ts = start_time_point.durable_ts = ts;
         start_time_point.txnid = hs_cbt->upd_value->tw.start_txn;
