@@ -775,13 +775,14 @@ __rollback_abort_newer_updates(
     }
 
     /*
-     * If we have a ref with no page, or the page is clean, find out whether the page has any
-     * modifications that are newer than the given timestamp. As eviction writes the newest version
-     * to page, even a clean page may also contain modifications that need rollback.
+     * If we have a ref with clean page, find out whether the page has any modifications that are
+     * newer than the given timestamp. As eviction writes the newest version to page, even a clean
+     * page may also contain modifications that need rollback.
      */
-    if ((page = ref->page) == NULL ||
-      (!__wt_page_is_modified(page) &&
-          !__rollback_page_needs_abort(session, ref, rollback_timestamp))) {
+    WT_ASSERT(session, ref->page != NULL);
+    page = ref->page;
+    if (!__wt_page_is_modified(page) &&
+      !__rollback_page_needs_abort(session, ref, rollback_timestamp)) {
         __wt_verbose(session, WT_VERB_RTS, "%p: page skipped", (void *)ref);
         return (0);
     }
@@ -827,6 +828,10 @@ __wt_rts_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *s
     rollback_timestamp = *(wt_timestamp_t *)(context);
     *skipp = false; /* Default to reading */
 
+    /* If a deleted page needs rollback, read it. */
+    if (ref->page_del != NULL && rollback_timestamp < ref->page_del->durable_timestamp)
+        return (0);
+
     /* If the page is in-memory, we want to look at it. */
     if (ref->state != WT_REF_DISK)
         return (0);
@@ -849,19 +854,14 @@ static int
 __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     WT_DECL_RET;
-    WT_REF *child_ref, *ref;
+    WT_REF *ref;
 
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while ((ret = __wt_tree_walk_custom_skip(session, &ref, __wt_rts_page_skip, &rollback_timestamp,
               WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL)
-        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-            WT_INTL_FOREACH_BEGIN (session, ref->page, child_ref) {
-                WT_RET(__rollback_abort_newer_updates(session, child_ref, rollback_timestamp));
-            }
-            WT_INTL_FOREACH_END;
-        } else
+        if (F_ISSET(ref, WT_REF_FLAG_LEAF))
             WT_RET(__rollback_abort_newer_updates(session, ref, rollback_timestamp));
 
     return (ret);
@@ -1162,7 +1162,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         /*
          * The rollback operation should be performed on this file based on the following:
          * 1. The tree is modified.
-         * 2. The checkpoint durable start/stop timestamp is greater than the rollback timestamp.
+         * 2. The checkpoint durable start/stop timestamp is greater than the rollback
+         * timestamp.
          * 3. There is no durable timestamp in any checkpoint.
          */
         if (S2BT(session)->modified || max_durable_ts > rollback_timestamp || prepared_updates ||
@@ -1184,7 +1185,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * Truncate history store entries for the non-timestamped table.
          * Exceptions:
          * 1. Modified tree - Scenarios where the tree is never checkpointed lead to zero
-         * durable timestamp even they are timestamped tables. Until we have a special indication
+         * durable timestamp even they are timestamped tables. Until we have a special
+         * indication
          * of letting to know the table type other than checking checkpointed durable timestamp
          * to WT_TS_NONE, We need this exception.
          * 2. In-memory database - In this scenario, there is no history store to truncate.
