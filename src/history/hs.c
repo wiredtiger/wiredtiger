@@ -706,6 +706,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     uint32_t i;
     uint8_t *p;
     int nentries;
+    char ts_string[3][WT_TS_INT_STRING_SIZE];
     bool clear_hs, enable_reverse_modify, squashed, ts_updates_in_hs;
 
     btree = S2BT(session);
@@ -809,6 +810,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                     WT_ASSERT(session, min_insert_ts < upd->durable_ts);
                     WT_STAT_CONN_INCR(session, cache_hs_order_resolved);
                 }
+                __wt_verbose(session, WT_VERB_TIMESTAMP,
+                  "fixing out-of-order updates during insertion; start_ts=%s, durable_ts=%s, "
+                  "min_insert_ts=%s",
+                  __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
+                  __wt_timestamp_to_string(upd->durable_ts, ts_string[1]),
+                  __wt_timestamp_to_string(min_insert_ts, ts_string[2]));
                 upd->start_ts = upd->durable_ts = min_insert_ts;
                 WT_STAT_CONN_INCR(session, cache_hs_order_fixup_insert);
             } else
