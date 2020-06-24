@@ -1554,8 +1554,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * If these history store records are resolved prepared updates, their durable timestamps
          * will be clobbered by our fix-up process. Keep track of how often this is happening.
          */
-        if (hs_cbt->upd_value->tw.start_ts != hs_cbt->upd_value->tw.start_durable_ts ||
-          hs_cbt->upd_value->tw.stop_ts != hs_cbt->upd_value->tw.stop_durable_ts)
+        if (hs_cbt->upd_value->tw.start_ts != hs_cbt->upd_value->tw.durable_start_ts ||
+          hs_cbt->upd_value->tw.stop_ts != hs_cbt->upd_value->tw.durable_stop_ts)
             WT_STAT_CONN_INCR(session, cache_hs_order_resolved);
 
         start_time_point.ts = start_time_point.durable_ts = ts;
