@@ -799,15 +799,19 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
             non_aborted_upd = upd;
 
-            /*
-             * If we've seen a smaller timestamp before, use that instead.
-             *
-             * FIXME-WT-6442: Resolved prepared updates will lose their durable timestamp here. We
-             * should add a statistic to keep track of how often this happens.
-             */
-            if (min_insert_ts < upd->start_ts)
+            /* If we've seen a smaller timestamp before, use that instead. */
+            if (min_insert_ts < upd->start_ts) {
+                /*
+                 * Resolved prepared updates potentially lose their durable timestamp here. This is
+                 * a wrinkle in our handling of out-of-order updates.
+                 */
+                if (upd->start_ts != upd->durable_ts) {
+                    WT_ASSERT(session, min_insert_ts < upd->durable_ts);
+                    WT_STAT_CONN_INCR(session, cache_hs_order_resolved);
+                }
                 upd->start_ts = upd->durable_ts = min_insert_ts;
-            else
+                WT_STAT_CONN_INCR(session, cache_hs_order_fixup_insert);
+            } else
                 min_insert_ts = upd->start_ts;
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
 
@@ -1574,6 +1578,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
             ;
         WT_ERR(ret);
         tombstone = NULL;
+        WT_STAT_CONN_INCR(session, cache_hs_order_fixup_move);
     }
     if (ret == WT_NOTFOUND)
         ret = 0;
