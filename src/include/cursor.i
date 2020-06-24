@@ -409,6 +409,9 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 
     /*
      * If this is an ordinary transactional cursor, make sure we are set up to read.
+     *
+     * If we've opened a history store cursor, we want to pin ids in the same way that we would for
+     * a read-uncommitted transaction.
      */
     if (F_ISSET(cbt, WT_CBT_HS))
         __wt_txn_pin_ids(session);
