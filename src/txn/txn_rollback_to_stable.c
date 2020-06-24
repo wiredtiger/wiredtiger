@@ -211,8 +211,9 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
      * into data store and removed from history store. If none of the history store records satisfy
      * the given timestamp, the key is removed from data store.
      */
-    ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, WT_TS_MAX, NULL);
-    for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+      ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, WT_TS_MAX, NULL));
+    while (ret == 0) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         /* Stop before crossing over to the next btree */
@@ -308,6 +309,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
+        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->prev(hs_cursor));
     }
 
     if (replace) {

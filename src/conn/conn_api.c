@@ -1050,6 +1050,9 @@ err:
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
 
+    /* Activity has drained, we should see everything during shutdown. */
+    session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
+
     /*
      * Clear any pending async operations and shut down the async worker threads and system before
      * closing LSM.
