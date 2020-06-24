@@ -1287,6 +1287,25 @@ __wt_txn_read_last(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_txn_pin_ids --
+ *     Pin the last running transaction's id to prevent the oldest id from moving past it.
+ */
+static inline void
+__wt_txn_pin_ids(WT_SESSION_IMPL *session)
+{
+    WT_TXN_GLOBAL *txn_global;
+    WT_TXN_SHARED *txn_shared;
+
+    txn_global = &S2C(session)->txn_global;
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+
+    if (txn_shared->pinned_id == WT_TXN_NONE)
+        txn_shared->pinned_id = txn_global->last_running;
+    if (txn_shared->metadata_pinned == WT_TXN_NONE)
+        txn_shared->metadata_pinned = txn_shared->pinned_id;
+}
+
+/*
  * __wt_txn_cursor_op --
  *     Called for each cursor operation.
  */
@@ -1294,12 +1313,8 @@ static inline void
 __wt_txn_cursor_op(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
-    WT_TXN_GLOBAL *txn_global;
-    WT_TXN_SHARED *txn_shared;
 
     txn = session->txn;
-    txn_global = &S2C(session)->txn_global;
-    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
      * We are about to read data, which means we need to protect against
@@ -1318,12 +1333,9 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
      * further forward, so that once a read-uncommitted cursor is
      * positioned on a value, it can't be freed.
      */
-    if (txn->isolation == WT_ISO_READ_UNCOMMITTED) {
-        if (txn_shared->pinned_id == WT_TXN_NONE)
-            txn_shared->pinned_id = txn_global->last_running;
-        if (txn_shared->metadata_pinned == WT_TXN_NONE)
-            txn_shared->metadata_pinned = txn_shared->pinned_id;
-    } else if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+    if (txn->isolation == WT_ISO_READ_UNCOMMITTED)
+        __wt_txn_pin_ids(session);
+    else if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         __wt_txn_get_snapshot(session);
 }
 
