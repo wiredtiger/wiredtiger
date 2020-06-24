@@ -828,11 +828,13 @@ __wt_rts_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *s
     rollback_timestamp = *(wt_timestamp_t *)(context);
     *skipp = false; /* Default to reading */
 
-    /* If a deleted page needs rollback, read it. */
-    if (ref->page_del != NULL && rollback_timestamp < ref->page_del->durable_timestamp)
+    /* If a deleted page doesn't need rollback, skip it. */
+    if (ref->page_del != NULL && rollback_timestamp >= ref->page_del->durable_timestamp) {
+        *skipp = true;
         return (0);
+    }
 
-    /* If the page is in-memory, we want to look at it. */
+    /* If the page state is other than on disk, we want to look at it. */
     if (ref->state != WT_REF_DISK)
         return (0);
 
