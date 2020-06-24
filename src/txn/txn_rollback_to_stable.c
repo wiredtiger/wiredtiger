@@ -817,6 +817,23 @@ __rollback_abort_newer_updates(
 }
 
 /*
+ * __rollback_abort_fast_truncate --
+ *     Abort fast truncate on this page newer than the timestamp.
+ */
+static int
+__rollback_abort_fast_truncate(
+  WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
+{
+    /* Review deleted page saved to the ref. */
+    if (ref->page_del != NULL && rollback_timestamp < ref->page_del->durable_timestamp) {
+        __wt_verbose(session, WT_VERB_RTS, "%p: deleted page rolled back", (void *)ref);
+        WT_RET(__wt_delete_page_rollback(session, ref));
+    }
+
+    return (0);
+}
+
+/*
  * __wt_rts_page_skip --
  *     Skip if rollback to stable doesn't requires to read this page.
  */
@@ -827,12 +844,6 @@ __wt_rts_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *s
 
     rollback_timestamp = *(wt_timestamp_t *)(context);
     *skipp = false; /* Default to reading */
-
-    /* If a deleted page doesn't need rollback, skip it. */
-    if (ref->page_del != NULL && rollback_timestamp >= ref->page_del->durable_timestamp) {
-        *skipp = true;
-        return (0);
-    }
 
     /* If the page state is other than on disk, we want to look at it. */
     if (ref->state != WT_REF_DISK)
@@ -856,14 +867,19 @@ static int
 __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     WT_DECL_RET;
-    WT_REF *ref;
+    WT_REF *child_ref, *ref;
 
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while ((ret = __wt_tree_walk_custom_skip(session, &ref, __wt_rts_page_skip, &rollback_timestamp,
               WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL)
-        if (F_ISSET(ref, WT_REF_FLAG_LEAF))
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
+            WT_INTL_FOREACH_BEGIN (session, ref->page, child_ref) {
+                WT_RET(__rollback_abort_fast_truncate(session, child_ref, rollback_timestamp));
+            }
+            WT_INTL_FOREACH_END;
+        } else
             WT_RET(__rollback_abort_newer_updates(session, ref, rollback_timestamp));
 
     return (ret);

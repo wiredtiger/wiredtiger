@@ -241,12 +241,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
         case WT_REF_DELETED:
             if (LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
-            /*
-             * Rollback to stable should have already verified whether a deleted page must be loaded
-             * into memory, so don't skip it.
-             */
-            if (!F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) &&
-              LF_ISSET(WT_READ_DELETED_CHECK) && __wt_delete_page_skip(session, ref, false))
+            if (LF_ISSET(WT_READ_DELETED_CHECK) && __wt_delete_page_skip(session, ref, false))
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
