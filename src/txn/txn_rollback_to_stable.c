@@ -1180,8 +1180,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         /*
          * The rollback operation should be performed on this file based on the following:
          * 1. The tree is modified.
-         * 2. The checkpoint durable start/stop timestamp is greater than the rollback
-         * timestamp.
+         * 2. The checkpoint durable start/stop timestamp is greater than the rollback timestamp.
          * 3. There is no durable timestamp in any checkpoint.
          */
         if (S2BT(session)->modified || max_durable_ts > rollback_timestamp || prepared_updates ||
@@ -1203,8 +1202,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * Truncate history store entries for the non-timestamped table.
          * Exceptions:
          * 1. Modified tree - Scenarios where the tree is never checkpointed lead to zero
-         * durable timestamp even they are timestamped tables. Until we have a special
-         * indication
+         * durable timestamp even they are timestamped tables. Until we have a special indication
          * of letting to know the table type other than checking checkpointed durable timestamp
          * to WT_TS_NONE, We need this exception.
          * 2. In-memory database - In this scenario, there is no history store to truncate.
