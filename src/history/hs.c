@@ -811,7 +811,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                     WT_STAT_CONN_INCR(session, cache_hs_order_resolved);
                 }
                 __wt_verbose(session, WT_VERB_TIMESTAMP,
-                  "fixing out-of-order updates during insertion; start_ts=%s, durable_ts=%s, "
+                  "fixing out-of-order updates during insertion; start_ts=%s, durable_start_ts=%s, "
                   "min_insert_ts=%s",
                   __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
                   __wt_timestamp_to_string(upd->durable_ts, ts_string[1]),
@@ -968,7 +968,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              */
             if (stop_time_point.ts < upd->start_ts ||
               (stop_time_point.ts == upd->start_ts && stop_time_point.txnid <= upd->txnid)) {
-                char ts_string[2][WT_TS_INT_STRING_SIZE];
                 __wt_verbose(session, WT_VERB_TIMESTAMP,
                   "Warning: fixing out-of-order timestamps %s earlier than previous update %s",
                   __wt_timestamp_to_string(stop_time_point.ts, ts_string[0]),
@@ -1471,6 +1470,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     uint64_t hs_counter;
     uint32_t hs_btree_id;
     int cmp;
+    char ts_string[5][WT_TS_INT_STRING_SIZE];
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
     insert_cursor = NULL;
@@ -1564,6 +1564,15 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         if (hs_cbt->upd_value->tw.start_ts != hs_cbt->upd_value->tw.durable_start_ts ||
           hs_cbt->upd_value->tw.stop_ts != hs_cbt->upd_value->tw.durable_stop_ts)
             WT_STAT_CONN_INCR(session, cache_hs_order_resolved);
+
+        __wt_verbose(session, WT_VERB_TIMESTAMP,
+          "fixing existing out-of-order updates by moving them; start_ts=%s, durable_start_ts=%s, "
+          "stop_ts=%s, durable_stop_ts=%s, new_ts=%s",
+          __wt_timestamp_to_string(hs_cbt->upd_value->tw.start_ts, ts_string[0]),
+          __wt_timestamp_to_string(hs_cbt->upd_value->tw.durable_start_ts, ts_string[1]),
+          __wt_timestamp_to_string(hs_cbt->upd_value->tw.stop_ts, ts_string[2]),
+          __wt_timestamp_to_string(hs_cbt->upd_value->tw.durable_stop_ts, ts_string[3]),
+          __wt_timestamp_to_string(ts, ts_string[4]));
 
         start_time_point.ts = start_time_point.durable_ts = ts;
         start_time_point.txnid = hs_cbt->upd_value->tw.start_txn;
