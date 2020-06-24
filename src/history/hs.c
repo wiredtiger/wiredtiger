@@ -1051,7 +1051,6 @@ int
 __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
 {
-    WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
     WT_ITEM ds_key;
@@ -1060,7 +1059,6 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
     uint32_t ds_btree_id;
     int cmp, exact;
 
-    cbt = (WT_CURSOR_BTREE *)cursor;
     WT_CLEAR(ds_key);
 
     if (user_srch_key == NULL)
@@ -1086,9 +1084,8 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
     /* Copy the raw key before searching as a basis for comparison. */
     WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
     WT_ERR(cursor->search_near(cursor, &exact));
-    if (__wt_txn_visible_all(
-          session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts) ||
-      exact > 0) {
+
+    if (exact > 0) {
         /*
          * It's possible that we may race with a history store insert for another key. So we may be
          * more than one record away the end of our target key/timestamp range. Keep iterating
@@ -1102,13 +1099,10 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
             WT_ERR(cursor->get_key(cursor, &ds_btree_id, &ds_key, &ds_start_ts, &counter));
 
             /* Stop before crossing over to the next btree */
-            if (ds_btree_id != btree_id) {
-                ret = WT_NOTFOUND;
+            if (ds_btree_id != btree_id)
                 break;
-            }
-            if (cmp <= 0 &&
-              !__wt_txn_visible_all(
-                  session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts))
+
+            if (cmp <= 0)
                 break;
         }
     }
@@ -1125,14 +1119,14 @@ err:
 }
 
 /*
- * __wt_find_hs_upd --
+ * __wt_hs_find_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
  *     for the record and return to the caller. The caller may choose to optionally allow prepared
  *     updates to be returned regardless of whether prepare is being ignored globally. Otherwise, a
  *     prepare conflict will be returned upon reading a prepared update.
  */
 int
-__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
+__wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
   WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf)
 {
     WT_CURSOR *hs_cursor;
