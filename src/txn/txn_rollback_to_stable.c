@@ -766,7 +766,6 @@ static int
 __rollback_abort_newer_updates(
   WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
-    WT_DECL_RET;
     WT_PAGE *page;
 
     /* Review deleted page saved to the ref. */
@@ -780,10 +779,12 @@ __rollback_abort_newer_updates(
      * modifications that are newer than the given timestamp. As eviction writes the newest version
      * to page, even a clean page may also contain modifications that need rollback.
      */
-    page = ref->page;
-    if (page == NULL || (!__wt_page_is_modified(page) &&
-                          !__rollback_page_needs_abort(session, ref, rollback_timestamp)))
+    if ((page = ref->page) == NULL ||
+      (!__wt_page_is_modified(page) &&
+          !__rollback_page_needs_abort(session, ref, rollback_timestamp))) {
+        __wt_verbose(session, WT_VERB_RTS, "%p: page skipped", (void *)ref);
         return (0);
+    }
 
     WT_STAT_CONN_INCR(session, txn_rts_pages_visited);
     __wt_verbose(session, WT_VERB_RTS, "%p: page rolled back when page is modified: %s",
@@ -805,14 +806,13 @@ __rollback_abort_newer_updates(
          */
         break;
     case WT_PAGE_ROW_LEAF:
-        WT_ERR(__rollback_abort_newer_row_leaf(session, page, rollback_timestamp));
+        WT_RET(__rollback_abort_newer_row_leaf(session, page, rollback_timestamp));
         break;
     default:
-        WT_ERR(__wt_illegal_value(session, page->type));
+        WT_RET(__wt_illegal_value(session, page->type));
     }
 
-err:
-    return (ret);
+    return (0);
 }
 
 /*
@@ -834,8 +834,8 @@ __wt_rts_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *s
     /* Check whether this ref has any possible updates to be aborted. */
     if (!__rollback_page_needs_abort(session, ref, rollback_timestamp)) {
         *skipp = true;
-        __wt_verbose(session, WT_VERB_RTS, "%p: internal page walk skipped", (void *)ref);
-        WT_STAT_CONN_INCR(session, txn_rts_skip_interal_pages_walk);
+        __wt_verbose(session, WT_VERB_RTS, "%p: page walk skipped", (void *)ref);
+        WT_STAT_CONN_INCR(session, txn_rts_tree_walk_skip_pages);
     }
 
     return (0);
