@@ -1053,13 +1053,7 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
 {
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
-    WT_ITEM ds_key;
-    wt_timestamp_t ds_start_ts;
-    uint64_t counter;
-    uint32_t ds_btree_id;
     int cmp, exact;
-
-    WT_CLEAR(ds_key);
 
     if (user_srch_key == NULL)
         WT_RET(__wt_scr_alloc(session, 0, &srch_key));
@@ -1094,14 +1088,6 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
             WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
 
             WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
-            WT_ERR(cursor->get_key(cursor, &ds_btree_id, &ds_key, &ds_start_ts, &counter));
-
-            /* Stop before crossing over to the next btree */
-            if (ds_btree_id != btree_id) {
-                ret = WT_NOTFOUND;
-                break;
-            }
-
             if (cmp <= 0)
                 break;
         }
