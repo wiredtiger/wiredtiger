@@ -1099,8 +1099,10 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
             WT_ERR(cursor->get_key(cursor, &ds_btree_id, &ds_key, &ds_start_ts, &counter));
 
             /* Stop before crossing over to the next btree */
-            if (ds_btree_id != btree_id)
+            if (ds_btree_id != btree_id) {
+                ret = WT_NOTFOUND;
                 break;
+            }
 
             if (cmp <= 0)
                 break;
