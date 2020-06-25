@@ -1043,12 +1043,15 @@ err:
 }
 
 /*
- * __wt_hs_cursor_position_helper --
- *     Helper function to position a history store cursor at the end of a set of updates for a given
- *     btree id, record key and timestamp.
+ * __wt_hs_cursor_position --
+ *     Position a history store cursor at the end of a set of updates for a given btree id, record
+ *     key and timestamp. There may be no history store entries for the given btree id and record
+ *     key if they have been removed by WT_CONNECTION::rollback_to_stable. There is an optional
+ *     argument to store the key that we used to position the cursor which can be used to assess
+ *     where the cursor is relative to it.
  */
-static int
-__wt_hs_cursor_position_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
+int
+__wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
 {
     WT_DECL_ITEM(srch_key);
@@ -1105,26 +1108,6 @@ err:
 }
 
 /*
- * __wt_hs_cursor_position --
- *     Position a history store cursor at the end of a set of updates for a given btree id, record
- *     key and timestamp. There may be no history store entries for the given btree id and record
- *     key if they have been removed by WT_CONNECTION::rollback_to_stable. There is an optional
- *     argument to store the key that we used to position the cursor which can be used to assess
- *     where the cursor is relative to it.
- */
-int
-__wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
-{
-    WT_DECL_RET;
-
-    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
-      ret =
-        __wt_hs_cursor_position_helper(session, cursor, btree_id, key, timestamp, user_srch_key));
-    return (ret);
-}
-
-/*
  * __wt_find_hs_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
  *     for the record and return to the caller. The caller may choose to optionally allow prepared
@@ -1132,7 +1115,7 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
  *     prepare conflict will be returned upon reading a prepared update.
  */
 int
-__wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
+__wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
   WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf)
 {
     WT_CURSOR *hs_cursor;
@@ -1143,7 +1126,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     WT_ITEM hs_key, recno_key;
     WT_MODIFY_VECTOR modifies;
     WT_TXN *txn;
-    WT_TXN_SHARED *txn_shared_local;
+    WT_TXN_SHARED *txn_shared_p;
     WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, hs_start_ts, hs_start_ts_tmp;
     wt_timestamp_t hs_stop_durable_ts, hs_stop_durable_ts_tmp, read_timestamp;
@@ -1159,7 +1142,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     WT_CLEAR(hs_key);
     __wt_modify_vector_init(session, &modifies);
     txn = session->txn;
-    txn_shared_local = WT_SESSION_TXN_SHARED(session);
+    txn_shared_p = WT_SESSION_TXN_SHARED(session);
     hs_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     WT_NOT_READ(modify, false);
@@ -1193,15 +1176,14 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
      * timestamp is part of the key, our cursor needs to go from the newest record (further in the
      * history store) to the oldest (earlier in the history store) for a given key.
      */
-    read_timestamp = allow_prepare ? txn->prepare_timestamp : txn_shared_local->read_timestamp;
-    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
-      ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp, NULL));
-    WT_ERR_NOTFOUND_OK(ret, true);
+    read_timestamp = allow_prepare ? txn->prepare_timestamp : txn_shared_p->read_timestamp;
+    WT_ERR_NOTFOUND_OK(
+      __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp, NULL), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
     }
-    for (;;) {
+    for (;; ret = hs_cursor->prev(hs_cursor)) {
         WT_ERR_NOTFOUND_OK(ret, true);
         /* If we hit the end of the table, let's get out of here. */
         if (ret == WT_NOTFOUND) {
@@ -1223,13 +1205,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
             goto done;
 
         /*
-         * If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it.
-         */
-        if (__wt_txn_visible_all(
-              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
-            continue;
-        /*
          * If the stop time point of a record is visible to us, we won't be able to see anything for
          * this entire key. Just jump straight to the end.
          */
@@ -1238,7 +1213,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         /* If the start time point is visible to us, let's return that record. */
         if (__wt_txn_tw_start_visible(session, &hs_cbt->upd_value->tw))
             break;
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->prev(hs_cursor));
     }
 
     WT_ERR(hs_cursor->get_value(
@@ -1558,17 +1532,10 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
         if (hs_btree_id != btree->id)
             break;
-
         WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
         if (cmp != 0)
             break;
-        /*
-         * If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it.
-         */
-        if (__wt_txn_visible_all(
-              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
-            continue;
+
         /*
          * If we got here, we've got out-of-order updates in the history store.
          *
@@ -1662,14 +1629,6 @@ __hs_delete_key_from_pos(
         WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
         if (cmp != 0)
             break;
-
-        /*
-         * If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it.
-         */
-        if (__wt_txn_visible_all(
-              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
-            continue;
         /*
          * Since we're using internal functions to modify the row structure, we need to manually set
          * the comparison to an exact match.

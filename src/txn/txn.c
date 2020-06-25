@@ -654,37 +654,23 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
-    for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
+    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
-        /* Stop before crossing over to the next btree */
-        if (hs_btree_id != S2BT(session)->id) {
-            ret = WT_NOTFOUND;
-            goto done;
-        }
-
-        /*
-         * Keys are sorted in an order, skip the ones before the desired key, and bail out if we
-         * have crossed over the desired key and not found the record we are looking for.
-         */
-        WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
-        if (cmp != 0) {
-            ret = WT_NOTFOUND;
-            goto done;
-        }
-
-        /*
-         * If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it.
-         */
-        if (!__wt_txn_visible_all(
-              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
-            break;
+    /* Not found if we cross the tree boundary. */
+    if (hs_btree_id != S2BT(session)->id) {
+        ret = WT_NOTFOUND;
+        goto done;
     }
 
-    /* We walked off the top of the history store. */
-    if (ret == WT_NOTFOUND)
+    /*
+     * Keys are sorted in an order, skip the ones before the desired key, and bail out if we have
+     * crossed over the desired key and not found the record we are looking for.
+     */
+    WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+    if (cmp != 0) {
+        ret = WT_NOTFOUND;
         goto done;
+    }
 
     /*
      * As part of the history store search, we never get an exact match based on our search criteria
@@ -960,9 +946,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * Scan the history store for the given btree and key with maximum start timestamp to let
          * the search point to the last version of the key.
          */
-        WT_ERR_NOTFOUND_OK(__wt_hs_cursor_position(
-                             session, hs_cursor, hs_btree_id, &op->u.op_row.key, WT_TS_MAX, NULL),
-          true);
+        WT_WITH_TXN_ISOLATION(
+          session, WT_ISO_READ_UNCOMMITTED, ret = __wt_hs_cursor_position(session, hs_cursor,
+                                              hs_btree_id, &op->u.op_row.key, WT_TS_MAX, NULL));
+        WT_ERR_NOTFOUND_OK(ret, true);
 
         if (ret == 0)
             /* Not found if we cross the tree or key boundary. */

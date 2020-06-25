@@ -884,7 +884,6 @@ static const char *const __stats_connection_desc[] = {
   "capacity: time waiting during eviction (usecs)", "capacity: time waiting during logging (usecs)",
   "capacity: time waiting during read (usecs)", "connection: auto adjusting condition resets",
   "connection: auto adjusting condition wait calls",
-  "connection: auto adjusting condition wait raced to update timeout and skipped updating",
   "connection: detected system time went backwards", "connection: files currently open",
   "connection: memory allocations", "connection: memory frees", "connection: memory re-allocations",
   "connection: pthread mutex condition wait calls",
@@ -1066,8 +1065,8 @@ static const char *const __stats_connection_desc[] = {
   "transaction: rollback to stable keys removed", "transaction: rollback to stable keys restored",
   "transaction: rollback to stable pages visited",
   "transaction: rollback to stable restored tombstones from history store",
+  "transaction: rollback to stable skipping internal pages tree walk",
   "transaction: rollback to stable sweeping history store keys",
-  "transaction: rollback to stable tree walk skipping pages",
   "transaction: rollback to stable updates aborted",
   "transaction: rollback to stable updates removed from history store",
   "transaction: set timestamp calls", "transaction: set timestamp durable calls",
@@ -1314,7 +1313,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->capacity_time_read = 0;
     stats->cond_auto_wait_reset = 0;
     stats->cond_auto_wait = 0;
-    stats->cond_auto_wait_skipped = 0;
     stats->time_travel = 0;
     /* not clearing file_open */
     stats->memory_allocation = 0;
@@ -1567,8 +1565,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_rts_keys_restored = 0;
     stats->txn_rts_pages_visited = 0;
     stats->txn_rts_hs_restore_tombstones = 0;
+    stats->txn_rts_skip_interal_pages_walk = 0;
     stats->txn_rts_sweep_hs_keys = 0;
-    stats->txn_rts_tree_walk_skip_pages = 0;
     stats->txn_rts_upd_aborted = 0;
     stats->txn_rts_hs_removed = 0;
     stats->txn_set_ts = 0;
@@ -1816,7 +1814,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->capacity_time_read += WT_STAT_READ(from, capacity_time_read);
     to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
     to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);
-    to->cond_auto_wait_skipped += WT_STAT_READ(from, cond_auto_wait_skipped);
     to->time_travel += WT_STAT_READ(from, time_travel);
     to->file_open += WT_STAT_READ(from, file_open);
     to->memory_allocation += WT_STAT_READ(from, memory_allocation);
@@ -2078,8 +2075,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_rts_keys_restored += WT_STAT_READ(from, txn_rts_keys_restored);
     to->txn_rts_pages_visited += WT_STAT_READ(from, txn_rts_pages_visited);
     to->txn_rts_hs_restore_tombstones += WT_STAT_READ(from, txn_rts_hs_restore_tombstones);
+    to->txn_rts_skip_interal_pages_walk += WT_STAT_READ(from, txn_rts_skip_interal_pages_walk);
     to->txn_rts_sweep_hs_keys += WT_STAT_READ(from, txn_rts_sweep_hs_keys);
-    to->txn_rts_tree_walk_skip_pages += WT_STAT_READ(from, txn_rts_tree_walk_skip_pages);
     to->txn_rts_upd_aborted += WT_STAT_READ(from, txn_rts_upd_aborted);
     to->txn_rts_hs_removed += WT_STAT_READ(from, txn_rts_hs_removed);
     to->txn_set_ts += WT_STAT_READ(from, txn_set_ts);
