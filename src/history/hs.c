@@ -1177,13 +1177,14 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
      * history store) to the oldest (earlier in the history store) for a given key.
      */
     read_timestamp = allow_prepare ? txn->prepare_timestamp : txn_shared_p->read_timestamp;
-    WT_ERR_NOTFOUND_OK(
-      __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp, NULL), true);
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+      ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp, NULL));
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
     }
-    for (;; ret = hs_cursor->prev(hs_cursor)) {
+    for (;;) {
         WT_ERR_NOTFOUND_OK(ret, true);
         /* If we hit the end of the table, let's get out of here. */
         if (ret == WT_NOTFOUND) {
@@ -1213,6 +1214,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         /* If the start time point is visible to us, let's return that record. */
         if (__wt_txn_tw_start_visible(session, &hs_cbt->upd_value->tw))
             break;
+        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->prev(hs_cursor));
     }
 
     WT_ERR(hs_cursor->get_value(
