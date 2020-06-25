@@ -1208,6 +1208,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         if (__wt_txn_visible_all(
               session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts)) {
             WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
+            WT_STAT_DATA_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
         /*
@@ -1541,6 +1542,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         if (__wt_txn_visible_all(
               session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts)) {
             WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
+            WT_STAT_DATA_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
         /*
@@ -1643,6 +1645,7 @@ __hs_delete_key_from_pos(
         if (__wt_txn_visible_all(
               session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts)) {
             WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
+            WT_STAT_DATA_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
         /*
