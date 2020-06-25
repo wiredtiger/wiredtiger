@@ -571,7 +571,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      * updates, we should remove them and reinsert them at the current timestamp.
      */
     if (upd->start_ts != WT_TS_NONE) {
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+        WT_HS_CUR_NEXT(cursor);
         WT_ERR_NOTFOUND_OK(ret, true);
         if (ret == 0)
             WT_ERR(__hs_fixup_out_of_order_from_pos(
@@ -604,7 +604,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      * timestamped tables that are occasionally getting a non-timestamped update, that means that
      * all timestamped updates should get removed.
      */
-    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+    WT_HS_CUR_NEXT(cursor);
     WT_ERR_NOTFOUND_OK(ret, true);
 
     /* No records to delete. */
@@ -1227,7 +1227,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         /* If the start time point is visible to us, let's return that record. */
         if (__wt_txn_tw_start_visible(session, &hs_cbt->upd_value->tw))
             break;
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->prev(hs_cursor));
+        WT_HS_CUR_PREV(hs_cursor);
     }
 
     WT_ERR(hs_cursor->get_value(
@@ -1269,8 +1269,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
              * update here we fall back to the datastore version. If its timestamp doesn't match our
              * timestamp then we return not found.
              */
-            WT_WITH_TXN_ISOLATION(
-              session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->next(hs_cursor));
+            WT_HS_CUR_NEXT(hs_cursor);
             if (ret == WT_NOTFOUND) {
                 /* Fallback to the onpage value as the base value. */
                 orig_hs_value_buf = hs_value;
@@ -1388,8 +1387,7 @@ __hs_delete_key_from_ts_int(
 
     hs_cursor->set_key(hs_cursor, btree_id, key, ts, 0);
     WT_ERR(__wt_buf_set(session, srch_key, hs_cursor->key.data, hs_cursor->key.size));
-    WT_WITH_TXN_ISOLATION(
-      session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->search_near(hs_cursor, &exact));
+    WT_HS_CUR_SEARCH_NEAR(hs_cursor, exact);
     WT_ERR_NOTFOUND_OK(ret, true);
     /* Empty history store is fine. */
     if (ret == WT_NOTFOUND)
@@ -1403,13 +1401,12 @@ __hs_delete_key_from_ts_int(
      * beginning.
      */
     if (exact < 0) {
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->next(hs_cursor));
+        WT_HS_CUR_NEXT(hs_cursor);
         while (ret == 0) {
             WT_ERR(__wt_compare(session, NULL, &hs_cursor->key, srch_key, &cmp));
             if (cmp >= 0)
                 break;
-            WT_WITH_TXN_ISOLATION(
-              session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->next(hs_cursor));
+            WT_HS_CUR_NEXT(hs_cursor);
         }
         /* No entries greater than or equal to the key we searched for. */
         WT_ERR_NOTFOUND_OK(ret, true);
@@ -1512,7 +1509,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         WT_ERR(__wt_compare(session, NULL, &hs_cursor->key, srch_key, &cmp));
         if (cmp > 0)
             break;
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->next(hs_cursor));
+        WT_HS_CUR_NEXT(hs_cursor);
     }
     if (ret == WT_NOTFOUND)
         return (0);
@@ -1600,7 +1597,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
             ;
         WT_ERR(ret);
         tombstone = NULL;
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->next(hs_cursor));
+        WT_HS_CUR_NEXT(hs_cursor);
     }
     if (ret == WT_NOTFOUND)
         ret = 0;
@@ -1659,7 +1656,7 @@ __hs_delete_key_from_pos(
         WT_ERR(__wt_hs_modify(hs_cbt, upd));
         upd = NULL;
         WT_STAT_CONN_INCR(session, cache_hs_remove_key_truncate);
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->next(hs_cursor));
+        WT_HS_CUR_NEXT(hs_cursor);
     }
     if (ret == WT_NOTFOUND)
         return (0);
@@ -1746,7 +1743,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
          */
         WT_ERR(__wt_buf_set(session, prev_hs_key, hs_key.data, hs_key.size));
 
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->next(hs_cursor));
+        WT_HS_CUR_NEXT(hs_cursor);
     }
     WT_ERR_NOTFOUND_OK(ret, true);
 err:
@@ -1780,10 +1777,9 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
      */
     memset(&hs_key, 0, sizeof(hs_key));
     cursor->set_key(cursor, btree_id, &hs_key, 0, 0);
-    WT_WITH_TXN_ISOLATION(
-      session, WT_ISO_READ_UNCOMMITTED, ret = cursor->search_near(cursor, &exact));
+    WT_HS_CUR_SEARCH_NEAR(cursor, exact);
     if (ret == 0 && exact < 0)
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+        WT_HS_CUR_NEXT(cursor);
 
     /* If we positioned the cursor there is something to verify. */
     if (ret == 0) {
@@ -1826,7 +1822,7 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
     cursor = session->hs_cursor;
-    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->next(cursor));
+    WT_HS_CUR_NEXT(cursor);
     WT_ERR_NOTFOUND_OK(ret, true);
     stop = ret == WT_NOTFOUND ? true : false;
     ret = 0;

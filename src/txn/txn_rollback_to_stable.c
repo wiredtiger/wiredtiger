@@ -308,7 +308,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
-        WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->prev(hs_cursor));
+        WT_HS_CUR_PREV(hs_cursor);
     }
 
     if (replace) {
@@ -1058,7 +1058,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 
     /* Walk the history store for the given btree. */
     hs_cursor->set_key(hs_cursor, btree_id, &key, WT_TS_NONE, 0);
-    ret = hs_cursor->search_near(hs_cursor, &exact);
+    WT_HS_CUR_SEARCH_NEAR(hs_cursor, exact);
 
     /*
      * The search should always end up pointing to the start of the required btree or end of the
@@ -1066,9 +1066,9 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
      */
     WT_ASSERT(session, (ret != 0 || exact != 0));
     if (ret == 0 && exact < 0)
-        ret = hs_cursor->next(hs_cursor);
+        WT_HS_CUR_NEXT(hs_cursor);
 
-    for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
+    for (; ret == 0;) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         /* Stop crossing into the next btree boundary. */
@@ -1085,6 +1085,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
+        WT_HS_CUR_NEXT(hs_cursor);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 

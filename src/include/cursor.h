@@ -9,6 +9,14 @@
 /* Get the session from any cursor. */
 #define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
 
+#define WT_HS_CUR_PREV(HS_CUR) \
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = HS_CUR->prev(HS_CUR))
+#define WT_HS_CUR_NEXT(HS_CUR) \
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = HS_CUR->next(HS_CUR))
+#define WT_HS_CUR_SEARCH_NEAR(HS_CUR, EXACT) \
+    WT_WITH_TXN_ISOLATION(                   \
+      session, WT_ISO_READ_UNCOMMITTED, ret = HS_CUR->search_near(HS_CUR, &EXACT))
+
 /*
  * Initialize a static WT_CURSOR structure.
  */
