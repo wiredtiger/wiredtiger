@@ -211,7 +211,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
      * into data store and removed from history store. If none of the history store records satisfy
      * the given timestamp, the key is removed from data store.
      */
-    ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, WT_TS_MAX, NULL);
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+      ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, WT_TS_MAX, NULL));
     while (ret == 0) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 

@@ -548,8 +548,9 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      * timestamp. Otherwise the newly inserting history store record may fall behind the existing
      * one can lead to wrong order.
      */
-    WT_ERR_NOTFOUND_OK(
-      __wt_hs_cursor_position(session, cursor, btree->id, key, upd->start_ts, srch_key), true);
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+      ret = __wt_hs_cursor_position(session, cursor, btree->id, key, upd->start_ts, srch_key));
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
@@ -1042,15 +1043,12 @@ err:
 }
 
 /*
- * __wt_hs_cursor_position --
- *     Position a history store cursor at the end of a set of updates for a given btree id, record
- *     key and timestamp. There may be no history store entries for the given btree id and record
- *     key if they have been removed by WT_CONNECTION::rollback_to_stable. There is an optional
- *     argument to store the key that we used to position the cursor which can be used to assess
- *     where the cursor is relative to it.
+ * __wt_hs_cursor_position_helper --
+ *     Helper function to position a history store cursor at the end of a set of updates for a given
+ *     btree id, record key and timestamp.
  */
-int
-__wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
+static int
+__wt_hs_cursor_position_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
 {
     WT_DECL_ITEM(srch_key);
@@ -1107,7 +1105,27 @@ err:
 }
 
 /*
- * __wt_hs_find_upd --
+ * __wt_hs_cursor_position --
+ *     Position a history store cursor at the end of a set of updates for a given btree id, record
+ *     key and timestamp. There may be no history store entries for the given btree id and record
+ *     key if they have been removed by WT_CONNECTION::rollback_to_stable. There is an optional
+ *     argument to store the key that we used to position the cursor which can be used to assess
+ *     where the cursor is relative to it.
+ */
+int
+__wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
+  const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
+{
+    WT_DECL_RET;
+
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+      ret =
+        __wt_hs_cursor_position_helper(session, cursor, btree_id, key, timestamp, user_srch_key));
+    return (ret);
+}
+
+/*
+ * __wt_find_hs_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
  *     for the record and return to the caller. The caller may choose to optionally allow prepared
  *     updates to be returned regardless of whether prepare is being ignored globally. Otherwise, a
@@ -1176,8 +1194,9 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
      * history store) to the oldest (earlier in the history store) for a given key.
      */
     read_timestamp = allow_prepare ? txn->prepare_timestamp : txn_shared_local->read_timestamp;
-    WT_ERR_NOTFOUND_OK(
-      __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp, NULL), true);
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+      ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp, NULL));
+    WT_ERR_NOTFOUND_OK(ret, true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;

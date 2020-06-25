@@ -960,10 +960,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * Scan the history store for the given btree and key with maximum start timestamp to let
          * the search point to the last version of the key.
          */
-        WT_WITH_TXN_ISOLATION(
-          session, WT_ISO_READ_UNCOMMITTED, ret = __wt_hs_cursor_position(session, hs_cursor,
-                                              hs_btree_id, &op->u.op_row.key, WT_TS_MAX, NULL));
-        WT_ERR_NOTFOUND_OK(ret, true);
+        WT_ERR_NOTFOUND_OK(__wt_hs_cursor_position(
+                             session, hs_cursor, hs_btree_id, &op->u.op_row.key, WT_TS_MAX, NULL),
+          true);
 
         if (ret == 0)
             /* Not found if we cross the tree or key boundary. */
