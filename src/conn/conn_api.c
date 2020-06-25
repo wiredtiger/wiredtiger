@@ -1050,7 +1050,10 @@ err:
     /* Wait for in-flight operations to complete. */
     WT_TRET(__wt_txn_activity_drain(session));
 
-    /* Activity has drained, we should see everything during shutdown. */
+    /*
+     * There should be no active transactions running now. Therefore, it's safe for operations to
+     * proceed without doing snapshot visibility checks.
+     */
     session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
 
     /*
