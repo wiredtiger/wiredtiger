@@ -1042,12 +1042,15 @@ err:
 }
 
 /*
- * __wt_hs_cursor_position_helper --
- *     Helper function to position a history store cursor at the end of a set of updates for a given
- *     btree id, record key and timestamp.
+ * __wt_hs_cursor_position --
+ *     Position a history store cursor at the end of a set of updates for a given btree id, record
+ *     key and timestamp. There may be no history store entries for the given btree id and record
+ *     key if they have been removed by WT_CONNECTION::rollback_to_stable. There is an optional
+ *     argument to store the key that we used to position the cursor which can be used to assess
+ *     where the cursor is relative to it.
  */
-static int
-__wt_hs_cursor_position_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
+int
+__wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
 {
     WT_DECL_ITEM(srch_key);
