@@ -234,7 +234,6 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         if (__wt_txn_visible_all(
               session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts)) {
             WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
-            WT_STAT_DATA_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
 
@@ -1092,7 +1091,6 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         if (__wt_txn_visible_all(
               session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts)) {
             WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
-            WT_STAT_DATA_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
 
