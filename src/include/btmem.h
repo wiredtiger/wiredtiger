@@ -1077,8 +1077,9 @@ struct __wt_update {
 #define WT_UPDATE_HS 0x01u                       /* Update has been written to history store. */
 #define WT_UPDATE_MASKED_BY_NON_TS_UPDATE 0x02u  /* Update masked by updates without timestamp. */
 #define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x04u /* Prepared update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_DS 0x08u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x10u         /* Update restored from history store. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x08u   /* Fast truncate instantiation */
+#define WT_UPDATE_RESTORED_FROM_DS 0x10u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x20u         /* Update restored from history store. */
                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 

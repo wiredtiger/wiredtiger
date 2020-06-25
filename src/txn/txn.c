@@ -1574,7 +1574,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
              * simply discarded when we find them.
              */
             for (tmp = upd->next; tmp != NULL && tmp->txnid == upd->txnid; tmp = tmp->next)
-                if (tmp->type != WT_UPDATE_RESERVE) {
+                if (tmp->type != WT_UPDATE_RESERVE &&
+                  !F_ISSET(tmp, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
                     F_SET(op, WT_TXN_OP_KEY_REPEATED);
                     break;
                 }
