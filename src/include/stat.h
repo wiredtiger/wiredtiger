@@ -467,6 +467,7 @@ struct __wt_connection_stats {
     int64_t capacity_time_read;
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
+    int64_t cond_auto_wait_skipped;
     int64_t time_travel;
     int64_t file_open;
     int64_t memory_allocation;
@@ -719,8 +720,8 @@ struct __wt_connection_stats {
     int64_t txn_rts_keys_restored;
     int64_t txn_rts_pages_visited;
     int64_t txn_rts_hs_restore_tombstones;
-    int64_t txn_rts_skip_interal_pages_walk;
     int64_t txn_rts_sweep_hs_keys;
+    int64_t txn_rts_tree_walk_skip_pages;
     int64_t txn_rts_upd_aborted;
     int64_t txn_rts_hs_removed;
     int64_t txn_set_ts;
