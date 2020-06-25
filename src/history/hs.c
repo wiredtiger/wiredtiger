@@ -1107,26 +1107,6 @@ err:
 }
 
 /*
- * __wt_hs_cursor_position --
- *     Position a history store cursor at the end of a set of updates for a given btree id, record
- *     key and timestamp. There may be no history store entries for the given btree id and record
- *     key if they have been removed by WT_CONNECTION::rollback_to_stable. There is an optional
- *     argument to store the key that we used to position the cursor which can be used to assess
- *     where the cursor is relative to it.
- */
-int
-__wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
-{
-    WT_DECL_RET;
-
-    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
-      ret =
-        __wt_hs_cursor_position_helper(session, cursor, btree_id, key, timestamp, user_srch_key));
-    return (ret);
-}
-
-/*
  * __wt_hs_find_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
  *     for the record and return to the caller. The caller may choose to optionally allow prepared
