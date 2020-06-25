@@ -81,8 +81,9 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cursor next calls that skip greater than or equal to 100 entries",
   "cursor: cursor next calls that skip less than 100 entries",
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
-  "cursor: cursor prev calls that skip less than 100 entries", "cursor: insert calls",
-  "cursor: insert key and value bytes", "cursor: modify",
+  "cursor: cursor prev calls that skip less than 100 entries",
+  "cursor: cursor prev calls that were the result of a history store tombstone",
+  "cursor: insert calls", "cursor: insert key and value bytes", "cursor: modify",
   "cursor: modify key and value bytes affected", "cursor: modify value bytes modified",
   "cursor: next calls", "cursor: open cursor count", "cursor: operation restarted",
   "cursor: prev calls", "cursor: remove calls", "cursor: remove key bytes removed",
@@ -282,6 +283,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_next_skip_lt_100 = 0;
     stats->cursor_prev_skip_ge_100 = 0;
     stats->cursor_prev_skip_lt_100 = 0;
+    stats->cursor_prev_hs_tombstone = 0;
     stats->cursor_insert = 0;
     stats->cursor_insert_bytes = 0;
     stats->cursor_modify = 0;
@@ -488,6 +490,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_next_skip_lt_100 += from->cursor_next_skip_lt_100;
     to->cursor_prev_skip_ge_100 += from->cursor_prev_skip_ge_100;
     to->cursor_prev_skip_lt_100 += from->cursor_prev_skip_lt_100;
+    to->cursor_prev_hs_tombstone += from->cursor_prev_hs_tombstone;
     to->cursor_insert += from->cursor_insert;
     to->cursor_insert_bytes += from->cursor_insert_bytes;
     to->cursor_modify += from->cursor_modify;
@@ -692,6 +695,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_next_skip_lt_100 += WT_STAT_READ(from, cursor_next_skip_lt_100);
     to->cursor_prev_skip_ge_100 += WT_STAT_READ(from, cursor_prev_skip_ge_100);
     to->cursor_prev_skip_lt_100 += WT_STAT_READ(from, cursor_prev_skip_lt_100);
+    to->cursor_prev_hs_tombstone += WT_STAT_READ(from, cursor_prev_hs_tombstone);
     to->cursor_insert += WT_STAT_READ(from, cursor_insert);
     to->cursor_insert_bytes += WT_STAT_READ(from, cursor_insert_bytes);
     to->cursor_modify += WT_STAT_READ(from, cursor_modify);
