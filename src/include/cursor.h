@@ -9,13 +9,17 @@
 /* Get the session from any cursor. */
 #define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
 
-#define WT_HS_CUR_PREV(HS_CUR) \
-    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = HS_CUR->prev(HS_CUR))
-#define WT_HS_CUR_NEXT(HS_CUR) \
-    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = HS_CUR->next(HS_CUR))
-#define WT_HS_CUR_SEARCH_NEAR(HS_CUR, EXACT) \
-    WT_WITH_TXN_ISOLATION(                   \
-      session, WT_ISO_READ_UNCOMMITTED, ret = HS_CUR->search_near(HS_CUR, &EXACT))
+/*
+ * Following macros are useful to perform ops on history store cursors with correct isolation level
+ * set implicitly.
+ */
+#define WT_HS_CUR_PREV(hs_cursor) \
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->prev(hs_cursor))
+#define WT_HS_CUR_NEXT(hs_cursor) \
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->next(hs_cursor))
+#define WT_HS_CUR_SEARCH_NEAR(hs_cursor, exact) \
+    WT_WITH_TXN_ISOLATION(                      \
+      session, WT_ISO_READ_UNCOMMITTED, ret = hs_cursor->search_near(hs_cursor, &exact))
 
 /*
  * Initialize a static WT_CURSOR structure.
