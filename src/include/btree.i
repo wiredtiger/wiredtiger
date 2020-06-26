@@ -1401,7 +1401,6 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
     WT_PAGE_MODIFY *mod;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t pinned_ts;
 
     txn_global = &S2C(session)->txn_global;
 
@@ -1422,13 +1421,6 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
     /* Retry if the global transaction state has moved forward. */
     if (txn_global->current == txn_global->oldest_id ||
       mod->last_eviction_id != __wt_txn_oldest_id(session))
-        return (true);
-
-    if (mod->last_eviction_timestamp == WT_TS_NONE)
-        return (true);
-
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
-    if (pinned_ts > mod->last_eviction_timestamp)
         return (true);
 
     return (false);
