@@ -24,6 +24,7 @@ typedef struct {
  */
 #define WT_HS_SESSION_FLAGS WT_SESSION_IGNORE_CACHE_SIZE
 
+static int __hs_cursor_open(WT_SESSION_IMPL *session);
 static int __hs_delete_key_from_pos(
   WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key);
 static int __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
@@ -208,11 +209,11 @@ __wt_hs_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_hs_cursor_open --
+ * __hs_cursor_open --
  *     Open a new history store table cursor.
  */
-int
-__wt_hs_cursor_open(WT_SESSION_IMPL *session)
+static int
+__hs_cursor_open(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -254,12 +255,15 @@ __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags, bool *is_owner
 
     /* Open a cursor if this session doesn't already have one. */
     if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
+        WT_ASSERT(session, session->hs_cursor == NULL && session->hs_cursor_depth == 0);
         /* The caller is responsible for closing this cursor. */
         *is_owner = true;
-        WT_RET(__wt_hs_cursor_open(session));
+        WT_RET(__hs_cursor_open(session));
     }
 
     WT_ASSERT(session, session->hs_cursor != NULL);
+    ++session->hs_cursor_depth;
+    WT_ASSERT(session, session->hs_cursor_depth <= 3);
 
     /* Configure session to access the history store table. */
     F_SET(session, WT_HS_SESSION_FLAGS);
@@ -274,12 +278,10 @@ __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags, bool *is_owner
 int
 __wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags, bool is_owner)
 {
-    /* Nothing to do if the session doesn't have a HS cursor opened. */
-    if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
-        WT_ASSERT(session, session->hs_cursor == NULL);
-        return (0);
-    }
-    WT_ASSERT(session, session->hs_cursor != NULL);
+    /* Should only be called when session has an open history store cursor */
+    WT_ASSERT(session, session->hs_cursor != NULL && F_ISSET(session, WT_SESSION_HS_CURSOR));
+
+    --session->hs_cursor_depth;
 
     /*
      * Restore previous values of history store session flags.
@@ -294,6 +296,7 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags, bool is_o
     if (!is_owner)
         return (session->hs_cursor->reset(session->hs_cursor));
 
+    WT_ASSERT(session, session->hs_cursor_depth == 0);
     WT_RET(session->hs_cursor->close(session->hs_cursor));
     session->hs_cursor = NULL;
     F_CLR(session, WT_SESSION_HS_CURSOR);
@@ -938,6 +941,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
               __hs_next_upd_full_value(session, &modifies, full_value, prev_full_value, &prev_upd));
 
             /* Squash the updates from the same transaction. */
+
             if (upd->start_ts == prev_upd->start_ts && upd->txnid == prev_upd->txnid) {
                 squashed = true;
                 continue;
@@ -1418,8 +1422,6 @@ __wt_hs_delete_key_from_ts(
     WT_DECL_RET;
     uint32_t session_flags;
     bool is_owner;
-
-    session_flags = session->flags;
 
     /*
      * Some code paths such as schema removal involve deleting keys in metadata and assert that we

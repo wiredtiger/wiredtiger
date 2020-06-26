@@ -92,6 +92,7 @@ struct __wt_session_impl {
     enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } compact_state;
 
     WT_CURSOR *hs_cursor; /* History store table cursor */
+    int hs_cursor_depth;  /* Depth of nesting of calls to get history store cursor */
 
     WT_CURSOR *meta_cursor;  /* Metadata file */
     void *meta_track;        /* Metadata operation tracking */

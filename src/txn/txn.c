@@ -1029,7 +1029,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd, commit));
 
 err:
-    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
+    if (hs_cursor != NULL)
+        WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
     if (!upd_appended)
         __wt_free(session, fix_upd);
     __wt_free(session, tombstone);

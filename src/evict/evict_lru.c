@@ -284,7 +284,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * busy and then opens a different file (in this case, the HS file), it can deadlock with a
      * thread waiting for the first file to drain from the eviction queue. See WT-5946 for details.
      */
-    if (!F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+    if (session->hs_cursor == NULL && !F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
         session_flags = 0; /* [-Werror=maybe-uninitialized] */
         WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
         WT_RET(__wt_hs_cursor_close(session, session_flags, is_owner));
