@@ -36,9 +36,9 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' % t
 
-# test_rollback_to_stable12.py
-# Test the rollback to stable operation skipping subtrees in during tree walk.
-class test_rollback_to_stable12(test_rollback_to_stable_base):
+# test_rollback_to_stable13.py
+# Test the rollback to stable should roll back the tombstone in the history store.
+class test_rollback_to_stable13(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
 
     prepare_values = [
@@ -76,10 +76,10 @@ class test_rollback_to_stable12(test_rollback_to_stable_base):
         self.session = self.setUpSessionOpen(self.conn)
 
     def test_rollback_to_stable(self):
-        nrows = 1000000
+        nrows = 1000
 
         # Create a table without logging.
-        uri = "table:rollback_to_stable12"
+        uri = "table:rollback_to_stable13"
         ds = SimpleDataSet(
             self, uri, 0, key_format="i", value_format="S", config='split_pct=50,log=(enabled=false)')
         ds.populate()
@@ -94,28 +94,22 @@ class test_rollback_to_stable12(test_rollback_to_stable_base):
         # Perform several updates.
         self.large_updates(uri, value_a, ds, nrows, 20)
 
+        # Perform several removes.
+        self.large_removes(uri, ds, nrows, 30)
+
+        # Perform several updates.
+        self.large_updates(uri, value_b, ds, nrows, 60)
+
         # Verify data is visible and correct.
         self.check(value_a, uri, nrows, 20)
+        self.check(None, uri, 0, 30)
+        self.check(value_b, uri, nrows, 60)
 
-        # Pin stable to timestamp 30 if prepare otherwise 20.
+        # Pin stable to timestamp 50 if prepare otherwise 40.
         if self.prepare:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(30))
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(50))
         else:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
-
-        # Load a single row modification to be removed.
-        commit_ts = 30
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        cursor[ds.key(1)] = value_b
-        if self.prepare:
-            self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(commit_ts-1))
-            self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-            self.session.timestamp_transaction('durable_timestamp=' + timestamp_str(commit_ts+1))
-            self.session.commit_transaction()
-        else:
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-        cursor.close()
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(40))
 
         self.session.checkpoint()
 
@@ -123,27 +117,11 @@ class test_rollback_to_stable12(test_rollback_to_stable_base):
         self.simulate_crash_restart(".", "RESTART")
 
         # Check that the correct data is seen at and after the stable timestamp.
-        self.check(value_a, uri, nrows, 30)
+        self.check(None, uri, 0, 50)
+
+        # Check that we restore the correct value from the history store.
+        self.check(value_a, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
-        calls = stat_cursor[stat.conn.txn_rts][2]
-        hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
-        hs_sweep = stat_cursor[stat.conn.txn_rts_sweep_hs_keys][2]
-        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
-        keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
-        pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
-        pages_walk_skipped = stat_cursor[stat.conn.txn_rts_tree_walk_skip_pages][2]
-        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
-        stat_cursor.close()
-
-        self.assertEqual(calls, 0)
-        self.assertEqual(keys_removed, 0)
-        self.assertEqual(keys_restored, 0)
-        self.assertGreaterEqual(upd_aborted, 0)
-        self.assertGreater(pages_visited, 0)
-        self.assertGreaterEqual(hs_removed, 0)
-        self.assertEqual(hs_sweep, 0)
-        self.assertGreater(pages_walk_skipped, 0)
-
-if __name__ == '__main__':
-    wttest.run()
+        restored_tombstones = stat_cursor[stat.conn.txn_rts_hs_restore_tombstones][2]
+        self.assertEqual(restored_tombstones, nrows)
