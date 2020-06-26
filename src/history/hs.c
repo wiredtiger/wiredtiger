@@ -263,7 +263,6 @@ __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags, bool *is_owner
 
     WT_ASSERT(session, session->hs_cursor != NULL);
     ++session->hs_cursor_depth;
-    WT_ASSERT(session, session->hs_cursor_depth <= 3);
 
     /* Configure session to access the history store table. */
     F_SET(session, WT_HS_SESSION_FLAGS);
