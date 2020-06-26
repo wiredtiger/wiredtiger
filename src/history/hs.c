@@ -1042,7 +1042,7 @@ err:
 }
 /*
  * __wt_hs_cursor_position_int --
- *     Internal function to Position a history store cursor at the end of a set of updates for a
+ *     Internal function to position a history store cursor at the end of a set of updates for a
  *     given btree id, record key and timestamp.
  */
 static int
