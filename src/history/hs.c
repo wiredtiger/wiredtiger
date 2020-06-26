@@ -808,7 +808,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  */
                 if (upd->start_ts != upd->durable_ts) {
                     WT_ASSERT(session, min_insert_ts < upd->durable_ts);
-                    WT_STAT_CONN_INCR(session, cache_hs_order_resolved);
+                    WT_STAT_CONN_INCR(session, cache_hs_order_lose_durable_timestamp);
                 }
                 __wt_verbose(session, WT_VERB_TIMESTAMP,
                   "fixing out-of-order updates during insertion; start_ts=%s, durable_start_ts=%s, "
@@ -1577,7 +1577,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          */
         if (hs_cbt->upd_value->tw.start_ts != hs_cbt->upd_value->tw.durable_start_ts ||
           hs_cbt->upd_value->tw.stop_ts != hs_cbt->upd_value->tw.durable_stop_ts)
-            WT_STAT_CONN_INCR(session, cache_hs_order_resolved);
+            WT_STAT_CONN_INCR(session, cache_hs_order_lose_durable_timestamp);
 
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "fixing existing out-of-order updates by moving them; start_ts=%s, durable_start_ts=%s, "

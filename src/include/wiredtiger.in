@@ -5213,7 +5213,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache: history store table out-of-order resolved updates that lose
  * their durable timestamp
  */
-#define	WT_STAT_CONN_CACHE_HS_ORDER_RESOLVED		1110
+#define	WT_STAT_CONN_CACHE_HS_ORDER_LOSE_DURABLE_TIMESTAMP	1110
 /*!
  * cache: history store table out-of-order updates that were fixed up by
  * moving existing records
