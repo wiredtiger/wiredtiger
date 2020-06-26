@@ -654,8 +654,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
-    for (;;) {
-        WT_ERR_NOTFOUND_OK(ret, true);
+    while (ret == 0) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         /* Stop before crossing over to the next btree */
@@ -687,6 +686,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     /* We walked off the top of the history store. */
     if (ret == WT_NOTFOUND)
         goto done;
+    WT_ERR(ret);
 
     /*
      * As part of the history store search, we never get an exact match based on our search criteria
