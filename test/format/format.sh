@@ -250,6 +250,7 @@ skip_known_errors()
 # $1 directory name
 report_failure()
 {
+	# Note the directory may not yet exist, only the log file.
 	dir=$1
 	log="$dir.log"
 
@@ -287,7 +288,7 @@ resolve()
 	list=$(ls $home | grep '^RUNDIR.[0-9]*.log')
 	for i in $list; do
 		# Note the directory may not yet exist, only the log file.
-		dir=$(basename "$home/$i" ".log")
+		dir="$home/${i%.*}"
 		log="$home/$i"
 
 		# Skip failures we've already reported.
@@ -299,9 +300,12 @@ resolve()
 			continue
 		}
 
-		# Get the process ID. If the job is still running, ignore it unless we're forcibly
-		# quitting. If it's not still running, wait for it and get an exit status.
+		# Get the process ID. There is a window where the PID might not yet be written, in
+		# which case we ignore the log file. If the job is still running, ignore it unless
+		# we're forcibly quitting. If it's not still running, wait for it and get an exit
+		# status.
 		pid=`awk '/process.*running/{print $3}' $log`
+		[[ "$pid" =~ ^[1-9][0-9]*$ ]] || continue
 		kill -s 0 $pid > /dev/null 2>&1 && {
 			[[ $force_quit -eq 0 ]] && {
 				running=$((running + 1))
