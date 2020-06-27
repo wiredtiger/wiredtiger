@@ -65,12 +65,13 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
         /*
          * We found a match. Load the block information into the cursor.
          */
-        ret = __wt_config_subgets(session, &v, "blocks", &b);
-        if (ret != WT_NOTFOUND) {
+        if ((ret = __wt_config_subgets(session, &v, "blocks", &b)) == 0) {
             WT_ERR(__wt_backup_load_incr(session, &b, &cb->bitstring, cb->nbits));
             cb->bit_offset = 0;
             cb->incr_init = true;
         }
+        WT_ERR_NOTFOUND_OK(ret, false);
+        break;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
@@ -144,21 +145,21 @@ __curbackup_incr_next(WT_CURSOR *cursor)
              */
             WT_ERR(__curbackup_incr_blkmod(session, btree, cb));
             /*
-             * If there is no block modification information for this file, this is a newly created
-             * file without any checkpoint information. Return the whole file information.
+             * If there is no block modification information for this file, it's either a newly
+             * created file without any checkpoint information, or a file created and checkpointed
+             * before backups were configured and not subsequently modified. Ignore in both cases,
+             * we don't back up never checkpointed objects, and files created before backups were
+             * configured will have been copied as part of the initial full backup.
              */
             if (cb->bitstring.mem == NULL) {
-                WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
                 cb->incr_init = true;
-                __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
-                goto done;
+                WT_ERR(WT_NOTFOUND);
             }
         }
         __wt_cursor_set_key(cursor, cb->offset + cb->granularity * cb->bit_offset++,
           cb->granularity, WT_BACKUP_RANGE);
     }
 
-done:
 err:
     F_SET(cursor, raw);
     __wt_scr_free(session, &buf);
