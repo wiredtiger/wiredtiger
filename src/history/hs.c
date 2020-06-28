@@ -253,13 +253,21 @@ __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags, bool *is_owner
     *session_flags = F_MASK(session, WT_HS_SESSION_FLAGS);
     *is_owner = false;
 
+    /*
+     * This function handles the case where the caller already has an open history store cursor, but
+     * we don't currently use that functionality. If this assert triggers, it is safe to remove it
+     * if there isn't an easy way to avoid the call.
+     */
+    WT_ASSERT(session, session->hs_cursor == NULL);
+
     /* Open a cursor if this session doesn't already have one. */
     if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
         WT_ASSERT(session, session->hs_cursor == NULL && session->hs_cursor_depth == 0);
         /* The caller is responsible for closing this cursor. */
         *is_owner = true;
         WT_RET(__hs_cursor_open(session));
-    }
+    } else
+        WT_STAT_CONN_INCR(session, cursor_hs_reacquire);
 
     WT_ASSERT(session, session->hs_cursor != NULL);
     ++session->hs_cursor_depth;
@@ -1419,24 +1427,14 @@ __wt_hs_delete_key_from_ts(
   WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts)
 {
     WT_DECL_RET;
-    uint32_t session_flags;
-    bool is_owner;
 
-    /*
-     * Some code paths such as schema removal involve deleting keys in metadata and assert that we
-     * shouldn't be opening new dhandles. We won't ever need to blow away history store content in
-     * these cases so let's just return early here.
-     */
-    if (F_ISSET(session, WT_SESSION_NO_DATA_HANDLES))
-        return (0);
-
-    WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
+    /* If operation can't open new dhandles, it should have figured that out before here.  */
+    WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
 
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_delete_key_from_ts_int(session, btree_id, key, ts)) == WT_RESTART)
         WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
 
-    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
     return (ret);
 }
 

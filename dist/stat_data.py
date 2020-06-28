@@ -354,6 +354,7 @@ connection_stats = [
     CursorStat('cursor_cached_count', 'cached cursor count', 'no_clear,no_scale'),
     CursorStat('cursor_cache', 'cursor close calls that result in cache'),
     CursorStat('cursor_create', 'cursor create calls'),
+    CursorStat('cursor_hs_reacquire', 'hs cursor open calls when already holding cursor'),
     CursorStat('cursor_insert', 'cursor insert calls'),
     CursorStat('cursor_insert_bulk', 'cursor bulk loaded cursor insert calls'),
     CursorStat('cursor_insert_bytes', 'cursor insert key and value bytes', 'size'),

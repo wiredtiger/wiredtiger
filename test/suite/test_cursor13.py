@@ -447,8 +447,11 @@ class test_cursor13_big(test_cursor13_big_base):
         #self.tty('opens = ' + str(self.opencount) + \
         #         ', closes = ' + str(self.closecount))
         #self.tty('stats after = ' + str(end_stats))
-        self.assertEquals(end_stats[0] - begin_stats[0], self.closecount)
-        self.assertEquals(end_stats[1] - begin_stats[1], self.opencount)
+
+        # Stats won't be exact because they may include operations triggered by other
+        # threads (e.g., eviction) opening and closing history store cursors.
+        self.assertGreaterEqual(end_stats[0] - begin_stats[0], self.closecount)
+        self.assertGreaterEqual(end_stats[1] - begin_stats[1], self.opencount)
 
 class test_cursor13_sweep(test_cursor13_big_base):
     # Set dhandle sweep configuration so that dhandles should be closed within
