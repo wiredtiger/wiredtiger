@@ -1272,8 +1272,10 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
          * we can skip it.
          */
         if (__wt_txn_visible_all(
-              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
-            goto cur_prev;
+              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts)) {
+            ret = __wt_hs_cursor_prev(session, hs_cursor);
+            continue;
+        }
         /*
          * If the stop time point of a record is visible to us, we won't be able to see anything for
          * this entire key. Just jump straight to the end.
@@ -1283,7 +1285,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         /* If the start time point is visible to us, let's return that record. */
         if (__wt_txn_tw_start_visible(session, &hs_cbt->upd_value->tw))
             break;
-cur_prev:
         ret = __wt_hs_cursor_prev(session, hs_cursor);
     }
 
@@ -1610,8 +1611,10 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * we can skip it.
          */
         if (__wt_txn_visible_all(
-              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
-            goto cur_next;
+              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts)) {
+            ret = __wt_hs_cursor_next(session, hs_cursor);
+            continue;
+        }
         /*
          * If we got here, we've got out-of-order updates in the history store.
          *
@@ -1679,7 +1682,6 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         WT_ERR(ret);
         tombstone = NULL;
         WT_STAT_CONN_INCR(session, cache_hs_order_fixup_move);
-cur_next:
         ret = __wt_hs_cursor_next(session, hs_cursor);
     }
     if (ret == WT_NOTFOUND)
@@ -1730,8 +1732,10 @@ __hs_delete_key_from_pos(
          * we can skip it.
          */
         if (__wt_txn_visible_all(
-              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
-            goto cur_next;
+              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts)) {
+            ret = __wt_hs_cursor_next(session, hs_cursor);
+            continue;
+        }
         /*
          * Since we're using internal functions to modify the row structure, we need to manually set
          * the comparison to an exact match.
@@ -1747,7 +1751,6 @@ __hs_delete_key_from_pos(
         WT_ERR(__wt_hs_modify(hs_cbt, upd));
         upd = NULL;
         WT_STAT_CONN_INCR(session, cache_hs_remove_key_truncate);
-cur_next:
         ret = __wt_hs_cursor_next(session, hs_cursor);
     }
     if (ret == WT_NOTFOUND)
@@ -1813,8 +1816,10 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
          * check the key once.
          */
         WT_ERR(__wt_compare(session, NULL, &hs_key, prev_hs_key, &cmp));
-        if (cmp == 0)
-            goto cur_next;
+        if (cmp == 0) {
+            ret = __wt_hs_cursor_next(session, hs_cursor);
+            continue;
+        }
         WT_WITH_PAGE_INDEX(session, ret = __hs_row_search(cbt, &hs_key, false));
         WT_ERR(ret);
 
@@ -1834,7 +1839,6 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
          * cursor iteration.
          */
         WT_ERR(__wt_buf_set(session, prev_hs_key, hs_key.data, hs_key.size));
-cur_next:
         ret = __wt_hs_cursor_next(session, hs_cursor);
     }
     WT_ERR_NOTFOUND_OK(ret, true);
