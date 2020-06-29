@@ -679,6 +679,8 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
          */
         if (!__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw))
             break;
+        else
+            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
     }
 
     /* We walked off the top of the history store. */

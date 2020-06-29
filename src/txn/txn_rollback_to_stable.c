@@ -231,8 +231,10 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * If the stop time pair on the tombstone in the history store is already globally visible
          * we can skip it.
          */
-        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw))
+        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
+            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone_rts);
             continue;
+        }
 
         /*
          * As part of the history store search, we never get an exact match based on our search
@@ -1028,8 +1030,10 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
          * If the stop time pair on the tombstone in the history store is already globally visible
          * we can skip it.
          */
-        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw))
+        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
+            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone_rts);
             continue;
+        }
 
         /* Set this comparison as exact match of the search for later use. */
         cbt->compare = 0;
