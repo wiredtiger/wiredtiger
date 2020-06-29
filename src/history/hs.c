@@ -1048,6 +1048,7 @@ err:
     __wt_scr_free(session, &prev_full_value);
     return (ret);
 }
+
 /*
  * __hs_cursor_position_int --
  *     Internal function to position a history store cursor at the end of a set of updates for a
