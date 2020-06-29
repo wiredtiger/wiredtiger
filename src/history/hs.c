@@ -1049,12 +1049,12 @@ err:
     return (ret);
 }
 /*
- * __wt_hs_cursor_position_int --
+ * __hs_cursor_position_int --
  *     Internal function to position a history store cursor at the end of a set of updates for a
  *     given btree id, record key and timestamp.
  */
 static int
-__wt_hs_cursor_position_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
+__hs_cursor_position_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
 {
     WT_DECL_ITEM(srch_key);
@@ -1125,7 +1125,7 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
 {
     WT_DECL_RET;
     WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
-      ret = __wt_hs_cursor_position_int(session, cursor, btree_id, key, timestamp, user_srch_key));
+      ret = __hs_cursor_position_int(session, cursor, btree_id, key, timestamp, user_srch_key));
     return (ret);
 }
 
