@@ -92,7 +92,7 @@ __rec_append_orig_value(
          * Done if the on page value already appears on the update list. We can't do the same check
          * for stop time point because we may still need to append the onpage value if only the
          * tombstone is on the update chain. We only need to check the in memory case as in other
-         * cases, the update must have been flagged by WT_UPDATE_RESTORED_FROM_DS.
+         * cases, the update must have been restored from data store.
          */
         if (unpack->tw.start_ts == upd->start_ts && unpack->tw.start_txn == upd->txnid &&
           upd->type != WT_UPDATE_TOMBSTONE) {
