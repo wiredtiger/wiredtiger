@@ -78,7 +78,7 @@ __rec_append_orig_value(
             continue;
 
         /* Done if the update was restored from the data store or history store. */
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_HS))
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
             return (0);
 
         /*
