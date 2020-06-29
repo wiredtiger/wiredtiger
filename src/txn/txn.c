@@ -677,8 +677,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
          * If the stop time pair on the tombstone in the history store is already globally visible
          * we can skip it.
          */
-        if (!__wt_txn_visible_all(
-              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
+        if (!__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw))
             break;
     }
 

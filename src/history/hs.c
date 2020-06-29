@@ -1271,8 +1271,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
          * If the stop time pair on the tombstone in the history store is already globally visible
          * we can skip it.
          */
-        if (__wt_txn_visible_all(
-              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
+        if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw))
             continue;
         /*
          * If the stop time point of a record is visible to us, we won't be able to see anything for
@@ -1603,8 +1602,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * If the stop time pair on the tombstone in the history store is already globally visible
          * we can skip it.
          */
-        if (__wt_txn_visible_all(
-              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
+        if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw))
             continue;
         /*
          * If we got here, we've got out-of-order updates in the history store.
@@ -1721,8 +1719,7 @@ __hs_delete_key_from_pos(
          * If the stop time pair on the tombstone in the history store is already globally visible
          * we can skip it.
          */
-        if (__wt_txn_visible_all(
-              session, hs_cbt->upd_value->tw.stop_txn, hs_cbt->upd_value->tw.durable_stop_ts))
+        if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw))
             continue;
         /*
          * Since we're using internal functions to modify the row structure, we need to manually set
