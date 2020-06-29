@@ -77,8 +77,8 @@ __rec_append_orig_value(
         else
             continue;
 
-        /* Done if the update was restored from the history store. */
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS))
+        /* Done if the update was restored from the data store or history store. */
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_HS))
             return (0);
 
         /*
@@ -86,15 +86,6 @@ __rec_append_orig_value(
          * list only when the prepared update is a tombstone.
          */
         if (unpack->tw.prepare && upd->type != WT_UPDATE_TOMBSTONE)
-            return (0);
-
-        /*
-         * Done if the on page value already appears on the update list. We can't do the same check
-         * for stop time point because we may still need to append the onpage value if only the
-         * tombstone is on the update chain.
-         */
-        if (unpack->tw.start_ts == upd->start_ts && unpack->tw.start_txn == upd->txnid &&
-          upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
         /*
