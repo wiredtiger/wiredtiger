@@ -96,12 +96,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_PAGE *page;
     uint64_t time_start, time_stop;
     uint32_t session_flags;
-    bool clean_page, closing, force_evict_hs, inmem_split, is_owner, local_gen, tree_dead;
+    bool allocated_snapshot, clean_page, closing, force_evict_hs, inmem_split, is_owner;
+    bool local_gen, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
-    force_evict_hs = false;
+    allocated_snapshot = force_evict_hs = false;
     local_gen = false;
     time_start = time_stop = 0; /* [-Werror=maybe-uninitialized] */
 
@@ -138,6 +139,14 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         WT_RET(__wt_hs_cursor_close(session, session_flags, is_owner));
     }
 
+    /*
+     * If there is no snapshot allocate one now. That will let committed but not globally visible
+     * updates be evicted.
+     */
+    if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)) {
+            __wt_txn_bump_snapshot(session);
+            allocated_snapshot = true;
+    }
     /*
      * Enter the eviction generation. If we re-enter eviction, leave the previous eviction
      * generation (which must be as low as the current generation), untouched.
@@ -253,6 +262,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
 
     if (0) {
 err:
+        if (allocated_snapshot)
+                __wt_txn_release_snapshot(session);
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
 
