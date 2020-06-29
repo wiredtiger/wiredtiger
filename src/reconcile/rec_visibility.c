@@ -89,6 +89,17 @@ __rec_append_orig_value(
             return (0);
 
         /*
+         * Done if the on page value already appears on the update list. We can't do the same check
+         * for stop time point because we may still need to append the onpage value if only the
+         * tombstone is on the update chain.
+         */
+        if (unpack->tw.start_ts == upd->start_ts && unpack->tw.start_txn == upd->txnid &&
+          upd->type != WT_UPDATE_TOMBSTONE) {
+            WT_ASSERT(session, F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+            return (0);
+        }
+
+        /*
          * Done if at least one self-contained update is globally visible. It's tempting to pull
          * this test out of the loop and only test the oldest self-contained update for global
          * visibility (as visibility tests are expensive). However, when running at lower isolation
