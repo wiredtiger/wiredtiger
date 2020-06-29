@@ -212,7 +212,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
      * the given timestamp, the key is removed from data store.
      */
     ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, WT_TS_MAX, NULL);
-    while (ret == 0) {
+    for (; ret == 0; ret = __wt_hs_cursor_prev(session, hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         /* Stop before crossing over to the next btree */
@@ -232,10 +232,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * we can skip it.
          */
         if (__wt_txn_visible_all(
-              session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts)) {
-            ret = __wt_hs_cursor_prev(session, hs_cursor);
+              session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts))
             continue;
-        }
 
         /*
          * As part of the history store search, we never get an exact match based on our search
@@ -318,7 +316,6 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
-        ret = __wt_hs_cursor_prev(session, hs_cursor);
     }
 
     if (replace) {
@@ -1021,7 +1018,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     if (ret == 0 && exact < 0)
         ret = __wt_hs_cursor_next(session, hs_cursor);
 
-    while (ret == 0) {
+    for (; ret == 0; ret = __wt_hs_cursor_next(session, hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         /* Stop crossing into the next btree boundary. */
@@ -1033,10 +1030,8 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
          * we can skip it.
          */
         if (__wt_txn_visible_all(
-              session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts)) {
-            ret = __wt_hs_cursor_next(session, hs_cursor);
+              session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts))
             continue;
-        }
 
         /* Set this comparison as exact match of the search for later use. */
         cbt->compare = 0;
@@ -1048,7 +1043,6 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         hs_upd = NULL;
-        ret = __wt_hs_cursor_next(session, hs_cursor);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
