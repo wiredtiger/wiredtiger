@@ -41,6 +41,9 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
     WT_ASSERT(session, cb->incr_src != NULL);
 
     WT_RET(__wt_metadata_search(session, btree->dhandle->name, &config));
+    ret = __wt_config_getones(session, config, "checkpoint", &v);
+    cb->has_ckpt = ret == WT_NOTFOUND;
+
     WT_ERR(__wt_config_getones(session, config, "checkpoint_backup_info", &v));
     __wt_config_subinit(session, &blkconf, &v);
     while ((ret = __wt_config_next(&blkconf, &k, &v)) == 0) {
@@ -147,19 +150,26 @@ __curbackup_incr_next(WT_CURSOR *cursor)
             /*
              * If there is no block modification information for this file, it's either a newly
              * created file without any checkpoint information, or a file created and checkpointed
-             * before backups were configured and not subsequently modified. Ignore in both cases,
-             * we don't back up never checkpointed objects, and files created before backups were
-             * configured will have been copied as part of the initial full backup.
+             * before backups were configured and not subsequently modified. In the first case, we
+             * return the whole file information. We ignore the file in the second, as files created
+             * before configuring backups are copied as part of the initial full backup.
              */
             if (cb->bitstring.mem == NULL) {
                 cb->incr_init = true;
-                WT_ERR(WT_NOTFOUND);
+                if (cb->has_ckpt)
+                    WT_ERR(WT_NOTFOUND);
+                else {
+                    WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
+                    __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
+                    goto done;
+                }
             }
         }
         __wt_cursor_set_key(cursor, cb->offset + cb->granularity * cb->bit_offset++,
           cb->granularity, WT_BACKUP_RANGE);
     }
 
+done:
 err:
     F_SET(cursor, raw);
     __wt_scr_free(session, &buf);

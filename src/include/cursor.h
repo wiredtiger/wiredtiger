@@ -54,6 +54,7 @@ struct __wt_cursor_backup {
 
     WT_CURSOR *incr_cursor; /* File cursor */
 
+    bool has_ckpt;        /* Object has been checkpointed */
     bool incr_init;       /* Cursor traversal initialized */
     WT_ITEM bitstring;    /* List of modified blocks */
     uint64_t nbits;       /* Number of bits in bitstring */
