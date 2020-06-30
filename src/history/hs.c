@@ -913,7 +913,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
               __hs_next_upd_full_value(session, &modifies, full_value, prev_full_value, &prev_upd));
 
             /* Squash the updates from the same transaction. */
-
             if (upd->start_ts == prev_upd->start_ts && upd->txnid == prev_upd->txnid) {
                 squashed = true;
                 continue;
@@ -1400,7 +1399,7 @@ __wt_hs_delete_key_from_ts(
 {
     WT_DECL_RET;
 
-    /* If operation can't open new dhandles, it should have figured that out before here.  */
+    /* If the operation can't open new handles, it should have figured that out before here. */
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
 
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */

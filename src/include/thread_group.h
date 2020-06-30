@@ -22,10 +22,10 @@ struct __wt_thread {
  * groups.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_THREAD_ACTIVE 0x1u     /* thread is active or paused */
+#define WT_THREAD_ACTIVE 0x1u     /* Thread is active or paused */
 #define WT_THREAD_CAN_WAIT 0x2u   /* WT_SESSION_CAN_WAIT */
-#define WT_THREAD_PANIC_FAIL 0x4u /* panic if the thread fails */
-#define WT_THREAD_RUN 0x8u        /* thread is running */
+#define WT_THREAD_PANIC_FAIL 0x4u /* Panic if the thread fails */
+#define WT_THREAD_RUN 0x8u        /* Thread is running */
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 
