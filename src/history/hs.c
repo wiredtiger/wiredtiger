@@ -24,7 +24,6 @@ typedef struct {
  */
 #define WT_HS_SESSION_FLAGS WT_SESSION_IGNORE_CACHE_SIZE
 
-static int __hs_cursor_open(WT_SESSION_IMPL *session);
 static int __hs_delete_key_from_pos(
   WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key);
 static int __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
@@ -64,17 +63,16 @@ __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 {
     WT_DECL_RET;
     uint32_t session_flags;
-    bool is_owner;
 
     *hs_btreep = NULL;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
 
-    WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
+    WT_RET(__wt_hs_cursor_open(session, &session_flags));
 
     *hs_btreep = CUR2BT(session->hs_cursor);
     WT_ASSERT(session, *hs_btreep != NULL);
 
-    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags));
 
     return (ret);
 }
@@ -209,71 +207,37 @@ __wt_hs_destroy(WT_SESSION_IMPL *session)
 }
 
 /*
- * __hs_cursor_open --
+ * __wt_hs_cursor_open --
  *     Open a new history store table cursor.
  */
-static int
-__hs_cursor_open(WT_SESSION_IMPL *session)
+int
+__wt_hs_cursor_open(WT_SESSION_IMPL *session, uint32_t *session_flags)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
+    /* Not allowed to open a cursor if you already have one */
+    WT_ASSERT(session, session->hs_cursor == NULL && !F_ISSET(session, WT_SESSION_HS_CURSOR));
+
     WT_WITHOUT_DHANDLE(
       session, ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &cursor));
     WT_RET(ret);
 
-    /*
-     * Set the flag to stop creating snapshots for history store cursors
-     */
+    /* Set flag to stop snapshot creation for history store cursors */
     F_SET((WT_CURSOR_BTREE *)cursor, WT_CBT_NO_TXN);
     /* History store cursors should always ignore tombstones. */
     F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
 
-    session->hs_cursor = cursor;
-    F_SET(session, WT_SESSION_HS_CURSOR);
-
-    return (0);
-}
-
-/*
- * __wt_hs_cursor --
- *     Return a history store cursor, open one if not already open.
- */
-int
-__wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags, bool *is_owner)
-{
     /*
-     * We don't want to get tapped for eviction after we start using the history store cursor; save
-     * a copy of the current eviction state, we'll turn eviction off before we return.
-     *
-     * Don't cache history store table pages, we're here because of eviction problems and there's no
-     * reason to believe history store pages will be useful more than once.
+     * We don't want to get tapped for eviction after we start using the history store cursor. Save
+     * a copy of the current flag values.  We'll restore them when the cursor is closed.
      */
     *session_flags = F_MASK(session, WT_HS_SESSION_FLAGS);
-    *is_owner = false;
-
-    /*
-     * This function handles the case where the caller already has an open history store cursor, but
-     * we don't currently use that functionality. If this assert triggers, it is safe to remove it
-     * if there isn't an easy way to avoid the call.
-     */
-    WT_ASSERT(session, session->hs_cursor == NULL);
-
-    /* Open a cursor if this session doesn't already have one. */
-    if (!F_ISSET(session, WT_SESSION_HS_CURSOR)) {
-        WT_ASSERT(session, session->hs_cursor == NULL && session->hs_cursor_depth == 0);
-        /* The caller is responsible for closing this cursor. */
-        *is_owner = true;
-        WT_RET(__hs_cursor_open(session));
-    } else
-        WT_STAT_CONN_INCR(session, cursor_hs_reacquire);
-
-    WT_ASSERT(session, session->hs_cursor != NULL);
-    ++session->hs_cursor_depth;
-
-    /* Configure session to access the history store table. */
     F_SET(session, WT_HS_SESSION_FLAGS);
+
+    session->hs_cursor = cursor;
+    F_SET(session, WT_SESSION_HS_CURSOR);
 
     return (0);
 }
@@ -283,12 +247,10 @@ __wt_hs_cursor(WT_SESSION_IMPL *session, uint32_t *session_flags, bool *is_owner
  *     Discard a history store cursor.
  */
 int
-__wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags, bool is_owner)
+__wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags)
 {
     /* Should only be called when session has an open history store cursor */
     WT_ASSERT(session, session->hs_cursor != NULL && F_ISSET(session, WT_SESSION_HS_CURSOR));
-
-    --session->hs_cursor_depth;
 
     /*
      * Restore previous values of history store session flags.
@@ -296,14 +258,6 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session, uint32_t session_flags, bool is_o
     F_CLR(session, WT_HS_SESSION_FLAGS);
     F_SET(session, session_flags);
 
-    /*
-     * If we're not the owner, we're not responsible for closing this cursor. Reset the cursor to
-     * avoid pinning the page in cache.
-     */
-    if (!is_owner)
-        return (session->hs_cursor->reset(session->hs_cursor));
-
-    WT_ASSERT(session, session->hs_cursor_depth == 0);
     WT_RET(session->hs_cursor->close(session->hs_cursor));
     session->hs_cursor = NULL;
     F_CLR(session, WT_SESSION_HS_CURSOR);
@@ -1141,7 +1095,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     uint32_t hs_btree_id, session_flags;
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
-    bool is_owner, modify;
+    bool modify;
 
     hs_cursor = NULL;
     mod_upd = upd = NULL;
@@ -1153,7 +1107,6 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     hs_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     WT_NOT_READ(modify, false);
-    is_owner = false;
 
     WT_STAT_CONN_INCR(session, cursor_search_hs);
     WT_STAT_DATA_INCR(session, cursor_search_hs);
@@ -1174,7 +1127,7 @@ __wt_find_hs_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     /* Open a history store table cursor. */
-    WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
+    WT_ERR(__wt_hs_cursor_open(session, &session_flags));
     hs_cursor = session->hs_cursor;
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
 
@@ -1331,7 +1284,7 @@ err:
         __wt_scr_free(session, &hs_value);
     WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
 
-    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags));
 
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
@@ -1778,7 +1731,7 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
     uint64_t hs_counter;
     uint32_t btree_id, session_flags;
     char *uri_data;
-    bool is_owner, stop;
+    bool stop;
 
     /* We should never reach here if working in context of the default session. */
     WT_ASSERT(session, S2C(session)->default_session != session);
@@ -1788,10 +1741,9 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
     btree_id = WT_BTREE_ID_INVALID;
     session_flags = 0; /* [-Wconditional-uninitialized] */
     uri_data = NULL;
-    is_owner = false; /* [-Wconditional-uninitialized] */
 
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
+    WT_ERR(__wt_hs_cursor_open(session, &session_flags));
     cursor = session->hs_cursor;
     ret = cursor->next(cursor);
     WT_ERR_NOTFOUND_OK(ret, true);
@@ -1824,7 +1776,7 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
         WT_ERR_NOTFOUND_OK(ret, false);
     }
 err:
-    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
+    WT_TRET(__wt_hs_cursor_close(session, session_flags));
 
     __wt_scr_free(session, &buf);
     WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);

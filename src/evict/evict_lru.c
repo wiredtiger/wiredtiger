@@ -274,7 +274,6 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_DECL_RET;
     uint32_t session_flags;
     bool did_work, was_intr;
-    bool is_owner;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -286,8 +285,8 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      */
     if (session->hs_cursor == NULL && !F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
         session_flags = 0; /* [-Werror=maybe-uninitialized] */
-        WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
-        WT_RET(__wt_hs_cursor_close(session, session_flags, is_owner));
+        WT_RET(__wt_hs_cursor_open(session, &session_flags));
+        WT_RET(__wt_hs_cursor_close(session, session_flags));
     }
 
     if (conn->evict_server_running && __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {

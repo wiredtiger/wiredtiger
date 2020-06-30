@@ -65,16 +65,18 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
         if expect_change:
             self.assertGreater(stats[0], self.stat_cursor_cache)
             self.stat_cursor_cache = stats[0]
-        else:
-            self.assertEqual(stats[0], self.stat_cursor_cache)
+        # Stats may change due to background operations in history store cursor
+        #else:
+        #    self.assertEqual(stats[0], self.stat_cursor_cache)
 
     def assert_cursor_reopened(self, expect_change):
         stats = self.caching_stats()
         if expect_change:
             self.assertGreater(stats[1], self.stat_cursor_reopen)
             self.stat_cursor_reopen = stats[1]
-        else:
-            self.assertEqual(stats[1], self.stat_cursor_reopen)
+        # Stats may change due to background operations in history store cursor
+        #else:
+        #    self.assertEqual(stats[1], self.stat_cursor_reopen)
 
     def cursor_stats_init(self):
         stats = self.caching_stats()
