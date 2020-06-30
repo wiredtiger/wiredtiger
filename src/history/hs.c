@@ -973,11 +973,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 continue;
             }
 
-            if (upd->start_ts == prev_upd->start_ts && upd->txnid == prev_upd->txnid) {
-                squashed = true;
-                continue;
-            }
-
             /* Skip updates that are already in the history store or are obsolete. */
             if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_OBSOLETE))
                 continue;
