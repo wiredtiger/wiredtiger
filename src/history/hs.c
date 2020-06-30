@@ -978,6 +978,22 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 continue;
 
             /*
+             * If the time points are out of order (which can happen if the application performs
+             * updates with out-of-order timestamps), so this value can never be seen, don't bother
+             * inserting it.
+             *
+             * FIXME-WT-6443: We should be able to replace this with an assertion.
+             */
+            if (stop_time_point.ts < upd->start_ts ||
+              (stop_time_point.ts == upd->start_ts && stop_time_point.txnid <= upd->txnid)) {
+                __wt_verbose(session, WT_VERB_TIMESTAMP,
+                  "Warning: fixing out-of-order timestamps %s earlier than previous update %s",
+                  __wt_timestamp_to_string(stop_time_point.ts, ts_string[0]),
+                  __wt_timestamp_to_string(upd->start_ts, ts_string[1]));
+                continue;
+            }
+
+            /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update.
              */
