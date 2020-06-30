@@ -977,7 +977,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 continue;
             }
 
-            /* Clear the history store content if we skip inserting the updates without timestamp. */
+            /* Clear history store content if we skip inserting the updates without timestamp. */
             if (clear_hs && upd->start_ts != WT_TS_NONE) {
                 /* We can only delete history store entries that have timestamps. */
                 WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
