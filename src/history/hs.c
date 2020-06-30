@@ -231,7 +231,7 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session, uint32_t *session_flags)
 
     /*
      * We don't want to get tapped for eviction after we start using the history store cursor. Save
-     * a copy of the current flag values.  We'll restore them when the cursor is closed.
+     * a copy of the current flag values. We'll restore them when the cursor is closed.
      */
     *session_flags = F_MASK(session, WT_HS_SESSION_FLAGS);
     F_SET(session, WT_HS_SESSION_FLAGS);

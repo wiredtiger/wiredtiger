@@ -1028,8 +1028,7 @@ __debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
      * doesn't work, we may be running in-memory.
      */
     if (!WT_IS_HS(S2BT(session))) {
-        if (session->hs_cursor == NULL &&
-          __wt_hs_cursor_open(session, &ds->session_flags) == 0)
+        if (session->hs_cursor == NULL && __wt_hs_cursor_open(session, &ds->session_flags) == 0)
             ds->hs_is_local = true;
         if (session->hs_cursor != NULL) {
             WT_RET(__wt_scr_alloc(session, 0, &ds->hs_key));
