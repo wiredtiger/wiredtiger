@@ -878,22 +878,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
         prev_upd = upd = NULL;
 
-        /*
-         * Trim from the end until there is a full update. We need this if we are dealing with
-         * updates without timestamps, and there are timestamped modify updates at the end of update
-         * chain that are not relevant due to newer full updates without timestamps.
-         */
-        for (; modifies.size > 0;) {
-            __wt_modify_vector_peek(&modifies, &upd);
-            if (upd->type == WT_UPDATE_MODIFY) {
-                WT_ASSERT(
-                  session, first_globally_visible_upd != NULL && first_globally_visible_upd != upd);
-                __wt_modify_vector_pop(&modifies, &upd);
-            } else
-                break;
-        }
-        upd = NULL;
-
         /* Construct the oldest full update. */
         WT_ASSERT(session, modifies.size > 0);
 
