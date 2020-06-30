@@ -860,8 +860,8 @@ __wt_rec_row_leaf(
                 }
 
                 /*
-                 * If we're removing a key with durable timestamp of tombstone is NONE, also remove
-                 * the history store contents associated with that key. Even if we fail
+                 * If we're removing a key due to a tombstone with a durable timestamp of "none",
+                 * also remove the history store contents associated with that key. Even if we fail
                  * reconciliation after this point, we're safe to do this. The history store content
                  * must be obsolete in order for us to consider removing the key.
                  */
