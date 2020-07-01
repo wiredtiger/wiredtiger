@@ -803,6 +803,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
             non_aborted_upd = upd;
 
+            /* If we've seen a smaller timestamp before, use that instead. */
             if (min_insert_ts < upd->start_ts) {
                 /*
                  * Only fix out of order timestamp if we haven't seen an update without timestamp.
