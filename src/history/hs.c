@@ -853,7 +853,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             /* Find the first update without timestamp. */
             if (first_non_ts_upd == NULL && upd->start_ts == WT_TS_NONE)
                 first_non_ts_upd = upd;
-            else if (upd->start_ts != WT_TS_NONE) {
+            else if (first_non_ts_upd != NULL && upd->start_ts != WT_TS_NONE) {
                 /*
                  * Don't insert updates with timestamps after updates without timestamps to the
                  * history store.
