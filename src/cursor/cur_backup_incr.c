@@ -42,9 +42,7 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
     WT_ASSERT(session, cb->incr_src != NULL);
 
     WT_RET(__wt_metadata_search(session, btree->dhandle->name, &config));
-    /*
-     * Check if this is a file with no checkpointed content.
-     */
+    /* Check if this is a file with no checkpointed content. */
     ret = __wt_meta_checkpoint(session, btree->dhandle->name, 0, &ckpt);
     if (ret == 0 && ckpt.addr.size == 0)
         F_SET(cb, WT_CURBACKUP_CKPT_FAKE);
@@ -157,12 +155,15 @@ __curbackup_incr_next(WT_CURSOR *cursor)
              */
             WT_ERR(__curbackup_incr_blkmod(session, btree, cb));
             /*
-             * If there is no block modification information for this file, it's either a newly
-             * created file without any checkpoint information, a file created and checkpointed
-             * before backups were configured and not subsequently modified, or a file that has not
-             * been modified since the last incremental backup. In the first case, we return the
-             * whole file information. We ignore the file in the second and third, as these files
-             * were copied in the initial full backup or a previous incremental backup.
+             * There are three cases where we do not have block modification information for
+             * the file. They are described and handled as follows:
+             *
+             * 1. Newly created file without checkpoint information. Return the whole file
+             *    information.
+             * 2. File created and checkpointed before incremental backups were configured.
+             *    Return no file information as it was copied in the initial full backup.
+             * 3. File that has not been modified since the previous incremental backup.
+             *    Return no file information as there is no new information.
              */
             if (cb->bitstring.mem == NULL) {
                 F_SET(cb, WT_CURBACKUP_INCR_INIT);

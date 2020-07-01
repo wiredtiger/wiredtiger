@@ -70,7 +70,7 @@ struct __wt_cursor_backup {
 #define WT_CURBACKUP_INCR_INIT 0x40u   /* Cursor traversal initialized */
 #define WT_CURBACKUP_LOCKER 0x80u      /* Hot-backup started */
                                        /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint8_t flags;
+    uint32_t flags;
 };
 
 /* Get the WT_BTREE from any WT_CURSOR/WT_CURSOR_BTREE. */
