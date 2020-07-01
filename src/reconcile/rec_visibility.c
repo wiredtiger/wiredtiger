@@ -550,10 +550,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * part of the page, and they are physically removed by checkpoint writing this page, that is,
      * the checkpoint doesn't include the overflow blocks so they're removed and future readers of
      * this page won't be able to find them.
-     *
-     * We never append prepared updates back to the onpage value. If it is a prepared full update,
-     * it is already on the update chain. If it is a prepared tombstone, the onpage value is already
-     * appended to the update chain when the page is read into memory.
      */
     if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
       (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
