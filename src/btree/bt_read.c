@@ -350,6 +350,11 @@ read:
                 else if (ret == EBUSY) {
                     WT_NOT_READ(ret, 0);
                     WT_STAT_CONN_INCR(session, page_forcible_evict_blocked);
+                    /*
+                     * Forced eviction failed: check if this transaction is keeping content pinned
+                     * in cache.
+                     */
+                    WT_RET(__wt_txn_is_blocking(session));
                     stalled = true;
                     break;
                 }
