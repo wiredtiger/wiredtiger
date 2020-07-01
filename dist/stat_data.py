@@ -658,6 +658,7 @@ connection_stats = [
     TxnStat('txn_read_queue_len', 'read timestamp queue length'),
     TxnStat('txn_read_queue_walked', 'read timestamp queue entries walked'),
     TxnStat('txn_rollback', 'transactions rolled back'),
+    TxnStat('txn_rollback_force_evicting', 'transaction rolled back while force evicting due to being oldest'),
     TxnStat('txn_rts', 'rollback to stable calls'),
     TxnStat('txn_rts_hs_removed', 'rollback to stable updates removed from history store'),
     TxnStat('txn_rts_hs_restore_tombstones', 'rollback to stable restored tombstones from history store'),

@@ -6048,14 +6048,19 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1466
 /*! transaction: transaction read timestamp of the oldest active reader */
 #define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1467
+/*!
+ * transaction: transaction rolled back while force evicting due to being
+ * oldest
+ */
+#define	WT_STAT_CONN_TXN_ROLLBACK_FORCE_EVICTING	1468
 /*! transaction: transaction sync calls */
-#define	WT_STAT_CONN_TXN_SYNC				1468
+#define	WT_STAT_CONN_TXN_SYNC				1469
 /*! transaction: transactions committed */
-#define	WT_STAT_CONN_TXN_COMMIT				1469
+#define	WT_STAT_CONN_TXN_COMMIT				1470
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1470
+#define	WT_STAT_CONN_TXN_ROLLBACK			1471
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1471
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1472
 
 /*!
  * @}

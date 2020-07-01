@@ -1106,6 +1106,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction range of timestamps pinned by the oldest active read timestamp",
   "transaction: transaction range of timestamps pinned by the oldest timestamp",
   "transaction: transaction read timestamp of the oldest active reader",
+  "transaction: transaction rolled back while force evicting due to being oldest",
   "transaction: transaction sync calls", "transaction: transactions committed",
   "transaction: transactions rolled back", "transaction: update conflicts",
 };
@@ -1616,6 +1617,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing txn_pinned_timestamp_reader */
     /* not clearing txn_pinned_timestamp_oldest */
     /* not clearing txn_timestamp_oldest_active_read */
+    stats->txn_rollback_force_evicting = 0;
     stats->txn_sync = 0;
     stats->txn_commit = 0;
     stats->txn_rollback = 0;
@@ -2134,6 +2136,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_pinned_timestamp_reader += WT_STAT_READ(from, txn_pinned_timestamp_reader);
     to->txn_pinned_timestamp_oldest += WT_STAT_READ(from, txn_pinned_timestamp_oldest);
     to->txn_timestamp_oldest_active_read += WT_STAT_READ(from, txn_timestamp_oldest_active_read);
+    to->txn_rollback_force_evicting += WT_STAT_READ(from, txn_rollback_force_evicting);
     to->txn_sync += WT_STAT_READ(from, txn_sync);
     to->txn_commit += WT_STAT_READ(from, txn_commit);
     to->txn_rollback += WT_STAT_READ(from, txn_rollback);
