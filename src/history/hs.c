@@ -698,8 +698,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
-    WT_UPDATE *first_globally_visible_upd, *first_non_ts_upd, *non_aborted_upd, *oldest_upd,
-      *prev_upd, *upd;
+    WT_UPDATE *first_globally_visible_upd, *first_non_ts_upd;
+    WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *upd;
     WT_HS_TIME_POINT stop_time_point;
     wt_off_t hs_size;
     wt_timestamp_t min_insert_ts;
@@ -766,6 +766,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         ts_updates_in_hs = false;
         enable_reverse_modify = true;
 
+        __wt_modify_vector_clear(&modifies);
+
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
          * update or a tombstone.
@@ -800,6 +802,30 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 continue;
 
             non_aborted_upd = upd;
+
+            if (min_insert_ts < upd->start_ts) {
+                /*
+                 * Only fix out of order timestamp if we haven't seen an update without timestamp.
+                 *
+                 * Resolved prepared updates will lose their durable timestamp here. This is a
+                 * wrinkle in our handling of out-of-order updates.
+                 */
+                if (upd->start_ts != upd->durable_ts) {
+                    WT_ASSERT(session, min_insert_ts < upd->durable_ts);
+                    WT_STAT_CONN_INCR(session, cache_hs_order_lose_durable_timestamp);
+                }
+                __wt_verbose(session, WT_VERB_TIMESTAMP,
+                  "fixing out-of-order updates during insertion; start_ts=%s, "
+                  "durable_start_ts=%s, "
+                  "min_insert_ts=%s",
+                  __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
+                  __wt_timestamp_to_string(upd->durable_ts, ts_string[1]),
+                  __wt_timestamp_to_string(min_insert_ts, ts_string[2]));
+                upd->start_ts = upd->durable_ts = min_insert_ts;
+                WT_STAT_CONN_INCR(session, cache_hs_order_fixup_insert);
+            } else if (upd->start_ts != WT_TS_NONE)
+                min_insert_ts = upd->start_ts;
+
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
 
             /* Track the first update that is globally visible. */
@@ -824,34 +850,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             if (prev_upd != NULL && prev_upd->start_ts < upd->start_ts)
                 enable_reverse_modify = false;
 
-            if (first_non_ts_upd == NULL) {
-                /* Find the first update without timestamp. */
-                if (upd->start_ts == WT_TS_NONE)
-                    first_non_ts_upd = upd;
-                else if (min_insert_ts < upd->start_ts) {
-                    /*
-                     * Only fix out of order timestamp if we haven't seen an update without
-                     * timestamp.
-                     *
-                     * Resolved prepared updates will lose their durable timestamp here. This is a
-                     * wrinkle in our handling of out-of-order updates.
-                     */
-                    if (upd->start_ts != upd->durable_ts) {
-                        WT_ASSERT(session, min_insert_ts < upd->durable_ts);
-                        WT_STAT_CONN_INCR(session, cache_hs_order_lose_durable_timestamp);
-                    }
-                    __wt_verbose(session, WT_VERB_TIMESTAMP,
-                      "fixing out-of-order updates during insertion; start_ts=%s, "
-                      "durable_start_ts=%s, "
-                      "min_insert_ts=%s",
-                      __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
-                      __wt_timestamp_to_string(upd->durable_ts, ts_string[1]),
-                      __wt_timestamp_to_string(min_insert_ts, ts_string[2]));
-                    upd->start_ts = upd->durable_ts = min_insert_ts;
-                    WT_STAT_CONN_INCR(session, cache_hs_order_fixup_insert);
-                } else
-                    min_insert_ts = upd->start_ts;
-            } else if (upd->start_ts != WT_TS_NONE) {
+            /* Find the first update without timestamp. */
+            if (first_non_ts_upd == NULL && upd->start_ts == WT_TS_NONE)
+                first_non_ts_upd = upd;
+            else if (upd->start_ts != WT_TS_NONE) {
                 /*
                  * Don't insert updates with timestamps after updates without timestamps to the
                  * history store.
