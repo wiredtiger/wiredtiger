@@ -165,8 +165,9 @@ __rec_append_orig_value(
              * WT_TS_NONE in the time window.
              */
             WT_ASSERT(session, unpack->tw.prepare ||
-                (unpack->tw.stop_ts == oldest_upd->start_ts || unpack->tw.stop_ts == WT_TS_NONE) &&
-                  (unpack->tw.stop_txn == oldest_upd->txnid || unpack->tw.stop_txn == WT_TXN_NONE));
+                ((unpack->tw.stop_ts == oldest_upd->start_ts || unpack->tw.stop_ts == WT_TS_NONE) &&
+                                 (unpack->tw.stop_txn == oldest_upd->txnid ||
+                                   unpack->tw.stop_txn == WT_TXN_NONE)));
 
             if (tombstone_globally_visible)
                 return (0);
