@@ -157,12 +157,16 @@ __rec_append_orig_value(
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
         } else {
             /*
+             * Once the prepared update is resolved, the in-memory update and on-disk written copy
+             * doesn't have same timestamp due to replacing of prepare timestamp with commit and
+             * durable timestamps. Don't compare them when the on-disk version is a prepare.
+             *
              * We may have overwritten its transaction id to WT_TXN_NONE and its timestamps to
              * WT_TS_NONE in the time window.
              */
-            WT_ASSERT(session,
-              (unpack->tw.stop_ts == oldest_upd->start_ts || unpack->tw.stop_ts == WT_TS_NONE) &&
-                (unpack->tw.stop_txn == oldest_upd->txnid || unpack->tw.stop_txn == WT_TXN_NONE));
+            WT_ASSERT(session, unpack->tw.prepare ||
+                (unpack->tw.stop_ts == oldest_upd->start_ts || unpack->tw.stop_ts == WT_TS_NONE) &&
+                  (unpack->tw.stop_txn == oldest_upd->txnid || unpack->tw.stop_txn == WT_TXN_NONE));
 
             if (tombstone_globally_visible)
                 return (0);
