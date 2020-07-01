@@ -816,8 +816,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                     WT_STAT_CONN_INCR(session, cache_hs_order_lose_durable_timestamp);
                 }
                 __wt_verbose(session, WT_VERB_TIMESTAMP,
-                  "fixing out-of-order updates during insertion; start_ts=%s, "
-                  "durable_start_ts=%s, "
+                  "fixing out-of-order updates during insertion; start_ts=%s, durable_start_ts=%s, "
                   "min_insert_ts=%s",
                   __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
                   __wt_timestamp_to_string(upd->durable_ts, ts_string[1]),
