@@ -50,8 +50,8 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
 /*
  * __rec_append_orig_value --
  *     Append the key's original value to its update list. It assumes that we have an onpage value,
- *     the onpage value is not a prepared update, and we don't overwrite transaction id to
- *     WT_TXN_NONE and timestamps to WT_TS_NONE in time window for in-memory databases.
+ *     and we don't overwrite transaction id to WT_TXN_NONE and timestamps to WT_TS_NONE in time
+ *     window for in-memory databases.
  */
 static int
 __rec_append_orig_value(
@@ -63,8 +63,7 @@ __rec_append_orig_value(
     size_t size, total_size;
     bool tombstone_globally_visible;
 
-    WT_ASSERT(
-      session, upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL && !unpack->tw.prepare);
+    WT_ASSERT(session, upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL);
 
     append = oldest_upd = tombstone = NULL;
     total_size = 0;
@@ -74,6 +73,13 @@ __rec_append_orig_value(
     for (;; upd = upd->next) {
         /* Done if the update was restored from the data store or the history store. */
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
+            return (0);
+
+        /*
+         * Prepared updates should already be in the update list, add the original update to the
+         * list only when the prepared update is a tombstone.
+         */
+        if (unpack->tw.prepare && upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
         /*
@@ -126,8 +132,13 @@ __rec_append_orig_value(
     if (WT_TIME_WINDOW_HAS_STOP(&unpack->tw)) {
         tombstone_globally_visible = __wt_txn_tw_stop_visible_all(session, &unpack->tw);
 
-        /* No need to append the tombstone if it is already in the update chain. */
-        if (oldest_upd->type != WT_UPDATE_TOMBSTONE) {
+        /*
+         * No need to append the tombstone if it is already in the update chain.
+         *
+         * Don't append the onpage tombstone if it is a prepared update as it is either on the
+         * update chain or has been aborted. If it is aborted, discard it silently.
+         */
+        if (oldest_upd->type != WT_UPDATE_TOMBSTONE && !unpack->tw.prepare) {
             /*
              * We still need to append the globally visible tombstone if its timestamp is WT_TS_NONE
              * as we may need it to clear the history store content of the key. We don't append a
@@ -156,7 +167,12 @@ __rec_append_orig_value(
             if (tombstone_globally_visible)
                 return (0);
         }
-    }
+    } else if (unpack->tw.prepare)
+        /*
+         * Don't append the onpage value if it is a prepared update as it is either on the update
+         * chain or has been aborted. If it is aborted, discard it silently.
+         */
+        return (0);
 
     /* We need the original on-page value for some reader: get a copy. */
     if (!tombstone_globally_visible) {
@@ -540,7 +556,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * appended to the update chain when the page is read into memory.
      */
     if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
-      !vpack->tw.prepare && (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
+      (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_ERR(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
     __wt_time_window_clear_obsolete(
