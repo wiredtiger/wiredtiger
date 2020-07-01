@@ -197,19 +197,22 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 static inline bool
 __wt_rec_need_split(WT_RECONCILE *r, size_t len)
 {
+    uint32_t page_items;
+
+    page_items = r->entries + r->supd_next;
+
     /*
-     * In the case of a row-store leaf page, trigger a split if a threshold number of saved updates
-     * is reached. This allows pages to split for update/restore and history store eviction when
-     * there is no visible data causing the disk image to grow.
+     * In the case of a row-store leaf page, we want to encourage a split if we see lots of
+     * in-memory content. This allows pages to be split for update/restore and history store
+     * eviction even when the disk image itself isn't growing.
      *
-     * In the case of small pages or large keys, we might try to split when a page has no updates or
-     * entries, which isn't possible. To consider update/restore or history store information,
-     * require either page entries or updates that will be attached to the image. The limit is one
-     * of either, but it doesn't make sense to create pages or images with few entries or updates,
-     * even where page sizes are small (especially as updates that will eventually become overflow
-     * items can throw off our calculations). Bound the combination at something reasonable.
+     * Make sure that there are a reasonable number of items (entries on the disk image or saved
+     * updates) associated with the page. If there are barely any items on the page, then it's not
+     * worth splitting. We also want to temper this effect to avoid in-memory updates from
+     * dominating the calculation and causing excessive splitting. Therefore, we'll limit the impact
+     * to a tenth of the cache usage occupied by those updates.
      */
-    if (r->page->type == WT_PAGE_ROW_LEAF && r->entries + r->supd_next > 10)
+    if (r->page->type == WT_PAGE_ROW_LEAF && page_items > 10)
         len += r->supd_memsize / 10;
 
     /* Check for the disk image crossing a boundary. */
