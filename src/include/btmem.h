@@ -1075,7 +1075,7 @@ struct __wt_update {
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_UPDATE_HS 0x01u                       /* Update has been written to history store. */
-#define WT_UPDATE_MASKED_BY_NON_TS_UPDATE 0x02u  /* Update masked by updates without timestamp. */
+#define WT_UPDATE_OBSOLETE 0x02u                 /* Update that is obsolete. */
 #define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x04u /* Prepared update restored from data store. */
 #define WT_UPDATE_RESTORED_FROM_DS 0x08u         /* Update restored from data store. */
 #define WT_UPDATE_RESTORED_FROM_HS 0x10u         /* Update restored from history store. */
