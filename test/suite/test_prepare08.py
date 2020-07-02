@@ -43,12 +43,17 @@ class test_prepare08(wttest.WiredTigerTestCase):
 
     def updates(self, ds, uri, nrows, value, ts):
         cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction('isolation=snapshot')
-        for i in range(1, nrows):
-            cursor.set_key(ds.key(i))
-            cursor.set_value(value)
-            self.assertEquals(cursor.insert(), 0)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(ts))
+        while(True):
+            try:
+                self.session.begin_transaction('isolation=snapshot')
+                for i in range(1, nrows):
+                    cursor.set_key(ds.key(i))
+                    cursor.set_value(value)
+                    cursor.insert()
+                self.session.commit_transaction('commit_timestamp=' + timestamp_str(ts))
+                break
+            except:
+                self.session.rollback_transaction()
         cursor.close()
 
     def check(self, ds, uri, nrows, value, ts):
