@@ -180,7 +180,7 @@ thread_run(void *arg)
         if (i == 0)
             i++;
 
-        /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
+    /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
 retry:
         testutil_check(session->begin_transaction(session, "isolation=snapshot"));
 
