@@ -39,24 +39,17 @@ def timestamp_str(t):
 # to the data store.
 class test_prepare10(wttest.WiredTigerTestCase):
     # Force a small cache.
-    conn_config = 'cache_size=2MB'
+    conn_config = 'cache_size=10MB,eviction_dirty_trigger=80,eviction_updates_trigger=80'
     session_config = 'isolation=snapshot'
 
     def updates(self, ds, uri, nrows, value, ts):
         cursor = self.session.open_cursor(uri)
-        # Its possible that the insert here will get a WT_ROLLBACK error and as such we retry, the
-        # transaction.
-        for retry in range(100):
-            try:
-                self.session.begin_transaction()
-                for i in range(1, nrows):
-                    cursor.set_key(ds.key(i))
-                    cursor.set_value(value)
-                    cursor.insert()
-                self.session.commit_transaction('commit_timestamp=' + timestamp_str(ts))
-                break
-            except:
-                self.session.rollback_transaction()
+        self.session.begin_transaction()
+        for i in range(1, nrows):
+            cursor.set_key(ds.key(i))
+            cursor.set_value(value)
+            cursor.insert()
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(ts))
         cursor.close()
 
     def removes(self, ds, uri, nrows, ts):

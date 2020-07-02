@@ -473,7 +473,6 @@ again:
         gen_kv(buf1, kvsize, i, td->id, large, true);
         gen_kv(buf2, kvsize, i, td->id, large, false);
 
-retry:
         testutil_check(session->begin_transaction(session, NULL));
         cursor->set_key(cursor, buf1);
         /*
@@ -485,14 +484,14 @@ retry:
         } else {
             cursor->set_value(cursor, buf2);
         }
-        testutil_check_rollback_retry(session, cursor->insert(cursor));
+        testutil_check(cursor->insert(cursor));
 
         /*
          * The reverse table has no very large records.
          */
         rev->set_key(rev, buf2);
         rev->set_value(rev, buf1);
-        testutil_check_rollback_retry(session, rev->insert(rev));
+        testutil_check(rev->insert(rev));
 
         /*
          * If we are not running integrated tests, then we commit the transaction now so that schema

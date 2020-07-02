@@ -309,7 +309,6 @@ thread_run(void *arg)
     active_ts = 0;
     for (i = td->start;; ++i) {
         testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, i));
-retry:
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)
             testutil_check(prepared_session->begin_transaction(prepared_session, NULL));
@@ -344,7 +343,7 @@ retry:
         data.size = __wt_random(&rnd) % MAX_VAL;
         data.data = cbuf;
         cur_coll->set_value(cur_coll, &data);
-        testutil_check_rollback_retry(session, cur_coll->insert(cur_coll));
+        testutil_check(cur_coll->insert(cur_coll));
         cur_shadow->set_value(cur_shadow, &data);
         if (use_ts) {
             /*
@@ -356,11 +355,11 @@ retry:
               __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts));
             testutil_check(session->timestamp_transaction(session, tscfg));
         }
-        testutil_check_rollback_retry(session, cur_shadow->insert(cur_shadow));
+        testutil_check(cur_shadow->insert(cur_shadow));
         data.size = __wt_random(&rnd) % MAX_VAL;
         data.data = obuf;
         cur_oplog->set_value(cur_oplog, &data);
-        testutil_check_rollback_retry(session, cur_oplog->insert(cur_oplog));
+        testutil_check(cur_oplog->insert(cur_oplog));
         if (use_prep) {
             /*
              * Run with prepare every once in a while. And also yield after prepare sometimes too.

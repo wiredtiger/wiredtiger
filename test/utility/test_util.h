@@ -126,22 +126,6 @@ typedef struct {
     } while (0)
 
 /*
- * testutil_check_rollback_retry --
- *     If a function fails with a rollback error go to retry, otherwise complain and quit.
- */
-#define testutil_check_rollback_retry(session, call)                   \
-    do {                                                               \
-        int __r;                                                       \
-        if ((__r = (call)) != 0) {                                     \
-            if (__r == WT_ROLLBACK) {                                  \
-                session->rollback_transaction(session, NULL);          \
-                goto retry;                                            \
-            }                                                          \
-            testutil_die(__r, "%s/%d: %s", __func__, __LINE__, #call); \
-        }                                                              \
-    } while (0)
-
-/*
  * testutil_checksys --
  *     Complain and quit if a function call fails, returning errno. The error test must be
  *     specified, not just the call, because system calls fail in a variety of ways.

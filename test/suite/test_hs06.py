@@ -504,18 +504,10 @@ class test_hs06(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Apply another update and evict the pages with the modifies out of cache.
-        fail_count = 0
         for i in range(1, 10000):
-            try:
-                self.session.begin_transaction()
-                cursor[self.create_key(i)] = value2
-                self.session.commit_transaction('commit_timestamp=' + timestamp_str(6))
-            except:
-                # We may have got a WT_ROLLBACK when attempted update the value. As all we're trying
-                # to do is evict pages from cache we don't need to retry this update.
-                self.session.rollback_transaction()
-                fail_count = fail_count + 1
-        self.assertLess(fail_count, i)
+            self.session.begin_transaction()
+            cursor[self.create_key(i)] = value2
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(6))
 
         # Checkpoint such that the modifies will be selected. When we grab it from the history
         # store, we'll need to unflatten it before using it for reconciliation.

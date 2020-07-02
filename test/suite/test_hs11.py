@@ -83,14 +83,9 @@ class test_hs11(wttest.WiredTigerTestCase):
 
         # Now apply an update at timestamp 10.
         for i in range(1, 10000):
-            for retry_count in range(100):
-                try:
-                    self.session.begin_transaction()
-                    cursor[str(i)] = value2
-                    self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
-                    break
-                except:
-                    self.session.rollback_transaction()
+            self.session.begin_transaction()
+            cursor[str(i)] = value2
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
         # Ensure that we blew away history store content.
         for ts in range(1, 5):
@@ -123,14 +118,9 @@ class test_hs11(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         for ts in range(1, 5):
             for i in range(1, 10000):
-                for retry_count in range(100):
-                    try:
-                        self.session.begin_transaction()
-                        cursor[str(i)] = value1
-                        self.session.commit_transaction('commit_timestamp=' + timestamp_str(ts))
-                        break
-                    except:
-                        self.session.rollback_transaction()
+                self.session.begin_transaction()
+                cursor[str(i)] = value1
+                self.session.commit_transaction('commit_timestamp=' + timestamp_str(ts))
 
         # Reconcile and flush versions 1-3 to the history store.
         self.session.checkpoint()
@@ -138,15 +128,10 @@ class test_hs11(wttest.WiredTigerTestCase):
         # Remove the key with timestamp 10.
         for i in range(1, 10000):
             if i % 2 == 0:
-                for retry_count in range(100):
-                    try:
-                        self.session.begin_transaction()
-                        cursor.set_key(str(i))
-                        cursor.remove()
-                        self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
-                        break
-                    except:
-                        self.session.rollback_transaction()
+                self.session.begin_transaction()
+                cursor.set_key(str(i))
+                cursor.remove()
+                self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
         # Reconcile and remove the obsolete entries.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10))
@@ -154,14 +139,9 @@ class test_hs11(wttest.WiredTigerTestCase):
 
         # Now apply an update at timestamp 20.
         for i in range(1, 10000):
-            for retry_count in range(100):
-                try:
-                    self.session.begin_transaction()
-                    cursor[str(i)] = value2
-                    self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
-                    break
-                except:
-                    self.session.rollback_transaction()
+            self.session.begin_transaction()
+            cursor[str(i)] = value2
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
 
         # Ensure that we didn't select old history store content even if it is not blew away.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(10))
