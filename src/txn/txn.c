@@ -2012,7 +2012,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
  *     eviction.
  */
 int
-__wt_txn_is_blocking(WT_SESSION_IMPL *session)
+__wt_txn_is_blocking(WT_SESSION_IMPL *session, bool conservative)
 {
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
@@ -2036,6 +2036,15 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
      * to confirm our caller is prepared for rollback).
      */
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
+        return (0);
+
+    /*
+     * Be less aggressive about aborting the oldest transaction in the case of trying to make
+     * forced eviction successful. Specifically excuse it if:
+     *  * Hasn't done many updates
+     *  * Is in the middle of a commit or abort
+     */
+    if (conservative && (txn->mod_count < 10 || F_ISSET(session, WT_SESSION_RESOLVING_TXN)))
         return (0);
 
     /*
