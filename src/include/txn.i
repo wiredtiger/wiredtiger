@@ -920,6 +920,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     bool have_stop_tw;
     prepare_upd = NULL;
 
+retry:
     WT_RET(__wt_txn_read_upd_list(session, cbt, upd, &prepare_upd));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
       (cbt->upd_value->type == WT_UPDATE_MODIFY && cbt->upd_value->skip_buf))
@@ -1005,7 +1006,14 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
         WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
         if (prepare_upd->txnid == WT_TXN_ABORTED ||
           prepare_upd->prepare_state == WT_PREPARE_RESOLVED)
-            return (WT_RESTART);
+            /*
+             * When a prepared update/insert is rollback or committed, retrying it again should fix
+             * concurrent modification of a prepared update. Other than prepared insert rollback,
+             * rest of the cases, the history store update is either added to the end of the update
+             * chain or modified to set proper stop timestamp. In all the scenarios, retrying again
+             * will work to return a proper update.
+             */
+            goto retry;
     }
 
     /* Return invalid not tombstone if nothing is found in history store. */
