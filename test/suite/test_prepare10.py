@@ -48,7 +48,7 @@ class test_prepare10(wttest.WiredTigerTestCase):
         for i in range(1, nrows):
             cursor.set_key(ds.key(i))
             cursor.set_value(value)
-            cursor.insert()
+            self.assertEquals(cursor.insert(), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(ts))
         cursor.close()
 

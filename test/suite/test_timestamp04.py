@@ -147,7 +147,6 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             cur_ts_log[k] = 1
             cur_ts_nolog[k] = 1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(k))
-
             # Setup an oldest timestamp to ensure state remains in cache.
             if k == 1:
                 self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))

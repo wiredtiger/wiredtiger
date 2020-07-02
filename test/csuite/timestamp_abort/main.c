@@ -309,6 +309,7 @@ thread_run(void *arg)
     active_ts = 0;
     for (i = td->start;; ++i) {
         testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, i));
+
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)
             testutil_check(prepared_session->begin_transaction(prepared_session, NULL));
