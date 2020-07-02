@@ -2026,6 +2026,10 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     if (F_ISSET(txn, WT_TXN_PREPARE))
         return (0);
 
+    /* The checkpoint transaction shouldn't be blocking but if it is don't roll it back. */
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        return (0);
+
     /*
      * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
      * unless there's at least one update or we're configured to time out thread operations (a way
