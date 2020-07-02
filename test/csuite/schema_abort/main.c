@@ -692,11 +692,7 @@ thread_run(void *arg)
             stable_ts = __wt_atomic_addv64(&global_ts, 1);
         testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, i));
 
-        if (0) {
 retry:
-            testutil_check(session->rollback_transaction(session, NULL));
-        }
-
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)
             testutil_check(oplog_session->begin_transaction(oplog_session, NULL));
@@ -715,11 +711,11 @@ retry:
         data.size = __wt_random(&rnd) % MAX_VAL;
         data.data = cbuf;
         cur_coll->set_value(cur_coll, &data);
-        testutil_check_rollback_retry(cur_coll->insert(cur_coll));
+        testutil_check_rollback_retry(session, cur_coll->insert(cur_coll));
         data.size = __wt_random(&rnd) % MAX_VAL;
         data.data = obuf;
         cur_oplog->set_value(cur_oplog, &data);
-        testutil_check_rollback_retry(cur_oplog->insert(cur_oplog));
+        testutil_check_rollback_retry(session, cur_oplog->insert(cur_oplog));
         if (use_ts) {
             /*
              * Run with prepare every once in a while. And also yield after prepare sometimes too.

@@ -129,12 +129,14 @@ typedef struct {
  * testutil_check_rollback_retry --
  *     If a function fails with a rollback error go to retry, otherwise complain and quit.
  */
-#define testutil_check_rollback_retry(call)                            \
+#define testutil_check_rollback_retry(session, call)                   \
     do {                                                               \
         int __r;                                                       \
         if ((__r = (call)) != 0) {                                     \
-            if (__r == WT_ROLLBACK)                                    \
+            if (__r == WT_ROLLBACK) {                                  \
+                session->rollback_transaction(session, NULL);          \
                 goto retry;                                            \
+            }                                                          \
             testutil_die(__r, "%s/%d: %s", __func__, __LINE__, #call); \
         }                                                              \
     } while (0)
