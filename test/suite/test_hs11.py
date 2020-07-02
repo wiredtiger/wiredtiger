@@ -163,7 +163,6 @@ class test_hs11(wttest.WiredTigerTestCase):
                 except:
                     self.session.rollback_transaction()
 
-
         # Ensure that we didn't select old history store content even if it is not blew away.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(10))
         for i in range(1, 10000):
