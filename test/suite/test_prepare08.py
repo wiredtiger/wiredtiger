@@ -43,8 +43,6 @@ class test_prepare08(wttest.WiredTigerTestCase):
 
     def updates(self, ds, uri, nrows, value, ts):
         cursor = self.session.open_cursor(uri)
-        # Its possible that the insert here will get a WT_ROLLBACK error and as such we retry, the
-        # transaction.
         self.session.begin_transaction('isolation=snapshot')
         for i in range(1, nrows):
             cursor.set_key(ds.key(i))
