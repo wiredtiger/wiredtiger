@@ -311,7 +311,7 @@ thread_run(void *arg)
         testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, i));
         if (0) {
 retry:
-            testutil_check(session->tollback_transaction(session, NULL));
+            testutil_check(session->rollback_transaction(session, NULL));
         }
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)
