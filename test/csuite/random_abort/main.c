@@ -181,6 +181,7 @@ thread_run(void *arg)
             i++;
 
         /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
+retry:
         testutil_check(session->begin_transaction(session, "isolation=snapshot"));
 
         /*
@@ -206,7 +207,7 @@ thread_run(void *arg)
             data.data = buf;
         }
         cursor->set_value(cursor, &data);
-        testutil_check(cursor->insert(cursor));
+        testutil_check_rollback_retry(cursor->insert(cursor));
 
         /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
         testutil_check(session->commit_transaction(session, NULL));
