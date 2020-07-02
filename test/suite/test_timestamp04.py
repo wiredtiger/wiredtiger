@@ -143,10 +143,16 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         for k in keys:
             cur_nots_log[k] = 1
             cur_nots_nolog[k] = 1
-            self.session.begin_transaction()
-            cur_ts_log[k] = 1
-            cur_ts_nolog[k] = 1
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(k))
+            while(True):
+                try:
+                    self.session.begin_transaction()
+                    cur_ts_log[k] = 1
+                    cur_ts_nolog[k] = 1
+                    self.session.commit_transaction('commit_timestamp=' + timestamp_str(k))
+                    break
+                except:
+                    self.session.rollback_transaction()
+
             # Setup an oldest timestamp to ensure state remains in cache.
             if k == 1:
                 self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
@@ -220,10 +226,15 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         for k in keys:
             cur_nots_log[k] = 2
             cur_nots_nolog[k] = 2
-            self.session.begin_transaction()
-            cur_ts_log[k] = 2
-            cur_ts_nolog[k] = 2
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(k + key_range))
+            while(True):
+                try:
+                    self.session.begin_transaction()
+                    cur_ts_log[k] = 2
+                    cur_ts_nolog[k] = 2
+                    self.session.commit_transaction('commit_timestamp=' + timestamp_str(k + key_range))
+                    break
+                except:
+                    self.session.rollback_transaction()
 
         # Scenario: 3
         # Check that we see all values updated (i.e 2) in all tables.
