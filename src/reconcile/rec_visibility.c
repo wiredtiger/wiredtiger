@@ -386,6 +386,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         return (__wt_set_return(session, EBUSY));
     }
 
+    /* If an update was selected, record that we're making progress. */
+    if (upd != NULL)
+        r->update_used = true;
+
     /*
      * The start timestamp is determined by the commit timestamp when the key is first inserted (or
      * last updated). The end timestamp is set when a key/value pair becomes invalid, either because
