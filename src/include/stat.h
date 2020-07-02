@@ -393,6 +393,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_force;
     int64_t cache_eviction_force_fail;
     int64_t cache_eviction_force_fail_time;
+    int64_t cache_eviction_force_rollback;
     int64_t cache_eviction_hazard;
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
@@ -763,7 +764,6 @@ struct __wt_connection_stats {
     int64_t txn_pinned_timestamp_reader;
     int64_t txn_pinned_timestamp_oldest;
     int64_t txn_timestamp_oldest_active_read;
-    int64_t txn_rollback_force_evicting;
     int64_t txn_sync;
     int64_t txn_commit;
     int64_t txn_rollback;

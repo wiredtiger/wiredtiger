@@ -835,6 +835,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: forced eviction - pages selected count",
   "cache: forced eviction - pages selected unable to be evicted count",
   "cache: forced eviction - pages selected unable to be evicted time",
+  "cache: forced eviction - session returned rollback error while force evicting due to being "
+  "oldest",
   "cache: hazard pointer blocked page eviction", "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked", "cache: hazard pointer maximum array length",
   "cache: history store key truncation calls that returned restart",
@@ -1106,7 +1108,6 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction range of timestamps pinned by the oldest active read timestamp",
   "transaction: transaction range of timestamps pinned by the oldest timestamp",
   "transaction: transaction read timestamp of the oldest active reader",
-  "transaction: transaction rolled back while force evicting due to being oldest",
   "transaction: transaction sync calls", "transaction: transactions committed",
   "transaction: transactions rolled back", "transaction: update conflicts",
 };
@@ -1247,6 +1248,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_force = 0;
     stats->cache_eviction_force_fail = 0;
     stats->cache_eviction_force_fail_time = 0;
+    stats->cache_eviction_force_rollback = 0;
     stats->cache_eviction_hazard = 0;
     stats->cache_hazard_checks = 0;
     stats->cache_hazard_walks = 0;
@@ -1617,7 +1619,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing txn_pinned_timestamp_reader */
     /* not clearing txn_pinned_timestamp_oldest */
     /* not clearing txn_timestamp_oldest_active_read */
-    stats->txn_rollback_force_evicting = 0;
     stats->txn_sync = 0;
     stats->txn_commit = 0;
     stats->txn_rollback = 0;
@@ -1742,6 +1743,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_force += WT_STAT_READ(from, cache_eviction_force);
     to->cache_eviction_force_fail += WT_STAT_READ(from, cache_eviction_force_fail);
     to->cache_eviction_force_fail_time += WT_STAT_READ(from, cache_eviction_force_fail_time);
+    to->cache_eviction_force_rollback += WT_STAT_READ(from, cache_eviction_force_rollback);
     to->cache_eviction_hazard += WT_STAT_READ(from, cache_eviction_hazard);
     to->cache_hazard_checks += WT_STAT_READ(from, cache_hazard_checks);
     to->cache_hazard_walks += WT_STAT_READ(from, cache_hazard_walks);
@@ -2136,7 +2138,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_pinned_timestamp_reader += WT_STAT_READ(from, txn_pinned_timestamp_reader);
     to->txn_pinned_timestamp_oldest += WT_STAT_READ(from, txn_pinned_timestamp_oldest);
     to->txn_timestamp_oldest_active_read += WT_STAT_READ(from, txn_timestamp_oldest_active_read);
-    to->txn_rollback_force_evicting += WT_STAT_READ(from, txn_rollback_force_evicting);
     to->txn_sync += WT_STAT_READ(from, txn_sync);
     to->txn_commit += WT_STAT_READ(from, txn_commit);
     to->txn_rollback += WT_STAT_READ(from, txn_rollback);

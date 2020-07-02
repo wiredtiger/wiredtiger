@@ -143,7 +143,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         for k in keys:
             cur_nots_log[k] = 1
             cur_nots_nolog[k] = 1
-            while(True):
+            for retry_count in range(100):
                 try:
                     self.session.begin_transaction()
                     cur_ts_log[k] = 1
@@ -226,7 +226,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         for k in keys:
             cur_nots_log[k] = 2
             cur_nots_nolog[k] = 2
-            while(True):
+            for retry_count in range(100):
                 try:
                     self.session.begin_transaction()
                     cur_ts_log[k] = 2

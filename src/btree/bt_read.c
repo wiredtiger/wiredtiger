@@ -355,7 +355,7 @@ read:
                      * in cache.
                      */
                     if ((ret = __wt_txn_is_blocking(session)) == WT_ROLLBACK)
-                        WT_STAT_CONN_INCR(session, txn_rollback_force_evicting);
+                        WT_STAT_CONN_INCR(session, cache_eviction_force_rollback);
                     WT_RET(ret);
                     stalled = true;
                     break;
