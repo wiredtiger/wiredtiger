@@ -492,7 +492,7 @@ retry:
          */
         rev->set_key(rev, buf2);
         rev->set_value(rev, buf1);
-        testutil_check_rollack_retry(session, rev->insert(rev));
+        testutil_check_rollback_retry(session, rev->insert(rev));
 
         /*
          * If we are not running integrated tests, then we commit the transaction now so that schema

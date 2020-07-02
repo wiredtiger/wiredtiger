@@ -207,7 +207,7 @@ retry:
             data.data = buf;
         }
         cursor->set_value(cursor, &data);
-        testutil_check_rollback_retry(cursor->insert(cursor));
+        testutil_check_rollback_retry(session, cursor->insert(cursor));
 
         /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
         testutil_check(session->commit_transaction(session, NULL));
