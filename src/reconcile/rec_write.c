@@ -203,7 +203,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      */
     if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
       F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(r->page) && r->multi_next == 1 &&
-      !r->update_used)
+      !r->update_used && !r->update_uncommitted && r->cache_write_restore)
         ret = __wt_set_return(session, EBUSY);
 
     /* Wrap up the page reconciliation. */
@@ -559,6 +559,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /* Track if updates were used and/or uncommitted. */
     r->updates_seen = r->updates_unstable = 0;
+    r->update_uncommitted = r->update_used = false;
 
     /* Track if the page can be marked clean. */
     r->leave_dirty = false;
