@@ -761,6 +761,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         ts_updates_in_hs = false;
         enable_reverse_modify = true;
 
+        __wt_modify_vector_clear(&modifies);
+
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
          * update or a tombstone.
@@ -814,7 +816,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                   __wt_timestamp_to_string(min_insert_ts, ts_string[2]));
                 upd->start_ts = upd->durable_ts = min_insert_ts;
                 WT_STAT_CONN_INCR(session, cache_hs_order_fixup_insert);
-            } else
+            } else if (upd->start_ts != WT_TS_NONE)
                 min_insert_ts = upd->start_ts;
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
 
