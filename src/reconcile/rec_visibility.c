@@ -306,7 +306,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             if (upd_select->upd != NULL)
                 return (__wt_set_return(session, EBUSY));
 
-            r->update_uncommitted = has_newer_updates = true;
+            has_newer_updates = true;
             continue;
         }
 
