@@ -5182,13 +5182,19 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_FAIL		1096
 /*! cache: forced eviction - pages selected unable to be evicted time */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_FAIL_TIME	1097
+/*!
+ * cache: forced eviction - session returned rollback error while force
+ * evicting due to being oldest
+ */
+#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_ROLLBACK	1098
 /*! cache: hazard pointer blocked page eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_HAZARD		1098
+#define	WT_STAT_CONN_CACHE_EVICTION_HAZARD		1099
 /*! cache: hazard pointer check calls */
-#define	WT_STAT_CONN_CACHE_HAZARD_CHECKS		1099
+#define	WT_STAT_CONN_CACHE_HAZARD_CHECKS		1100
 /*! cache: hazard pointer check entries walked */
-#define	WT_STAT_CONN_CACHE_HAZARD_WALKS			1100
+#define	WT_STAT_CONN_CACHE_HAZARD_WALKS			1101
 /*! cache: hazard pointer maximum array length */
+<<<<<<< HEAD
 #define	WT_STAT_CONN_CACHE_HAZARD_MAX			1101
 /*! cache: history store key truncation calls due to mixed timestamps */
 #define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_MIX_TS	1102
@@ -5197,48 +5203,61 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * returned restart
  */
 #define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_MIX_TS_RESTART	1103
+=======
+#define	WT_STAT_CONN_CACHE_HAZARD_MAX			1102
+/*! cache: history store key truncation calls that returned restart */
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_MIX_TS_RESTART	1103
+/*! cache: history store key truncation due to mixed timestamps */
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_MIX_TS	1104
+>>>>>>> d60d58943076ac3980c8c9976fb4bb47c8be0bda
 /*!
  * cache: history store key truncation due to the key being removed from
  * the data page
  */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL	1104
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL	1105
 /*! cache: history store score */
-#define	WT_STAT_CONN_CACHE_HS_SCORE			1105
+#define	WT_STAT_CONN_CACHE_HS_SCORE			1106
 /*! cache: history store table insert calls */
-#define	WT_STAT_CONN_CACHE_HS_INSERT			1106
+#define	WT_STAT_CONN_CACHE_HS_INSERT			1107
 /*! cache: history store table insert calls that returned restart */
-#define	WT_STAT_CONN_CACHE_HS_INSERT_RESTART		1107
+#define	WT_STAT_CONN_CACHE_HS_INSERT_RESTART		1108
 /*! cache: history store table max on-disk size */
-#define	WT_STAT_CONN_CACHE_HS_ONDISK_MAX		1108
+#define	WT_STAT_CONN_CACHE_HS_ONDISK_MAX		1109
 /*! cache: history store table on-disk size */
-#define	WT_STAT_CONN_CACHE_HS_ONDISK			1109
+#define	WT_STAT_CONN_CACHE_HS_ONDISK			1110
 /*!
  * cache: history store table out-of-order resolved updates that lose
  * their durable timestamp
  */
-#define	WT_STAT_CONN_CACHE_HS_ORDER_LOSE_DURABLE_TIMESTAMP	1110
+#define	WT_STAT_CONN_CACHE_HS_ORDER_LOSE_DURABLE_TIMESTAMP	1111
 /*!
  * cache: history store table out-of-order updates that were fixed up by
  * moving existing records
  */
-#define	WT_STAT_CONN_CACHE_HS_ORDER_FIXUP_MOVE		1111
+#define	WT_STAT_CONN_CACHE_HS_ORDER_FIXUP_MOVE		1112
 /*!
  * cache: history store table out-of-order updates that were fixed up
  * during insertion
  */
-#define	WT_STAT_CONN_CACHE_HS_ORDER_FIXUP_INSERT	1112
+#define	WT_STAT_CONN_CACHE_HS_ORDER_FIXUP_INSERT	1113
 /*! cache: history store table reads */
-#define	WT_STAT_CONN_CACHE_HS_READ			1113
+#define	WT_STAT_CONN_CACHE_HS_READ			1114
 /*! cache: history store table reads missed */
-#define	WT_STAT_CONN_CACHE_HS_READ_MISS			1114
+#define	WT_STAT_CONN_CACHE_HS_READ_MISS			1115
 /*! cache: history store table reads requiring squashed modifies */
-#define	WT_STAT_CONN_CACHE_HS_READ_SQUASH		1115
+#define	WT_STAT_CONN_CACHE_HS_READ_SQUASH		1116
 /*! cache: history store table remove calls due to key truncation */
+<<<<<<< HEAD
 #define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_CALL		1116
 /*! cache: history store table writes requiring squashed modifies */
 #define	WT_STAT_CONN_CACHE_HS_WRITE_SQUASH		1117
 /*! cache: history store updates removed by rollback to stable */
 #define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS		1118
+=======
+#define	WT_STAT_CONN_CACHE_HS_REMOVE_KEY_TRUNCATE	1117
+/*! cache: history store table writes requiring squashed modifies */
+#define	WT_STAT_CONN_CACHE_HS_WRITE_SQUASH		1118
+>>>>>>> d60d58943076ac3980c8c9976fb4bb47c8be0bda
 /*! cache: in-memory page passed criteria to be split */
 #define	WT_STAT_CONN_CACHE_INMEM_SPLITTABLE		1119
 /*! cache: in-memory page splits */
