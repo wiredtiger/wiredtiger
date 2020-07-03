@@ -302,7 +302,7 @@ connection_stats = [
     CacheStat('cache_hs_key_truncate_call', 'history store table remove calls due to key truncation'),
     CacheStat('cache_hs_key_truncate_mix_ts', 'history store key truncation calls due to mixed timestamps'),
     CacheStat('cache_hs_key_truncate_mix_ts_restart', 'history store key truncation calls due to mixed timestamps that returned restart'),
-    CacheStat('cache_hs_key_truncate_onpage_removal', 'history store key truncation due to the key being removed from the data page'),
+    CacheStat('cache_hs_key_truncate_onpage_removal', 'history store key truncation due to the key being removed from the data page during reconciliation'),
     CacheStat('cache_hs_key_truncate_rts', 'history store updates removed by rollback to stable'),
     CacheStat('cache_hs_ondisk', 'history store table on-disk size', 'no_clear,no_scale,size'),
     CacheStat('cache_hs_ondisk_max', 'history store table max on-disk size', 'no_clear,no_scale,size'),
