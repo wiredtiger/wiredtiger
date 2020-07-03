@@ -837,8 +837,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: forced eviction - pages selected unable to be evicted time",
   "cache: hazard pointer blocked page eviction", "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked", "cache: hazard pointer maximum array length",
-  "cache: history store key truncation calls that returned restart",
-  "cache: history store key truncation due to mixed timestamps",
+  "cache: history store key truncation calls due to mixed timestamps",
+  "cache: history store key truncation calls due to mixed timestamps that returned restart",
   "cache: history store key truncation due to the key being removed from the data page",
   "cache: history store score", "cache: history store table insert calls",
   "cache: history store table insert calls that returned restart",
@@ -850,6 +850,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: history store table reads requiring squashed modifies",
   "cache: history store table remove calls due to key truncation",
   "cache: history store table writes requiring squashed modifies",
+  "cache: history store updates removed by rollback to stable",
   "cache: in-memory page passed criteria to be split", "cache: in-memory page splits",
   "cache: internal pages evicted", "cache: internal pages queued for eviction",
   "cache: internal pages seen by eviction walk",
@@ -1250,8 +1251,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hazard_checks = 0;
     stats->cache_hazard_walks = 0;
     stats->cache_hazard_max = 0;
-    stats->cache_hs_key_truncate_mix_ts_restart = 0;
     stats->cache_hs_key_truncate_mix_ts = 0;
+    stats->cache_hs_key_truncate_mix_ts_restart = 0;
     stats->cache_hs_key_truncate_onpage_removal = 0;
     /* not clearing cache_hs_score */
     stats->cache_hs_insert = 0;
@@ -1264,8 +1265,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hs_read = 0;
     stats->cache_hs_read_miss = 0;
     stats->cache_hs_read_squash = 0;
-    stats->cache_hs_remove_key_truncate = 0;
+    stats->cache_hs_key_truncate_call = 0;
     stats->cache_hs_write_squash = 0;
+    stats->cache_hs_key_truncate_rts = 0;
     stats->cache_inmem_splittable = 0;
     stats->cache_inmem_split = 0;
     stats->cache_eviction_internal = 0;
@@ -1745,9 +1747,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hazard_walks += WT_STAT_READ(from, cache_hazard_walks);
     if ((v = WT_STAT_READ(from, cache_hazard_max)) > to->cache_hazard_max)
         to->cache_hazard_max = v;
+    to->cache_hs_key_truncate_mix_ts += WT_STAT_READ(from, cache_hs_key_truncate_mix_ts);
     to->cache_hs_key_truncate_mix_ts_restart +=
       WT_STAT_READ(from, cache_hs_key_truncate_mix_ts_restart);
-    to->cache_hs_key_truncate_mix_ts += WT_STAT_READ(from, cache_hs_key_truncate_mix_ts);
     to->cache_hs_key_truncate_onpage_removal +=
       WT_STAT_READ(from, cache_hs_key_truncate_onpage_removal);
     to->cache_hs_score += WT_STAT_READ(from, cache_hs_score);
@@ -1762,8 +1764,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_hs_read += WT_STAT_READ(from, cache_hs_read);
     to->cache_hs_read_miss += WT_STAT_READ(from, cache_hs_read_miss);
     to->cache_hs_read_squash += WT_STAT_READ(from, cache_hs_read_squash);
-    to->cache_hs_remove_key_truncate += WT_STAT_READ(from, cache_hs_remove_key_truncate);
+    to->cache_hs_key_truncate_call += WT_STAT_READ(from, cache_hs_key_truncate_call);
     to->cache_hs_write_squash += WT_STAT_READ(from, cache_hs_write_squash);
+    to->cache_hs_key_truncate_rts += WT_STAT_READ(from, cache_hs_key_truncate_rts);
     to->cache_inmem_splittable += WT_STAT_READ(from, cache_inmem_splittable);
     to->cache_inmem_split += WT_STAT_READ(from, cache_inmem_split);
     to->cache_eviction_internal += WT_STAT_READ(from, cache_eviction_internal);
