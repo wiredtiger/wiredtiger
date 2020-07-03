@@ -125,7 +125,7 @@ class test_backup16(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_backup16(self):
 
-        # Create three tables before the first backup. Add data to two of them.
+        # Create four tables before the first backup. Add data to two of them.
         self.session.create(self.uri1, 'key_format=S,value_format=S')
         self.session.create(self.uri2, 'key_format=S,value_format=S')
         self.session.create(self.uri3, 'key_format=S,value_format=S')
