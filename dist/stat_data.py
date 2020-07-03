@@ -247,7 +247,6 @@ connection_stats = [
     CacheStat('cache_eviction_force_hs_fail', 'forced eviction - history store pages failed to evict while session has history store cursor open'),
     CacheStat('cache_eviction_force_hs_success', 'forced eviction - history store pages successfully evicted while session has history store cursor open'),
     CacheStat('cache_eviction_force_retune', 'force re-tuning of eviction workers once in a while'),
-    CacheStat('cache_eviction_force_rollback', 'forced eviction - session returned rollback error while force evicting due to being oldest'),
     CacheStat('cache_eviction_get_ref', 'eviction calls to get a page'),
     CacheStat('cache_eviction_get_ref_empty', 'eviction calls to get a page found queue empty'),
     CacheStat('cache_eviction_get_ref_empty2', 'eviction calls to get a page found queue empty after locking'),
@@ -300,11 +299,11 @@ connection_stats = [
     CacheStat('cache_hazard_walks', 'hazard pointer check entries walked'),
     CacheStat('cache_hs_insert', 'history store table insert calls'),
     CacheStat('cache_hs_insert_restart', 'history store table insert calls that returned restart'),
-    CacheStat('cache_hs_key_truncate_rts', 'history store updates removed by rollback to stable'),
     CacheStat('cache_hs_key_truncate_call', 'history store table remove calls due to key truncation'),
-    CacheStat('cache_hs_key_truncate_onpage_removal', 'history store key truncation due to the key being removed from the data page'),
     CacheStat('cache_hs_key_truncate_mix_ts', 'history store key truncation calls due to mixed timestamps'),
     CacheStat('cache_hs_key_truncate_mix_ts_restart', 'history store key truncation calls due to mixed timestamps that returned restart'),
+    CacheStat('cache_hs_key_truncate_onpage_removal', 'history store key truncation due to the key being removed from the data page'),
+    CacheStat('cache_hs_key_truncate_rts', 'history store updates removed by rollback to stable'),
     CacheStat('cache_hs_ondisk', 'history store table on-disk size', 'no_clear,no_scale,size'),
     CacheStat('cache_hs_ondisk_max', 'history store table max on-disk size', 'no_clear,no_scale,size'),
     CacheStat('cache_hs_order_fixup_insert', 'history store table out-of-order updates that were fixed up during insertion'),
@@ -961,3 +960,4 @@ session_stats = [
 ]
 
 session_stats = sorted(session_stats, key=attrgetter('desc'))
+                                                                                                                                              
