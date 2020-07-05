@@ -732,7 +732,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         if (list->onpage_upd->next == NULL)
             continue;
 
-        /* Updates have already been inserted in to the history store. */
+        /* Updates have already been inserted to the history store. */
         if (F_ISSET(list->onpage_upd->next, WT_UPDATE_HS))
             continue;
 
