@@ -241,7 +241,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
         case WT_REF_DELETED:
             if (LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
-            if (LF_ISSET(WT_READ_DELETED_CHECK) && __wt_delete_page_skip(session, ref, false))
+            if (LF_ISSET(WT_READ_DELETED_CHECK) &&
+              __wt_delete_page_skip(session, ref, !F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)))
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
@@ -350,6 +351,14 @@ read:
                 else if (ret == EBUSY) {
                     WT_NOT_READ(ret, 0);
                     WT_STAT_CONN_INCR(session, page_forcible_evict_blocked);
+                    /*
+                     * Forced eviction failed: check if this transaction is keeping content pinned
+                     * in cache.
+                     */
+                    if (force_attempts > 1 &&
+                      (ret = __wt_txn_is_blocking(session, true)) == WT_ROLLBACK)
+                        WT_STAT_CONN_INCR(session, cache_eviction_force_rollback);
+                    WT_RET(ret);
                     stalled = true;
                     break;
                 }
