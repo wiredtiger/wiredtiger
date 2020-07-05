@@ -732,6 +732,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         if (list->onpage_upd == NULL)
             continue;
 
+        /* No update to insert to history store. */
+        if (list->onpage_upd->next == NULL)
+            continue;
+
+        /* Updates have already been inserted in to the history store. */
+        if (F_ISSET(list->onpage_upd->next, WT_UPDATE_HS))
+            continue;
+
         /* History store table key component: source key. */
         switch (page->type) {
         case WT_PAGE_COL_FIX:
@@ -894,11 +902,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * the correct place to delete the history store records when inserting the first update and
          * it may be skipped if there is nothing to insert to the history store.
          */
-        if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd == first_non_ts_upd) {
+        if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd == first_non_ts_upd &&
+          !F_ISSET(first_non_ts_upd, WT_UPDATE_CLEARED_HS)) {
             /* We can only delete history store entries that have timestamps. */
             WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
             clear_hs = false;
+            F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
         } else
             /*
              * Clear the content with timestamps in the history store if we see updates without
@@ -908,7 +918,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * list and there are no updates moved to the history store by checkpoint or a failed
              * eviction.
              */
-            clear_hs = first_non_ts_upd != NULL && !F_ISSET(first_non_ts_upd, WT_UPDATE_HS) &&
+            clear_hs = first_non_ts_upd != NULL &&
+              !F_ISSET(first_non_ts_upd, WT_UPDATE_CLEARED_HS) &&
               (list->ins == NULL || ts_updates_in_hs);
 
         WT_ERR(__hs_next_upd_full_value(session, &modifies, NULL, full_value, &upd));
@@ -989,6 +1000,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
                 WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
                 clear_hs = false;
+                F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
             }
 
             /*
@@ -1006,6 +1018,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             } else
                 WT_ERR(__hs_insert_record(session, cursor, btree, key, upd, WT_UPDATE_STANDARD,
                   full_value, &stop_time_point, clear_hs));
+
+            if (clear_hs)
+                F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
 
             clear_hs = false;
             /* Flag the update as now in the history store. */
@@ -1040,6 +1055,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             /* We can only delete history store entries that have timestamps. */
             WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
+            F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
         }
     }
 
