@@ -542,6 +542,59 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
+ * __rec_split_build_leaf_key --
+ *      Handle crossing a split boundary and make sure that compression doesn't break.
+ */
+static int
+__rec_row_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool include_size,
+  bool *ovfl_keyp)
+{
+    size_t next_len;
+
+    next_len = 0;
+
+    /*
+     * Turn off prefix compression until a full key written to the new page, and (unless
+     * already working with an overflow key), rebuild the key without compression.
+     */
+    if (r->key_pfx_compress_conf) {
+        r->key_pfx_compress = false;
+        if (!*ovfl_keyp)
+            WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, ovfl_keyp));
+    }
+
+    if (include_size)
+        next_len = r->k.len + r->v.len;
+    WT_RET(__wt_rec_split_crossing_bnd(session, r, next_len, false));
+    return (0);
+}
+
+
+/*
+ * __rec_split_big_memory_empty_disk --
+ *      In cases where a page has grown large so we are trying to force evict it, but none of the
+ *      content can be evicted, we setup fake split points, to allow the page to use update
+ *      restore eviction and be split into multiple reasonably sized pages.
+ */
+static int
+__rec_split_big_memory_empty_disk(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
+{
+    bool ovfl_key;
+
+    /*
+     * Check if we are in this situation. The call to split with zero additional size is odd,
+     * but split takes into account saved updates in a special way for this case already.
+     */
+    if (r->update_used || !__wt_rec_need_split(r, 0))
+        return (0);
+
+    /* We need to build key cell to split, even if it isn't going on an on-disk page. */
+    WT_RET(__rec_cell_build_leaf_key(
+      session, r, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
+    WT_RET(__rec_row_split_crossing_bnd(session, r, false, &ovfl_key));
+    return (0);
+}
+/*
  * __rec_row_leaf_insert --
  *     Walk an insert chain, writing K/V pairs.
  */
@@ -568,8 +621,10 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
         WT_RET(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
-        if ((upd = upd_select.upd) == NULL)
+        if ((upd = upd_select.upd) == NULL) {
+            WT_RET(__rec_split_big_memory_empty_disk(session, r, ins));
             continue;
+        }
 
         WT_TIME_WINDOW_COPY(&tw, &upd_select.tw);
 
@@ -601,19 +656,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
           session, r, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
 
         /* Boundary: split or write the page. */
-        if (__wt_rec_need_split(r, key->len + val->len)) {
-            /*
-             * Turn off prefix compression until a full key written to the new page, and (unless
-             * already working with an overflow key), rebuild the key without compression.
-             */
-            if (r->key_pfx_compress_conf) {
-                r->key_pfx_compress = false;
-                if (!ovfl_key)
-                    WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
-            }
-
-            WT_RET(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, false));
-        }
+        if (__wt_rec_need_split(r, key->len + val->len))
+            WT_RET(__rec_row_split_crossing_bnd(session, r, true, &ovfl_key));
 
         /* Copy the key/value pair onto the page. */
         __wt_rec_image_copy(session, r, key);
