@@ -640,7 +640,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * restore evictions, pass this flag so that reconciliation knows which to use.
      */
     if (FLD_ISSET(evict_flags, WT_EVICT_CALL_URGENT))
-            LF_SET(WT_REC_CALL_URGENT);
+        LF_SET(WT_REC_CALL_URGENT);
 
     if (closing)
         LF_SET(WT_REC_VISIBILITY_ERR);

@@ -543,19 +543,19 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 
 /*
  * __rec_split_build_leaf_key --
- *      Handle crossing a split boundary and make sure that compression doesn't break.
+ *     Handle crossing a split boundary and make sure that compression doesn't break.
  */
 static int
-__rec_row_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool include_size,
-  bool *ovfl_keyp)
+__rec_row_split_crossing_bnd(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, bool include_size, bool *ovfl_keyp)
 {
     size_t next_len;
 
     next_len = 0;
 
     /*
-     * Turn off prefix compression until a full key written to the new page, and (unless
-     * already working with an overflow key), rebuild the key without compression.
+     * Turn off prefix compression until a full key written to the new page, and (unless already
+     * working with an overflow key), rebuild the key without compression.
      */
     if (r->key_pfx_compress_conf) {
         r->key_pfx_compress = false;
@@ -569,12 +569,11 @@ __rec_row_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool inc
     return (0);
 }
 
-
 /*
  * __rec_split_big_memory_empty_disk --
- *      In cases where a page has grown large so we are trying to force evict it, but none of the
- *      content can be evicted, we setup fake split points, to allow the page to use update
- *      restore eviction and be split into multiple reasonably sized pages.
+ *     In cases where a page has grown large so we are trying to force evict it, but none of the
+ *     content can be evicted, we setup fake split points, to allow the page to use update restore
+ *     eviction and be split into multiple reasonably sized pages.
  */
 static int
 __rec_split_big_memory_empty_disk(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
@@ -582,8 +581,8 @@ __rec_split_big_memory_empty_disk(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_
     bool ovfl_key;
 
     /*
-     * Check if we are in this situation. The call to split with zero additional size is odd,
-     * but split takes into account saved updates in a special way for this case already.
+     * Check if we are in this situation. The call to split with zero additional size is odd, but
+     * split takes into account saved updates in a special way for this case already.
      */
     if (r->update_used || !__wt_rec_need_split(r, 0))
         return (0);
