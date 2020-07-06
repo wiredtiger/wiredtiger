@@ -259,7 +259,7 @@ runone(bool config_cache)
     testutil_check(__wt_snprintf(buf, sizeof(buf),
       "create"
       ", cache_cursors=%s"
-      ", cache_size=2GB"
+      ", cache_size=1GB"
       ", checkpoint_sync=true"
       ", eviction=(threads_max=5)"
       ", file_manager=("
