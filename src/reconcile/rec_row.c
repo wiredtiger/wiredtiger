@@ -542,7 +542,7 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
- * __rec_split_build_leaf_key --
+ * __rec_row_split_crossing_bnd --
  *     Handle crossing a split boundary and make sure that compression doesn't break.
  */
 static int
@@ -584,7 +584,7 @@ __rec_split_big_memory_empty_disk(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_
      * Check if we are in this situation. The call to split with zero additional size is odd, but
      * split takes into account saved updates in a special way for this case already.
      */
-    if (r->update_used || !__wt_rec_need_split(r, 0))
+    if (r->update_used || !F_ISSET(r, WT_REC_EVICT) || !__wt_rec_need_split(r, 0))
         return (0);
 
     /* We need to build key cell to split, even if it isn't going on an on-disk page. */
