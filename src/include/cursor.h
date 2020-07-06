@@ -54,7 +54,6 @@ struct __wt_cursor_backup {
 
     WT_CURSOR *incr_cursor; /* File cursor */
 
-    bool incr_init;       /* Cursor traversal initialized */
     WT_ITEM bitstring;    /* List of modified blocks */
     uint64_t nbits;       /* Number of bits in bitstring */
     uint64_t offset;      /* Zero bit offset in bitstring */
@@ -62,13 +61,16 @@ struct __wt_cursor_backup {
     uint64_t granularity; /* Length, transfer size */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CURBACKUP_DUP 0x01u        /* Duplicated backup cursor */
-#define WT_CURBACKUP_FORCE_FULL 0x02u /* Force full file copy for this cursor */
-#define WT_CURBACKUP_FORCE_STOP 0x04u /* Force stop incremental backup */
-#define WT_CURBACKUP_INCR 0x08u       /* Incremental backup cursor */
-#define WT_CURBACKUP_LOCKER 0x10u     /* Hot-backup started */
-                                      /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint8_t flags;
+#define WT_CURBACKUP_CKPT_FAKE 0x01u   /* Object has fake checkpoint */
+#define WT_CURBACKUP_DUP 0x02u         /* Duplicated backup cursor */
+#define WT_CURBACKUP_FORCE_FULL 0x04u  /* Force full file copy for this cursor */
+#define WT_CURBACKUP_FORCE_STOP 0x08u  /* Force stop incremental backup */
+#define WT_CURBACKUP_HAS_CB_INFO 0x10u /* Object has checkpoint backup info */
+#define WT_CURBACKUP_INCR 0x20u        /* Incremental backup cursor */
+#define WT_CURBACKUP_INCR_INIT 0x40u   /* Cursor traversal initialized */
+#define WT_CURBACKUP_LOCKER 0x80u      /* Hot-backup started */
+                                       /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t flags;
 };
 
 /* Get the WT_BTREE from any WT_CURSOR/WT_CURSOR_BTREE. */
@@ -502,10 +504,6 @@ struct __wt_cursor_table {
 #define WT_CURSOR_PRIMARY(cursor) (((WT_CURSOR_TABLE *)(cursor))->cg_cursors[0])
 
 #define WT_CURSOR_RECNO(cursor) WT_STREQ((cursor)->key_format, "r")
-
-#define WT_CURSOR_IS_DUMP(cursor) \
-    F_ISSET(cursor,               \
-      (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_JSON | WT_CURSTD_DUMP_PRETTY | WT_CURSTD_DUMP_PRINT))
 
 #define WT_CURSOR_RAW_OK \
     (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY | WT_CURSTD_DUMP_PRINT | WT_CURSTD_RAW)
