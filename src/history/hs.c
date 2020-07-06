@@ -728,12 +728,17 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         if (list->onpage_upd == NULL)
             continue;
 
+        /* Skip aborted updates. */
+        for (upd = list->onpage_upd->next; upd != NULL && upd->txnid == WT_TXN_ABORTED;
+             upd = upd->next)
+            ;
+
         /* No update to insert to history store. */
-        if (list->onpage_upd->next == NULL)
+        if (upd == NULL)
             continue;
 
         /* Updates have already been inserted to the history store. */
-        if (F_ISSET(list->onpage_upd->next, WT_UPDATE_HS))
+        if (F_ISSET(upd, WT_UPDATE_HS))
             continue;
 
         /* History store table key component: source key. */
