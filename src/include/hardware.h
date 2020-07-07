@@ -16,10 +16,10 @@
 } while (0)
 
 /* Write after all previous stores are completed. */
-#define WT_ORDERED_WRITE(v, val) \
+#define	WT_ORDERED_WRITE(v, val) \
     do {                         \
-        WT_WRITE_BARRIER();      \
-        (v) = (val);             \
+	WT_WRITE_BARRIER();      \
+	(v) = (val);             \
     } while (0)
 
 /*
