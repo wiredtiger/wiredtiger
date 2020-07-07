@@ -737,11 +737,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         if (upd == NULL)
             continue;
 
-        /* 
-         * Updates have already been inserted to the history store or have cleared the history
-         * store.
-         */
-        if (F_ISSET(upd, WT_UPDATE_CLEARED_HS | WT_UPDATE_HS))
+        /* Updates have already been inserted to the history store. */
+        if (F_ISSET(upd, WT_UPDATE_HS))
             continue;
 
         /* History store table key component: source key. */
