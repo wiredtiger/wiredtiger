@@ -74,6 +74,10 @@ class test_hs14(wttest.WiredTigerTestCase):
         # Do a checkpoint
         self.session.checkpoint()
 
+        self.session.begin_transaction()
+        cursor[str(0)] = value3
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
         # Insert a bunch of other contents to trigger eviction
         for i in range(1, 1000):
             self.session.begin_transaction()
@@ -89,4 +93,8 @@ class test_hs14(wttest.WiredTigerTestCase):
 
         self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
         self.assertEqual(cursor[str(0)], value2)
+        self.session.rollback_transaction()
+
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
+        self.assertEqual(cursor[str(0)], value3)
         self.session.rollback_transaction()
