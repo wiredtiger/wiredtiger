@@ -57,7 +57,7 @@ class test_hs14(wttest.WiredTigerTestCase):
             cursor[str(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
-        # Do two updates with timestamps
+        # Do a modify and an update with timestamps
         self.session.begin_transaction()
         cursor.set_key(str(0))
         mods = [wiredtiger.Modify('B', 100, 1)]
@@ -68,7 +68,7 @@ class test_hs14(wttest.WiredTigerTestCase):
         cursor[str(0)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
-        # Make the oldest update with timestamp and the update without timestamp obsolete
+        # Make the modify with timestamp and the update without timestamp obsolete
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
 
         # Do a checkpoint
