@@ -317,7 +317,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
-        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_rts);
+        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_rts_unstable);
     }
 
     if (replace) {
