@@ -1014,7 +1014,7 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key,
 
     /*
      * For a column-store, the promoted key is the recno and we already have a copy. For a
-     * row-store, it's the first key on the page, a variable- length byte string, get a copy.
+     * row-store, it's the first key on the page, a variable-length byte string, get a copy.
      *
      * This function is called from the split code at each split boundary, but that means we're not
      * called before the first boundary, and we will eventually have to get the first key explicitly
