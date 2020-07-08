@@ -577,7 +577,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              * additional size is odd, but split takes into account saved updates in a special way
              * for this case already.
              */
-            if (!upd_select.upd_saved || !F_ISSET(r, WT_REC_EVICT) || !__wt_rec_need_split(r, 0))
+            if (!upd_select.upd_saved || !__wt_rec_need_split(r, 0))
                 continue;
 
             WT_RET(__wt_buf_set(session, r->cur, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
