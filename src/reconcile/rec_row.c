@@ -570,13 +570,14 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         WT_RET(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
         if ((upd = upd_select.upd) == NULL) {
             /*
-             * In cases where a page has grown so large we are trying to force evict it, but none of
-             * the content can be evicted, we set up fake split points, to allow the page to use
-             * update restore eviction and be split into multiple reasonably sized pages. Check if
-             * we are in this situation. The call to split with zero additional size is odd, but
-             * split takes into account saved updates in a special way for this case already.
+             * In cases where a page has grown so large we are trying to force evict it (there is
+             * content, but none of the content can be evicted), we set up fake split points, to
+             * allow the page to use update restore eviction and be split into multiple reasonably
+             * sized pages. Check if we are in this situation. The call to split with zero
+             * additional size is odd, but split takes into account saved updates in a special way
+             * for this case already.
              */
-            if (r->update_used || !F_ISSET(r, WT_REC_EVICT) || !__wt_rec_need_split(r, 0))
+            if (!upd_select.upd_saved || !F_ISSET(r, WT_REC_EVICT) || !__wt_rec_need_split(r, 0))
                 continue;
 
             WT_RET(__wt_buf_set(session, r->cur, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));

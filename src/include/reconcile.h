@@ -276,6 +276,8 @@ typedef struct {
     WT_UPDATE *upd; /* Update to write (or NULL) */
 
     WT_TIME_WINDOW tw;
+
+    bool upd_saved; /* An element on the row's update chain was saved */
 } WT_UPDATE_SELECT;
 
 /*
