@@ -422,10 +422,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     conn = S2C(session);
     btree = S2BT(session);
     prev = walk = NULL;
+    memset(&ref_list, 0, sizeof(ref_list));
     txn = session->txn;
     tried_eviction = false;
     time_start = time_stop = 0;
-    is_hs = false;
 
     /* Only visit pages in cache and don't bump page read generations. */
     flags = WT_READ_CACHE | WT_READ_NO_GEN;
@@ -543,7 +543,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         /* Read all internal pages */
         LF_CLR(WT_READ_CACHE);
         LF_SET(WT_READ_CACHE_LEAF);
-        memset(&ref_list, 0, sizeof(ref_list));
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
