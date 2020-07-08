@@ -155,7 +155,6 @@ __sync_ref_list_pop(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, uint32_t flags)
         /* Accumulate errors but continue till all the refs are processed. */
         WT_TRET(__wt_page_release(session, rlp->list[i], flags));
         WT_STAT_CONN_INCR(session, gc_pages_evict);
-        WT_STAT_DATA_INCR(session, gc_pages_evict);
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
           "%p: is an in-memory obsolete page, added to urgent eviction queue.",
           (void *)rlp->list[i]);
@@ -236,7 +235,6 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
         if (obsolete) {
             WT_REF_UNLOCK(ref, WT_REF_DELETED);
             WT_STAT_CONN_INCR(session, gc_pages_removed);
-            WT_STAT_DATA_INCR(session, gc_pages_removed);
 
             WT_RET(__wt_page_parent_modify_set(session, ref, true));
         } else
@@ -353,7 +351,6 @@ __sync_ref_hs_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent, WT_REF_
     }
 
     WT_STAT_CONN_INCRV(session, gc_pages_visited, pindex->entries);
-    WT_STAT_DATA_INCRV(session, gc_pages_visited, pindex->entries);
 
     return (0);
 }
