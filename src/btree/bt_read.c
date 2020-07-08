@@ -223,14 +223,14 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 
     /* Sanity check flag combinations. */
     WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT) ||
-        LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF));
+        LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF_NO));
     WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_CHECK) || !LF_ISSET(WT_READ_DELETED_SKIP));
 
     /*
      * Ignore reads of pages already known to be in cache, otherwise the eviction server can
      * dominate these statistics.
      */
-    if (!LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF)) {
+    if (!LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF_NO)) {
         WT_STAT_CONN_INCR(session, cache_pages_requested);
         WT_STAT_DATA_INCR(session, cache_pages_requested);
     }
@@ -250,8 +250,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             if (LF_ISSET(WT_READ_CACHE))
                 return (WT_NOTFOUND);
 
-            /* Optionally limit reads to internal pages only. */
-            if (LF_ISSET(WT_READ_CACHE_LEAF) && F_ISSET(ref, WT_REF_FLAG_LEAF))
+            /* Optionally limit reads to internal pages and leaf pages with overflow keys only. */
+            if (LF_ISSET(WT_READ_CACHE_LEAF_NO) && F_ISSET(ref, WT_REF_FLAG_LEAF))
                 return (WT_NOTFOUND);
 
 read:

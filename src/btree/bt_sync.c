@@ -147,6 +147,14 @@ __sync_ref_list_pop(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, uint32_t flags)
 
     for (i = 0; i < rlp->entry; i++) {
         /*
+         * Mark the obsolete page dirty to let the reconciliation to remove the updates from page.
+         * The obsolete pages with overflow keys cannot be fast deleted, so marking them dirty will
+         * let them clean during reconciliation.
+         */
+        WT_RET(__wt_page_modify_init(session, rlp->list[i]->page));
+        __wt_page_modify_set(session, rlp->list[i]->page);
+
+        /*
          * Ignore the failure from urgent eviction. The failed refs are taken care in the next
          * checkpoint.
          */
@@ -220,8 +228,12 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
     newest_stop_txn = WT_TXN_NONE;
     obsolete = false;
     if (previous_state == WT_REF_DISK) {
-        /* There should be an address, but simply skip any page where we don't find one. */
-        if (__wt_ref_addr_copy(session, ref, &addr)) {
+        /*
+         * There should be an address, but simply skip any page where we don't find one. Also skip
+         * the pages that have overflow keys as part of fast delete flow. These overflow keys pages
+         * are handled as an in-memory obsolete page flow.
+         */
+        if (__wt_ref_addr_copy(session, ref, &addr) && addr.type == WT_ADDR_LEAF_NO) {
             /*
              * Max stop timestamp is possible only when the prepared update is written to the data
              * store.
@@ -381,10 +393,10 @@ __sync_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *ski
         return (0);
 
     /*
-     * If the aggregated durable stop timestamp is "none", there are no deletions on the page, so
-     * skip reading it.
+     * Skip reading the pages that are normal leaf pages or don't have an aggregated durable stop
+     * timestamp.
      */
-    if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
+    if (addr.type == WT_ADDR_LEAF_NO || addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: page walk skipped", (void *)ref);
         WT_STAT_CONN_INCR(session, gc_pages_walk_skipped);
         WT_STAT_DATA_INCR(session, gc_pages_walk_skipped);
@@ -534,9 +546,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         /* Read pages with history store entries and evict them asap. */
         LF_SET(WT_READ_WONT_NEED);
 
-        /* Read all internal pages */
+        /*
+         * Read all internal pages and leaf pages with overflow keys. These pages are internally
+         * skipped by the skip function if they don't need to read into the cache.
+         */
         LF_CLR(WT_READ_CACHE);
-        LF_SET(WT_READ_CACHE_LEAF);
+        LF_SET(WT_READ_CACHE_LEAF_NO);
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
