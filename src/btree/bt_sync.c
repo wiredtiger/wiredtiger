@@ -549,10 +549,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk_custom_skip(session, &walk, __wt_sync_page_skip, NULL, flags));
 
-            if (walk == NULL) {
-                WT_ERR(__sync_ref_list_pop(session, &ref_list, flags));
+            if (walk == NULL)
                 break;
-            }
 
             /* Traverse through the internal page for obsolete child pages. */
             if (F_ISSET(walk, WT_REF_FLAG_INTERNAL)) {
@@ -666,7 +664,7 @@ err:
     WT_TRET(__wt_page_release(session, walk, flags));
     WT_TRET(__wt_page_release(session, prev, flags));
 
-    /* On error, Process the refs that are saved and free the list. */
+    /* Process the refs that are saved and free the list. */
     WT_TRET(__sync_ref_list_pop(session, &ref_list, flags));
 
     /*
