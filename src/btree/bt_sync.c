@@ -331,19 +331,18 @@ err:
 }
 
 /*
- * __sync_ref_int_obsolete_cleanup --
- *     Traverse the internal page and identify the leaf pages that are obsolete and mark them as
- *     deleted.
+ * __sync_ref_hs_obsolete_cleanup --
+ *     Traverse history store internal pages, identify obsolete leaf pages and mark them as deleted.
  */
 static int
-__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent, WT_REF_LIST *rlp)
+__sync_ref_hs_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent, WT_REF_LIST *rlp)
 {
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
     uint32_t slot;
 
     __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
-      "%p: traversing the internal page %p for obsolete child pages", (void *)parent,
+      "%p: traversing the history store internal page %p for obsolete child pages", (void *)parent,
       (void *)parent->page);
 
     WT_INTL_INDEX_GET(session, parent->page, pindex);
@@ -551,10 +550,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (walk == NULL)
                 break;
 
-            /* Traverse through the internal page for obsolete child pages. */
-            if (F_ISSET(walk, WT_REF_FLAG_INTERNAL)) {
+            /* Review history-store internal pages for obsolete child pages. */
+            if (is_hs && F_ISSET(walk, WT_REF_FLAG_INTERNAL)) {
                 WT_WITH_PAGE_INDEX(
-                  session, ret = __sync_ref_int_obsolete_cleanup(session, walk, &ref_list));
+                  session, ret = __sync_ref_hs_obsolete_cleanup(session, walk, &ref_list));
                 WT_ERR(ret);
             }
 
