@@ -371,12 +371,6 @@ __sync_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *ski
 
     *skipp = false; /* Default to reading */
 
-    /* Skip deleted pages */
-    if (ref->state == WT_REF_DELETED) {
-        *skipp = true;
-        return (0);
-    }
-
     /* If the page is in-memory, we want to look at it. */
     if (ref->state != WT_REF_DISK)
         return (0);
