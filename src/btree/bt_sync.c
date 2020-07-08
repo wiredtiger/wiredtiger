@@ -368,6 +368,8 @@ __wt_sync_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *
 {
     WT_ADDR_COPY addr;
 
+    WT_UNUSED(context);
+
     *skipp = false; /* Default to reading */
 
     /* Skip deleted pages */
