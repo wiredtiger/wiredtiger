@@ -360,11 +360,11 @@ __sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent, WT_REF
 }
 
 /*
- * __wt_sync_page_skip --
+ * __sync_page_skip --
  *     Return if checkpoint requires we read this page.
  */
-int
-__wt_sync_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
+static int
+__sync_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
 {
     WT_ADDR_COPY addr;
 
@@ -546,7 +546,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-            WT_ERR(__wt_tree_walk_custom_skip(session, &walk, __wt_sync_page_skip, NULL, flags));
+            WT_ERR(__wt_tree_walk_custom_skip(session, &walk, __sync_page_skip, NULL, flags));
 
             if (walk == NULL)
                 break;
