@@ -376,19 +376,19 @@ __sync_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *ski
         return (0);
 
     /* Check whether this ref has any possible updates to be aborted. */
-    if (__wt_ref_addr_copy(session, ref, &addr)) {
-        /*
-         * If there exist oldest timestamp and aggregated durable stop timestamp is "none", means no
-         * deletions on the page, so skip reading it.
-         */
-        if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
-            __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: page walk skipped", (void *)ref);
-            WT_STAT_CONN_INCR(session, gc_pages_walk_skipped);
-            WT_STAT_DATA_INCR(session, gc_pages_walk_skipped);
-            *skipp = true;
-        }
-    }
+    if (!__wt_ref_addr_copy(session, ref, &addr))
+        return (0);
 
+    /*
+     * If the aggregated durable stop timestamp is "none", there are no deletions on the page, so
+     * skip reading it.
+     */
+    if (addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: page walk skipped", (void *)ref);
+        WT_STAT_CONN_INCR(session, gc_pages_walk_skipped);
+        WT_STAT_DATA_INCR(session, gc_pages_walk_skipped);
+        *skipp = true;
+    }
     return (0);
 }
 
