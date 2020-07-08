@@ -81,7 +81,7 @@ class test_gc03(test_gc_base):
 
         # Checkpoint to ensure that the history store is populated.
         self.session.checkpoint()
-        self.assertGreater(self.get_stat(stat.conn.hs_gc_pages_visited), 0)
+        self.assertGreater(self.get_stat(stat.conn.gc_pages_visited), 0)
 
         # Pin oldest and stable to timestamp 100.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(100) +
