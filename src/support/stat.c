@@ -89,9 +89,10 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: reserve calls", "cursor: reset calls", "cursor: search calls",
   "cursor: search history store calls", "cursor: search near calls", "cursor: truncate calls",
   "cursor: update calls", "cursor: update key and value bytes", "cursor: update value size change",
-  "history: history pages added for eviction during garbage collection",
-  "history: history pages removed for garbage collection",
-  "history: history pages visited for garbage collection",
+  "garbage-collection: pages added for eviction during garbage collection",
+  "garbage-collection: pages removed for garbage collection",
+  "garbage-collection: pages skipped during tree walk for garbage collection",
+  "garbage-collection: pages visited for garbage collection",
   "reconciliation: approximate byte size of timestamps in pages written",
   "reconciliation: approximate byte size of transaction IDs in pages written",
   "reconciliation: dictionary matches", "reconciliation: fast-path pages deleted",
@@ -302,9 +303,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_update = 0;
     stats->cursor_update_bytes = 0;
     stats->cursor_update_bytes_changed = 0;
-    stats->hs_gc_pages_evict = 0;
-    stats->hs_gc_pages_removed = 0;
-    stats->hs_gc_pages_visited = 0;
+    stats->gc_pages_evict = 0;
+    stats->gc_pages_removed = 0;
+    stats->gc_pages_walk_skipped = 0;
+    stats->gc_pages_visited = 0;
     stats->rec_time_window_bytes_ts = 0;
     stats->rec_time_window_bytes_txn = 0;
     stats->rec_dictionary = 0;
@@ -508,9 +510,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_update += from->cursor_update;
     to->cursor_update_bytes += from->cursor_update_bytes;
     to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
-    to->hs_gc_pages_evict += from->hs_gc_pages_evict;
-    to->hs_gc_pages_removed += from->hs_gc_pages_removed;
-    to->hs_gc_pages_visited += from->hs_gc_pages_visited;
+    to->gc_pages_evict += from->gc_pages_evict;
+    to->gc_pages_removed += from->gc_pages_removed;
+    to->gc_pages_walk_skipped += from->gc_pages_walk_skipped;
+    to->gc_pages_visited += from->gc_pages_visited;
     to->rec_time_window_bytes_ts += from->rec_time_window_bytes_ts;
     to->rec_time_window_bytes_txn += from->rec_time_window_bytes_txn;
     to->rec_dictionary += from->rec_dictionary;
@@ -712,9 +715,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_update += WT_STAT_READ(from, cursor_update);
     to->cursor_update_bytes += WT_STAT_READ(from, cursor_update_bytes);
     to->cursor_update_bytes_changed += WT_STAT_READ(from, cursor_update_bytes_changed);
-    to->hs_gc_pages_evict += WT_STAT_READ(from, hs_gc_pages_evict);
-    to->hs_gc_pages_removed += WT_STAT_READ(from, hs_gc_pages_removed);
-    to->hs_gc_pages_visited += WT_STAT_READ(from, hs_gc_pages_visited);
+    to->gc_pages_evict += WT_STAT_READ(from, gc_pages_evict);
+    to->gc_pages_removed += WT_STAT_READ(from, gc_pages_removed);
+    to->gc_pages_walk_skipped += WT_STAT_READ(from, gc_pages_walk_skipped);
+    to->gc_pages_visited += WT_STAT_READ(from, gc_pages_visited);
     to->rec_time_window_bytes_ts += WT_STAT_READ(from, rec_time_window_bytes_ts);
     to->rec_time_window_bytes_txn += WT_STAT_READ(from, rec_time_window_bytes_txn);
     to->rec_dictionary += WT_STAT_READ(from, rec_dictionary);
@@ -926,9 +930,10 @@ static const char *const __stats_connection_desc[] = {
   "data-handle: connection sweep dhandles removed from hash list",
   "data-handle: connection sweep time-of-death sets", "data-handle: connection sweeps",
   "data-handle: session dhandles swept", "data-handle: session sweep attempts",
-  "history: history pages added for eviction during garbage collection",
-  "history: history pages removed for garbage collection",
-  "history: history pages visited for garbage collection", "lock: checkpoint lock acquisitions",
+  "garbage-collection: pages added for eviction during garbage collection",
+  "garbage-collection: pages removed for garbage collection",
+  "garbage-collection: pages skipped during tree walk for garbage collection",
+  "garbage-collection: pages visited for garbage collection", "lock: checkpoint lock acquisitions",
   "lock: checkpoint lock application thread wait time (usecs)",
   "lock: checkpoint lock internal thread wait time (usecs)",
   "lock: dhandle lock application thread time waiting (usecs)",
@@ -1385,9 +1390,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->dh_sweeps = 0;
     stats->dh_session_handles = 0;
     stats->dh_session_sweeps = 0;
-    stats->hs_gc_pages_evict = 0;
-    stats->hs_gc_pages_removed = 0;
-    stats->hs_gc_pages_visited = 0;
+    stats->gc_pages_evict = 0;
+    stats->gc_pages_removed = 0;
+    stats->gc_pages_walk_skipped = 0;
+    stats->gc_pages_visited = 0;
     stats->lock_checkpoint_count = 0;
     stats->lock_checkpoint_wait_application = 0;
     stats->lock_checkpoint_wait_internal = 0;
@@ -1894,9 +1900,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->dh_sweeps += WT_STAT_READ(from, dh_sweeps);
     to->dh_session_handles += WT_STAT_READ(from, dh_session_handles);
     to->dh_session_sweeps += WT_STAT_READ(from, dh_session_sweeps);
-    to->hs_gc_pages_evict += WT_STAT_READ(from, hs_gc_pages_evict);
-    to->hs_gc_pages_removed += WT_STAT_READ(from, hs_gc_pages_removed);
-    to->hs_gc_pages_visited += WT_STAT_READ(from, hs_gc_pages_visited);
+    to->gc_pages_evict += WT_STAT_READ(from, gc_pages_evict);
+    to->gc_pages_removed += WT_STAT_READ(from, gc_pages_removed);
+    to->gc_pages_walk_skipped += WT_STAT_READ(from, gc_pages_walk_skipped);
+    to->gc_pages_visited += WT_STAT_READ(from, gc_pages_visited);
     to->lock_checkpoint_count += WT_STAT_READ(from, lock_checkpoint_count);
     to->lock_checkpoint_wait_application += WT_STAT_READ(from, lock_checkpoint_wait_application);
     to->lock_checkpoint_wait_internal += WT_STAT_READ(from, lock_checkpoint_wait_internal);

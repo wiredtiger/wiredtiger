@@ -530,9 +530,10 @@ struct __wt_connection_stats {
     int64_t dh_sweeps;
     int64_t dh_session_handles;
     int64_t dh_session_sweeps;
-    int64_t hs_gc_pages_evict;
-    int64_t hs_gc_pages_removed;
-    int64_t hs_gc_pages_visited;
+    int64_t gc_pages_evict;
+    int64_t gc_pages_removed;
+    int64_t gc_pages_walk_skipped;
+    int64_t gc_pages_visited;
     int64_t lock_checkpoint_count;
     int64_t lock_checkpoint_wait_application;
     int64_t lock_checkpoint_wait_internal;
@@ -913,9 +914,10 @@ struct __wt_dsrc_stats {
     int64_t cursor_update;
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
-    int64_t hs_gc_pages_evict;
-    int64_t hs_gc_pages_removed;
-    int64_t hs_gc_pages_visited;
+    int64_t gc_pages_evict;
+    int64_t gc_pages_removed;
+    int64_t gc_pages_walk_skipped;
+    int64_t gc_pages_visited;
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
     int64_t rec_dictionary;

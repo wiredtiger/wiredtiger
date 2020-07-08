@@ -122,8 +122,8 @@ class test_gc03(test_gc_base):
 
         # Checkpoint to ensure that the history store is populated and added for eviction.
         self.session.checkpoint()
-        self.assertGreater(self.get_stat(stat.conn.hs_gc_pages_evict), 0)
-        self.assertGreater(self.get_stat(stat.conn.hs_gc_pages_visited), 0)
+        self.assertGreater(self.get_stat(stat.conn.gc_pages_evict), 0)
+        self.assertGreater(self.get_stat(stat.conn.gc_pages_visited), 0)
 
         # Check that the new updates are only seen after the update timestamp.
         self.check(bigvalue, uri, nrows, 200)
