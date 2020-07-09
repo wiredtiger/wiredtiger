@@ -28,10 +28,10 @@ __evict_enter(WT_SESSION_IMPL *session)
     F_SET(session, WT_SESSION_EVICTING);
 
     /*
-     * If we have a history store cursor, save it.  This ensures that if eviction needs to
-     * access the history store, it will get its own cursor, avoiding potential problems if
-     * it were to reposition or reset history store cursor that we're in the middle of using
-     * for something else.
+     * If we have a history store cursor, save it. This ensures that if eviction needs to access the
+     * history store, it will get its own cursor, avoiding potential problems if it were to
+     * reposition or reset history store cursor that we're in the middle of using for something
+     * else.
      */
     session->hs_cursor_saved = session->hs_cursor;
     session->hs_cursor = NULL;
