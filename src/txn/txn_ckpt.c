@@ -1211,7 +1211,7 @@ __drop(WT_CKPT *ckptbase, const char *name, size_t len)
     /*
      * If we're dropping internal checkpoints, match to the '.' separating
 	 * the checkpoint name from the generational number, and take all that
-	 * we can find. Applications aren't allowed to use any variant of this
+	 * we can find.  Applications aren't allowed to use any variant of this
 	 * name, so the test is still pretty simple, if the leading bytes match,
      * it's one we want to drop.
      */
