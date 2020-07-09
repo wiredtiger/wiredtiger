@@ -8,9 +8,52 @@
 
 #include "wt_internal.h"
 
+static void __evict_enter(WT_SESSION_IMPL *);
+static void __evict_leave(WT_SESSION_IMPL *);
 static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
 static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
+
+/*
+ * __evict_enter --
+ *     Enter eviction processing from non-eviction thread
+ */
+static void
+__evict_enter(WT_SESSION_IMPL *session)
+{
+    WT_ASSERT(session, !F_ISSET(session, WT_SESSION_EVICTING));
+    WT_ASSERT(session, session->hs_cursor_saved == NULL);
+
+    /* Set flag to prevent us from re-entering eviction while we're doing eviction */
+    F_SET(session, WT_SESSION_EVICTING);
+
+    /*
+     * If we have a history store cursor, save it.  This ensures that if eviction needs to
+     * access the history store, it will get its own cursor, avoiding potential problems if
+     * it were to reposition or reset history store cursor that we're in the middle of using
+     * for something else.
+     */
+    session->hs_cursor_saved = session->hs_cursor;
+    session->hs_cursor = NULL;
+}
+
+/*
+ * __evict_leave --
+ *     Return to normal processing from eviction
+ */
+static void
+__evict_leave(WT_SESSION_IMPL *session)
+{
+    WT_ASSERT(session, F_ISSET(session, WT_SESSION_EVICTING));
+
+    /* If caller was using a history store cursor it should have closed it by now. */
+    WT_ASSERT(session, session->hs_cursor == NULL);
+
+    session->hs_cursor = session->hs_cursor_saved;
+    session->hs_cursor_saved = NULL;
+
+    F_CLR(session, WT_SESSION_EVICTING);
+}
 
 /*
  * __evict_exclusive_clear --
@@ -95,8 +138,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_DECL_RET;
     WT_PAGE *page;
     uint64_t time_start, time_stop;
-    uint32_t session_flags;
-    bool clean_page, closing, force_evict_hs, inmem_split, is_owner, local_gen, tree_dead;
+    bool clean_page, closing, force_evict_hs, inmem_split, local_gen, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
@@ -107,6 +149,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
 
     __wt_verbose(
       session, WT_VERB_EVICT, "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
+
+    __evict_enter(session);
 
     tree_dead = F_ISSET(session->dhandle, WT_DHANDLE_DEAD);
     if (tree_dead)
@@ -133,9 +177,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (!WT_IS_METADATA(S2BT(session)->dhandle) && !F_ISSET(conn, WT_CONN_IN_MEMORY) &&
       session->hs_cursor == NULL && !F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
       session != conn->default_session) {
-        session_flags = 0; /* [-Werror=maybe-uninitialized] */
-        WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
-        WT_RET(__wt_hs_cursor_close(session, session_flags, is_owner));
+        WT_RET(__wt_hs_cursor_open(session));
+        WT_RET(__wt_hs_cursor_close(session));
     }
 
     /*
@@ -273,6 +316,8 @@ done:
     /* Leave any local eviction generation. */
     if (local_gen)
         __wt_session_gen_leave(session, WT_GEN_EVICT);
+
+    __evict_leave(session);
 
     return (ret);
 }

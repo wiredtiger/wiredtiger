@@ -91,7 +91,8 @@ struct __wt_session_impl {
     WT_COMPACT_STATE *compact; /* Compaction information */
     enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } compact_state;
 
-    WT_CURSOR *hs_cursor; /* History store table cursor */
+    WT_CURSOR *hs_cursor;       /* History store table cursor */
+    WT_CURSOR *hs_cursor_saved; /* History store table cursor saved during eviction processing */
 
     WT_CURSOR *meta_cursor;  /* Metadata file */
     void *meta_track;        /* Metadata operation tracking */
@@ -169,7 +170,7 @@ struct __wt_session_impl {
 #define WT_SESSION_BACKUP_DUP 0x00000002u
 #define WT_SESSION_CACHE_CURSORS 0x00000004u
 #define WT_SESSION_CAN_WAIT 0x00000008u
-#define WT_SESSION_HS_CURSOR 0x00000010u
+#define WT_SESSION_EVICTING 0x00000010u
 #define WT_SESSION_IGNORE_CACHE_SIZE 0x00000020u
 #define WT_SESSION_INSTANTIATE_PREPARE 0x00000040u
 #define WT_SESSION_INTERNAL 0x00000080u

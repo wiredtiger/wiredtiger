@@ -172,8 +172,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
 #if 0
     /* FIXME-WT-6263: Temporarily disable history store verification. */
-    uint32_t session_flags;
-    bool is_owner, skip_hs;
+    bool skip_hs;
 #endif
 
     btree = S2BT(session);
@@ -184,8 +183,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
 #if 0
     /* FIXME-WT-6263: Temporarily disable history store verification. */
-    session_flags = 0; /* -Wuninitialized */
-    is_owner = false; /* -Wuninitialized */
 
     /*
      * Skip the history store explicit call if we're performing a metadata verification. The
@@ -283,9 +280,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              */
             if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
                 /* Open a history store cursor. */
-                WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
+                WT_ERR(__wt_hs_cursor_open(session);
                 WT_TRET(__wt_history_store_verify_one(session));
-                WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
+                WT_TRET(__wt_hs_cursor_close(session);
                 /*
                  * We cannot error out here. If we got an error verifying the history store, we need
                  * to follow through with reacquiring the exclusive call below. We'll error out
