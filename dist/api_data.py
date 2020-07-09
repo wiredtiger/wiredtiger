@@ -600,14 +600,14 @@ connection_runtime_config = [
         value is within the range of 10 to 100 or an absolute size when greater
         than 100.  The value is not allowed to exceed the \c cache_size''',
         min=10, max='10TB'),
-    Config('eviction_updates_target', '0', r'''
+    Config('eviction_updates_target', '5', r'''
         perform eviction in worker threads when the cache contains at least
         this many bytes of updates. It is a percentage of the cache size if the
         value is within the range of 0 to 100 or an absolute size when greater
         than 100. Calculated as half of \c eviction_dirty_target by default.
         The value is not allowed to exceed the \c cache_size''',
         min=0, max='10TB'),
-    Config('eviction_updates_trigger', '0', r'''
+    Config('eviction_updates_trigger', '20', r'''
         trigger application threads to perform eviction when the cache contains
         at least this many bytes of updates. It is a percentage of the cache size
         if the value is within the range of 1 to 100 or an absolute size when
