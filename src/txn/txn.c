@@ -2049,7 +2049,8 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session, bool conservative)
      * a transaction, we need to have considered splitting the page in the case that its updates are
      * on a single page.
      */
-    if (conservative && (txn->mod_count < 20 || F_ISSET(session, WT_SESSION_RESOLVING_TXN)))
+    if (conservative && (txn->mod_count < (10 + WT_REC_SPLIT_MIN_ITEMS_USE_MEM) ||
+                          F_ISSET(session, WT_SESSION_RESOLVING_TXN)))
         return (0);
 
     /*
