@@ -2385,8 +2385,8 @@ struct __wt_connection {
 	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
 	 * as <code>"verbose=[evictserver\,read]"</code>., a list\, with values chosen from the
 	 * following options: \c "api"\, \c "backup"\, \c "block"\, \c "checkpoint"\, \c
-	 * "checkpoint_gc"\, \c "checkpoint_progress"\, \c "compact"\, \c "compact_progress"\, \c
-	 * "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c
+	 * "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "compact"\, \c "compact_progress"\,
+	 * \c "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c
 	 * "handleops"\, \c "log"\, \c "history_store"\, \c "history_store_activity"\, \c "lsm"\, \c
 	 * "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "overflow"\, \c "read"\, \c "rebalance"\,
 	 * \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c
@@ -3108,7 +3108,7 @@ struct __wt_connection {
  * information., a boolean flag; default \c false.}
  * @config{verbose, enable messages for various events.  Options are given as a list\, such as
  * <code>"verbose=[evictserver\,read]"</code>., a list\, with values chosen from the following
- * options: \c "api"\, \c "backup"\, \c "block"\, \c "checkpoint"\, \c "checkpoint_gc"\, \c
+ * options: \c "api"\, \c "backup"\, \c "block"\, \c "checkpoint"\, \c "checkpoint_cleanup"\, \c
  * "checkpoint_progress"\, \c "compact"\, \c "compact_progress"\, \c "error_returns"\, \c "evict"\,
  * \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c "handleops"\, \c "log"\, \c
  * "history_store"\, \c "history_store_activity"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c
@@ -5358,157 +5358,154 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CAPACITY_TIME_LOG			1172
 /*! capacity: time waiting during read (usecs) */
 #define	WT_STAT_CONN_CAPACITY_TIME_READ			1173
+/*! checkpoint-cleanup: pages added for eviction */
+#define	WT_STAT_CONN_CC_PAGES_EVICT			1174
+/*! checkpoint-cleanup: pages removed */
+#define	WT_STAT_CONN_CC_PAGES_REMOVED			1175
+/*! checkpoint-cleanup: pages skipped during tree walk */
+#define	WT_STAT_CONN_CC_PAGES_WALK_SKIPPED		1176
+/*! checkpoint-cleanup: pages visited */
+#define	WT_STAT_CONN_CC_PAGES_VISITED			1177
 /*! connection: auto adjusting condition resets */
-#define	WT_STAT_CONN_COND_AUTO_WAIT_RESET		1174
+#define	WT_STAT_CONN_COND_AUTO_WAIT_RESET		1178
 /*! connection: auto adjusting condition wait calls */
-#define	WT_STAT_CONN_COND_AUTO_WAIT			1175
+#define	WT_STAT_CONN_COND_AUTO_WAIT			1179
 /*!
  * connection: auto adjusting condition wait raced to update timeout and
  * skipped updating
  */
-#define	WT_STAT_CONN_COND_AUTO_WAIT_SKIPPED		1176
+#define	WT_STAT_CONN_COND_AUTO_WAIT_SKIPPED		1180
 /*! connection: detected system time went backwards */
-#define	WT_STAT_CONN_TIME_TRAVEL			1177
+#define	WT_STAT_CONN_TIME_TRAVEL			1181
 /*! connection: files currently open */
-#define	WT_STAT_CONN_FILE_OPEN				1178
+#define	WT_STAT_CONN_FILE_OPEN				1182
 /*! connection: memory allocations */
-#define	WT_STAT_CONN_MEMORY_ALLOCATION			1179
+#define	WT_STAT_CONN_MEMORY_ALLOCATION			1183
 /*! connection: memory frees */
-#define	WT_STAT_CONN_MEMORY_FREE			1180
+#define	WT_STAT_CONN_MEMORY_FREE			1184
 /*! connection: memory re-allocations */
-#define	WT_STAT_CONN_MEMORY_GROW			1181
+#define	WT_STAT_CONN_MEMORY_GROW			1185
 /*! connection: pthread mutex condition wait calls */
-#define	WT_STAT_CONN_COND_WAIT				1182
+#define	WT_STAT_CONN_COND_WAIT				1186
 /*! connection: pthread mutex shared lock read-lock calls */
-#define	WT_STAT_CONN_RWLOCK_READ			1183
+#define	WT_STAT_CONN_RWLOCK_READ			1187
 /*! connection: pthread mutex shared lock write-lock calls */
-#define	WT_STAT_CONN_RWLOCK_WRITE			1184
+#define	WT_STAT_CONN_RWLOCK_WRITE			1188
 /*! connection: total fsync I/Os */
-#define	WT_STAT_CONN_FSYNC_IO				1185
+#define	WT_STAT_CONN_FSYNC_IO				1189
 /*! connection: total read I/Os */
-#define	WT_STAT_CONN_READ_IO				1186
+#define	WT_STAT_CONN_READ_IO				1190
 /*! connection: total write I/Os */
-#define	WT_STAT_CONN_WRITE_IO				1187
+#define	WT_STAT_CONN_WRITE_IO				1191
 /*! cursor: Total number of entries skipped by cursor next calls */
-#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_TOTAL		1188
+#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_TOTAL		1192
 /*! cursor: Total number of entries skipped by cursor prev calls */
-#define	WT_STAT_CONN_CURSOR_PREV_SKIP_TOTAL		1189
+#define	WT_STAT_CONN_CURSOR_PREV_SKIP_TOTAL		1193
 /*!
  * cursor: Total number of entries skipped to position the history store
  * cursor
  */
-#define	WT_STAT_CONN_CURSOR_SKIP_HS_CUR_POSITION	1190
+#define	WT_STAT_CONN_CURSOR_SKIP_HS_CUR_POSITION	1194
 /*! cursor: cached cursor count */
-#define	WT_STAT_CONN_CURSOR_CACHED_COUNT		1191
+#define	WT_STAT_CONN_CURSOR_CACHED_COUNT		1195
 /*! cursor: cursor bulk loaded cursor insert calls */
-#define	WT_STAT_CONN_CURSOR_INSERT_BULK			1192
+#define	WT_STAT_CONN_CURSOR_INSERT_BULK			1196
 /*! cursor: cursor close calls that result in cache */
-#define	WT_STAT_CONN_CURSOR_CACHE			1193
+#define	WT_STAT_CONN_CURSOR_CACHE			1197
 /*! cursor: cursor create calls */
-#define	WT_STAT_CONN_CURSOR_CREATE			1194
+#define	WT_STAT_CONN_CURSOR_CREATE			1198
 /*! cursor: cursor insert calls */
-#define	WT_STAT_CONN_CURSOR_INSERT			1195
+#define	WT_STAT_CONN_CURSOR_INSERT			1199
 /*! cursor: cursor insert key and value bytes */
-#define	WT_STAT_CONN_CURSOR_INSERT_BYTES		1196
+#define	WT_STAT_CONN_CURSOR_INSERT_BYTES		1200
 /*! cursor: cursor modify calls */
-#define	WT_STAT_CONN_CURSOR_MODIFY			1197
+#define	WT_STAT_CONN_CURSOR_MODIFY			1201
 /*! cursor: cursor modify key and value bytes affected */
-#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES		1198
+#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES		1202
 /*! cursor: cursor modify value bytes modified */
-#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES_TOUCH		1199
+#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES_TOUCH		1203
 /*! cursor: cursor next calls */
-#define	WT_STAT_CONN_CURSOR_NEXT			1200
+#define	WT_STAT_CONN_CURSOR_NEXT			1204
 /*!
  * cursor: cursor next calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_GE_100		1201
+#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_GE_100		1205
 /*! cursor: cursor next calls that skip less than 100 entries */
-#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100		1202
+#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100		1206
 /*! cursor: cursor operation restarted */
-#define	WT_STAT_CONN_CURSOR_RESTART			1203
+#define	WT_STAT_CONN_CURSOR_RESTART			1207
 /*! cursor: cursor prev calls */
-#define	WT_STAT_CONN_CURSOR_PREV			1204
+#define	WT_STAT_CONN_CURSOR_PREV			1208
 /*!
  * cursor: cursor prev calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_CONN_CURSOR_PREV_HS_TOMBSTONE		1205
+#define	WT_STAT_CONN_CURSOR_PREV_HS_TOMBSTONE		1209
 /*!
  * cursor: cursor prev calls that skip due to a globally visible history
  * store tombstone in rollback to stable
  */
-#define	WT_STAT_CONN_CURSOR_PREV_HS_TOMBSTONE_RTS	1206
+#define	WT_STAT_CONN_CURSOR_PREV_HS_TOMBSTONE_RTS	1210
 /*!
  * cursor: cursor prev calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_CONN_CURSOR_PREV_SKIP_GE_100		1207
+#define	WT_STAT_CONN_CURSOR_PREV_SKIP_GE_100		1211
 /*! cursor: cursor prev calls that skip less than 100 entries */
-#define	WT_STAT_CONN_CURSOR_PREV_SKIP_LT_100		1208
+#define	WT_STAT_CONN_CURSOR_PREV_SKIP_LT_100		1212
 /*! cursor: cursor remove calls */
-#define	WT_STAT_CONN_CURSOR_REMOVE			1209
+#define	WT_STAT_CONN_CURSOR_REMOVE			1213
 /*! cursor: cursor remove key bytes removed */
-#define	WT_STAT_CONN_CURSOR_REMOVE_BYTES		1210
+#define	WT_STAT_CONN_CURSOR_REMOVE_BYTES		1214
 /*! cursor: cursor reserve calls */
-#define	WT_STAT_CONN_CURSOR_RESERVE			1211
+#define	WT_STAT_CONN_CURSOR_RESERVE			1215
 /*! cursor: cursor reset calls */
-#define	WT_STAT_CONN_CURSOR_RESET			1212
+#define	WT_STAT_CONN_CURSOR_RESET			1216
 /*! cursor: cursor search calls */
-#define	WT_STAT_CONN_CURSOR_SEARCH			1213
+#define	WT_STAT_CONN_CURSOR_SEARCH			1217
 /*! cursor: cursor search history store calls */
-#define	WT_STAT_CONN_CURSOR_SEARCH_HS			1214
+#define	WT_STAT_CONN_CURSOR_SEARCH_HS			1218
 /*! cursor: cursor search near calls */
-#define	WT_STAT_CONN_CURSOR_SEARCH_NEAR			1215
+#define	WT_STAT_CONN_CURSOR_SEARCH_NEAR			1219
 /*! cursor: cursor sweep buckets */
-#define	WT_STAT_CONN_CURSOR_SWEEP_BUCKETS		1216
+#define	WT_STAT_CONN_CURSOR_SWEEP_BUCKETS		1220
 /*! cursor: cursor sweep cursors closed */
-#define	WT_STAT_CONN_CURSOR_SWEEP_CLOSED		1217
+#define	WT_STAT_CONN_CURSOR_SWEEP_CLOSED		1221
 /*! cursor: cursor sweep cursors examined */
-#define	WT_STAT_CONN_CURSOR_SWEEP_EXAMINED		1218
+#define	WT_STAT_CONN_CURSOR_SWEEP_EXAMINED		1222
 /*! cursor: cursor sweeps */
-#define	WT_STAT_CONN_CURSOR_SWEEP			1219
+#define	WT_STAT_CONN_CURSOR_SWEEP			1223
 /*! cursor: cursor truncate calls */
-#define	WT_STAT_CONN_CURSOR_TRUNCATE			1220
+#define	WT_STAT_CONN_CURSOR_TRUNCATE			1224
 /*! cursor: cursor update calls */
-#define	WT_STAT_CONN_CURSOR_UPDATE			1221
+#define	WT_STAT_CONN_CURSOR_UPDATE			1225
 /*! cursor: cursor update key and value bytes */
-#define	WT_STAT_CONN_CURSOR_UPDATE_BYTES		1222
+#define	WT_STAT_CONN_CURSOR_UPDATE_BYTES		1226
 /*! cursor: cursor update value size change */
-#define	WT_STAT_CONN_CURSOR_UPDATE_BYTES_CHANGED	1223
+#define	WT_STAT_CONN_CURSOR_UPDATE_BYTES_CHANGED	1227
 /*! cursor: cursors reused from cache */
-#define	WT_STAT_CONN_CURSOR_REOPEN			1224
+#define	WT_STAT_CONN_CURSOR_REOPEN			1228
 /*! cursor: open cursor count */
-#define	WT_STAT_CONN_CURSOR_OPEN_COUNT			1225
+#define	WT_STAT_CONN_CURSOR_OPEN_COUNT			1229
 /*! data-handle: connection data handle size */
-#define	WT_STAT_CONN_DH_CONN_HANDLE_SIZE		1226
+#define	WT_STAT_CONN_DH_CONN_HANDLE_SIZE		1230
 /*! data-handle: connection data handles currently active */
-#define	WT_STAT_CONN_DH_CONN_HANDLE_COUNT		1227
+#define	WT_STAT_CONN_DH_CONN_HANDLE_COUNT		1231
 /*! data-handle: connection sweep candidate became referenced */
-#define	WT_STAT_CONN_DH_SWEEP_REF			1228
+#define	WT_STAT_CONN_DH_SWEEP_REF			1232
 /*! data-handle: connection sweep dhandles closed */
-#define	WT_STAT_CONN_DH_SWEEP_CLOSE			1229
+#define	WT_STAT_CONN_DH_SWEEP_CLOSE			1233
 /*! data-handle: connection sweep dhandles removed from hash list */
-#define	WT_STAT_CONN_DH_SWEEP_REMOVE			1230
+#define	WT_STAT_CONN_DH_SWEEP_REMOVE			1234
 /*! data-handle: connection sweep time-of-death sets */
-#define	WT_STAT_CONN_DH_SWEEP_TOD			1231
+#define	WT_STAT_CONN_DH_SWEEP_TOD			1235
 /*! data-handle: connection sweeps */
-#define	WT_STAT_CONN_DH_SWEEPS				1232
+#define	WT_STAT_CONN_DH_SWEEPS				1236
 /*! data-handle: session dhandles swept */
-#define	WT_STAT_CONN_DH_SESSION_HANDLES			1233
+#define	WT_STAT_CONN_DH_SESSION_HANDLES			1237
 /*! data-handle: session sweep attempts */
-#define	WT_STAT_CONN_DH_SESSION_SWEEPS			1234
-/*! garbage-collection: pages added for eviction during garbage collection */
-#define	WT_STAT_CONN_GC_PAGES_EVICT			1235
-/*! garbage-collection: pages removed for garbage collection */
-#define	WT_STAT_CONN_GC_PAGES_REMOVED			1236
-/*!
- * garbage-collection: pages skipped during tree walk for garbage
- * collection
- */
-#define	WT_STAT_CONN_GC_PAGES_WALK_SKIPPED		1237
-/*! garbage-collection: pages visited for garbage collection */
-#define	WT_STAT_CONN_GC_PAGES_VISITED			1238
+#define	WT_STAT_CONN_DH_SESSION_SWEEPS			1238
 /*! lock: checkpoint lock acquisitions */
 #define	WT_STAT_CONN_LOCK_CHECKPOINT_COUNT		1239
 /*! lock: checkpoint lock application thread wait time (usecs) */
@@ -6381,106 +6378,103 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache_walk or all statistics are enabled
  */
 #define	WT_STAT_DSRC_CACHE_STATE_PAGES			2100
+/*! checkpoint-cleanup: pages added for eviction */
+#define	WT_STAT_DSRC_CC_PAGES_EVICT			2101
+/*! checkpoint-cleanup: pages removed */
+#define	WT_STAT_DSRC_CC_PAGES_REMOVED			2102
+/*! checkpoint-cleanup: pages skipped during tree walk */
+#define	WT_STAT_DSRC_CC_PAGES_WALK_SKIPPED		2103
+/*! checkpoint-cleanup: pages visited */
+#define	WT_STAT_DSRC_CC_PAGES_VISITED			2104
 /*!
  * compression: compressed page maximum internal page size prior to
  * compression
  */
-#define	WT_STAT_DSRC_COMPRESS_PRECOMP_INTL_MAX_PAGE_SIZE	2101
+#define	WT_STAT_DSRC_COMPRESS_PRECOMP_INTL_MAX_PAGE_SIZE	2105
 /*!
  * compression: compressed page maximum leaf page size prior to
  * compression
  */
-#define	WT_STAT_DSRC_COMPRESS_PRECOMP_LEAF_MAX_PAGE_SIZE	2102
+#define	WT_STAT_DSRC_COMPRESS_PRECOMP_LEAF_MAX_PAGE_SIZE	2106
 /*! compression: compressed pages read */
-#define	WT_STAT_DSRC_COMPRESS_READ			2103
+#define	WT_STAT_DSRC_COMPRESS_READ			2107
 /*! compression: compressed pages written */
-#define	WT_STAT_DSRC_COMPRESS_WRITE			2104
+#define	WT_STAT_DSRC_COMPRESS_WRITE			2108
 /*! compression: page written failed to compress */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2105
+#define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2109
 /*! compression: page written was too small to compress */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2106
+#define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2110
 /*! cursor: Total number of entries skipped by cursor next calls */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL		2107
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_TOTAL		2111
 /*! cursor: Total number of entries skipped by cursor prev calls */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_TOTAL		2108
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_TOTAL		2112
 /*!
  * cursor: Total number of entries skipped to position the history store
  * cursor
  */
-#define	WT_STAT_DSRC_CURSOR_SKIP_HS_CUR_POSITION	2109
+#define	WT_STAT_DSRC_CURSOR_SKIP_HS_CUR_POSITION	2113
 /*! cursor: bulk loaded cursor insert calls */
-#define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2110
+#define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2114
 /*! cursor: cache cursors reuse count */
-#define	WT_STAT_DSRC_CURSOR_REOPEN			2111
+#define	WT_STAT_DSRC_CURSOR_REOPEN			2115
 /*! cursor: close calls that result in cache */
-#define	WT_STAT_DSRC_CURSOR_CACHE			2112
+#define	WT_STAT_DSRC_CURSOR_CACHE			2116
 /*! cursor: create calls */
-#define	WT_STAT_DSRC_CURSOR_CREATE			2113
+#define	WT_STAT_DSRC_CURSOR_CREATE			2117
 /*!
  * cursor: cursor next calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100		2114
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100		2118
 /*! cursor: cursor next calls that skip less than 100 entries */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100		2115
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100		2119
 /*!
  * cursor: cursor prev calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100		2116
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_GE_100		2120
 /*! cursor: cursor prev calls that skip less than 100 entries */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_LT_100		2117
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_LT_100		2121
 /*! cursor: insert calls */
-#define	WT_STAT_DSRC_CURSOR_INSERT			2118
+#define	WT_STAT_DSRC_CURSOR_INSERT			2122
 /*! cursor: insert key and value bytes */
-#define	WT_STAT_DSRC_CURSOR_INSERT_BYTES		2119
+#define	WT_STAT_DSRC_CURSOR_INSERT_BYTES		2123
 /*! cursor: modify */
-#define	WT_STAT_DSRC_CURSOR_MODIFY			2120
+#define	WT_STAT_DSRC_CURSOR_MODIFY			2124
 /*! cursor: modify key and value bytes affected */
-#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES		2121
+#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES		2125
 /*! cursor: modify value bytes modified */
-#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES_TOUCH		2122
+#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES_TOUCH		2126
 /*! cursor: next calls */
-#define	WT_STAT_DSRC_CURSOR_NEXT			2123
+#define	WT_STAT_DSRC_CURSOR_NEXT			2127
 /*! cursor: open cursor count */
-#define	WT_STAT_DSRC_CURSOR_OPEN_COUNT			2124
+#define	WT_STAT_DSRC_CURSOR_OPEN_COUNT			2128
 /*! cursor: operation restarted */
-#define	WT_STAT_DSRC_CURSOR_RESTART			2125
+#define	WT_STAT_DSRC_CURSOR_RESTART			2129
 /*! cursor: prev calls */
-#define	WT_STAT_DSRC_CURSOR_PREV			2126
+#define	WT_STAT_DSRC_CURSOR_PREV			2130
 /*! cursor: remove calls */
-#define	WT_STAT_DSRC_CURSOR_REMOVE			2127
+#define	WT_STAT_DSRC_CURSOR_REMOVE			2131
 /*! cursor: remove key bytes removed */
-#define	WT_STAT_DSRC_CURSOR_REMOVE_BYTES		2128
+#define	WT_STAT_DSRC_CURSOR_REMOVE_BYTES		2132
 /*! cursor: reserve calls */
-#define	WT_STAT_DSRC_CURSOR_RESERVE			2129
+#define	WT_STAT_DSRC_CURSOR_RESERVE			2133
 /*! cursor: reset calls */
-#define	WT_STAT_DSRC_CURSOR_RESET			2130
+#define	WT_STAT_DSRC_CURSOR_RESET			2134
 /*! cursor: search calls */
-#define	WT_STAT_DSRC_CURSOR_SEARCH			2131
+#define	WT_STAT_DSRC_CURSOR_SEARCH			2135
 /*! cursor: search history store calls */
-#define	WT_STAT_DSRC_CURSOR_SEARCH_HS			2132
+#define	WT_STAT_DSRC_CURSOR_SEARCH_HS			2136
 /*! cursor: search near calls */
-#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR			2133
+#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR			2137
 /*! cursor: truncate calls */
-#define	WT_STAT_DSRC_CURSOR_TRUNCATE			2134
+#define	WT_STAT_DSRC_CURSOR_TRUNCATE			2138
 /*! cursor: update calls */
-#define	WT_STAT_DSRC_CURSOR_UPDATE			2135
+#define	WT_STAT_DSRC_CURSOR_UPDATE			2139
 /*! cursor: update key and value bytes */
-#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2136
+#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2140
 /*! cursor: update value size change */
-#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED	2137
-/*! garbage-collection: pages added for eviction during garbage collection */
-#define	WT_STAT_DSRC_GC_PAGES_EVICT			2138
-/*! garbage-collection: pages removed for garbage collection */
-#define	WT_STAT_DSRC_GC_PAGES_REMOVED			2139
-/*!
- * garbage-collection: pages skipped during tree walk for garbage
- * collection
- */
-#define	WT_STAT_DSRC_GC_PAGES_WALK_SKIPPED		2140
-/*! garbage-collection: pages visited for garbage collection */
-#define	WT_STAT_DSRC_GC_PAGES_VISITED			2141
+#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED	2141
 /*! reconciliation: approximate byte size of timestamps in pages written */
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_BYTES_TS		2142
 /*!

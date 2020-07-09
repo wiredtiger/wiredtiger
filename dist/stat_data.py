@@ -56,6 +56,10 @@ class CapacityStat(Stat):
     prefix = 'capacity'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CapacityStat.prefix, desc, flags)
+class CheckpointCleanupStat(Stat):
+    prefix = 'checkpoint-cleanup'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, CheckpointCleanupStat.prefix, desc, flags)
 class CompressStat(Stat):
     prefix = 'compression'
     def __init__(self, name, desc, flags=''):
@@ -72,10 +76,6 @@ class DhandleStat(Stat):
     prefix = 'data-handle'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, DhandleStat.prefix, desc, flags)
-class GCStat(Stat):
-    prefix = 'garbage-collection'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, GCStat.prefix, desc, flags)
 class JoinStat(Stat):
     prefix = ''  # prefix is inserted dynamically
     def __init__(self, name, desc, flags=''):
@@ -412,12 +412,12 @@ connection_stats = [
     DhandleStat('dh_sweeps', 'connection sweeps'),
 
     ##########################################
-    # GC statistics
+    # Checkpoint cleanup statistics
     ##########################################
-    GCStat('gc_pages_evict', 'pages added for eviction during garbage collection'),
-    GCStat('gc_pages_removed', 'pages removed for garbage collection'),
-    GCStat('gc_pages_visited', 'pages visited for garbage collection'),
-    GCStat('gc_pages_walk_skipped', 'pages skipped during tree walk for garbage collection'),
+    CheckpointCleanupStat('cc_pages_evict', 'pages added for eviction'),
+    CheckpointCleanupStat('cc_pages_removed', 'pages removed'),
+    CheckpointCleanupStat('cc_pages_visited', 'pages visited'),
+    CheckpointCleanupStat('cc_pages_walk_skipped', 'pages skipped during tree walk'),
 
     ##########################################
     # Locking statistics
@@ -858,12 +858,12 @@ dsrc_stats = [
     CursorStat('cursor_update_bytes_changed', 'update value size change', 'size'),
 
     ##########################################
-    # GC statistics
+    # Checkpoint cleanup statistics
     ##########################################
-    GCStat('gc_pages_evict', 'pages added for eviction during garbage collection'),
-    GCStat('gc_pages_removed', 'pages removed for garbage collection'),
-    GCStat('gc_pages_visited', 'pages visited for garbage collection'),
-    GCStat('gc_pages_walk_skipped', 'pages skipped during tree walk for garbage collection'),
+    CheckpointCleanupStat('cc_pages_evict', 'pages added for eviction'),
+    CheckpointCleanupStat('cc_pages_removed', 'pages removed'),
+    CheckpointCleanupStat('cc_pages_visited', 'pages visited'),
+    CheckpointCleanupStat('cc_pages_walk_skipped', 'pages skipped during tree walk'),
 
     ##########################################
     # LSM statistics
