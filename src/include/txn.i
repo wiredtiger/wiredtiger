@@ -1009,6 +1009,8 @@ retry:
         if (retry && (prepare_upd->txnid == WT_TXN_ABORTED ||
                        prepare_upd->prepare_state == WT_PREPARE_RESOLVED)) {
             retry = false;
+            /* Clean out any stale value before performing the retry. */
+            __wt_upd_value_clear(cbt->upd_value);
             WT_STAT_CONN_INCR(session, txn_read_race_prepare_update);
             WT_STAT_DATA_INCR(session, txn_read_race_prepare_update);
 
