@@ -96,7 +96,10 @@ class test_join10(wttest.WiredTigerTestCase):
             got.append([country, year, population])
         self.assertEqual(expect, got)
 
-        # Check statististics
+        # Check statistics
+        # It may seem odd to encode specific values to check against, but each of these
+        # statistics represent significant and predictable events in the code, and we
+        # want to know if anything changes.
         expect_stat = dict()
         pfxc = 'join: index:poptable:country: '
         pfxy = 'join: index:poptable:immutable_year: '

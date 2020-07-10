@@ -484,6 +484,10 @@ __curjoin_entry_in_range(
 
         if (!passed) {
             if (iter != NULL && (iter->is_equal || F_ISSET(end, WT_CURJOIN_END_LT))) {
+                /*
+                 * Even though this cursor is done, we still need to bump (advance it), to mark the
+                 * iteration as complete.
+                 */
                 WT_RET(__curjoin_iter_bump(iter));
                 return (WT_NOTFOUND);
             }
