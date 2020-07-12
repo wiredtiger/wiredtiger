@@ -654,23 +654,39 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
-    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
+    for (; ret == 0; ret = __wt_hs_cursor_prev(session, hs_cursor)) {
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
-    /* Not found if we cross the tree boundary. */
-    if (hs_btree_id != S2BT(session)->id) {
-        ret = WT_NOTFOUND;
-        goto done;
+        /* Stop before crossing over to the next btree */
+        if (hs_btree_id != S2BT(session)->id) {
+            ret = WT_NOTFOUND;
+            goto done;
+        }
+
+        /*
+         * Keys are sorted in an order, skip the ones before the desired key, and bail out if we
+         * have crossed over the desired key and not found the record we are looking for.
+         */
+        WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+        if (cmp != 0) {
+            ret = WT_NOTFOUND;
+            goto done;
+        }
+
+        /*
+         * If the stop time pair on the tombstone in the history store is already globally visible
+         * we can skip it.
+         */
+        if (!__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw))
+            break;
+        else
+            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
     }
 
-    /*
-     * Keys are sorted in an order, skip the ones before the desired key, and bail out if we have
-     * crossed over the desired key and not found the record we are looking for.
-     */
-    WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
-    if (cmp != 0) {
-        ret = WT_NOTFOUND;
+    /* We walked off the top of the history store. */
+    if (ret == WT_NOTFOUND)
         goto done;
-    }
+    WT_ERR(ret);
 
     /*
      * As part of the history store search, we never get an exact match based on our search criteria
@@ -711,6 +727,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
 
     /* If the history store record has a valid stop time point, append it. */
     if (hs_stop_durable_ts != WT_TS_MAX) {
+        WT_ASSERT(session, hs_cbt->upd_value->tw.stop_ts != WT_TS_MAX);
         WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
         tombstone->durable_ts = hs_cbt->upd_value->tw.durable_stop_ts;
         tombstone->start_ts = hs_cbt->upd_value->tw.stop_ts;
@@ -945,8 +962,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * Scan the history store for the given btree and key with maximum start timestamp to let
          * the search point to the last version of the key.
          */
-        WT_ERR_NOTFOUND_OK(
-          __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, &op->u.op_row.key, WT_TS_MAX),
+        WT_ERR_NOTFOUND_OK(__wt_hs_cursor_position(
+                             session, hs_cursor, hs_btree_id, &op->u.op_row.key, WT_TS_MAX, NULL),
           true);
 
         if (ret == 0)
@@ -1995,7 +2012,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
  *     eviction.
  */
 int
-__wt_txn_is_blocking(WT_SESSION_IMPL *session)
+__wt_txn_is_blocking(WT_SESSION_IMPL *session, bool conservative)
 {
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
@@ -2009,12 +2026,31 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     if (F_ISSET(txn, WT_TXN_PREPARE))
         return (0);
 
+    /* The checkpoint transaction shouldn't be blocking but if it is don't roll it back. */
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        return (0);
+
     /*
      * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
      * unless there's at least one update or we're configured to time out thread operations (a way
      * to confirm our caller is prepared for rollback).
      */
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
+        return (0);
+
+    /*
+     * Be less aggressive about aborting the oldest transaction in the case of trying to make
+     * forced eviction successful. Specifically excuse it if:
+     *  * Hasn't done many updates
+     *  * Is in the middle of a commit or abort
+     *
+     * This threshold that we're comparing the number of updates to is related and must be greater
+     * than the threshold we use in reconciliation's "need split" helper. If we're going to rollback
+     * a transaction, we need to have considered splitting the page in the case that its updates are
+     * on a single page.
+     */
+    if (conservative && (txn->mod_count < (10 + WT_REC_SPLIT_MIN_ITEMS_USE_MEM) ||
+                          F_ISSET(session, WT_SESSION_RESOLVING_TXN)))
         return (0);
 
     /*

@@ -75,14 +75,15 @@ class test_gc_base(wttest.WiredTigerTestCase):
 
     def check_gc_stats(self):
         c = self.session.open_cursor( 'statistics:')
-        self.assertGreaterEqual(c[stat.conn.hs_gc_pages_visited][2], 0)
-        self.assertGreaterEqual(c[stat.conn.hs_gc_pages_removed][2], 0)
+        self.assertGreaterEqual(c[stat.conn.cc_pages_visited][2], 0)
+        self.assertGreaterEqual(c[stat.conn.cc_pages_removed][2], 0)
         c.close()
 
 # Test that checkpoint cleans the obsolete lookaside pages.
 class test_gc01(test_gc_base):
     # Force a small cache.
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
+    conn_config = ('cache_size=50MB,eviction_updates_trigger=95,eviction_updates_target=80,'
+                   'log=(enabled),statistics=(all)')
     session_config = 'isolation=snapshot'
 
     def test_gc(self):
