@@ -616,7 +616,7 @@ __rollback_abort_row_reconciled_page(
          * let the reconciliation happens again on the page. Otherwise, the eviction may pick the
          * already reconciled page to write to disk with newer updates.
          */
-        __wt_page_modify_set(session, page);
+        __wt_page_modify_set(session, page, false);
     } else if (mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         for (multi = mod->mod_multi, multi_entry = 0; multi_entry < mod->mod_multi_entries;
              ++multi, ++multi_entry)
@@ -642,7 +642,7 @@ __rollback_abort_row_reconciled_page(
                  * eviction may pick the already reconciled page to write to disk with newer
                  * updates.
                  */
-                __wt_page_modify_set(session, page);
+                __wt_page_modify_set(session, page, false);
             }
     }
 
@@ -1201,8 +1201,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * 2. The checkpoint durable start/stop timestamp is greater than the rollback timestamp.
          * 3. There is no durable timestamp in any checkpoint.
          */
-        if (S2BT(session)->modified || max_durable_ts > rollback_timestamp || prepared_updates ||
-          !durable_ts_found) {
+        if (S2BT(session)->modified == WT_BTREE_MODIFY_NORMAL ||
+          max_durable_ts > rollback_timestamp || prepared_updates || !durable_ts_found) {
             __wt_verbose(session, WT_VERB_RTS,
               "tree rolled back with durable timestamp: %s, or when tree is modified: %s or "
               "prepared updates: %s or when durable time is not found: %s",
@@ -1225,7 +1225,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * to WT_TS_NONE, We need this exception.
          * 2. In-memory database - In this scenario, there is no history store to truncate.
          */
-        if (!S2BT(session)->modified && max_durable_ts == WT_TS_NONE &&
+        if (S2BT(session)->modified == WT_BTREE_MODIFY_NORMAL && max_durable_ts == WT_TS_NONE &&
           !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             WT_TRET(__rollback_to_stable_btree_hs_truncate(session, S2BT(session)->id));
 

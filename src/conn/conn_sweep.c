@@ -79,7 +79,7 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 
     /* Only sweep clean trees where all updates are visible. */
     if (btree != NULL &&
-      (btree->modified ||
+      (btree->modified == WT_BTREE_MODIFY_NORMAL ||
           !__wt_txn_visible_all(session, btree->rec_max_txn, btree->rec_max_timestamp)))
         goto err;
 

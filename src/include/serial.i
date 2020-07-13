@@ -155,7 +155,7 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *
     __wt_cache_page_inmem_incr(session, page, new_ins_size);
 
     /* Mark the page dirty after updating the footprint. */
-    __wt_page_modify_set(session, page);
+    __wt_page_modify_set(session, page, false);
 
     return (0);
 }
@@ -207,7 +207,7 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_
     __wt_cache_page_inmem_incr(session, page, new_ins_size);
 
     /* Mark the page dirty after updating the footprint. */
-    __wt_page_modify_set(session, page);
+    __wt_page_modify_set(session, page, false);
 
     return (0);
 }
@@ -252,7 +252,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     __wt_cache_page_inmem_incr(session, page, upd_size);
 
     /* Mark the page dirty after updating the footprint. */
-    __wt_page_modify_set(session, page);
+    __wt_page_modify_set(session, page, false);
 
     /* If there are no subsequent WT_UPDATE structures we are done here. */
     if (upd->next == NULL || exclusive)

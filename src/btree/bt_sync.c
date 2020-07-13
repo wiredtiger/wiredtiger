@@ -152,7 +152,7 @@ __sync_ref_list_pop(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, uint32_t flags)
          * let them clean during reconciliation.
          */
         WT_RET(__wt_page_modify_init(session, rlp->list[i]->page));
-        __wt_page_modify_set(session, rlp->list[i]->page);
+        __wt_page_modify_set(session, rlp->list[i]->page, true);
 
         /*
          * Ignore the failure from urgent eviction. The failed refs are taken care in the next
@@ -460,10 +460,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * Writing the leaf pages is done without acquiring a high-level lock, serialize so multiple
          * threads don't walk the tree at the same time.
          */
-        if (!btree->modified)
+        if (btree->modified == WT_BTREE_MODIFY_NONE)
             return (0);
         __wt_spin_lock(session, &btree->flush_lock);
-        if (!btree->modified) {
+        if (btree->modified == WT_BTREE_MODIFY_NONE) {
             __wt_spin_unlock(session, &btree->flush_lock);
             return (0);
         }
@@ -586,7 +586,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * written.
              */
             if (__sync_checkpoint_can_skip(session, walk)) {
-                __wt_tree_modify_set(session);
+                __wt_tree_modify_set(session, false);
                 continue;
             }
 

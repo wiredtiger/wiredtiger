@@ -455,9 +455,9 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
              * free the deleted pages, but if the handle is read-only or if the application never
              * modifies the tree, we're not able to do so.)
              */
-            if (btree->modified) {
+            if (btree->modified != WT_BTREE_MODIFY_NONE) {
                 WT_ERR(__wt_page_modify_init(session, page));
-                __wt_page_modify_set(session, page);
+                __wt_page_modify_set(session, page, false);
             }
             break;
         case WT_CELL_ADDR_INT:
@@ -596,7 +596,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         WT_RET(__wt_page_modify_init(session, page));
         if (!F_ISSET(btree, WT_BTREE_READONLY))
-            __wt_page_modify_set(session, page);
+            __wt_page_modify_set(session, page, false);
 
         /* Allocate the per-page update array if one doesn't already exist. */
         if (page->entries != 0 && page->modify->mod_row_update == NULL)

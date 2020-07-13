@@ -662,7 +662,7 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
  *     Mark the tree dirty.
  */
 static inline void
-__wt_tree_modify_set(WT_SESSION_IMPL *session)
+__wt_tree_modify_set(WT_SESSION_IMPL *session, bool cleanup)
 {
     /*
      * Test before setting the dirty flag, it's a hot cache line.
@@ -672,11 +672,11 @@ __wt_tree_modify_set(WT_SESSION_IMPL *session)
      * the pages clean, it might result in an extra checkpoint that doesn't do any work but it
      * shouldn't cause problems; regardless, let's play it safe.)
      */
-    if (!S2BT(session)->modified) {
+    if (S2BT(session)->modified != WT_BTREE_MODIFY_NORMAL) {
         /* Assert we never dirty a checkpoint handle. */
         WT_ASSERT(session, session->dhandle->checkpoint == NULL);
 
-        S2BT(session)->modified = true;
+        S2BT(session)->modified = cleanup ? WT_BTREE_MODIFY_CLEANUP : WT_BTREE_MODIFY_NORMAL;
         WT_FULL_BARRIER();
     }
 
@@ -720,14 +720,14 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
  *     Mark the page and tree dirty.
  */
 static inline void
-__wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
+__wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page, bool cleanup)
 {
     /*
      * Mark the tree dirty (even if the page is already marked dirty), newly created pages to
      * support "empty" files are dirty, but the file isn't marked dirty until there's a real change
      * needing to be written.
      */
-    __wt_tree_modify_set(session);
+    __wt_tree_modify_set(session, cleanup);
 
     __wt_page_only_modify_set(session, page);
 }
@@ -755,7 +755,7 @@ __wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_onl
     if (page_only)
         __wt_page_only_modify_set(session, parent);
     else
-        __wt_page_modify_set(session, parent);
+        __wt_page_modify_set(session, parent, false);
     return (0);
 }
 

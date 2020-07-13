@@ -140,7 +140,7 @@ __rebalance_internal(WT_SESSION_IMPL *session, WT_REBALANCE_STUFF *rs)
     WT_RET(__wt_page_alloc(session, rs->type, leaf_next, false, &page));
     page->pg_intl_parent_ref = &btree->root;
     WT_ERR(__wt_page_modify_init(session, page));
-    __wt_page_modify_set(session, page);
+    __wt_page_modify_set(session, page, false);
 
     pindex = WT_INTL_INDEX_GET_SAFE(page);
     for (refp = pindex->index, i = 0; i < leaf_next; ++i) {
@@ -376,7 +376,7 @@ __wt_bt_rebalance(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (ref->page->dsk == NULL)
         return (0);
-    if (btree->modified)
+    if (btree->modified == WT_BTREE_MODIFY_NORMAL)
         WT_RET_MSG(session, EINVAL, "tree is modified, only clean trees may be rebalanced");
 
     WT_CLEAR(_rstuff);

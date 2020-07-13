@@ -1996,7 +1996,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
             /*
              * Mark the metadata dirty so we flush it on close, allowing recovery to be skipped.
              */
-            WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s), __wt_tree_modify_set(s));
+            WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s), __wt_tree_modify_set(s, false));
 
             WT_TRET(wt_session->close(wt_session, config));
         }

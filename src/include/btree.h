@@ -155,8 +155,13 @@ struct __wt_btree {
 
     uint64_t last_recno; /* Column-store last record number */
 
-    WT_REF root;      /* Root page reference */
-    bool modified;    /* If the tree ever modified */
+    WT_REF root; /* Root page reference */
+    volatile enum {
+        WT_BTREE_MODIFY_NONE,
+        WT_BTREE_MODIFY_NORMAL,
+        WT_BTREE_MODIFY_CLEANUP
+    } modified; /* Tree modified status */
+
     uint8_t original; /* Newly created: bulk-load possible
                          (want a bool but needs atomic cas) */
 

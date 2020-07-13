@@ -506,7 +506,7 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
     WT_BTREE *btree;
 
     btree = S2BT(session);
-    btree->modified = true;
+    btree->modified = WT_BTREE_MODIFY_NORMAL;
     __wt_meta_ckptlist_free(session, &btree->ckpt);
 }
 
@@ -1482,7 +1482,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      * in a cursor after taking any checkpoint, which means it must exist.
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
-    if (!btree->modified && !force) {
+    if (btree->modified == WT_BTREE_MODIFY_NONE && !force) {
         deleted = 0;
         WT_CKPT_FOREACH (ckptbase, ckpt)
             if (F_ISSET(ckpt, WT_CKPT_DELETE))
@@ -1603,7 +1603,7 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      * modified flag. The "unless reconciliation skips updates" problem is handled in the
      * reconciliation code: if reconciliation skips updates, it sets the modified flag itself.
      */
-    btree->modified = false;
+    btree->modified = WT_BTREE_MODIFY_NONE;
     WT_FULL_BARRIER();
 
     /* Tell logging that a file checkpoint is starting. */
@@ -1672,7 +1672,7 @@ err:
      * If the checkpoint didn't complete successfully, make sure the tree is marked dirty.
      */
     if (ret != 0) {
-        btree->modified = true;
+        btree->modified = WT_BTREE_MODIFY_NORMAL;
         conn->modified = true;
     }
 
@@ -1825,7 +1825,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /* Closing an unmodified file. */
-    if (!btree->modified && !bulk)
+    if (btree->modified == WT_BTREE_MODIFY_NONE && !bulk)
         return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
     /*
@@ -1833,7 +1833,8 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
      * is a stable timestamp set or the connection is configured to disallow such operation.
      * Flushing trees can lead to files that are inconsistent on disk after a crash.
      */
-    if (btree->modified && !bulk && !__wt_btree_immediately_durable(session) &&
+    if (btree->modified == WT_BTREE_MODIFY_NORMAL && !bulk &&
+      !__wt_btree_immediately_durable(session) &&
       (S2C(session)->txn_global.has_stable_timestamp ||
           (!F_ISSET(S2C(session), WT_CONN_FILE_CLOSE_SYNC) && !metadata)))
         return (__wt_set_return(session, EBUSY));

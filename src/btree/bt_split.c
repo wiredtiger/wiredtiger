@@ -403,7 +403,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 
     /* Mark the root page dirty. */
     WT_RET(__wt_page_modify_init(session, root));
-    __wt_page_modify_set(session, root);
+    __wt_page_modify_set(session, root, false);
 
     /*
      * Our caller is holding the root page locked to single-thread splits, which means we can safely
@@ -481,7 +481,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
         child->pg_intl_parent_ref = ref;
         child->pg_intl_split_gen = split_gen;
         WT_ERR(__wt_page_modify_init(session, child));
-        __wt_page_modify_set(session, child);
+        __wt_page_modify_set(session, child, false);
 
         /*
          * The newly allocated child's page index references the same structures as the root. (We
@@ -671,7 +671,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
 
     /* Mark the page dirty. */
     WT_RET(__wt_page_modify_init(session, parent));
-    __wt_page_modify_set(session, parent);
+    __wt_page_modify_set(session, parent, false);
 
     /*
      * We've locked the parent, which means it cannot split (which is the only reason to worry about
@@ -911,7 +911,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 
     /* Mark the page dirty. */
     WT_RET(__wt_page_modify_init(session, page));
-    __wt_page_modify_set(session, page);
+    __wt_page_modify_set(session, page, false);
 
     btree = S2BT(session);
     alloc_index = replace_index = NULL;
@@ -1017,7 +1017,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
         child->pg_intl_parent_ref = ref;
         child->pg_intl_split_gen = split_gen;
         WT_ERR(__wt_page_modify_init(session, child));
-        __wt_page_modify_set(session, child);
+        __wt_page_modify_set(session, child, false);
 
         /*
          * The newly allocated child's page index references the same structures as the parent. (We
@@ -1827,7 +1827,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      * structure, so create it now.
      */
     WT_ERR(__wt_page_modify_init(session, right));
-    __wt_page_modify_set(session, right);
+    __wt_page_modify_set(session, right, false);
 
     if (type == WT_PAGE_ROW_LEAF) {
         WT_ERR(__wt_calloc_one(session, &right->modify->mod_row_insert));

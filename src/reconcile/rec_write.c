@@ -308,7 +308,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * the flag be set before a subsequent checkpoint reads it, and as the current checkpoint is
          * waiting on this reconciliation to complete, there's no risk of that happening).
          */
-        btree->modified = true;
+        btree->modified = WT_BTREE_MODIFY_NORMAL;
         WT_FULL_BARRIER();
         if (!S2C(session)->modified)
             S2C(session)->modified = true;
@@ -1940,7 +1940,7 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     /* Mark the page's parent and the tree dirty. */
     parent = r->ref->home;
     WT_ERR(__wt_page_modify_init(session, parent));
-    __wt_page_modify_set(session, parent);
+    __wt_page_modify_set(session, parent, false);
 
 err:
     __rec_cleanup(session, r);
