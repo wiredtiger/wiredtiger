@@ -1,4 +1,4 @@
-#
+<#
 # This file defines the tasks and platforms for WiredTiger in the
 # MongoDB continuous integration system (see https://mci.mongodb.com).
 #
@@ -371,7 +371,7 @@ variables:
           configure_env_vars:
             CC="/opt/mongodbtoolchain/v3/bin/clang -fsanitize=address"
             PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer"
-          posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
       - func: "format test script"
         vars:
           format_test_script_args: -R -t 360
@@ -1783,7 +1783,7 @@ tasks:
       - func: "configure wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -Werror"
-          posix_configure_flags: --enable-silent-rules --enable-diagnostic --disable-static
+          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "make wiredtiger"
         vars:
           make_command: make all
@@ -1982,7 +1982,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: ac_cv_func_ftruncate=no
+          posix_configure_flags: --enable-strict ac_cv_func_ftruncate=no
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
@@ -1999,7 +1999,7 @@ tasks:
       - func: "configure wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -Werror"
-          posix_configure_flags: --enable-silent-rules --enable-diagnostic --disable-static
+          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "make wiredtiger"
 
       # Run the long version of make check, that includes the full csuite tests
@@ -2121,7 +2121,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --disable-shared --with-builtins=snappy,zlib
+          posix_configure_flags: --enable-strict --disable-shared --with-builtins=snappy,zlib
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
@@ -2223,7 +2223,7 @@ tasks:
             CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
             CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
             -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-          posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
       - func: "format test script"
         vars:
           test_env_vars:
@@ -2248,7 +2248,7 @@ tasks:
             CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
             CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
             -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-          posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
       - func: "format test script"
         # To emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
         # Run smoke tests, don't stop at failed tests, use default config
