@@ -1455,7 +1455,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     mod = page->modify;
 
     /* A truncated page can't be evicted until the truncate completes. */
-    if (__wt_page_del_active(session, ref, true))
+    if (__wt_page_del_active(session, ref, false))
         return (false);
 
     /* Otherwise, never modified pages can always be evicted. */
