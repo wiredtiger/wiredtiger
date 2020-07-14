@@ -560,8 +560,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 break;
 
             /*
-             * Perform checkpoint cleanup when not in startup or shutdown phase by traverse through
-             * the internal page for obsolete child pages.
+             * Perform checkpoint cleanup when not in startup or shutdown phase by traversing
+             * through internal pages looking for obsolete child pages.
              */
             if (!F_ISSET(conn, WT_CONN_RECOVERING | WT_CONN_CLOSING_TIMESTAMP) &&
               F_ISSET(walk, WT_REF_FLAG_INTERNAL)) {
