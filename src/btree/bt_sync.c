@@ -394,7 +394,10 @@ __sync_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *ski
         return (0);
     }
 
-    /* Check whether this ref has any possible updates to be aborted. */
+    /*
+     * Ignore the pages with no on-disk address. It is possible that a page with deleted state may
+     * not have an on-disk address.
+     */
     if (!__wt_ref_addr_copy(session, ref, &addr))
         return (0);
 
