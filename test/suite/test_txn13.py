@@ -40,13 +40,13 @@ class test_txn13(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
     tablename = 'test_txn13'
     uri = 'table:' + tablename
-    nops = 1024
+    nops = 8
     create_params = 'key_format=i,value_format=S'
 
     scenarios = make_scenarios([
-        ('1gb', dict(expect_err=False, valuesize=1048576)),
-        ('2gb', dict(expect_err=False, valuesize=2097152)),
-        ('4gb', dict(expect_err=True, valuesize=4194304))
+        ('1gb', dict(expect_err=False, valuesize=134217728)),
+        ('2gb', dict(expect_err=False, valuesize=268435456)),
+        ('4gb', dict(expect_err=True, valuesize=536870912))
     ])
 
     # Turn on logging for this test.
