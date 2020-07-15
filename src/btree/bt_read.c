@@ -222,15 +222,15 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
 
     /* Sanity check flag combinations. */
-    WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT) ||
-        LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF));
+    WT_ASSERT(session,
+      !LF_ISSET(WT_READ_DELETED_SKIP) || !LF_ISSET(WT_READ_NO_WAIT) || LF_ISSET(WT_READ_CACHE));
     WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_CHECK) || !LF_ISSET(WT_READ_DELETED_SKIP));
 
     /*
      * Ignore reads of pages already known to be in cache, otherwise the eviction server can
      * dominate these statistics.
      */
-    if (!LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF)) {
+    if (!LF_ISSET(WT_READ_CACHE)) {
         WT_STAT_CONN_INCR(session, cache_pages_requested);
         WT_STAT_DATA_INCR(session, cache_pages_requested);
     }
@@ -249,11 +249,6 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             /* Optionally limit reads to cache-only. */
             if (LF_ISSET(WT_READ_CACHE))
                 return (WT_NOTFOUND);
-
-            /* Optionally limit reads to internal pages only. */
-            if (LF_ISSET(WT_READ_CACHE_LEAF) && F_ISSET(ref, WT_REF_FLAG_LEAF))
-                return (WT_NOTFOUND);
-
 read:
             /*
              * The page isn't in memory, read it. If this thread respects the cache size, check for
@@ -351,6 +346,14 @@ read:
                 else if (ret == EBUSY) {
                     WT_NOT_READ(ret, 0);
                     WT_STAT_CONN_INCR(session, page_forcible_evict_blocked);
+                    /*
+                     * Forced eviction failed: check if this transaction is keeping content pinned
+                     * in cache.
+                     */
+                    if (force_attempts > 1 &&
+                      (ret = __wt_txn_is_blocking(session, true)) == WT_ROLLBACK)
+                        WT_STAT_CONN_INCR(session, cache_eviction_force_rollback);
+                    WT_RET(ret);
                     stalled = true;
                     break;
                 }
