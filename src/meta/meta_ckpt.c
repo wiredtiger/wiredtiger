@@ -914,7 +914,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
     if (strcmp(hex_timestamp, "0") == 0)
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, WT_SYSTEM_CKPT_URI), false);
     else {
-        WT_ERR(__wt_buf_fmt(session, buf, "checkpoint_timestamp=\"%s\"", hex_timestamp));
+        WT_ERR(__wt_buf_fmt(session, buf, WT_SYSTEM_CKPT_TS "=\"%s\"", hex_timestamp));
         WT_ERR(__wt_metadata_update(session, WT_SYSTEM_CKPT_URI, buf->data));
     }
 
@@ -924,7 +924,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
     if (strcmp(hex_timestamp, "0") == 0)
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, WT_SYSTEM_OLDEST_URI), false);
     else {
-        WT_ERR(__wt_buf_fmt(session, buf, "oldest_timestamp=\"%s\"", hex_timestamp));
+        WT_ERR(__wt_buf_fmt(session, buf, WT_SYSTEM_OLDEST_TS "=\"%s\"", hex_timestamp));
         WT_ERR(__wt_metadata_update(session, WT_SYSTEM_OLDEST_URI, buf->data));
     }
 

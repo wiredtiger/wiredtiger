@@ -612,11 +612,12 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          */
         if (txn_global->has_stable_timestamp) {
             txn_global->checkpoint_timestamp = txn_global->stable_timestamp;
-            txn_global->checkpoint_oldest_timestamp = txn_global->oldest_timestamp;
             if (!F_ISSET(conn, WT_CONN_RECOVERING))
                 txn_global->meta_ckpt_timestamp = txn_global->checkpoint_timestamp;
         } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
             txn_global->meta_ckpt_timestamp = txn_global->recovery_timestamp;
+        if (txn_global->has_oldest_timestamp)
+            txn_global->checkpoint_oldest_timestamp = txn_global->oldest_timestamp;
     } else {
         if (!F_ISSET(conn, WT_CONN_RECOVERING))
             txn_global->meta_ckpt_timestamp = WT_TS_NONE;
