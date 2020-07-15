@@ -343,11 +343,11 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
 #endif
 
 /*
- * __wt_ckpt_add_blkmod_entry --
+ * __ckpt_add_blkmod_entry --
  *     Add an offset/length entry to the bitstring based on granularity.
  */
-int
-__wt_ckpt_add_blkmod_entry(
+static int
+__ckpt_add_blkmod_entry(
   WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len)
 {
     uint64_t end_bit, start_bit;
@@ -418,7 +418,7 @@ __ckpt_add_blk_mods_alloc(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_
             continue;
 
         WT_EXT_FOREACH (ext, ci->alloc.off) {
-            WT_RET(__wt_ckpt_add_blkmod_entry(session, blk_mod, ext->off, ext->size));
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ext->off, ext->size));
         }
     }
     return (0);
@@ -449,12 +449,11 @@ __ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CK
             continue;
 
         if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__wt_ckpt_add_blkmod_entry(session, blk_mod, ci->alloc.offset, ci->alloc.size));
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->alloc.offset, ci->alloc.size));
         if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(
-              __wt_ckpt_add_blkmod_entry(session, blk_mod, ci->discard.offset, ci->discard.size));
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->discard.offset, ci->discard.size));
         if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__wt_ckpt_add_blkmod_entry(session, blk_mod, ci->avail.offset, ci->avail.size));
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->avail.offset, ci->avail.size));
     }
     return (0);
 }
