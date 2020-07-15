@@ -467,6 +467,7 @@ __rollback_abort_row_ondisk_kv(
         upd->txnid = vpack->tw.start_txn;
         upd->durable_ts = vpack->tw.durable_start_ts;
         upd->start_ts = vpack->tw.start_ts;
+        F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
         WT_STAT_CONN_INCR(session, txn_rts_keys_restored);
         __wt_verbose(session, WT_VERB_RTS,
           "key restored with commit timestamp: %s, durable timestamp: %s txnid: %" PRIu64
