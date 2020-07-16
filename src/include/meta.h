@@ -35,7 +35,7 @@
 
 #define WT_SYSTEM_PREFIX "system:"               /* System URI prefix */
 #define WT_SYSTEM_CKPT_TS "checkpoint_timestamp" /* Checkpoint timestamp name */
-#define WT_SYSTEM_CKPT_URI "system:checkpoint"   /* Checkpoint URI */
+#define WT_SYSTEM_CKPT_URI "system:checkpoint"   /* Checkpoint timestamp URI */
 #define WT_SYSTEM_OLDEST_TS "oldest_timestamp"   /* Oldest timestamp name */
 #define WT_SYSTEM_OLDEST_URI "system:oldest"     /* Oldest timestamp URI */
 

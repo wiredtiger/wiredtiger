@@ -87,7 +87,6 @@ class test_timestamp19(wttest.WiredTigerTestCase):
 
         # Close and reopen the connection.
         self.close_conn()
-        #exit()
         self.conn = self.setUpConnectionOpen('.')
         self.session = self.setUpSessionOpen(self.conn)
 
