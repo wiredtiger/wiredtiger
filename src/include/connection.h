@@ -239,6 +239,8 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_blockhash, __wt_block) blockhash[WT_HASH_ARRAY_SIZE];
     TAILQ_HEAD(__wt_block_qh, __wt_block) blockqh;
 
+    WT_BLKCACHE blkcache;  /* Block cache */
+
     /* Locked: handles in each bucket */
     u_int dh_bucket_count[WT_HASH_ARRAY_SIZE];
     u_int dhandle_count;        /* Locked: handles in the queue */

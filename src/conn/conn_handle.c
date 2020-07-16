@@ -83,6 +83,12 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
         TAILQ_INIT(&conn->blockhash[i]); /* Block handle hash lists */
     TAILQ_INIT(&conn->blockqh);          /* Block manager list */
 
+    /*
+     * Block manager cache that keeps a copy of blocks in a faster storage
+     * medium, such as NVRAM.
+     */
+    WT_RET(__wt_blkcache_init(session));
+
     conn->ckpt_prep_min = UINT64_MAX;
     conn->ckpt_time_min = UINT64_MAX;
 

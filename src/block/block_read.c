@@ -244,6 +244,8 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
           block->name, size, block->allocsize);
 
     WT_RET(__wt_buf_init(session, buf, bufsize));
+
+    /* SASHA: Ask the cache to give us the block. If it doesn't have it, read it. */
     WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
     buf->size = size;
 
