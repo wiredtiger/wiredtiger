@@ -24,14 +24,17 @@ extern "C" {
 /*******************************************
  * Required includes
  *******************************************/
-@wiredtiger_includes_decl@
+#include <sys/types.h>
+#include <inttypes.h>
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 
 /*******************************************
  * Portable type names
  *******************************************/
-@off_t_decl@
-@uintmax_t_decl@
-@uintptr_t_decl@
+typedef int64_t wt_off_t;
 
 #if defined(DOXYGEN) || defined(SWIG)
 #define	__F(func) func
@@ -61,14 +64,12 @@ extern "C" {
 /*******************************************
  * Public forward structure declarations
  *******************************************/
-struct __wt_async_callback;
-	typedef struct __wt_async_callback WT_ASYNC_CALLBACK;
+struct __wt_async_callback; typedef struct __wt_async_callback WT_ASYNC_CALLBACK;
 struct __wt_async_op;	    typedef struct __wt_async_op WT_ASYNC_OP;
 struct __wt_collator;	    typedef struct __wt_collator WT_COLLATOR;
 struct __wt_compressor;	    typedef struct __wt_compressor WT_COMPRESSOR;
 struct __wt_config_item;    typedef struct __wt_config_item WT_CONFIG_ITEM;
-struct __wt_config_parser;
-	typedef struct __wt_config_parser WT_CONFIG_PARSER;
+struct __wt_config_parser;  typedef struct __wt_config_parser WT_CONFIG_PARSER;
 struct __wt_connection;	    typedef struct __wt_connection WT_CONNECTION;
 struct __wt_cursor;	    typedef struct __wt_cursor WT_CURSOR;
 struct __wt_data_source;    typedef struct __wt_data_source WT_DATA_SOURCE;
