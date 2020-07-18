@@ -1,0 +1,23 @@
+Import('env')
+env.Append(CPPPATH = ['../utility'])
+t = env.Program('t', [
+    'alter.c',
+    'backup.c',
+    'bulk.c',
+    'checkpoint.c',
+    'compact.c',
+    'config.c',
+    'config_compat.c',
+    'hs.c',
+    'kv.c',
+    'ops.c',
+    'random.c',
+    'rebalance.c',
+    'salvage.c',
+    'snap.c',
+    't.c',
+    'trace.c',
+    'util.c',
+    'wts.c'],
+    LIBS=['wiredtiger', 'test_util', env['ADDITIONAL_LIBS']], LIBPATH=['#', '#test/utility'])
+Default(t)

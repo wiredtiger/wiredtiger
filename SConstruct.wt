@@ -11,8 +11,9 @@ import textwrap
 # Java?
 
 EnsureSConsVersion( 2, 0, 0 )
+
 env = Environment()
-conf = Configure(env)
+conf = env.Configure(config_h='xxx_config.h')
 
 # Option handling.
 AddOption("--enable-attach", dest="enable_attach", action="store_true",
@@ -41,13 +42,14 @@ AddOption("--with-spinlock", dest="with_spinlock", action="store", nargs=1, type
 
 # OS, Architecture
 os_posix = os.name == 'posix'
+os_darwin = platform.system() == 'Darwin'
 os_linux = platform.system() == 'Linux'
 os_windows = platform.system() == 'Windows'
 
 os_arm64 = platform.machine().startswith('arm')
 os_powerpc = platform.machine().startswith('ppc')
 os_x86 = platform.machine().startswith('x86')
-os_zseries = platform.machine().startswith('zseries') #XXX
+os_zseries = platform.machine().startswith('zseries') # XXX: untested
 
 # Compiler defaults to gcc.
 cc = env['CC']
@@ -58,14 +60,106 @@ def compiler_version():
 cc_gcc = cc.find('clang') == -1
 cc_version = compiler_version()
 
-conf.env.Append(CPPPATH = ['.', 'src/include'])
+# Check for some basic types and sizes.
+std_includes = """
+#include <sys/types.h>
+#ifdef _WIN32
+#include <inttypes.h>
+#endif
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>"
+#include <unistd.h>"
+"""
+def type_check(type, size):
+    if not conf.CheckType(type, std_includes):
+        print('%s type not found' %(type))
+        Exit (1)
+    if size != 0 and conf.CheckTypeSize(type) != size:
+        print('%s type found, but not %d bytes in size' %(type, size))
+        Exit (1)
+
+# Windows doesn't have off_t, we'll fix that up later.
+# WiredTiger expects off_t and size_t to be the same size.
+# WiredTiger expects a time_t to fit into a uint64_t.
+type_check('pid_t', 0)
+if not os_windows:
+    type_check('off_t', 8)
+type_check('size_t', 8)
+type_check('ssize_t', 8)
+type_check('time_t', 8)
+type_check('uintmax_t', 0)
+type_check('uintptr_t', 0)
+
+conf.env.Append(CPPPATH = ['.', '#src/include'])
+
+if os_linux:
+    conf.env.Append(CPPDEFINES = '-D_GNU_SOURCE')
+if GetOption("enable_diagnostic"):
+    conf.env.Append(CPPDEFINES = '-DHAVE_DIAGNOSTIC')
+if GetOption("enable_attach"):
+    conf.env.Append(CPPDEFINES = '-DHAVE_ATTACH')
+
+if GetOption("with_spinlock"):
+    if GetOption("with_spinlock") == "gcc":
+        conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_GCC')
+    if GetOption("with_spinlock") == "msvc":
+        conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_MSVC')
+    if GetOption("with_spinlock") == "pthread":
+        conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_PTHREAD_MUTEX')
+    if GetOption("with_spinlock") == "pthread_adaptive":
+        conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_PTHREAD_MUTEX_ADAPTIVE')
+
+# Linux requires buffers aligned to 4KB boundaries for O_DIRECT to work.
+if os_linux:
+    conf.env.Append(CPPDEFINES = '-DWT_BUFFER_ALIGNMENT_DEFAULT=4096')
+else:
+    conf.env.Append(CPPDEFINES = '-DWT_BUFFER_ALIGNMENT_DEFAULT=0')
+
+if conf.CheckCHeader('x86intrin.h'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_X86INTRIN_H=1')
+
+if conf.CheckLib('dl'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_LIBDL=1')
+    conf.env.Append(ADDITIONAL_LIBS = ['dl'])
+if conf.CheckLib('pthread'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_LIBPTHREAD=1')
+    conf.env.Append(ADDITIONAL_LIBS = ['pthread'])
+
+if conf.CheckFunc('clock_gettime'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_CLOCK_GETTIME=1')
+if conf.CheckFunc('fallocate'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_FALLOCATE=1')
+# OS X wrongly reports that it has fdatasync.
+if not os_darwin and conf.CheckFunc('fdatasync'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_FDATASYNC=1')
+if conf.CheckFunc('ftruncate'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_FTRUNCATE=1')
+if conf.CheckFunc('gettimeofday'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_GETTIMEOFDAY=1')
+if conf.CheckFunc('posix_fadvise'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_FADVISE=1')
+if conf.CheckFunc('posix_fallocate'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_FALLOCATE=1')
+if conf.CheckFunc('posix_madvise'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_MADVISE=1')
+if conf.CheckFunc('posix_memalign'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_MEMALIGN=1')
+if conf.CheckFunc('setrlimit'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_SETRLIMIT=1')
+if conf.CheckFunc('strtouq'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_STRTOUQ=1')
+if conf.CheckFunc('sync_file_range'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_SYNC_FILE_RANGE=1')
+if conf.CheckFunc('timer_create'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_TIMER_CREATE=1')
 
 cflags = ""
 if GetOption("enable_diagnostic"):
     cflags += " -g "
 if ARGUMENTS.get('CFLAGS', '').find('-O') == -1:
     cflags += " -O3 "
-
 if cc_gcc:
     cflags += """
         -Wall
@@ -180,60 +274,10 @@ else:
     """
 conf.env.Append(CFLAGS = cflags.split())
 
-if os_linux:
-    conf.env.Append(CPPDEFINES = '-D_GNU_SOURCE')
-if GetOption("enable_diagnostic"):
-    conf.env.Append(CPPDEFINES = '-DHAVE_DIAGNOSTIC')
-if GetOption("enable_attach"):
-    conf.env.Append(CPPDEFINES = '-DHAVE_ATTACH')
-
-if GetOption("with_spinlock"):
-    if GetOption("with_spinlock") == "gcc":
-        conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_GCC')
-    if GetOption("with_spinlock") == "msvc":
-        conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_MSVC')
-    if GetOption("with_spinlock") == "pthread":
-        conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_PTHREAD_MUTEX')
-    if GetOption("with_spinlock") == "pthread_adaptive":
-        conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_PTHREAD_MUTEX_ADAPTIVE')
-
-# Linux requires buffers aligned to 4KB boundaries for O_DIRECT to work.
-if os_linux:
-    conf.env.Append(CPPDEFINES = '-DWT_BUFFER_ALIGNMENT_DEFAULT=4096')
-else:
-    conf.env.Append(CPPDEFINES = '-DWT_BUFFER_ALIGNMENT_DEFAULT=0')
-
-print ('====')
-print (conf.CheckFunc('strcat'))
-print ('====')
-if conf.CheckFunc('clock_gettime'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_CLOCK_GETTIME')
-if conf.CheckFunc('fallocate'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_FALLOCATE')
-if conf.CheckFunc('ftruncate'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_FTRUNCATE')
-if conf.CheckFunc('gettimeofday'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_GETTIMEOFDAY')
-if conf.CheckFunc('posix_fadvise'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_FADVISE')
-if conf.CheckFunc('posix_fallocate'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_FALLOCATE')
-if conf.CheckFunc('posix_madvise'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_MADVISE')
-if conf.CheckFunc('setrlimit'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_SETRLIMIT')
-if conf.CheckFunc('strtouq'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_STRTOUQ')
-if conf.CheckFunc('sync_file_range'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_SYNC_FILE_RANGE')
-if conf.CheckFunc('timer_create'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_TIMER_CREATE')
-
 env = conf.Finish()
-Exit(1)
 
 # Build a zero-length wiredtiger_config.h file so SCons and autoconf can co-exist.
-# XXX: Autoconf remove.
+# XXX: Autoconf compatibility.
 env.Textfile(
     target='wiredtiger_config.h',
     source=[])
@@ -260,10 +304,10 @@ replacements = {
     '@VERSION_MINOR@' : VERSION_MINOR,
     '@VERSION_PATCH@' : VERSION_PATCH,
     '@VERSION_STRING@' : VERSION_STRING,
-    '@uintmax_t_decl@': "",		# XXX: Autoconf remove.
-    '@uintptr_t_decl@': "",		# XXX: Autoconf remove.
+    '@uintmax_t_decl@': "",             # XXX: Autoconf compatibility.
+    '@uintptr_t_decl@': "",             # XXX: Autoconf compatibility.
 }
-if os_windows:				# XXX: Autoconf remove.
+if os_windows:                          # XXX: Autoconf compatibility.
     replacements.update({'@off_t_decl@' : 'typedef int64_t wt_off_t;'})
 else:
     replacements.update({'@off_t_decl@' : 'typedef off_t wt_off_t;'})
@@ -283,7 +327,7 @@ condition_map = {
     'WINDOWS_HOST' : os_windows,
     'X86_HOST' : os_x86,
     'ZSERIES_HOST' : os_zseries,
-}         
+}
 def filtered_filelist(f):
     for line in f:
         file_cond = line.split()
@@ -292,13 +336,18 @@ def filtered_filelist(f):
         if len(file_cond) == 1 or condition_map[file_cond[1]]:
             yield file_cond[0]
 filelist = 'dist/filelist'
-wt_src = list(filtered_filelist(open(filelist)))
+wtlib_src = list(filtered_filelist(open(filelist)))
 
 if GetOption("enable_static"):
-    wtlib = env.StaticLibrary(target="wiredtiger", source=wt_src)
+    wtlib = env.StaticLibrary(target="wiredtiger", source=wtlib_src)
 else:
-    wtlib = env.SharedLibrary(target="wiredtiger", source=wt_src)
-LIBS=wtlib
-
-env.Depends(wtlib, ['SConstruct.wt', 'wiredtiger.h', filelist, version_file])
+    wtlib = env.SharedLibrary(target="wiredtiger", source=wtlib_src)
+env.Depends('wiredtiger_config.h', ['SConstruct.wt'])
+env.Depends('wiredtiger.h', ['SConstruct.wt', version_file])
+env.Depends(wtlib, ['wiredtiger_config.h', filelist])
 Default(wtlib)
+
+Export('env')
+SConscript('test/utility/SConscript')
+SConscript('src/utilities/SConscript')
+SConscript('test/format/SConscript')
