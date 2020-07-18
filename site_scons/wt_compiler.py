@@ -111,123 +111,105 @@ def wt_compiler(env):
     if conf.CheckFunc('timer_create'):
         env.Append(CPPDEFINES = '-DHAVE_TIMER_CREATE=1')
 
-    cflags = ""
+    cflags = []
     if GetOption("enable_diagnostic"):
-        cflags += " -g "
+        cflags.append('-g')
     if ARGUMENTS.get('CFLAGS', '').find('-O') == -1:
-        cflags += " -O3 "
+        cflags.append('-O3')
     if cc_gcc:
-        cflags += """
-            -Wall
-            -Wextra
-            -Werror
-            -Waggregate-return
-            -Wbad-function-cast
-            -Wcast-align
-            -Wdeclaration-after-statement
-            -Wdouble-promotion
-            -Wfloat-equal
-            -Wformat-nonliteral
-            -Wformat-security
-            -Wformat=2
-            -Winit-self
-            -Wjump-misses-init
-            -Wmissing-declarations
-            -Wmissing-field-initializers
-            -Wmissing-prototypes
-            -Wnested-externs
-            -Wold-style-definition
-            -Wpacked
-            -Wpointer-arith
-            -Wpointer-sign
-            -Wredundant-decls
-            -Wshadow
-            -Wsign-conversion
-            -Wstrict-prototypes
-            -Wswitch-enum
-            -Wundef
-            -Wuninitialized
-            -Wunreachable-code
-            -Wunused
-            -Wwrite-strings
-        """
+        cflags.append('-Wall')
+        cflags.append('-Wextra')
+        cflags.append('-Werror')
+        cflags.append('-Waggregate-return')
+        cflags.append('-Wbad-function-cast')
+        cflags.append('-Wcast-align')
+        cflags.append('-Wdeclaration-after-statement')
+        cflags.append('-Wdouble-promotion')
+        cflags.append('-Wfloat-equal')
+        cflags.append('-Wformat-nonliteral')
+        cflags.append('-Wformat-security')
+        cflags.append('-Wformat=2')
+        cflags.append('-Winit-self')
+        cflags.append('-Wjump-misses-init')
+        cflags.append('-Wmissing-declarations')
+        cflags.append('-Wmissing-field-initializers')
+        cflags.append('-Wmissing-prototypes')
+        cflags.append('-Wnested-externs')
+        cflags.append('-Wold-style-definition')
+        cflags.append('-Wpacked')
+        cflags.append('-Wpointer-arith')
+        cflags.append('-Wpointer-sign')
+        cflags.append('-Wredundant-decls')
+        cflags.append('-Wshadow')
+        cflags.append('-Wsign-conversion')
+        cflags.append('-Wstrict-prototypes')
+        cflags.append('-Wswitch-enum')
+        cflags.append('-Wundef')
+        cflags.append('-Wuninitialized')
+        cflags.append('-Wunreachable-code')
+        cflags.append('-Wunused')
+        cflags.append('-Wwrite-strings')
+
         if cc_version[0] == '4':
-            cflags += """
-                -Wno-c11-extensions
-                -Wunsafe-loop-optimizations
-            """
+            cflags.append('-Wno-c11-extensions')
+            cflags.append('-Wunsafe-loop-optimizations')
+
         if cc_version[0] == '5':
-            cflags += """
-                -Wunsafe-loop-optimizations
-            """
+            cflags.append('-Wunsafe-loop-optimizations')
+
         if cc_version[0] == '6':
-            cflags += """
-                -Wunsafe-loop-optimizations
-            """
+            cflags.append('-Wunsafe-loop-optimizations')
+
         if cc_version[0] >= '5':
-            cflags += """
-                -Wformat-signedness
-                -Wjump-misses-init
-                -Wredundant-decls
-                -Wunused-macros
-                -Wvariadic-macros
-            """
+            cflags.append('-Wformat-signedness')
+            cflags.append('-Wjump-misses-init')
+            cflags.append('-Wredundant-decls')
+            cflags.append('-Wunused-macros')
+            cflags.append('-Wvariadic-macros')
+
         if cc_version[0] >= '6':
-            cflags += """
-                -Wduplicated-cond
-                -Wlogical-op
-                -Wunused-const-variable=2
-            """
+            cflags.append('-Wduplicated-cond')
+            cflags.append('-Wlogical-op')
+            cflags.append('-Wunused-const-variable=2')
+
         if cc_version[0] >= '7':
-            cflags += """
-                -Walloca
-                -Walloc-zero
-                -Wduplicated-branches
-                -Wformat-overflow=2
-                -Wformat-truncation=2
-                -Wrestrict
-            """
+            cflags.append('-Walloca')
+            cflags.append('-Walloc-zero')
+            cflags.append('-Wduplicated-branches')
+            cflags.append('-Wformat-overflow=2')
+            cflags.append('-Wformat-truncation=2')
+            cflags.append('-Wrestrict')
+
         if cc_version[0] >= '8':
-            cflags += """
-                -Wmultistatement-macros
-            """
+            cflags.append('-Wmultistatement-macros')
+
     else:
-        cflags += """
-            -Weverything
-            -Werror
-            -Wno-cast-align
-            -Wno-documentation-unknown-command
-            -Wno-format-nonliteral
-            -Wno-packed
-            -Wno-padded
-            -Wno-reserved-id-macro
-            -Wno-zero-length-array
-        """
+        cflags.append('-Weverything')
+        cflags.append('-Werror')
+        cflags.append('-Wno-cast-align')
+        cflags.append('-Wno-documentation-unknown-command')
+        cflags.append('-Wno-format-nonliteral')
+        cflags.append('-Wno-packed')
+        cflags.append('-Wno-padded')
+        cflags.append('-Wno-reserved-id-macro')
+        cflags.append('-Wno-zero-length-array')
+
 
         # We should turn on cast-qual, but not as a fatal error: see WT-2690. For now, leave it off.
-        cflags = """
-            -Wno-cast-qual
-        """
+        cflags.append('-Wno-cast-qual')
 
         # Turn off clang thread-safety-analysis, it doesn't like some of WiredTiger's code patterns.
-        cflags = """
-            -Wno-thread-safety-analysis
-        """
+        cflags.append('-Wno-thread-safety-analysis')
 
         # On Centos 7.3.1611, system header files aren't compatible with -Wdisabled-macro-expansion.
-        cflags = """
-            -Wno-disabled-macro-expansion
-        """
+        cflags.append('-Wno-disabled-macro-expansion')
 
         # We occasionally use an extra semicolon to indicate an empty loop or conditional body.
-        cflags = """
-            -Wno-extra-semi-stmt
-        """
+        cflags.append('-Wno-extra-semi-stmt')
 
         # Ignore unrecognized options.
-        cflags = """
-            -Wno-unknown-warning-option
-        """
-    env.Append(CFLAGS = cflags.split())
+        cflags.append('-Wno-unknown-warning-option')
 
-    return conf.Finish()
+    env.Append(CFLAGS = cflags)
+
+    conf.Finish()
