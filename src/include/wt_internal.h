@@ -14,8 +14,9 @@ extern "C" {
 #endif
 
 /*******************************************
- * WiredTiger public include file.
+ * WiredTiger public include file, and configuration control.
  *******************************************/
+#include "wiredtiger_config.h"
 #include "wiredtiger_ext.h"
 
 /*******************************************

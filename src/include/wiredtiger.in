@@ -25,7 +25,9 @@ extern "C" {
  * Required includes
  *******************************************/
 #include <sys/types.h>
+#ifndef _WIN32
 #include <inttypes.h>
+#endif
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -34,7 +36,9 @@ extern "C" {
 /*******************************************
  * Portable type names
  *******************************************/
-typedef int64_t wt_off_t;
+@off_t_decl@
+@uintmax_t_decl@
+@uintptr_t_decl@
 
 #if defined(DOXYGEN) || defined(SWIG)
 #define	__F(func) func
