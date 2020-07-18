@@ -1,4 +1,5 @@
 import os, platform
+from SCons.Script import *
 
 os_posix = False
 os_darwin = False

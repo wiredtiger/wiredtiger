@@ -1,4 +1,5 @@
 import re, subprocess
+from SCons.Script import *
 from wt_platform import *
 
 def compiler_version(cc):
@@ -26,8 +27,8 @@ def type_check(conf, type, size):
         print('%s type found, but not %d bytes in size' %(type, size))
         Exit (1)
 
-def wt_compiler(conf):
-    env = conf.env
+def wt_compiler(env):
+    conf = env.Configure(config_h='xxx_config.h')
 
     # Compiler defaults to gcc.
     cc = env['CC']
@@ -228,3 +229,5 @@ def wt_compiler(conf):
             -Wno-unknown-warning-option
         """
     env.Append(CFLAGS = cflags.split())
+
+    return conf.Finish()
