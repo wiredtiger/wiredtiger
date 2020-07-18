@@ -1,0 +1,304 @@
+# -*- mode: python; -*-
+import os
+import platform
+import re
+import subprocess
+import sys
+import textwrap
+
+# XXX
+# Install?
+# Java?
+
+EnsureSConsVersion( 2, 0, 0 )
+env = Environment()
+conf = Configure(env)
+
+# Option handling.
+AddOption("--enable-attach", dest="enable_attach", action="store_true",
+    help='Configure WiredTiger library to spin until debugger attach on assert failure. DO NOT configure this option in production environments')
+
+AddOption("--enable-diagnostic", dest="enable_diagnostic", action="store_true",
+    help='Configure WiredTiger library for debugging as well as to perform various run-time diagnostic tests. DO NOT configure this option in production environments')
+
+AddOption("--enable-lz4", dest="enable_lz4", action="store_true",
+    help='Build the LZ4 compression extension (requires LZ4 shared library install)')
+
+AddOption("--enable-snappy", dest="enable_snappy", action="store_true",
+    help='Build the snappy compression extension (requires snappy shared library install)')
+
+AddOption("--enable-static", dest="enable_static", action="store_true",
+    help='Build a static load of the library as well as a shared library')
+
+AddOption("--enable-zlib", dest="enable_zlib", action="store_true",
+    help='Build the zlib compression extension (requires zlib shared library install)')
+
+AddOption("--enable-zstd", dest="enable_zstd", action="store_true",
+    help='Build the zstd compression extension (requires Zstd shared library install)')
+
+AddOption("--with-spinlock", dest="with_spinlock", action="store", nargs=1, type='string',
+    help='Configure WiredTiger library to use "gcc", "pthread", or "pthread_adaptive" spinlocks')
+
+# OS, Architecture
+os_posix = os.name == 'posix'
+os_linux = platform.system() == 'Linux'
+os_windows = platform.system() == 'Windows'
+
+os_arm64 = platform.machine().startswith('arm')
+os_powerpc = platform.machine().startswith('ppc')
+os_x86 = platform.machine().startswith('x86')
+os_zseries = platform.machine().startswith('zseries') #XXX
+
+# Compiler defaults to gcc.
+cc = env['CC']
+def compiler_version():
+    process = subprocess.Popen([cc, '--version'], stdout=subprocess.PIPE)
+    (stdout, _) = process.communicate()
+    return (re.search(' [0-9][0-9.]* ', stdout.decode()).group().split('.'))
+cc_gcc = cc.find('clang') == -1
+cc_version = compiler_version()
+
+conf.env.Append(CPPPATH = ['.', 'src/include'])
+
+cflags = ""
+if GetOption("enable_diagnostic"):
+    cflags += " -g "
+if ARGUMENTS.get('CFLAGS', '').find('-O') == -1:
+    cflags += " -O3 "
+
+if cc_gcc:
+    cflags += """
+        -Wall
+        -Wextra
+        -Werror
+        -Waggregate-return
+        -Wbad-function-cast
+        -Wcast-align
+        -Wdeclaration-after-statement
+        -Wdouble-promotion
+        -Wfloat-equal
+        -Wformat-nonliteral
+        -Wformat-security
+        -Wformat=2
+        -Winit-self
+        -Wjump-misses-init
+        -Wmissing-declarations
+        -Wmissing-field-initializers
+        -Wmissing-prototypes
+        -Wnested-externs
+        -Wold-style-definition
+        -Wpacked
+        -Wpointer-arith
+        -Wpointer-sign
+        -Wredundant-decls
+        -Wshadow
+        -Wsign-conversion
+        -Wstrict-prototypes
+        -Wswitch-enum
+        -Wundef
+        -Wuninitialized
+        -Wunreachable-code
+        -Wunused
+        -Wwrite-strings
+    """
+    if cc_version[0] == '4':
+        cflags += """
+            -Wno-c11-extensions
+            -Wunsafe-loop-optimizations
+        """
+    if cc_version[0] == '5':
+        cflags += """
+            -Wunsafe-loop-optimizations
+        """
+    if cc_version[0] == '6':
+        cflags += """
+            -Wunsafe-loop-optimizations
+        """
+    if cc_version[0] >= '5':
+        cflags += """
+            -Wformat-signedness
+            -Wjump-misses-init
+            -Wredundant-decls
+            -Wunused-macros
+            -Wvariadic-macros
+        """
+    if cc_version[0] >= '6':
+        cflags += """
+            -Wduplicated-cond
+            -Wlogical-op
+            -Wunused-const-variable=2
+        """
+    if cc_version[0] >= '7':
+        cflags += """
+            -Walloca
+            -Walloc-zero
+            -Wduplicated-branches
+            -Wformat-overflow=2
+            -Wformat-truncation=2
+            -Wrestrict
+        """
+    if cc_version[0] >= '8':
+        cflags += """
+            -Wmultistatement-macros
+        """
+else:
+    cflags += """
+        -Weverything
+        -Werror
+        -Wno-cast-align
+        -Wno-documentation-unknown-command
+        -Wno-format-nonliteral
+        -Wno-packed
+        -Wno-padded
+        -Wno-reserved-id-macro
+        -Wno-zero-length-array
+    """
+
+    # We should turn on cast-qual, but not as a fatal error: see WT-2690. For now, leave it off.
+    cflags = """
+        -Wno-cast-qual
+    """
+
+    # Turn off clang thread-safety-analysis, it doesn't like some of WiredTiger's code patterns.
+    cflags = """
+        -Wno-thread-safety-analysis
+    """
+
+    # On Centos 7.3.1611, system header files aren't compatible with -Wdisabled-macro-expansion.
+    cflags = """
+        -Wno-disabled-macro-expansion
+    """
+
+    # We occasionally use an extra semicolon to indicate an empty loop or conditional body.
+    cflags = """
+        -Wno-extra-semi-stmt
+    """
+
+    # Ignore unrecognized options.
+    cflags = """
+        -Wno-unknown-warning-option
+    """
+conf.env.Append(CFLAGS = cflags.split())
+
+if os_linux:
+    conf.env.Append(CPPDEFINES = '-D_GNU_SOURCE')
+if GetOption("enable_diagnostic"):
+    conf.env.Append(CPPDEFINES = '-DHAVE_DIAGNOSTIC')
+if GetOption("enable_attach"):
+    conf.env.Append(CPPDEFINES = '-DHAVE_ATTACH')
+
+if GetOption("with_spinlock"):
+    if GetOption("with_spinlock") == "gcc":
+        conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_GCC')
+    if GetOption("with_spinlock") == "msvc":
+        conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_MSVC')
+    if GetOption("with_spinlock") == "pthread":
+        conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_PTHREAD_MUTEX')
+    if GetOption("with_spinlock") == "pthread_adaptive":
+        conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_PTHREAD_MUTEX_ADAPTIVE')
+
+# Linux requires buffers aligned to 4KB boundaries for O_DIRECT to work.
+if os_linux:
+    conf.env.Append(CPPDEFINES = '-DWT_BUFFER_ALIGNMENT_DEFAULT=4096')
+else:
+    conf.env.Append(CPPDEFINES = '-DWT_BUFFER_ALIGNMENT_DEFAULT=0')
+
+print ('====')
+print (conf.CheckFunc('strcat'))
+print ('====')
+if conf.CheckFunc('clock_gettime'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_CLOCK_GETTIME')
+if conf.CheckFunc('fallocate'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_FALLOCATE')
+if conf.CheckFunc('ftruncate'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_FTRUNCATE')
+if conf.CheckFunc('gettimeofday'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_GETTIMEOFDAY')
+if conf.CheckFunc('posix_fadvise'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_FADVISE')
+if conf.CheckFunc('posix_fallocate'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_FALLOCATE')
+if conf.CheckFunc('posix_madvise'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_MADVISE')
+if conf.CheckFunc('setrlimit'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_SETRLIMIT')
+if conf.CheckFunc('strtouq'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_STRTOUQ')
+if conf.CheckFunc('sync_file_range'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_SYNC_FILE_RANGE')
+if conf.CheckFunc('timer_create'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_TIMER_CREATE')
+
+env = conf.Finish()
+Exit(1)
+
+# Build a zero-length wiredtiger_config.h file so SCons and autoconf can co-exist.
+# XXX: Autoconf remove.
+env.Textfile(
+    target='wiredtiger_config.h',
+    source=[])
+
+# Build the wiredtiger.h file.
+version_file = 'build_posix/aclocal/version-set.m4'
+VERSION_MAJOR = None
+VERSION_MINOR = None
+VERSION_PATCH = None
+VERSION_STRING = None
+# Read the version information from the version-set.m4 file
+for l in open(File(version_file).srcnode().abspath):
+    if re.match(r'^VERSION_[A-Z]+', l):
+        exec(l)
+if (VERSION_MAJOR == None or
+    VERSION_MINOR == None or
+    VERSION_PATCH == None or
+    VERSION_STRING == None):
+    print("Failed to find version variables in " + version_file)
+    Exit(1)
+
+replacements = {
+    '@VERSION_MAJOR@' : VERSION_MAJOR,
+    '@VERSION_MINOR@' : VERSION_MINOR,
+    '@VERSION_PATCH@' : VERSION_PATCH,
+    '@VERSION_STRING@' : VERSION_STRING,
+    '@uintmax_t_decl@': "",		# XXX: Autoconf remove.
+    '@uintptr_t_decl@': "",		# XXX: Autoconf remove.
+}
+if os_windows:				# XXX: Autoconf remove.
+    replacements.update({'@off_t_decl@' : 'typedef int64_t wt_off_t;'})
+else:
+    replacements.update({'@off_t_decl@' : 'typedef off_t wt_off_t;'})
+env.Substfile(
+    target='wiredtiger.h',
+    source=[
+        'src/include/wiredtiger.in',
+    ],
+    SUBST_DICT=replacements)
+
+# WiredTiger library sources derived from dist/filelist. Any conditions appearing in the file list
+# must appear here, and if the value is true, those files will be included.
+condition_map = {
+    'ARM64_HOST' : os_arm64,
+    'POSIX_HOST' : os_posix,
+    'POWERPC_HOST' : os_powerpc,
+    'WINDOWS_HOST' : os_windows,
+    'X86_HOST' : os_x86,
+    'ZSERIES_HOST' : os_zseries,
+}         
+def filtered_filelist(f):
+    for line in f:
+        file_cond = line.split()
+        if line.startswith("#") or len(file_cond) == 0:
+            continue
+        if len(file_cond) == 1 or condition_map[file_cond[1]]:
+            yield file_cond[0]
+filelist = 'dist/filelist'
+wt_src = list(filtered_filelist(open(filelist)))
+
+if GetOption("enable_static"):
+    wtlib = env.StaticLibrary(target="wiredtiger", source=wt_src)
+else:
+    wtlib = env.SharedLibrary(target="wiredtiger", source=wt_src)
+LIBS=wtlib
+
+env.Depends(wtlib, ['SConstruct.wt', 'wiredtiger.h', filelist, version_file])
+Default(wtlib)
