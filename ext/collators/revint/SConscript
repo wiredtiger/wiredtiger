@@ -1,0 +1,10 @@
+Import('*')
+
+revint_src = ([
+    'revint_collator.c'])
+
+if GetOption("enable_static"):
+    revint = env.StaticLibrary(target="revint", source=revint_src)
+else:   
+    revint = env.SharedLibrary(target="revint", source=revint_src)
+Default(revint)

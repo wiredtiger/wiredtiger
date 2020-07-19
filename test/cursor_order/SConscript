@@ -1,0 +1,7 @@
+Import('env_util')
+
+Default(env_util.Program('cursor_order', [
+    'cursor_order.c',
+    'cursor_order_file.c',
+    'cursor_order_ops.c'
+    ]))

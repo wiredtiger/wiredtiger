@@ -1,0 +1,8 @@
+Import('env_util')
+
+Default(env_util.Program('t', [
+    'file.c',
+    'rw.c',
+    'stats.c',
+    't.c'
+    ]))

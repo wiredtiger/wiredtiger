@@ -1,0 +1,6 @@
+Import('env_util')
+
+Default(env_util.Program('intpack-test', ['intpack-test.c']))
+Default(env_util.Program('intpack-test2', ['intpack-test2.c']))
+Default(env_util.Program('intpack-test3', ['intpack-test3.c']))
+Default(env_util.Program('packing-test', ['packing-test.c']))

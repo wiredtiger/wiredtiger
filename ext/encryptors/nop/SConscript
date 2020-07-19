@@ -1,0 +1,10 @@
+Import('*')
+
+nop_src = ([
+    'nop_encrypt.c'])
+
+if GetOption("enable_static"):
+    nop_encrypt = env.StaticLibrary(target="nop", source=nop_src)
+else:   
+    nop_encrypt = env.SharedLibrary(target="nop", source=nop_src)
+Default(nop_encrypt)

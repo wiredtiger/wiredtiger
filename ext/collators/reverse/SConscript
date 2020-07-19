@@ -1,0 +1,10 @@
+Import('*')
+
+reverse_src = ([
+    'reverse_collator.c'])
+
+if GetOption("enable_static"):
+    reverse = env.StaticLibrary(target="reverse", source=reverse_src)
+else:   
+    reverse = env.SharedLibrary(target="reverse", source=reverse_src)
+Default(reverse)

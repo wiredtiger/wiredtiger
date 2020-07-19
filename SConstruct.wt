@@ -16,10 +16,11 @@ conf = env.Configure(config_h='wiredtiger_config.h')
 
 wt_options()
 
+additional_libs = []
 if conf.CheckLib('dl'):
-    conf.env.Append(ADDITIONAL_LIBS = ['dl'])
+    additional_libs.append('dl')
 if conf.CheckLib('pthread'):
-    conf.env.Append(ADDITIONAL_LIBS = ['pthread'])
+    additional_libs.append('pthread')
 
 wt_config(conf)
 wt_compiler(conf)
@@ -47,8 +48,8 @@ env.Substfile(
     ],
     SUBST_DICT=replacements)
 
-# WiredTiger library sources derived from dist/filelist. Any conditions appearing in the file list
-# must appear here, and if the value is true, those files will be included.
+# WiredTiger library sources derived from dist/filelist. Any file list conditionals must appear
+# here, and those files will be included if the value is true.
 condition_map = {
     'ARM64_HOST' : os_arm64,
     'POSIX_HOST' : os_posix,
@@ -73,12 +74,34 @@ else:
     wtlib = env.SharedLibrary(target="wiredtiger", source=wtlib_src)
 Default(wtlib)
 
-Export('env')
+# Build a utility environment for building test programs.
+env_util = env.Clone()
+env_util.Append(CPPPATH = ['#/utility'])
+env_util.Append(LIBPATH = ['#', '#test/utility'])
+env_util.Append(LIBS = ['wiredtiger'] + additional_libs)
+
+Export('env', 'env_util')
 conscript = [
     'examples/c/SConscript',
+    'ext/collators/reverse/SConscript',
+    'ext/collators/revint/SConscript',
     'ext/compressors/nop/SConscript',
+    'ext/encryptors/nop/SConscript',
+    'ext/encryptors/rotn/SConscript',
+    'ext/extractors/csv/SConscript',
+    'ext/test/fail_fs/SConscript',
     'src/utilities/SConscript',
+    'test/bloom/SConscript',
+    'test/checkpoint/SConscript',
+    'test/cursor_order/SConscript',
+    'test/fops/SConscript',
     'test/format/SConscript',
+    'test/huge/SConscript',
+    'test/manydbs/SConscript',
+    'test/packing/SConscript',
+    'test/readonly/SConscript',
+    'test/salvage/SConscript',
+    'test/thread/SConscript',
     'test/utility/SConscript']
 if GetOption("enable_lz4"):
     conscript.append('ext/compressors/lz4/SConscript')

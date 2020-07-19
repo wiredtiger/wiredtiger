@@ -1,0 +1,10 @@
+Import('*')
+
+csv_src = ([
+    'csv_extractor.c'])
+
+if GetOption("enable_static"):
+    csv = env.StaticLibrary(target="csv", source=csv_src)
+else:   
+    csv = env.SharedLibrary(target="csv", source=csv_src)
+Default(csv)

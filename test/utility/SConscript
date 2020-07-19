@@ -1,4 +1,5 @@
 Import('*')
+
 test_util_src = ([
     'misc.c',
     'parse_opts.c',
@@ -9,4 +10,3 @@ if GetOption("enable_static"):
 else:   
     test_util = env.SharedLibrary(target="test_util", source=test_util_src)
 Default(test_util)
-
