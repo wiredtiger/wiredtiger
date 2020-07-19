@@ -1,4 +1,5 @@
-import re, subprocess
+import re
+import subprocess
 from SCons.Script import *
 from wt_platform import *
 

@@ -55,6 +55,16 @@ VERSION_NOPATCH=${WIREDTIGER_VERSION_MAJOR}.${WIREDTIGER_VERSION_MINOR}
 AC_SUBST(VERSION_NOPATCH)
 EOF
 
+f="../site_scons/wt_version.py"
+echo "Building $f"
+cat <<EOF > $f
+# WiredTiger product version for SCons.  Maintained by dist/s_version
+VERSION_MAJOR=${WIREDTIGER_VERSION_MAJOR}
+VERSION_MINOR=${WIREDTIGER_VERSION_MINOR}
+VERSION_PATCH=${WIREDTIGER_VERSION_PATCH}
+VERSION_STRING='"${WIREDTIGER_VERSION_STRING}"'
+EOF
+
 echo "Building $rpmspec"
 sed -e "s/Version:	.*/Version:	${dotted_version}/" $rpmspec	\
         > $tmp_file && mv $tmp_file $rpmspec

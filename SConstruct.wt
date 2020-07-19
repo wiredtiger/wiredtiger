@@ -5,7 +5,7 @@ import re
 # Install?
 # Java?
 
-EnsureSConsVersion( 2, 0, 0 )
+EnsureSConsVersion(2, 0, 0)
 
 env = Environment()
 conf = env.Configure(config_h='xxx_config.h')
@@ -30,24 +30,6 @@ env.Textfile(
     source=[])
 
 # Build the wiredtiger.h file.
-version_file = 'build_posix/aclocal/version-set.m4'
-VERSION_MAJOR = None
-VERSION_MINOR = None
-VERSION_PATCH = None
-VERSION_STRING = None
-
-# Read the version information from the version-set.m4 file
-for l in open(File(version_file).srcnode().abspath):
-    if re.match(r'^VERSION_[A-Z]+', l):
-        exec(l)
-
-if (VERSION_MAJOR == None or
-    VERSION_MINOR == None or
-    VERSION_PATCH == None or
-    VERSION_STRING == None):
-    print("Failed to find version variables in " + version_file)
-    Exit(1)
-
 replacements = {
     '@VERSION_MAJOR@' : VERSION_MAJOR,
     '@VERSION_MINOR@' : VERSION_MINOR,
@@ -93,7 +75,7 @@ if GetOption("enable_static"):
 else:
     wtlib = env.SharedLibrary(target="wiredtiger", source=wtlib_src)
 env.Depends('wiredtiger_config.h', ['SConstruct.wt'])
-env.Depends('wiredtiger.h', ['SConstruct.wt', version_file])
+env.Depends('wiredtiger.h', ['SConstruct.wt'])
 env.Depends(wtlib, ['wiredtiger_config.h', filelist])
 Default(wtlib)
 
