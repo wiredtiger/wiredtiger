@@ -1,0 +1,10 @@
+Import('*')
+nop_compress_src = ([
+    'nop_compress.c'])
+
+if GetOption("enable_static"):
+    nop_compress = env.StaticLibrary(target="nop_compress", source=nop_compress_src)
+else:   
+    nop_compress = env.SharedLibrary(target="nop_compress", source=nop_compress_src)
+Default(nop_compress)
+

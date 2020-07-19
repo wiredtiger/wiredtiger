@@ -1,0 +1,10 @@
+Import('*')
+lz4_src = ([
+    'lz4_compress.c'])
+
+if GetOption("enable_static"):
+    lz4 = env.StaticLibrary(target="lz4", source=lz4_src)
+else:   
+    lz4 = env.SharedLibrary(target="lz4", source=lz4_src)
+Default(lz4)
+
