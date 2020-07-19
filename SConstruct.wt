@@ -14,9 +14,9 @@ conf.Define("FOO")
 wt_options()
 
 if conf.CheckLib('dl'):
-    env.Append(ADDITIONAL_LIBS = ['dl'])
+    conf.env.Append(ADDITIONAL_LIBS = ['dl'])
 if conf.CheckLib('pthread'):
-    env.Append(ADDITIONAL_LIBS = ['pthread'])
+    conf.env.Append(ADDITIONAL_LIBS = ['pthread'])
 
 wt_compiler(conf)
 

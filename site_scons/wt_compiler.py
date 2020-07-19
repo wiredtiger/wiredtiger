@@ -32,6 +32,7 @@ def wt_compiler(conf):
     cc = conf.env['CC']
     cc_gcc = 'clang' not in cc
     cc_version = compiler_version(cc)
+    cc_major = cc_version[0]
 
     # Check for some basic types and sizes.
     # Windows doesn't have off_t, we'll fix that up later.
@@ -46,7 +47,7 @@ def wt_compiler(conf):
     type_check(conf, 'uintmax_t', 0)
     type_check(conf, 'uintptr_t', 0)
 
-    conf.env.Append(CPPPATH = ['.', '#src/include'])
+    conf.env.Append(CPPPATH = ['#', '#src/include'])
 
     if os_linux:
         conf.env.Append(CPPDEFINES = '-D_GNU_SOURCE')
@@ -141,29 +142,29 @@ def wt_compiler(conf):
         cflags.append('-Wunused')
         cflags.append('-Wwrite-strings')
 
-        if cc_version[0] == '4':
+        if cc_major == '4':
             cflags.append('-Wno-c11-extensions')
             cflags.append('-Wunsafe-loop-optimizations')
 
-        if cc_version[0] == '5':
+        if cc_major == '5':
             cflags.append('-Wunsafe-loop-optimizations')
 
-        if cc_version[0] == '6':
+        if cc_major == '6':
             cflags.append('-Wunsafe-loop-optimizations')
 
-        if cc_version[0] >= '5':
+        if cc_major >= '5':
             cflags.append('-Wformat-signedness')
             cflags.append('-Wjump-misses-init')
             cflags.append('-Wredundant-decls')
             cflags.append('-Wunused-macros')
             cflags.append('-Wvariadic-macros')
 
-        if cc_version[0] >= '6':
+        if cc_major >= '6':
             cflags.append('-Wduplicated-cond')
             cflags.append('-Wlogical-op')
             cflags.append('-Wunused-const-variable=2')
 
-        if cc_version[0] >= '7':
+        if cc_major >= '7':
             cflags.append('-Walloca')
             cflags.append('-Walloc-zero')
             cflags.append('-Wduplicated-branches')
@@ -171,7 +172,7 @@ def wt_compiler(conf):
             cflags.append('-Wformat-truncation=2')
             cflags.append('-Wrestrict')
 
-        if cc_version[0] >= '8':
+        if cc_major >= '8':
             cflags.append('-Wmultistatement-macros')
 
     else:
