@@ -22,7 +22,6 @@ wt_compiler(conf)
 
 conf.Define("BAR")
 env = conf.Finish()
-Exit(1)
 
 # Build a zero-length wiredtiger_config.h file so SCons and autoconf can co-exist.
 # XXX: Autoconf compatibility.
