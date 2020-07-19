@@ -25,5 +25,5 @@ t = env.Program('wt', [
     'util_upgrade.c',
     'util_verbose.c',
     'util_verify.c',
-    'util_write.c'], LIBS=['wiredtiger'], LIBPATH='#')
+    'util_write.c'], LIBS='wiredtiger', LIBPATH='#')
 Default(t)

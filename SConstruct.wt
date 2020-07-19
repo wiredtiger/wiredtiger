@@ -8,10 +8,21 @@ import re
 EnsureSConsVersion( 2, 0, 0 )
 
 env = Environment()
+conf = env.Configure(config_h='xxx_config.h')
 
 wt_options()
 wt_platform()
-wt_compiler(env)
+
+if conf.CheckLib('dl'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_LIBDL=1')
+    env.Append(ADDITIONAL_LIBS = ['dl'])
+if conf.CheckLib('pthread'):
+    conf.env.Append(CPPDEFINES = '-DHAVE_LIBPTHREAD=1')
+    env.Append(ADDITIONAL_LIBS = ['pthread'])
+
+wt_compiler(conf)
+
+env = conf.Finish()
 
 # Build a zero-length wiredtiger_config.h file so SCons and autoconf can co-exist.
 # XXX: Autoconf compatibility.
@@ -88,6 +99,6 @@ env.Depends(wtlib, ['wiredtiger_config.h', filelist])
 Default(wtlib)
 
 Export('env')
-SConscript('test/utility/SConscript')
 SConscript('src/utilities/SConscript')
 SConscript('test/format/SConscript')
+SConscript('test/utility/SConscript')

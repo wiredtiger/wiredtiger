@@ -27,12 +27,10 @@ def type_check(conf, type, size):
         print('%s type found, but not %d bytes in size' %(type, size))
         Exit (1)
 
-def wt_compiler(env):
-    conf = env.Configure(config_h='xxx_config.h')
-
+def wt_compiler(conf):
     # Compiler defaults to gcc.
-    cc = env['CC']
-    cc_gcc = cc.find('clang') == -1
+    cc = conf.env['CC']
+    cc_gcc = 'clang' not in cc
     cc_version = compiler_version(cc)
 
     # Check for some basic types and sizes.
@@ -48,68 +46,61 @@ def wt_compiler(env):
     type_check(conf, 'uintmax_t', 0)
     type_check(conf, 'uintptr_t', 0)
 
-    env.Append(CPPPATH = ['.', '#src/include'])
+    conf.env.Append(CPPPATH = ['.', '#src/include'])
 
     if os_linux:
-        env.Append(CPPDEFINES = '-D_GNU_SOURCE')
+        conf.env.Append(CPPDEFINES = '-D_GNU_SOURCE')
     if GetOption("enable_diagnostic"):
-        env.Append(CPPDEFINES = '-DHAVE_DIAGNOSTIC')
+        conf.env.Append(CPPDEFINES = '-DHAVE_DIAGNOSTIC')
     if GetOption("enable_attach"):
-        env.Append(CPPDEFINES = '-DHAVE_ATTACH')
+        conf.env.Append(CPPDEFINES = '-DHAVE_ATTACH')
 
     if GetOption("with_spinlock"):
         if GetOption("with_spinlock") == "gcc":
-            env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_GCC')
+            conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_GCC')
         if GetOption("with_spinlock") == "msvc":
-            env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_MSVC')
+            conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_MSVC')
         if GetOption("with_spinlock") == "pthread":
-            env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_PTHREAD_MUTEX')
+            conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_PTHREAD_MUTEX')
         if GetOption("with_spinlock") == "pthread_adaptive":
-            env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_PTHREAD_MUTEX_ADAPTIVE')
+            conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_PTHREAD_MUTEX_ADAPTIVE')
 
     # Linux requires buffers aligned to 4KB boundaries for O_DIRECT to work.
     if os_linux:
-        env.Append(CPPDEFINES = '-DWT_BUFFER_ALIGNMENT_DEFAULT=4096')
+        conf.env.Append(CPPDEFINES = '-DWT_BUFFER_ALIGNMENT_DEFAULT=4096')
     else:
-        env.Append(CPPDEFINES = '-DWT_BUFFER_ALIGNMENT_DEFAULT=0')
+        conf.env.Append(CPPDEFINES = '-DWT_BUFFER_ALIGNMENT_DEFAULT=0')
 
     if conf.CheckCHeader('x86intrin.h'):
-        env.Append(CPPDEFINES = '-DHAVE_X86INTRIN_H=1')
-
-    if conf.CheckLib('dl'):
-        env.Append(CPPDEFINES = '-DHAVE_LIBDL=1')
-        env.Append(ADDITIONAL_LIBS = ['dl'])
-    if conf.CheckLib('pthread'):
-        env.Append(CPPDEFINES = '-DHAVE_LIBPTHREAD=1')
-        env.Append(ADDITIONAL_LIBS = ['pthread'])
+        conf.env.Append(CPPDEFINES = '-DHAVE_X86INTRIN_H=1')
 
     if conf.CheckFunc('clock_gettime'):
-        env.Append(CPPDEFINES = '-DHAVE_CLOCK_GETTIME=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_CLOCK_GETTIME=1')
     if conf.CheckFunc('fallocate'):
-        env.Append(CPPDEFINES = '-DHAVE_FALLOCATE=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_FALLOCATE=1')
     # OS X wrongly reports that it has fdatasync.
     if not os_darwin and conf.CheckFunc('fdatasync'):
-        env.Append(CPPDEFINES = '-DHAVE_FDATASYNC=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_FDATASYNC=1')
     if conf.CheckFunc('ftruncate'):
-        env.Append(CPPDEFINES = '-DHAVE_FTRUNCATE=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_FTRUNCATE=1')
     if conf.CheckFunc('gettimeofday'):
-        env.Append(CPPDEFINES = '-DHAVE_GETTIMEOFDAY=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_GETTIMEOFDAY=1')
     if conf.CheckFunc('posix_fadvise'):
-        env.Append(CPPDEFINES = '-DHAVE_FADVISE=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_FADVISE=1')
     if conf.CheckFunc('posix_fallocate'):
-        env.Append(CPPDEFINES = '-DHAVE_FALLOCATE=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_FALLOCATE=1')
     if conf.CheckFunc('posix_madvise'):
-        env.Append(CPPDEFINES = '-DHAVE_MADVISE=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_MADVISE=1')
     if conf.CheckFunc('posix_memalign'):
-        env.Append(CPPDEFINES = '-DHAVE_MEMALIGN=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_MEMALIGN=1')
     if conf.CheckFunc('setrlimit'):
-        env.Append(CPPDEFINES = '-DHAVE_SETRLIMIT=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_SETRLIMIT=1')
     if conf.CheckFunc('strtouq'):
-        env.Append(CPPDEFINES = '-DHAVE_STRTOUQ=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_STRTOUQ=1')
     if conf.CheckFunc('sync_file_range'):
-        env.Append(CPPDEFINES = '-DHAVE_SYNC_FILE_RANGE=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_SYNC_FILE_RANGE=1')
     if conf.CheckFunc('timer_create'):
-        env.Append(CPPDEFINES = '-DHAVE_TIMER_CREATE=1')
+        conf.env.Append(CPPDEFINES = '-DHAVE_TIMER_CREATE=1')
 
     cflags = []
     if GetOption("enable_diagnostic"):
@@ -210,6 +201,4 @@ def wt_compiler(env):
         # Ignore unrecognized options.
         cflags.append('-Wno-unknown-warning-option')
 
-    env.Append(CFLAGS = cflags)
-
-    conf.Finish()
+    conf.env.Append(CFLAGS = cflags)
