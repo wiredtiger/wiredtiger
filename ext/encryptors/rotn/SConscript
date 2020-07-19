@@ -7,4 +7,3 @@ if GetOption("enable_static"):
     rotn_encrypt = env.StaticLibrary(target="rotn", source=rotn_src)
 else:   
     rotn_encrypt = env.SharedLibrary(target="rotn", source=rotn_src)
-Default(rotn_encrypt)

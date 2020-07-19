@@ -7,4 +7,3 @@ if GetOption("enable_static"):
     reverse = env.StaticLibrary(target="reverse", source=reverse_src)
 else:   
     reverse = env.SharedLibrary(target="reverse", source=reverse_src)
-Default(reverse)

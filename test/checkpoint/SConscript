@@ -1,7 +1,7 @@
 Import('env_util')
 
-Default(env_util.Program('t', [
+env_util.Program('t', [
     'checkpointer.c',
     'test_checkpoint.c',
     'workers.c'
-    ]))
+    ])

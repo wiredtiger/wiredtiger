@@ -13,6 +13,7 @@
 *.lib
 *.lo
 *.o
+*.os
 *.obj
 *.pdb
 *.pyc

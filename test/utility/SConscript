@@ -9,4 +9,3 @@ if GetOption("enable_static"):
     test_util = env.StaticLibrary(target="test_util", source=test_util_src)
 else:   
     test_util = env.SharedLibrary(target="test_util", source=test_util_src)
-Default(test_util)

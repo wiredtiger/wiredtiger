@@ -1,5 +1,8 @@
 Import('env_util')
 
-Default(env_util.Program('t', [
+p = env_util.Program('t', [
     'salvage.c'
-    ]))
+    ])
+
+
+print("Program:%s"%str(p[0].abspath))
