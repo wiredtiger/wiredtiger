@@ -9,20 +9,20 @@ EnsureSConsVersion( 2, 0, 0 )
 
 env = Environment()
 conf = env.Configure(config_h='xxx_config.h')
+conf.Define("FOO")
 
 wt_options()
-wt_platform()
 
 if conf.CheckLib('dl'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_LIBDL=1')
     env.Append(ADDITIONAL_LIBS = ['dl'])
 if conf.CheckLib('pthread'):
-    conf.env.Append(CPPDEFINES = '-DHAVE_LIBPTHREAD=1')
     env.Append(ADDITIONAL_LIBS = ['pthread'])
 
 wt_compiler(conf)
 
+conf.Define("BAR")
 env = conf.Finish()
+Exit(1)
 
 # Build a zero-length wiredtiger_config.h file so SCons and autoconf can co-exist.
 # XXX: Autoconf compatibility.
