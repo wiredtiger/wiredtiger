@@ -76,7 +76,7 @@ Default(wtlib)
 
 # Build a utility environment for building test programs.
 env_util = env.Clone()
-env_util.Append(CPPPATH = ['#/utility'])
+env_util.Append(CPPPATH = ['#test/utility'])
 env_util.Append(LIBPATH = ['#', '#test/utility'])
 env_util.Append(LIBS = ['wiredtiger'] + additional_libs)
 
