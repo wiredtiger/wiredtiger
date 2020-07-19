@@ -6,5 +6,3 @@ if GetOption("enable_static"):
     zstd = env.StaticLibrary(target="zstd", source=zstd_src)
 else:   
     zstd = env.SharedLibrary(target="zstd", source=zstd_src)
-Default(zstd)
-

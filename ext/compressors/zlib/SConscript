@@ -6,4 +6,3 @@ if GetOption("enable_static"):
     zlib = env.StaticLibrary(target="zlib", source=zlib_src)
 else:   
     zlib = env.SharedLibrary(target="zlib", source=zlib_src)
-Default(zlib)

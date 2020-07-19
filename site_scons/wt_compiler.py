@@ -51,59 +51,7 @@ def wt_compiler(conf):
     conf.env.Append(CPPPATH = ['#', '#src/include'])
 
     if os_linux:
-        conf.env.Append(CPPDEFINES = '-D_GNU_SOURCE')
-    if GetOption("enable_diagnostic"):
-        conf.env.Append(CPPDEFINES = '-DHAVE_DIAGNOSTIC')
-    if GetOption("enable_attach"):
-        conf.env.Append(CPPDEFINES = '-DHAVE_ATTACH')
-
-    if GetOption("with_spinlock"):
-        if GetOption("with_spinlock") == "gcc":
-            conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_GCC')
-        if GetOption("with_spinlock") == "msvc":
-            conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_MSVC')
-        if GetOption("with_spinlock") == "pthread":
-            conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_PTHREAD_MUTEX')
-        if GetOption("with_spinlock") == "pthread_adaptive":
-            conf.env.Append(CPPDEFINES = '-DSPINLOCK_TYPE=SPINLOCK_PTHREAD_MUTEX_ADAPTIVE')
-
-    # Linux requires buffers aligned to 4KB boundaries for O_DIRECT to work.
-    if os_linux:
-        conf.env.Append(CPPDEFINES = '-DWT_BUFFER_ALIGNMENT_DEFAULT=4096')
-    else:
-        conf.env.Append(CPPDEFINES = '-DWT_BUFFER_ALIGNMENT_DEFAULT=0')
-
-    if conf.CheckCHeader('x86intrin.h'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_X86INTRIN_H=1')
-
-    if conf.CheckFunc('clock_gettime'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_CLOCK_GETTIME=1')
-    if conf.CheckFunc('fallocate'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_FALLOCATE=1')
-    # OS X wrongly reports that it has fdatasync.
-    if not os_darwin and conf.CheckFunc('fdatasync'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_FDATASYNC=1')
-    if conf.CheckFunc('ftruncate'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_FTRUNCATE=1')
-    if conf.CheckFunc('gettimeofday'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_GETTIMEOFDAY=1')
-    if conf.CheckFunc('posix_fadvise'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_FADVISE=1')
-    if conf.CheckFunc('posix_fallocate'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_FALLOCATE=1')
-    if conf.CheckFunc('posix_madvise'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_MADVISE=1')
-    if conf.CheckFunc('posix_memalign'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_MEMALIGN=1')
-    if conf.CheckFunc('setrlimit'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_SETRLIMIT=1')
-    if conf.CheckFunc('strtouq'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_STRTOUQ=1')
-    if conf.CheckFunc('sync_file_range'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_SYNC_FILE_RANGE=1')
-    if conf.CheckFunc('timer_create'):
-        conf.env.Append(CPPDEFINES = '-DHAVE_TIMER_CREATE=1')
-
+        conf.env.Append(CPPDEFINES = '_GNU_SOURCE')
     cflags = []
     if GetOption("enable_diagnostic"):
         cflags.append('-g')

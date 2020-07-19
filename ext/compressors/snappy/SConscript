@@ -6,5 +6,3 @@ if GetOption("enable_static"):
     snappy = env.StaticLibrary(target="snappy", source=snappy_src)
 else:   
     snappy = env.SharedLibrary(target="snappy", source=snappy_src)
-Default(snappy)
-

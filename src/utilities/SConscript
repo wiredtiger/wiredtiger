@@ -26,4 +26,3 @@ t = env.Program('wt', [
     'util_verbose.c',
     'util_verify.c',
     'util_write.c'], LIBS='wiredtiger', LIBPATH='#')
-Default(t)

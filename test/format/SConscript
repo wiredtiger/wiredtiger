@@ -1,5 +1,5 @@
 Import('env')
-env.Append(CPPPATH = ['../utility'])
+env.Append(CPPPATH = ['#/utility'])
 t = env.Program('t', [
     'alter.c',
     'backup.c',
@@ -20,4 +20,3 @@ t = env.Program('t', [
     'util.c',
     'wts.c'],
     LIBS=['wiredtiger', 'test_util', env['ADDITIONAL_LIBS']], LIBPATH=['#', '#test/utility'])
-Default(t)

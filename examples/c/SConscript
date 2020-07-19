@@ -1,0 +1,74 @@
+Import('env')
+env.Append(CPPPATH = ['#/test/utility'])
+
+EX_LIBS=['wiredtiger', 'test_util', env['ADDITIONAL_LIBS']]
+EX_LIBPATH=['#', '#test/utility']
+
+ex_access = env.Program(
+    'ex_access', ['ex_access.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_all = env.Program(
+    'ex_all', ['ex_all.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_async = env.Program(
+    'ex_async', ['ex_async.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_backup = env.Program(
+    'ex_backup', ['ex_backup.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_backup_block = env.Program(
+    'ex_backup_block', ['ex_backup_block.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_call_center = env.Program(
+    'ex_call_center', ['ex_call_center.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_config_parse = env.Program(
+    'ex_config_parse', ['ex_config_parse.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_cursor = env.Program(
+    'ex_cursor', ['ex_cursor.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_data_source = env.Program(
+    'ex_data_source', ['ex_data_source.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_encrypt = env.Program(
+    'ex_encrypt', ['ex_encrypt.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_event_handler = env.Program(
+    'ex_event_handler', ['ex_event_handler.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_extending = env.Program(
+    'ex_extending', ['ex_extending.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_extractor = env.Program(
+    'ex_extractor', ['ex_extractor.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_file_system = env.Program(
+    'ex_file_system', ['ex_file_system.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_hello = env.Program(
+    'ex_hello', ['ex_hello.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_log = env.Program(
+    'ex_log', ['ex_log.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_pack = env.Program(
+    'ex_pack', ['ex_pack.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_process = env.Program(
+    'ex_process', ['ex_process.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_schema = env.Program(
+    'ex_schema', ['ex_schema.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_smoke = env.Program(
+    'ex_smoke', ['ex_smoke.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_stat = env.Program(
+    'ex_stat', ['ex_stat.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_sync = env.Program(
+    'ex_sync', ['ex_sync.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)
+
+ex_thread = env.Program(
+    'ex_thread', ['ex_thread.c'], LIBS=EX_LIBS, LIBPATH=EX_LIBPATH)

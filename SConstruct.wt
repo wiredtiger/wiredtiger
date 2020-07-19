@@ -2,14 +2,17 @@
 import re
 
 # XXX
-# Install?
-# Java?
+# Install
+# Java
+# Python
+# --with-compressors
+# make check
+# doxygen/docs
 
 EnsureSConsVersion(2, 0, 0)
 
 env = Environment()
-conf = env.Configure(config_h='xxx_config.h')
-conf.Define("FOO")
+conf = env.Configure(config_h='wiredtiger_config.h')
 
 wt_options()
 
@@ -18,16 +21,10 @@ if conf.CheckLib('dl'):
 if conf.CheckLib('pthread'):
     conf.env.Append(ADDITIONAL_LIBS = ['pthread'])
 
+wt_config(conf)
 wt_compiler(conf)
 
-conf.Define("BAR")
 env = conf.Finish()
-
-# Build a zero-length wiredtiger_config.h file so SCons and autoconf can co-exist.
-# XXX: Autoconf compatibility.
-env.Textfile(
-    target='wiredtiger_config.h',
-    source=[])
 
 # Build the wiredtiger.h file.
 replacements = {
@@ -74,13 +71,11 @@ if GetOption("enable_static"):
     wtlib = env.StaticLibrary(target="wiredtiger", source=wtlib_src)
 else:
     wtlib = env.SharedLibrary(target="wiredtiger", source=wtlib_src)
-env.Depends('wiredtiger_config.h', ['SConstruct.wt'])
-env.Depends('wiredtiger.h', ['SConstruct.wt'])
-env.Depends(wtlib, ['wiredtiger_config.h', filelist])
 Default(wtlib)
 
 Export('env')
 conscript = [
+    'examples/c/SConscript',
     'ext/compressors/nop/SConscript',
     'src/utilities/SConscript',
     'test/format/SConscript',
