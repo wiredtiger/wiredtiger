@@ -1,0 +1,29 @@
+import distutils.sysconfig
+import sys
+Import('*')
+
+# Strip warning flags.
+# XXX
+# Needs fixing: this change is because I don't understand setup.py, my guess is we should instead
+# import that script into this file.
+cflags = [i for i in env['CFLAGS'] if not i.startswith('-W')]
+cflags.append([
+    '-Wno-discarded-qualifiers',
+    '-Wno-incompatible-pointer-types',
+    '-Wno-int-conversion',
+    '-Wno-sign-conversion'])
+
+pythonEnv = env.Clone(CFLAGS=cflags)
+pythonEnv.Append(CPPPATH=[distutils.sysconfig.get_python_inc()])
+pythonEnv.Append(SWIGFLAGS=[
+    "-python",
+    "-DPY_MAJOR_VERSION=" + str(sys.version_info.major),
+    "-threads",
+    "-O",
+    "-nodefaultctor",
+    "-nodefaultdtor",
+    ])
+swiglib = pythonEnv.SharedLibrary('_wiredtiger', 'wiredtiger.i', LIBS='wiredtiger', LIBPATH='../..')
+
+copySwig = pythonEnv.Command('wiredtiger/__init__.py', 'wiredtiger.py', Copy('$TARGET', '$SOURCE'))
+pythonEnv.Depends(copySwig, swiglib)

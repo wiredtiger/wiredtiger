@@ -95,6 +95,8 @@ if GetOption("enable_lz4"):
     conscript.append('ext/compressors/lz4')
 if GetOption("enable_snappy"):
     conscript.append('ext/compressors/snappy')
+if GetOption("enable_python"):
+    conscript.append('lang/python')
 if GetOption("enable_zlib"):
     conscript.append('ext/compressors/zlib')
 if GetOption("enable_zstd"):

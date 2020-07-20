@@ -7,6 +7,9 @@ def wt_options():
     AddOption("--enable-diagnostic", dest="enable_diagnostic", action="store_true",
         help='Configure WiredTiger library for debugging as well as to perform various run-time diagnostic tests. DO NOT configure this option in production environments')
 
+    AddOption("--enable-python", dest="enable_python", action="store_true",
+        help='Build the Python API')
+
     AddOption("--enable-lz4", dest="enable_lz4", action="store_true",
         help='Build the LZ4 compression extension (requires LZ4 shared library install)')
 
@@ -24,3 +27,7 @@ def wt_options():
 
     AddOption("--with-spinlock", dest="with_spinlock", action="store", nargs=1, type='string',
         help='Configure WiredTiger library to use "gcc", "pthread", or "pthread_adaptive" spinlocks')
+
+    if GetOption("enable_static") and GetOption("enable_python"):
+        print('building the Python API requires a shared libary build')
+        Exit (1)
