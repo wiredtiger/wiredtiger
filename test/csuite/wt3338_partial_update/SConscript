@@ -1,0 +1,3 @@
+Import('env_util')
+
+env_util.Program('test_wt3338_partial_update', ['main.c'])

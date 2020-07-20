@@ -1,0 +1,6 @@
+Import('env_util')
+
+env_util.Program('test_random_directio', [
+    'main.c',
+    'util.c'
+    ])

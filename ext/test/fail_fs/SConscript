@@ -7,4 +7,3 @@ if GetOption("enable_static"):
     fail_fs = env.StaticLibrary(target="fail_fs", source=fail_fs_src)
 else:   
     fail_fs = env.SharedLibrary(target="fail_fs", source=fail_fs_src)
-Default(fail_fs)

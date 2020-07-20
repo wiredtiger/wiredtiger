@@ -9,7 +9,7 @@ import re
 # make check
 # doxygen/docs
 
-EnsureSConsVersion(2, 0, 0)
+EnsureSConsVersion(3, 0, 0)
 
 env = Environment()
 conf = env.Configure(config_h='wiredtiger_config.h')
@@ -72,7 +72,6 @@ if GetOption("enable_static"):
     wtlib = env.StaticLibrary(target="wiredtiger", source=wtlib_src)
 else:
     wtlib = env.SharedLibrary(target="wiredtiger", source=wtlib_src)
-Default(wtlib)
 
 # Build a utility environment for building test programs.
 env_util = env.Clone()
@@ -82,33 +81,22 @@ env_util.Append(LIBS = ['wiredtiger', 'test_util'] + additional_libs)
 
 Export('env', 'env_util')
 conscript = [
-    'examples/c/SConscript',
-    'ext/collators/reverse/SConscript',
-    'ext/collators/revint/SConscript',
-    'ext/compressors/nop/SConscript',
-    'ext/encryptors/nop/SConscript',
-    'ext/encryptors/rotn/SConscript',
-    'ext/extractors/csv/SConscript',
-    'ext/test/fail_fs/SConscript',
-    'src/utilities/SConscript',
-    'test/bloom/SConscript',
-    'test/checkpoint/SConscript',
-    'test/cursor_order/SConscript',
-    'test/fops/SConscript',
-    'test/format/SConscript',
-    'test/huge/SConscript',
-    'test/manydbs/SConscript',
-    'test/packing/SConscript',
-    'test/readonly/SConscript',
-    'test/salvage/SConscript',
-    'test/thread/SConscript',
-    'test/utility/SConscript']
+    'examples/c',
+    'ext/collators/reverse',
+    'ext/collators/revint',
+    'ext/compressors/nop',
+    'ext/encryptors/nop',
+    'ext/encryptors/rotn',
+    'ext/extractors/csv',
+    'ext/test/fail_fs',
+    'src/utilities',
+    'test']
 if GetOption("enable_lz4"):
-    conscript.append('ext/compressors/lz4/SConscript')
+    conscript.append('ext/compressors/lz4')
 if GetOption("enable_snappy"):
-    conscript.append('ext/compressors/snappy/SConscript')
+    conscript.append('ext/compressors/snappy')
 if GetOption("enable_zlib"):
-    conscript.append('ext/compressors/zlib/SConscript')
+    conscript.append('ext/compressors/zlib')
 if GetOption("enable_zstd"):
-    conscript.append('ext/compressors/zstd/SConscript')
-[SConscript(i) for i in conscript]
+    conscript.append('ext/compressors/zstd')
+[SConscript(i + '/SConscript') for i in conscript]

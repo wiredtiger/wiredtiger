@@ -14,8 +14,10 @@
 *.lo
 *.o
 *.obj
+*.os
 *.pdb
 *.pyc
+*.so
 .dirstamp
 .sconf_temp
 .sconsign.dblite

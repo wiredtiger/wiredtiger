@@ -1,6 +1,6 @@
 Import('env_util')
 
-Default(env_util.Program('t', [
+env_util.Program('t', [
     'alter.c',
     'backup.c',
     'bulk.c',
@@ -18,4 +18,4 @@ Default(env_util.Program('t', [
     't.c',
     'trace.c',
     'util.c',
-    'wts.c']))
+    'wts.c'])

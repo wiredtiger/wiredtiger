@@ -1,0 +1,17 @@
+Import('env_util')
+
+conscript = [
+    'bloom',
+    'checkpoint',
+    'csuite',
+    'cursor_order',
+    'fops',
+    'format',
+    'huge',
+    'manydbs',
+    'packing',
+    'readonly',
+    'salvage',
+    'thread',
+    'utility']
+[SConscript(i + '/SConscript') for i in conscript]

@@ -1,6 +1,6 @@
 Import('*')
 
-t = env.Program('wt', [
+env.Program('wt', [
     'util_alter.c',
     'util_backup.c',
     'util_compact.c',
