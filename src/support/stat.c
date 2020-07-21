@@ -801,9 +801,13 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes written via memory map API",
   "block-manager: bytes written via system call API", "block-manager: mapped blocks read",
   "block-manager: mapped bytes read",
+  "block-manager: number of cache hits, including existence checks",
+  "block-manager: number of cache misses, including existence checks",
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
+  "block-manager: references asking for data", "block-manager: total blocks",
+  "block-manager: total bytes used",
   "cache: application threads page read from disk to cache count",
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
@@ -1190,8 +1194,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write_syscall = 0;
     stats->block_map_read = 0;
     stats->block_byte_map_read = 0;
+    stats->block_cache_hits = 0;
+    stats->block_cache_misses = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
+    stats->block_cache_data_refs = 0;
+    stats->block_cache_blocks = 0;
+    stats->block_cache_bytes = 0;
     stats->cache_read_app_count = 0;
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
@@ -1665,8 +1674,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_write_syscall += WT_STAT_READ(from, block_byte_write_syscall);
     to->block_map_read += WT_STAT_READ(from, block_map_read);
     to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
+    to->block_cache_hits += WT_STAT_READ(from, block_cache_hits);
+    to->block_cache_misses += WT_STAT_READ(from, block_cache_misses);
     to->block_remap_file_resize += WT_STAT_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_READ(from, block_remap_file_write);
+    to->block_cache_data_refs += WT_STAT_READ(from, block_cache_data_refs);
+    to->block_cache_blocks += WT_STAT_READ(from, block_cache_blocks);
+    to->block_cache_bytes += WT_STAT_READ(from, block_cache_bytes);
     to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
     to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_READ(from, cache_write_app_count);
