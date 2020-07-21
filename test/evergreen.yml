@@ -2129,12 +2129,11 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            PATH=/opt/mongodbtoolchain/v3/bin:$PATH
 
             # Delete wt util
             rm -f wt
             # Build static wt util
-            make CC='eval "g++ -static"' ${smp_command|}
+            ${make_command|make} CC='eval "g++ -static"' ${smp_command|}
             # -V option displays Wiredtiger library version
             ./wt -V
 
