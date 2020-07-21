@@ -855,7 +855,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: history store table truncation by rollback to stable to remove an unstable update",
   "cache: history store table truncation by rollback to stable to remove an update",
   "cache: history store table truncation due to mixed timestamps that returned restart",
-  "cache: history store table truncation to remove range of updates",
+  "cache: history store table truncation to remove an update",
   "cache: history store table truncation to remove range of updates due to key being removed from "
   "the data page during reconciliation",
   "cache: history store table truncation to remove range of updates due to mixed timestamps",

@@ -5241,7 +5241,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * returned restart
  */
 #define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_MIX_TS_RESTART	1116
-/*! cache: history store table truncation to remove range of updates */
+/*! cache: history store table truncation to remove an update */
 #define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE		1117
 /*!
  * cache: history store table truncation to remove range of updates due

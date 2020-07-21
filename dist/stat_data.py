@@ -300,7 +300,7 @@ connection_stats = [
     CacheStat('cache_hazard_walks', 'hazard pointer check entries walked'),
     CacheStat('cache_hs_insert', 'history store table insert calls'),
     CacheStat('cache_hs_insert_restart', 'history store table insert calls that returned restart'),
-    CacheStat('cache_hs_key_truncate', 'history store table truncation to remove range of updates'),
+    CacheStat('cache_hs_key_truncate', 'history store table truncation to remove an update'),
     CacheStat('cache_hs_key_truncate_mix_ts', 'history store table truncation to remove range of updates due to mixed timestamps'),
     CacheStat('cache_hs_key_truncate_mix_ts_restart', 'history store table truncation due to mixed timestamps that returned restart'),
     CacheStat('cache_hs_key_truncate_onpage_removal', 'history store table truncation to remove range of updates due to key being removed from the data page during reconciliation'),
