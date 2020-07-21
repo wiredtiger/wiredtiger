@@ -5226,27 +5226,33 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_HS_READ_MISS			1112
 /*! cache: history store table reads requiring squashed modifies */
 #define	WT_STAT_CONN_CACHE_HS_READ_SQUASH		1113
-/*! cache: history store table truncation by rollback to stable */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS		1114
 /*!
  * cache: history store table truncation by rollback to stable to remove
  * an unstable update
  */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE	1115
-/*! cache: history store table truncation calls  */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_CALL		1116
-/*! cache: history store table truncation calls due to mixed timestamps */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_MIX_TS	1117
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS_UNSTABLE	1114
 /*!
- * cache: history store table truncation calls due to mixed timestamps
- * that returned restart
+ * cache: history store table truncation by rollback to stable to remove
+ * an update
  */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_MIX_TS_RESTART	1118
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_RTS		1115
 /*!
- * cache: history store table truncation calls due to the key being
- * removed from the data page during reconciliation
+ * cache: history store table truncation due to mixed timestamps that
+ * returned restart
  */
-#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL	1119
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_MIX_TS_RESTART	1116
+/*! cache: history store table truncation to remove range of updates */
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE		1117
+/*!
+ * cache: history store table truncation to remove range of updates due
+ * to key being removed from the data page during reconciliation
+ */
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_ONPAGE_REMOVAL	1118
+/*!
+ * cache: history store table truncation to remove range of updates due
+ * to mixed timestamps
+ */
+#define	WT_STAT_CONN_CACHE_HS_KEY_TRUNCATE_MIX_TS	1119
 /*! cache: history store table writes requiring squashed modifies */
 #define	WT_STAT_CONN_CACHE_HS_WRITE_SQUASH		1120
 /*! cache: in-memory page passed criteria to be split */
