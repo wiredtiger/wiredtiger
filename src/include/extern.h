@@ -1481,7 +1481,7 @@ extern int __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_is_blocking(WT_SESSION_IMPL *session)
+extern int __wt_txn_is_blocking(WT_SESSION_IMPL *session, bool conservative)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1707,6 +1707,7 @@ extern void __wt_meta_track_discard(WT_SESSION_IMPL *session);
 extern void __wt_meta_track_sub_on(WT_SESSION_IMPL *session);
 extern void __wt_metadata_free_ckptlist(WT_SESSION *session, WT_CKPT *ckptbase)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_modify_vector_clear(WT_MODIFY_VECTOR *modifies);
 extern void __wt_modify_vector_free(WT_MODIFY_VECTOR *modifies);
 extern void __wt_modify_vector_init(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies);
 extern void __wt_modify_vector_peek(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp);
