@@ -46,7 +46,7 @@ __evict_leave(WT_SESSION_IMPL *session)
 {
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_EVICTING));
 
-    /* If caller was using a history store cursor it should have closed it by now. */
+    /* If the caller was using a history store cursor they should have closed it by now. */
     WT_ASSERT(session, session->hs_cursor == NULL);
 
     session->hs_cursor = session->hs_cursor_saved;
