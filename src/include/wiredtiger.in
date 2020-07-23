@@ -2137,6 +2137,16 @@ struct __wt_connection {
 	 * asynchronous requests.  Each worker thread uses a session from the configured
 	 * session_max., an integer between 1 and 20; default \c 2.}
 	 * @config{ ),,}
+	 * @config{block_cache = (, block cache configuration options., a set of related
+	 * configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;NVRAM device path,
+	 * the file path for the NVRAM that will be used as a ache if cache type NVRAM is chosen., a
+	 * string; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to allocate
+	 * for the block cache., an integer between 0 and 6GB; default \c .}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM or NVRAM., a string; default
+	 * \c DRAM.}
+	 * @config{ ),,}
 	 * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will
 	 * wait for space to be available in cache before giving up.  Default will wait forever., an
 	 * integer greater than or equal to 0; default \c 0.}
@@ -2738,6 +2748,15 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads, the number of worker threads to service asynchronous
  * requests.  Each worker thread uses a session from the configured session_max., an integer between
  * 1 and 20; default \c 2.}
+ * @config{ ),,}
+ * @config{block_cache = (, block cache configuration options., a set of related configuration
+ * options defined below.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;NVRAM device path, the file path for the
+ * NVRAM that will be used as a ache if cache type NVRAM is chosen., a string; default empty.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to allocate for the block cache., an integer
+ * between 0 and 6GB; default \c .}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM or
+ * NVRAM., a string; default \c DRAM.}
  * @config{ ),,}
  * @config{buffer_alignment, in-memory alignment (in bytes) for buffers used for I/O. The default
  * value of -1 indicates a platform-specific alignment value should be used (4KB on Linux systems

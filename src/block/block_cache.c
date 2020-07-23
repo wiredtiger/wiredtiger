@@ -21,7 +21,7 @@ __wt_blkcache_get_or_check(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
-    WT_BLKCACHE_ITEM *blkcache_item;
+    WT_BLKCACHE_ITEM *blkcache_item = NULL;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t bucket, hash;
@@ -65,7 +65,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
-    WT_BLKCACHE_ITEM *blkcache_item;
+    WT_BLKCACHE_ITEM *blkcache_item = NULL;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t bucket, hash;
@@ -127,7 +127,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
-    WT_BLKCACHE_ITEM *blkcache_item;
+    WT_BLKCACHE_ITEM *blkcache_item = NULL;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t bucket, hash;
@@ -149,7 +149,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
 	    blkcache->bytes_used -= size;
 	    __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
 	    __wt_blkcache_free(session, blkcache_item->data);
-	    __wt_free(session, blkcache_item);
+	    __wt_overwrite_and_free(session, blkcache_item);
 	    WT_STAT_CONN_DECRV(session, block_cache_bytes, size);
 	    WT_STAT_CONN_DECR(session, block_cache_blocks);
 	    return;
@@ -158,7 +158,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
 }
 
-int
+static int
 __wt_blkcache_init(WT_SESSION_IMPL *session, wt_off_t size)
 {
     WT_BLKCACHE *blkcache;
@@ -180,3 +180,72 @@ __wt_blkcache_init(WT_SESSION_IMPL *session, wt_off_t size)
 #endif
     return (0);
 }
+
+void
+__wt_block_cache_teardown(WT_SESSION_IMPL *session)
+{
+    WT_BLKCACHE *blkcache;
+    WT_BLKCACHE_ITEM *blkcache_item = NULL;
+    WT_CONNECTION_IMPL *conn;
+    int i;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    if (blkcache->bytes_used == 0)
+	goto done;
+
+    for (i = 0; i < WT_HASH_ARRAY_SIZE; i++) {
+	__wt_spin_lock(session, &blkcache->hash_locks[i]);
+	while (!TAILQ_EMPTY(&blkcache->hash[i])) {
+	    blkcache_item = TAILQ_FIRST(&blkcache->hash[i]);
+	    TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
+	    __wt_blkcache_free(session, blkcache_item->data);
+	    blkcache->num_data_blocks--;
+	    blkcache->bytes_used -= blkcache_item->id.size;
+	    __wt_free(session, blkcache_item);
+	}
+	__wt_spin_unlock(session, &blkcache->hash_locks[i]);
+    }
+
+    WT_ASSERT(session, blkcache->bytes_used == blkcache->num_data_blocks == 0);
+
+  done:
+    memset((void*)blkcache, 0, sizeof(WT_BLKCACHE));
+#ifdef FSDAX
+    memkind_destroy_kind(pmem_kind);
+#endif
+}
+
+/*
+ * __wt_block_cache_setup --
+ *     Set up the block cache.
+ */
+int
+__wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+{
+    WT_BLKCACHE *blkcache;
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
+    wt_off_t cache_size = 0;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    if (reconfig)
+	__wt_block_cache_teardown(session);
+
+    if (blkcache->bytes_used != 0)
+	WT_RET_MSG(session, -1, "block cache setup requested for a configured cache");
+
+    /* SASHA TODO: Parse what kind of cache we want and the path to the NVRAM
+     * device if applicable. */
+
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.size", &cval));
+    cache_size = (uint64_t)cval.val;
+    return __wt_blkcache_init(session, cache_size);
+
+}
+

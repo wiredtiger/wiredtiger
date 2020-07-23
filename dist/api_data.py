@@ -443,6 +443,17 @@ connection_runtime_config = [
             session_max''',
                 min='1', max='20'), # !!! Must match WT_ASYNC_MAX_WORKERS
             ]),
+    Config('block_cache', '', r'''block cache configuration options''',
+           type='category', subconfig=[
+               Config('size', '', r'''
+                   maximum memory to allocate for the block cache.''',
+                   min='0', max='6GB'),
+               Config('type', 'DRAM', r'''
+                   cache location: DRAM or NVRAM.'''),
+               Config('NVRAM device path', '', r'''
+                   the file path for the NVRAM that will be used as a ache
+                   if cache type NVRAM is chosen.'''),
+           ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should
         configure either \c cache_size or \c shared_cache but not both''',
