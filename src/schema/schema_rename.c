@@ -16,6 +16,7 @@ static int
 __rename_blkmod(WT_SESSION_IMPL *session, const char *oldvalue, WT_ITEM *buf)
 {
     WT_CKPT ckpt;
+    WT_DECL_RET;
 
     WT_CLEAR(ckpt);
     /*
@@ -26,7 +27,9 @@ __rename_blkmod(WT_SESSION_IMPL *session, const char *oldvalue, WT_ITEM *buf)
     WT_RET(__wt_meta_blk_mods_load(session, oldvalue, &ckpt, true));
 
     /* Take the checkpoint structure and generate the metadata string. */
-    return (__wt_ckpt_blkmod_to_meta(session, buf, &ckpt));
+    ret = __wt_ckpt_blkmod_to_meta(session, buf, &ckpt);
+    __wt_meta_checkpoint_free(session, &ckpt);
+    return (ret);
 }
 
 /*
