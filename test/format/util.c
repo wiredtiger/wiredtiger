@@ -376,7 +376,7 @@ set_oldest_timestamp(void)
 
     if ((ret = conn->query_timestamp(conn, tsbuf, "get=oldest")) == 0) {
         timestamp_parse(NULL, tsbuf, &oldest_ts);
-        g.oldest_timestamp = oldest_ts;
+        g.timestamp = oldest_ts;
         testutil_check(
           __wt_snprintf(buf, sizeof(buf), "%s%" PRIx64, oldest_timestamp_str, g.oldest_timestamp));
     } else
