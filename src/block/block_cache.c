@@ -9,6 +9,46 @@
 
 #include "wt_internal.h"
 
+static int
+__wt_blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void *retp)
+{
+    WT_BLKCACHE *blkcache;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    if (blkcache->type == BLKCACHE_DRAM)
+	return DRAM_ALLOC_DATA(session, size, retp);
+    else if (blkcache->type == BLKCACHE_DRAM) {
+#if HAVE_MEMKIND
+	return NVRAM_ALLOC_DATA(session, size, retp);
+#else
+#error NVRAM allocation not supported
+#endif
+    }
+    return (0);
+}
+
+static void __wt_blkcache_free(WT_SESSION_IMPL session, void *ptr) {
+
+    WT_BLKCACHE *blkcache;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    if (blkcache->type == BLKCACHE_DRAM)
+	DRAM_FREE_DATA(session, size, retp);
+    else if (blkcache->type == BLKCACHE_DRAM) {
+#if HAVE_MEMKIND
+	NVRAM_FREE_DATA(session, size, retp);
+#else
+#error NVRAM free not supported
+#endif
+    }
+}
+
 /*
  * __wt_blkcache_get --
  *     Get a block from the cache. If the data pointer is null, this function
@@ -212,9 +252,9 @@ __wt_block_cache_teardown(WT_SESSION_IMPL *session)
 
   done:
     memset((void*)blkcache, 0, sizeof(WT_BLKCACHE));
-#ifdef FSDAX
-    memkind_destroy_kind(pmem_kind);
-#endif
+    if (blkcache->type == NVRAM)
+	memkind_destroy_kind(pmem_kind);
+
 }
 
 /*
