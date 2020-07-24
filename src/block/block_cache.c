@@ -21,16 +21,16 @@ __wt_blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void *retp)
     if (blkcache->type == BLKCACHE_DRAM)
 	return DRAM_ALLOC_DATA(session, size, retp);
     else if (blkcache->type == BLKCACHE_DRAM) {
-#if HAVE_MEMKIND
+#ifdef HAVE_LIBMEMKIND
 	return NVRAM_ALLOC_DATA(session, size, retp);
 #else
-#error NVRAM allocation not supported
+	WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind.");
 #endif
     }
     return (0);
 }
 
-static void __wt_blkcache_free(WT_SESSION_IMPL session, void *ptr) {
+static void __wt_blkcache_free(WT_SESSION_IMPL *session, void *ptr) {
 
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -39,12 +39,12 @@ static void __wt_blkcache_free(WT_SESSION_IMPL session, void *ptr) {
     blkcache = &conn->blkcache;
 
     if (blkcache->type == BLKCACHE_DRAM)
-	DRAM_FREE_DATA(session, size, retp);
+	DRAM_FREE_DATA(session, ptr);
     else if (blkcache->type == BLKCACHE_DRAM) {
-#if HAVE_MEMKIND
-	NVRAM_FREE_DATA(session, size, retp);
+#ifdef HAVE_LIBMEMKIND
+	NVRAM_FREE_DATA(session, ptr);
 #else
-#error NVRAM free not supported
+	__wt_err(session, EINVAL, "NVRAM block cache type requires libmemkind.");
 #endif
     }
 }
@@ -57,7 +57,7 @@ static void __wt_blkcache_free(WT_SESSION_IMPL session, void *ptr) {
  */
 int
 __wt_blkcache_get_or_check(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
-		  wt_off_t size, void *data_ptr)
+		  size_t size, void *data_ptr)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
@@ -101,7 +101,7 @@ __wt_blkcache_get_or_check(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
  */
 int
 __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
-		  wt_off_t size, void *data)
+		  size_t size, void *data)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
@@ -162,8 +162,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
  *     Remove a block from the cache.
  */
 void
-__wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
-		  wt_off_t size, void *data)
+__wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t size)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
@@ -199,7 +198,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
 }
 
 static int
-__wt_blkcache_init(WT_SESSION_IMPL *session, wt_off_t size)
+__wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, int type, char *nvram_device_path)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -209,16 +208,27 @@ __wt_blkcache_init(WT_SESSION_IMPL *session, wt_off_t size)
     conn = S2C(session);
     blkcache = &conn->blkcache;
 
+    if (type == BLKCACHE_NVRAM) {
+#ifdef HAVE_LIBMEMKIND
+	if ((ret = memkind_create_pmem(nvram_device_path, 0, &pmem_kind)) != 0) {
+	    WT_RET_MSG(session, ret, "block cache failed to initialize");
+	    __wt_strndup(session, nvram_device_path, strlen(nvram_device_path), &blkcache->nvram_device_path);
+	    __wt_free(session, nvram_device_path);
+#else
+	    (void) nvram_device_path;
+	    WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind.");
+#endif
+    }
+
     for (i = 0; i < WT_HASH_ARRAY_SIZE; i++) {
 	TAILQ_INIT(&blkcache->hash[i]); /* Block cache hash lists */
 	WT_RET(__wt_spin_init(session, &blkcache->hash_locks[i], "block cache bucket locks"));
     }
 
-#if FSDAX
-    if ((ret = memkind_create_pmem(DEFAULT_MEMKIND_PATH, 0, &pmem_kind)) != 0)
-	WT_RET_MSG(session, ret, "block cache failed to initialize");
-#endif
-    return (0);
+    blkcache->type = type;
+    blkcache->max_bytes = size;
+
+    return (ret);
 }
 
 void
@@ -236,24 +246,28 @@ __wt_block_cache_teardown(WT_SESSION_IMPL *session)
 	goto done;
 
     for (i = 0; i < WT_HASH_ARRAY_SIZE; i++) {
-	__wt_spin_lock(session, &blkcache->hash_locks[i]);
-	while (!TAILQ_EMPTY(&blkcache->hash[i])) {
+    __wt_spin_lock(session, &blkcache->hash_locks[i]);
+    while (!TAILQ_EMPTY(&blkcache->hash[i])) {
 	    blkcache_item = TAILQ_FIRST(&blkcache->hash[i]);
 	    TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
 	    __wt_blkcache_free(session, blkcache_item->data);
 	    blkcache->num_data_blocks--;
 	    blkcache->bytes_used -= blkcache_item->id.size;
 	    __wt_free(session, blkcache_item);
-	}
+}
 	__wt_spin_unlock(session, &blkcache->hash_locks[i]);
-    }
+}
 
     WT_ASSERT(session, blkcache->bytes_used == blkcache->num_data_blocks == 0);
 
   done:
+#ifdef HAVE_LIBMEMKIND
+    if (blkcache->type == BLKCACHE_NVRAM) {
+    memkind_destroy_kind(pmem_kind);
+    __wt_free(session, blkcache->nvram_device_path);
+}
+#endif
     memset((void*)blkcache, 0, sizeof(WT_BLKCACHE));
-    if (blkcache->type == NVRAM)
-	memkind_destroy_kind(pmem_kind);
 
 }
 
@@ -267,9 +281,10 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_BLKCACHE *blkcache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_ITEM(buf);
-    WT_DECL_RET;
-    wt_off_t cache_size = 0;
+
+    char *nvram_device_path = NULL;
+    int cache_type = BLKCACHE_UNKNOWN;
+    size_t cache_size = 0;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
@@ -280,12 +295,30 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     if (blkcache->bytes_used != 0)
 	WT_RET_MSG(session, -1, "block cache setup requested for a configured cache");
 
-    /* SASHA TODO: Parse what kind of cache we want and the path to the NVRAM
-     * device if applicable. */
-
     WT_RET(__wt_config_gets(session, cfg, "block_cache.size", &cval));
-    cache_size = (uint64_t)cval.val;
-    return __wt_blkcache_init(session, cache_size);
+    if ((cache_size = (uint64_t)cval.val) <= 0) {
+	__wt_block_cache_teardown(session);
+	return (0);
+    }
+
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.type", &cval));
+    if (strncmp(cval.str, "dram", cval.len) == 0 ||
+	strncmp(cval.str, "DRAM", cval.len))
+	cache_type =  BLKCACHE_DRAM;
+    else if (strncmp(cval.str, "nvram", cval.len) == 0 ||
+	     strncmp(cval.str, "NVRAM", cval.len)) {
+#ifdef HAVE_LIBMEMKIND
+	cache_type =  BLKCACHE_NVRAM;
+	WT_RET(__wt_config_gets(session, cfg, "block_cache.path", &cval));
+	WT_RET(__wt_strndup(session, cval.str, cval.len, &nvram_device_path));
+#else
+	WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind.");
+#endif
+    }
+    else
+	WT_RET_MSG(session, EINVAL, "Invalid block cache type.");
+
+    return __wt_blkcache_init(session, cache_size, cache_type, nvram_device_path);
 
 }
 

@@ -30,7 +30,7 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
     const WT_PAGE_HEADER *dsk;
     size_t result_len;
     const char *fail_msg;
-    uint16_t compression_ratio;
+    size_t compression_ratio;
 
     btree = S2BT(session);
     bm = btree->bm;
