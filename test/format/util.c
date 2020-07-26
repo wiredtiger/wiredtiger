@@ -356,11 +356,10 @@ timestamp(void *arg)
     return (WT_THREAD_RET_VALUE);
 }
 
-
 /*
  * set_oldest_timestamp --
- *     Query the oldest timestamp from wiredtiger and set it as our global oldest timestamp. This should
- *     only be called on runs for pre existing databases.
+ *     Query the oldest timestamp from wiredtiger and set it as our global oldest timestamp. This
+ *     should only be called on runs for pre existing databases.
  */
 void
 set_oldest_timestamp(void)
