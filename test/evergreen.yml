@@ -13,7 +13,7 @@ functions:
     params:
       aws_key: ${aws_key}
       aws_secret: ${aws_secret}
-      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}.tgz
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}_${execution}.tgz
       bucket: build_external
       extract_to: wiredtiger
   "fetch artifacts from little-endian" :
@@ -262,7 +262,7 @@ functions:
         permissions: public-read
         content_type: application/tar
         display_name: Artifacts
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}.tgz
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}_${execution}.tgz
   "cleanup":
     command: shell.exec
     params:
@@ -1930,7 +1930,7 @@ tasks:
           permissions: public-read
           content_type: text/html
           display_name: Coverage report
-          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
+          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}_${execution}.html
 
   - name: spinlock-gcc-test
     commands:
@@ -2337,7 +2337,7 @@ buildvariants:
     - name: make-check-asan-test
     - name: configure-combinations
     - name: checkpoint-filetypes-test
-    # - name: coverage-report
+    - name: coverage-report
     - name: unit-test-long
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
