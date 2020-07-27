@@ -633,8 +633,9 @@ main(int argc, char *argv[])
 
         printf(
           "Parent: compatibility: %s, in-mem log sync: %s, add timing stress: %s, "
-          "timestamp in use: %s\n", compat ? "true" : "false", inmem ? "true" : "false",
-          stress ? "true" : "false", use_ts ? "true" : "false");
+          "timestamp in use: %s\n",
+          compat ? "true" : "false", inmem ? "true" : "false", stress ? "true" : "false",
+          use_ts ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
         printf("CONFIG: %s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
           compat ? " -C" : "", inmem ? " -m" : "", stress ? " -s" : "", !use_ts ? " -z" : "",
