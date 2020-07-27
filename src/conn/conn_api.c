@@ -1051,6 +1051,12 @@ err:
     WT_TRET(__wt_txn_activity_drain(session));
 
     /*
+     * There should be no active transactions running now. Therefore, it's safe for operations to
+     * proceed without doing snapshot visibility checks.
+     */
+    session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
+
+    /*
      * Clear any pending async operations and shut down the async worker threads and system before
      * closing LSM.
      */
@@ -1852,7 +1858,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
     static const WT_NAME_FLAG verbtypes[] = {{"api", WT_VERB_API}, {"backup", WT_VERB_BACKUP},
       {"block", WT_VERB_BLOCK}, {"checkpoint", WT_VERB_CHECKPOINT},
-      {"checkpoint_gc", WT_VERB_CHECKPOINT_GC},
+      {"checkpoint_cleanup", WT_VERB_CHECKPOINT_CLEANUP},
       {"checkpoint_progress", WT_VERB_CHECKPOINT_PROGRESS}, {"compact", WT_VERB_COMPACT},
       {"compact_progress", WT_VERB_COMPACT_PROGRESS}, {"error_returns", WT_VERB_ERROR_RETURNS},
       {"evict", WT_VERB_EVICT}, {"evict_stuck", WT_VERB_EVICT_STUCK},

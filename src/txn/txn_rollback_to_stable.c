@@ -212,7 +212,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
      * the given timestamp, the key is removed from data store.
      */
     ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, WT_TS_MAX, NULL);
-    for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
+    for (; ret == 0; ret = __wt_hs_cursor_prev(session, hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         /* Stop before crossing over to the next btree */
@@ -231,9 +231,10 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * If the stop time pair on the tombstone in the history store is already globally visible
          * we can skip it.
          */
-        if (__wt_txn_visible_all(
-              session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts))
+        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
+            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone_rts);
             continue;
+        }
 
         /*
          * As part of the history store search, we never get an exact match based on our search
@@ -316,6 +317,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
+        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_rts_unstable);
     }
 
     if (replace) {
@@ -380,6 +382,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
+        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_rts);
     }
 
     if (0) {
@@ -432,7 +435,7 @@ __rollback_abort_row_ondisk_kv(
         } else
             return (0);
     } else if (vpack->tw.durable_start_ts > rollback_timestamp ||
-      (vpack->tw.durable_stop_ts == WT_TS_NONE && prepared)) {
+      (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
         __wt_verbose(session, WT_VERB_RTS,
           "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s, "
           "prepared: %s and stable timestamp: %s",
@@ -449,23 +452,19 @@ __rollback_abort_row_ondisk_kv(
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
         }
-    } else if (vpack->tw.durable_stop_ts != WT_TS_NONE &&
+    } else if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
       (vpack->tw.durable_stop_ts > rollback_timestamp || prepared)) {
         /*
          * Clear the remove operation from the key by inserting the original on-disk value as a
          * standard update.
-         *
-         * Take the value from the original page cell. If a value is simple(no compression), and is
-         * globally visible at the time of reading a page into cache, we encode its location into
-         * the WT_ROW. Otherwise, read it from the page.
          */
-        if (!__wt_row_leaf_value(page, rip, &buf))
-            WT_RET(__wt_page_cell_data_ref(session, page, vpack, &buf));
+        WT_RET(__wt_page_cell_data_ref(session, page, vpack, &buf));
 
         WT_ERR(__wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, &upd, NULL));
         upd->txnid = vpack->tw.start_txn;
         upd->durable_ts = vpack->tw.durable_start_ts;
         upd->start_ts = vpack->tw.start_ts;
+        F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
         WT_STAT_CONN_INCR(session, txn_rts_keys_restored);
         __wt_verbose(session, WT_VERB_RTS,
           "key restored with commit timestamp: %s, durable timestamp: %s txnid: %" PRIu64
@@ -1008,7 +1007,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 
     /* Walk the history store for the given btree. */
     hs_cursor->set_key(hs_cursor, btree_id, &key, WT_TS_NONE, 0);
-    ret = hs_cursor->search_near(hs_cursor, &exact);
+    ret = __wt_hs_cursor_search_near(session, hs_cursor, &exact);
 
     /*
      * The search should always end up pointing to the start of the required btree or end of the
@@ -1016,9 +1015,9 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
      */
     WT_ASSERT(session, (ret != 0 || exact != 0));
     if (ret == 0 && exact < 0)
-        ret = hs_cursor->next(hs_cursor);
+        ret = __wt_hs_cursor_next(session, hs_cursor);
 
-    for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
+    for (; ret == 0; ret = __wt_hs_cursor_next(session, hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         /* Stop crossing into the next btree boundary. */
@@ -1029,9 +1028,10 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
          * If the stop time pair on the tombstone in the history store is already globally visible
          * we can skip it.
          */
-        if (__wt_txn_visible_all(
-              session, cbt->upd_value->tw.stop_txn, cbt->upd_value->tw.durable_stop_ts))
+        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
+            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone_rts);
             continue;
+        }
 
         /* Set this comparison as exact match of the search for later use. */
         cbt->compare = 0;
@@ -1042,6 +1042,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
+        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_rts);
         hs_upd = NULL;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
