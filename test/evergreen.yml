@@ -2337,7 +2337,7 @@ buildvariants:
     - name: make-check-asan-test
     - name: configure-combinations
     - name: checkpoint-filetypes-test
-    - name: coverage-report
+    # - name: coverage-report
     - name: unit-test-long
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
