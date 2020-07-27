@@ -632,12 +632,13 @@ main(int argc, char *argv[])
         }
 
         printf(
-          "Parent: compatibility: %s, "
-          "in-mem log sync: %s, timestamp in use: %s\n",
-          compat ? "true" : "false", inmem ? "true" : "false", use_ts ? "true" : "false");
+          "Parent: compatibility: %s, in-mem log sync: %s, add timing stress: %s, "
+          "timestamp in use: %s\n", compat ? "true" : "false", inmem ? "true" : "false",
+          stress ? "true" : "false", use_ts ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
-          compat ? " -C" : "", inmem ? " -m" : "", !use_ts ? " -z" : "", working_dir, nth, timeout);
+        printf("CONFIG: %s%s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
+          compat ? " -C" : "", inmem ? " -m" : "", stress ? " -s" : "", !use_ts ? " -z" : "",
+          working_dir, nth, timeout);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
