@@ -13,7 +13,7 @@ functions:
     params:
       aws_key: ${aws_key}
       aws_secret: ${aws_secret}
-      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}_${execution}.tgz
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}.tgz
       bucket: build_external
       extract_to: wiredtiger
   "fetch artifacts from little-endian" :
@@ -262,7 +262,7 @@ functions:
         permissions: public-read
         content_type: application/tar
         display_name: Artifacts
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}_${execution}.tgz
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}.tgz
   "cleanup":
     command: shell.exec
     params:
@@ -1930,7 +1930,7 @@ tasks:
           permissions: public-read
           content_type: text/html
           display_name: Coverage report
-          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}_${execution}.html
+          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
   - name: spinlock-gcc-test
     commands:
