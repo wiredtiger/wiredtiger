@@ -378,7 +378,14 @@ set_oldest_timestamp(void)
         g.timestamp = oldest_ts;
         testutil_check(
           __wt_snprintf(buf, sizeof(buf), "%s%" PRIx64, oldest_timestamp_str, g.oldest_timestamp));
-    } else
+    } else if (ret != WT_NOTFOUND)
+        /*
+         * Its possible there may not be an oldest timestamp as such we could get not found. This
+         * should be okay assuming timestamps are not configured if they are, it's still okay as we
+         * could have configured timestamps after not running with timestamps. As such only error if
+         * we get a non not found error. If we were supposed to fail with not found we'll see an
+         * error later on anyway.
+         */
         testutil_die(ret, "unable to query oldest timestamp");
 }
 
