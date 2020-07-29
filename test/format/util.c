@@ -223,11 +223,41 @@ fclose_and_clear(FILE **fpp)
 }
 
 /*
+ * timestamp_parse --
+ *     Parse a timestamp to an integral value.
+ */
+static void
+timestamp_parse(const char *p, uint64_t *tsp)
+{
+    char *endptr;
+
+    errno = 0;
+    *tsp = __wt_strtouq(p, &endptr, 16);
+    testutil_assert(errno == 0 && endptr[0] == '\0');
+}
+
+/*
+ * timestamp_stable --
+ *     Set the stable timestamp on open.
+ */
+void
+timestamp_init(void)
+{
+    WT_CONNECTION *conn;
+    char timestamp_buf[2 * sizeof(uint64_t) + 1];
+
+    conn = g.wts_conn;
+
+    testutil_check(conn->query_timestamp(conn, timestamp_buf, "get=recovery"));
+    timestamp_parse(timestamp_buf, &g.timestamp);
+}
+
+/*
  * timestamp_once --
  *     Update the timestamp once.
  */
 void
-timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
+timestamp_once(bool allow_lag, bool final)
 {
     static const char *oldest_timestamp_str = "oldest_timestamp=";
     static const char *stable_timestamp_str = "stable_timestamp=";
@@ -242,7 +272,7 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
         g.oldest_timestamp = g.stable_timestamp = ++g.timestamp;
     else {
         if ((ret = conn->query_timestamp(conn, buf, "get=all_durable")) == 0)
-            timestamp_parse(session, buf, &all_durable);
+            timestamp_parse(buf, &all_durable);
         else {
             testutil_assert(ret == WT_NOTFOUND);
             return;
@@ -268,19 +298,6 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
 }
 
 /*
- * timestamp_parse --
- *     Parse a timestamp to an integral value.
- */
-void
-timestamp_parse(WT_SESSION *session, const char *str, uint64_t *tsp)
-{
-    char *p;
-
-    *tsp = strtoull(str, &p, 16);
-    WT_ASSERT((WT_SESSION_IMPL *)session, p - str <= 16);
-}
-
-/*
  * timestamp --
  *     Periodically update the oldest timestamp.
  */
@@ -301,7 +318,7 @@ timestamp(void *arg)
         random_sleep(&g.rnd, 15);
 
         lock_writelock(session, &g.ts_lock); /* Lock out transaction timestamp operations. */
-        timestamp_once(session, true, false);
+        timestamp_once(true, false);
         lock_writeunlock(session, &g.ts_lock);
     }
 
@@ -314,13 +331,13 @@ timestamp(void *arg)
  *     Wrap up timestamp operations.
  */
 void
-timestamp_teardown(WT_SESSION *session)
+timestamp_teardown(void)
 {
     /*
      * Do a final bump of the oldest and stable timestamps, otherwise recent operations can prevent
-     * salvage or verify from running.
+     * verify from running.
      */
-    timestamp_once(session, false, true);
+    timestamp_once(false, true);
 }
 
 /*

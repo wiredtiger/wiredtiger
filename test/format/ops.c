@@ -402,8 +402,7 @@ operations(u_int ops_seconds, bool lastrun)
 
     if (lastrun) {
         tinfo_teardown();
-
-        timestamp_teardown(session);
+        timestamp_teardown();
     }
 
     testutil_check(session->close(session, NULL));
