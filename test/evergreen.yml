@@ -1950,7 +1950,7 @@ tasks:
           permissions: public-read
           content_type: text/html
           display_name: Coverage report
-          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}_${execution}.html
+          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}-${execution}.html
 
   - name: spinlock-gcc-test
     commands:
