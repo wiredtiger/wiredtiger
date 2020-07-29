@@ -30,7 +30,8 @@ __wt_blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void *retp)
     return (0);
 }
 
-static void __wt_blkcache_free(WT_SESSION_IMPL *session, void *ptr) {
+static void
+__wt_blkcache_free(WT_SESSION_IMPL *session, void *ptr) {
 
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -68,6 +69,9 @@ __wt_blkcache_get_or_check(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
+
+    if (blkcache->type == BLKCACHE_UNCONFIGURED)
+	return -1;
 
     if (data_ptr != NULL)
 	WT_STAT_CONN_INCR(session, block_cache_data_refs);
@@ -113,6 +117,9 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
+
+    if (blkcache->type == BLKCACHE_UNCONFIGURED)
+	return -1;
 
     /* Are we within cache size limits? */
     if (blkcache->bytes_used >= blkcache->max_bytes)
@@ -174,6 +181,9 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_
     conn = S2C(session);
     blkcache = &conn->blkcache;
 
+    if (blkcache->type == BLKCACHE_UNCONFIGURED)
+	return;
+
     id.fh = fh;
     id.offset = offset;
     id.size = size;
@@ -230,9 +240,8 @@ __wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, int type, char *nvram_
 
     return (ret);
 }
-
 void
-__wt_block_cache_teardown(WT_SESSION_IMPL *session)
+__wt_block_cache_destroy(WT_SESSION_IMPL *session)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item = NULL;
@@ -254,9 +263,9 @@ __wt_block_cache_teardown(WT_SESSION_IMPL *session)
 	    blkcache->num_data_blocks--;
 	    blkcache->bytes_used -= blkcache_item->id.size;
 	    __wt_free(session, blkcache_item);
-}
+    }
 	__wt_spin_unlock(session, &blkcache->hash_locks[i]);
-}
+    }
 
     WT_ASSERT(session, blkcache->bytes_used == blkcache->num_data_blocks == 0);
 
@@ -265,10 +274,14 @@ __wt_block_cache_teardown(WT_SESSION_IMPL *session)
     if (blkcache->type == BLKCACHE_NVRAM) {
     memkind_destroy_kind(pmem_kind);
     __wt_free(session, blkcache->nvram_device_path);
-}
+    }
 #endif
+    /*
+     * Zeroing the structure has the effect of setting the block cache
+     * type to unconfigured.
+     */
     memset((void*)blkcache, 0, sizeof(WT_BLKCACHE));
-
+    printf("block cache destroyed\n");
 }
 
 /*
@@ -283,23 +296,25 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_CONNECTION_IMPL *conn;
 
     char *nvram_device_path = NULL;
-    int cache_type = BLKCACHE_UNKNOWN;
+    int cache_type = BLKCACHE_UNCONFIGURED;
     size_t cache_size = 0;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
 
     if (reconfig)
-	__wt_block_cache_teardown(session);
+	__wt_block_cache_destroy(session);
 
-    if (blkcache->bytes_used != 0)
+    if (blkcache->type != BLKCACHE_UNCONFIGURED)
 	WT_RET_MSG(session, -1, "block cache setup requested for a configured cache");
 
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.enabled", &cval));
+    if (cval.val == 0)
+	return 0;
+
     WT_RET(__wt_config_gets(session, cfg, "block_cache.size", &cval));
-    if ((cache_size = (uint64_t)cval.val) <= 0) {
-	__wt_block_cache_teardown(session);
-	return (0);
-    }
+    if ((cache_size = (uint64_t)cval.val) <= 0)
+	WT_RET_MSG(session, EINVAL, "block cache size must be greater than zero");
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.type", &cval));
     if (strncmp(cval.str, "dram", cval.len) == 0 ||
@@ -312,12 +327,14 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 	WT_RET(__wt_config_gets(session, cfg, "block_cache.path", &cval));
 	WT_RET(__wt_strndup(session, cval.str, cval.len, &nvram_device_path));
 #else
-	WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind.");
+	WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind");
 #endif
     }
     else
 	WT_RET_MSG(session, EINVAL, "Invalid block cache type.");
 
+    printf("initializing block cache of type %d, size %lu, device path: %s\n",
+	   cache_type, cache_size, (nvram_device_path==NULL)?"-":nvram_device_path);
     return __wt_blkcache_init(session, cache_size, cache_type, nvram_device_path);
 
 }

@@ -2139,13 +2139,15 @@ struct __wt_connection {
 	 * @config{ ),,}
 	 * @config{block_cache = (, block cache configuration options., a set of related
 	 * configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;NVRAM device path,
-	 * the file path for the NVRAM that will be used as a ache if cache type NVRAM is chosen., a
-	 * string; default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to allocate
-	 * for the block cache., an integer between 0 and 6GB; default \c .}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable
+	 * block cache., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;path,
+	 * the file path for the NVRAM that will be used as a cache if cache type NVRAM is chosen.,
+	 * a string; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to
+	 * allocate for the block cache., an integer between 0 and 6GB; default \c 0.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM or NVRAM., a string; default
-	 * \c DRAM.}
+	 * empty.}
 	 * @config{ ),,}
 	 * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will
 	 * wait for space to be available in cache before giving up.  Default will wait forever., an
@@ -2751,12 +2753,14 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{block_cache = (, block cache configuration options., a set of related configuration
  * options defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;NVRAM device path, the file path for the
- * NVRAM that will be used as a ache if cache type NVRAM is chosen., a string; default empty.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable block cache., a boolean
+ * flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the file path for the NVRAM that
+ * will be used as a cache if cache type NVRAM is chosen., a string; default empty.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to allocate for the block cache., an integer
- * between 0 and 6GB; default \c .}
+ * between 0 and 6GB; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM or
- * NVRAM., a string; default \c DRAM.}
+ * NVRAM., a string; default empty.}
  * @config{ ),,}
  * @config{buffer_alignment, in-memory alignment (in bytes) for buffers used for I/O. The default
  * value of -1 indicates a platform-specific alignment value should be used (4KB on Linux systems

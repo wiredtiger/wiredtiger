@@ -445,13 +445,16 @@ connection_runtime_config = [
             ]),
     Config('block_cache', '', r'''block cache configuration options''',
            type='category', subconfig=[
+               Config('enabled', 'false', r'''
+                      enable block cache''',
+                      type='boolean'),
                Config('size', '0', r'''
                    maximum memory to allocate for the block cache.''',
                    min='0', max='6GB'),
                Config('type', '', r'''
                    cache location: DRAM or NVRAM.'''),
                Config('path', '', r'''
-                   the file path for the NVRAM that will be used as a ache
+                   the file path for the NVRAM that will be used as a cache
                    if cache type NVRAM is chosen.'''),
            ]),
     Config('cache_size', '100MB', r'''

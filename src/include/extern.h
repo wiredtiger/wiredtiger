@@ -1597,7 +1597,7 @@ extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((nor
 extern void __wt_async_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_backup_destroy(WT_SESSION_IMPL *session);
 extern void __wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t size);
-extern void __wt_block_cache_teardown(WT_SESSION_IMPL *session);
+extern void __wt_block_cache_destroy(WT_SESSION_IMPL *session);
 extern void __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci);
 extern void __wt_block_configure_first_fit(WT_BLOCK *block, bool on);
 extern void __wt_block_ext_free(WT_SESSION_IMPL *session, WT_EXT *ext);
