@@ -1471,8 +1471,12 @@ retry:
 
         /*
          * Skip files that are configured to stick in cache until we become aggressive.
+         *
+         * If the file is contributing heavily to our cache usage then ignore the "stickiness" of
+         * its pages.
          */
-        if (btree->evict_priority != 0 && !__wt_cache_aggressive(session))
+        if (btree->evict_priority != 0 && !__wt_cache_aggressive(session) &&
+          !__wt_btree_dominating_cache(session, btree))
             continue;
 
         /*
@@ -2309,7 +2313,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
          * rolled back. Ignore if in recovery, those transactions can't be rolled back.
          */
         if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_cache_stuck(session)) {
-            ret = __wt_txn_is_blocking(session);
+            ret = __wt_txn_is_blocking(session, false);
             if (ret == WT_ROLLBACK) {
                 --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_fail_cache);
