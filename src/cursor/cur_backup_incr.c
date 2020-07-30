@@ -31,6 +31,7 @@ __wt_backup_load_incr(
 static int
 __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BACKUP *cb)
 {
+    WT_CKPT ckpt;
     WT_CONFIG blkconf;
     WT_CONFIG_ITEM b, k, v;
     WT_DECL_RET;
@@ -41,7 +42,15 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
     WT_ASSERT(session, cb->incr_src != NULL);
 
     WT_RET(__wt_metadata_search(session, btree->dhandle->name, &config));
+    /* Check if this is a file with no checkpointed content. */
+    ret = __wt_meta_checkpoint(session, btree->dhandle->name, 0, &ckpt);
+    if (ret == 0 && ckpt.addr.size == 0)
+        F_SET(cb, WT_CURBACKUP_CKPT_FAKE);
+    __wt_meta_checkpoint_free(session, &ckpt);
+
     WT_ERR(__wt_config_getones(session, config, "checkpoint_backup_info", &v));
+    if (v.len)
+        F_SET(cb, WT_CURBACKUP_HAS_CB_INFO);
     __wt_config_subinit(session, &blkconf, &v);
     while ((ret = __wt_config_next(&blkconf, &k, &v)) == 0) {
         /*
@@ -61,16 +70,22 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
         cb->nbits = (uint64_t)b.val;
         WT_ERR(__wt_config_subgets(session, &v, "offset", &b));
         cb->offset = (uint64_t)b.val;
+        WT_ERR(__wt_config_subgets(session, &v, "rename", &b));
+        if (b.val)
+            F_SET(cb, WT_CURBACKUP_RENAME);
+        else
+            F_CLR(cb, WT_CURBACKUP_RENAME);
 
         /*
          * We found a match. Load the block information into the cursor.
          */
-        ret = __wt_config_subgets(session, &v, "blocks", &b);
-        if (ret != WT_NOTFOUND) {
+        if ((ret = __wt_config_subgets(session, &v, "blocks", &b)) == 0) {
             WT_ERR(__wt_backup_load_incr(session, &b, &cb->bitstring, cb->nbits));
             cb->bit_offset = 0;
-            cb->incr_init = true;
+            F_SET(cb, WT_CURBACKUP_INCR_INIT);
         }
+        WT_ERR_NOTFOUND_OK(ret, false);
+        break;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
@@ -101,7 +116,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, get_value, btree);
     F_CLR(cursor, WT_CURSTD_RAW);
 
-    if (!cb->incr_init && (btree == NULL || F_ISSET(cb, WT_CURBACKUP_FORCE_FULL))) {
+    if (!F_ISSET(cb, WT_CURBACKUP_INCR_INIT) &&
+      (btree == NULL || F_ISSET(cb, WT_CURBACKUP_FORCE_FULL | WT_CURBACKUP_RENAME))) {
         /*
          * We don't have this object's incremental information or it's a forced file copy. If this
          * is a log file, use the full pathname that may include the log path.
@@ -121,10 +137,10 @@ __curbackup_incr_next(WT_CURSOR *cursor)
          * By setting this to true, the next call will detect we're done in the code for the
          * incremental cursor below and return WT_NOTFOUND.
          */
-        cb->incr_init = true;
+        F_SET(cb, WT_CURBACKUP_INCR_INIT);
         __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
     } else {
-        if (cb->incr_init) {
+        if (F_ISSET(cb, WT_CURBACKUP_INCR_INIT)) {
             /* Look for the next chunk that had modifications.  */
             while (cb->bit_offset < cb->nbits)
                 if (__bit_test(cb->bitstring.mem, cb->bit_offset))
@@ -144,14 +160,26 @@ __curbackup_incr_next(WT_CURSOR *cursor)
              */
             WT_ERR(__curbackup_incr_blkmod(session, btree, cb));
             /*
-             * If there is no block modification information for this file, this is a newly created
-             * file without any checkpoint information. Return the whole file information.
+             * There are several cases where we do not have block modification information for
+             * the file. They are described and handled as follows:
+             *
+             * 1. Renamed file. Always return the whole file information.
+             * 2. Newly created file without checkpoint information. Return the whole
+             *    file information.
+             * 3. File created and checkpointed before incremental backups were configured.
+             *    Return no file information as it was copied in the initial full backup.
+             * 4. File that has not been modified since the previous incremental backup.
+             *    Return no file information as there is no new information.
              */
-            if (cb->bitstring.mem == NULL) {
-                WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
-                cb->incr_init = true;
-                __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
-                goto done;
+            if (cb->bitstring.mem == NULL || F_ISSET(cb, WT_CURBACKUP_RENAME)) {
+                F_SET(cb, WT_CURBACKUP_INCR_INIT);
+                if (F_ISSET(cb, WT_CURBACKUP_RENAME) ||
+                  (F_ISSET(cb, WT_CURBACKUP_CKPT_FAKE) && F_ISSET(cb, WT_CURBACKUP_HAS_CB_INFO))) {
+                    WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
+                    __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
+                    goto done;
+                }
+                WT_ERR(WT_NOTFOUND);
             }
         }
         __wt_cursor_set_key(cursor, cb->offset + cb->granularity * cb->bit_offset++,
