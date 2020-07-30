@@ -448,10 +448,11 @@ struct __wt_connection_impl {
     size_t debug_ckpt_alloc; /* Checkpoint retention allocated. */
     uint32_t debug_ckpt_cnt; /* Checkpoint retention number. */
     uint32_t debug_log_cnt;  /* Log file retention count */
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CONN_DEBUG_CKPT_RETAIN 0x1u
 #define WT_CONN_DEBUG_CURSOR_COPY 0x2u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0000u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x4u
 #define WT_CONN_DEBUG_SLOW_CKPT 0x8u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint64_t debug_flags;
@@ -461,7 +462,7 @@ struct __wt_connection_impl {
 #define WT_VERB_BACKUP 0x0000000002u
 #define WT_VERB_BLOCK 0x0000000004u
 #define WT_VERB_CHECKPOINT 0x0000000008u
-#define WT_VERB_CHECKPOINT_GC 0x0000000010u
+#define WT_VERB_CHECKPOINT_CLEANUP 0x0000000010u
 #define WT_VERB_CHECKPOINT_PROGRESS 0x0000000020u
 #define WT_VERB_COMPACT 0x0000000040u
 #define WT_VERB_COMPACT_PROGRESS 0x0000000080u

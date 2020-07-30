@@ -59,7 +59,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static bool slow_incremental = false;
 
 static bool do_drop = true;
-static bool do_rename = false;
+static bool do_rename = true;
 
 #define VERBOSE(level, fmt, ...)      \
     do {                              \
@@ -221,7 +221,7 @@ active_files_print(ACTIVE_FILES *active, const char *msg)
 {
     uint32_t i;
 
-    VERBOSE(6, "Active files: %s, %d entries\n", msg, (int)active->count);
+    VERBOSE(6, "Active files: %s, %" PRIu32 " entries\n", msg, active->count);
     for (i = 0; i < active->count; i++)
         VERBOSE(6, "  %s\n", active->names[i]);
 }
@@ -357,7 +357,7 @@ table_changes(WT_SESSION *session, TABLE *table)
         value = dcalloc(1, table->max_value_size);
         value2 = dcalloc(1, table->max_value_size);
         nrecords = __wt_random(&table->rand) % 1000;
-        VERBOSE(4, "changing %d records in %s\n", (int)nrecords, table->name);
+        VERBOSE(4, "changing %" PRIu32 " records in %s\n", nrecords, table->name);
         testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cur));
         for (i = 0; i < nrecords; i++) {
             change_count = table->change_count++;
@@ -504,8 +504,8 @@ base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, const ch
         granularity += 1;
     }
     testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "incremental=(granularity=%" PRIu32 "%c,enabled=true,this_id=ID%d)", granularity,
-      granularity_unit, (int)tinfo->full_backup_number));
+      "incremental=(granularity=%" PRIu32 "%c,enabled=true,this_id=ID%" PRIu32 ")", granularity,
+      granularity_unit, tinfo->full_backup_number));
     VERBOSE(3, "open_cursor(session, \"backup:\", NULL, \"%s\", &cursor)\n", buf);
     testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
 
@@ -547,7 +547,7 @@ reopen_file(int *fdp, char *buf, size_t buflen, const char *filename, int oflag)
  */
 static void
 incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABLE_INFO *tinfo,
-  ACTIVE_FILES *master_active)
+  ACTIVE_FILES *current_active)
 {
     ACTIVE_FILES active;
     WT_CURSOR *cursor, *file_cursor;
@@ -560,7 +560,7 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
     char *filename;
 
     VERBOSE(2, "INCREMENTAL BACKUP: %s\n", backup_home);
-    active_files_print(master_active, "master list before incremental backup");
+    active_files_print(current_active, "current list before incremental backup");
     WT_CLEAR(rbuf);
     WT_CLEAR(wbuf);
     rfd = wfd = -1;
@@ -568,8 +568,9 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
 
     active_files_init(&active);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "incremental=(src_id=ID%d,this_id=ID%d)",
-      (int)tinfo->full_backup_number, (int)tinfo->incr_backup_number++));
+    testutil_check(
+      __wt_snprintf(buf, sizeof(buf), "incremental=(src_id=ID%" PRIu32 ",this_id=ID%" PRIu32 ")",
+        tinfo->full_backup_number, tinfo->incr_backup_number++));
     VERBOSE(3, "open_cursor(session, \"backup:\", NULL, \"%s\", &cursor)\n", buf);
     testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
 
@@ -636,10 +637,10 @@ incr_backup(WT_CONNECTION *conn, const char *home, const char *backup_home, TABL
     VERBOSE(2, " finished incremental backup: %d files, %d range copy, %d file copy\n", nfiles,
       nrange, ncopy);
     active_files_sort(&active);
-    active_files_remove_missing(master_active, &active, backup_home);
+    active_files_remove_missing(current_active, &active, backup_home);
 
-    /* Move the current active list to the master list */
-    active_files_move(master_active, &active);
+    /* Move the active list to the current list. */
+    active_files_move(current_active, &active);
 }
 
 static void
@@ -789,7 +790,7 @@ main(int argc, char *argv[])
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
     testutil_check(__wt_snprintf(backup_dir, sizeof(backup_dir), "%s.BACKUP", home));
     testutil_check(__wt_snprintf(backup_check, sizeof(backup_check), "%s.CHECK", home));
-    fprintf(stderr, "Seed: %" PRIu64 "\n", seed);
+    printf("Seed: %" PRIu64 "\n", seed);
 
     testutil_check(
       __wt_snprintf(command, sizeof(command), "rm -rf %s %s; mkdir %s", home, backup_dir, home));
@@ -840,7 +841,7 @@ main(int argc, char *argv[])
     next_checkpoint = __wt_random(&rnd) % tinfo.table_count;
 
     for (iter = 0; iter < ITERATIONS; iter++) {
-        VERBOSE(1, "**** iteration %d ****\n", (int)iter);
+        VERBOSE(1, "**** iteration %" PRIu32 " ****\n", iter);
 
         /*
          * We have schema changes during about half the iterations. The number of schema changes
