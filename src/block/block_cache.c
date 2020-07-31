@@ -223,7 +223,8 @@ __wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, int type, char *nvram_
 #ifdef HAVE_LIBMEMKIND
 	if ((ret = memkind_create_pmem(nvram_device_path, 0, &blkcache->pmem_kind)) != 0) {
 	    WT_RET_MSG(session, ret, "block cache failed to initialize");
-	    WT_RET(__wt_strndup(session, nvram_device_path, strlen(nvram_device_path), &blkcache->nvram_device_path));
+	    WT_RET(__wt_strndup(session, nvram_device_path, strlen(nvram_device_path),
+				&blkcache->nvram_device_path));
 	    __wt_free(session, nvram_device_path);
 	}
 #else
@@ -339,4 +340,3 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 	   cache_type, cache_size, (nvram_device_path==NULL)?"-":nvram_device_path);
     return __wt_blkcache_init(session, cache_size, cache_type, nvram_device_path);
 }
-
