@@ -539,9 +539,10 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
  *     configurations.
  */
 int
-__wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag) WT_GCC_FUNC_ATTRIBUTE((cold))
+__wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag, uint64_t flags)
+  WT_GCC_FUNC_ATTRIBUTE((cold))
 {
-    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+    if (F_ISSET(S2C(session), flags))
         WT_RET_MSG(session, ENOTSUP, "%s%snot supported for in-memory configurations",
           tag == NULL ? "" : tag, tag == NULL ? "" : ": ");
     return (0);

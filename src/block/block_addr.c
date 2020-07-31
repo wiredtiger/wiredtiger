@@ -15,13 +15,20 @@
  */
 static int
 __block_buffer_to_addr(
-  uint32_t allocsize, const uint8_t **pp, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump)
+  WT_BLOCK *block, const uint8_t **pp, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump)
 {
     uint64_t o, s, c;
 
     WT_RET(__wt_vunpack_uint(pp, 0, &o));
     WT_RET(__wt_vunpack_uint(pp, 0, &s));
     WT_RET(__wt_vunpack_uint(pp, 0, &c));
+
+    if (block->in_memory) {
+        *offsetp = (wt_off_t)o;
+        *sizep = (uint32_t)s;
+        *checksump = (uint32_t)c;
+        return (0);
+    }
 
     /*
      * To avoid storing large offsets, we minimize the value by subtracting
@@ -39,8 +46,8 @@ __block_buffer_to_addr(
         *offsetp = 0;
         *sizep = *checksump = 0;
     } else {
-        *offsetp = (wt_off_t)(o + 1) * allocsize;
-        *sizep = (uint32_t)s * allocsize;
+        *offsetp = (wt_off_t)(o + 1) * block->allocsize;
+        *sizep = (uint32_t)s * block->allocsize;
         *checksump = (uint32_t)c;
     }
     return (0);
@@ -56,15 +63,22 @@ __wt_block_addr_to_buffer(
 {
     uint64_t o, s, c;
 
-    /* See the comment above: this is the reverse operation. */
-    if (size == 0) {
-        o = WT_BLOCK_INVALID_OFFSET;
-        s = c = 0;
+    if (block->in_memory) {
+        o = (uint64_t)offset;
+        s = (uint64_t)size;
+        c = (uint64_t)checksum;
     } else {
-        o = (uint64_t)offset / block->allocsize - 1;
-        s = size / block->allocsize;
-        c = checksum;
+        /* See the comment above: this is the reverse operation. */
+        if (size == 0) {
+            o = WT_BLOCK_INVALID_OFFSET;
+            s = c = 0;
+        } else {
+            o = (uint64_t)offset / block->allocsize - 1;
+            s = size / block->allocsize;
+            c = checksum;
+        }
     }
+
     WT_RET(__wt_vpack_uint(pp, 0, o));
     WT_RET(__wt_vpack_uint(pp, 0, s));
     WT_RET(__wt_vpack_uint(pp, 0, c));
@@ -80,7 +94,7 @@ int
 __wt_block_buffer_to_addr(
   WT_BLOCK *block, const uint8_t *p, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump)
 {
-    return (__block_buffer_to_addr(block->allocsize, &p, offsetp, sizep, checksump));
+    return (__block_buffer_to_addr(block, &p, offsetp, sizep, checksump));
 }
 
 /*
@@ -100,6 +114,10 @@ __wt_block_addr_invalid(
 
     /* Crack the cookie. */
     WT_RET(__wt_block_buffer_to_addr(block, addr, &offset, &size, &checksum));
+
+    /* In-memory addresses can't be NULL, but nothing else to check. */
+    if (block->in_memory)
+        return (addr == 0 ? EINVAL : 0);
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -143,7 +161,7 @@ __wt_block_addr_string(
  */
 static int
 __block_buffer_to_ckpt(
-  WT_SESSION_IMPL *session, uint32_t allocsize, const uint8_t *p, WT_BLOCK_CKPT *ci)
+  WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *p, WT_BLOCK_CKPT *ci)
 {
     uint64_t a;
     const uint8_t **pp;
@@ -153,14 +171,13 @@ __block_buffer_to_ckpt(
         WT_RET_MSG(session, WT_ERROR, "unsupported checkpoint version");
 
     pp = &p;
+    WT_RET(__block_buffer_to_addr(block, pp, &ci->root_offset, &ci->root_size, &ci->root_checksum));
     WT_RET(
-      __block_buffer_to_addr(allocsize, pp, &ci->root_offset, &ci->root_size, &ci->root_checksum));
+      __block_buffer_to_addr(block, pp, &ci->alloc.offset, &ci->alloc.size, &ci->alloc.checksum));
+    WT_RET(
+      __block_buffer_to_addr(block, pp, &ci->avail.offset, &ci->avail.size, &ci->avail.checksum));
     WT_RET(__block_buffer_to_addr(
-      allocsize, pp, &ci->alloc.offset, &ci->alloc.size, &ci->alloc.checksum));
-    WT_RET(__block_buffer_to_addr(
-      allocsize, pp, &ci->avail.offset, &ci->avail.size, &ci->avail.checksum));
-    WT_RET(__block_buffer_to_addr(
-      allocsize, pp, &ci->discard.offset, &ci->discard.size, &ci->discard.checksum));
+      block, pp, &ci->discard.offset, &ci->discard.size, &ci->discard.checksum));
     WT_RET(__wt_vunpack_uint(pp, 0, &a));
     ci->file_size = (wt_off_t)a;
     WT_RET(__wt_vunpack_uint(pp, 0, &a));
@@ -177,7 +194,7 @@ int
 __wt_block_buffer_to_ckpt(
   WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *p, WT_BLOCK_CKPT *ci)
 {
-    return (__block_buffer_to_ckpt(session, block->allocsize, p, ci));
+    return (__block_buffer_to_ckpt(session, block, p, ci));
 }
 
 /*
@@ -188,10 +205,15 @@ int
 __wt_block_ckpt_decode(WT_SESSION *wt_session, size_t allocsize, const uint8_t *p,
   WT_BLOCK_CKPT *ci) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
+    WT_BLOCK *block, _block;
     WT_SESSION_IMPL *session;
 
+    block = &_block;
+    block->allocsize = (uint32_t)allocsize;
+    block->in_memory = false;
+
     session = (WT_SESSION_IMPL *)wt_session;
-    return (__block_buffer_to_ckpt(session, (uint32_t)allocsize, p, ci));
+    return (__block_buffer_to_ckpt(session, block, p, ci));
 }
 
 /*

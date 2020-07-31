@@ -2964,6 +2964,8 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{in_memory, keep data in-memory only.  See @ref in_memory for more information., a boolean
  * flag; default \c false.}
+ * @config{in_memory_block, keep data in-memory only.  See @ref in_memory for more information., a
+ * boolean flag; default \c false.}
  * @config{io_capacity = (, control how many bytes per second are written and read.  Exceeding the
  * capacity results in throttling., a set of related configuration options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;total, number of bytes per second available to all subsystems in

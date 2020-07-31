@@ -47,7 +47,7 @@ struct __wt_evict_queue {
 };
 
 /* Cache operations. */
-typedef enum __wt_cache_op {
+typedef enum {
     WT_SYNC_CHECKPOINT,
     WT_SYNC_CLOSE,
     WT_SYNC_DISCARD,
@@ -84,6 +84,9 @@ struct __wt_cache {
     uint64_t pages_dirty_leaf;
     uint64_t pages_evicted;
     uint64_t pages_inmem;
+
+    uint64_t bytes_block;   /* Block manager bytes */
+    uint64_t objects_block; /* Block manager objects */
 
     volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;     /* Tracked eviction progress */

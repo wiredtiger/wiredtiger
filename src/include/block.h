@@ -38,8 +38,10 @@
  * skiplist start at WT_EXT.next[WT_EXT.depth].
  *
  * One final complication: we only maintain the per-size skiplist for the avail
- * list, the alloc and discard extent lists are not searched based on size.
+ * lists, the alloc and discard extent lists are not searched based on size.
  */
+
+typedef enum { WT_EXT_ALLOC, WT_EXT_AVAIL, WT_EXT_DISCARD, WT_EXT_CKPT_AVAIL } WT_EXT_TYPE;
 
 /*
  * WT_EXTLIST --
@@ -48,14 +50,15 @@
 struct __wt_extlist {
     char *name; /* Name */
 
+    WT_EXT_TYPE which; /* Type */
+    bool track_size;   /* Maintain per-size skiplist */
+
     uint64_t bytes;   /* Byte count */
     uint32_t entries; /* Entry count */
 
     wt_off_t offset;   /* Written extent offset */
     uint32_t checksum; /* Written extent checksum */
     uint32_t size;     /* Written extent size */
-
-    bool track_size; /* Maintain per-size skiplist */
 
     WT_EXT *last; /* Cached last element */
 
@@ -220,6 +223,11 @@ struct __wt_bm {
 struct __wt_block {
     const char *name;   /* Name */
     uint64_t name_hash; /* Hash of name */
+
+    /*
+     * The block manager runs on top of both standard filesystems as well as in-memory allocators.
+     */
+    bool in_memory;
 
     /* A list of block manager handles, sharing a file descriptor. */
     uint32_t ref;                  /* References */

@@ -162,6 +162,16 @@ struct __wt_file_handle_inmem {
 
     WT_ITEM buf; /* Data */
     u_int ref;   /* Reference count */
+
+    /*
+     * In a traditional filesystem, everything is done by offset/size pairs, but in the in-memory
+     * filesystem, there are two modes. There is an offset/size pair mode, intended to support
+     * WiredTiger's upper levels which are reading/writing lines in a text file. There is also an
+     * address size pair mode, intended to support the block manager. The block_addr boolean selects
+     * for the latter.
+     */
+    bool block_addr; /* R/W by address not offset */
+    void *desc;      /* XXX Descriptor block */
 };
 
 struct __wt_fstream {

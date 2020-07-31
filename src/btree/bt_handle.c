@@ -837,14 +837,15 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
           btree->allocsize);
 
     /*
-     * Default in-memory page image size for compression is 4x the maximum internal or leaf page
-     * size, and enforce the on-disk page sizes as a lower-limit for the in-memory image size.
+     * Default in-memory page image size for compression is 4x (on disk), or 10x (in memory), the
+     * maximum internal or leaf page size, and enforce the on-disk page sizes as a lower-limit for
+     * the in-memory image size.
      */
     WT_RET(__wt_config_gets(session, cfg, "memory_page_image_max", &cval));
     btree->maxmempage_image = (uint32_t)cval.val;
     max = WT_MAX(btree->maxintlpage, btree->maxleafpage);
     if (btree->maxmempage_image == 0)
-        btree->maxmempage_image = 4 * max;
+        btree->maxmempage_image = max * (F_ISSET(conn, WT_CONN_IN_MEMORY_BLOCK) ? 10 : 4);
     else if (btree->maxmempage_image < max)
         WT_RET_MSG(session, EINVAL,
           "in-memory page image size must be larger than the maximum "

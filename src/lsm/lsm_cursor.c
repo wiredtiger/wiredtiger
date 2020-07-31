@@ -1703,7 +1703,8 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
     if (!WT_PREFIX_MATCH(uri, "lsm:"))
         return (__wt_unexpected_object_type(session, uri, "lsm:"));
 
-    WT_RET(__wt_inmem_unsupported_op(session, "LSM trees"));
+    WT_RET(
+      __wt_inmem_unsupported_op(session, "LSM trees", WT_CONN_IN_MEMORY | WT_CONN_IN_MEMORY_BLOCK));
 
     WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
     if (cval.len != 0)

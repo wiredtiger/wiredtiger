@@ -158,8 +158,7 @@ config_run(void)
 
     /* If data_source and file_type were both "permanent", we may still have a mismatch. */
     if (DATASOURCE("lsm") && g.type != ROW)
-        testutil_die(
-          EINVAL, "%s: lsm data_source is only compatible with row file_type\n", progname);
+        testutil_die(EINVAL, "%s: lsm data_source is only compatible with row file_type", progname);
 
     /*
      * Build the top-level object name: we're overloading data_source in our configuration, LSM
@@ -208,8 +207,7 @@ config_run(void)
     config_cache();
 
     /* Give in-memory, LSM and backward compatible configurations a final review. */
-    if (g.c_in_memory != 0)
-        config_in_memory_reset();
+    config_in_memory_reset();
     if (DATASOURCE("lsm"))
         config_lsm_reset();
     config_backward_compatible();
@@ -360,6 +358,11 @@ config_backup_incr_granularity(void)
     config_single(confbuf, false);
 }
 
+#undef OP_CHK
+#define OP_CHK(op)          \
+    if (config_is_perm(op)) \
+    testutil_die(EINVAL, #op " configuration is incompatible with backward compatibility mode")
+
 /*
  * config_backward_compatible --
  *     Backward compatibility configuration.
@@ -381,27 +384,27 @@ config_backward_compatible(void)
         return;
 
     if (g.c_backup_incr_flag != INCREMENTAL_OFF) {
-        if (config_is_perm("backup.incremental"))
-            testutil_die(EINVAL, "incremental backup not supported in backward compatibility mode");
+        OP_CHK("backup.incremental");
         config_single("backup.incremental=off", false);
     }
 
     if (g.c_mmap_all) {
-        if (config_is_perm("disk.mmap_all"))
-            testutil_die(EINVAL, "disk.mmap_all not supported in backward compatibility mode");
+        OP_CHK("disk.mmap_all");
         config_single("disk.mmap_all=off", false);
     }
 
+    if (g.c_in_memory_block != 0) {
+        OP_CHK("runs.in_memory_block");
+        config_single("runs.in_memory_block=off", false);
+    }
+
     if (g.c_timing_stress_hs_sweep) {
-        if (config_is_perm("stress.hs_sweep"))
-            testutil_die(EINVAL, "stress.hs_sweep not supported in backward compatibility mode");
+        OP_CHK("stress.hs_sweep");
         config_single("stress.hs_sweep=off", false);
     }
 
     if (g.c_timing_stress_hs_checkpoint_delay) {
-        if (config_is_perm("stress.hs_checkpoint_delay"))
-            testutil_die(
-              EINVAL, "stress.hs_checkpoint_delay not supported in backward compatibility mode");
+        OP_CHK("stress.hs_checkpoint_delay");
         config_single("stress.hs_checkpoint_delay=off", false);
     }
 }
@@ -588,6 +591,11 @@ config_compression(const char *conf_name)
     config_single(confbuf, false);
 }
 
+#undef OP_CHK
+#define OP_CHK(op)          \
+    if (config_is_perm(op)) \
+    testutil_die(EINVAL, #op " configuration is incompatible with direct I/O")
+
 /*
  * config_directio
  *     Direct I/O configuration.
@@ -607,8 +615,7 @@ config_directio(void)
      * direct I/O in Linux won't work. If direct I/O is configured, turn off backups.
      */
     if (g.c_backups) {
-        if (config_is_perm("backup"))
-            testutil_die(EINVAL, "direct I/O is incompatible with backup configurations");
+        OP_CHK("backup");
         config_single("backup=off", false);
     }
 
@@ -618,8 +625,7 @@ config_directio(void)
      * and it doesn't make much sense (the library disallows the combination).
      */
     if (g.c_mmap_all != 0) {
-        if (config_is_perm("disk.mmap_all"))
-            testutil_die(EINVAL, "direct I/O is incompatible with mmap_all configurations");
+        OP_CHK("disk.mmap_all");
         config_single("disk.mmap_all=off", false);
     }
 
@@ -630,13 +636,11 @@ config_directio(void)
      * child process termination, but it's not worth the effort.
      */
     if (g.c_rebalance) {
-        if (config_is_perm("ops.rebalance"))
-            testutil_die(EINVAL, "direct I/O is incompatible with rebalance configurations");
+        OP_CHK("ops.rebalance");
         config_single("ops.rebalance=off", false);
     }
     if (g.c_salvage) {
-        if (config_is_perm("ops.salvage"))
-            testutil_die(EINVAL, "direct I/O is incompatible with salvage configurations");
+        OP_CHK("ops.salvage");
         config_single("ops.salvage=off", false);
     }
 }
@@ -688,6 +692,11 @@ config_fix(void)
     return (true);
 }
 
+#undef OP_CHK
+#define OP_CHK(conf, op)    \
+    if (config_is_perm(op)) \
+    testutil_die(EINVAL, #op " is incompatible with " #conf " configurations")
+
 /*
  * config_in_memory --
  *     Periodically set up an in-memory configuration.
@@ -696,32 +705,43 @@ static void
 config_in_memory(void)
 {
     /*
-     * Configure in-memory before configuring anything else, in-memory has many related
-     * requirements. Don't configure in-memory if there's any incompatible configurations, so we
-     * don't have to configure in-memory every time we configure something like LSM, that's too
-     * painful.
+     * Configure in-memory before configuring anything else, in-memory has limited functionality.
+     * There are two in-memory modes, pure in-memory and in-memory blocks. Check the operations
+     * disallowed by pure in-memory, then the list of operations disallowed by either.
      */
-    if (config_is_perm("backup"))
-        return;
-    if (config_is_perm("checkpoint"))
-        return;
-    if (config_is_perm("btree.compression"))
-        return;
-    if (config_is_perm("runs.source") && DATASOURCE("lsm"))
-        return;
-    if (config_is_perm("logging"))
-        return;
-    if (config_is_perm("ops.hs_cursor"))
-        return;
-    if (config_is_perm("ops.rebalance"))
-        return;
-    if (config_is_perm("ops.salvage"))
-        return;
-    if (config_is_perm("ops.verify"))
-        return;
+    if (g.c_in_memory != 0 && config_is_perm("runs.in_memory")) {
+        OP_CHK("runs.in_memory", "backup");
+        OP_CHK("runs.in_memory", "btree.compression");
+        OP_CHK("runs.in_memory", "checkpoint");
+        OP_CHK("runs.in_memory", "logging");
+        OP_CHK("runs.in_memory", "ops.alter");
+        OP_CHK("runs.in_memory", "ops.hs_cursor");
+        OP_CHK("runs.in_memory", "ops.rebalance");
+        OP_CHK("runs.in_memory", "ops.salvage");
+        OP_CHK("runs.in_memory", "ops.verify");
+        if (config_is_perm("runs.source") && DATASOURCE("lsm"))
+            testutil_die(EINVAL, "LSM is incompatible with runs.in_memory configurations");
+    }
 
-    if (!config_is_perm("runs.in_memory") && mmrand(NULL, 1, 20) == 1)
-        g.c_in_memory = 1;
+    if (g.c_in_memory_block != 0 && config_is_perm("runs.in_memory_block")) {
+        OP_CHK("runs.in_memory_block", "backup");
+        OP_CHK("runs.in_memory_block", "logging");
+        OP_CHK("runs.in_memory_block", "ops.rebalance");
+        OP_CHK("runs.in_memory_block", "ops.salvage");
+        OP_CHK("runs.in_memory_block", "ops.verify");
+        if (config_is_perm("runs.source") && DATASOURCE("lsm"))
+            testutil_die(EINVAL, "LSM is incompatible with runs.in_memory_block configurations");
+    }
+
+    if (g.c_in_memory == 0 && g.c_in_memory_block == 0)
+        switch (mmrand(NULL, 1, 20)) {
+        case 1: /* .5% */
+            config_single("runs.in_memory=on", false);
+            break;
+        case 2: /* .5% */
+            config_single("runs.in_memory_block=on", false);
+            break;
+        }
 }
 
 /*
@@ -733,25 +753,22 @@ config_in_memory_reset(void)
 {
     uint32_t cache;
 
+    if (g.c_in_memory == 0 && g.c_in_memory_block == 0)
+        return;
+
     /* Turn off a lot of stuff. */
-    if (!config_is_perm("ops.alter"))
-        config_single("ops.alter=off", false);
-    if (!config_is_perm("backup"))
-        config_single("backup=off", false);
-    if (!config_is_perm("checkpoint"))
-        config_single("checkpoint=off", false);
-    if (!config_is_perm("btree.compression"))
+    if (g.c_in_memory) {
         config_single("btree.compression=none", false);
-    if (!config_is_perm("ops.hs_cursor"))
+        config_single("checkpoint=off", false);
+        config_single("ops.alter=off", false);
         config_single("ops.hs_cursor=off", false);
-    if (!config_is_perm("logging"))
-        config_single("logging=off", false);
-    if (!config_is_perm("ops.rebalance"))
-        config_single("ops.rebalance=off", false);
-    if (!config_is_perm("ops.salvage"))
-        config_single("ops.salvage=off", false);
-    if (!config_is_perm("ops.verify"))
-        config_single("ops.verify=off", false);
+    }
+
+    config_single("backup=off", false); /* XXX nvram */
+    config_single("logging=off", false);
+    config_single("ops.rebalance=off", false); /* XXX nvram */
+    config_single("ops.salvage=off", false);   /* XXX nvram */
+    config_single("ops.verify=off", false);    /* XXX nvram */
 
     /*
      * Keep keys/values small, overflow items aren't an issue for in-memory configurations and it
@@ -762,9 +779,7 @@ config_in_memory_reset(void)
     if (!config_is_perm("btree.value_max"))
         config_single("btree.value_max=80", false);
 
-    /*
-     * Size the cache relative to the initial data set, use 2x the base size as a minimum.
-     */
+    /* Size the cache relative to the initial data set, use 2x the base size as a minimum. */
     if (!config_is_perm("cache")) {
         cache = g.c_value_max;
         if (g.type == ROW)
@@ -1170,9 +1185,9 @@ config_find(const char *s, size_t len, bool fatal)
 
     /* Optionally ignore unknown keywords, it makes it easier to run old CONFIG files. */
     if (fatal)
-        testutil_die(EINVAL, "%s: %s: unknown required configuration keyword\n", progname, s);
+        testutil_die(EINVAL, "%s: %s: unknown required configuration keyword", progname, s);
 
-    fprintf(stderr, "%s: %s: WARNING, ignoring unknown configuration keyword\n", progname, s);
+    fprintf(stderr, "%s: %s: WARNING, ignoring unknown configuration keyword", progname, s);
     return (NULL);
 }
 
@@ -1214,7 +1229,7 @@ config_single(const char *s, bool perm)
     config_compat(&s);
 
     if ((equalp = strchr(s, '=')) == NULL)
-        testutil_die(EINVAL, "%s: %s: illegal configuration value\n", progname, s);
+        testutil_die(EINVAL, "%s: %s: illegal configuration value", progname, s);
 
     if ((cp = config_find(s, (size_t)(equalp - s), false)) == NULL)
         return;
@@ -1247,7 +1262,7 @@ config_single(const char *s, bool perm)
           strncmp("file", equalp, strlen("file")) != 0 &&
           strncmp("lsm", equalp, strlen("lsm")) != 0 &&
           strncmp("table", equalp, strlen("table")) != 0) {
-            testutil_die(EINVAL, "Invalid data source option: %s\n", equalp);
+            testutil_die(EINVAL, "Invalid data source option: %s", equalp);
         } else if (strncmp(s, "disk.encryption", strlen("disk.encryption")) == 0) {
             config_map_encryption(equalp, &g.c_encryption_flag);
             *cp->vstr = dstrdup(equalp);
@@ -1298,17 +1313,16 @@ config_single(const char *s, bool perm)
 
     v1 = config_value(s, vp1, range == RANGE_NONE ? '\0' : (range == RANGE_FIXED ? '-' : ':'));
     if (v1 < cp->min || v1 > cp->maxset)
-        testutil_die(EINVAL, "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32 "\n",
+        testutil_die(EINVAL, "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32,
           progname, s, cp->min, cp->maxset);
 
     if (range != RANGE_NONE) {
         v2 = config_value(s, vp2, '\0');
         if (v2 < cp->min || v2 > cp->maxset)
-            testutil_die(EINVAL,
-              "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32 "\n", progname, s,
-              cp->min, cp->maxset);
+            testutil_die(EINVAL, "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32,
+              progname, s, cp->min, cp->maxset);
         if (v1 > v2)
-            testutil_die(EINVAL, "%s: %s: illegal numeric range\n", progname, s);
+            testutil_die(EINVAL, "%s: %s: illegal numeric range", progname, s);
 
         if (range == RANGE_FIXED)
             v1 = mmrand(NULL, (u_int)v1, (u_int)v2);

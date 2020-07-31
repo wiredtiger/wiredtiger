@@ -349,7 +349,7 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     }
 
     /* In-memory ignores compaction operations. */
-    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY | WT_CONN_IN_MEMORY_BLOCK))
         goto err;
 
     /*

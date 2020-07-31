@@ -2413,6 +2413,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "in_memory", &cval));
     if (cval.val != 0)
         F_SET(conn, WT_CONN_IN_MEMORY);
+    WT_ERR(__wt_config_gets(session, cfg, "in_memory_block", &cval));
+    if (cval.val != 0)
+        F_SET(conn, WT_CONN_IN_MEMORY_BLOCK);
     WT_ERR(__wt_config_gets(session, cfg, "readonly", &cval));
     if (cval.val)
         F_SET(conn, WT_CONN_READONLY);
@@ -2436,7 +2439,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * ensure we have a valid file system.
      */
     if (conn->file_system == NULL) {
-        if (F_ISSET(conn, WT_CONN_IN_MEMORY))
+        if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_IN_MEMORY_BLOCK))
             WT_ERR(__wt_os_inmemory(session));
         else
 #if defined(_MSC_VER)
@@ -2504,6 +2507,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "in_memory", &cval));
     if (cval.val != 0)
         F_SET(conn, WT_CONN_IN_MEMORY);
+    WT_ERR(__wt_config_gets(session, cfg, "in_memory_block", &cval));
+    if (cval.val != 0)
+        F_SET(conn, WT_CONN_IN_MEMORY_BLOCK);
     WT_ERR(__wt_config_gets(session, cfg, "readonly", &cval));
     if (cval.val)
         F_SET(conn, WT_CONN_READONLY);

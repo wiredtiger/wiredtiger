@@ -171,6 +171,7 @@ typedef struct {
     uint32_t c_huffman_key;
     uint32_t c_huffman_value;
     uint32_t c_in_memory;
+    uint32_t c_in_memory_block;
     uint32_t c_independent_thread_rng;
     uint32_t c_insert_pct;
     uint32_t c_internal_key_truncation;

@@ -237,13 +237,8 @@ __wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
           "setting");
 
     /* Logging is incompatible with in-memory */
-    if (enabled) {
-        WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
-        if (cval.val != 0)
-            WT_RET_MSG(session, EINVAL,
-              "In-memory configuration incompatible with "
-              "log=(enabled=true)");
-    }
+    if (enabled && F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_IN_MEMORY_BLOCK))
+        WT_RET_MSG(session, EINVAL, "In-memory configuration incompatible with log=(enabled=true)");
 
     if (enabled)
         FLD_SET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED);

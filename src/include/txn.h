@@ -179,11 +179,7 @@ struct __wt_txn_global {
     WT_TXN_SHARED *txn_shared_list; /* Per-session shared transaction states */
 };
 
-typedef enum __wt_txn_isolation {
-    WT_ISO_READ_COMMITTED,
-    WT_ISO_READ_UNCOMMITTED,
-    WT_ISO_SNAPSHOT
-} WT_TXN_ISOLATION;
+typedef enum { WT_ISO_READ_COMMITTED, WT_ISO_READ_UNCOMMITTED, WT_ISO_SNAPSHOT } WT_TXN_ISOLATION;
 
 /*
  * WT_TXN_OP --

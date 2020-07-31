@@ -144,7 +144,7 @@ __wt_cache_bytes_plus_overhead(WT_CACHE *cache, uint64_t sz)
 static inline uint64_t
 __wt_cache_bytes_inuse(WT_CACHE *cache)
 {
-    return (__wt_cache_bytes_plus_overhead(cache, cache->bytes_inmem));
+    return (__wt_cache_bytes_plus_overhead(cache, cache->bytes_inmem + cache->bytes_block));
 }
 
 /*

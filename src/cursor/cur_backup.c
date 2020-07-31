@@ -605,7 +605,8 @@ __backup_start(
     cb->list = NULL;
     cb->list_next = 0;
 
-    WT_RET(__wt_inmem_unsupported_op(session, "backup cursor"));
+    WT_RET(__wt_inmem_unsupported_op(
+      session, "backup cursor", WT_CONN_IN_MEMORY | WT_CONN_IN_MEMORY_BLOCK));
 
     /*
      * Single thread hot backups: we're holding the schema lock, so we know we'll serialize with

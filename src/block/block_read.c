@@ -185,6 +185,9 @@ __wt_block_read_off_blind(
     *sizep = 0;
     *checksump = 0;
 
+    if (block->in_memory)
+        WT_RET_MSG(session, EINVAL, "%s: unavailable in in-memory configurations", __func__);
+
     /*
      * Make sure the buffer is large enough for the header and read the first allocation-size block.
      */
@@ -232,19 +235,22 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
         F_SET(buf, WT_ITEM_ALIGNED);
         bufsize = WT_MAX(size, buf->memsize + 10);
     }
-
-    /*
-     * Ensure we don't read information that isn't there. It shouldn't ever happen, but it's a cheap
-     * test.
-     */
-    if (size < block->allocsize)
-        WT_RET_MSG(session, EINVAL, "%s: impossibly small block size of %" PRIu32
-                                    "B, less than "
-                                    "allocation size of %" PRIu32,
-          block->name, size, block->allocsize);
-
     WT_RET(__wt_buf_init(session, buf, bufsize));
-    WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+
+    if (block->in_memory)
+        memcpy(buf->mem, (void *)offset, size);
+    else {
+        /*
+         * Ensure we don't read information that isn't there. It shouldn't ever happen, but it's a
+         * cheap test.
+         */
+        if (size < block->allocsize)
+            WT_RET_MSG(session, EINVAL, "%s: impossibly small block size of %" PRIu32
+                                        "B, less than allocation size of %" PRIu32,
+              block->name, size, block->allocsize);
+
+        WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+    }
     buf->size = size;
 
     /*

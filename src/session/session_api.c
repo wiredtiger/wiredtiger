@@ -613,7 +613,7 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
     SESSION_API_CALL(session, alter, config, cfg);
 
     /* In-memory ignores alter operations. */
-    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY | WT_CONN_IN_MEMORY_BLOCK))
         goto err;
 
     /* Disallow objects in the WiredTiger name space. */
@@ -1078,7 +1078,7 @@ __session_import(WT_SESSION *wt_session, const char *uri, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(session, import);
 
-    WT_ERR(__wt_inmem_unsupported_op(session, NULL));
+    WT_ERR(__wt_inmem_unsupported_op(session, NULL, WT_CONN_IN_MEMORY | WT_CONN_IN_MEMORY_BLOCK));
 
     if (!WT_PREFIX_MATCH(uri, "file:"))
         WT_ERR(__wt_bad_object_type(session, uri));
@@ -1261,7 +1261,7 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 
     SESSION_API_CALL(session, salvage, config, cfg);
 
-    WT_ERR(__wt_inmem_unsupported_op(session, NULL));
+    WT_ERR(__wt_inmem_unsupported_op(session, NULL, WT_CONN_IN_MEMORY | WT_CONN_IN_MEMORY_BLOCK));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
     WT_WITH_CHECKPOINT_LOCK(
@@ -1524,7 +1524,7 @@ __session_upgrade(WT_SESSION *wt_session, const char *uri, const char *config)
 
     SESSION_API_CALL(session, upgrade, config, cfg);
 
-    WT_ERR(__wt_inmem_unsupported_op(session, NULL));
+    WT_ERR(__wt_inmem_unsupported_op(session, NULL, WT_CONN_IN_MEMORY | WT_CONN_IN_MEMORY_BLOCK));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
     WT_WITH_CHECKPOINT_LOCK(
@@ -1568,7 +1568,7 @@ __session_verify(WT_SESSION *wt_session, const char *uri, const char *config)
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, verify, config, cfg);
-    WT_ERR(__wt_inmem_unsupported_op(session, NULL));
+    WT_ERR(__wt_inmem_unsupported_op(session, NULL, WT_CONN_IN_MEMORY));
 
     /* Block out checkpoints to avoid spurious EBUSY errors. */
     WT_WITH_CHECKPOINT_LOCK(
@@ -1934,7 +1934,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
     WT_STAT_CONN_INCR(session, txn_checkpoint);
     SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, checkpoint, config, cfg);
 
-    WT_ERR(__wt_inmem_unsupported_op(session, NULL));
+    WT_ERR(__wt_inmem_unsupported_op(session, NULL, WT_CONN_IN_MEMORY));
 
     /*
      * Checkpoints require a snapshot to write a transactionally consistent snapshot of the data.

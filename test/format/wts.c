@@ -167,9 +167,11 @@ create_database(const char *home, WT_CONNECTION **connp)
       ",operation_timeout_ms=2000",
       g.c_cache, progname);
 
-    /* In-memory configuration. */
+    /* In-memory configurations. */
     if (g.c_in_memory != 0)
         CONFIG_APPEND(p, ",in_memory=1");
+    if (g.c_in_memory_block != 0)
+        CONFIG_APPEND(p, ",in_memory_block=1");
 
     /* LSM configuration. */
     if (DATASOURCE("lsm"))
@@ -424,7 +426,7 @@ wts_create(const char *home)
 
     create_database(home, &conn);
     create_object(conn);
-    if (g.c_in_memory != 0)
+    if (g.c_in_memory != 0 || g.c_in_memory_block != 0)
         g.wts_conn_inmemory = conn;
     else
         testutil_check(conn->close(conn, NULL));
@@ -444,7 +446,7 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
     *sessionp = NULL;
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
-    if (g.c_in_memory != 0)
+    if (g.c_in_memory != 0 || g.c_in_memory_block != 0)
         conn = g.wts_conn_inmemory;
     else {
         config = "";

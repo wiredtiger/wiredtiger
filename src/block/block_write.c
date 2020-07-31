@@ -237,42 +237,54 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     if (block->final_ckpt != NULL)
         WT_RET(__wt_block_checkpoint_final(session, block, buf, &file_sizep));
 
-    /*
-     * Align the size to an allocation unit.
-     *
-     * The buffer must be big enough for us to zero to the next allocsize boundary, this is one of
-     * the reasons the btree layer must find out from the block-manager layer the maximum size of
-     * the eventual write.
-     */
-    align_size = WT_ALIGN(buf->size, block->allocsize);
-    if (align_size > buf->memsize) {
-        WT_ASSERT(session, align_size <= buf->memsize);
-        WT_RET_MSG(session, EINVAL, "buffer size check: write buffer incorrectly allocated");
-    }
-    if (align_size > UINT32_MAX) {
-        WT_ASSERT(session, align_size <= UINT32_MAX);
-        WT_RET_MSG(session, EINVAL, "buffer size check: write buffer too large to write");
-    }
+    if (block->in_memory) {
+        align_size = buf->size;
+        WT_RET(__wt_block_alloc(session, block, &offset, (wt_off_t)align_size));
+    } else {
+        /* Pre-allocate some number of extension structures. */
+        WT_RET(__wt_block_ext_prealloc(session, 5));
 
-    /* Pre-allocate some number of extension structures. */
-    WT_RET(__wt_block_ext_prealloc(session, 5));
+        /*
+         * Align the size to an allocation unit.
+         *
+         * The buffer must be big enough for us to zero to the next allocsize boundary, this is one
+         * of the reasons the btree layer must find out from the block-manager layer the maximum
+         * size of the eventual write.
+         */
+        align_size = WT_ALIGN(buf->size, block->allocsize);
+        if (align_size > buf->memsize) {
+            WT_ASSERT(session, align_size <= buf->memsize);
+            WT_RET_MSG(session, EINVAL,
+              "buffer size check: write buffer incorrectly "
+              "allocated");
+        }
+        if (align_size > UINT32_MAX) {
+            WT_ASSERT(session, align_size <= UINT32_MAX);
+            WT_RET_MSG(session, EINVAL,
+              "buffer size check: write buffer too large to "
+              "write");
+        }
 
-    /*
-     * Acquire a lock, if we don't already hold one. Allocate space for the write, and optionally
-     * extend the file (note the block-extend function may release the lock). Release any locally
-     * acquired lock.
-     */
-    local_locked = false;
-    if (!caller_locked) {
-        __wt_spin_lock(session, &block->live_lock);
-        local_locked = true;
+        /*
+         * Acquire a lock, if we don't already hold one. Allocate space for the write, and
+         * optionally extend the file (note the block-extend function may release the lock). Release
+         * any locally acquired lock.
+         */
+        local_locked = false;
+        if (!caller_locked) {
+            __wt_spin_lock(session, &block->live_lock);
+            local_locked = true;
+        }
+        ret = __wt_block_alloc(session, block, &offset, (wt_off_t)align_size);
+        if (ret == 0)
+            ret = __wt_block_extend(session, block, fh, offset, align_size, &local_locked);
+        if (local_locked)
+            __wt_spin_unlock(session, &block->live_lock);
+        WT_RET(ret);
+
+        /* Zero out any unused bytes at the end of the buffer. */
+        memset((uint8_t *)buf->mem + buf->size, 0, align_size - buf->size);
     }
-    ret = __wt_block_alloc(session, block, &offset, (wt_off_t)align_size);
-    if (ret == 0)
-        ret = __wt_block_extend(session, block, fh, offset, align_size, &local_locked);
-    if (local_locked)
-        __wt_spin_unlock(session, &block->live_lock);
-    WT_RET(ret);
 
     /*
      * The file has finished changing size. If this is the final write in a checkpoint, update the
@@ -280,9 +292,6 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
      */
     if (block->final_ckpt != NULL)
         WT_RET(__wt_vpack_uint(&file_sizep, 0, (uint64_t)block->size));
-
-    /* Zero out any unused bytes at the end of the buffer. */
-    memset((uint8_t *)buf->mem + buf->size, 0, align_size - buf->size);
 
     /*
      * Clear the block header to ensure all of it is initialized, even the unused fields.
@@ -321,35 +330,39 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     blk->checksum = __wt_bswap32(blk->checksum);
 #endif
 
-    /* Write the block. */
-    if ((ret = __wt_write(session, fh, offset, align_size, buf->mem)) != 0) {
-        if (!caller_locked)
-            __wt_spin_lock(session, &block->live_lock);
-        WT_TRET(__wt_block_off_free(session, block, offset, (wt_off_t)align_size));
-        if (!caller_locked)
-            __wt_spin_unlock(session, &block->live_lock);
-        WT_RET(ret);
-    }
-
-    /*
-     * Optionally schedule writes for dirty pages in the system buffer cache, but only if the
-     * current session can wait.
-     */
-    if (block->os_cache_dirty_max != 0 && fh->written > block->os_cache_dirty_max &&
-      __wt_session_can_wait(session)) {
-        fh->written = 0;
-        if ((ret = __wt_fsync(session, fh, false)) != 0) {
-            /*
-             * Ignore ENOTSUP, but don't try again.
-             */
-            if (ret != ENOTSUP)
-                return (ret);
-            block->os_cache_dirty_max = 0;
+    if (block->in_memory)
+        memcpy((void *)offset, buf->mem, align_size);
+    else {
+        /* Write the block. */
+        if ((ret = __wt_write(session, fh, offset, align_size, buf->mem)) != 0) {
+            if (!caller_locked)
+                __wt_spin_lock(session, &block->live_lock);
+            WT_TRET(__wt_block_off_free(session, block, offset, (wt_off_t)align_size));
+            if (!caller_locked)
+                __wt_spin_unlock(session, &block->live_lock);
+            WT_RET(ret);
         }
-    }
 
-    /* Optionally discard blocks from the buffer cache. */
-    WT_RET(__wt_block_discard(session, block, align_size));
+        /*
+         * Optionally schedule writes for dirty pages in the system buffer cache, but only if the
+         * current session can wait.
+         */
+        if (block->os_cache_dirty_max != 0 && fh->written > block->os_cache_dirty_max &&
+          __wt_session_can_wait(session)) {
+            fh->written = 0;
+            if ((ret = __wt_fsync(session, fh, false)) != 0) {
+                /*
+                 * Ignore ENOTSUP, but don't try again.
+                 */
+                if (ret != ENOTSUP)
+                    return (ret);
+                block->os_cache_dirty_max = 0;
+            }
+        }
+
+        /* Optionally discard blocks from the buffer cache. */
+        WT_RET(__wt_block_discard(session, block, align_size));
+    }
 
     WT_STAT_CONN_INCR(session, block_write);
     WT_STAT_CONN_INCRV(session, block_byte_write, align_size);

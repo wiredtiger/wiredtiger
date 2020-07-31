@@ -489,6 +489,18 @@ __wt_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_o
     /* If a sync is running, no other sessions can allocate blocks. */
     WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
 
+    /* In-memory allocates immediately. */
+    if (block->in_memory) {
+        WT_ASSERT(session, block->live.avail.bytes == 0);
+        WT_RET(__wt_malloc(session, (size_t)size, offp));
+        WT_RET(__wt_block_insert_ext(session, block, &block->live.alloc, *offp, (wt_off_t)size));
+
+        (void)__wt_atomic_add64(&S2C(session)->cache->objects_block, 1);
+        (void)__wt_atomic_add64(&S2C(session)->cache->bytes_block, (uint64_t)size);
+
+        return (0);
+    }
+
     /* Assert we're maintaining the by-size skiplist. */
     WT_ASSERT(session, block->live.avail.track_size != 0);
 
@@ -873,8 +885,12 @@ __wt_block_extlist_merge(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *
      * Sometimes the list we are merging is much bigger than the other: if so, swap the lists around
      * to reduce the amount of work we need to do during the merge. The size lists have to match as
      * well, so this is only possible if both lists are tracking sizes, or neither are.
+     *
+     * If in-memory and merging into the avail list, don't swap. The avail list will be empty and
+     * we're about to free the memory.
      */
-    if (a->track_size == b->track_size && a->entries > b->entries) {
+    if ((!block->in_memory || b->which != WT_EXT_AVAIL) && a->track_size == b->track_size &&
+      a->entries > b->entries) {
         tmp = *a;
         a->bytes = b->bytes;
         b->bytes = tmp.bytes;
@@ -969,6 +985,18 @@ __block_merge(
   WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el, wt_off_t off, wt_off_t size)
 {
     WT_EXT *ext, *after, *before;
+    void *addr;
+
+    /* In-memory frees any memory being adding to the avail list immediately. */
+    if (block->in_memory && el->which == WT_EXT_AVAIL) {
+        addr = (void *)off;
+        __wt_free(session, addr);
+
+        (void)__wt_atomic_sub64(&S2C(session)->cache->objects_block, 1);
+        (void)__wt_atomic_sub64(&S2C(session)->cache->bytes_block, (uint64_t)size);
+
+        return (0);
+    }
 
     /*
      * Retrieve the records preceding/following the offset. If the records are contiguous with the
@@ -1122,8 +1150,8 @@ __wt_block_extlist_read(
          * it's a cheap test to do here and we'd have to do the check as part of file verification,
          * regardless.
          */
-        if (off < block->allocsize || off % block->allocsize != 0 || size % block->allocsize != 0 ||
-          off + size > ckpt_size) {
+        if (!block->in_memory && (off < block->allocsize || off % block->allocsize != 0 ||
+                                   size % block->allocsize != 0 || off + size > ckpt_size)) {
 corrupted:
             __wt_scr_free(session, &tmp);
             WT_BLOCK_RET(session, block, WT_ERROR,
@@ -1144,7 +1172,7 @@ err:
 
 /*
  * __wt_block_extlist_write --
- *     Write an extent list at the tail of the file.
+ *     Write an extent list.
  */
 int
 __wt_block_extlist_write(
@@ -1267,20 +1295,41 @@ __wt_block_extlist_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIS
  */
 int
 __wt_block_extlist_init(
-  WT_SESSION_IMPL *session, WT_EXTLIST *el, const char *name, const char *extname, bool track_size)
+  WT_SESSION_IMPL *session, WT_EXTLIST *el, const char *name, WT_EXT_TYPE which)
 {
     size_t size;
+    const char *extname;
+    bool track_size;
 
     WT_CLEAR(*el);
 
-    size =
-      (name == NULL ? 0 : strlen(name)) + strlen(".") + (extname == NULL ? 0 : strlen(extname) + 1);
-    WT_RET(__wt_calloc_def(session, size, &el->name));
-    WT_RET(__wt_snprintf(
-      el->name, size, "%s.%s", name == NULL ? "" : name, extname == NULL ? "" : extname));
+    switch (which) {
+    case WT_EXT_ALLOC:
+        extname = "alloc";
+        track_size = false;
+        break;
+    case WT_EXT_AVAIL:
+        extname = "avail";
+        track_size = true;
+        break;
+    case WT_EXT_DISCARD:
+        extname = "discard";
+        track_size = false;
+        break;
+    case WT_EXT_CKPT_AVAIL:
+        extname = "ckpt_avail";
+        track_size = true;
+        break;
+    }
+
+    size = strlen(name) + 1 + strlen(extname) + 1;
+    WT_RET(__wt_malloc(session, size, &el->name));
+    WT_RET(__wt_snprintf(el->name, size, "%s.%s", name, extname));
+
+    el->which = which;
+    el->track_size = track_size;
 
     el->offset = WT_BLOCK_INVALID_OFFSET;
-    el->track_size = track_size;
     return (0);
 }
 

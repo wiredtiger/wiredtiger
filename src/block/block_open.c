@@ -173,6 +173,8 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
 
     WT_ERR(__wt_strdup(session, filename, &block->name));
 
+    block->in_memory = F_ISSET(conn, WT_CONN_IN_MEMORY_BLOCK);
+
     WT_ERR(__wt_config_gets(session, cfg, "block_allocation", &cval));
     block->allocfirst = WT_STRING_MATCH("first", cval.str, cval.len);
 
@@ -271,7 +273,7 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
     WT_DECL_RET;
 
     /* If in-memory, we don't read or write the descriptor structure. */
-    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY | WT_CONN_IN_MEMORY_BLOCK))
         return (0);
 
     /* Use a scratch buffer to get correct alignment for direct I/O. */
@@ -313,7 +315,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
     bool checksum_matched;
 
     /* If in-memory, we don't read or write the descriptor structure. */
-    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY | WT_CONN_IN_MEMORY_BLOCK))
         return (0);
 
     /*

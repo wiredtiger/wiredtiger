@@ -94,7 +94,7 @@ __wt_block_verify_start(
     /*
      * We maintain an allocation list that is rolled forward through the set of checkpoints.
      */
-    WT_RET(__wt_block_extlist_init(session, &block->verify_alloc, "verify", "alloc", false));
+    WT_RET(__wt_block_extlist_init(session, &block->verify_alloc, "verify", WT_EXT_ALLOC));
 
     /*
      * The only checkpoint avail list we care about is the last one written; get it now and

@@ -107,7 +107,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
               cval.val, WT_HS_FILE_MIN);
     }
 
-    /* in-memory or readonly configurations do not have a history store. */
+    /* In-memory or readonly configurations do not have a history store. */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
 

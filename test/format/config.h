@@ -268,6 +268,9 @@ static CONFIG c[] = {
 
   {"runs.in_memory", "configure in-memory", C_IGNORE | C_BOOL, 0, 0, 1, &g.c_in_memory, NULL},
 
+  {"runs.in_memory_block", "configure in-memory block manager", C_IGNORE | C_BOOL, 0, 0, 1,
+    &g.c_in_memory_block, NULL},
+
   {"runs.ops", "operations per run", 0x0, 0, M(2), M(100), &g.c_ops, NULL},
 
   {"runs.rows", "number of rows", 0x0, 10, M(1), M(100), &g.c_rows, NULL},

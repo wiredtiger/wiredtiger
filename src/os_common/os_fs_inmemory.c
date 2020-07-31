@@ -69,6 +69,7 @@ __im_handle_remove(
 
     /* Clean up private information. */
     __wt_buf_free(session, &im_fh->buf);
+    __wt_free(session, im_fh->desc);
 
     /* Clean up public information. */
     fhp = (WT_FILE_HANDLE *)im_fh;
@@ -326,10 +327,20 @@ __im_file_read(
     WT_FILE_SYSTEM_INMEM *im_fs;
     WT_SESSION_IMPL *session;
     size_t off;
+    void *addr;
 
     im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
     im_fs = (WT_FILE_SYSTEM_INMEM *)file_handle->file_system;
     session = (WT_SESSION_IMPL *)wt_session;
+
+    if (im_fh->block_addr) {
+        /*
+         * The block at location 0 is special, it's the description block.
+         */
+        addr = offset == 0 ? im_fh->desc : (void *)offset;
+        memcpy(buf, addr, len);
+        return (0);
+    }
 
     __wt_spin_lock(session, &im_fs->lock);
 
@@ -398,10 +409,23 @@ __im_file_write(
     WT_FILE_SYSTEM_INMEM *im_fs;
     WT_SESSION_IMPL *session;
     size_t off;
+    void *addr;
 
     im_fh = (WT_FILE_HANDLE_INMEM *)file_handle;
     im_fs = (WT_FILE_SYSTEM_INMEM *)file_handle->file_system;
     session = (WT_SESSION_IMPL *)wt_session;
+
+    if (im_fh->block_addr) {
+        /*
+         * The block at location 0 is special, it's the description block.
+         */
+        if (offset != 0) {
+            addr = (void *)offset;
+            memcpy(addr, buf, len);
+            return (0);
+        }
+        return (__wt_strndup(session, buf, len, &im_fh->desc));
+    }
 
     __wt_spin_lock(session, &im_fs->lock);
 
@@ -437,7 +461,6 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *
     WT_SESSION_IMPL *session;
     uint64_t bucket, hash;
 
-    WT_UNUSED(file_type);
     WT_UNUSED(flags);
 
     im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
@@ -451,7 +474,6 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *
      */
     im_fh = __im_handle_search(file_system, name);
     if (im_fh != NULL) {
-
         if (im_fh->ref != 0)
             WT_ERR_MSG(session, EBUSY, "%s: file-open: already open", name);
 
@@ -473,6 +495,8 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *
 
     /* Initialize private information. */
     im_fh->ref = 1;
+    if (file_type == WT_FS_OPEN_FILE_TYPE_DATA)
+        im_fh->block_addr = true;
 
     hash = __wt_hash_city64(name, strlen(name));
     bucket = hash % WT_HASH_ARRAY_SIZE;
