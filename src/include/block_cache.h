@@ -11,6 +11,10 @@
  * that live on disk in a faster storage medium, such as NVRAM.
  */
 
+#ifdef HAVE_LIBMEMKIND
+#include <memkind.h>
+#endif /* HAVE_LIBMEMKIND */
+
 /*
  * WT_BLKCACHE_ID --
  *     File handle, offset and size uniquely identify a block.
@@ -48,28 +52,11 @@ struct __wt_blkcache {
 
     char *nvram_device_path;
     int type;
+#ifdef HAVE_LIBMEMKIND
+    struct memkind *pmem_kind;
+#endif /* HAVE_LIBMEMKIND */
 };
 
 #define BLKCACHE_UNCONFIGURED 0
 #define BLKCACHE_DRAM         1
 #define BLKCACHE_NVRAM        2
-
-#ifdef HAVE_LIBMEMKIND
-#include <memkind.h>
-struct memkind *pmem_kind = NULL;
-
-#define NVRAM_ALLOC_DATA(session, size, retp)		 \
-    do {				         \
-	*retp = memkind_malloc(pmem_kind, size); \
-	if (retp == NULL)			 \
-	    return __wt_errno();		 \
-    } while (0)
-
-#define NVRAM_FREE_DATA(session, ptr) memkind_free(pmem_kind, ptr)
-
-#else
-
-#define DRAM_ALLOC_DATA(session, size, retp) __wt_malloc(session, size, retp)
-#define DRAM_FREE_DATA(session, ptr) __wt_free_int(session, ptr)
-
-#endif /* HAVE_LIBMEMKIND */
