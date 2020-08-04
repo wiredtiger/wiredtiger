@@ -1410,7 +1410,7 @@ __checkpoint_lock_dirty_tree(
      */
     if (!btree->modified && !force && is_checkpoint && is_wt_ckpt && !is_drop) {
         __wt_seconds(session, &now);
-        if (now < btree->clean_ckpt_timer + WT_MINUTE * WT_BTREE_CLEAN_MINUTES) {
+        if (now < btree->clean_ckpt_timer) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             goto skip;
         }
@@ -1491,7 +1491,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
 {
     WT_BTREE *btree;
     WT_CKPT *ckpt;
-    int deleted;
+    int ckpt_count, deleted;
     const char *name;
 
     btree = S2BT(session);
@@ -1518,10 +1518,12 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
     if (!btree->modified && !force) {
-        deleted = 0;
-        WT_CKPT_FOREACH (ckptbase, ckpt)
+        ckpt_count = deleted = 0;
+        WT_CKPT_FOREACH (ckptbase, ckpt) {
+            ++ckpt_count;
             if (F_ISSET(ckpt, WT_CKPT_DELETE))
                 ++deleted;
+        }
 
         /*
          * Complicated test: if the tree is clean and last two checkpoints have the same name
@@ -1539,8 +1541,19 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * If we decide this is a clean tree here, set the clean timer to skip this in the
              * future.
              */
-            if (btree->clean_ckpt_timer == 0)
-                __wt_seconds(session, &btree->clean_ckpt_timer);
+            if (btree->clean_ckpt_timer == 0) {
+               /*
+                * If we know there are never going to be any earlier checkpoints to delete then set
+                * the timer to forever. The only way we will need to process anything is if the
+                * table gets dirtied or a checkpoint is forced and that will clear the timer or
+		* if there are older checkpoints to delete sometime in the future.
+                */
+               if (ckpt_count > 2) {
+                   __wt_seconds(session, &btree->clean_ckpt_timer);
+                   btree->clean_ckpt_timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
+               } else
+                   btree->clean_ckpt_timer = UINT64_MAX;
+            }
             return (0);
         }
     }
