@@ -438,8 +438,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * keep the same on-disk value but set the stop time point to indicate that the validity
              * window ends when this tombstone started.
              *
-             * FIXME-WT-6557: no need to check this after WT-6557 is done as the tombstone should
-             * have been freed when the first time it is written to the data store.
+             * FIXME-WT-6557: no need to check this after WT-6557 is done as the tombstone will be
+             * freed when it is written to the disk image in the previous eviction.
              */
             if (!F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) {
                 WT_ERR(__rec_append_orig_value(session, page, tombstone, vpack));
@@ -466,7 +466,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             } else
                 /*
                  * If the tombstone is restored from the disk or history store, it must has already
-                 * been written to the disk.
+                 * been written to the disk image in the previous eviction.
                  */
                 WT_ASSERT(session, upd_select->upd == NULL &&
                     vpack->tw.durable_stop_ts == tombstone->durable_ts &&
