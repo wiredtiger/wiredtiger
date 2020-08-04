@@ -1349,8 +1349,10 @@ __checkpoint_lock_dirty_tree(
     WT_CONFIG_ITEM cval, k, v;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
+    uint64_t now;
     char *name_alloc;
     const char *name;
+    bool is_drop, is_wt_ckpt;
 
     btree = S2BT(session);
     ckpt = ckptbase = NULL;
@@ -1375,20 +1377,50 @@ __checkpoint_lock_dirty_tree(
      */
     WT_ASSERT(session, !need_tracking || WT_IS_METADATA(dhandle) || WT_META_TRACKING(session));
 
-    /* Get the list of checkpoints for this file. */
-    WT_RET(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase));
-
     /* This may be a named checkpoint, check the configuration. */
     cval.len = 0;
+    is_drop = is_wt_ckpt = false;
     if (cfg != NULL)
         WT_ERR(__wt_config_gets(session, cfg, "name", &cval));
-    if (cval.len == 0)
+    if (cval.len == 0) {
         name = WT_CHECKPOINT;
-    else {
+        is_wt_ckpt = true;
+    } else {
         WT_ERR(__checkpoint_name_ok(session, cval.str, cval.len));
         WT_ERR(__wt_strndup(session, cval.str, cval.len, &name_alloc));
         name = name_alloc;
     }
+
+    /*
+     * Determine if a drop is part of the configuration. It usually isn't, so delay processing more
+     * until we know if we need to process this tree.
+     */
+    if (cfg != NULL) {
+        cval.len = 0;
+        WT_ERR(__wt_config_gets(session, cfg, "drop", &cval));
+        if (cval.len != 0)
+            is_drop = true;
+    }
+
+    /*
+     * This is a complicated test to determine if we can avoid the expensive call of getting the
+     * list of checkpoints for this file. We want to avoid that for clean files. But on clean files
+     * we want to periodically check if we need to delete old checkpoints that may have been in use
+     * by an open cursor.
+     */
+    if (!btree->modified && !force && is_checkpoint && is_wt_ckpt && !is_drop) {
+        __wt_seconds(session, &now);
+        if (now < btree->clean_ckpt_timer + WT_MINUTE * WT_BTREE_CLEAN_MINUTES) {
+            F_SET(btree, WT_BTREE_SKIP_CKPT);
+            goto skip;
+        }
+    }
+
+    /* If we have to process this btree for any reason, reset the timer. */
+    btree->clean_ckpt_timer = 0;
+
+    /* Get the list of checkpoints for this file. */
+    WT_RET(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase));
 
     /* We may be dropping specific checkpoints, check the configuration. */
     if (cfg != NULL) {
@@ -1444,6 +1476,7 @@ __checkpoint_lock_dirty_tree(
 err:
         __wt_meta_ckptlist_free(session, &ckptbase);
     }
+skip:
     __wt_free(session, name_alloc);
 
     return (ret);
@@ -1502,6 +1535,12 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
               (WT_PREFIX_MATCH(name, WT_CHECKPOINT) &&
                 WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)))) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
+            /*
+             * If we decide this is a clean tree here, set the clean timer to skip this in the
+             * future.
+             */
+            if (btree->clean_ckpt_timer == 0)
+                __wt_seconds(session, &btree->clean_ckpt_timer);
             return (0);
         }
     }
