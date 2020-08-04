@@ -723,6 +723,11 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     if (commit)
         goto done;
 
+    /*
+     * Set the flag to indicate that this update has been restored from history store for the
+     * rollback of a prepared transaction.
+     */
+    F_SET(upd, WT_UPDATE_RESTORED_FROM_HS);
     total_size += size;
 
     /* If the history store record has a valid stop time point, append it. */
@@ -733,6 +738,11 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
         tombstone->start_ts = hs_cbt->upd_value->tw.stop_ts;
         tombstone->txnid = hs_cbt->upd_value->tw.stop_txn;
         tombstone->next = upd;
+        /*
+         * Set the flag to indicate that this update has been restored from history store for the
+         * rollback of a prepared transaction.
+         */
+        F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS);
         total_size += size;
     } else
         tombstone = upd;
@@ -741,12 +751,6 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
       "update restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
       upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
       __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
-
-    /*
-     * Set the flag to indicate that this update has been restored from history store for the
-     * rollback of a prepared transaction.
-     */
-    F_SET(upd, WT_UPDATE_RESTORED_FROM_HS);
 
     /* Walk to the end of the chain and we can only have prepared updates on the update chain. */
     for (;; chain = chain->next) {
