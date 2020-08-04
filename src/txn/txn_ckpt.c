@@ -1420,7 +1420,7 @@ __checkpoint_lock_dirty_tree(
     btree->clean_ckpt_timer = 0;
 
     /* Get the list of checkpoints for this file. */
-    WT_RET(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase));
+    WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase));
 
     /* We may be dropping specific checkpoints, check the configuration. */
     if (cfg != NULL) {
