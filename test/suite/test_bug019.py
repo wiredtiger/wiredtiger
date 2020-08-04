@@ -76,9 +76,9 @@ class test_bug019(wttest.WiredTigerTestCase):
     # Windows systems due to an issue with the directory list code.
     def test_bug019(self):
         start_prealloc = self.get_prealloc_stat()
-        # Create a table just to write something into the log.
-        # This should increase the max number of log files preallocated,
-        # as indicated by the max_prealloc statistic.
+        # Create a table just to write something into the log.  This should
+        # increase the max number of log files preallocated, as indicated by
+        # the statistic.
         self.session.create(self.uri, 'key_format=i,value_format=S')
         self.populate(self.entries)
         self.session.checkpoint()
