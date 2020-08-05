@@ -1414,7 +1414,7 @@ __checkpoint_lock_dirty_tree(
     }
 
     /* If we have to process this btree for any reason, reset the timer. */
-    btree->clean_ckpt_timer = 0;
+    WT_BTREE_CLEAN_CKPT(session, btree, 0);
 
     /* Get the list of checkpoints for this file. */
     WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase));
@@ -1488,7 +1488,8 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
 {
     WT_BTREE *btree;
     WT_CKPT *ckpt;
-    int ckpt_count, deleted;
+    uint64_t timer;
+    int deleted;
     const char *name;
 
     btree = S2BT(session);
@@ -1515,12 +1516,10 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
      */
     F_CLR(btree, WT_BTREE_SKIP_CKPT);
     if (!btree->modified && !force) {
-        ckpt_count = deleted = 0;
-        WT_CKPT_FOREACH (ckptbase, ckpt) {
-            ++ckpt_count;
+        deleted = 0;
+        WT_CKPT_FOREACH (ckptbase, ckpt)
             if (F_ISSET(ckpt, WT_CKPT_DELETE))
                 ++deleted;
-        }
 
         /*
          * Complicated test: if the tree is clean and last two checkpoints have the same name
@@ -1535,22 +1534,17 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
                 WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)))) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             /*
-             * If we decide this is a clean tree here, set the clean timer to skip this in the
-             * future.
+             * If we know there are never going to be any earlier checkpoints to delete then set the
+             * timer to forever. The only way we will need to process anything is if the table gets
+             * dirtied or a checkpoint is forced and that will clear the timer or if there are older
+             * checkpoints to delete sometime in the future.
              */
-            if (btree->clean_ckpt_timer == 0) {
-                /*
-                 * If we know there are never going to be any earlier checkpoints to delete then set
-                 * the timer to forever. The only way we will need to process anything is if the
-                 * table gets dirtied or a checkpoint is forced and that will clear the timer or if
-                 * there are older checkpoints to delete sometime in the future.
-                 */
-                if (ckpt_count > 2) {
-                    __wt_seconds(session, &btree->clean_ckpt_timer);
-                    btree->clean_ckpt_timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
-                } else
-                    btree->clean_ckpt_timer = UINT64_MAX;
-            }
+            if (ckpt > ckptbase + 2) {
+                __wt_seconds(session, &timer);
+                timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
+                WT_BTREE_CLEAN_CKPT(session, btree, timer);
+            } else
+                WT_BTREE_CLEAN_CKPT(session, btree, UINT64_MAX);
             return (0);
         }
     }
