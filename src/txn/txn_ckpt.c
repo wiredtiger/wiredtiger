@@ -1359,9 +1359,6 @@ __checkpoint_lock_dirty_tree(
     dhandle = session->dhandle;
     name_alloc = NULL;
 
-    /* Only referenced in diagnostic builds. */
-    WT_UNUSED(is_checkpoint);
-
     /*
      * Only referenced in diagnostic builds and gcc 5.1 isn't satisfied with wrapping the entire
      * assert condition in the unused macro.
@@ -1542,17 +1539,17 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * future.
              */
             if (btree->clean_ckpt_timer == 0) {
-               /*
-                * If we know there are never going to be any earlier checkpoints to delete then set
-                * the timer to forever. The only way we will need to process anything is if the
-                * table gets dirtied or a checkpoint is forced and that will clear the timer or
-		* if there are older checkpoints to delete sometime in the future.
-                */
-               if (ckpt_count > 2) {
-                   __wt_seconds(session, &btree->clean_ckpt_timer);
-                   btree->clean_ckpt_timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
-               } else
-                   btree->clean_ckpt_timer = UINT64_MAX;
+                /*
+                 * If we know there are never going to be any earlier checkpoints to delete then set
+                 * the timer to forever. The only way we will need to process anything is if the
+                 * table gets dirtied or a checkpoint is forced and that will clear the timer or if
+                 * there are older checkpoints to delete sometime in the future.
+                 */
+                if (ckpt_count > 2) {
+                    __wt_seconds(session, &btree->clean_ckpt_timer);
+                    btree->clean_ckpt_timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
+                } else
+                    btree->clean_ckpt_timer = UINT64_MAX;
             }
             return (0);
         }
