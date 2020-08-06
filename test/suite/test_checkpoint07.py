@@ -90,7 +90,8 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         # It is possible that we could span the second timer when processing table
         # two and table three during the checkpoint. If they're different check
         # they are within 1 second of each other.
-        self.assertEqual(val2, val3)
+        if val2 != val3:
+            self.assertTrue(val2 == val3 - 1 or val3 == val2 - 1)
 
         # Now force a checkpoint on clean tables. No clean timer should be set.
         self.session.checkpoint('force=true')
@@ -159,7 +160,9 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         self.assertNotEqual(val3, 0)
         # It is possible that we could span the second timer when processing table
         # two and table three during the checkpoint. If they're different check
-        self.assertEqual(val1, val3)
+        # they are within 1 second of each other.
+        if val1 != val3:
+            self.assertTrue(val1 == val3 - 1 or val3 == val1 - 1)
         self.assertLess(val3, oldval3)
 
         backup_cursor.close()
@@ -183,7 +186,9 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         self.assertNotEqual(val3, 0)
         # It is possible that we could span the second timer when processing table
         # two and table three during the checkpoint. If they're different check
-        self.assertEqual(val1, val3)
+        # they are within 1 second of each other.
+        if val1 != val3:
+            self.assertTrue(val1 == val3 - 1 or val3 == val1 - 1)
         self.assertEqual(val3, oldval3)
 
         self.session.close()
