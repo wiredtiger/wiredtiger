@@ -85,6 +85,7 @@ __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name, bool durable)
     if (exist && !(readonly = F_ISSET(S2C(session), WT_CONN_READONLY)))
         WT_RET(__wt_fs_remove(session, name, durable));
 
+    /* Return read-only file system error if file exists and WT_CONN_READONLY is set. */
     if (readonly)
         return EROFS;
 

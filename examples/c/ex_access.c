@@ -91,7 +91,6 @@ main(int argc, char *argv[])
 
     sprintf(cmd, "cp %s/WiredTiger.turtle %s/WiredTiger.turtle.set", home, home);
 
-    printf("Command - %s\n", cmd);
     error_check(system(cmd));
 
     error_check(wiredtiger_open(home, NULL, "readonly", &conn));
