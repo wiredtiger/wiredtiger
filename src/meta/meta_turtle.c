@@ -215,9 +215,9 @@ __wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
 }
 
 /*
- * __wt_remove_file_wrapper
- *      Wrapper to __wt_remove_file_wrapper function to intercept the error if
- *      WT_CONN_READONLY is set.
+ * __wt_remove_file_wrapper --
+ *     Wrapper to __wt_remove_if_exists function to intercept the read-only file system error if
+ *     WT_CONN_READONLY is set
  */
 int
 __wt_remove_file_wrapper(WT_SESSION_IMPL *session, const char *name, bool durable)
