@@ -1534,17 +1534,19 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
                 WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)))) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             /*
-             * If we know there are never going to be any earlier checkpoints to delete then set the
-             * timer to forever. The only way we will need to process anything is if the table gets
-             * dirtied or a checkpoint is forced and that will clear the timer or if there are older
-             * checkpoints to delete sometime in the future.
+             * If there are potentially extra checkpoints to delete, we set the timer to recheck
+             * later. If there are at most two checkpoints, the current one and possibly a previous
+             * one, then we know there are no additional ones to delete. In that case, set the timer
+             * to forever. If the table gets dirtied or a checkpoint is forced that will clear the
+             * timer.
              */
-            if (ckpt > ckptbase + 2) {
+            if (ckpt - ckptbase > 2) {
                 __wt_seconds(session, &timer);
                 timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
                 WT_BTREE_CLEAN_CKPT(session, btree, timer);
             } else
-                WT_BTREE_CLEAN_CKPT(session, btree, UINT64_MAX);
+                /* Statistics don't like UINT64_MAX, use INT64_MAX. It's still forever. */
+                WT_BTREE_CLEAN_CKPT(session, btree, INT64_MAX);
             return (0);
         }
     }
