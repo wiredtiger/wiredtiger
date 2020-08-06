@@ -208,12 +208,12 @@ struct __wt_btree {
  * incurs a large processing penalty. We avoid that but will periodically incur the cost to clean up
  * checkpoints that can be deleted.
  */
-#define WT_BTREE_CLEAN_MINUTES 10
 #define WT_BTREE_CLEAN_CKPT(session, btree, val)                          \
     do {                                                                  \
         (btree)->clean_ckpt_timer = (val);                                \
         WT_STAT_DATA_SET((session), btree_clean_checkpoint_timer, (val)); \
     } while (0)
+#define WT_BTREE_CLEAN_MINUTES 10
     uint64_t clean_ckpt_timer;
 
     /*
