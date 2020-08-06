@@ -224,6 +224,7 @@ __wt_remove_file_wrapper(WT_SESSION_IMPL *session, const char *name, bool durabl
 {
     WT_DECL_RET;
     ret = __wt_remove_if_exists(session, name, durable);
+    /* Ignore Read-only file system */
     if (ret == EROFS)
         ret = 0;
     return (ret);
