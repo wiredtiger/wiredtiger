@@ -47,17 +47,6 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    def count_checkpoints(self):
-        metadata_cursor = self.session.open_cursor('metadata:', None, None)
-
-        nckpt = 0
-        while metadata_cursor.next() == 0:
-            key = metadata_cursor.get_key()
-            value = metadata_cursor[key]
-            nckpt = nckpt + value.count("WiredTigerCheckpoint")
-        metadata_cursor.close()
-        return nckpt
-
     def test_checkpoint07(self):
         self.uri1 = 'table:ckpt05.1'
         self.file1 = 'file:ckpt05.1.wt'
@@ -119,13 +108,9 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         backup_cursor = self.session.open_cursor('backup:', None, None)
         c1[4] = 4
         self.session.checkpoint(None)
-
         val = self.get_stat(self.uri1)
         self.assertEqual(val, 0)
 
-        # Now that we have a cursor pinning checkpoints on table 1, modify
-        # table 2 so that the clean setting gets set on table 1. The stat
-        # value should be a smaller timer than table 3 but it should be set.
         c2[4] = 4
         self.session.checkpoint(None)
         val2 = self.get_stat(self.uri2)
@@ -158,12 +143,12 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         val3 = self.get_stat(self.uri3)
         self.assertNotEqual(val1, 0)
         self.assertNotEqual(val3, 0)
+        self.assertLess(val3, oldval3)
         # It is possible that we could span the second timer when processing table
         # two and table three during the checkpoint. If they're different check
         # they are within 1 second of each other.
         if val1 != val3:
             self.assertTrue(val1 == val3 - 1 or val3 == val1 - 1)
-        self.assertLess(val3, oldval3)
 
         backup_cursor.close()
 
