@@ -213,6 +213,8 @@ struct __wt_btree {
         (btree)->clean_ckpt_timer = (val);                                \
         WT_STAT_DATA_SET((session), btree_clean_checkpoint_timer, (val)); \
     } while (0)
+/* Statistics don't like UINT64_MAX, use INT64_MAX. It's still forever. */
+#define WT_BTREE_CLEAN_CKPT_FOREVER INT64_MAX
 #define WT_BTREE_CLEAN_MINUTES 10
     uint64_t clean_ckpt_timer;
 

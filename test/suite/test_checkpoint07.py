@@ -75,18 +75,12 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         c1 = self.session.open_cursor(self.uri1, None)
         c2 = self.session.open_cursor(self.uri2, None)
         c3 = self.session.open_cursor(self.uri3, None)
-        multiplier = 1
-        for i in range(16):
-            c1[i] = i * multiplier
-            c2[i] = i * multiplier
-            c3[i] = i * multiplier
+        c1[1] = 1
+        c2[1] = 1
+        c3[1] = 1
         self.session.checkpoint(None)
-        multiplier += 1
-        for i in range(5):
-            c1[i] = i * multiplier
-            self.session.checkpoint(None)
-            val2 = self.get_stat(self.file2)
-        multiplier += 1
+        c1[2] = 2
+        self.session.checkpoint(None)
         val1 = self.get_stat(self.file1)
         self.assertEqual(val1, 0)
         val2 = self.get_stat(self.file2)
@@ -108,11 +102,9 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         self.assertEqual(val, 0)
 
         # Modify the first two tables and reverify all three.
-        for i in range(16):
-            c1[i] = i * multiplier
-            c2[i] = i * multiplier
+        c1[3] = 3
+        c2[3] = 3
         self.session.checkpoint(None)
-        multiplier += 1
         val = self.get_stat(self.uri1)
         self.assertEqual(val, 0)
         val = self.get_stat(self.uri2)
@@ -123,10 +115,8 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         # Open a backup cursor. This will pin the most recent checkpoint.
         # Modify table 1 and checkpoint, then modify table 2 and checkpoint.
         # The open backup cursor will cause table 1 to get the smaller timer.
-        large_key = 100000
-        value = 100
         backup_cursor = self.session.open_cursor('backup:', None, None)
-        c1[large_key] = value
+        c1[4] = 4
         self.session.checkpoint(None)
 
         val = self.get_stat(self.uri1)
@@ -135,7 +125,7 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         # Now that we have a cursor pinning checkpoints on table 1, modify
         # table 2 so that the clean setting gets set on table 1. The stat
         # value should be a smaller timer than table 3 but it should be set.
-        c2[large_key] = value
+        c2[4] = 4
         self.session.checkpoint(None)
         val2 = self.get_stat(self.uri2)
         self.assertEqual(val2, 0)
@@ -158,7 +148,7 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         val3 = self.get_stat(self.uri3)
         self.assertEqual(val1, 0)
         self.assertEqual(val3, 0)
-        c2[large_key] = value + 100
+        c2[5] = 5
         self.session.checkpoint(None)
         val2 = self.get_stat(self.uri2)
         self.assertEqual(val2, 0)
@@ -182,7 +172,7 @@ class test_checkpoint07(wttest.WiredTigerTestCase):
         val3 = self.get_stat(self.uri3)
         self.assertEqual(val1, 0)
         self.assertEqual(val3, 0)
-        c2[large_key] = value + 200
+        c2[6] = 6
         self.session.checkpoint(None)
         val2 = self.get_stat(self.uri2)
         self.assertEqual(val2, 0)

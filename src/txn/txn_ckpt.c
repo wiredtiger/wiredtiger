@@ -1352,7 +1352,7 @@ __checkpoint_lock_dirty_tree(
     uint64_t now;
     char *name_alloc;
     const char *name;
-    bool is_drop, is_wt_ckpt;
+    bool is_drop, is_wt_ckpt, skip_ckpt;
 
     btree = S2BT(session);
     ckpt = ckptbase = NULL;
@@ -1406,8 +1406,14 @@ __checkpoint_lock_dirty_tree(
      * by an open cursor.
      */
     if (!btree->modified && !force && is_checkpoint && is_wt_ckpt && !is_drop) {
-        __wt_seconds(session, &now);
-        if (now < btree->clean_ckpt_timer) {
+        /* In the common case of the timer set forever, don't even check the time. */
+        skip_ckpt = true;
+        if (btree->clean_ckpt_timer != WT_BTREE_CLEAN_CKPT_FOREVER) {
+            __wt_seconds(session, &now);
+            if (now > btree->clean_ckpt_timer)
+                skip_ckpt = false;
+        }
+        if (skip_ckpt) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             goto skip;
         }
@@ -1545,8 +1551,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
                 timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
                 WT_BTREE_CLEAN_CKPT(session, btree, timer);
             } else
-                /* Statistics don't like UINT64_MAX, use INT64_MAX. It's still forever. */
-                WT_BTREE_CLEAN_CKPT(session, btree, INT64_MAX);
+                WT_BTREE_CLEAN_CKPT(session, btree, WT_BTREE_CLEAN_CKPT_FOREVER);
             return (0);
         }
     }
