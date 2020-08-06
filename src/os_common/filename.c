@@ -73,16 +73,20 @@ __wt_filename_construct(WT_SESSION_IMPL *session, const char *path, const char *
 
 /*
  * __wt_remove_if_exists --
- *     Remove a file if it exists.
+ *     Remove a file if it exists and WT_CONN_READONLY is not set.
  */
 int
 __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name, bool durable)
 {
-    bool exist;
+    bool exist, readonly = false;
 
     WT_RET(__wt_fs_exist(session, name, &exist));
-    if (exist)
+    if (exist && !(readonly = F_ISSET(S2C(session), WT_CONN_READONLY)))
         WT_RET(__wt_fs_remove(session, name, durable));
+
+    if (readonly)
+        return EROFS;
+
     return (0);
 }
 
