@@ -227,26 +227,26 @@ functions:
           # Run the various combinations of args. Let time and threads be random. Add a
           # timing stress to test_timestamp_abort every other run.
           if [ $(( $i % 2 )) -eq 0 ]; then
-            tta_args=-s
+            test_timestamp_abort_args=-s
           else
-            tta_args=
+            test_timestamp_abort_args=
           fi
 
           # Run current version with write-no-sync txns.
           ${test_env_vars|} ./test_random_abort 2>&1
-          ${test_env_vars|} ./test_timestamp_abort $tta_args 2>&1
+          ${test_env_vars|} ./test_timestamp_abort $test_timestamp_abort_args 2>&1
 
           # Current version with memory-based txns (MongoDB usage).
           ${test_env_vars|} ./test_random_abort -m 2>&1
-          ${test_env_vars|} ./test_timestamp_abort -m $tta_args 2>&1
+          ${test_env_vars|} ./test_timestamp_abort -m $test_timestamp_abort_args 2>&1
 
           # V1 log compatibility mode with write-no-sync txns.
           ${test_env_vars|} ./test_random_abort -C 2>&1
-          ${test_env_vars|} ./test_timestamp_abort -C $tta_args 2>&1
+          ${test_env_vars|} ./test_timestamp_abort -C $test_timestamp_abort_args 2>&1
 
           # V1 log compatibility mode with memory-based txns.
           ${test_env_vars|} ./test_random_abort -C -m 2>&1
-          ${test_env_vars|} ./test_timestamp_abort -C -m $tta_args 2>&1
+          ${test_env_vars|} ./test_timestamp_abort -C -m $test_timestamp_abort_args 2>&1
 
           ${test_env_vars|} ./test_truncated_log ${truncated_log_args|} 2>&1
 

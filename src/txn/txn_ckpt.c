@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, uint64_t, uint64_t);
+static void __checkpoint_timing_stress(WT_SESSION_IMPL *, uint64_t, struct timespec *);
 static int __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *, bool, bool, bool, const char *[]);
 static int __checkpoint_mark_skip(WT_SESSION_IMPL *, WT_CKPT *, bool);
 static int __checkpoint_presync(WT_SESSION_IMPL *, const char *[]);
@@ -517,6 +517,7 @@ __checkpoint_fail_reset(WT_SESSION_IMPL *session)
 static int
 __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[])
 {
+    struct timespec tsp;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -546,7 +547,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     __wt_epoch(session, &conn->ckpt_prep_start);
 
     WT_RET(__wt_txn_begin(session, txn_cfg));
-    __checkpoint_timing_stress(session, WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY, 0, 1000);
+    /* Wait 1000 microseconds to simulate slowdown in checkpoint prepare. */
+    tsp.tv_sec = 0;
+    tsp.tv_nsec = WT_MILLION;
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY, &tsp);
     original_snap_min = session->txn->snap_min;
 
     WT_DIAGNOSTIC_YIELD;
@@ -749,6 +753,7 @@ __txn_checkpoint_can_skip(
 static int
 __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    struct timespec tsp;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *hs_dhandle;
@@ -871,11 +876,14 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     if (full && logging)
         WT_ERR(__wt_txn_checkpoint_log(session, full, WT_TXN_LOG_CKPT_START, NULL));
 
-    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, 10, 0);
+    /* Add a ten second wait to simulate checkpoint slowness. */
+    tsp.tv_sec = 10;
+    tsp.tv_nsec = 0;
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_SLOW, &tsp);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
 
     /* Wait prior to checkpointing the history store to simulate checkpoint slowness. */
-    __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, 10, 0);
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_HS_CHECKPOINT_DELAY, &tsp);
 
     /*
      * Get a history store dhandle. If the history store file is opened for a special operation this
@@ -1922,7 +1930,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
  */
 static void
 __checkpoint_timing_stress(
-  WT_SESSION_IMPL *session, uint64_t flag, uint64_t seconds, uint64_t micro_seconds)
+  WT_SESSION_IMPL *session, uint64_t flag, struct timespec *tsp)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -1934,5 +1942,5 @@ __checkpoint_timing_stress(
      */
     if (conn->ckpt_session != session && conn->meta_ckpt_session != session &&
       FLD_ISSET(conn->timing_stress_flags, flag))
-        __wt_sleep(seconds, micro_seconds);
+        __wt_sleep((uint64_t)tsp->tv_sec, (uint64_t)tsp->tv_nsec/WT_THOUSAND);
 }
