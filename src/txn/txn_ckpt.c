@@ -1929,8 +1929,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
  *     checkpoint to complete.
  */
 static void
-__checkpoint_timing_stress(
-  WT_SESSION_IMPL *session, uint64_t flag, struct timespec *tsp)
+__checkpoint_timing_stress(WT_SESSION_IMPL *session, uint64_t flag, struct timespec *tsp)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -1942,5 +1941,5 @@ __checkpoint_timing_stress(
      */
     if (conn->ckpt_session != session && conn->meta_ckpt_session != session &&
       FLD_ISSET(conn->timing_stress_flags, flag))
-        __wt_sleep((uint64_t)tsp->tv_sec, (uint64_t)tsp->tv_nsec/WT_THOUSAND);
+        __wt_sleep((uint64_t)tsp->tv_sec, (uint64_t)tsp->tv_nsec / WT_THOUSAND);
 }
