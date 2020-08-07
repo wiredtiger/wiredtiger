@@ -231,7 +231,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TIME_WINDOW *select_tw;
-    WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd, *tombstone;
+    WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd, *same_txn_valid_upd, *tombstone;
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, txnid;
@@ -248,7 +248,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_TIME_WINDOW_INIT(select_tw);
 
     page = r->page;
-    first_txn_upd = upd = last_upd = tombstone = NULL;
+    first_txn_upd = upd = last_upd = same_txn_valid_upd = tombstone = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
@@ -414,18 +414,47 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
             /* Find the update this tombstone applies to. */
             if (!__wt_txn_upd_visible_all(session, upd)) {
-                while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED)
-                    upd = upd->next;
+                /*
+                 * Loop until a valid update from a different transaction is found in the update
+                 * list.
+                 */
+                while (upd->next != NULL) {
+                    if (upd->next->txnid == WT_TXN_ABORTED)
+                        upd = upd->next;
+                    else if (tombstone->start_ts == upd->next->start_ts &&
+                      tombstone->durable_ts == upd->next->durable_ts &&
+                      tombstone->txnid == upd->next->txnid) {
+                        upd = upd->next;
+                        same_txn_valid_upd = upd;
+                    } else
+                        break;
+                }
+
                 WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
                 if (upd->next == NULL)
                     last_upd = upd;
                 upd_select->upd = upd = upd->next;
+
+                /*
+                 * If there is no on-disk update and any valid update from a different transaction
+                 * is not found in the update list, write the same transaction update itself to disk
+                 * to avoid blocking the eviction.
+                 */
+                if (vpack == NULL && upd == NULL)
+                    upd = same_txn_valid_upd;
             }
         }
         if (upd != NULL)
             /* The beginning of the validity window is the selected update's time point. */
             WT_TIME_WINDOW_SET_START(select_tw, upd);
-        else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
+        else if (vpack != NULL && WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
+            /*
+             * The on-disk version has a valid stop timestamp, use the update from same
+             * transaction as the selected update.
+             */
+            upd_select->upd = same_txn_valid_upd;
+            WT_TIME_WINDOW_SET_START(select_tw, same_txn_valid_upd);
+        } else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL && tombstone != NULL && last_upd->next == NULL);
             /*

@@ -916,11 +916,18 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
   WT_UPDATE *upd, WT_CELL_UNPACK_KV *vpack)
 {
     WT_TIME_WINDOW tw;
+#ifdef HAVE_DIAGNOSTIC
+    WT_TXN_SHARED *txn_shared;
+#endif
     WT_UPDATE *prepare_upd;
     bool have_stop_tw, retry;
 
     prepare_upd = NULL;
     retry = true;
+
+#ifdef HAVE_DIAGNOSTIC
+    txn_shared = WT_SESSION_TXN_SHARED(session);
+#endif
 
 retry:
     WT_RET(__wt_txn_read_upd_list(session, cbt, upd, &prepare_upd));
@@ -932,6 +939,9 @@ retry:
     /* If there is no ondisk value, there can't be anything in the history store either. */
     if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
+        WT_ASSERT(session,
+          (F_ISSET(S2BT(session), WT_BTREE_HS) || txn_shared->read_timestamp == WT_TS_NONE ||
+                    cbt->upd_value->tw.start_ts <= txn_shared->read_timestamp));
         return (0);
     }
 
@@ -966,6 +976,10 @@ retry:
         cbt->upd_value->tw.stop_txn = tw.stop_txn;
         cbt->upd_value->tw.prepare = tw.prepare;
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
+
+        WT_ASSERT(session,
+          (F_ISSET(S2BT(session), WT_BTREE_HS) || txn_shared->read_timestamp == WT_TS_NONE ||
+                    cbt->upd_value->tw.start_ts <= txn_shared->read_timestamp));
         return (0);
     }
 
@@ -988,6 +1002,10 @@ retry:
         cbt->upd_value->tw.start_txn = tw.start_txn;
         cbt->upd_value->tw.prepare = tw.prepare;
         cbt->upd_value->type = WT_UPDATE_STANDARD;
+
+        WT_ASSERT(session,
+          (F_ISSET(S2BT(session), WT_BTREE_HS) || txn_shared->read_timestamp == WT_TS_NONE ||
+                    cbt->upd_value->tw.start_ts <= txn_shared->read_timestamp));
         return (0);
     }
 
@@ -1024,6 +1042,11 @@ retry:
             goto retry;
         }
     }
+
+    /* Validate the update that is returned is proper against provided read timestamp. */
+    WT_ASSERT(
+      session, (F_ISSET(S2BT(session), WT_BTREE_HS) || txn_shared->read_timestamp == WT_TS_NONE ||
+                 cbt->upd_value->tw.start_ts <= txn_shared->read_timestamp));
 
     /* Return invalid not tombstone if nothing is found in history store. */
     WT_ASSERT(session, cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
