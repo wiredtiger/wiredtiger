@@ -269,7 +269,7 @@ functions:
         permissions: public-read
         content_type: application/tar
         display_name: Artifacts
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}.tgz
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
   "cleanup":
     command: shell.exec
     params:
@@ -395,12 +395,14 @@ variables:
           posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
       - func: "recovery stress test script"
         vars:
-          times: 40
+          times: 25
 
 pre:
   - func: "cleanup"
 post:
   - func: "upload artifact"
+    vars:
+      postfix: -${execution}
   - func: "cleanup"
 
 tasks:
@@ -410,6 +412,8 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
+      - func: "upload artifact"
+      - func: "cleanup"
 
   - name: compile-asan
     tags: ["pull_request"]
@@ -419,6 +423,8 @@ tasks:
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
+      - func: "upload artifact"
+      - func: "cleanup"
 
   - name: compile-msan
     commands:
@@ -427,6 +433,8 @@ tasks:
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=memory -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
+      - func: "upload artifact"
+      - func: "cleanup"
 
   - name: compile-ubsan
     commands:
@@ -435,6 +443,8 @@ tasks:
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=undefined -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic
+      - func: "upload artifact"
+      - func: "cleanup"
 
   # production build with --disable-shared
   - name: compile-production-disable-shared
@@ -444,6 +454,8 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-strict --disable-shared
+      - func: "upload artifact"
+      - func: "cleanup"
 
   # production build with --disable-static
   - name: compile-production-disable-static
@@ -453,6 +465,8 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-strict --disable-static --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
+      - func: "upload artifact"
+      - func: "cleanup"
 
   - name: compile-linux-no-ftruncate
     commands:
@@ -460,6 +474,8 @@ tasks:
       - func: "compile wiredtiger no linux ftruncate"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python
+      - func: "upload artifact"
+      - func: "cleanup"
 
   - name: compile-wtperf
     commands:
@@ -467,6 +483,8 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-strict --enable-diagnostic
+      - func: "upload artifact"
+      - func: "cleanup"
 
   - name: compile-gcc
     tags: ["pull_request", "pull_request_compilers"]
@@ -777,6 +795,8 @@ tasks:
       - name: compile-ubsan
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-ubsan
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=undefined -ggdb"
@@ -1952,7 +1972,7 @@ tasks:
           permissions: public-read
           content_type: text/html
           display_name: Coverage report
-          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
+          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}-${execution}.html
 
   - name: spinlock-gcc-test
     commands:
@@ -2245,7 +2265,7 @@ tasks:
             CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
             CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
             -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
       - func: "format test script"
         vars:
           test_env_vars:
@@ -2270,7 +2290,7 @@ tasks:
             CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
             CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
             -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
       - func: "format test script"
         # To emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
         # Run smoke tests, don't stop at failed tests, use default config
@@ -2335,6 +2355,9 @@ tasks:
   - <<: *recovery-stress-test
     name: recovery-stress-test-2
     tags: ["stress-test-2", "stress-test-zseries-2"]
+  - <<: *recovery-stress-test
+    name: recovery-stress-test-3
+    tags: ["stress-test-3", "stress-test-zseries-3"]
 
 buildvariants:
 
@@ -2590,3 +2613,4 @@ buildvariants:
   - name: unit-test
   - name: ".stress-test-zseries-1"
   - name: ".stress-test-zseries-2"
+  - name: ".stress-test-zseries-3"
