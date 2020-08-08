@@ -186,7 +186,7 @@ __rec_append_orig_value(
          * be needed to resolve modifies on the update chain.
          */
         if (hs_upd_seen)
-            F_SET(tombstone, WT_UPDATE_HS);
+            F_SET(append, WT_UPDATE_HS);
     }
 
     if (tombstone != NULL) {
