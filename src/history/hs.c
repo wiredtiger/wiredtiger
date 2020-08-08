@@ -889,13 +889,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
         squashed = false;
 
-/*
- * Flush the updates on stack. Stopping once we run out or we reach the onpage upd start time point,
- * we can squash modifies with the same start time point as the onpage upd away.
- */
 #ifdef HAVE_DIAGNOSTIC
         hs_inserted = false;
 #endif
+
+        /*
+         * Flush the updates on stack. Stopping once we run out or we reach the onpage upd start
+         * time point, we can squash modifies with the same start time point as the onpage upd away.
+         */
         for (; modifies.size > 0 &&
              !(upd->txnid == list->onpage_upd->txnid &&
                  upd->start_ts == list->onpage_upd->start_ts);
