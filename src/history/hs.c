@@ -942,7 +942,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  * Make sure we don't insert anything older than an obsolete update or an update
                  * that has been already inserted to the history store.
                  */
-                WT_ASSERT(session, !inserted);
+                WT_ASSERT(session, !hs_inserted);
                 continue;
             }
 
