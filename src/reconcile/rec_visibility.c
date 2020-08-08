@@ -61,14 +61,14 @@ __rec_append_orig_value(
     WT_DECL_RET;
     WT_UPDATE *append, *oldest_upd, *tombstone;
     size_t size, total_size;
-    bool tombstone_globally_visible;
+    bool hs_upd_seen, tombstone_globally_visible;
 
     WT_ASSERT(
       session, upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL && !unpack->tw.prepare);
 
     append = oldest_upd = tombstone = NULL;
     total_size = 0;
-    tombstone_globally_visible = false;
+    hs_upd_seen = tombstone_globally_visible = false;
 
     /* Review the current update list, checking conditions that mean no work is needed. */
     for (;; upd = upd->next) {
@@ -101,6 +101,9 @@ __rec_append_orig_value(
 
         if (upd->txnid != WT_TXN_ABORTED)
             oldest_upd = upd;
+
+        if (F_ISSET(upd, WT_UPDATE_HS))
+            hs_upd_seen = true;
 
         /* Leave reference pointing to the last item in the update list. */
         if (upd->next == NULL)
@@ -144,6 +147,14 @@ __rec_append_orig_value(
             tombstone->start_ts = unpack->tw.stop_ts;
             tombstone->durable_ts = unpack->tw.durable_stop_ts;
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
+            /*
+             * Newer updates have been moved to the history store by checkpoint so this value must
+             * also have been moved to the history store. Mark it to prevent it from being inserted
+             * into the history store again. We still need to append it back to the update chain
+             * because it may be needed to resolve modifies on the update chain.
+             */
+            if (hs_upd_seen)
+                F_SET(tombstone, WT_UPDATE_HS);
         } else {
             /*
              * We may have overwritten its transaction id to WT_TXN_NONE and its timestamps to
@@ -168,6 +179,14 @@ __rec_append_orig_value(
         append->start_ts = unpack->tw.start_ts;
         append->durable_ts = unpack->tw.durable_start_ts;
         F_SET(append, WT_UPDATE_RESTORED_FROM_DS);
+        /*
+         * Newer updates have been moved to the history store by checkpoint so this value must also
+         * have been moved to the history store. Mark it to prevent it from being inserted into the
+         * history store again. We still need to append it back to the update chain because it may
+         * be needed to resolve modifies on the update chain.
+         */
+        if (hs_upd_seen)
+            F_SET(tombstone, WT_UPDATE_HS);
     }
 
     if (tombstone != NULL) {
