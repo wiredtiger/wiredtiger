@@ -215,22 +215,6 @@ __wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
 }
 
 /*
- * __wt_remove_file_wrapper --
- *     Wrapper to __wt_remove_if_exists function to intercept the read-only file system error if
- *     WT_CONN_READONLY is set
- */
-int
-__wt_remove_file_wrapper(WT_SESSION_IMPL *session, const char *name, bool durable)
-{
-    WT_DECL_RET;
-    ret = __wt_remove_if_exists(session, name, durable);
-    /* Ignore Read-only file system */
-    if (ret == EROFS)
-        ret = 0;
-    return (ret);
-}
-
-/*
  * __wt_turtle_init --
  *     Check the turtle file and create if necessary.
  */
@@ -248,7 +232,13 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
      * Discard any turtle setup file left-over from previous runs. This doesn't matter for
      * correctness, it's just cleaning up random files.
      */
-    WT_RET(__wt_remove_file_wrapper(session, WT_METADATA_TURTLE_SET, false));
+
+    if ((ret = __wt_remove_if_exists(session, WT_METADATA_TURTLE_SET, false)) != 0) {
+         /* If we're a readonly database, we can skip discarding the leftover file. */
+        if (ret == EACCES)
+            ret = 0;
+        WT_RET(ret);
+    }
 
     /*
      * If we found a corrupted turtle file, then delete it and create a new. We could die after
@@ -278,7 +268,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
         }
 
         if (ret != 0) {
-            WT_RET(__wt_remove_file_wrapper(session, WT_METADATA_TURTLE, false));
+            WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             loadTurtle = true;
         } else
             /*
@@ -305,8 +295,8 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
               "Both %s and %s exist; recreating metadata from "
               "backup",
               WT_METADATA_TURTLE, WT_METADATA_BACKUP));
-            WT_RET(__wt_remove_file_wrapper(session, WT_METAFILE, false));
-            WT_RET(__wt_remove_file_wrapper(session, WT_METADATA_TURTLE, false));
+            WT_RET(__wt_remove_if_exists(session, WT_METAFILE, false));
+            WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             load = true;
         } else if (validate_turtle)
             WT_RET(__wt_turtle_validate_version(session));

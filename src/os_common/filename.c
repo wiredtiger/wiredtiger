@@ -73,22 +73,20 @@ __wt_filename_construct(WT_SESSION_IMPL *session, const char *path, const char *
 
 /*
  * __wt_remove_if_exists --
- *     Remove a file if it exists and WT_CONN_READONLY is not set.
+ *     Remove a file if it exists and return error if WT_CONN_READONLY is set.
  */
 int
 __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name, bool durable)
 {
-    bool exist, readonly;
+    bool exist;
 
-    readonly = false;
     WT_RET(__wt_fs_exist(session, name, &exist));
-    if (exist && !(readonly = F_ISSET(S2C(session), WT_CONN_READONLY)))
+    if (exist) {
+        /* Modifications are not allowed on a read only database. */
+        if (F_ISSET(S2C(session), WT_CONN_READONLY))
+            return (EACCES);
         WT_RET(__wt_fs_remove(session, name, durable));
-
-    /* Return read-only file system error if file exists and WT_CONN_READONLY is set. */
-    if (readonly)
-        return EROFS;
-
+    }
     return (0);
 }
 
