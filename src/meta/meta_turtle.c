@@ -234,7 +234,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
      */
 
     if ((ret = __wt_remove_if_exists(session, WT_METADATA_TURTLE_SET, false)) != 0) {
-         /* If we're a readonly database, we can skip discarding the leftover file. */
+        /* If we're a readonly database, we can skip discarding the leftover file. */
         if (ret == EACCES)
             ret = 0;
         WT_RET(ret);
