@@ -72,7 +72,7 @@ class test_readonly_config(wttest.WiredTigerTestCase):
         shutil.copy(newdir+'/WiredTiger.turtle', newdir+'/WiredTiger.turtle.set')
 
         # Open wiredtiger in new directory and in readonly mode.
-        conn = self.wiredtiger_open("RESTART", "readonly")
+        conn = self.wiredtiger_open(newdir, "readonly")
 
         #conn.close()
 
