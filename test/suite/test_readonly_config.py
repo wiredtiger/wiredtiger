@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 import os, shutil
@@ -62,11 +63,18 @@ class test_readonly_config(wttest.WiredTigerTestCase):
         cursor.close()
         self.conn.close()
 
-        shutil.copy('WiredTiger.turtle', 'WiredTiger.turtle.set')
+        olddir="."
+        newdir="RESTART"
 
-        # Open wiredtiger in readonly mode
-        conn = self.wiredtiger_open(self.home, "readonly")
-        conn.close()
+        # Simulate a crash by copying to a new directory(RESTART).
+        copy_wiredtiger_home(olddir, newdir)
+
+        shutil.copy(newdir+'/WiredTiger.turtle', newdir+'/WiredTiger.turtle.set')
+
+        # Open wiredtiger in new directory and in readonly mode.
+        conn = self.wiredtiger_open("RESTART", "readonly")
+
+        #conn.close()
 
 if __name__ == '__main__':
     wttest.run()

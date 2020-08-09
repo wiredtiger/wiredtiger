@@ -82,19 +82,9 @@ access_example(void)
 int
 main(int argc, char *argv[])
 {
-    char cmd[1024];
-    WT_CONNECTION *conn;
-
     home = example_setup(argc, argv);
 
     access_example();
-
-    sprintf(cmd, "cp %s/WiredTiger.turtle %s/WiredTiger.turtle.set", home, home);
-
-    error_check(system(cmd));
-
-    error_check(wiredtiger_open(home, NULL, "readonly", &conn));
-    error_check(conn->close(conn, NULL));
 
     return (EXIT_SUCCESS);
 }
