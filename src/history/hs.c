@@ -203,7 +203,7 @@ __wt_hs_destroy(WT_SESSION_IMPL *session)
  *     Open a new history store table cursor.
  */
 int
-__wt_hs_cursor_open(WT_SESSION_IMPL *session)
+__wt_hs_cursor_open(WT_SESSION_IMPL *session, uint32_t *session_flags)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
