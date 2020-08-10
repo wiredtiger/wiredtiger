@@ -709,7 +709,7 @@ __wt_rec_row_leaf(
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
     uint64_t slvg_skip;
-    uint32_t i, session_flags;
+    uint32_t i;
     bool dictionary, key_onpage_ovfl, ovfl_key;
     void *copy;
 
