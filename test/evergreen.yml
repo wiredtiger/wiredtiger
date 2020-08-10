@@ -1631,7 +1631,7 @@ tasks:
             ulimit -c unlimited
             largescale/run-million-collection-test.sh .
 
-  - name: compatibility-test-for-releases-full
+  - name: compatibility-test-for-newer-releases
     commands:
       - func: "get project"
       - command: shell.exec
@@ -1640,9 +1640,9 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh -l
+            test/evergreen/compatibility_test_for_releases.sh -n
 
-  - name: compatibility-test-for-releases
+  - name: compatibility-test-for-older-releases
     commands:
       - func: "get project"
       - command: shell.exec
@@ -1651,7 +1651,18 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh
+            test/evergreen/compatibility_test_for_releases.sh -o
+
+  - name: compatibility-test-for-wt-standalone-releases
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            test/evergreen/compatibility_test_for_releases.sh -w
 
   - name: generate-datafile-little-endian
     depends_on:
@@ -2481,20 +2492,21 @@ buildvariants:
   tasks:
     - name: million-collection-test
 
-- name: compatibility-tests-full
-  display_name: Compatibility tests full
+- name: compatibility-tests-less-frequent
+  display_name: Compatibility tests (less frequent)
   batchtime: 10080 # 7 days
   run_on:
   - ubuntu1804-test
   tasks:
-    - name: compatibility-test-for-releases-full
+    - name: compatibility-test-for-older-releases
+    - name: compatibility-test-for-wt-standalone-releases
 
 - name: compatibility-tests
   display_name: Compatibility tests
   run_on:
   - ubuntu1804-test
   tasks:
-    - name: compatibility-test-for-releases
+    - name: compatibility-test-for-newer-releases
 
 - name: windows-64
   display_name: "! Windows 64-bit"
