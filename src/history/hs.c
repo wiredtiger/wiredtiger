@@ -669,10 +669,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     uint8_t *p;
     int nentries;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
-    bool clear_hs, enable_reverse_modify, squashed, ts_updates_in_hs;
-#ifdef HAVE_DIAGNOSTIC
-    bool hs_inserted;
-#endif
+    bool clear_hs, enable_reverse_modify, hs_inserted, squashed, ts_updates_in_hs;
 
     btree = S2BT(session);
     cursor = session->hs_cursor;
@@ -887,11 +884,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
         WT_ERR(__hs_next_upd_full_value(session, &modifies, NULL, full_value, &upd));
 
-        squashed = false;
-
-#ifdef HAVE_DIAGNOSTIC
-        hs_inserted = false;
-#endif
+        hs_inserted = squashed = false;
 
         /*
          * Flush the updates on stack. Stopping once we run out or we reach the onpage upd start
@@ -948,7 +941,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  * Make sure we don't insert anything older than an obsolete update or an update
                  * that has been already inserted to the history store.
                  */
-                WT_ASSERT(session, !hs_inserted);
+                if (hs_inserted)
+                    WT_ERR_PANIC(session, WT_PANIC,
+                      "Inserting updates that are older than the updates that are already in the "
+                      "history store to the history store may corrupt the data.");
                 continue;
             }
 
@@ -1005,9 +1001,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             F_SET(upd, WT_UPDATE_HS);
             if (tombstone != NULL)
                 F_SET(tombstone, WT_UPDATE_HS);
-#ifdef HAVE_DIAGNOSTIC
             hs_inserted = true;
-#endif
             ++insert_cnt;
             if (squashed) {
                 WT_STAT_CONN_INCR(session, cache_hs_write_squash);
