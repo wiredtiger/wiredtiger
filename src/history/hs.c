@@ -938,13 +938,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             /* Skip updates that are already in the history store or are obsolete. */
             if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_OBSOLETE)) {
                 /*
-                 * Make sure we don't insert anything older than an obsolete update or an update
-                 * that has been already inserted to the history store.
+                 * Make sure we don't insert anything older than obsolete updates or updates that
+                 * have been already inserted to the history store.
                  */
                 if (hs_inserted)
                     WT_ERR_PANIC(session, WT_PANIC,
-                      "Inserting updates that are older than the updates that are already in the "
-                      "history store to the history store may corrupt the data.");
+                      "Inserting updates older than obsolete updates or updates that are already "
+                      "in the history store to the history store may corrupt the data.");
                 continue;
             }
 
