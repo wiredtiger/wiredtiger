@@ -700,6 +700,24 @@ __rollback_abort_newer_row_leaf(
 }
 
 /*
+ * __rollback_get_ref_max_durable_timestamp --
+ *     Returns the ref aggregated max durable timestamp. The max durable timestamp is calculated
+ *     between both start and stop durable timestamps except for history store, because most of the
+ *     history store updates have stop timestamp either greater or equal to the start timestamp
+ *     except for the updates written for the prepared updates on the data store. To abort the
+ *     updates with no stop timestamp, we must include the newest stop timestamp also into the
+ *     calculation of maximum durable timestamp of the history store.
+ */
+static wt_timestamp_t
+__rollback_get_ref_max_durable_timestamp(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
+{
+    if (WT_IS_HS(S2BT(session))
+        return WT_MAX(ta->newest_stop_durable_ts, ta->newest_stop_ts);
+    else
+        return WT_MAX(ta->newest_start_durable_ts, ta->newest_stop_durable_ts);
+}
+
+/*
  * __rollback_page_needs_abort --
  *     Check whether the page needs rollback. Return true if the page has modifications newer than
  *     the given timestamp Otherwise return false.
@@ -716,14 +734,13 @@ __rollback_page_needs_abort(
     uint32_t i;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *tag;
-    bool hs, prepared, result;
+    bool prepared, result;
 
     addr = ref->addr;
     mod = ref->page == NULL ? NULL : ref->page->modify;
     durable_ts = WT_TS_NONE;
     tag = "undefined state";
     prepared = result = false;
-    hs = WT_IS_HS(S2BT(session));
 
     /*
      * The rollback operation should be performed on this page when any one of the following is
@@ -735,25 +752,15 @@ __rollback_page_needs_abort(
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
         tag = "reconciled replace block";
-        if (hs)
-            durable_ts = WT_MAX(
-              mod->mod_replace.ta.newest_stop_durable_ts, mod->mod_replace.ta.newest_stop_ts);
-        else
-            durable_ts = WT_MAX(mod->mod_replace.ta.newest_start_durable_ts,
-              mod->mod_replace.ta.newest_stop_durable_ts);
+        durable_ts = __rollback_get_ref_max_durable_timestamp(session, &mod->mod_replace.ta);
         prepared = mod->mod_replace.ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared;
     } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         tag = "reconciled multi block";
         /* Calculate the max durable timestamp by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            if (hs) {
-                durable_ts = WT_MAX(durable_ts, multi->addr.ta.newest_stop_durable_ts);
-                durable_ts = WT_MAX(durable_ts, multi->addr.ta.newest_stop_ts);
-            } else {
-                durable_ts = WT_MAX(durable_ts, multi->addr.ta.newest_start_durable_ts);
-                durable_ts = WT_MAX(durable_ts, multi->addr.ta.newest_stop_durable_ts);
-            }
+            durable_ts = WT_MAX(durable_ts,
+                          __rollback_get_ref_max_durable_timestamp(session, &multi->addr.ta);
             if (multi->addr.ta.prepare)
                 prepared = true;
         }
@@ -762,18 +769,12 @@ __rollback_page_needs_abort(
         tag = "on page cell";
         /* Check if the page is obsolete using the page disk address. */
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &vpack);
-        if (hs)
-            durable_ts = WT_MAX(vpack.ta.newest_stop_durable_ts, vpack.ta.newest_stop_ts);
-        else
-            durable_ts = WT_MAX(vpack.ta.newest_start_durable_ts, vpack.ta.newest_stop_durable_ts);
+        durable_ts = __rollback_get_ref_max_durable_timestamp(session, &vpack.ta);
         prepared = vpack.ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared;
     } else if (addr != NULL) {
         tag = "address";
-        if (hs)
-            durable_ts = WT_MAX(addr->ta.newest_stop_durable_ts, addr->ta.newest_stop_ts);
-        else
-            durable_ts = WT_MAX(addr->ta.newest_start_durable_ts, addr->ta.newest_stop_durable_ts);
+        durable_ts = __rollback_get_ref_max_durable_timestamp(session, &addr->ta);
         prepared = addr->ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared;
     }
@@ -1093,12 +1094,11 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
     WT_RET(__wt_metadata_search(session, WT_HS_URI, &config));
 
     /*
-     * Find out the max durable timestamp of the history store from checkpoint. History store
-     * updates have stop timestamp either greater or equal to the start timestamp because all the
-     * updates in the history store must have a stop timestamp except for the updates written for
-     * the prepared updates on the data store. To abort the updates with no stop timestamp, we must
-     * include the newest stop timestamp also into the calculation of maximum timestamp of the
-     * history store.
+     * Find out the max durable timestamp of the history store from checkpoint. Most of the history
+     * store updates have stop timestamp either greater or equal to the start timestamp except for
+     * the updates written for the prepared updates on the data store. To abort the updates with no
+     * stop timestamp, we must include the newest stop timestamp also into the calculation of
+     * maximum timestamp of the history store.
      */
     newest_stop_durable_ts = newest_stop_ts = WT_TS_NONE;
     WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
