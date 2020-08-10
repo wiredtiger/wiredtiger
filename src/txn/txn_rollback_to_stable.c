@@ -711,7 +711,7 @@ __rollback_abort_newer_row_leaf(
 static wt_timestamp_t
 __rollback_get_ref_max_durable_timestamp(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
 {
-    if (WT_IS_HS(S2BT(session))
+    if (WT_IS_HS(S2BT(session)))
         return WT_MAX(ta->newest_stop_durable_ts, ta->newest_stop_ts);
     else
         return WT_MAX(ta->newest_start_durable_ts, ta->newest_stop_durable_ts);
@@ -759,8 +759,8 @@ __rollback_page_needs_abort(
         tag = "reconciled multi block";
         /* Calculate the max durable timestamp by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            durable_ts = WT_MAX(durable_ts,
-                          __rollback_get_ref_max_durable_timestamp(session, &multi->addr.ta);
+            durable_ts = WT_MAX(
+              durable_ts, __rollback_get_ref_max_durable_timestamp(session, &multi->addr.ta));
             if (multi->addr.ta.prepare)
                 prepared = true;
         }
