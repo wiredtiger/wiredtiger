@@ -81,9 +81,11 @@ static const char *const ckpt_file = "checkpoint_done";
 static bool compat, inmem, stress, use_ts;
 static volatile uint64_t global_ts = 1;
 
-#define ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
+#define ENV_CONFIG_ADD_COMPAT ",compatibility=(release=\"2.9\")"
+#define ENV_CONFIG_ADD_STRESS ",timing_stress_for_test=[prepare_checkpoint_delay]"
 #define ENV_CONFIG_DEF                                        \
-    "cache_size=20M,create,"                                  \
+    "cache_size=%" PRIu32                                     \
+    "M,create,"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_trigger=95,eviction_updates_target=80," \
     "log=(archive=true,file_max=10M,enabled),session_max=%d," \
@@ -92,7 +94,6 @@ static volatile uint64_t global_ts = 1;
     ENV_CONFIG_DEF         \
     ",transaction_sync=(enabled,method=none)"
 #define ENV_CONFIG_REC "log=(archive=false,recover=on)"
-#define ENV_CONFIG_STRESS ",timing_stress_for_test=[prepare_checkpoint_delay]"
 
 typedef struct {
     uint64_t absent_key; /* Last absent key */
@@ -411,21 +412,35 @@ run_workload(uint32_t nth)
     WT_SESSION *session;
     THREAD_DATA *td;
     wt_thread_t *thr;
-    uint32_t ckpt_id, i, ts_id;
+    uint32_t cache_mb, ckpt_id, i, ts_id;
     char envconf[512], uri[128];
 
     thr = dcalloc(nth + 2, sizeof(*thr));
     td = dcalloc(nth + 2, sizeof(THREAD_DATA));
+
+    /*
+     * Size the cache appropriately for the number of threads. Each thread generally adds keys
+     * sequentially to its own portion of the keyspace, so each thread will be dirtying one page at
+     * a time. By default, a leaf page grows to 32K in size before it is evicted and the thread
+     * begins to fill another page. The configuration sets the eviction updates target to 80%, thus
+     * we're targeting for 20% leaf pages to be dirty, and total cache needs to be five times our
+     * expected dirty content. We add more to the 32K per thread, and the total, to cover additional
+     * overhead.
+     */
+    cache_mb = ((40 * WT_KILOBYTE * nth) * 5) / WT_MEGABYTE + 5;
+
     if (chdir(home) != 0)
         testutil_die(errno, "Child chdir: %s", home);
     if (inmem)
-        testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_DEF, SESSION_MAX));
+        testutil_check(
+          __wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_DEF, cache_mb, SESSION_MAX));
     else
-        testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, SESSION_MAX));
+        testutil_check(
+          __wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb, SESSION_MAX));
     if (compat)
-        strcat(envconf, ENV_CONFIG_COMPAT);
+        strcat(envconf, ENV_CONFIG_ADD_COMPAT);
     if (stress)
-        strcat(envconf, ENV_CONFIG_STRESS);
+        strcat(envconf, ENV_CONFIG_ADD_STRESS);
 
     testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
