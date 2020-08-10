@@ -31,7 +31,6 @@ import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 import os, shutil
 
-
 # test_readonly_config.py
 # test to create a test database, close all the connections and re-open it with readonly mode.
 class test_readonly_config(wttest.WiredTigerTestCase):
