@@ -420,7 +420,7 @@ run_workload(uint32_t nth)
 
     /*
      * Size the cache appropriately for the number of threads. Each thread generally adds keys
-     * sequentially to its own portion of the keyspace, so each thread will be dirtying one page at
+     * sequentially to its own portion of the key space, so each thread will be dirtying one page at
      * a time. By default, a leaf page grows to 32K in size before it is evicted and the thread
      * begins to fill another page. The configuration sets the eviction updates target to 80%, thus
      * we're targeting for 20% leaf pages to be dirty, and total cache needs to be five times our
