@@ -447,7 +447,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
                 /*
                  * We may have updated the global transaction concurrently and the tombstone is now
-                 * globally visible. In this case, the on page value is not appended. Check that.
+                 * globally visible. In this case, the on page value is not appended. Verify that.
                  */
                 if (last_upd->next != NULL) {
                     WT_ASSERT(session, last_upd->next->txnid == vpack->tw.start_txn &&
