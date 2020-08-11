@@ -466,7 +466,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 }
             } else
                 /*
-                 * If the tombstone is restored from the disk or history store, it must has already
+                 * If the tombstone is restored from the disk or history store, it must have already
                  * been written to the disk image in the previous eviction.
                  */
                 WT_ASSERT(session, upd_select->upd == NULL &&
