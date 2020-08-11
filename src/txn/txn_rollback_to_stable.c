@@ -422,8 +422,9 @@ __rollback_abort_row_ondisk_kv(
     prepared = vpack->tw.prepare;
     if (WT_IS_HS(S2BT(session))) {
         /*
-         * Abort the history store update with stop durable timestamp greater than stable timestamp
-         * or the updates with max stop timestamp.
+         * Abort the history store update with stop durable timestamp greater than the stable
+         * timestamp or the updates with max stop timestamp which implies that they are associated
+         * with prepared transactions.
          */
         if (vpack->tw.durable_stop_ts > rollback_timestamp || vpack->tw.stop_ts == WT_TS_MAX) {
             __wt_verbose(session, WT_VERB_RTS,
