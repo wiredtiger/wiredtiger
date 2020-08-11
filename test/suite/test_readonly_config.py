@@ -68,12 +68,12 @@ class test_readonly_config(wttest.WiredTigerTestCase):
         # Simulate a crash by copying to a new directory(RESTART).
         copy_wiredtiger_home(olddir, newdir)
 
+        # Copying the file manually to recreate the issue described in WT-6526.
         shutil.copy(newdir+'/WiredTiger.turtle', newdir+'/WiredTiger.turtle.set')
 
         # Open wiredtiger in new directory and in readonly mode.
         conn = self.wiredtiger_open(newdir, "readonly")
-
-        #conn.close()
+        conn.close()
 
 if __name__ == '__main__':
     wttest.run()
