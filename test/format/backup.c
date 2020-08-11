@@ -41,10 +41,34 @@ check_copy(void)
     size_t len;
     char *path;
 
-    len = strlen(g.home) + strlen("BACKUP") + 2;
+    len = WT_MAX(strlen(BACKUP_INFO_FILE), strlen(BACKUP_INFO_FILE_TMP));
+    len = WT_MAX(len, strlen("BACKUP"));
+    len += strlen(g.home) + 2;
     path = dmalloc(len);
-    testutil_check(__wt_snprintf(path, len, "%s/BACKUP", g.home));
+    /*
+     * Remove any backup info files that exist. We're about the run recovery in the backup directory
+     * so we cannot use the backup directory after that restart. We must remove the files before the
+     * restart to avoid a window where they could exist and the backup directory has had recovery
+     * run.
+     */
+    testutil_check(__wt_snprintf(path, len, "%s/%s", g.home, BACKUP_INFO_FILE_TMP));
+    ret = unlink(path);
+    /* It is fine if the file does not exist. */
+    if (ret == 0 || ret == ENOENT)
+        ret = 0;
+    else
+        testutil_die(errno, "unlink %s", path);
 
+    testutil_check(__wt_snprintf(path, len, "%s/%s", g.home, BACKUP_INFO_FILE));
+    ret = unlink(path);
+    /* It is fine if the file does not exist. */
+    if (ret == 0 || ret == ENOENT)
+        ret = 0;
+    else
+        testutil_die(errno, "unlink %s", path);
+
+    /* Now setup and open the path for real. */
+    testutil_check(__wt_snprintf(path, len, "%s/BACKUP", g.home));
     wts_open(path, &conn, &session, true);
 
     /*
@@ -349,6 +373,84 @@ copy_file(WT_SESSION *session, const char *name)
 #define HOME_BACKUP_INIT_CMD "rm -rf %s/BACKUP %s/BACKUP.copy && mkdir %s/BACKUP %s/BACKUP.copy"
 
 /*
+ * restore_backup_info --
+ *     If it exists, restore the backup information. Return 0 on success.
+ */
+static int
+restore_backup_info(ACTIVE_FILES *active)
+{
+    FILE *fp;
+    WT_DECL_RET;
+    size_t len;
+    uint64_t id;
+    uint32_t i;
+    char name[512], *path;
+
+    testutil_assert(g.c_backup_incr_flag == INCREMENTAL_BLOCK);
+    len = strlen(g.home) + strlen(BACKUP_INFO_FILE) + 2;
+    path = dmalloc(len);
+    testutil_check(__wt_snprintf(path, len, "%s/%s", g.home, BACKUP_INFO_FILE));
+    if ((fp = fopen(path, "r")) == NULL && errno != ENOENT)
+        testutil_die(errno, "restore_backup_info fopen: %s", path);
+    if (errno == ENOENT) {
+        free(path);
+        return (1);
+    }
+    ret = fscanf(fp, "%" SCNu64 "\n", &id);
+    if (ret != 1)
+        testutil_die(EINVAL, "restore_backup_info ID");
+    active_files_init(active);
+    ret = fscanf(fp, "%" SCNu32 "\n", &active->count);
+    if (ret != 1)
+        testutil_die(EINVAL, "restore_backup_info ID");
+    active->names = drealloc(active->names, sizeof(char *) * active->count);
+    for (i = 0; i < active->count; ++i) {
+        memset(name, 512, 0);
+        fscanf(fp, "%s\n", name);
+        active->names[i] = strdup(name);
+    }
+    fclose_and_clear(&fp);
+    free(path);
+    return (0);
+}
+
+/*
+ * save_backup_info --
+ *     Save backup information to a text file format can use to restore on a reopen.
+ */
+static int
+save_backup_info(ACTIVE_FILES *active, uint64_t id)
+{
+    FILE *fp;
+    WT_DECL_RET;
+    size_t len;
+    uint32_t i;
+    char *from_path, *to_path;
+
+    if (g.c_backup_incr_flag != INCREMENTAL_BLOCK)
+        return (0);
+    len = strlen(g.home) + strlen(BACKUP_INFO_FILE_TMP) + 2;
+    from_path = dmalloc(len);
+    testutil_check(__wt_snprintf(from_path, len, "%s/%s", g.home, BACKUP_INFO_FILE_TMP));
+    if ((fp = fopen(from_path, "w")) == NULL)
+        testutil_die(errno, "save_backup_info fopen: %s", from_path);
+    fprintf(fp, "%" PRIu64 "\n", id);
+    if (active->count > 0) {
+        fprintf(fp, "%" PRIu32 "\n", active->count);
+        for (i = 0; i < active->count; ++i)
+            fprintf(fp, "%s\n", active->names[i]);
+    }
+    fclose_and_clear(&fp);
+    len = strlen(g.home) + strlen(BACKUP_INFO_FILE) + 2;
+    to_path = dmalloc(len);
+    testutil_check(__wt_snprintf(to_path, len, "%s/%s", g.home, BACKUP_INFO_FILE));
+    error_sys_check(rename(from_path, to_path));
+    free(from_path);
+    free(to_path);
+    return (ret);
+}
+
+/*
  * backup --
  *     Periodically do a backup and verify it.
  */
@@ -362,7 +464,7 @@ backup(void *arg)
     WT_SESSION *session;
     size_t len;
     u_int incremental, period;
-    uint64_t src_id;
+    uint64_t src_id, this_id;
     const char *config, *key;
     char cfg[512], *cmd;
     bool full, incr_full;
@@ -371,8 +473,25 @@ backup(void *arg)
 
     conn = g.wts_conn;
 
-    /* Guarantee backup ID uniqueness, we might be reopening an existing database. */
     __wt_seconds(NULL, &g.backup_id);
+    active_files_init(&active[0]);
+    active_files_init(&active[1]);
+    active_now = active_prev = NULL;
+    incr_full = true;
+    incremental = 0;
+    /*
+     * If we're reopening an existing database and doing incremental backup we reset the initialized
+     * variables based on whatever they were at the end of the previous run. We want to make sure
+     * that we can take an incremental backup and use the older id as a source identifier. In fact,
+     * we force that situation when reopening with incremental.
+     */
+    if (g.reopen && g.c_backup_incr_flag == INCREMENTAL_BLOCK &&
+      restore_backup_info(&active[0]) == 0) {
+        incr_full = false;
+        full = false;
+        incremental = 1;
+        active_prev = &active[0];
+    }
 
     /* Open a session. */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
@@ -381,11 +500,7 @@ backup(void *arg)
      * Perform a full backup at somewhere under 10 seconds (that way there's at least one), then at
      * larger intervals, optionally do incremental backups between full backups.
      */
-    incr_full = true;
-    incremental = 0;
-    active_files_init(&active[0]);
-    active_files_init(&active[1]);
-    active_now = active_prev = NULL;
+    this_id = 0;
     for (period = mmrand(NULL, 1, 10);; period = mmrand(NULL, 20, 45)) {
         /* Sleep for short periods so we don't make the run wait. */
         while (period > 0 && !g.workers_finished) {
@@ -425,6 +540,7 @@ backup(void *arg)
                 else
                     active_now = &active[0];
                 src_id = g.backup_id - 1;
+                this_id = g.backup_id;
                 testutil_check(__wt_snprintf(cfg, sizeof(cfg),
                   "incremental=(enabled,src_id=ID%" PRIu64 ",this_id=ID%" PRIu64 ")", src_id,
                   g.backup_id++));
@@ -494,6 +610,8 @@ backup(void *arg)
         lock_writeunlock(session, &g.backup_lock);
         active_files_sort(active_now);
         active_files_remove_missing(active_prev, active_now);
+        /* Save the backup information to a file so we can restart on a reopen. */
+        save_backup_info(active_now, this_id);
         active_prev = active_now;
 
         /*
