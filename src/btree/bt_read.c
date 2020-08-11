@@ -333,11 +333,9 @@ read:
                 goto skip_evict;
 
             /*
-             * Forcibly evict pages that are too big, but only if we're not in the process of
-             * evicting something else.
+             * Forcibly evict pages that are too big.
              */
-            if (!F_ISSET(session, WT_SESSION_EVICTING) && force_attempts < 10 &&
-              __evict_force_check(session, ref)) {
+            if (force_attempts < 10 && __evict_force_check(session, ref)) {
                 ++force_attempts;
                 ret = __wt_page_release_evict(session, ref, 0);
                 /*

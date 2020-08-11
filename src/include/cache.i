@@ -458,8 +458,8 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
     if (didworkp != NULL)
         *didworkp = false;
 
-    /* Don't re-enter eviction if the thread is already performing eviction. */
-    if (F_ISSET(session, WT_SESSION_EVICTING))
+    /* Eviction causes reconciliation. So don't evict if we can't reconcile */
+    if (F_ISSET(session, WT_SESSION_NO_RECONCILE))
         return (0);
 
     /*
