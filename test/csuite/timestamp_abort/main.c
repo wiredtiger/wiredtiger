@@ -81,13 +81,17 @@ static const char *const ckpt_file = "checkpoint_done";
 static bool compat, inmem, stress, use_ts;
 static volatile uint64_t global_ts = 1;
 
+/*
+ * See notes on eviction triggers and targets where these symbols are used.
+ */
 #define ENV_CONFIG_ADD_COMPAT ",compatibility=(release=\"2.9\")"
 #define ENV_CONFIG_ADD_STRESS ",timing_stress_for_test=[prepare_checkpoint_delay]"
 #define ENV_CONFIG_DEF                                        \
     "cache_size=%" PRIu32                                     \
     "M,create,"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
-    "eviction_updates_trigger=95,eviction_updates_target=80," \
+    "eviction_dirty_target=20,eviction_dirty_trigger=95,"     \
+    "eviction_updates_target=20,eviction_updates_trigger=95," \
     "log=(archive=true,file_max=10M,enabled),session_max=%d," \
     "statistics=(fast),statistics_log=(wait=1,json=true)"
 #define ENV_CONFIG_TXNSYNC \
@@ -421,13 +425,16 @@ run_workload(uint32_t nth)
     /*
      * Size the cache appropriately for the number of threads. Each thread generally adds keys
      * sequentially to its own portion of the key space, so each thread will be dirtying one page at
-     * a time. By default, a leaf page grows to 32K in size before it is evicted and the thread
-     * begins to fill another page. The configuration sets the eviction updates target to 80%, thus
-     * we're targeting for 20% leaf pages to be dirty, and total cache needs to be five times our
-     * expected dirty content. We add more to the 32K per thread, and the total, to cover additional
-     * overhead.
+     * a time. By default, a leaf page grows to 32K in size before it splits and the thread begins
+     * to fill another page. We'll budget for 5 full size leaf pages per thread in the cache plus a
+     * little extra in the total for overhead.
+     *
+     * The configuration sets the eviction update and dirty targets at 20% so that on average, each
+     * thread can have a dirty page before eviction threads kick in. On the other side, the eviction
+     * update and dirty triggers are 95%, so application threads aren't involved in eviction until
+     * we're close to running out of cache.
      */
-    cache_mb = ((40 * WT_KILOBYTE * nth) * 5) / WT_MEGABYTE + 5;
+    cache_mb = ((32 * WT_KILOBYTE * nth) * 5) / WT_MEGABYTE + 5;
 
     if (chdir(home) != 0)
         testutil_die(errno, "Child chdir: %s", home);
