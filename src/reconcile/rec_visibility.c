@@ -442,19 +442,25 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                  */
                 if (vpack == NULL && upd == NULL)
                     upd_select->upd = upd = same_txn_valid_upd;
+                else if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE)
+                    /*
+                     * The selected update from a different transaction is also a tombstone, use
+                     * the update from same transaction as the selected update.
+                     */
+                    upd_select->upd = upd = same_txn_valid_upd;
+                else if (same_txn_valid_upd != NULL && vpack != NULL &&
+                  WT_TIME_WINDOW_HAS_STOP(&vpack->tw))
+                    /*
+                     * The on-disk version has a valid stop timestamp, use the update from same
+                     * transaction as the selected update.
+                     */
+                    upd_select->upd = upd = same_txn_valid_upd;
             }
         }
         if (upd != NULL)
             /* The beginning of the validity window is the selected update's time point. */
             WT_TIME_WINDOW_SET_START(select_tw, upd);
-        else if (vpack != NULL && WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
-            /*
-             * The on-disk version has a valid stop timestamp, use the update from same transaction
-             * as the selected update.
-             */
-            upd_select->upd = same_txn_valid_upd;
-            WT_TIME_WINDOW_SET_START(select_tw, same_txn_valid_upd);
-        } else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
+        else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL && tombstone != NULL && last_upd->next == NULL);
             /*
