@@ -200,9 +200,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (inmem_split)
         goto done;
 
-    /* We're going ahead with eviction. We shouldn't get here if reconciliation isn't allowed. */
-    WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_RECONCILE));
-
     /* Count evictions of internal pages during normal operation. */
     if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         WT_STAT_CONN_INCR(session, cache_eviction_internal);
