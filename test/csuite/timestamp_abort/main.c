@@ -86,11 +86,12 @@ static volatile uint64_t global_ts = 1;
  */
 #define ENV_CONFIG_ADD_COMPAT ",compatibility=(release=\"2.9\")"
 #define ENV_CONFIG_ADD_STRESS ",timing_stress_for_test=[prepare_checkpoint_delay]"
+#define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=95"
+
 #define ENV_CONFIG_DEF                                        \
     "cache_size=%" PRIu32                                     \
     "M,create,"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
-    "eviction_dirty_target=20,eviction_dirty_trigger=95,"     \
     "eviction_updates_target=20,eviction_updates_trigger=95," \
     "log=(archive=true,file_max=10M,enabled),session_max=%d," \
     "statistics=(fast),statistics_log=(wait=1,json=true)"
@@ -238,6 +239,7 @@ thread_run(void *arg)
 {
     FILE *fp;
     WT_CURSOR *cur_coll, *cur_local, *cur_oplog, *cur_shadow;
+    WT_DECL_RET;
     WT_ITEM data;
     WT_RAND_STATE rnd;
     WT_SESSION *prepared_session, *session;
@@ -350,7 +352,9 @@ thread_run(void *arg)
         data.size = __wt_random(&rnd) % MAX_VAL;
         data.data = cbuf;
         cur_coll->set_value(cur_coll, &data);
-        testutil_check(cur_coll->insert(cur_coll));
+        if ((ret = cur_coll->insert(cur_coll)) == WT_ROLLBACK)
+            goto rollback;
+        testutil_check(ret);
         cur_shadow->set_value(cur_shadow, &data);
         if (use_ts) {
             /*
@@ -362,11 +366,13 @@ thread_run(void *arg)
               __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts));
             testutil_check(session->timestamp_transaction(session, tscfg));
         }
-        testutil_check(cur_shadow->insert(cur_shadow));
+        if ((ret = cur_shadow->insert(cur_shadow)) == WT_ROLLBACK)
+            goto rollback;
         data.size = __wt_random(&rnd) % MAX_VAL;
         data.data = obuf;
         cur_oplog->set_value(cur_oplog, &data);
-        testutil_check(cur_oplog->insert(cur_oplog));
+        if ((ret = cur_oplog->insert(cur_oplog)) == WT_ROLLBACK)
+            goto rollback;
         if (use_prep) {
             /*
              * Run with prepare every once in a while. And also yield after prepare sometimes too.
@@ -400,6 +406,11 @@ thread_run(void *arg)
          */
         if (fprintf(fp, "%" PRIu64 " %" PRIu64 "\n", active_ts, i) < 0)
             testutil_die(EIO, "fprintf");
+
+        if (0) {
+rollback:
+            testutil_check(session->rollback_transaction(session, NULL));
+        }
     }
     /* NOTREACHED */
 }
@@ -448,6 +459,13 @@ run_workload(uint32_t nth)
         strcat(envconf, ENV_CONFIG_ADD_COMPAT);
     if (stress)
         strcat(envconf, ENV_CONFIG_ADD_STRESS);
+
+    /*
+     * The eviction dirty target and trigger configurations are not compatible with certain other
+     * configurations.
+     */
+    if (!compat && !inmem)
+        strcat(envconf, ENV_CONFIG_ADD_EVICT_DIRTY);
 
     testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
