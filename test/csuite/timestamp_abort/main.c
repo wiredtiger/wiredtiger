@@ -394,7 +394,9 @@ thread_run(void *arg)
         }
         testutil_check(session->commit_transaction(session, NULL));
         /*
-         * Insert into the local table outside the timestamp txn.
+         * Insert into the local table outside the timestamp txn. This must occur after the
+         * timestamp transaction, not before, because of the possibility of rollback in the
+         * transaction. The local table must stay in sync with the other tables.
          */
         data.size = __wt_random(&rnd) % MAX_VAL;
         data.data = lbuf;
