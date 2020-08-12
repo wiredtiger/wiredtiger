@@ -85,8 +85,8 @@ static volatile uint64_t global_ts = 1;
  * See notes on eviction triggers and targets where these symbols are used.
  */
 #define ENV_CONFIG_ADD_COMPAT ",compatibility=(release=\"2.9\")"
-#define ENV_CONFIG_ADD_STRESS ",timing_stress_for_test=[prepare_checkpoint_delay]"
 #define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=95"
+#define ENV_CONFIG_ADD_STRESS ",timing_stress_for_test=[prepare_checkpoint_delay]"
 
 #define ENV_CONFIG_DEF                                        \
     "cache_size=%" PRIu32                                     \
