@@ -346,6 +346,14 @@ __wt_update_obsolete_check(
             }
 
             upd_visible_all_seen = true;
+
+            /*
+             * If we have selected the first globally visible update, and we see a globally visible
+             * update with a start timestamp of WT_TS_NONE, we can discard the rest of the update
+             * chain.
+             */
+            if (first != NULL && upd->start_ts == WT_TS_NONE)
+                break;
         }
     }
 
