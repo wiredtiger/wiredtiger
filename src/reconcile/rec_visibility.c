@@ -444,8 +444,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                     upd_select->upd = upd = same_txn_valid_upd;
                 else if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE)
                     /*
-                     * The selected update from a different transaction is also a tombstone, use
-                     * the update from same transaction as the selected update.
+                     * The selected update from a different transaction is also a tombstone, use the
+                     * update from same transaction as the selected update.
                      */
                     upd_select->upd = upd = same_txn_valid_upd;
                 else if (same_txn_valid_upd != NULL && vpack != NULL &&
