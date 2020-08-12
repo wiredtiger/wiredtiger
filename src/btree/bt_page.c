@@ -637,8 +637,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
              * If the update and tombstone both are from the same transaction, set the update also
              * as prepare in-progress.
              */
-            if (upd->durable_ts == tombstone->durable_ts && upd->start_ts == tombstone->start_ts &&
-              upd->txnid == tombstone->txnid) {
+            if (upd->txnid == tombstone->txnid && upd->durable_ts == tombstone->durable_ts &&
+              upd->start_ts == tombstone->start_ts) {
                 upd->durable_ts = WT_TS_NONE;
                 upd->prepare_state = WT_PREPARE_INPROGRESS;
                 F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
