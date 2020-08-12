@@ -441,7 +441,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                  * to avoid blocking the eviction.
                  */
                 if (vpack == NULL && upd == NULL)
-                    upd = same_txn_valid_upd;
+                    upd_select->upd = upd = same_txn_valid_upd;
             }
         }
         if (upd != NULL)
@@ -449,8 +449,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_TIME_WINDOW_SET_START(select_tw, upd);
         else if (vpack != NULL && WT_TIME_WINDOW_HAS_STOP(&vpack->tw)) {
             /*
-             * The on-disk version has a valid stop timestamp, use the update from same
-             * transaction as the selected update.
+             * The on-disk version has a valid stop timestamp, use the update from same transaction
+             * as the selected update.
              */
             upd_select->upd = same_txn_valid_upd;
             WT_TIME_WINDOW_SET_START(select_tw, same_txn_valid_upd);
