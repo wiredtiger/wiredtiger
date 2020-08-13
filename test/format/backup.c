@@ -444,7 +444,6 @@ static void
 save_backup_info(ACTIVE_FILES *active, uint64_t id)
 {
     FILE *fp;
-    WT_DECL_RET;
     size_t len;
     uint32_t i;
     char *from_path, *to_path;
