@@ -539,7 +539,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     page = ref->page;
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
-    if (!WT_SESSION_BTREE_SYNC(session))
+    /* Only set this flag for application threads. */
+    if (!WT_SESSION_BTREE_SYNC(session) && !F_ISSET(session, WT_SESSION_INTERNAL))
         LF_SET(WT_REC_VISIBLE_ALL);
 
     /*

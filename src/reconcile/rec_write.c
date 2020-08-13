@@ -150,21 +150,13 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_DECL_RET;
     WT_PAGE *page;
     WT_RECONCILE *r;
-    bool release_snapshot;
 
     btree = S2BT(session);
     page = ref->page;
-    release_snapshot = false;
 
     /* Save the eviction state. */
     __reconcile_save_evict_state(session, ref, flags);
 
-    /* Acquire a snapshot if coming through eviction thread route. */
-    if (LF_ISSET(WT_REC_EVICT) && F_ISSET(session, WT_SESSION_INTERNAL) && !WT_IS_HS(btree)){
-        __wt_txn_get_snapshot(session);
-        release_snapshot = true;
-    }
-    
     /* Initialize the reconciliation structure for each new run. */
     WT_RET(__rec_init(session, ref, flags, salvage, &session->reconcile));
     r = session->reconcile;
@@ -194,9 +186,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         break;
     }
 
-    if (release_snapshot){
-        __wt_txn_release_snapshot(session);
-    }
     /*
      * Update the global history store score. Only use observations during eviction, not checkpoints
      * and don't count eviction of the history store table itself.
