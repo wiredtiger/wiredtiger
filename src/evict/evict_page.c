@@ -535,6 +535,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     bool closing, modified, release_snapshot;
 
     *inmem_splitp = false;
+    release_snapshot = false;
 
     conn = S2C(session);
     page = ref->page;
@@ -678,8 +679,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * If we got a snapshot in order to write pages, and there was no snapshot active when we
      * started, release it.
      */
-    if (release_snapshot && session->txn->isolation == WT_ISO_READ_COMMITTED &&
-      saved_pinned_id == WT_TXN_NONE)
+    if (release_snapshot && saved_pinned_id == WT_TXN_NONE)
         __wt_txn_release_snapshot(session);
 
     if (ret != 0)
