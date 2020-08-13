@@ -372,6 +372,8 @@ copy_file(WT_SESSION *session, const char *name)
  */
 #define HOME_BACKUP_INIT_CMD "rm -rf %s/BACKUP %s/BACKUP.copy && mkdir %s/BACKUP %s/BACKUP.copy"
 
+#define RESTORE_SKIP 1
+#define RESTORE_SUCCESS 0
 /*
  * restore_backup_info --
  *     If it exists, restore the backup information. Return 0 on success.
@@ -391,11 +393,13 @@ restore_backup_info(WT_SESSION *session, ACTIVE_FILES *active)
     len = strlen(g.home) + strlen(BACKUP_INFO_FILE) + 2;
     path = dmalloc(len);
     testutil_check(__wt_snprintf(path, len, "%s/%s", g.home, BACKUP_INFO_FILE));
+    errno = 0;
+    ret = RESTORE_SUCCESS;
     if ((fp = fopen(path, "r")) == NULL && errno != ENOENT)
         testutil_die(errno, "restore_backup_info fopen: %s", path);
     free(path);
     if (errno == ENOENT)
-        return (1);
+        return (RESTORE_SKIP);
     ret = fscanf(fp, "%" SCNu64 "\n", &id);
     if (ret != 1)
         testutil_die(EINVAL, "restore_backup_info ID");
@@ -413,27 +417,38 @@ restore_backup_info(WT_SESSION *session, ACTIVE_FILES *active)
     while ((ret = session->open_cursor(session, "backup:", NULL, buf, &cursor)) == EBUSY)
         __wt_yield();
     if (ret != 0) {
-        if (ret == ENOENT)
-            return (1);
+        if (ret == ENOENT) {
+            ret = RESTORE_SKIP;
+            goto out;
+        }
         testutil_die(ret, "session.open_cursor: backup");
     }
     testutil_check(cursor->close(cursor));
 
     active_files_init(active);
     ret = fscanf(fp, "%" SCNu32 "\n", &active->count);
-    if (ret != 1)
-        testutil_die(EINVAL, "restore_backup_info active count");
+    /* We could save just an ID if the file count was 0, so return if we find that case. */
+    if (ret != 1) {
+        ret = RESTORE_SKIP;
+        goto out;
+    }
 
     /* Set global id after error paths. */
     g.backup_id = id + 1;
     active->names = drealloc(active->names, sizeof(char *) * active->count);
     for (i = 0; i < active->count; ++i) {
-        memset(buf, 512, 0);
-        fscanf(fp, "%s\n", buf);
+        memset(buf, 0, sizeof(buf));
+        ret = fscanf(fp, "%511s\n", buf);
+	if (ret != 1) {
+            ret = RESTORE_SKIP;
+            goto out;
+        }
         active->names[i] = strdup(buf);
     }
+    ret = RESTORE_SUCCESS;
+out:
     fclose_and_clear(&fp);
-    return (0);
+    return (ret);
 }
 
 /*
@@ -508,7 +523,7 @@ backup(void *arg)
      * that only if the restore function was successful in restoring the backup information.
      */
     if (g.reopen && g.c_backup_incr_flag == INCREMENTAL_BLOCK &&
-      restore_backup_info(session, &active[0]) == 0) {
+      restore_backup_info(session, &active[0]) == RESTORE_SUCCESS) {
         incr_full = false;
         full = false;
         incremental = 1;
