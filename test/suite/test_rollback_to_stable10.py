@@ -239,30 +239,31 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         # Create a checkpoint thread
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done)
-        ckpt.start()
+        try:
+            ckpt.start()
 
-        # Perform several updates in parallel with checkpoint.
-        session_p1 = self.conn.open_session()
-        cursor_p1 = session_p1.open_cursor(uri_1)
-        session_p1.begin_transaction('isolation=snapshot')
-        for i in range(1, nrows):
-            cursor_p1.set_key(ds_1.key(i))
-            cursor_p1.set_value(value_e)
-            self.assertEquals(cursor_p1.update(), 0)
-        session_p1.prepare_transaction('prepare_timestamp=' + timestamp_str(69))
+            # Perform several updates in parallel with checkpoint.
+            session_p1 = self.conn.open_session()
+            cursor_p1 = session_p1.open_cursor(uri_1)
+            session_p1.begin_transaction('isolation=snapshot')
+            for i in range(1, nrows):
+                cursor_p1.set_key(ds_1.key(i))
+                cursor_p1.set_value(value_e)
+                self.assertEquals(cursor_p1.update(), 0)
+            session_p1.prepare_transaction('prepare_timestamp=' + timestamp_str(69))
 
-        # Perform several updates in parallel with checkpoint.
-        session_p2 = self.conn.open_session()
-        cursor_p2 = session_p2.open_cursor(uri_2)
-        session_p2.begin_transaction('isolation=snapshot')
-        for i in range(1, nrows):
-            cursor_p2.set_key(ds_2.key(i))
-            cursor_p2.set_value(value_e)
-            self.assertEquals(cursor_p2.update(), 0)
-        session_p2.prepare_transaction('prepare_timestamp=' + timestamp_str(69))
-
-        done.set()
-        ckpt.join()
+            # Perform several updates in parallel with checkpoint.
+            session_p2 = self.conn.open_session()
+            cursor_p2 = session_p2.open_cursor(uri_2)
+            session_p2.begin_transaction('isolation=snapshot')
+            for i in range(1, nrows):
+                cursor_p2.set_key(ds_2.key(i))
+                cursor_p2.set_value(value_e)
+                self.assertEquals(cursor_p2.update(), 0)
+            session_p2.prepare_transaction('prepare_timestamp=' + timestamp_str(69))
+        finally:
+            done.set()
+            ckpt.join()
 
         # Simulate a crash by copying to a new directory(RESTART).
         copy_wiredtiger_home(".", "RESTART")
