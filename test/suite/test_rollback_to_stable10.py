@@ -133,16 +133,17 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         # Create a checkpoint thread
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done)
-        ckpt.start()
+        try:
+            ckpt.start()
 
-        # Perform several updates in parallel with checkpoint.
-        self.large_updates(uri_1, value_e, ds_1, nrows, 70)
-        self.large_updates(uri_2, value_e, ds_2, nrows, 70)
-        self.large_updates(uri_1, value_f, ds_1, nrows, 80)
-        self.large_updates(uri_2, value_f, ds_2, nrows, 80)
-
-        done.set()
-        ckpt.join()
+            # Perform several updates in parallel with checkpoint.
+            self.large_updates(uri_1, value_e, ds_1, nrows, 70)
+            self.large_updates(uri_2, value_e, ds_2, nrows, 70)
+            self.large_updates(uri_1, value_f, ds_1, nrows, 80)
+            self.large_updates(uri_2, value_f, ds_2, nrows, 80)
+        finally:
+            done.set()
+            ckpt.join()
 
         # Simulate a server crash and restart.
         self.simulate_crash_restart(".", "RESTART")
