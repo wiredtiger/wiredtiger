@@ -421,7 +421,7 @@ __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
     uint32_t hs_btree_id;
     char time_string[WT_TIME_STRING_SIZE];
 
-    cbt = (WT_CURSOR_BTREE *) hs_cursor;
+    cbt = (WT_CURSOR_BTREE *)hs_cursor;
     session = ds->session;
 
     WT_TIME_WINDOW_INIT(&tw);
