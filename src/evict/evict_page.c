@@ -530,8 +530,9 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
+    uint64_t saved_pinned_id;
     uint32_t flags;
-    bool closing, modified;
+    bool closing, modified, release_snapshot;
 
     *inmem_splitp = false;
 
@@ -662,8 +663,24 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
             LF_SET(WT_REC_SCRUB);
     }
 
+    saved_pinned_id = WT_SESSION_TXN_SHARED(session)->pinned_id;
+
+    /* Acquire a snapshot if coming through eviction thread route. */
+    if (F_ISSET(session, WT_SESSION_INTERNAL)) {
+        __wt_txn_get_snapshot(session);
+        release_snapshot = true;
+    }
+
     /* Reconcile the page. */
     ret = __wt_reconcile(session, ref, NULL, flags);
+
+    /*
+     * If we got a snapshot in order to write pages, and there was no snapshot active when we
+     * started, release it.
+     */
+    if (release_snapshot && session->txn->isolation == WT_ISO_READ_COMMITTED &&
+      saved_pinned_id == WT_TXN_NONE)
+        __wt_txn_release_snapshot(session);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);

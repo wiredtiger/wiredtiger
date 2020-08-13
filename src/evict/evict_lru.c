@@ -1121,21 +1121,9 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
-    uint64_t saved_pinned_id;
-    bool release_snapshot;
 
     WT_TRACK_OP_INIT(session);
     conn = S2C(session);
-    release_snapshot = false;
-    saved_pinned_id = WT_SESSION_TXN_SHARED(session)->pinned_id;
-
-    /* Acquire a snapshot if coming through eviction thread route. */
-    if (F_ISSET(session, WT_SESSION_INTERNAL)) {
-        __wt_txn_get_snapshot(session);
-        release_snapshot = true;
-    }
-
-    WT_ASSERT(session, F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /*
      * Reconcile and discard some pages: EBUSY is returned if a page fails eviction because it's
@@ -1144,14 +1132,6 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
     while (F_ISSET(conn, WT_CONN_EVICTION_RUN) && ret == 0)
         if ((ret = __evict_page(session, is_server)) == EBUSY)
             ret = 0;
-
-    /*
-     * If we got a snapshot in order to write pages, and there was no snapshot active when we
-     * started, release it.
-     */
-    if (release_snapshot && session->txn->isolation == WT_ISO_READ_COMMITTED &&
-      saved_pinned_id == WT_TXN_NONE)
-        __wt_txn_release_snapshot(session);
 
     /* If a worker thread found the queue empty, pause. */
     if (ret == WT_NOTFOUND && !is_server && F_ISSET(conn, WT_CONN_EVICTION_RUN))
