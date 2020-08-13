@@ -377,14 +377,15 @@ copy_file(WT_SESSION *session, const char *name)
  *     If it exists, restore the backup information. Return 0 on success.
  */
 static int
-restore_backup_info(ACTIVE_FILES *active)
+restore_backup_info(WT_SESSION *session, ACTIVE_FILES *active)
 {
     FILE *fp;
+    WT_CURSOR *cursor;
     WT_DECL_RET;
     size_t len;
     uint64_t id;
     uint32_t i;
-    char name[512], *path;
+    char buf[512], *path;
 
     testutil_assert(g.c_backup_incr_flag == INCREMENTAL_BLOCK);
     len = strlen(g.home) + strlen(BACKUP_INFO_FILE) + 2;
@@ -392,25 +393,46 @@ restore_backup_info(ACTIVE_FILES *active)
     testutil_check(__wt_snprintf(path, len, "%s/%s", g.home, BACKUP_INFO_FILE));
     if ((fp = fopen(path, "r")) == NULL && errno != ENOENT)
         testutil_die(errno, "restore_backup_info fopen: %s", path);
-    if (errno == ENOENT) {
-        free(path);
+    free(path);
+    if (errno == ENOENT)
         return (1);
-    }
     ret = fscanf(fp, "%" SCNu64 "\n", &id);
     if (ret != 1)
         testutil_die(EINVAL, "restore_backup_info ID");
+    /*
+     * Try to open the backup cursor. We may get ENOENT if the source ID we wrote to the program
+     * file was not yet checkpointed. Sometimes it will, sometimes it won't. If we don't find it
+     * then return non-zero so that we skip incremental restart testing.
+     *
+     * NOTE: This call to open a backup cursor to check the source id uses a made up 'this_id' that
+     * tries to generate one that cannot possibly be in use. This call can/should be changed if the
+     * API ever allows us to open a cursor with a source id that does not require a this id.
+     */
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+      "incremental=(enabled,src_id=%" PRIu64 ",this_id=%" PRIu64 ")", id, id / 2));
+    while ((ret = session->open_cursor(session, "backup:", NULL, buf, &cursor)) == EBUSY)
+        __wt_yield();
+    if (ret != 0) {
+        if (ret == ENOENT)
+            return (1);
+        testutil_die(ret, "session.open_cursor: backup");
+    }
+    testutil_check(cursor->close(cursor));
+
     active_files_init(active);
     ret = fscanf(fp, "%" SCNu32 "\n", &active->count);
     if (ret != 1)
-        testutil_die(EINVAL, "restore_backup_info ID");
+        testutil_die(EINVAL, "restore_backup_info active count");
+
+    /* Set global id after error paths. */
+    g.backup_id = id + 1;
     active->names = drealloc(active->names, sizeof(char *) * active->count);
     for (i = 0; i < active->count; ++i) {
-        memset(name, 512, 0);
-        fscanf(fp, "%s\n", name);
-        active->names[i] = strdup(name);
+        memset(buf, 512, 0);
+        fscanf(fp, "%s\n", buf);
+        active->names[i] = strdup(buf);
     }
     fclose_and_clear(&fp);
-    free(path);
     return (0);
 }
 
@@ -418,7 +440,7 @@ restore_backup_info(ACTIVE_FILES *active)
  * save_backup_info --
  *     Save backup information to a text file format can use to restore on a reopen.
  */
-static int
+static void
 save_backup_info(ACTIVE_FILES *active, uint64_t id)
 {
     FILE *fp;
@@ -428,7 +450,7 @@ save_backup_info(ACTIVE_FILES *active, uint64_t id)
     char *from_path, *to_path;
 
     if (g.c_backup_incr_flag != INCREMENTAL_BLOCK)
-        return (0);
+        return;
     len = strlen(g.home) + strlen(BACKUP_INFO_FILE_TMP) + 2;
     from_path = dmalloc(len);
     testutil_check(__wt_snprintf(from_path, len, "%s/%s", g.home, BACKUP_INFO_FILE_TMP));
@@ -447,7 +469,6 @@ save_backup_info(ACTIVE_FILES *active, uint64_t id)
     error_sys_check(rename(from_path, to_path));
     free(from_path);
     free(to_path);
-    return (ret);
 }
 
 /*
@@ -472,6 +493,8 @@ backup(void *arg)
     (void)(arg);
 
     conn = g.wts_conn;
+    /* Open a session. */
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     __wt_seconds(NULL, &g.backup_id);
     active_files_init(&active[0]);
@@ -482,19 +505,16 @@ backup(void *arg)
     /*
      * If we're reopening an existing database and doing incremental backup we reset the initialized
      * variables based on whatever they were at the end of the previous run. We want to make sure
-     * that we can take an incremental backup and use the older id as a source identifier. In fact,
-     * we force that situation when reopening with incremental.
+     * that we can take an incremental backup and use the older id as a source identifier. We force
+     * that only if the restore function was successful in restoring the backup information.
      */
     if (g.reopen && g.c_backup_incr_flag == INCREMENTAL_BLOCK &&
-      restore_backup_info(&active[0]) == 0) {
+      restore_backup_info(session, &active[0]) == 0) {
         incr_full = false;
         full = false;
         incremental = 1;
         active_prev = &active[0];
     }
-
-    /* Open a session. */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /*
      * Perform a full backup at somewhere under 10 seconds (that way there's at least one), then at
@@ -530,8 +550,8 @@ backup(void *arg)
                 active_now = &active[g.backup_id % 2];
                 active_prev = NULL;
                 testutil_check(__wt_snprintf(cfg, sizeof(cfg),
-                  "incremental=(enabled,granularity=%" PRIu32 "K,this_id=ID%" PRIu64 ")",
-                  g.c_backup_incr_granularity, g.backup_id++));
+                  "incremental=(enabled,granularity=%" PRIu32 "K,this_id=%" PRIu64 ")",
+                  g.c_backup_incr_granularity, g.backup_id));
                 full = true;
                 incr_full = false;
             } else {
@@ -540,14 +560,14 @@ backup(void *arg)
                 else
                     active_now = &active[0];
                 src_id = g.backup_id - 1;
-                this_id = g.backup_id;
                 testutil_check(__wt_snprintf(cfg, sizeof(cfg),
-                  "incremental=(enabled,src_id=ID%" PRIu64 ",this_id=ID%" PRIu64 ")", src_id,
-                  g.backup_id++));
+                  "incremental=(enabled,src_id=%" PRIu64 ",this_id=%" PRIu64 ")", src_id,
+                  g.backup_id));
                 /* Restart a full incremental every once in a while. */
                 full = false;
                 incr_full = mmrand(NULL, 1, 8) == 1;
             }
+            this_id = g.backup_id++;
             config = cfg;
             /* Free up the old active file list we're going to overwrite. */
             active_files_free(active_now);
@@ -620,8 +640,13 @@ backup(void *arg)
          * intermediate states, once we perform recovery on the backup database, we can't do any
          * more incremental backups).
          */
-        if (full)
-            incremental = g.c_logging_archive ? 1 : mmrand(NULL, 1, 8);
+        if (full) {
+            incremental = 1;
+            if (g.c_backup_incr_flag == INCREMENTAL_LOG)
+                incremental = g.c_logging_archive ? 1 : mmrand(NULL, 1, 8);
+            else if (g.c_backup_incr_flag == INCREMENTAL_BLOCK)
+                incremental = mmrand(NULL, 1, 8);
+        }
         if (--incremental == 0) {
             check_copy();
             /* We ran recovery in the backup directory, so next time it must be a full backup. */
