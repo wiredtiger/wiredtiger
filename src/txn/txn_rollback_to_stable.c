@@ -165,7 +165,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_UPDATE *hs_upd, *tombstone, *upd;
     wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts;
     uint64_t hs_counter, type_full;
-    uint32_t hs_btree_id, session_flags;
+    uint32_t hs_btree_id;
     uint8_t type;
     int cmp;
     char ts_string[4][WT_TS_INT_STRING_SIZE];
@@ -178,7 +178,6 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     hs_upd = tombstone = upd = NULL;
     hs_durable_ts = hs_start_ts = hs_stop_durable_ts = WT_TS_NONE;
     hs_btree_id = S2BT(session)->id;
-    session_flags = 0;
     WT_CLEAR(full_value);
     valid_update_found = false;
 #ifdef HAVE_DIAGNOSTIC
@@ -200,7 +199,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     newer_hs_durable_ts = unpack->tw.durable_start_ts;
 
     /* Open a history store table cursor. */
-    WT_ERR(__wt_hs_cursor_open(session, &session_flags));
+    WT_ERR(__wt_hs_cursor_open(session));
     hs_cursor = session->hs_cursor;
     cbt = (WT_CURSOR_BTREE *)hs_cursor;
 
@@ -395,7 +394,7 @@ err:
     __wt_scr_free(session, &hs_value);
     __wt_scr_free(session, &key);
     __wt_buf_free(session, &full_value);
-    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session));
     return (ret);
 }
 
@@ -421,7 +420,12 @@ __rollback_abort_row_ondisk_kv(
     __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
     prepared = vpack->tw.prepare;
     if (WT_IS_HS(S2BT(session))) {
-        if (vpack->tw.durable_stop_ts > rollback_timestamp) {
+        /*
+         * Abort the history store update with stop durable timestamp greater than the stable
+         * timestamp or the updates with max stop timestamp which implies that they are associated
+         * with prepared transactions.
+         */
+        if (vpack->tw.durable_stop_ts > rollback_timestamp || vpack->tw.stop_ts == WT_TS_MAX) {
             __wt_verbose(session, WT_VERB_RTS,
               "hs update aborted with start durable/commit timestamp: %s, %s, "
               "stop durable/commit timestamp: %s, %s and stable timestamp: %s",
@@ -696,6 +700,24 @@ __rollback_abort_newer_row_leaf(
 }
 
 /*
+ * __rollback_get_ref_max_durable_timestamp --
+ *     Returns the ref aggregated max durable timestamp. The max durable timestamp is calculated
+ *     between both start and stop durable timestamps except for history store, because most of the
+ *     history store updates have stop timestamp either greater or equal to the start timestamp
+ *     except for the updates written for the prepared updates on the data store. To abort the
+ *     updates with no stop timestamp, we must include the newest stop timestamp also into the
+ *     calculation of maximum durable timestamp of the history store.
+ */
+static wt_timestamp_t
+__rollback_get_ref_max_durable_timestamp(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
+{
+    if (WT_IS_HS(S2BT(session)))
+        return WT_MAX(ta->newest_stop_durable_ts, ta->newest_stop_ts);
+    else
+        return WT_MAX(ta->newest_start_durable_ts, ta->newest_stop_durable_ts);
+}
+
+/*
  * __rollback_page_needs_abort --
  *     Check whether the page needs rollback. Return true if the page has modifications newer than
  *     the given timestamp Otherwise return false.
@@ -730,16 +752,15 @@ __rollback_page_needs_abort(
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
         tag = "reconciled replace block";
-        durable_ts = WT_MAX(
-          mod->mod_replace.ta.newest_start_durable_ts, mod->mod_replace.ta.newest_stop_durable_ts);
+        durable_ts = __rollback_get_ref_max_durable_timestamp(session, &mod->mod_replace.ta);
         prepared = mod->mod_replace.ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared;
     } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         tag = "reconciled multi block";
         /* Calculate the max durable timestamp by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
-            durable_ts = WT_MAX(durable_ts, multi->addr.ta.newest_start_durable_ts);
-            durable_ts = WT_MAX(durable_ts, multi->addr.ta.newest_stop_durable_ts);
+            durable_ts = WT_MAX(
+              durable_ts, __rollback_get_ref_max_durable_timestamp(session, &multi->addr.ta));
             if (multi->addr.ta.prepare)
                 prepared = true;
         }
@@ -748,12 +769,12 @@ __rollback_page_needs_abort(
         tag = "on page cell";
         /* Check if the page is obsolete using the page disk address. */
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &vpack);
-        durable_ts = WT_MAX(vpack.ta.newest_start_durable_ts, vpack.ta.newest_stop_durable_ts);
+        durable_ts = __rollback_get_ref_max_durable_timestamp(session, &vpack.ta);
         prepared = vpack.ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared;
     } else if (addr != NULL) {
         tag = "address";
-        durable_ts = WT_MAX(addr->ta.newest_start_durable_ts, addr->ta.newest_stop_durable_ts);
+        durable_ts = __rollback_get_ref_max_durable_timestamp(session, &addr->ta);
         prepared = addr->ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared;
     }
@@ -987,19 +1008,18 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
     WT_UPDATE *hs_upd;
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
-    uint32_t hs_btree_id, session_flags;
+    uint32_t hs_btree_id;
     int exact;
     char ts_string[WT_TS_INT_STRING_SIZE];
 
     hs_cursor = NULL;
     WT_CLEAR(key);
     hs_upd = NULL;
-    session_flags = 0;
 
     WT_RET(__wt_scr_alloc(session, 0, &hs_key));
 
     /* Open a history store table cursor. */
-    WT_ERR(__wt_hs_cursor_open(session, &session_flags));
+    WT_ERR(__wt_hs_cursor_open(session));
     hs_cursor = session->hs_cursor;
     cbt = (WT_CURSOR_BTREE *)hs_cursor;
 
@@ -1048,7 +1068,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 err:
     __wt_scr_free(session, &hs_key);
     __wt_free(session, hs_upd);
-    WT_TRET(__wt_hs_cursor_close(session, session_flags));
+    WT_TRET(__wt_hs_cursor_close(session));
 
     return (ret);
 }
@@ -1064,7 +1084,7 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, durableval, key;
     WT_DECL_RET;
-    wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts;
+    wt_timestamp_t max_durable_ts, newest_stop_durable_ts, newest_stop_ts;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -1072,22 +1092,27 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
 
     WT_RET(__wt_metadata_search(session, WT_HS_URI, &config));
 
-    /* Find out the max durable timestamp of the object from checkpoint. */
-    newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
+    /*
+     * Find out the max durable timestamp of the history store from checkpoint. Most of the history
+     * store updates have stop timestamp either greater or equal to the start timestamp except for
+     * the updates written for the prepared updates on the data store. To abort the updates with no
+     * stop timestamp, we must include the newest stop timestamp also into the calculation of
+     * maximum timestamp of the history store.
+     */
+    newest_stop_durable_ts = newest_stop_ts = WT_TS_NONE;
     WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
     for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
-        ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &durableval);
-        if (ret == 0)
-            newest_start_durable_ts =
-              WT_MAX(newest_start_durable_ts, (wt_timestamp_t)durableval.val);
-        WT_ERR_NOTFOUND_OK(ret, false);
         ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &durableval);
         if (ret == 0)
             newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)durableval.val);
         WT_ERR_NOTFOUND_OK(ret, false);
+        ret = __wt_config_subgets(session, &cval, "newest_stop_ts", &durableval);
+        if (ret == 0)
+            newest_stop_ts = WT_MAX(newest_stop_ts, (wt_timestamp_t)durableval.val);
+        WT_ERR_NOTFOUND_OK(ret, false);
     }
-    max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
+    max_durable_ts = WT_MAX(newest_stop_ts, newest_stop_durable_ts);
     WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
 
     /*

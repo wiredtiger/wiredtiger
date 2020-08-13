@@ -272,7 +272,6 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    uint32_t session_flags;
     bool did_work, was_intr;
 
     conn = S2C(session);
@@ -283,10 +282,9 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * busy and then opens a different file (in this case, the HS file), it can deadlock with a
      * thread waiting for the first file to drain from the eviction queue. See WT-5946 for details.
      */
-    if (session->hs_cursor == NULL && !F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
-        session_flags = 0; /* [-Werror=maybe-uninitialized] */
-        WT_RET(__wt_hs_cursor_open(session, &session_flags));
-        WT_RET(__wt_hs_cursor_close(session, session_flags));
+    if (session->hs_cursor == NULL && !F_ISSET(conn, WT_CONN_IN_MEMORY)) {
+        WT_RET(__wt_hs_cursor_open(session));
+        WT_RET(__wt_hs_cursor_close(session));
     }
 
     if (conn->evict_server_running && __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
@@ -2321,6 +2319,16 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
             }
             WT_ERR(ret);
         }
+
+        /*
+         * Check if we've exceeded our operation timeout, this would also get called from the
+         * previous txn is blocking call, however it won't pickup transactions that have been
+         * committed or rolled back as their mod count is 0, and that txn needs to be the oldest.
+         *
+         * Additionally we don't return rollback which could confuse the caller.
+         */
+        if (__wt_op_timer_fired(session))
+            break;
 
         /*
          * Check if we have become busy.
