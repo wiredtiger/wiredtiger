@@ -421,9 +421,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 while (upd->next != NULL) {
                     if (upd->next->txnid == WT_TXN_ABORTED)
                         upd = upd->next;
-                    else if (tombstone->txnid == upd->next->txnid &&
-                      tombstone->start_ts == upd->next->start_ts &&
-                      tombstone->durable_ts == upd->next->durable_ts) {
+                    else if (tombstone->txnid == upd->next->txnid) {
+                        WT_ASSERT(session, (tombstone->start_ts == upd->next->start_ts &&
+                                             tombstone->durable_ts == upd->next->durable_ts));
                         upd = upd->next;
                         same_txn_valid_upd = upd;
                     } else

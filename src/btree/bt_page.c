@@ -638,6 +638,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
              * as prepare in-progress.
              */
             if (upd->txnid == tombstone->txnid) {
+                WT_ASSERT(session, (unpack.tw.start_ts == unpack.tw.stop_ts &&
+                                     unpack.tw.durable_start_ts == unpack.tw.durable_stop_ts));
                 upd->durable_ts = WT_TS_NONE;
                 upd->prepare_state = WT_PREPARE_INPROGRESS;
                 F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
