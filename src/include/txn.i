@@ -1037,6 +1037,7 @@ retry:
 static inline int
 __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_DECL_RET;
     WT_TXN *txn;
 
     txn = session->txn;
@@ -1048,26 +1049,35 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     if (cfg != NULL)
         WT_RET(__wt_txn_config(session, cfg));
 
+    /*
+     * Mark the transaction as running to avoid the timestamp being cleared in eviction under cache
+     * pressure.
+     */
+    F_SET(txn, WT_TXN_RUNNING);
+
     /* Allocate a snapshot if required. */
     if (txn->isolation == WT_ISO_SNAPSHOT) {
         if (session->ncursors > 0)
-            WT_RET(__wt_session_copy_values(session));
+            WT_ERR(__wt_session_copy_values(session));
 
         /*
          * Stall here if the cache is completely full. We have allocated a transaction ID which
          * makes it possible for eviction to decide we're contributing to the problem and return
          * WT_ROLLBACK. The WT_SESSION.begin_transaction API can't return rollback, continue on.
          */
-        WT_RET_ERROR_OK(__wt_cache_eviction_check(session, false, true, NULL), WT_ROLLBACK);
+        WT_ERR_ERROR_OK(__wt_cache_eviction_check(session, false, true, NULL), WT_ROLLBACK, false);
 
         __wt_txn_get_snapshot(session);
     }
 
-    F_SET(txn, WT_TXN_RUNNING);
     if (F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(txn, WT_TXN_READONLY);
 
-    return (0);
+    if (0) {
+err:
+        F_CLR(txn, WT_TXN_RUNNING);
+    }
+    return (ret);
 }
 
 /*
