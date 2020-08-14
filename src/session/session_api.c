@@ -272,8 +272,14 @@ __session_close(WT_SESSION *wt_session, const char *config)
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
 
     /* Rollback any active transaction. */
-    if (F_ISSET(session->txn, WT_TXN_RUNNING))
+    if (F_ISSET(session->txn, WT_TXN_RUNNING)){
+
+        /* Fix any eviction thread transaction. */
+        if (F_ISSET(session, WT_SESSION_INTERNAL) && !WT_SESSION_IS_CHECKPOINT(session))
+            WT_SESSION_TXN_SHARED(session)->pinned_id = WT_TXN_NONE;
+
         WT_TRET(__session_rollback_transaction(wt_session, NULL));
+    }
 
     /*
      * Also release any pinned transaction ID from a non-transactional operation.

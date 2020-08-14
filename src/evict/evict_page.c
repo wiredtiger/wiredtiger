@@ -664,7 +664,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     /* Acquire a snapshot if coming through eviction thread route. */
     if (F_ISSET(session, WT_SESSION_INTERNAL) && !F_ISSET(session->txn, WT_TXN_RUNNING) &&
-      !F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_RECOVERING | WT_CONN_IN_MEMORY) &&
+      !F_ISSET(conn,
+          WT_CONN_CLOSING | WT_CONN_RECOVERING | WT_CONN_IN_MEMORY | WT_CONN_CLOSING_TIMESTAMP) &&
       !WT_IS_HS(S2BT(session))) {
         /*
          * We don't have a running txn with eviction threads. Starting a new txn should implicitly
@@ -686,6 +687,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     /* Release the snapshot if we acquired one. */
     if (release_snapshot) {
+        WT_SESSION_TXN_SHARED(session)->pinned_id = WT_TXN_NONE;
         WT_TRET(__wt_txn_commit(session, NULL));
     }
 
