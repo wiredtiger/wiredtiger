@@ -530,9 +530,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    uint64_t saved_pinned_id;
     uint32_t flags;
     bool closing, modified, release_snapshot;
+    const char *txn_cfg[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
 
     *inmem_splitp = false;
     release_snapshot = false;
@@ -541,9 +542,6 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     page = ref->page;
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
-    /* Only set this flag for application threads. */
-    if (!WT_SESSION_BTREE_SYNC(session) && !F_ISSET(session, WT_SESSION_INTERNAL))
-        LF_SET(WT_REC_VISIBLE_ALL);
 
     /*
      * Fail if an internal has active children, the children must be evicted first. The test is
@@ -664,23 +662,31 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
             LF_SET(WT_REC_SCRUB);
     }
 
-    saved_pinned_id = WT_SESSION_TXN_SHARED(session)->pinned_id;
-
     /* Acquire a snapshot if coming through eviction thread route. */
-    if (F_ISSET(session, WT_SESSION_INTERNAL)) {
-        __wt_txn_get_snapshot(session);
+    if (F_ISSET(session, WT_SESSION_INTERNAL) && !F_ISSET(session->txn, WT_TXN_RUNNING) &&
+      !F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_RECOVERING)) {
+        /*
+         * We don't have a running txn with eviction threads. Starting a new txn should implicitly
+         * take a txn snapshot as well.
+         */
+        WT_RET(__wt_txn_begin(session, txn_cfg));
         release_snapshot = true;
+    } else {
+        /*
+         * Only set this flag for application threads or whenever we are unable to acquire a
+         * snapshot.
+         */
+        LF_SET(WT_REC_VISIBLE_ALL);
     }
+    // WT_ASSERT(session, !release_snapshot || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* Reconcile the page. */
     ret = __wt_reconcile(session, ref, NULL, flags);
 
-    /*
-     * If we got a snapshot in order to write pages, and there was no snapshot active when we
-     * started, release it.
-     */
-    if (release_snapshot && saved_pinned_id == WT_TXN_NONE)
-        __wt_txn_release_snapshot(session);
+    /* Release the snapshot if we acquired one. */
+    if (release_snapshot) {
+        WT_TRET(__wt_txn_commit(session, NULL));
+    }
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
