@@ -678,7 +678,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
          */
         LF_SET(WT_REC_VISIBLE_ALL);
     }
-    // WT_ASSERT(session, !release_snapshot || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
+    WT_ASSERT(session, !release_snapshot || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* Reconcile the page. */
     ret = __wt_reconcile(session, ref, NULL, flags);
