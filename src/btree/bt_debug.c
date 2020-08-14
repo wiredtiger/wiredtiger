@@ -435,7 +435,7 @@ __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
         WT_RET(ds->f(ds,
           "\t"
           "hs-modify: %s\n",
-          __wt_time_window_to_string(&cbt->modify_update->tw, time_string)));
+          __wt_time_window_to_string(&cbt->upd_value->tw, time_string)));
         WT_RET(ds->f(ds, "\tV "));
         WT_RET(__debug_modify(ds, ds->hs_value->data));
         WT_RET(ds->f(ds, "\n"));
