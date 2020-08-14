@@ -1050,8 +1050,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET(__wt_txn_config(session, cfg));
 
     /*
-     * Mark the transaction as running to avoid the timestamp being cleared in eviction under cache
-     * pressure.
+     * Mark the transaction as running before obtaining the snapshot to avoid the read timestamp
+     * being cleared in eviction under cache pressure.
      */
     F_SET(txn, WT_TXN_RUNNING);
 
