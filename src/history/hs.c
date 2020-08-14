@@ -635,7 +635,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
     WT_UPDATE *first_globally_visible_upd, *first_non_ts_upd;
-    WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *upd;
+    WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
     WT_HS_TIME_POINT stop_time_point;
     wt_off_t hs_size;
     wt_timestamp_t min_insert_ts;
@@ -644,7 +644,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     uint8_t *p;
     int nentries;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
-    bool clear_hs, enable_reverse_modify, squashed, ts_updates_in_hs;
+    bool clear_hs, enable_reverse_modify, hs_inserted, squashed, ts_updates_in_hs;
 
     btree = S2BT(session);
     cursor = session->hs_cursor;
@@ -859,7 +859,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
         WT_ERR(__hs_next_upd_full_value(session, &modifies, NULL, full_value, &upd));
 
-        squashed = false;
+        hs_inserted = squashed = false;
 
         /*
          * Flush the updates on stack. Stopping once we run out or we reach the onpage upd start
@@ -872,6 +872,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
+            tombstone = NULL;
             __wt_modify_vector_peek(&modifies, &prev_upd);
 
             /*
@@ -894,6 +895,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 stop_time_point.durable_ts = prev_upd->durable_ts;
                 stop_time_point.ts = prev_upd->start_ts;
                 stop_time_point.txnid = prev_upd->txnid;
+
+                if (prev_upd->type == WT_UPDATE_TOMBSTONE)
+                    tombstone = prev_upd;
             }
 
             WT_ERR(
@@ -906,8 +910,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             }
 
             /* Skip updates that are already in the history store or are obsolete. */
-            if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_OBSOLETE))
+            if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_OBSOLETE)) {
+                if (hs_inserted)
+                    WT_ERR_PANIC(session, WT_PANIC,
+                      "Inserting updates older than obsolete updates or updates that are already "
+                      "in the history store to the history store may corrupt the data.");
                 continue;
+            }
 
             /*
              * If the time points are out of order (which can happen if the application performs
@@ -960,6 +969,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             clear_hs = false;
             /* Flag the update as now in the history store. */
             F_SET(upd, WT_UPDATE_HS);
+            if (tombstone != NULL)
+                F_SET(tombstone, WT_UPDATE_HS);
+            hs_inserted = true;
             ++insert_cnt;
             if (squashed) {
                 WT_STAT_CONN_INCR(session, cache_hs_write_squash);
