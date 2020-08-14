@@ -137,9 +137,7 @@ __checkpoint_apply_all(
         }
 
         if (v.len != 0)
-            WT_ERR_MSG(session, EINVAL,
-              "invalid checkpoint target %.*s: URIs may require "
-              "quoting",
+            WT_ERR_MSG(session, EINVAL, "invalid checkpoint target %.*s: URIs may require quoting",
               (int)cval.len, (char *)cval.str);
 
         /* Some objects don't support named checkpoints. */
@@ -575,7 +573,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     /*
      * Sanity check that the oldest ID hasn't moved on before we have cleared our entry.
      */
-    WT_ASSERT(session, WT_TXNID_LE(txn_global->oldest_id, txn_state->id) &&
+    WT_ASSERT(session,
+      WT_TXNID_LE(txn_global->oldest_id, txn_state->id) &&
         WT_TXNID_LE(txn_global->oldest_id, txn_state->pinned_id));
 
     /*
@@ -591,8 +590,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * We rely on having the global transaction data locked so the oldest timestamp can't move past
      * the stable timestamp.
      */
-    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ |
-                           WT_TXN_TS_PUBLISHED | WT_TXN_PUBLIC_TS_READ));
+    WT_ASSERT(session,
+      !F_ISSET(txn,
+        WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ | WT_TXN_TS_PUBLISHED | WT_TXN_PUBLIC_TS_READ));
 
     if (use_timestamp) {
         /*
@@ -1226,9 +1226,8 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
                 continue;
             }
             WT_RET_MSG(session, EBUSY,
-              "checkpoint %s blocked by hot backup: it would "
-              "delete an existing named checkpoint, and such "
-              "checkpoints cannot be deleted during a hot backup",
+              "checkpoint %s blocked by hot backup: it would delete an existing named checkpoint, "
+              "and such checkpoints cannot be deleted during a hot backup",
               ckpt->name);
         }
         /*
@@ -1259,8 +1258,9 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             if (!F_ISSET(ckpt, WT_CKPT_DELETE))
                 continue;
-            WT_ASSERT(session, !WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT) ||
-                conn->hot_backup_start == 0 || ckpt->sec > conn->hot_backup_start);
+            WT_ASSERT(session,
+              !WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT) || conn->hot_backup_start == 0 ||
+                ckpt->sec > conn->hot_backup_start);
             /*
              * We can't delete checkpoints referenced by a cursor. WiredTiger checkpoints are
              * uniquely named and it's OK to have multiple in the system: clear the delete flag for
@@ -1397,9 +1397,7 @@ __checkpoint_lock_dirty_tree(
                 else if (WT_STRING_MATCH("to", k.str, k.len))
                     __drop_to(ckptbase, v.str, v.len);
                 else
-                    WT_ERR_MSG(session, EINVAL,
-                      "unexpected value for checkpoint "
-                      "key: %.*s",
+                    WT_ERR_MSG(session, EINVAL, "unexpected value for checkpoint key: %.*s",
                       (int)k.len, k.str);
             }
             WT_ERR_NOTFOUND_OK(ret);
@@ -1488,8 +1486,8 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
         name = (ckpt - 1)->name;
         if (ckpt > ckptbase + 1 && deleted < 2 &&
           (strcmp(name, (ckpt - 2)->name) == 0 ||
-              (WT_PREFIX_MATCH(name, WT_CHECKPOINT) &&
-                WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)))) {
+            (WT_PREFIX_MATCH(name, WT_CHECKPOINT) &&
+              WT_PREFIX_MATCH((ckpt - 2)->name, WT_CHECKPOINT)))) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             /*
              * If there are potentially extra checkpoints to delete, we set the timer to recheck

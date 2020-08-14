@@ -381,7 +381,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
         dhandle = dhandle_cache->dhandle;
         if (dhandle != session->dhandle && dhandle->session_inuse == 0 &&
           (WT_DHANDLE_INACTIVE(dhandle) ||
-              (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time))) {
+            (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time))) {
             WT_STAT_CONN_INCR(session, dh_session_handles);
             WT_ASSERT(session, !WT_IS_METADATA(dhandle));
             __session_discard_dhandle(session, dhandle_cache);
@@ -519,7 +519,8 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
     WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_DEAD));
     WT_ASSERT(session, LF_ISSET(WT_DHANDLE_LOCK_ONLY) || F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
-    WT_ASSERT(session, LF_ISSET(WT_DHANDLE_EXCLUSIVE) == F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) ||
+    WT_ASSERT(session,
+      LF_ISSET(WT_DHANDLE_EXCLUSIVE) == F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) ||
         dhandle->excl_ref > 1);
 
     return (0);
