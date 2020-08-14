@@ -143,9 +143,8 @@ __wt_cursor_modify_value_format_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, in
 
     if (cursor->value_format != NULL && strlen(cursor->value_format) != 0) {
         session = (WT_SESSION_IMPL *)cursor->session;
-        WT_RET_MSG(session, ENOTSUP,
-          "WT_CURSOR.modify only supported for 'S' and 'u' value "
-          "formats");
+        WT_RET_MSG(
+          session, ENOTSUP, "WT_CURSOR.modify only supported for 'S' and 'u' value formats");
     }
     return (__wt_cursor_notsup(cursor));
 }
@@ -730,10 +729,11 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *rel
     *released = true;
 
     if (0) {
-    /*
-     * If caching fails, we must restore the state of the cursor back to open so that the close
-     * works from a known state. The reopen may also fail, but that doesn't matter at this point.
-     */
+        /*
+         * If caching fails, we must restore the state of the cursor back to open so that the close
+         * works from a known state. The reopen may also fail, but that doesn't matter at this
+         * point.
+         */
 err:
         WT_TRET(cursor->reopen(cursor, false));
         WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED));
@@ -944,9 +944,8 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
      * for consistency.
      */
     if (session->txn.isolation != WT_ISO_SNAPSHOT)
-        WT_ERR_MSG(session, ENOTSUP,
-          "not supported in read-committed or read-uncommitted "
-          "transactions");
+        WT_ERR_MSG(
+          session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions");
     if (F_ISSET(&session->txn, WT_TXN_AUTOCOMMIT))
         WT_ERR_MSG(session, ENOTSUP, "not supported in implicit transactions");
 
@@ -1103,7 +1102,8 @@ __wt_cursor_init(
      */
     WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
     if (cval.len != 0 && owner == NULL) {
-        F_SET(cursor, WT_STRING_MATCH("json", cval.str, cval.len) ?
+        F_SET(cursor,
+          WT_STRING_MATCH("json", cval.str, cval.len) ?
             WT_CURSTD_DUMP_JSON :
             (WT_STRING_MATCH("print", cval.str, cval.len) ? WT_CURSTD_DUMP_PRINT :
                                                             WT_CURSTD_DUMP_HEX));
