@@ -475,7 +475,14 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
      * don't block the thread for eviction.
      */
     if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_LOCKED_HANDLE_LIST |
-            WT_SESSION_LOCKED_SCHEMA | WT_SESSION_LOCKED_TABLE | WT_SESSION_INTERNAL))
+            WT_SESSION_LOCKED_SCHEMA | WT_SESSION_LOCKED_TABLE))
+        return (0);
+
+    /*
+     * We can re-enter eviction code when we are trying to acquire snapshot for eviction thread
+     * workers.
+     */
+    if (F_ISSET(S2C(session), WT_SESSION_INTERNAL))
         return (0);
 
     /* In memory configurations don't block when the cache is full. */
