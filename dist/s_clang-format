@@ -6,7 +6,6 @@ t=__wt.$$
 trap 'rm -rf $t' 0 1 2 3 13 15
 
 download_clang_format() {
-	echo "Downloading the clang-format tarball ..."
 	if [ `uname` = "Linux" ]; then
 		curl https://s3.amazonaws.com/boxes.10gen.com/build/clang-format-3.8-rhel55.tar.gz -o dist/clang-format.tar.gz
 		tar --strip=2 -C dist/ -xf dist/clang-format.tar.gz build/bin/clang-format && rm dist/clang-format.tar.gz
