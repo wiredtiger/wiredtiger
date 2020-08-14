@@ -439,7 +439,7 @@ restore_backup_info(WT_SESSION *session, ACTIVE_FILES *active)
     for (i = 0; i < active->count; ++i) {
         memset(buf, 0, sizeof(buf));
         ret = fscanf(fp, "%511s\n", buf);
-	if (ret != 1) {
+        if (ret != 1) {
             ret = RESTORE_SKIP;
             goto out;
         }
