@@ -24,6 +24,9 @@ cd `git rev-parse --show-toplevel` || exit 1
 # Override existing Clang Format versions in the PATH.
 export PATH="${PWD}/dist":$PATH
 
+# Download the clang-format binary if it's not in place.
+[ ! -x "$(command -v clang-format)" ] && download_clang_format
+
 # Ensure that we have the correct version of clang-format.
 clang_format_version="3.8.0"
 clang-format --version | grep "version $clang_format_version" >/dev/null 2>&1
