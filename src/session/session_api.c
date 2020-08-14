@@ -2122,7 +2122,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     }
 
     /* Cache the offset of this session's statistics bucket. */
-    session_ret->stat_bucket = WT_STATS_SLOT_ID(session);
+    session_ret->stat_bucket = WT_STATS_SLOT_ID(session_ret);
 
     /* Allocate the buffer for operation tracking */
     if (F_ISSET(conn, WT_CONN_OPTRACK)) {
