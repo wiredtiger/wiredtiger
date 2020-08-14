@@ -635,7 +635,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
     WT_UPDATE *first_globally_visible_upd, *first_non_ts_upd;
-    WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *upd;
+    WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
     WT_HS_TIME_POINT stop_time_point;
     wt_off_t hs_size;
     wt_timestamp_t min_insert_ts;
@@ -872,6 +872,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
+            tombstone = NULL;
             __wt_modify_vector_peek(&modifies, &prev_upd);
 
             /*
@@ -894,6 +895,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 stop_time_point.durable_ts = prev_upd->durable_ts;
                 stop_time_point.ts = prev_upd->start_ts;
                 stop_time_point.txnid = prev_upd->txnid;
+
+                if (prev_upd->type == WT_UPDATE_TOMBSTONE)
+                    tombstone = prev_upd;
             }
 
             WT_ERR(
@@ -965,6 +969,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             clear_hs = false;
             /* Flag the update as now in the history store. */
             F_SET(upd, WT_UPDATE_HS);
+            if (tombstone != NULL)
+                F_SET(tombstone, WT_UPDATE_HS);
             hs_inserted = true;
             ++insert_cnt;
             if (squashed) {
