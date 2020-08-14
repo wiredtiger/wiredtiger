@@ -2124,6 +2124,9 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
     /* Cache the offset of this session's statistics bucket. */
     session_ret->stat_bucket = WT_STATS_SLOT_ID(session_ret);
 
+    /* Safety check to make sure we're doing the right thing. */
+    WT_ASSERT(session, session_ret->stat_bucket == session_ret->id % WT_COUNTER_SLOTS);
+
     /* Allocate the buffer for operation tracking */
     if (F_ISSET(conn, WT_CONN_OPTRACK)) {
         WT_ERR(__wt_malloc(session, WT_OPTRACK_BUFSIZE, &session_ret->optrack_buf));
