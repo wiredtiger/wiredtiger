@@ -479,10 +479,10 @@ __wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bo
         return (0);
 
     /*
-     * We can re-enter eviction code when we are trying to acquire snapshot for eviction thread
-     * workers.
+     * We can re-enter eviction code when we are trying to start a new transaction for eviction
+     * thread workers.
      */
-    if (F_ISSET(session, WT_SESSION_INTERNAL))
+    if (F_ISSET(session, WT_SESSION_INTERNAL) && !WT_SESSION_IS_CHECKPOINT(session))
         return (0);
 
     /* In memory configurations don't block when the cache is full. */
