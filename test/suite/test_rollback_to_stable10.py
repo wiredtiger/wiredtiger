@@ -181,7 +181,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         self.assertGreater(hs_sweep, 0)
 
     def test_rollback_to_stable_prepare(self):
-        nrows = 1000
+        nrows = 2000
 
         # Create a table without logging.
         uri_1 = "table:rollback_to_stable10_1"
