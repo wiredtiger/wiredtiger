@@ -79,9 +79,8 @@ main(int argc, char *argv[])
     (void)wiredtiger_version(&major_v, &minor_v, NULL);
     if (major_v != WIREDTIGER_VERSION_MAJOR || minor_v != WIREDTIGER_VERSION_MINOR) {
         fprintf(stderr,
-          "%s: program build version %d.%d does not match "
-          "library build version %d.%d\n",
-          progname, WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR, major_v, minor_v);
+          "%s: program build version %d.%d does not match library build version %d.%d\n", progname,
+          WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR, major_v, minor_v);
         return (EXIT_FAILURE);
     }
 

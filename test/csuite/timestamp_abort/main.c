@@ -82,23 +82,33 @@ static bool compat, inmem, stress, use_ts;
 static volatile uint64_t global_ts = 1;
 
 /*
- * See notes on eviction triggers and targets where these symbols are used.
+ * The configuration sets the eviction update and dirty targets at 20% so that on average, each
+ * thread can have a couple of dirty pages before eviction threads kick in. See below where these
+ * symbols are used for cache sizing - we'll have about 10 pages allocated per thread. On the other
+ * side, the eviction update and dirty triggers are 90%, so application threads aren't involved in
+ * eviction until we're close to running out of cache.
  */
 #define ENV_CONFIG_ADD_COMPAT ",compatibility=(release=\"2.9\")"
-#define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=95"
+#define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=90"
 #define ENV_CONFIG_ADD_STRESS ",timing_stress_for_test=[prepare_checkpoint_delay]"
 
 #define ENV_CONFIG_DEF                                        \
     "cache_size=%" PRIu32                                     \
     "M,create,"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
-    "eviction_updates_target=20,eviction_updates_trigger=95," \
+    "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(archive=true,file_max=10M,enabled),session_max=%d," \
     "statistics=(fast),statistics_log=(wait=1,json=true)"
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \
     ",transaction_sync=(enabled,method=none)"
 #define ENV_CONFIG_REC "log=(archive=false,recover=on)"
+
+/*
+ * A minimum width of 10, along with zero filling, means that all the keys sort according to their
+ * integer value, making each thread's key space distinct.
+ */
+#define KEY_FORMAT ("%010" PRIu64)
 
 typedef struct {
     uint64_t absent_key; /* Last absent key */
@@ -316,7 +326,7 @@ thread_run(void *arg)
     printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->info, td->start);
     active_ts = 0;
     for (i = td->start;; ++i) {
-        testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, i));
+        testutil_check(__wt_snprintf(kname, sizeof(kname), KEY_FORMAT, i));
 
         testutil_check(session->begin_transaction(session, NULL));
         if (use_prep)
@@ -438,18 +448,13 @@ run_workload(uint32_t nth)
     td = dcalloc(nth + 2, sizeof(THREAD_DATA));
 
     /*
-     * Size the cache appropriately for the number of threads. Each thread generally adds keys
-     * sequentially to its own portion of the key space, so each thread will be dirtying one page at
-     * a time. By default, a leaf page grows to 32K in size before it splits and the thread begins
-     * to fill another page. We'll budget for 5 full size leaf pages per thread in the cache plus a
-     * little extra in the total for overhead.
-     *
-     * The configuration sets the eviction update and dirty targets at 20% so that on average, each
-     * thread can have a dirty page before eviction threads kick in. On the other side, the eviction
-     * update and dirty triggers are 95%, so application threads aren't involved in eviction until
-     * we're close to running out of cache.
+     * Size the cache appropriately for the number of threads. Each thread adds keys sequentially to
+     * its own portion of the key space, so each thread will be dirtying one page at a time. By
+     * default, a leaf page grows to 32K in size before it splits and the thread begins to fill
+     * another page. We'll budget for 10 full size leaf pages per thread in the cache plus a little
+     * extra in the total for overhead.
      */
-    cache_mb = ((32 * WT_KILOBYTE * nth) * 5) / WT_MEGABYTE + 5;
+    cache_mb = ((32 * WT_KILOBYTE * 10) * nth) / WT_MEGABYTE + 20;
 
     if (chdir(home) != 0)
         testutil_die(errno, "Child chdir: %s", home);
@@ -471,6 +476,7 @@ run_workload(uint32_t nth)
     if (!compat && !inmem)
         strcat(envconf, ENV_CONFIG_ADD_EVICT_DIRTY);
 
+    printf("wiredtiger_open configuration: %s\n", envconf);
     testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /*
@@ -550,9 +556,7 @@ print_missing(REPORT *r, const char *fname, const char *msg)
 {
     if (r->exist_key != INVALID_KEY)
         printf("%s: %s error %" PRIu64 " absent records %" PRIu64 "-%" PRIu64 ". Then keys %" PRIu64
-               "-%" PRIu64
-               " exist."
-               " Key range %" PRIu64 "-%" PRIu64 "\n",
+               "-%" PRIu64 " exist. Key range %" PRIu64 "-%" PRIu64 "\n",
           fname, msg, (r->exist_key - r->first_miss) - 1, r->first_miss, r->exist_key - 1,
           r->exist_key, r->last_key, r->first_key, r->last_key);
 }
@@ -625,10 +629,8 @@ main(int argc, char *argv[])
             rand_th = false;
             nth = (uint32_t)atoi(__wt_optarg);
             if (nth > MAX_TH) {
-                fprintf(stderr,
-                  "Number of threads is larger than the"
-                  " maximum %" PRId32 "\n",
-                  MAX_TH);
+                fprintf(
+                  stderr, "Number of threads is larger than the maximum %" PRId32 "\n", MAX_TH);
                 return (EXIT_FAILURE);
             }
             break;
@@ -676,8 +678,8 @@ main(int argc, char *argv[])
         }
 
         printf(
-          "Parent: compatibility: %s, in-mem log sync: %s, add timing stress: %s, "
-          "timestamp in use: %s\n",
+          "Parent: compatibility: %s, in-mem log sync: %s, add timing stress: %s, timestamp in "
+          "use: %s\n",
           compat ? "true" : "false", inmem ? "true" : "false", stress ? "true" : "false",
           use_ts ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
@@ -734,9 +736,7 @@ main(int argc, char *argv[])
      * particularly in automated testing.
      */
     testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && "
-      "cp -p * ../%s.SAVE",
-      home, home, home));
+      "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && cp -p * ../%s.SAVE", home, home, home));
     if ((status = system(buf)) < 0)
         testutil_die(status, "system: %s", buf);
     printf("Open database, run recovery and verify content\n");
@@ -811,7 +811,7 @@ main(int argc, char *argv[])
                   key, last_key);
                 break;
             }
-            testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, key));
+            testutil_check(__wt_snprintf(kname, sizeof(kname), KEY_FORMAT, key));
             cur_coll->set_key(cur_coll, kname);
             cur_local->set_key(cur_local, kname);
             cur_oplog->set_key(cur_oplog, kname);
@@ -831,9 +831,8 @@ main(int argc, char *argv[])
                  * larger than the saved one.
                  */
                 if (!inmem && stable_fp != 0 && stable_fp <= stable_val) {
-                    printf(
-                      "%s: COLLECTION no record with "
-                      "key %" PRIu64 " record ts %" PRIu64 " <= stable ts %" PRIu64 "\n",
+                    printf("%s: COLLECTION no record with key %" PRIu64 " record ts %" PRIu64
+                           " <= stable ts %" PRIu64 "\n",
                       fname, key, stable_fp, stable_val);
                     absent_coll++;
                 }
@@ -859,9 +858,8 @@ main(int argc, char *argv[])
                  * If we found a record, the stable timestamp written to our file better be no
                  * larger than the checkpoint one.
                  */
-                printf(
-                  "%s: COLLECTION record with "
-                  "key %" PRIu64 " record ts %" PRIu64 " > stable ts %" PRIu64 "\n",
+                printf("%s: COLLECTION record with key %" PRIu64 " record ts %" PRIu64
+                       " > stable ts %" PRIu64 "\n",
                   fname, key, stable_fp, stable_val);
                 fatal = true;
             } else if ((ret = cur_shadow->search(cur_shadow)) != 0)
