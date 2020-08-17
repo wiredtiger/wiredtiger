@@ -408,7 +408,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
     if (conn->kencryptor == NULL && kencryptorp != &conn->kencryptor)
         WT_ERR_MSG(session, EINVAL, "table encryption requires connection encryption to be set");
     hash = __wt_hash_city64(keyid->str, keyid->len);
-    bucket = hash % WT_HASH_ARRAY_SIZE;
+    bucket = hash % conn->buckets;
     TAILQ_FOREACH (kenc, &nenc->keyedhashqh[bucket], q)
         if (WT_STRING_MATCH(kenc->keyid, keyid->str, keyid->len))
             goto out;
@@ -455,7 +455,7 @@ __conn_add_encryptor(
     WT_DECL_RET;
     WT_NAMED_ENCRYPTOR *nenc;
     WT_SESSION_IMPL *session;
-    int i;
+    uint64_t i;
 
     nenc = NULL;
 
@@ -481,7 +481,8 @@ __conn_add_encryptor(
     WT_ERR(__wt_strdup(session, name, &nenc->name));
     nenc->encryptor = encryptor;
     TAILQ_INIT(&nenc->keyedqh);
-    for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
+    WT_ERR(__wt_calloc_def(session, conn->buckets, &nenc->keyedhashqh));
+    for (i = 0; i < conn->buckets; i++)
         TAILQ_INIT(&nenc->keyedhashqh[i]);
 
     TAILQ_INSERT_TAIL(&conn->encryptqh, nenc, q);
@@ -489,6 +490,7 @@ __conn_add_encryptor(
 
 err:
     if (nenc != NULL) {
+        __wt_free(session, nenc->keyedhashqh);
         __wt_free(session, nenc->name);
         __wt_free(session, nenc);
     }
@@ -528,6 +530,7 @@ __wt_conn_remove_encryptor(WT_SESSION_IMPL *session)
         if (nenc->encryptor->terminate != NULL)
             WT_TRET(nenc->encryptor->terminate(nenc->encryptor, (WT_SESSION *)session));
 
+        __wt_free(session, nenc->keyedhashqh);
         __wt_free(session, nenc->name);
         __wt_free(session, nenc);
     }
@@ -1530,6 +1533,38 @@ err:
 }
 
 /*
+ * __conn_hash_config --
+ *     Configure and allocate hash buckets in the connection.
+ */
+static int
+__conn_hash_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    uint64_t i;
+
+    conn = S2C(session);
+    WT_RET(__wt_config_gets(session, cfg, "hash.buckets", &cval));
+    conn->buckets = (uint64_t)cval.val;
+    WT_RET(__wt_config_gets(session, cfg, "hash.dhandle_buckets", &cval));
+    conn->dh_buckets = (uint64_t)cval.val;
+
+    /* Hash bucket arrays. */
+    WT_RET(__wt_calloc_def(session, conn->buckets, &conn->blockhash));
+    WT_RET(__wt_calloc_def(session, conn->buckets, &conn->fhhash));
+    for (i = 0; i < conn->buckets; ++i) {
+        TAILQ_INIT(&conn->blockhash[i]);
+        TAILQ_INIT(&conn->fhhash[i]);
+    }
+    WT_RET(__wt_calloc_def(session, conn->dh_buckets, &conn->dh_bucket_count));
+    WT_RET(__wt_calloc_def(session, conn->dh_buckets, &conn->dhhash));
+    for (i = 0; i < conn->dh_buckets; ++i)
+        TAILQ_INIT(&conn->dhhash[i]);
+
+    return (0);
+}
+
+/*
  * __conn_home --
  *     Set the database home directory.
  */
@@ -2441,6 +2476,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 #endif
     }
     WT_ERR(__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
+
+    /*
+     * This will configure and allocate hash buckets. This must be done before the call to
+     * conn_single because that function opens files and creates file handles. So the file handle
+     * hash buckets must already be allocated and ready.
+     */
+    WT_ERR(__conn_hash_config(session, cfg));
 
     /* Make sure no other thread of control already owns this database. */
     WT_ERR(__conn_single(session, cfg));

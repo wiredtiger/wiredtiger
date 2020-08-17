@@ -198,7 +198,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
      * Prepend the handle to the connection list, assuming we're likely to need new files again
      * soon, until they are cached by all sessions.
      */
-    bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
+    bucket = dhandle->name_hash % S2C(session)->dh_buckets;
     WT_CONN_DHANDLE_INSERT(S2C(session), dhandle, bucket);
 
     session->dhandle = dhandle;
@@ -225,7 +225,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
     /* We must be holding the handle list lock at a higher level. */
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));
 
-    bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
+    bucket = __wt_hash_city64(uri, strlen(uri)) % conn->dh_buckets;
     if (checkpoint == NULL) {
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
             if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
@@ -557,7 +557,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
      * we walk the entire dhandle list.
      */
     if (uri != NULL) {
-        bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
+        bucket = __wt_hash_city64(uri, strlen(uri)) % conn->dh_buckets;
 
         for (dhandle = NULL;;) {
             WT_WITH_HANDLE_LIST_READ_LOCK(
@@ -656,7 +656,7 @@ __wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri, bool remo
      */
     WT_ERR(__conn_dhandle_close_one(session, uri, NULL, removed, mark_dead));
 
-    bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
+    bucket = __wt_hash_city64(uri, strlen(uri)) % conn->dh_buckets;
     TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
         if (strcmp(dhandle->name, uri) != 0 || dhandle->checkpoint == NULL ||
           F_ISSET(dhandle, WT_DHANDLE_DEAD))
@@ -684,7 +684,7 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
 
     conn = S2C(session);
     dhandle = session->dhandle;
-    bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
+    bucket = dhandle->name_hash % conn->dh_buckets;
 
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));
     WT_ASSERT(session, dhandle != conn->cache->walk_tree);
