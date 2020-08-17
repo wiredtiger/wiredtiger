@@ -1348,7 +1348,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
              */
             if (on_disk_tw->start_ts < hs_start_ts_tmp ||
               (on_disk_tw->start_ts == hs_start_ts_tmp &&
-                  on_disk_tw->start_txn <= hs_cbt->upd_value->tw.start_txn)) {
+                on_disk_tw->start_txn <= hs_cbt->upd_value->tw.start_txn)) {
                 /* Fallback to the onpage value as the base value. */
                 orig_hs_value_buf = hs_value;
                 hs_value = on_disk_buf;
