@@ -31,7 +31,6 @@
 #
 
 import wiredtiger, wttest
-from helper import copy_wiredtiger_home
 from wtdataset import SimpleDataSet
 
 def timestamp_str(t):
