@@ -82,7 +82,11 @@ static bool compat, inmem, stress, use_ts;
 static volatile uint64_t global_ts = 1;
 
 /*
- * See notes on eviction triggers and targets where these symbols are used.
+ * The configuration sets the eviction update and dirty targets at 20% so that on average, each
+ * thread can have a couple of dirty pages before eviction threads kick in. See below where these
+ * symbols are used for cache sizing - we'll have about 10 pages allocated per thread. On the other
+ * side, the eviction update and dirty triggers are 90%, so application threads aren't involved in
+ * eviction until we're close to running out of cache.
  */
 #define ENV_CONFIG_ADD_COMPAT ",compatibility=(release=\"2.9\")"
 #define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=90"
@@ -449,11 +453,6 @@ run_workload(uint32_t nth)
      * default, a leaf page grows to 32K in size before it splits and the thread begins to fill
      * another page. We'll budget for 10 full size leaf pages per thread in the cache plus a little
      * extra in the total for overhead.
-     *
-     * The configuration sets the eviction update and dirty targets at 20% so that on average, each
-     * thread can have a couple of dirty pages before eviction threads kick in. On the other side,
-     * the eviction update and dirty triggers are 90%, so application threads aren't involved in
-     * eviction until we're close to running out of cache.
      */
     cache_mb = ((32 * WT_KILOBYTE * 10) * nth) / WT_MEGABYTE + 20;
 
