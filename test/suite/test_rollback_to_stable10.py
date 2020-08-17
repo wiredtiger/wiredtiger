@@ -77,7 +77,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         self.session = self.setUpSessionOpen(self.conn)
 
     def test_rollback_to_stable(self):
-        nrows = 2000
+        nrows = 1000
 
         # Create a table without logging.
         uri_1 = "table:rollback_to_stable10_1"
@@ -181,7 +181,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         self.assertGreater(hs_sweep, 0)
 
     def test_rollback_to_stable_prepare(self):
-        nrows = 2000
+        nrows = 1000
 
         # Create a table without logging.
         uri_1 = "table:rollback_to_stable10_1"
