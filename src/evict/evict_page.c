@@ -531,12 +531,12 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_DECL_RET;
     WT_PAGE *page;
     uint32_t flags;
-    bool closing, modified, release_snapshot;
+    bool closing, modified, txn_started;
     const char *txn_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
 
     *inmem_splitp = false;
-    release_snapshot = false;
+    txn_started = false;
 
     conn = S2C(session);
     page = ref->page;
@@ -671,21 +671,21 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
          * should implicitly take a snapshot as well.
          */
         WT_RET(__wt_txn_begin(session, txn_cfg));
-        release_snapshot = true;
+        txn_started = true;
     } else {
         /*
-         * Only set this flag for application threads or whenever we are unable to acquire a
-         * snapshot.
+         * Only set this flag for application threads or whenever we are unable to start a
+         * transaction.
          */
         LF_SET(WT_REC_VISIBLE_ALL);
     }
-    WT_ASSERT(session, !release_snapshot || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
+    WT_ASSERT(session, !txn_started || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* Reconcile the page. */
     ret = __wt_reconcile(session, ref, NULL, flags);
 
-    /* Release the snapshot if we acquired one. */
-    if (release_snapshot) {
+    /* End the transaction if we started one. */
+    if (txn_started) {
         WT_SESSION_TXN_SHARED(session)->pinned_id = WT_TXN_NONE;
         WT_TRET(__wt_txn_commit(session, NULL));
     }
