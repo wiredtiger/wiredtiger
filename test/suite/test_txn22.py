@@ -42,7 +42,7 @@ class test_txn22(wttest.WiredTigerTestCase):
     def conn_config(self):
         config = 'cache_size=5MB'
         return config
-    
+
     def large_updates(self, uri, value, ds, nrows, commit_ts):
         # Update a large number of records.
         session = self.session
@@ -52,7 +52,7 @@ class test_txn22(wttest.WiredTigerTestCase):
             cursor[ds.key(i)] = value
             session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
-    
+
     def check(self, check_value, uri, ds, nrows, read_ts):
         session = self.session
         for i in range(0, nrows):
