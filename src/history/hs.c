@@ -266,8 +266,9 @@ __hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
          * than the page's boundary slots, if that's not the case, the record might belong on an
          * entirely different page.
          */
-        if (leaf_found && (hs_cbt->compare != 0 &&
-                            (hs_cbt->slot == 0 || hs_cbt->slot == hs_cbt->ref->page->entries - 1)))
+        if (leaf_found &&
+          (hs_cbt->compare != 0 &&
+            (hs_cbt->slot == 0 || hs_cbt->slot == hs_cbt->ref->page->entries - 1)))
             leaf_found = false;
         if (!leaf_found)
             hs_cursor->reset(hs_cursor);
@@ -335,17 +336,14 @@ __hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
      */
     if (WT_VERBOSE_ISSET(session, WT_VERB_HS) ||
       (ckpt_gen_current > ckpt_gen_last &&
-          __wt_atomic_casv64(&cache->hs_verb_gen_write, ckpt_gen_last, ckpt_gen_current))) {
+        __wt_atomic_casv64(&cache->hs_verb_gen_write, ckpt_gen_last, ckpt_gen_current))) {
         WT_IGNORE_RET_BOOL(__wt_eviction_clean_needed(session, &pct_full));
         WT_IGNORE_RET_BOOL(__wt_eviction_dirty_needed(session, &pct_dirty));
 
         __wt_verbose(session, WT_VERB_HS | WT_VERB_HS_ACTIVITY,
           "Page reconciliation triggered history store write: file ID %" PRIu32
-          ". "
-          "Current history store file size: %" PRId64
-          ", "
-          "cache dirty: %2.3f%% , "
-          "cache use: %2.3f%%",
+          ". Current history store file size: %" PRId64
+          ", cache dirty: %2.3f%% , cache use: %2.3f%%",
           btree_id, WT_STAT_READ(conn->stats, cache_hs_ondisk), pct_dirty, pct_full);
     }
 
@@ -574,8 +572,9 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     WT_DECL_RET;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
-    WT_WITH_BTREE(session, CUR2BT(cbt), ret = __hs_insert_record_with_btree(session, cursor, btree,
-                                          key, upd, type, hs_value, stop_time_point, clear_hs));
+    WT_WITH_BTREE(session, CUR2BT(cbt),
+      ret = __hs_insert_record_with_btree(
+        session, cursor, btree, key, upd, type, hs_value, stop_time_point, clear_hs));
     return (ret);
 }
 
@@ -635,7 +634,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_MODIFY_VECTOR modifies;
     WT_SAVE_UPD *list;
     WT_UPDATE *first_globally_visible_upd, *first_non_ts_upd;
-    WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *upd;
+    WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
     WT_HS_TIME_POINT stop_time_point;
     wt_off_t hs_size;
     wt_timestamp_t min_insert_ts;
@@ -644,7 +643,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     uint8_t *p;
     int nentries;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
-    bool clear_hs, enable_reverse_modify, squashed, ts_updates_in_hs;
+    bool clear_hs, enable_reverse_modify, hs_inserted, squashed, ts_updates_in_hs;
 
     btree = S2BT(session);
     cursor = session->hs_cursor;
@@ -859,7 +858,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
         WT_ERR(__hs_next_upd_full_value(session, &modifies, NULL, full_value, &upd));
 
-        squashed = false;
+        hs_inserted = squashed = false;
 
         /*
          * Flush the updates on stack. Stopping once we run out or we reach the onpage upd start
@@ -867,11 +866,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          */
         for (; modifies.size > 0 &&
              !(upd->txnid == list->onpage_upd->txnid &&
-                 upd->start_ts == list->onpage_upd->start_ts);
+               upd->start_ts == list->onpage_upd->start_ts);
              tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
              upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
+            tombstone = NULL;
             __wt_modify_vector_peek(&modifies, &prev_upd);
 
             /*
@@ -880,7 +880,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * removal by checkpoint garbage collection until the data store update is committed.
              */
             if (prev_upd->prepare_state == WT_PREPARE_INPROGRESS) {
-                WT_ASSERT(session, list->onpage_upd->txnid == prev_upd->txnid &&
+                WT_ASSERT(session,
+                  list->onpage_upd->txnid == prev_upd->txnid &&
                     list->onpage_upd->start_ts == prev_upd->start_ts);
                 stop_time_point.durable_ts = stop_time_point.ts = WT_TS_MAX;
                 stop_time_point.txnid = WT_TXN_MAX;
@@ -894,6 +895,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 stop_time_point.durable_ts = prev_upd->durable_ts;
                 stop_time_point.ts = prev_upd->start_ts;
                 stop_time_point.txnid = prev_upd->txnid;
+
+                if (prev_upd->type == WT_UPDATE_TOMBSTONE)
+                    tombstone = prev_upd;
             }
 
             WT_ERR(
@@ -906,8 +910,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             }
 
             /* Skip updates that are already in the history store or are obsolete. */
-            if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_OBSOLETE))
+            if (F_ISSET(upd, WT_UPDATE_HS | WT_UPDATE_OBSOLETE)) {
+                if (hs_inserted)
+                    WT_ERR_PANIC(session, WT_PANIC,
+                      "Inserting updates older than obsolete updates or updates that are already "
+                      "in the history store to the history store may corrupt the data.");
                 continue;
+            }
 
             /*
              * If the time points are out of order (which can happen if the application performs
@@ -960,6 +969,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             clear_hs = false;
             /* Flag the update as now in the history store. */
             F_SET(upd, WT_UPDATE_HS);
+            if (tombstone != NULL)
+                F_SET(tombstone, WT_UPDATE_HS);
+            hs_inserted = true;
             ++insert_cnt;
             if (squashed) {
                 WT_STAT_CONN_INCR(session, cache_hs_write_squash);
@@ -985,8 +997,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
          * removed from the history store. U@1 will be removed from the history store once U@0 is
          * moved to the history store.
          */
-        if (clear_hs && (first_non_ts_upd->txnid != list->onpage_upd->txnid ||
-                          first_non_ts_upd->start_ts != list->onpage_upd->start_ts)) {
+        if (clear_hs &&
+          (first_non_ts_upd->txnid != list->onpage_upd->txnid ||
+            first_non_ts_upd->start_ts != list->onpage_upd->start_ts)) {
             /* We can only delete history store entries that have timestamps. */
             WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
