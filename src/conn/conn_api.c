@@ -1546,8 +1546,10 @@ __conn_hash_config(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     WT_RET(__wt_config_gets(session, cfg, "hash.buckets", &cval));
     conn->buckets = (uint64_t)cval.val;
+    WT_STAT_CONN_SET(session, buckets, conn->buckets);
     WT_RET(__wt_config_gets(session, cfg, "hash.dhandle_buckets", &cval));
     conn->dh_buckets = (uint64_t)cval.val;
+    WT_STAT_CONN_SET(session, buckets_dh, conn->dh_buckets);
 
     /* Hash bucket arrays. */
     WT_RET(__wt_calloc_def(session, conn->buckets, &conn->blockhash));

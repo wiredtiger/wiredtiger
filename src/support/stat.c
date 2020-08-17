@@ -1027,6 +1027,8 @@ static const char *const __stats_connection_desc[] = {
   "connection: auto adjusting condition wait raced to update timeout and skipped updating",
   "connection: detected system time went backwards",
   "connection: files currently open",
+  "connection: hash bucket array size for data handles",
+  "connection: hash bucket array size general",
   "connection: memory allocations",
   "connection: memory frees",
   "connection: memory re-allocations",
@@ -1547,6 +1549,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cond_auto_wait_skipped = 0;
     stats->time_travel = 0;
     /* not clearing file_open */
+    stats->buckets_dh = 0;
+    stats->buckets = 0;
     stats->memory_allocation = 0;
     stats->memory_free = 0;
     stats->memory_grow = 0;
@@ -2061,6 +2065,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cond_auto_wait_skipped += WT_STAT_READ(from, cond_auto_wait_skipped);
     to->time_travel += WT_STAT_READ(from, time_travel);
     to->file_open += WT_STAT_READ(from, file_open);
+    to->buckets_dh += WT_STAT_READ(from, buckets_dh);
+    to->buckets += WT_STAT_READ(from, buckets);
     to->memory_allocation += WT_STAT_READ(from, memory_allocation);
     to->memory_free += WT_STAT_READ(from, memory_free);
     to->memory_grow += WT_STAT_READ(from, memory_grow);
