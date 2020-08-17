@@ -2121,7 +2121,10 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         session_ret->nhazard = 0;
     }
 
-    /* Cache the offset of this session's statistics bucket. */
+    /*
+     * Cache the offset of this session's statistics bucket. It's important we pass the correct
+     * session to the hash define here or we'll calculate the stat bucket with the wrong session id.
+     */
     session_ret->stat_bucket = WT_STATS_SLOT_ID(session_ret);
 
     /* Safety check to make sure we're doing the right thing. */
