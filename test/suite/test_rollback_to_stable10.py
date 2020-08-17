@@ -178,7 +178,9 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         self.assertGreaterEqual(upd_aborted, 0)
         self.assertGreater(pages_visited, 0)
         self.assertGreaterEqual(hs_removed, 0)
-        self.assertGreater(hs_sweep, 0)
+        # Eviction won't see any of the newer updates that happen concurrently
+        # to checkpoint. So we won't be removing anything.
+        self.assertEqual(hs_sweep, 0)
 
     def test_rollback_to_stable_prepare(self):
         nrows = 1000
@@ -203,7 +205,10 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         value_b = "bbbbb" * 100
         value_c = "ccccc" * 100
         value_d = "ddddd" * 100
-        value_e = "eeeee" * 100
+        # Since eviction won't see the newer prepared updates, they'll
+        # effectively be pinned to the cache. Reduce the size of these updates
+        # to avoid rollbacks.
+        value_e = "eeeee"
         value_f = "fffff" * 100
 
         # Perform several updates.
@@ -306,9 +311,11 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
         self.assertGreaterEqual(upd_aborted, 0)
-        self.assertGreater(pages_visited, 0)
-        self.assertGreaterEqual(hs_removed, 0)
-        self.assertGreater(hs_sweep, 0)
+        # Since the prepared updates never made their way onto the page, we
+        # won't be doing any of this.
+        self.assertEqual(pages_visited, 0)
+        self.assertEqual(hs_removed, 0)
+        self.assertEqual(hs_sweep, 0)
 
 if __name__ == '__main__':
     wttest.run()

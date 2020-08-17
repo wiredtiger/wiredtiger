@@ -371,6 +371,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
 
     /*
+     * Checkpoint may be ahead of eviction. If the newest thing we can see has already been sent to
+     * the history store, we should bail out here.
+     */
+    if (upd != NULL && F_ISSET(upd, WT_UPDATE_HS)) {
+        WT_ASSERT(session, !F_ISSET(r, WT_REC_CHECKPOINT));
+        return (__wt_set_return(session, EBUSY));
+    }
+
+    /*
      * We expect the page to be clean after reconciliation. If there are invisible updates, abort
      * eviction.
      */

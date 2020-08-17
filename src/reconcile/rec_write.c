@@ -464,6 +464,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     btree = S2BT(session);
     page = ref->page;
+    ckpt_txn = WT_TXN_NONE;
 
     /*
      * Reconciliation is not re-entrant, make sure that doesn't happen. Our caller sets
@@ -529,11 +530,13 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * can move beyond the checkpoint transaction id. When reconciling the metadata, we have to take
      * checkpoints into account.
      */
-    if (WT_IS_METADATA(session->dhandle)) {
+    if (WT_IS_METADATA(session->dhandle))
         WT_ORDERED_READ(ckpt_txn, txn_global->checkpoint_txn_shared.id);
-        if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
-            r->last_running = ckpt_txn;
-    }
+    else if (!F_ISSET(r, WT_REC_CHECKPOINT))
+        WT_ORDERED_READ(ckpt_txn, txn_global->checkpoint_txn_shared.pinned_id);
+    if (ckpt_txn != WT_TXN_NONE && WT_TXNID_LT(ckpt_txn, r->last_running))
+        r->last_running = ckpt_txn;
+
     /* When operating on the history store table, we should never try history store eviction. */
     WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_HS) || !LF_ISSET(WT_REC_HS));
 
