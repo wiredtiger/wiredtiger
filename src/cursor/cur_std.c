@@ -143,9 +143,8 @@ __wt_cursor_modify_value_format_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, in
 
     if (cursor->value_format != NULL && strlen(cursor->value_format) != 0) {
         session = CUR2S(cursor);
-        WT_RET_MSG(session, ENOTSUP,
-          "WT_CURSOR.modify only supported for 'S' and 'u' value "
-          "formats");
+        WT_RET_MSG(
+          session, ENOTSUP, "WT_CURSOR.modify only supported for 'S' and 'u' value formats");
     }
     return (__wt_cursor_notsup(cursor));
 }
@@ -732,20 +731,28 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *rel
         WT_RET(__wt_session_cursor_cache_sweep(session));
     }
 
-    WT_ERR(cursor->cache(cursor));
+    /*
+     * Caching the cursor releases its data handle. So we have to update statistics first. If
+     * caching fails, we'll decrement the statistics after reopening the cursor (and getting the
+     * data handle back).
+     */
     WT_STAT_CONN_INCR(session, cursor_cache);
     WT_STAT_DATA_INCR(session, cursor_cache);
+    WT_ERR(cursor->cache(cursor));
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_CACHED));
     *released = true;
 
     if (0) {
-    /*
-     * If caching fails, we must restore the state of the cursor back to open so that the close
-     * works from a known state. The reopen may also fail, but that doesn't matter at this point.
-     */
+        /*
+         * If caching fails, we must restore the state of the cursor back to open so that the close
+         * works from a known state. The reopen may also fail, but that doesn't matter at this
+         * point.
+         */
 err:
         WT_TRET(cursor->reopen(cursor, false));
         WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED));
+        WT_STAT_CONN_DECR(session, cursor_cache);
+        WT_STAT_DATA_DECR(session, cursor_cache);
     }
 
     return (ret);
@@ -953,9 +960,8 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
      * for consistency.
      */
     if (session->txn->isolation != WT_ISO_SNAPSHOT)
-        WT_ERR_MSG(session, ENOTSUP,
-          "not supported in read-committed or read-uncommitted "
-          "transactions");
+        WT_ERR_MSG(
+          session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions");
     if (F_ISSET(session->txn, WT_TXN_AUTOCOMMIT))
         WT_ERR_MSG(session, ENOTSUP, "not supported in implicit transactions");
 
