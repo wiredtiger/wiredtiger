@@ -185,8 +185,8 @@ struct __wt_connection_impl {
 
     const char *home;         /* Database home */
     const char *error_prefix; /* Database error prefix */
-    uint64_t buckets;         /* General hash bucket array size */
-    uint64_t dh_buckets;      /* Data handle hash bucket array size */
+    uint64_t dh_hash_size;    /* Data handle hash bucket array size */
+    uint64_t hash_size;       /* General hash bucket array size */
     int is_new;               /* Connection created database */
 
     uint16_t compat_major; /* Compatibility major version */

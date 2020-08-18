@@ -408,7 +408,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
     if (conn->kencryptor == NULL && kencryptorp != &conn->kencryptor)
         WT_ERR_MSG(session, EINVAL, "table encryption requires connection encryption to be set");
     hash = __wt_hash_city64(keyid->str, keyid->len);
-    bucket = hash % conn->buckets;
+    bucket = hash % conn->hash_size;
     TAILQ_FOREACH (kenc, &nenc->keyedhashqh[bucket], q)
         if (WT_STRING_MATCH(kenc->keyid, keyid->str, keyid->len))
             goto out;
@@ -481,8 +481,8 @@ __conn_add_encryptor(
     WT_ERR(__wt_strdup(session, name, &nenc->name));
     nenc->encryptor = encryptor;
     TAILQ_INIT(&nenc->keyedqh);
-    WT_ERR(__wt_calloc_def(session, conn->buckets, &nenc->keyedhashqh));
-    for (i = 0; i < conn->buckets; i++)
+    WT_ERR(__wt_calloc_def(session, conn->hash_size, &nenc->keyedhashqh));
+    for (i = 0; i < conn->hash_size; i++)
         TAILQ_INIT(&nenc->keyedhashqh[i]);
 
     TAILQ_INSERT_TAIL(&conn->encryptqh, nenc, q);
@@ -1545,22 +1545,22 @@ __conn_hash_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
     WT_RET(__wt_config_gets(session, cfg, "hash.buckets", &cval));
-    conn->buckets = (uint64_t)cval.val;
-    WT_STAT_CONN_SET(session, buckets, conn->buckets);
+    conn->hash_size = (uint64_t)cval.val;
+    WT_STAT_CONN_SET(session, buckets, conn->hash_size);
     WT_RET(__wt_config_gets(session, cfg, "hash.dhandle_buckets", &cval));
-    conn->dh_buckets = (uint64_t)cval.val;
-    WT_STAT_CONN_SET(session, buckets_dh, conn->dh_buckets);
+    conn->dh_hash_size = (uint64_t)cval.val;
+    WT_STAT_CONN_SET(session, buckets_dh, conn->dh_hash_size);
 
     /* Hash bucket arrays. */
-    WT_RET(__wt_calloc_def(session, conn->buckets, &conn->blockhash));
-    WT_RET(__wt_calloc_def(session, conn->buckets, &conn->fhhash));
-    for (i = 0; i < conn->buckets; ++i) {
+    WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->blockhash));
+    WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->fhhash));
+    for (i = 0; i < conn->hash_size; ++i) {
         TAILQ_INIT(&conn->blockhash[i]);
         TAILQ_INIT(&conn->fhhash[i]);
     }
-    WT_RET(__wt_calloc_def(session, conn->dh_buckets, &conn->dh_bucket_count));
-    WT_RET(__wt_calloc_def(session, conn->dh_buckets, &conn->dhhash));
-    for (i = 0; i < conn->dh_buckets; ++i)
+    WT_RET(__wt_calloc_def(session, conn->dh_hash_size, &conn->dh_bucket_count));
+    WT_RET(__wt_calloc_def(session, conn->dh_hash_size, &conn->dhhash));
+    for (i = 0; i < conn->dh_hash_size; ++i)
         TAILQ_INIT(&conn->dhhash[i]);
 
     return (0);
