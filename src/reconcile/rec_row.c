@@ -740,6 +740,11 @@ __wt_rec_row_leaf(
      */
     WT_ERR(__wt_scr_alloc(session, 0, &tmpkey));
 
+    /* About to do some visibility checks. Update our snapshot for eviction. */
+    if (F_ISSET(session, WT_SESSION_INTERNAL) && F_ISSET(session->txn, WT_TXN_RUNNING) &&
+      F_ISSET(r, WT_REC_EVICT))
+        __wt_txn_get_snapshot(session);
+
     /* For each entry in the page... */
     WT_ROW_FOREACH (page, rip, i) {
         /*
