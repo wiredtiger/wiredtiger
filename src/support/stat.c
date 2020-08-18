@@ -1555,8 +1555,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cond_auto_wait_skipped = 0;
     stats->time_travel = 0;
     /* not clearing file_open */
-    stats->buckets_dh = 0;
-    stats->buckets = 0;
+    /* not clearing buckets_dh */
+    /* not clearing buckets */
     stats->memory_allocation = 0;
     stats->memory_free = 0;
     stats->memory_grow = 0;

@@ -1546,10 +1546,9 @@ __conn_hash_config(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     WT_RET(__wt_config_gets(session, cfg, "hash.buckets", &cval));
     conn->hash_size = (uint64_t)cval.val;
-    WT_STAT_CONN_SET(session, buckets, conn->hash_size);
     WT_RET(__wt_config_gets(session, cfg, "hash.dhandle_buckets", &cval));
     conn->dh_hash_size = (uint64_t)cval.val;
-    WT_STAT_CONN_SET(session, buckets_dh, conn->dh_hash_size);
+    /* Don't set the values in the statistics here. They're set after the connection is set up. */
 
     /* Hash bucket arrays. */
     WT_RET(__wt_calloc_def(session, conn->hash_size, &conn->blockhash));
@@ -2811,6 +2810,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR(ret);
     }
 #endif
+
+    /*
+     * The hash array sizes needed to be set up very early. Set them in the statistics here. Setting
+     * them in the early configuration function makes them get zeroed out.
+     */
+    WT_STAT_CONN_SET(session, buckets, conn->hash_size);
+    WT_STAT_CONN_SET(session, buckets_dh, conn->dh_hash_size);
 
     /*
      * The default session should not open data handles after this point: since it can be shared

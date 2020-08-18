@@ -157,8 +157,8 @@ connection_stats = [
     ##########################################
     # System statistics
     ##########################################
-    ConnStat('buckets', 'hash bucket array size general'),
-    ConnStat('buckets_dh', 'hash bucket array size for data handles'),
+    ConnStat('buckets', 'hash bucket array size general', 'no_clear,no_scale,size'),
+    ConnStat('buckets_dh', 'hash bucket array size for data handles', 'no_clear,no_scale,size'),
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
     ConnStat('cond_auto_wait_reset', 'auto adjusting condition resets'),
     ConnStat('cond_auto_wait_skipped', 'auto adjusting condition wait raced to update timeout and skipped updating'),
