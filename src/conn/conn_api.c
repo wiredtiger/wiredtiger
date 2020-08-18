@@ -2463,6 +2463,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__conn_load_extensions(session, cfg, true));
 
     /*
+     * This will configure and allocate hash buckets. This must be done before the call to load file
+     * systems because they may allocate hash arrays.
+     */
+    WT_ERR(__conn_hash_config(session, cfg));
+
+    /*
      * If the application didn't configure its own file system, configure one of ours. Check to
      * ensure we have a valid file system.
      */
@@ -2477,13 +2483,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 #endif
     }
     WT_ERR(__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
-
-    /*
-     * This will configure and allocate hash buckets. This must be done before the call to
-     * conn_single because that function opens files and creates file handles. So the file handle
-     * hash buckets must already be allocated and ready.
-     */
-    WT_ERR(__conn_hash_config(session, cfg));
 
     /* Make sure no other thread of control already owns this database. */
     WT_ERR(__conn_single(session, cfg));
