@@ -679,7 +679,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /* Acquire a snapshot if coming through eviction thread route. */
     if (F_ISSET(session, WT_SESSION_INTERNAL) && !F_ISSET(session->txn, WT_TXN_RUNNING) &&
       !F_ISSET(conn,
-          WT_CONN_CLOSING | WT_CONN_RECOVERING | WT_CONN_IN_MEMORY | WT_CONN_CLOSING_TIMESTAMP) &&
+        WT_CONN_CLOSING | WT_CONN_RECOVERING | WT_CONN_IN_MEMORY | WT_CONN_CLOSING_TIMESTAMP) &&
       !WT_IS_HS(S2BT(session))) {
         /*
          * We don't have a running transaction with eviction threads. Starting a new transaction
