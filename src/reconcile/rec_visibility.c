@@ -424,7 +424,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 while (upd->next != NULL) {
                     if (upd->next->txnid == WT_TXN_ABORTED)
                         upd = upd->next;
-                    else if (upd->next->txnid != WT_TS_NONE &&
+                    else if (upd->next->txnid != WT_TXN_NONE &&
                       tombstone->txnid == upd->next->txnid) {
                         upd = upd->next;
                         same_txn_valid_upd = upd;
