@@ -2257,6 +2257,13 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     WT_TRET(__wt_ovfl_track_wrapup_err(session, page));
 
+    /*
+     * Flag the page as having failed its last reconciliation. So the next reconciliation that
+     * happens should ignore whether or not updates have been flagged as having been written to the
+     * disk.
+     */
+    F_SET_ATOMIC(page, WT_PAGE_LAST_REC_FAILED);
+
     return (ret);
 }
 
@@ -2358,13 +2365,6 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
     /* Build the cell and return. */
     kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, tw, rle, kv->buf.size);
     kv->len = kv->cell_len + kv->buf.size;
-
-    /*
-     * Flag the page as having failed its last reconciliation. So the next reconciliation that
-     * happens should ignore whether or not updates have been flagged as having been written to the
-     * disk.
-     */
-    F_SET_ATOMIC(page, WT_PAGE_LAST_REC_FAILED);
 
 err:
     __wt_scr_free(session, &tmp);

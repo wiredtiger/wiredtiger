@@ -30,20 +30,20 @@
  */
 #define F_ISSET_ATOMIC(p, mask) ((p)->flags_atomic & (uint8_t)(mask))
 
-#define F_SET_ATOMIC(p, mask)                                                               \
-    do {                                                                                    \
-        uint8_t __orig;                                                                     \
-        do {                                                                                \
-            __orig = (p)->flags_atomic;                                                     \
-        } while (!__wt_atomic_cas16(&(p)->flags_atomic, __orig, __orig | (uint8_t)(mask))); \
-    } while (0)
-
-#define F_CLR_ATOMIC(p, mask)                                                                \
+#define F_SET_ATOMIC(p, mask)                                                                \
     do {                                                                                     \
         uint8_t __orig;                                                                      \
         do {                                                                                 \
             __orig = (p)->flags_atomic;                                                      \
-        } while (!__wt_atomic_cas16(&(p)->flags_atomic, __orig, __orig & ~(uint8_t)(mask))); \
+        } while (!__wt_atomic_cas16(&(p)->flags_atomic, __orig, __orig | (uint16_t)(mask))); \
+    } while (0)
+
+#define F_CLR_ATOMIC(p, mask)                                                                 \
+    do {                                                                                      \
+        uint8_t __orig;                                                                       \
+        do {                                                                                  \
+            __orig = (p)->flags_atomic;                                                       \
+        } while (!__wt_atomic_cas16(&(p)->flags_atomic, __orig, __orig & ~(uint16_t)(mask))); \
     } while (0)
 
 /*
