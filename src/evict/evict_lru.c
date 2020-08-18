@@ -1570,7 +1570,7 @@ static bool
 __evict_push_candidate(
   WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_EVICT_ENTRY *evict, WT_REF *ref)
 {
-    uint8_t orig_flags, new_flags;
+    uint16_t orig_flags, new_flags;
     u_int slot;
 
     /*
