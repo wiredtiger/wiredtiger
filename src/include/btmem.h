@@ -627,18 +627,19 @@ struct __wt_page {
     uint8_t type;               /* Page type */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_PAGE_BUILD_KEYS 0x01u        /* Keys have been built in memory */
-#define WT_PAGE_DISK_ALLOC 0x02u        /* Disk image in allocated memory */
-#define WT_PAGE_DISK_MAPPED 0x04u       /* Disk image in mapped memory */
-#define WT_PAGE_EVICT_LRU 0x08u         /* Page is on the LRU queue */
-#define WT_PAGE_EVICT_NO_PROGRESS 0x10u /* Eviction doesn't count as progress */
-#define WT_PAGE_OVERFLOW_KEYS 0x20u     /* Page has overflow keys */
-#define WT_PAGE_SPLIT_INSERT 0x40u      /* A leaf page was split for append */
-#define WT_PAGE_UPDATE_IGNORE 0x80u     /* Ignore updates on page discard */
-                                        /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint8_t flags_atomic;               /* Atomic flags, use F_*_ATOMIC */
+#define WT_PAGE_BUILD_KEYS 0x001u        /* Keys have been built in memory */
+#define WT_PAGE_DISK_ALLOC 0x002u        /* Disk image in allocated memory */
+#define WT_PAGE_DISK_MAPPED 0x004u       /* Disk image in mapped memory */
+#define WT_PAGE_EVICT_LRU 0x008u         /* Page is on the LRU queue */
+#define WT_PAGE_EVICT_NO_PROGRESS 0x010u /* Eviction doesn't count as progress */
+#define WT_PAGE_LAST_REC_FAILED 0x020u   /* Whether the last reconciliation failed */
+#define WT_PAGE_OVERFLOW_KEYS 0x040u     /* Page has overflow keys */
+#define WT_PAGE_SPLIT_INSERT 0x080u      /* A leaf page was split for append */
+#define WT_PAGE_UPDATE_IGNORE 0x100u     /* Ignore updates on page discard */
+                                         /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint16_t flags_atomic;               /* Atomic flags, use F_*_ATOMIC */
 
-    uint8_t unused[2]; /* Unused padding */
+    uint8_t unused; /* Unused padding */
 
 /*
  * The page's read generation acts as an LRU value for each page in the
@@ -1075,12 +1076,13 @@ struct __wt_update {
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_UPDATE_CLEARED_HS 0x01u               /* Update that cleared the history store. */
-#define WT_UPDATE_HS 0x02u                       /* Update has been written to history store. */
-#define WT_UPDATE_OBSOLETE 0x04u                 /* Update that is obsolete. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x08u /* Prepared update restored from data store. */
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x10u   /* Fast truncate instantiation */
-#define WT_UPDATE_RESTORED_FROM_DS 0x20u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x40u         /* Update restored from history store. */
+#define WT_UPDATE_DS 0x02u                       /* Update has been written to the data store. */
+#define WT_UPDATE_HS 0x04u                       /* Update has been written to history store. */
+#define WT_UPDATE_OBSOLETE 0x08u                 /* Update that is obsolete. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x10u /* Prepared update restored from data store. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x20u   /* Fast truncate instantiation */
+#define WT_UPDATE_RESTORED_FROM_DS 0x40u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x80u         /* Update restored from history store. */
                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 
