@@ -1298,6 +1298,12 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction checkpoint history store file duration (usecs)",
   "transaction: transaction checkpoint max time (msecs)",
   "transaction: transaction checkpoint min time (msecs)",
+  "transaction: transaction checkpoint most recent duration for gathering applied handles (usecs)",
+  "transaction: transaction checkpoint most recent duration for gathering handles (usecs)",
+  "transaction: transaction checkpoint most recent duration for gathering skipped handles (usecs)",
+  "transaction: transaction checkpoint most recent handles applied",
+  "transaction: transaction checkpoint most recent handles skipped",
+  "transaction: transaction checkpoint most recent handles walked",
   "transaction: transaction checkpoint most recent time (msecs)",
   "transaction: transaction checkpoint prepare currently running",
   "transaction: transaction checkpoint prepare max time (msecs)",
@@ -1818,6 +1824,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_hs_ckpt_duration = 0;
     /* not clearing txn_checkpoint_time_max */
     /* not clearing txn_checkpoint_time_min */
+    /* not clearing txn_checkpoint_handle_duration_apply */
+    /* not clearing txn_checkpoint_handle_duration */
+    /* not clearing txn_checkpoint_handle_duration_skip */
+    stats->txn_checkpoint_handle_applied = 0;
+    stats->txn_checkpoint_handle_skipped = 0;
+    stats->txn_checkpoint_handle_walked = 0;
     /* not clearing txn_checkpoint_time_recent */
     /* not clearing txn_checkpoint_prep_running */
     /* not clearing txn_checkpoint_prep_max */
@@ -2343,6 +2355,14 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_hs_ckpt_duration += WT_STAT_READ(from, txn_hs_ckpt_duration);
     to->txn_checkpoint_time_max += WT_STAT_READ(from, txn_checkpoint_time_max);
     to->txn_checkpoint_time_min += WT_STAT_READ(from, txn_checkpoint_time_min);
+    to->txn_checkpoint_handle_duration_apply +=
+      WT_STAT_READ(from, txn_checkpoint_handle_duration_apply);
+    to->txn_checkpoint_handle_duration += WT_STAT_READ(from, txn_checkpoint_handle_duration);
+    to->txn_checkpoint_handle_duration_skip +=
+      WT_STAT_READ(from, txn_checkpoint_handle_duration_skip);
+    to->txn_checkpoint_handle_applied += WT_STAT_READ(from, txn_checkpoint_handle_applied);
+    to->txn_checkpoint_handle_skipped += WT_STAT_READ(from, txn_checkpoint_handle_skipped);
+    to->txn_checkpoint_handle_walked += WT_STAT_READ(from, txn_checkpoint_handle_walked);
     to->txn_checkpoint_time_recent += WT_STAT_READ(from, txn_checkpoint_time_recent);
     to->txn_checkpoint_prep_running += WT_STAT_READ(from, txn_checkpoint_prep_running);
     to->txn_checkpoint_prep_max += WT_STAT_READ(from, txn_checkpoint_prep_max);

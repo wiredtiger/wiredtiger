@@ -512,8 +512,13 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    uint64_t time_diff, time_start, time_stop;
     bool skip;
+
+    conn = S2C(session);
+    time_diff = time_start = time_stop = 0;
 
     /* Always apply the name function, if supplied. */
     skip = false;
@@ -531,7 +536,21 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
     if ((ret = __wt_session_get_dhandle(session, dhandle->name, dhandle->checkpoint, NULL, 0)) != 0)
         return (ret == EBUSY ? 0 : ret);
 
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        time_start = __wt_clock(session);
     WT_SAVE_DHANDLE(session, ret = file_func(session, cfg));
+    /* We need to gather this information before releasing the dhandle. */
+    if (WT_SESSION_IS_CHECKPOINT(session)) {
+        time_stop = __wt_clock(session);
+        time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+        if (F_ISSET(S2BT(session), WT_BTREE_SKIP_CKPT)) {
+            ++conn->ckpt_skip;
+            conn->ckpt_skip_time += time_diff;
+        } else {
+            ++conn->ckpt_apply;
+            conn->ckpt_apply_time += time_diff;
+        }
+    }
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
@@ -549,9 +568,10 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     uint64_t bucket;
+    uint64_t time_diff, time_start, time_stop;
 
     conn = S2C(session);
-
+    time_diff = time_start = time_stop = 0;
     /*
      * If we're given a URI, then we walk only the hash list for that name. If we don't have a URI
      * we walk the entire dhandle list.
@@ -571,11 +591,16 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
     } else {
+        if (WT_SESSION_IS_CHECKPOINT(session)) {
+            conn->ckpt_apply = conn->ckpt_skip = 0;
+            conn->ckpt_apply_time = conn->ckpt_skip_time = 0;
+            time_start = __wt_clock(session);
+        }
         for (dhandle = NULL;;) {
             WT_WITH_HANDLE_LIST_READ_LOCK(
               session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
             if (dhandle == NULL)
-                return (0);
+                goto done;
 
             if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
               dhandle->type != WT_DHANDLE_TYPE_BTREE || dhandle->checkpoint != NULL ||
@@ -583,6 +608,18 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
                 continue;
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
+done:
+        if (WT_SESSION_IS_CHECKPOINT(session)) {
+            time_stop = __wt_clock(session);
+            time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_applied, conn->ckpt_apply);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_skipped, conn->ckpt_skip);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_walked, conn->dhandle_count);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration, time_diff);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration_apply, conn->ckpt_apply_time);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration_skip, conn->ckpt_skip_time);
+        }
+        return (0);
     }
 
 err:

@@ -6028,71 +6028,92 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MAX		1452
 /*! transaction: transaction checkpoint min time (msecs) */
 #define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1453
+/*!
+ * transaction: transaction checkpoint most recent duration for gathering
+ * applied handles (usecs)
+ */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_APPLY	1454
+/*!
+ * transaction: transaction checkpoint most recent duration for gathering
+ * handles (usecs)
+ */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION	1455
+/*!
+ * transaction: transaction checkpoint most recent duration for gathering
+ * skipped handles (usecs)
+ */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_SKIP	1456
+/*! transaction: transaction checkpoint most recent handles applied */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_APPLIED	1457
+/*! transaction: transaction checkpoint most recent handles skipped */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_SKIPPED	1458
+/*! transaction: transaction checkpoint most recent handles walked */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_WALKED	1459
 /*! transaction: transaction checkpoint most recent time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1454
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1460
 /*! transaction: transaction checkpoint prepare currently running */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RUNNING	1455
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RUNNING	1461
 /*! transaction: transaction checkpoint prepare max time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MAX		1456
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MAX		1462
 /*! transaction: transaction checkpoint prepare min time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MIN		1457
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_MIN		1463
 /*! transaction: transaction checkpoint prepare most recent time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RECENT		1458
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_RECENT		1464
 /*! transaction: transaction checkpoint prepare total time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_TOTAL		1459
+#define	WT_STAT_CONN_TXN_CHECKPOINT_PREP_TOTAL		1465
 /*! transaction: transaction checkpoint scrub dirty target */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1460
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1466
 /*! transaction: transaction checkpoint scrub time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1461
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1467
 /*! transaction: transaction checkpoint total time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1462
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1468
 /*! transaction: transaction checkpoints */
-#define	WT_STAT_CONN_TXN_CHECKPOINT			1463
+#define	WT_STAT_CONN_TXN_CHECKPOINT			1469
 /*!
  * transaction: transaction checkpoints skipped because database was
  * clean
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1464
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1470
 /*! transaction: transaction failures due to history store */
-#define	WT_STAT_CONN_TXN_FAIL_CACHE			1465
+#define	WT_STAT_CONN_TXN_FAIL_CACHE			1471
 /*!
  * transaction: transaction fsync calls for checkpoint after allocating
  * the transaction ID
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST		1466
+#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST		1472
 /*!
  * transaction: transaction fsync duration for checkpoint after
  * allocating the transaction ID (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST_DURATION	1467
+#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST_DURATION	1473
 /*! transaction: transaction range of IDs currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_RANGE			1468
+#define	WT_STAT_CONN_TXN_PINNED_RANGE			1474
 /*! transaction: transaction range of IDs currently pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1469
+#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1475
 /*! transaction: transaction range of timestamps currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1470
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1476
 /*! transaction: transaction range of timestamps pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1471
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1477
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * active read timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1472
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1478
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1473
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1479
 /*! transaction: transaction read timestamp of the oldest active reader */
-#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1474
+#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1480
 /*! transaction: transaction sync calls */
-#define	WT_STAT_CONN_TXN_SYNC				1475
+#define	WT_STAT_CONN_TXN_SYNC				1481
 /*! transaction: transactions committed */
-#define	WT_STAT_CONN_TXN_COMMIT				1476
+#define	WT_STAT_CONN_TXN_COMMIT				1482
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1477
+#define	WT_STAT_CONN_TXN_ROLLBACK			1483
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1478
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1484
 
 /*!
  * @}

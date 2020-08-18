@@ -279,8 +279,12 @@ struct __wt_connection_impl {
     wt_off_t ckpt_logsize; /* Checkpoint log size period */
     bool ckpt_signalled;   /* Checkpoint signalled */
 
-    uint64_t ckpt_usecs;    /* Checkpoint timer */
-    uint64_t ckpt_prep_max; /* Checkpoint prepare time min/max */
+    uint64_t ckpt_apply;      /* Checkpoint handles applied */
+    uint64_t ckpt_apply_time; /* Checkpoint applied handles gather time */
+    uint64_t ckpt_skip;       /* Checkpoint handles skipped */
+    uint64_t ckpt_skip_time;  /* Checkpoint skipped handles gather time */
+    uint64_t ckpt_usecs;      /* Checkpoint timer */
+    uint64_t ckpt_prep_max;   /* Checkpoint prepare time min/max */
     uint64_t ckpt_prep_min;
     uint64_t ckpt_prep_recent; /* Checkpoint prepare time recent/total */
     uint64_t ckpt_prep_total;
