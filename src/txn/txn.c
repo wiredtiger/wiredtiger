@@ -1266,7 +1266,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
 
     /* Configure the timeout for this commit operation. */
-    WT_ERR(__txn_config_operation_timeout(session, cfg));
+    if (cfg != NULL)
+        WT_ERR(__txn_config_operation_timeout(session, cfg));
 
     /*
      * Clear the prepared round up flag if the transaction is not prepared. There is no rounding up
@@ -1664,8 +1665,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     u_int i;
     bool prepare, readonly;
 
-    WT_UNUSED(cfg);
-
     cursor = NULL;
     txn = session->txn;
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
@@ -1678,7 +1677,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session, txn->id, 0));
 
     /* Configure the timeout for this rollback operation. */
-    WT_RET(__txn_config_operation_timeout(session, cfg));
+    if (cfg != NULL)
+        WT_RET(__txn_config_operation_timeout(session, cfg));
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
