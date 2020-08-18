@@ -462,11 +462,19 @@ static int
 __txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
+    WT_TXN *txn;
+
+    txn = session->txn;
 
     /* Retrieve the maximum operation time, defaulting to the database-wide configuration. */
     WT_RET(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
-    session->txn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
 
+    /*
+     * The default configuration value is 0, we can't tell if they're setting it back to 0 or, if
+     * the default was automatically passed in.
+     */
+    if (cval.val != 0 || txn->operation_timeout_us == 0)
+        txn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
     return (0);
 }
 
