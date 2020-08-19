@@ -109,19 +109,21 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
               track_ts_dots(stable_dot_cnt), track_ts_diff(stable_ts, cur_ts),
               track_ts_dots(cur_dot_cnt)));
         }
-        testutil_check(__wt_snprintf_len_set(msg, sizeof(msg), &len, "%4" PRIu32 ": %s: "
-                                                                     "S %" PRIu64 "%s, "
-                                                                     "I %" PRIu64 "%s, "
-                                                                     "U %" PRIu64 "%s, "
-                                                                     "R %" PRIu64 "%s%s",
-          g.run_cnt, tag, tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search,
-          tinfo->search > M(9) ? "M" : "",
-          tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert,
-          tinfo->insert > M(9) ? "M" : "",
-          tinfo->update > M(9) ? tinfo->update / M(1) : tinfo->update,
-          tinfo->update > M(9) ? "M" : "",
-          tinfo->remove > M(9) ? tinfo->remove / M(1) : tinfo->remove,
-          tinfo->remove > M(9) ? "M" : "", ts_msg));
+        testutil_check(
+          __wt_snprintf_len_set(msg, sizeof(msg), &len,
+            "%4" PRIu32 ": %s: "
+            "S %" PRIu64 "%s, "
+            "I %" PRIu64 "%s, "
+            "U %" PRIu64 "%s, "
+            "R %" PRIu64 "%s%s",
+            g.run_cnt, tag, tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search,
+            tinfo->search > M(9) ? "M" : "",
+            tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert,
+            tinfo->insert > M(9) ? "M" : "",
+            tinfo->update > M(9) ? tinfo->update / M(1) : tinfo->update,
+            tinfo->update > M(9) ? "M" : "",
+            tinfo->remove > M(9) ? tinfo->remove / M(1) : tinfo->remove,
+            tinfo->remove > M(9) ? "M" : "", ts_msg));
     }
     if (last_len > len) {
         memset(msg + len, ' ', (size_t)(last_len - len));
@@ -338,6 +340,39 @@ timestamp_teardown(void)
      * verify from running.
      */
     timestamp_once(false, true);
+}
+
+/*
+ * set_oldest_timestamp --
+ *     Query the oldest timestamp from wiredtiger and set it as our global oldest timestamp. This
+ *     should only be called on runs for pre existing databases.
+ */
+void
+set_oldest_timestamp(void)
+{
+    static const char *oldest_timestamp_str = "oldest_timestamp=";
+
+    WT_CONNECTION *conn;
+    WT_DECL_RET;
+    uint64_t oldest_ts;
+    char buf[WT_TS_HEX_STRING_SIZE * 2 + 64], tsbuf[WT_TS_HEX_STRING_SIZE];
+
+    conn = g.wts_conn;
+
+    if ((ret = conn->query_timestamp(conn, tsbuf, "get=oldest")) == 0) {
+        timestamp_parse(tsbuf, &oldest_ts);
+        g.timestamp = oldest_ts;
+        testutil_check(
+          __wt_snprintf(buf, sizeof(buf), "%s%" PRIx64, oldest_timestamp_str, g.oldest_timestamp));
+    } else if (ret != WT_NOTFOUND)
+        /*
+         * Its possible there may not be an oldest timestamp as such we could get not found. This
+         * should be okay assuming timestamps are not configured if they are, it's still okay as we
+         * could have configured timestamps after not running with timestamps. As such only error if
+         * we get a non not found error. If we were supposed to fail with not found we'll see an
+         * error later on anyway.
+         */
+        testutil_die(ret, "unable to query oldest timestamp");
 }
 
 /*

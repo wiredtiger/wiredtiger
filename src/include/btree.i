@@ -141,8 +141,9 @@ __wt_btree_bytes_evictable(WT_SESSION_IMPL *session)
     bytes_inmem = btree->bytes_inmem;
     bytes_root = root_page == NULL ? 0 : root_page->memory_footprint;
 
-    return (bytes_inmem <= bytes_root ? 0 : __wt_cache_bytes_plus_overhead(
-                                              cache, bytes_inmem - bytes_root));
+    return (bytes_inmem <= bytes_root ?
+        0 :
+        __wt_cache_bytes_plus_overhead(cache, bytes_inmem - bytes_root));
 }
 
 /*
@@ -1424,12 +1425,15 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
       mod->last_eviction_id != __wt_txn_oldest_id(session))
         return (true);
 
-    if (mod->last_eviction_timestamp == WT_TS_NONE)
-        return (true);
-
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
-    if (pinned_ts > mod->last_eviction_timestamp)
-        return (true);
+    /*
+     * It is possible that we have not started using the timestamps just yet. So, check for the last
+     * time we evicted only if there is a timestamp set.
+     */
+    if (mod->last_eviction_timestamp != WT_TS_NONE) {
+        __wt_txn_pinned_timestamp(session, &pinned_ts);
+        if (pinned_ts > mod->last_eviction_timestamp)
+            return (true);
+    }
 
     return (false);
 }
@@ -1715,7 +1719,7 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
   ,
   const char *func, int line
 #endif
-  )
+)
 {
     WT_DECL_RET;
     bool acquired;
@@ -1739,7 +1743,7 @@ __wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32
       ,
       func, line
 #endif
-      );
+    );
 
     /*
      * Expected failures: page not found or restart. Our callers list the errors they're expecting

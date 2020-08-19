@@ -611,9 +611,9 @@ connection_runtime_config = [
         trigger application threads to perform eviction when the cache contains
         at least this many bytes of updates. It is a percentage of the cache size
         if the value is within the range of 1 to 100 or an absolute size when
-        greater than 100. Calculated as half of \c eviction_dirty_trigger by default.
+        greater than 100\. Calculated as half of \c eviction_dirty_trigger by default.
         The value is not allowed to exceed the \c cache_size. This setting only
-        alters behavior if it is lower than eviction_trigger''',
+        alters behavior if it is lower than \c eviction_trigger''',
         min=0, max='10TB'),
     Config('file_manager', '', r'''
         control how file handles are managed''',
@@ -723,8 +723,8 @@ connection_runtime_config = [
         type='list', undoc=True,
         choices=[
         'aggressive_sweep', 'checkpoint_slow', 'history_store_checkpoint_delay',
-        'history_store_sweep_race', 'split_1', 'split_2', 'split_3', 'split_4', 'split_5',
-        'split_6', 'split_7', 'split_8']),
+        'history_store_sweep_race', 'prepare_checkpoint_delay', 'split_1', 'split_2',
+        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8']),
     Config('verbose', '', r'''
         enable messages for various events. Options are given as a
         list, such as <code>"verbose=[evictserver,read]"</code>''',
@@ -733,7 +733,7 @@ connection_runtime_config = [
             'backup',
             'block',
             'checkpoint',
-            'checkpoint_gc',
+            'checkpoint_cleanup',
             'checkpoint_progress',
             'compact',
             'compact_progress',

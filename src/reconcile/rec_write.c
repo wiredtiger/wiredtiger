@@ -48,7 +48,8 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * doesn't apply to checkpoints: there are (rare) cases where we write data at read-uncommitted
      * isolation.
      */
-    WT_ASSERT(session, !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
+    WT_ASSERT(session,
+      !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
         F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* It's an error to be called with a clean page. */
@@ -193,6 +194,19 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_HS(btree))
         __wt_cache_update_hs_score(session, r->updates_seen, r->updates_unstable);
 
+    /*
+     * If eviction didn't use any updates and didn't split or delete the page, it didn't make
+     * progress. Give up rather than silently succeeding in doing no work: this way threads know to
+     * back off forced eviction rather than spinning.
+     *
+     * Do not return an error if we are syncing the file with eviction disabled or as part of a
+     * checkpoint.
+     */
+    if (ret == 0 && !(btree->evict_disabled > 0 || !F_ISSET(btree->dhandle, WT_DHANDLE_OPEN)) &&
+      F_ISSET(r, WT_REC_EVICT) && !WT_PAGE_IS_INTERNAL(r->page) && r->multi_next == 1 &&
+      F_ISSET(r, WT_REC_CALL_URGENT) && !r->update_used && r->cache_write_restore)
+        ret = __wt_set_return(session, EBUSY);
+
     /* Wrap up the page reconciliation. */
     if (ret == 0 && (ret = __rec_write_wrapup(session, r, page)) == 0)
         __rec_write_page_status(session, r);
@@ -305,7 +319,8 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
          * eviction case. Otherwise, we must be reconciling a fixed length column store page (which
          * does not allow history store content).
          */
-        WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT) ||
+        WT_ASSERT(session,
+          !F_ISSET(r, WT_REC_EVICT) ||
             (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX));
     } else {
         /*
@@ -546,6 +561,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /* Track if updates were used and/or uncommitted. */
     r->updates_seen = r->updates_unstable = 0;
+    r->update_used = false;
 
     /* Track if the page can be marked clean. */
     r->leave_dirty = false;
@@ -1000,7 +1016,7 @@ __rec_split_row_promote(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ITEM *key,
 
     /*
      * For a column-store, the promoted key is the recno and we already have a copy. For a
-     * row-store, it's the first key on the page, a variable- length byte string, get a copy.
+     * row-store, it's the first key on the page, a variable-length byte string, get a copy.
      *
      * This function is called from the split code at each split boundary, but that means we're not
      * called before the first boundary, and we will eventually have to get the first key explicitly
@@ -1834,7 +1850,8 @@ copy_image:
      * The I/O routines verify all disk images we write, but there are paths in reconciliation that
      * don't do I/O. Verify those images, too.
      */
-    WT_ASSERT(session, verify_image == false ||
+    WT_ASSERT(session,
+      verify_image == false ||
         __wt_verify_dsk_image(
           session, "[reconcile-image]", chunk->image.data, 0, &multi->addr, true) == 0);
 #endif
@@ -2013,7 +2030,7 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
             __wt_verbose(session, WT_VERB_SPLIT, "starting key %s",
               __wt_buf_set_printable(
-                           session, WT_IKEY_DATA(multi->key.ikey), multi->key.ikey->size, tkey));
+                session, WT_IKEY_DATA(multi->key.ikey), multi->key.ikey->size, tkey));
         __wt_scr_free(session, &tkey);
     } else
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
@@ -2134,20 +2151,21 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         mod->rec_result = WT_PM_REC_EMPTY;
         break;
     case 1: /* 1-for-1 page swap */
-            /*
-             * Because WiredTiger's pages grow without splitting, we're replacing a single page with
-             * another single page most of the time.
-             *
-             * If in-memory, or saving/restoring changes for this page and there's only one block,
-             * there's nothing to write. Set up a single block as if to split, then use that disk
-             * image to rewrite the page in memory. This is separate from simple replacements where
-             * eviction has decided to retain the page in memory because the latter can't handle
-             * update lists and splits can.
-             */
+        /*
+         * Because WiredTiger's pages grow without splitting, we're replacing a single page with
+         * another single page most of the time.
+         *
+         * If in-memory, or saving/restoring changes for this page and there's only one block,
+         * there's nothing to write. Set up a single block as if to split, then use that disk image
+         * to rewrite the page in memory. This is separate from simple replacements where eviction
+         * has decided to retain the page in memory because the latter can't handle update lists and
+         * splits can.
+         */
         if (F_ISSET(r, WT_REC_IN_MEMORY) || r->multi->supd_restore) {
-            WT_ASSERT(session, F_ISSET(r, WT_REC_IN_MEMORY) ||
+            WT_ASSERT(session,
+              F_ISSET(r, WT_REC_IN_MEMORY) ||
                 (F_ISSET(r, WT_REC_EVICT) && (r->leave_dirty || page->type == WT_PAGE_COL_FIX) &&
-                                 r->multi->supd_entries != 0));
+                  r->multi->supd_entries != 0));
             goto split;
         }
 
@@ -2178,10 +2196,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         if (WT_VERBOSE_ISSET(session, WT_VERB_SPLIT))
             WT_RET(__rec_split_dump_keys(session, r));
 
-    /*
-     * The reuse flag was set in some cases, but we have to clear it, otherwise on subsequent
-     * reconciliation we would fail to remove blocks that are being discarded.
-     */
+        /*
+         * The reuse flag was set in some cases, but we have to clear it, otherwise on subsequent
+         * reconciliation we would fail to remove blocks that are being discarded.
+         */
 split:
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
             multi->addr.reuse = 0;
@@ -2249,8 +2267,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_DECL_RET;
     WT_MULTI *multi;
-    uint32_t i, session_flags;
-    bool is_owner;
+    uint32_t i;
 
     /* Check if there's work to do. */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
@@ -2259,7 +2276,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     if (i == r->multi_next)
         return (0);
 
-    WT_RET(__wt_hs_cursor(session, &session_flags, &is_owner));
+    WT_RET(__wt_hs_cursor_open(session));
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
@@ -2272,7 +2289,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         }
 
 err:
-    WT_TRET(__wt_hs_cursor_close(session, session_flags, is_owner));
+    WT_TRET(__wt_hs_cursor_close(session));
     return (ret);
 }
 

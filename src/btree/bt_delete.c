@@ -244,7 +244,7 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
      */
     if (skip && ref->page_del != NULL &&
       (visible_all ||
-          __wt_txn_visible_all(session, ref->page_del->txnid, ref->page_del->timestamp))) {
+        __wt_txn_visible_all(session, ref->page_del->txnid, ref->page_del->timestamp))) {
         __wt_free(session, ref->page_del->update_list);
         __wt_free(session, ref->page_del);
     }
@@ -264,6 +264,7 @@ __tombstone_update_alloc(
     WT_UPDATE *upd;
 
     WT_RET(__wt_upd_alloc_tombstone(session, &upd, sizep));
+    F_SET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE);
 
     /*
      * Cleared memory matches the lowest possible transaction ID and timestamp, do nothing.

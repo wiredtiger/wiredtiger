@@ -56,6 +56,10 @@ class CapacityStat(Stat):
     prefix = 'capacity'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, CapacityStat.prefix, desc, flags)
+class CheckpointCleanupStat(Stat):
+    prefix = 'checkpoint-cleanup'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, CheckpointCleanupStat.prefix, desc, flags)
 class CompressStat(Stat):
     prefix = 'compression'
     def __init__(self, name, desc, flags=''):
@@ -72,10 +76,6 @@ class DhandleStat(Stat):
     prefix = 'data-handle'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, DhandleStat.prefix, desc, flags)
-class HistoryStat(Stat):
-    prefix = 'history'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, HistoryStat.prefix, desc, flags)
 class JoinStat(Stat):
     prefix = ''  # prefix is inserted dynamically
     def __init__(self, name, desc, flags=''):
@@ -159,6 +159,7 @@ connection_stats = [
     ##########################################
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
     ConnStat('cond_auto_wait_reset', 'auto adjusting condition resets'),
+    ConnStat('cond_auto_wait_skipped', 'auto adjusting condition wait raced to update timeout and skipped updating'),
     ConnStat('cond_wait', 'pthread mutex condition wait calls'),
     ConnStat('file_open', 'files currently open', 'no_clear,no_scale'),
     ConnStat('fsync_io', 'total fsync I/Os'),
@@ -246,6 +247,7 @@ connection_stats = [
     CacheStat('cache_eviction_force_hs_fail', 'forced eviction - history store pages failed to evict while session has history store cursor open'),
     CacheStat('cache_eviction_force_hs_success', 'forced eviction - history store pages successfully evicted while session has history store cursor open'),
     CacheStat('cache_eviction_force_retune', 'force re-tuning of eviction workers once in a while'),
+    CacheStat('cache_eviction_force_rollback', 'forced eviction - session returned rollback error while force evicting due to being oldest'),
     CacheStat('cache_eviction_get_ref', 'eviction calls to get a page'),
     CacheStat('cache_eviction_get_ref_empty', 'eviction calls to get a page found queue empty'),
     CacheStat('cache_eviction_get_ref_empty2', 'eviction calls to get a page found queue empty after locking'),
@@ -298,15 +300,20 @@ connection_stats = [
     CacheStat('cache_hazard_walks', 'hazard pointer check entries walked'),
     CacheStat('cache_hs_insert', 'history store table insert calls'),
     CacheStat('cache_hs_insert_restart', 'history store table insert calls that returned restart'),
-    CacheStat('cache_hs_key_truncate_onpage_removal', 'history store key truncation due to the key being removed from the data page'),
-    CacheStat('cache_hs_key_truncate_mix_ts', 'history store key truncation due to mixed timestamps'),
-    CacheStat('cache_hs_key_truncate_mix_ts_restart', 'history store key truncation calls that returned restart'),
+    CacheStat('cache_hs_key_truncate', 'history store table truncation to remove an update'),
+    CacheStat('cache_hs_key_truncate_mix_ts', 'history store table truncation to remove range of updates due to mixed timestamps'),
+    CacheStat('cache_hs_key_truncate_mix_ts_restart', 'history store table truncation due to mixed timestamps that returned restart'),
+    CacheStat('cache_hs_key_truncate_onpage_removal', 'history store table truncation to remove range of updates due to key being removed from the data page during reconciliation'),
+    CacheStat('cache_hs_key_truncate_rts', 'history store table truncation by rollback to stable to remove an update'),
+    CacheStat('cache_hs_key_truncate_rts_unstable', 'history store table truncation by rollback to stable to remove an unstable update'),
     CacheStat('cache_hs_ondisk', 'history store table on-disk size', 'no_clear,no_scale,size'),
     CacheStat('cache_hs_ondisk_max', 'history store table max on-disk size', 'no_clear,no_scale,size'),
+    CacheStat('cache_hs_order_fixup_insert', 'history store table out-of-order updates that were fixed up during insertion'),
+    CacheStat('cache_hs_order_fixup_move', 'history store table out-of-order updates that were fixed up by moving existing records'),
+    CacheStat('cache_hs_order_lose_durable_timestamp', 'history store table out-of-order resolved updates that lose their durable timestamp'),
     CacheStat('cache_hs_read', 'history store table reads'),
     CacheStat('cache_hs_read_miss', 'history store table reads missed'),
     CacheStat('cache_hs_read_squash', 'history store table reads requiring squashed modifies'),
-    CacheStat('cache_hs_remove_key_truncate', 'history store table remove calls due to key truncation'),
     CacheStat('cache_hs_score', 'history store score', 'no_clear,no_scale'),
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
     CacheStat('cache_inmem_split', 'in-memory page splits'),
@@ -365,6 +372,8 @@ connection_stats = [
     CursorStat('cursor_next_skip_lt_100', 'cursor next calls that skip less than 100 entries'),
     CursorStat('cursor_next_skip_total', 'Total number of entries skipped by cursor next calls'),
     CursorStat('cursor_prev', 'cursor prev calls'),
+    CursorStat('cursor_prev_hs_tombstone', 'cursor prev calls that skip due to a globally visible history store tombstone'),
+    CursorStat('cursor_prev_hs_tombstone_rts', 'cursor prev calls that skip due to a globally visible history store tombstone in rollback to stable'),
     CursorStat('cursor_prev_skip_ge_100', 'cursor prev calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_prev_skip_lt_100', 'cursor prev calls that skip less than 100 entries'),
     CursorStat('cursor_prev_skip_total', 'Total number of entries skipped by cursor prev calls'),
@@ -405,11 +414,12 @@ connection_stats = [
     DhandleStat('dh_sweeps', 'connection sweeps'),
 
     ##########################################
-    # History statistics
+    # Checkpoint cleanup statistics
     ##########################################
-    HistoryStat('hs_gc_pages_evict', 'history pages added for eviction during garbage collection'),
-    HistoryStat('hs_gc_pages_removed', 'history pages removed for garbage collection'),
-    HistoryStat('hs_gc_pages_visited', 'history pages visited for garbage collection'),
+    CheckpointCleanupStat('cc_pages_evict', 'pages added for eviction'),
+    CheckpointCleanupStat('cc_pages_removed', 'pages removed'),
+    CheckpointCleanupStat('cc_pages_visited', 'pages visited'),
+    CheckpointCleanupStat('cc_pages_walk_skipped', 'pages skipped during tree walk'),
 
     ##########################################
     # Locking statistics
@@ -646,6 +656,7 @@ connection_stats = [
     TxnStat('txn_prepare_rollback', 'prepared transactions rolled back'),
     TxnStat('txn_prepared_updates_count', 'Number of prepared updates'),
     TxnStat('txn_query_ts', 'query timestamp calls'),
+    TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
     TxnStat('txn_read_queue_empty', 'read timestamp queue insert to empty'),
     TxnStat('txn_read_queue_head', 'read timestamp queue inserts to head'),
     TxnStat('txn_read_queue_inserts', 'read timestamp queue inserts total'),
@@ -659,7 +670,7 @@ connection_stats = [
     TxnStat('txn_rts_keys_removed', 'rollback to stable keys removed'),
     TxnStat('txn_rts_keys_restored', 'rollback to stable keys restored'),
     TxnStat('txn_rts_pages_visited', 'rollback to stable pages visited'),
-    TxnStat('txn_rts_skip_interal_pages_walk', 'rollback to stable skipping internal pages tree walk'),
+    TxnStat('txn_rts_tree_walk_skip_pages', 'rollback to stable tree walk skipping pages'),
     TxnStat('txn_rts_sweep_hs_keys', 'rollback to stable sweeping history store keys'),
     TxnStat('txn_rts_upd_aborted', 'rollback to stable updates aborted'),
     TxnStat('txn_set_ts', 'set timestamp calls'),
@@ -717,6 +728,7 @@ dsrc_stats = [
     # Btree statistics
     ##########################################
     BtreeStat('btree_checkpoint_generation', 'btree checkpoint generation', 'no_clear,no_scale'),
+    BtreeStat('btree_clean_checkpoint_timer', 'btree clean tree checkpoint expiration time', 'no_clear,no_scale'),
     BtreeStat('btree_column_deleted', 'column-store variable-size deleted values', 'no_scale,tree_walk'),
     BtreeStat('btree_column_fix', 'column-store fixed-size leaf pages', 'no_scale,tree_walk'),
     BtreeStat('btree_column_internal', 'column-store internal pages', 'no_scale,tree_walk'),
@@ -850,11 +862,12 @@ dsrc_stats = [
     CursorStat('cursor_update_bytes_changed', 'update value size change', 'size'),
 
     ##########################################
-    # History statistics
+    # Checkpoint cleanup statistics
     ##########################################
-    HistoryStat('hs_gc_pages_evict', 'history pages added for eviction during garbage collection'),
-    HistoryStat('hs_gc_pages_removed', 'history pages removed for garbage collection'),
-    HistoryStat('hs_gc_pages_visited', 'history pages visited for garbage collection'),
+    CheckpointCleanupStat('cc_pages_evict', 'pages added for eviction'),
+    CheckpointCleanupStat('cc_pages_removed', 'pages removed'),
+    CheckpointCleanupStat('cc_pages_visited', 'pages visited'),
+    CheckpointCleanupStat('cc_pages_walk_skipped', 'pages skipped during tree walk'),
 
     ##########################################
     # LSM statistics
@@ -921,6 +934,7 @@ dsrc_stats = [
     ##########################################
     # Transaction statistics
     ##########################################
+    TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
     TxnStat('txn_update_conflict', 'update conflicts'),
 ]
 

@@ -159,7 +159,13 @@ main(int argc, char *argv[])
 
     (void)testutil_set_progname(argv);
 
+    /* The monitoring program looks for this line in the log file, push it out quickly. */
+    printf("%s: process %" PRIdMAX " running\n", progname, (intmax_t)getpid());
+    fflush(stdout);
+
     format_process_env();
+
+    __wt_random_init_seed(NULL, &g.rnd); /* Initialize the RNG. */
 
     /* Set values from the command line. */
     home = NULL;
@@ -252,12 +258,8 @@ main(int argc, char *argv[])
      */
     ops_seconds = g.c_timer == 0 ? 0 : ((g.c_timer * 60) - 15) / FORMAT_OPERATION_REPS;
 
-    __wt_random_init_seed(NULL, &g.rnd); /* Initialize the RNG. */
-
     testutil_check(__wt_thread_str(g.tidbuf, sizeof(g.tidbuf)));
 
-    printf("%s: process %" PRIdMAX " running\n", progname, (intmax_t)getpid());
-    fflush(stdout);
     while (++g.run_cnt <= g.c_runs || g.c_runs == 0) {
         __wt_seconds(NULL, &start);
         track("starting up", 0ULL, NULL);
@@ -268,6 +270,7 @@ main(int argc, char *argv[])
             config_final();
             wts_open(g.home, &g.wts_conn, &g.wts_session, true);
             timestamp_init();
+            set_oldest_timestamp();
         } else {
             wts_create(g.home);
             config_final();

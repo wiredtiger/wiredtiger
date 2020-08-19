@@ -142,10 +142,11 @@ __time_stable(WT_SESSION_IMPL *session)
 }
 
 #undef WT_TIME_ERROR
-#define WT_TIME_ERROR(tag)                                                                         \
-    WT_TIME_VALIDATE_RET(session, "aggregate time window has " tag                                 \
-                                  " the stable point with an empty parent aggregate time window; " \
-                                  "stable time %s, time window %s",                                \
+#define WT_TIME_ERROR(tag)                                             \
+    WT_TIME_VALIDATE_RET(session,                                      \
+      "aggregate time window has " tag                                 \
+      " the stable point with an empty parent aggregate time window; " \
+      "stable time %s, time window %s",                                \
       __wt_timestamp_to_string(stable, ts_string), __wt_time_aggregate_to_string(ta, time_string))
 
 /*
@@ -303,10 +304,11 @@ __wt_time_aggregate_validate(
 }
 
 #undef WT_TIME_ERROR
-#define WT_TIME_ERROR(tag)                                                                         \
-    WT_TIME_VALIDATE_RET(session, "time window has " tag                                           \
-                                  " the stable point with an empty parent aggregate time window; " \
-                                  "stable time %s, time window %s",                                \
+#define WT_TIME_ERROR(tag)                                             \
+    WT_TIME_VALIDATE_RET(session,                                      \
+      "time window has " tag                                           \
+      " the stable point with an empty parent aggregate time window; " \
+      "stable time %s, time window %s",                                \
       __wt_timestamp_to_string(stable, ts_string), __wt_time_window_to_string(tw, time_string))
 
 /*

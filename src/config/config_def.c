@@ -138,12 +138,12 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"checkpoint_slow\","
     "\"history_store_checkpoint_delay\",\"history_store_sweep_race\","
-    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\"]",
+    "\"prepare_checkpoint_delay\",\"split_1\",\"split_2\",\"split_3\""
+    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"verbose", "list", NULL,
     "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
-    "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
+    "\"checkpoint_cleanup\",\"checkpoint_progress\",\"compact\","
     "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
     ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
     "\"history_store\",\"history_store_activity\",\"lsm\","
@@ -582,8 +582,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"checkpoint_slow\","
     "\"history_store_checkpoint_delay\",\"history_store_sweep_race\","
-    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\"]",
+    "\"prepare_checkpoint_delay\",\"split_1\",\"split_2\",\"split_3\""
+    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -591,7 +591,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"use_environment_priv", "boolean", NULL, NULL, NULL, 0},
   {"verbose", "list", NULL,
     "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
-    "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
+    "\"checkpoint_cleanup\",\"checkpoint_progress\",\"compact\","
     "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
     ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
     "\"history_store\",\"history_store_activity\",\"lsm\","
@@ -658,8 +658,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"checkpoint_slow\","
     "\"history_store_checkpoint_delay\",\"history_store_sweep_race\","
-    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\"]",
+    "\"prepare_checkpoint_delay\",\"split_1\",\"split_2\",\"split_3\""
+    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -667,7 +667,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"use_environment_priv", "boolean", NULL, NULL, NULL, 0},
   {"verbose", "list", NULL,
     "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
-    "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
+    "\"checkpoint_cleanup\",\"checkpoint_progress\",\"compact\","
     "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
     ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
     "\"history_store\",\"history_store_activity\",\"lsm\","
@@ -731,14 +731,14 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"checkpoint_slow\","
     "\"history_store_checkpoint_delay\",\"history_store_sweep_race\","
-    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\"]",
+    "\"prepare_checkpoint_delay\",\"split_1\",\"split_2\",\"split_3\""
+    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
   {"verbose", "list", NULL,
     "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
-    "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
+    "\"checkpoint_cleanup\",\"checkpoint_progress\",\"compact\","
     "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
     ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
     "\"history_store\",\"history_store_activity\",\"lsm\","
@@ -802,14 +802,14 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"checkpoint_slow\","
     "\"history_store_checkpoint_delay\",\"history_store_sweep_race\","
-    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\"]",
+    "\"prepare_checkpoint_delay\",\"split_1\",\"split_2\",\"split_3\""
+    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
   {"verbose", "list", NULL,
     "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
-    "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
+    "\"checkpoint_cleanup\",\"checkpoint_progress\",\"compact\","
     "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
     ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
     "\"history_store\",\"history_store_activity\",\"lsm\","
@@ -886,8 +886,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.checkpoint", "drop=,force=false,name=,target=,use_timestamp=true",
     confchk_WT_SESSION_checkpoint, 5},
   {"WT_SESSION.close", "", NULL, 0},
-  {"WT_SESSION.commit_transaction", "commit_timestamp=,durable_timestamp=,sync=",
-    confchk_WT_SESSION_commit_transaction, 3},
+  {"WT_SESSION.commit_transaction",
+    "commit_timestamp=,durable_timestamp=,sync=", confchk_WT_SESSION_commit_transaction, 3},
   {"WT_SESSION.compact", "timeout=1200", confchk_WT_SESSION_compact, 1},
   {"WT_SESSION.create",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
@@ -933,17 +933,19 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.prepare_transaction", "prepare_timestamp=", confchk_WT_SESSION_prepare_transaction,
     1},
   {"WT_SESSION.query_timestamp", "get=read", confchk_WT_SESSION_query_timestamp, 1},
-  {"WT_SESSION.rebalance", "", NULL, 0}, {"WT_SESSION.reconfigure",
-                                           "cache_cursors=true,ignore_cache_size=false,"
-                                           "isolation=read-committed",
-                                           confchk_WT_SESSION_reconfigure, 3},
+  {"WT_SESSION.rebalance", "", NULL, 0},
+  {"WT_SESSION.reconfigure",
+    "cache_cursors=true,ignore_cache_size=false,"
+    "isolation=read-committed",
+    confchk_WT_SESSION_reconfigure, 3},
   {"WT_SESSION.rename", "", NULL, 0}, {"WT_SESSION.reset", "", NULL, 0},
   {"WT_SESSION.rollback_transaction", "", NULL, 0},
   {"WT_SESSION.salvage", "force=false", confchk_WT_SESSION_salvage, 1},
-  {"WT_SESSION.strerror", "", NULL, 0}, {"WT_SESSION.timestamp_transaction",
-                                          "commit_timestamp=,durable_timestamp=,prepare_timestamp=,"
-                                          "read_timestamp=",
-                                          confchk_WT_SESSION_timestamp_transaction, 4},
+  {"WT_SESSION.strerror", "", NULL, 0},
+  {"WT_SESSION.timestamp_transaction",
+    "commit_timestamp=,durable_timestamp=,prepare_timestamp=,"
+    "read_timestamp=",
+    confchk_WT_SESSION_timestamp_transaction, 4},
   {"WT_SESSION.transaction_sync", "timeout_ms=1200000", confchk_WT_SESSION_transaction_sync, 1},
   {"WT_SESSION.truncate", "", NULL, 0}, {"WT_SESSION.upgrade", "", NULL, 0},
   {"WT_SESSION.verify",

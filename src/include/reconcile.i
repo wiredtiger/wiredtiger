@@ -13,6 +13,13 @@
     (WT_CROSSING_MIN_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
 
 /*
+ * WT_REC_SPLIT_MIN_ITEMS_USE_MEM
+ *     The minimum number of page items (entries on the disk image or saved updates) associated with
+ *     a page required to consider in-memory updates in the split calculation.
+ */
+#define WT_REC_SPLIT_MIN_ITEMS_USE_MEM 10
+
+/*
  * __rec_cell_addr_stats --
  *     Track statistics for time values associated with an address.
  */
@@ -197,6 +204,24 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 static inline bool
 __wt_rec_need_split(WT_RECONCILE *r, size_t len)
 {
+    uint32_t page_items;
+
+    page_items = r->entries + r->supd_next;
+
+    /*
+     * In the case of a row-store leaf page, we want to encourage a split if we see lots of
+     * in-memory content. This allows pages to be split for update/restore and history store
+     * eviction even when the disk image itself isn't growing.
+     *
+     * Make sure that there are a reasonable number of items (entries on the disk image or saved
+     * updates) associated with the page. If there are barely any items on the page, then it's not
+     * worth splitting. We also want to temper this effect to avoid in-memory updates from
+     * dominating the calculation and causing excessive splitting. Therefore, we'll limit the impact
+     * to a tenth of the cache usage occupied by those updates.
+     */
+    if (r->page->type == WT_PAGE_ROW_LEAF && page_items > WT_REC_SPLIT_MIN_ITEMS_USE_MEM)
+        len += r->supd_memsize / 10;
+
     /* Check for the disk image crossing a boundary. */
     return (WT_CHECK_CROSSING_BND(r, len));
 }

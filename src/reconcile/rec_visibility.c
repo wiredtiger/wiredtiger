@@ -33,7 +33,8 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
     /* If nothing is committed, we must restore the update chain. */
     WT_ASSERT(session, onpage_upd != NULL || supd_restore);
     /* We can only write a standard update or a modify to the data store. */
-    WT_ASSERT(session, onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
+    WT_ASSERT(session,
+      onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
         onpage_upd->type == WT_UPDATE_MODIFY);
 
     WT_RET(__wt_realloc_def(session, &r->supd_allocated, r->supd_next + 1, &r->supd));
@@ -49,7 +50,9 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
 
 /*
  * __rec_append_orig_value --
- *     Append the key's original value to its update list.
+ *     Append the key's original value to its update list. It assumes that we have an onpage value,
+ *     the onpage value is not a prepared update, and we don't overwrite transaction id to
+ *     WT_TXN_NONE and timestamps to WT_TS_NONE in time window for in-memory databases.
  */
 static int
 __rec_append_orig_value(
@@ -61,7 +64,8 @@ __rec_append_orig_value(
     size_t size, total_size;
     bool tombstone_globally_visible;
 
-    WT_ASSERT(session, upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL);
+    WT_ASSERT(
+      session, upd != NULL && unpack != NULL && unpack->type != WT_CELL_DEL && !unpack->tw.prepare);
 
     append = oldest_upd = tombstone = NULL;
     total_size = 0;
@@ -69,24 +73,20 @@ __rec_append_orig_value(
 
     /* Review the current update list, checking conditions that mean no work is needed. */
     for (;; upd = upd->next) {
-        /* Done if the update was restored from the history store. */
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS))
-            return (0);
-
-        /*
-         * Prepared updates should already be in the update list, add the original update to the
-         * list only when the prepared update is a tombstone.
-         */
-        if (unpack->tw.prepare && upd->type != WT_UPDATE_TOMBSTONE)
+        /* Done if the update was restored from the data store or the history store. */
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
             return (0);
 
         /*
          * Done if the on page value already appears on the update list. We can't do the same check
          * for stop time point because we may still need to append the onpage value if only the
-         * tombstone is on the update chain.
+         * tombstone is on the update chain. We only need to check it in the in memory case as in
+         * other cases, the update must have been restored from the data store and we may overwrite
+         * its transaction id to WT_TXN_NONE and its timestamps to WT_TS_NONE when we write the
+         * update to the time window.
          */
-        if (unpack->tw.start_ts == upd->start_ts && unpack->tw.start_txn == upd->txnid &&
-          upd->type != WT_UPDATE_TOMBSTONE)
+        if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && unpack->tw.start_ts == upd->start_ts &&
+          unpack->tw.start_txn == upd->txnid && upd->type != WT_UPDATE_TOMBSTONE)
             return (0);
 
         /*
@@ -127,13 +127,8 @@ __rec_append_orig_value(
     if (WT_TIME_WINDOW_HAS_STOP(&unpack->tw)) {
         tombstone_globally_visible = __wt_txn_tw_stop_visible_all(session, &unpack->tw);
 
-        /*
-         * No need to append the tombstone if it is already in the update chain.
-         *
-         * Don't append the onpage tombstone if it is a prepared update as it is either on the
-         * update chain or has been aborted. If it is aborted, discard it silently.
-         */
-        if (oldest_upd->type != WT_UPDATE_TOMBSTONE && !unpack->tw.prepare) {
+        /* No need to append the tombstone if it is already in the update chain. */
+        if (oldest_upd->type != WT_UPDATE_TOMBSTONE) {
             /*
              * We still need to append the globally visible tombstone if its timestamp is WT_TS_NONE
              * as we may need it to clear the history store content of the key. We don't append a
@@ -152,21 +147,17 @@ __rec_append_orig_value(
             F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
         } else {
             /*
-             * Once the prepared update is resolved, the in-memory update and on-disk written copy
-             * doesn't have same timestamp due to replacing of prepare timestamp with commit and
-             * durable timestamps. Don't compare them when the on-disk version is a prepare.
+             * We may have overwritten its transaction id to WT_TXN_NONE and its timestamps to
+             * WT_TS_NONE in the time window.
              */
-            WT_ASSERT(session, unpack->tw.prepare || (unpack->tw.stop_ts == oldest_upd->start_ts &&
-                                                       unpack->tw.stop_txn == oldest_upd->txnid));
+            WT_ASSERT(session,
+              (unpack->tw.stop_ts == oldest_upd->start_ts || unpack->tw.stop_ts == WT_TS_NONE) &&
+                (unpack->tw.stop_txn == oldest_upd->txnid || unpack->tw.stop_txn == WT_TXN_NONE));
+
             if (tombstone_globally_visible)
                 return (0);
         }
-    } else if (unpack->tw.prepare)
-        /*
-         * Don't append the onpage value if it is a prepared update as it is either on the update
-         * chain or has been aborted. If it is aborted, discard it silently.
-         */
-        return (0);
+    }
 
     /* We need the original on-page value for some reader: get a copy. */
     if (!tombstone_globally_visible) {
@@ -253,6 +244,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * both must be initialized.
      */
     upd_select->upd = NULL;
+    upd_select->upd_saved = false;
     select_tw = &upd_select->tw;
     WT_TIME_WINDOW_INIT(select_tw);
 
@@ -296,8 +288,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * check is not required for history store updates as they are implicitly committed. As
          * prepared transaction IDs are globally visible, need to check the update state as well.
          */
-        if (!is_hs_page && (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
-                                                             !__txn_visible_id(session, txnid))) {
+        if (!is_hs_page &&
+          (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
+                                            !__txn_visible_id(session, txnid))) {
             /*
              * Rare case: when applications run at low isolation levels, eviction may see a
              * committed update followed by uncommitted updates. Give up in that case because we
@@ -334,8 +327,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                  * Otherwise, it removes the key.
                  */
                 WT_ASSERT(session,
-                  F_ISSET(r, WT_REC_EVICT) || (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
-                                                F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)));
+                  F_ISSET(r, WT_REC_EVICT) ||
+                    (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
+                      F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)));
                 WT_ASSERT(session, upd->prepare_state == WT_PREPARE_INPROGRESS);
             }
         }
@@ -365,8 +359,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * The checkpoint transaction is special. Make sure we never write metadata updates from a
      * checkpoint in a concurrent session.
      */
-    WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) || upd == NULL ||
-        upd->txnid == WT_TXN_NONE ||
+    WT_ASSERT(session,
+      !WT_IS_METADATA(session->dhandle) || upd == NULL || upd->txnid == WT_TXN_NONE ||
         upd->txnid != S2C(session)->txn_global.checkpoint_txn_shared.id ||
         WT_SESSION_IS_CHECKPOINT(session));
 
@@ -385,6 +379,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_RET_PANIC(session, EINVAL, "reconciliation error, update not visible");
         return (__wt_set_return(session, EBUSY));
     }
+
+    /* If an update was selected, record that we're making progress. */
+    if (upd != NULL)
+        r->update_used = true;
 
     /*
      * The start timestamp is determined by the commit timestamp when the key is first inserted (or
@@ -432,7 +430,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_TIME_WINDOW_SET_START(select_tw, upd);
         else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
-            WT_ASSERT(session, vpack != NULL && tombstone != NULL && last_upd->next == NULL);
+            WT_ASSERT(session,
+              vpack != NULL && tombstone != NULL && !vpack->tw.prepare && last_upd->next == NULL);
             /*
              * It's possible to have a tombstone as the only update in the update list. If we
              * reconciled before with only a single update and then read the page back into cache,
@@ -442,28 +441,42 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * In this case, we should leave the selected update unset to indicate that we want to
              * keep the same on-disk value but set the stop time point to indicate that the validity
              * window ends when this tombstone started.
+             *
+             * FIXME-WT-6557: no need to check this after WT-6557 is done as the tombstone will be
+             * freed when it is written to the disk image in the previous eviction.
              */
-            WT_ERR(__rec_append_orig_value(session, page, tombstone, vpack));
+            if (!F_ISSET(tombstone, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS)) {
+                WT_ERR(__rec_append_orig_value(session, page, tombstone, vpack));
 
-            /*
-             * We may have updated the global transaction concurrently and the tombstone is now
-             * globally visible. In this case, the on page value is not appended. Check that.
-             */
-            if (last_upd->next != NULL) {
-                WT_ASSERT(session, last_upd->next->txnid == vpack->tw.start_txn &&
-                    last_upd->next->start_ts == vpack->tw.start_ts &&
-                    last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL);
-                upd_select->upd = last_upd->next;
-                WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
-            } else {
                 /*
-                 * If the tombstone is aborted concurrently, we should still have appended the
-                 * onpage value.
+                 * We may have updated the global transaction concurrently and the tombstone is now
+                 * globally visible. In this case, the on page value is not appended. Verify that.
                  */
-                WT_ASSERT(session, tombstone->txnid != WT_TXN_ABORTED &&
-                    __wt_txn_upd_visible_all(session, tombstone) && upd_select->upd == NULL);
-                upd_select->upd = tombstone;
-            }
+                if (last_upd->next != NULL) {
+                    WT_ASSERT(session,
+                      last_upd->next->txnid == vpack->tw.start_txn &&
+                        last_upd->next->start_ts == vpack->tw.start_ts &&
+                        last_upd->next->type == WT_UPDATE_STANDARD && last_upd->next->next == NULL);
+                    upd_select->upd = last_upd->next;
+                    WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
+                } else {
+                    /*
+                     * If the tombstone is aborted concurrently, we should still have appended the
+                     * onpage value.
+                     */
+                    WT_ASSERT(session,
+                      tombstone->txnid != WT_TXN_ABORTED &&
+                        __wt_txn_upd_visible_all(session, tombstone) && upd_select->upd == NULL);
+                    upd_select->upd = tombstone;
+                }
+            } else
+                /*
+                 * If the tombstone is restored from the disk or history store, it must have already
+                 * been written to the disk image in the previous eviction.
+                 */
+                WT_ASSERT(session,
+                  upd_select->upd == NULL && vpack->tw.durable_stop_ts == tombstone->durable_ts &&
+                    vpack->tw.stop_txn == tombstone->txnid);
         }
     }
 
@@ -519,14 +532,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          */
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
-                         page->type == WT_PAGE_COL_FIX);
+            page->type == WT_PAGE_COL_FIX);
         if (supd_restore)
             r->cache_write_restore = true;
         WT_ERR(__rec_update_save(session, r, ins, ripcip,
           upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE ? NULL :
                                                                                     upd_select->upd,
           supd_restore, upd_memsize));
-        upd_saved = true;
+        upd_saved = upd_select->upd_saved = true;
     }
 
     /*
@@ -544,9 +557,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * part of the page, and they are physically removed by checkpoint writing this page, that is,
      * the checkpoint doesn't include the overflow blocks so they're removed and future readers of
      * this page won't be able to find them.
+     *
+     * We never append prepared updates back to the onpage value. If it is a prepared full update,
+     * it is already on the update chain. If it is a prepared tombstone, the onpage value is already
+     * appended to the update chain when the page is read into memory.
      */
     if (upd_select->upd != NULL && vpack != NULL && vpack->type != WT_CELL_DEL &&
-      (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
+      !vpack->tw.prepare && (upd_saved || F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)))
         WT_ERR(__rec_append_orig_value(session, page, upd_select->upd, vpack));
 
     __wt_time_window_clear_obsolete(

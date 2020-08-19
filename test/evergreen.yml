@@ -55,7 +55,7 @@ functions:
         set -o verbose
         if [ "$OS" != "Windows_NT" ]; then
           sh reconf
-          ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC"} \
+          ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} \
             ../configure ${configure_python_setting|} \
             ${posix_configure_flags|--enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL}
         fi
@@ -122,7 +122,7 @@ functions:
           set -o verbose
           sh reconf
           if [ "$OS" != "Windows_NT" ]; then
-            CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC" \
+            CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC" \
               ../configure ${configure_python_setting|} \
               --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
           fi
@@ -224,22 +224,29 @@ functions:
         set -o verbose
 
         for i in $(seq ${times|1}); do
-          # Run the various combinations of args.  Let time and threads be random.
+          # Run the various combinations of args. Let time and threads be random. Add a
+          # timing stress to test_timestamp_abort every other run.
+          if [ $(( $i % 2 )) -eq 0 ]; then
+            test_timestamp_abort_args=-s
+          else
+            test_timestamp_abort_args=
+          fi
+
           # Run current version with write-no-sync txns.
           ${test_env_vars|} ./test_random_abort 2>&1
-          ${test_env_vars|} ./test_timestamp_abort 2>&1
+          ${test_env_vars|} ./test_timestamp_abort $test_timestamp_abort_args 2>&1
 
           # Current version with memory-based txns (MongoDB usage).
           ${test_env_vars|} ./test_random_abort -m 2>&1
-          ${test_env_vars|} ./test_timestamp_abort -m 2>&1
+          ${test_env_vars|} ./test_timestamp_abort -m $test_timestamp_abort_args 2>&1
 
           # V1 log compatibility mode with write-no-sync txns.
           ${test_env_vars|} ./test_random_abort -C 2>&1
-          ${test_env_vars|} ./test_timestamp_abort -C 2>&1
+          ${test_env_vars|} ./test_timestamp_abort -C $test_timestamp_abort_args 2>&1
 
           # V1 log compatibility mode with memory-based txns.
           ${test_env_vars|} ./test_random_abort -C -m 2>&1
-          ${test_env_vars|} ./test_timestamp_abort -C -m 2>&1
+          ${test_env_vars|} ./test_timestamp_abort -C -m $test_timestamp_abort_args 2>&1
 
           ${test_env_vars|} ./test_truncated_log ${truncated_log_args|} 2>&1
 
@@ -262,7 +269,7 @@ functions:
         permissions: public-read
         content_type: application/tar
         display_name: Artifacts
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}.tgz
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
   "cleanup":
     command: shell.exec
     params:
@@ -371,7 +378,7 @@ variables:
           configure_env_vars:
             CC="/opt/mongodbtoolchain/v3/bin/clang -fsanitize=address"
             PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer"
-          posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
       - func: "format test script"
         vars:
           format_test_script_args: -R -t 360
@@ -388,12 +395,14 @@ variables:
           posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
       - func: "recovery stress test script"
         vars:
-          times: 40
+          times: 25
 
 pre:
   - func: "cleanup"
 post:
   - func: "upload artifact"
+    vars:
+      postfix: -${execution}
   - func: "cleanup"
 
 tasks:
@@ -403,6 +412,8 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
+      - func: "upload artifact"
+      - func: "cleanup"
 
   - name: compile-asan
     tags: ["pull_request"]
@@ -412,6 +423,8 @@ tasks:
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
+      - func: "upload artifact"
+      - func: "cleanup"
 
   - name: compile-msan
     commands:
@@ -420,6 +433,8 @@ tasks:
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=memory -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
+      - func: "upload artifact"
+      - func: "cleanup"
 
   - name: compile-ubsan
     commands:
@@ -428,6 +443,8 @@ tasks:
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=undefined -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic
+      - func: "upload artifact"
+      - func: "cleanup"
 
   # production build with --disable-shared
   - name: compile-production-disable-shared
@@ -437,6 +454,8 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-strict --disable-shared
+      - func: "upload artifact"
+      - func: "cleanup"
 
   # production build with --disable-static
   - name: compile-production-disable-static
@@ -446,6 +465,8 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-strict --disable-static --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
+      - func: "upload artifact"
+      - func: "cleanup"
 
   - name: compile-linux-no-ftruncate
     commands:
@@ -453,6 +474,8 @@ tasks:
       - func: "compile wiredtiger no linux ftruncate"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python
+      - func: "upload artifact"
+      - func: "cleanup"
 
   - name: compile-wtperf
     commands:
@@ -460,6 +483,8 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-strict --enable-diagnostic
+      - func: "upload artifact"
+      - func: "cleanup"
 
   - name: compile-gcc
     tags: ["pull_request", "pull_request_compilers"]
@@ -467,25 +492,25 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=gcc-4.8 CXX=g++-4.8 CFLAGS="-ggdb -fPIC"
+          configure_env_vars: CC=gcc-4.8 CXX=g++-4.8 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=gcc-5 CXX=g++-5 CFLAGS="-ggdb -fPIC"
+          configure_env_vars: CC=gcc-5 CXX=g++-5 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=gcc-6 CXX=g++-6 CFLAGS="-ggdb -fPIC"
+          configure_env_vars: CC=gcc-6 CXX=g++-6 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=gcc-6 CXX=g++-6 CFLAGS="-ggdb -fPIC" CPPFLAGS=-fvisibility=hidden
+          configure_env_vars: CC=gcc-6 CXX=g++-6 ADD_CFLAGS="-ggdb -fPIC" CPPFLAGS=-fvisibility=hidden
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=gcc-7 CXX=g++-7 CFLAGS="-ggdb -fPIC"
+          configure_env_vars: CC=gcc-7 CXX=g++-7 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=gcc-8 CXX=g++-8 CFLAGS="-ggdb -fPIC"
+          configure_env_vars: CC=gcc-8 CXX=g++-8 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=gcc-9 CXX=g++-9 CFLAGS="-ggdb -fPIC"
+          configure_env_vars: CC=gcc-9 CXX=g++-9 ADD_CFLAGS="-ggdb -fPIC"
 
   - name: compile-clang
     tags: ["pull_request", "pull_request_compilers"]
@@ -493,22 +518,22 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=clang-3.9 CXX=clang++-3.9 CFLAGS="-ggdb -fPIC"
+          configure_env_vars: CC=clang-3.9 CXX=clang++-3.9 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=clang-4.0 CXX=clang++-4.0 CFLAGS="-ggdb -fPIC"
+          configure_env_vars: CC=clang-4.0 CXX=clang++-4.0 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=clang-5.0 CXX=clang++-5.0 CFLAGS="-ggdb -fPIC"
+          configure_env_vars: CC=clang-5.0 CXX=clang++-5.0 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=clang-6.0 CXX=clang++-6.0 CFLAGS="-ggdb -fPIC"
+          configure_env_vars: CC=clang-6.0 CXX=clang++-6.0 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=clang-7 CXX=clang++-7 CFLAGS="-ggdb -fPIC"
+          configure_env_vars: CC=clang-7 CXX=clang++-7 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=clang-8 CXX=clang++-8 CFLAGS="-ggdb -fPIC"
+          configure_env_vars: CC=clang-8 CXX=clang++-8 ADD_CFLAGS="-ggdb -fPIC"
 
   - name: make-check-test
     depends_on:
@@ -770,6 +795,8 @@ tasks:
       - name: compile-ubsan
     commands:
       - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-ubsan
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=undefined -ggdb"
@@ -873,6 +900,21 @@ tasks:
             set -o verbose
 
             ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
+
+  - name: csuite-timestamp-abort-stress-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh -s 2>&1
 
   - name: csuite-scope-test
     tags: ["pull_request"]
@@ -1611,7 +1653,7 @@ tasks:
             ulimit -c unlimited
             largescale/run-million-collection-test.sh .
 
-  - name: compatibility-test-for-releases-full
+  - name: compatibility-test-for-newer-releases
     commands:
       - func: "get project"
       - command: shell.exec
@@ -1620,9 +1662,9 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh -l
+            test/evergreen/compatibility_test_for_releases.sh -n
 
-  - name: compatibility-test-for-releases
+  - name: compatibility-test-for-older-releases
     commands:
       - func: "get project"
       - command: shell.exec
@@ -1631,7 +1673,18 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            test/evergreen/compatibility_test_for_releases.sh
+            test/evergreen/compatibility_test_for_releases.sh -o
+
+  - name: compatibility-test-for-wt-standalone-releases
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            test/evergreen/compatibility_test_for_releases.sh -w
 
   - name: generate-datafile-little-endian
     depends_on:
@@ -1782,8 +1835,8 @@ tasks:
       # Handle special build combination for running all the diagnostic tests.
       - func: "configure wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -Werror"
-          posix_configure_flags: --enable-silent-rules --enable-diagnostic --disable-static
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-g -Werror"
+          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "make wiredtiger"
         vars:
           make_command: make all
@@ -1874,7 +1927,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="--coverage -fPIC -ggdb" LDFLAGS=--coverage
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="--coverage -fPIC -ggdb" LDFLAGS=--coverage
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python --with-builtins=lz4,snappy,zlib
       - func: "make check all"
       - func: "unit test"
@@ -1930,7 +1983,7 @@ tasks:
           permissions: public-read
           content_type: text/html
           display_name: Coverage report
-          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
+          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}-${execution}.html
 
   - name: spinlock-gcc-test
     commands:
@@ -1982,7 +2035,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: ac_cv_func_ftruncate=no
+          posix_configure_flags: --enable-strict ac_cv_func_ftruncate=no
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
@@ -1998,8 +2051,8 @@ tasks:
       - func: "get project"
       - func: "configure wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -Werror"
-          posix_configure_flags: --enable-silent-rules --enable-diagnostic --disable-static
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-g -Werror"
+          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "make wiredtiger"
 
       # Run the long version of make check, that includes the full csuite tests
@@ -2121,7 +2174,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --disable-shared --with-builtins=snappy,zlib
+          posix_configure_flags: --enable-strict --disable-shared --with-builtins=snappy,zlib
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
@@ -2133,7 +2186,7 @@ tasks:
             # Delete wt util
             rm -f wt
             # Build static wt util
-            make CC='eval "g++ -static"' ${smp_command|}
+            ${make_command|make} CC='eval "g++ -static"' ${smp_command|}
             # -V option displays Wiredtiger library version
             ./wt -V
 
@@ -2175,7 +2228,7 @@ tasks:
       - func: "checkpoint stress test"
         vars:
           times: 1       # No of times to run the loop
-          no_of_procs: 8 # No of processes to run in the background
+          no_of_procs: 10 # No of processes to run in the background
 
   - name: split-stress-test
     tags: ["stress-test-1", "stress-test-zseries-1"]
@@ -2185,7 +2238,7 @@ tasks:
         vars:
           configure_env_vars:
             CXX=/opt/mongodbtoolchain/v3/bin/g++
-            PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC"
+            PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/bench/workgen/runner"
@@ -2313,6 +2366,9 @@ tasks:
   - <<: *recovery-stress-test
     name: recovery-stress-test-2
     tags: ["stress-test-2", "stress-test-zseries-2"]
+  - <<: *recovery-stress-test
+    name: recovery-stress-test-3
+    tags: ["stress-test-3", "stress-test-zseries-3"]
 
 buildvariants:
 
@@ -2458,20 +2514,21 @@ buildvariants:
   tasks:
     - name: million-collection-test
 
-- name: compatibility-tests-full
-  display_name: Compatibility tests full
+- name: compatibility-tests-less-frequent
+  display_name: Compatibility tests (less frequent)
   batchtime: 10080 # 7 days
   run_on:
   - ubuntu1804-test
   tasks:
-    - name: compatibility-test-for-releases-full
+    - name: compatibility-test-for-older-releases
+    - name: compatibility-test-for-wt-standalone-releases
 
 - name: compatibility-tests
   display_name: Compatibility tests
   run_on:
   - ubuntu1804-test
   tasks:
-    - name: compatibility-test-for-releases
+    - name: compatibility-test-for-newer-releases
 
 - name: windows-64
   display_name: "! Windows 64-bit"
@@ -2488,7 +2545,7 @@ buildvariants:
   run_on:
   - macos-1012
   expansions:
-    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC"
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"
     posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     smp_command: -j $(sysctl -n hw.logicalcpu)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
@@ -2568,3 +2625,4 @@ buildvariants:
   - name: unit-test
   - name: ".stress-test-zseries-1"
   - name: ".stress-test-zseries-2"
+  - name: ".stress-test-zseries-3"
