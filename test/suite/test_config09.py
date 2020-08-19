@@ -34,10 +34,10 @@ import wiredtiger, wttest
 from wiredtiger import stat
 
 class test_config09(wttest.WiredTigerTestCase):
-    ntables = 500
+    ntables = 50
     nentries = 5
     uri = 'table:config09.'
-    conn_config ='hash=(buckets=256,dhandle_buckets=1024),statistics=(fast)'
+    conn_config = 'hash=(buckets=256,dhandle_buckets=1024),statistics=(fast)'
 
     # Create, populate and checkpoint the initial tables.
     def create_tables(self):
@@ -66,6 +66,21 @@ class test_config09(wttest.WiredTigerTestCase):
         val = stat_cursor[stat][2]
         stat_cursor.close()
         return val
+
+    def test_config09_invalid(self):
+        self.conn.close()
+
+        # Verify the message when using non-power-of-two values.
+        msg = '/power of 2/'
+        config = 'hash=(buckets=255,dhandle_buckets=1024)'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.wiredtiger_open('.', config), msg)
+        config = 'hash=(buckets=256,dhandle_buckets=1000)'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.wiredtiger_open('.', config), msg)
+        config = 'hash=(dhandle_buckets=1000)'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.wiredtiger_open('.', config), msg)
 
     def test_config09(self):
         self.create_tables()
