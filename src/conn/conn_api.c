@@ -408,7 +408,7 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
     if (conn->kencryptor == NULL && kencryptorp != &conn->kencryptor)
         WT_ERR_MSG(session, EINVAL, "table encryption requires connection encryption to be set");
     hash = __wt_hash_city64(keyid->str, keyid->len);
-    bucket = hash % conn->hash_size;
+    bucket = hash & (conn->hash_size - 1);
     TAILQ_FOREACH (kenc, &nenc->keyedhashqh[bucket], q)
         if (WT_STRING_MATCH(kenc->keyid, keyid->str, keyid->len))
             goto out;
@@ -1545,8 +1545,15 @@ __conn_hash_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
     WT_RET(__wt_config_gets(session, cfg, "hash.buckets", &cval));
+    if (!__wt_ispo2((uint32_t)cval.val))
+        WT_RET_MSG(session, EINVAL, "Hash bucket size %" PRIu64 " invalid. Must be power of 2",
+          (uint64_t)cval.val);
     conn->hash_size = (uint64_t)cval.val;
     WT_RET(__wt_config_gets(session, cfg, "hash.dhandle_buckets", &cval));
+    if (!__wt_ispo2((uint32_t)cval.val))
+        WT_RET_MSG(session, EINVAL,
+          "Data handle hash bucket size %" PRIu64 " invalid. Must be power of 2",
+          (uint64_t)cval.val);
     conn->dh_hash_size = (uint64_t)cval.val;
     /* Don't set the values in the statistics here. They're set after the connection is set up. */
 

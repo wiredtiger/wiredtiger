@@ -1017,8 +1017,9 @@ wiredtiger_open_common =\
         acquire exclusive access to the table''',
         type='boolean'),
     Config('hash', '', r'''
-        manage resources around hash bucket arrays. Note that setting large values can
-        significantly increase memory usage inside WiredTiger''',
+        manage resources around hash bucket arrays. All values must be a power of two.
+        Note that setting large values can significantly increase memory usage inside
+        WiredTiger''',
         type='category', subconfig=[
         Config('buckets', 512, r'''
             configure the number of hash buckets for most system hash arrays''',

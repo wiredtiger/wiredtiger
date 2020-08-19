@@ -36,7 +36,7 @@ __im_handle_search(WT_SESSION_IMPL *session, WT_FILE_SYSTEM *file_system, const 
     im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 
     hash = __wt_hash_city64(name, strlen(name));
-    bucket = hash % S2C(session)->hash_size;
+    bucket = hash & (S2C(session)->hash_size - 1);
     TAILQ_FOREACH (im_fh, &im_fs->fhhash[bucket], hashq)
         if (strcmp(im_fh->iface.name, name) == 0)
             break;
@@ -64,7 +64,7 @@ __im_handle_remove(
             return (__wt_set_return(session, EBUSY));
     }
 
-    bucket = im_fh->name_hash % S2C(session)->hash_size;
+    bucket = im_fh->name_hash & (S2C(session)->hash_size - 1);
     WT_FILE_HANDLE_REMOVE(im_fs, im_fh, bucket);
 
     /* Clean up private information. */
@@ -236,10 +236,10 @@ __im_fs_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *
         __wt_free(session, im_fh->iface.name);
         im_fh->iface.name = copy;
 
-        bucket = im_fh->name_hash % S2C(session)->hash_size;
+        bucket = im_fh->name_hash & (S2C(session)->hash_size - 1);
         WT_FILE_HANDLE_REMOVE(im_fs, im_fh, bucket);
         im_fh->name_hash = __wt_hash_city64(to, strlen(to));
-        bucket = im_fh->name_hash % S2C(session)->hash_size;
+        bucket = im_fh->name_hash & (S2C(session)->hash_size - 1);
         WT_FILE_HANDLE_INSERT(im_fs, im_fh, bucket);
     }
 
@@ -473,7 +473,7 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *
     im_fh->ref = 1;
 
     hash = __wt_hash_city64(name, strlen(name));
-    bucket = hash % S2C(session)->hash_size;
+    bucket = hash & (S2C(session)->hash_size - 1);
     im_fh->name_hash = hash;
     WT_FILE_HANDLE_INSERT(im_fs, im_fh, bucket);
 

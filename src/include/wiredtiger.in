@@ -2954,13 +2954,15 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;close_scan_interval, interval in seconds at which to check for
  * files that are inactive and close them., an integer between 1 and 100000; default \c 10.}
  * @config{ ),,}
- * @config{hash = (, manage resources around hash bucket arrays.  Note that setting large values can
- * significantly increase memory usage inside WiredTiger., a set of related configuration options
- * defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;buckets, configure the number of hash buckets for
- * most system hash arrays., an integer between 64 and 65536; default \c 512.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;dhandle_buckets, configure the number of hash buckets for hash
- * arrays relating to data handles., an integer between 64 and 65536; default \c 512.}
+ * @config{hash = (, manage resources around hash bucket arrays.  All values must be a power of two.
+ * Note that setting large values can significantly increase memory usage inside WiredTiger., a set
+ * of related configuration options defined below.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;buckets,
+ * configure the number of hash buckets for most system hash arrays., an integer between 64 and
+ * 65536; default \c 512.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;dhandle_buckets, configure the number of
+ * hash buckets for hash arrays relating to data handles., an integer between 64 and 65536; default
+ * \c 512.}
  * @config{ ),,}
  * @config{history_store = (, history store configuration options., a set of related configuration
  * options defined below.}

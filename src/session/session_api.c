@@ -82,7 +82,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     for (i = 0; i < WT_SESSION_CURSOR_SWEEP_MAX && productive; i++) {
         ++nbuckets;
         cached_list = &session->cursor_cache[position];
-        position = (position + 1) % S2C(session)->hash_size;
+        position = (position + 1) & (S2C(session)->hash_size - 1);
         TAILQ_FOREACH_SAFE(cursor, cached_list, q, cursor_tmp)
         {
             /*
