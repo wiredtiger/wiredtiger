@@ -967,16 +967,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
 
             clear_hs = false;
-            /*
-             * Flag the update as now in the history store and clear the data store flag if it was
-             * previously set.
-             */
-            F_CLR(upd, WT_UPDATE_DS);
+            /* Flag the update as now in the history store. */
             F_SET(upd, WT_UPDATE_HS);
-            if (tombstone != NULL) {
-                F_CLR(tombstone, WT_UPDATE_DS);
+            if (tombstone != NULL)
                 F_SET(tombstone, WT_UPDATE_HS);
-            }
             hs_inserted = true;
             ++insert_cnt;
             if (squashed) {
