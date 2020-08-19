@@ -37,7 +37,7 @@ class test_config09(wttest.WiredTigerTestCase):
     ntables = 500
     nentries = 5
     uri = 'table:config09.'
-    conn_config ='hash=(buckets=256,dhandle_buckets=1000),statistics=(fast)'
+    conn_config ='hash=(buckets=256,dhandle_buckets=1024),statistics=(fast)'
 
     # Create, populate and checkpoint the initial tables.
     def create_tables(self):
