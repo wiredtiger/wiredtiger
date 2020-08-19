@@ -73,7 +73,7 @@ class test_config09(wttest.WiredTigerTestCase):
         val = self.get_stat(stat.conn.buckets)
         self.assertEqual(val, 256)
         val = self.get_stat(stat.conn.buckets_dh)
-        self.assertEqual(val, 1000)
+        self.assertEqual(val, 1024)
 
         self.update_tables()
         val = self.get_stat(stat.conn.txn_checkpoint_handle_applied)
