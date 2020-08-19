@@ -37,13 +37,6 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
       onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
         onpage_upd->type == WT_UPDATE_MODIFY);
 
-    /*
-     * Mark this update as being destined for the data store. Subsequent reconciliations should know
-     * not to look past this update.
-     */
-    if (onpage_upd != NULL)
-        F_SET(onpage_upd, WT_UPDATE_DS);
-
     WT_RET(__wt_realloc_def(session, &r->supd_allocated, r->supd_next + 1, &r->supd));
     supd = &r->supd[r->supd_next];
     supd->ins = ins;
@@ -277,20 +270,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 
-        /*
-         * If we've spotted the update that we last wrote to the data store, then there's no use
-         * continuing. We should just leave that update on the disk.
-         *
-         * If reconciliation succeeded last time, this update is on the disk so we shouldn't save
-         * any update. If it failed, we should explicitly choose this update since it got selected
-         * last time but didn't make its way onto the disk image due to a reconciliation failure.
-         */
-        if (F_ISSET(upd, WT_UPDATE_DS)) {
-            if (!F_ISSET_ATOMIC(page, WT_PAGE_LAST_REC_FAILED))
-                upd = NULL;
-            break;
-        }
-
         ++r->updates_seen;
         upd_memsize += WT_UPDATE_MEMSIZE(upd);
 
@@ -308,8 +287,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * a concurrent transaction commits or rolls back while we are examining its updates. This
          * check is not required for history store updates as they are implicitly committed. As
          * prepared transaction IDs are globally visible, need to check the update state as well.
+         *
+         * Ignore visibility if the update has already been written to the disk.
          */
-        if (!is_hs_page &&
+        if (!F_ISSET(upd, WT_UPDATE_DS) && !is_hs_page &&
           (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
                                             !__txn_visible_id(session, txnid))) {
             /*
@@ -360,7 +341,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             max_ts = upd->start_ts;
 
         /* Always select the newest committed update to write to disk */
-        if (upd_select->upd == NULL)
+        if (upd_select->upd == NULL &&
+          (!F_ISSET(upd, WT_UPDATE_DS) || F_ISSET_ATOMIC(page, WT_PAGE_LAST_REC_FAILED)))
             upd_select->upd = upd;
 
         if (F_ISSET(r, WT_REC_EVICT) && !__rec_update_stable(session, r, upd))
@@ -560,6 +542,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
           upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE ? NULL :
                                                                                     upd_select->upd,
           supd_restore, upd_memsize));
+        /*
+         * Mark the selected update (and potentially the tombstone preceding it) as having been
+         * written to the disk.
+         */
+        if (upd_select->upd != NULL)
+            F_SET(upd_select->upd, WT_UPDATE_DS);
+        if (tombstone != NULL)
+            F_SET(tombstone, WT_UPDATE_DS);
         upd_saved = upd_select->upd_saved = true;
     }
 
