@@ -1021,10 +1021,10 @@ wiredtiger_open_common =\
         significantly increase memory usage inside WiredTiger''',
         type='category', subconfig=[
         Config('buckets', 512, r'''
-            configure the general number of hash buckets for most system hash arrays''',
+            configure the number of hash buckets for most system hash arrays''',
             min='64', max='65536'),
         Config('dhandle_buckets', 512, r'''
-            configure the number of hash buckets for arrays relating to data handles''',
+            configure the number of hash buckets for hash arrays relating to data handles''',
             min='64', max='65536'),
         ]),
     Config('hazard_max', '1000', r'''

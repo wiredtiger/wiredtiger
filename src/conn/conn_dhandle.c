@@ -518,7 +518,7 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
     bool skip;
 
     conn = S2C(session);
-    time_diff = time_start = time_stop = 0;
+    time_start = time_stop = 0;
 
     /* Always apply the name function, if supplied. */
     skip = false;
@@ -571,7 +571,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
     uint64_t time_diff, time_start, time_stop;
 
     conn = S2C(session);
-    time_diff = time_start = time_stop = 0;
+    time_start = time_stop = 0;
     /*
      * If we're given a URI, then we walk only the hash list for that name. If we don't have a URI
      * we walk the entire dhandle list.
