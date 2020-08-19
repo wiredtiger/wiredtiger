@@ -974,7 +974,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             F_CLR(upd, WT_UPDATE_DS);
             F_SET(upd, WT_UPDATE_HS);
             if (tombstone != NULL) {
-                F_CLR(upd, WT_UPDATE_DS);
+                F_CLR(tombstone, WT_UPDATE_DS);
                 F_SET(tombstone, WT_UPDATE_HS);
             }
             hs_inserted = true;
