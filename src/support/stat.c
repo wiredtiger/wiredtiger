@@ -1298,8 +1298,8 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction checkpoint history store file duration (usecs)",
   "transaction: transaction checkpoint max time (msecs)",
   "transaction: transaction checkpoint min time (msecs)",
+  "transaction: transaction checkpoint most recent duration for gathering all handles (usecs)",
   "transaction: transaction checkpoint most recent duration for gathering applied handles (usecs)",
-  "transaction: transaction checkpoint most recent duration for gathering handles (usecs)",
   "transaction: transaction checkpoint most recent duration for gathering skipped handles (usecs)",
   "transaction: transaction checkpoint most recent handles applied",
   "transaction: transaction checkpoint most recent handles skipped",
@@ -1824,8 +1824,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_hs_ckpt_duration = 0;
     /* not clearing txn_checkpoint_time_max */
     /* not clearing txn_checkpoint_time_min */
-    /* not clearing txn_checkpoint_handle_duration_apply */
     /* not clearing txn_checkpoint_handle_duration */
+    /* not clearing txn_checkpoint_handle_duration_apply */
     /* not clearing txn_checkpoint_handle_duration_skip */
     stats->txn_checkpoint_handle_applied = 0;
     stats->txn_checkpoint_handle_skipped = 0;
@@ -2355,9 +2355,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_hs_ckpt_duration += WT_STAT_READ(from, txn_hs_ckpt_duration);
     to->txn_checkpoint_time_max += WT_STAT_READ(from, txn_checkpoint_time_max);
     to->txn_checkpoint_time_min += WT_STAT_READ(from, txn_checkpoint_time_min);
+    to->txn_checkpoint_handle_duration += WT_STAT_READ(from, txn_checkpoint_handle_duration);
     to->txn_checkpoint_handle_duration_apply +=
       WT_STAT_READ(from, txn_checkpoint_handle_duration_apply);
-    to->txn_checkpoint_handle_duration += WT_STAT_READ(from, txn_checkpoint_handle_duration);
     to->txn_checkpoint_handle_duration_skip +=
       WT_STAT_READ(from, txn_checkpoint_handle_duration_skip);
     to->txn_checkpoint_handle_applied += WT_STAT_READ(from, txn_checkpoint_handle_applied);

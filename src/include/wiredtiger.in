@@ -2957,10 +2957,10 @@ struct __wt_connection {
  * @config{hash = (, manage resources around hash bucket arrays.  Note that setting large values can
  * significantly increase memory usage inside WiredTiger., a set of related configuration options
  * defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;buckets, configure the general number of hash
- * buckets for most system hash arrays., an integer between 64 and 65536; default \c 512.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;dhandle_buckets, configure the number of hash buckets for arrays
- * relating to data handles., an integer between 64 and 65536; default \c 512.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;buckets, configure the number of hash buckets for
+ * most system hash arrays., an integer between 64 and 65536; default \c 512.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;dhandle_buckets, configure the number of hash buckets for hash
+ * arrays relating to data handles., an integer between 64 and 65536; default \c 512.}
  * @config{ ),,}
  * @config{history_store = (, history store configuration options., a set of related configuration
  * options defined below.}
@@ -6030,14 +6030,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1453
 /*!
  * transaction: transaction checkpoint most recent duration for gathering
- * applied handles (usecs)
+ * all handles (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_APPLY	1454
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION	1454
 /*!
  * transaction: transaction checkpoint most recent duration for gathering
- * handles (usecs)
+ * applied handles (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION	1455
+#define	WT_STAT_CONN_TXN_CHECKPOINT_HANDLE_DURATION_APPLY	1455
 /*!
  * transaction: transaction checkpoint most recent duration for gathering
  * skipped handles (usecs)
