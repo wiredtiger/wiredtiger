@@ -1924,7 +1924,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
 
         /*
          * Do not evict a clean metadata page that contains historical data needed to satisfy a
-         * reader. Since there is no history store for metadata, we wont be able to serve an older
+         * reader. Since there is no history store for metadata, we won't be able to serve an older
          * reader if we evict this page.
          */
         if (WT_IS_METADATA(session->dhandle) && F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD) &&
