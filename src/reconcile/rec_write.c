@@ -2258,11 +2258,7 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     WT_TRET(__wt_ovfl_track_wrapup_err(session, page));
 
-    /*
-     * Flag the page as having failed its last reconciliation. So the next reconciliation that
-     * happens should ignore whether or not updates have been flagged as having been written to the
-     * disk.
-     */
+    /* Flag the page as having failed its last reconciliation. */
     F_SET_ATOMIC(page, WT_PAGE_LAST_REC_FAILED);
 
     return (ret);
