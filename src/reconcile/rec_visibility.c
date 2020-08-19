@@ -237,7 +237,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     size_t upd_memsize;
     uint64_t max_txn, txnid;
     char time_string[WT_TIME_STRING_SIZE];
-    bool has_newer_updates, is_hs_page, saw_on_disk_upd, supd_restore, upd_saved;
+    bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -253,7 +253,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
-    has_newer_updates = saw_on_disk_upd = upd_saved = false;
+    has_newer_updates = upd_saved = false;
     is_hs_page = F_ISSET(S2BT(session), WT_BTREE_HS);
 
     /*
@@ -273,12 +273,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         /*
          * If we've spotted the update that we last wrote to the data store, then there's no use
          * continuing. We should just leave that update on the disk.
+         *
+         * If reconciliation succeeded last time, this update is on the disk so we shouldn't save
+         * any update. If it failed, we should explicitly choose this update since it got selected
+         * last time but didn't make its way onto the disk image due to a reconciliation failure.
          */
-        if (!saw_on_disk_upd && F_ISSET(upd, WT_UPDATE_DS)) {
-            if (F_ISSET_ATOMIC(page, WT_PAGE_LAST_REC_FAILED))
-                saw_on_disk_upd = true;
-            else
-                break;
+        if (F_ISSET(upd, WT_UPDATE_DS)) {
+            if (!F_ISSET_ATOMIC(page, WT_PAGE_LAST_REC_FAILED))
+                upd = NULL;
+            break;
         }
 
         ++r->updates_seen;
