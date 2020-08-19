@@ -288,7 +288,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * check is not required for history store updates as they are implicitly committed. As
          * prepared transaction IDs are globally visible, need to check the update state as well.
          *
-         * Ignore visibility if the update has already been written to the disk.
+         * If an earlier reconciliation chose this update (it is marked as being destined for the
+         * data store), we should select it regardless of visibility if we haven't already selected
+         * one. This is important as it is never ok to shift the on-disk value backwards in the
+         * update chain.
          */
         if (!F_ISSET(upd, WT_UPDATE_DS) && !is_hs_page &&
           (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
@@ -341,8 +344,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             max_ts = upd->start_ts;
 
         /* Always select the newest committed update to write to disk */
-        if (upd_select->upd == NULL &&
-          (!F_ISSET(upd, WT_UPDATE_DS) || F_ISSET_ATOMIC(page, WT_PAGE_LAST_REC_FAILED)))
+        if (upd_select->upd == NULL)
             upd_select->upd = upd;
 
         if (F_ISSET(r, WT_REC_EVICT) && !__rec_update_stable(session, r, upd))
@@ -543,8 +545,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                                                                                     upd_select->upd,
           supd_restore, upd_memsize));
         /*
-         * Mark the selected update (and potentially the tombstone preceding it) as having been
-         * written to the disk.
+         * Mark the selected update (and potentially the tombstone preceding it) as being destined
+         * for the data store. Subsequent reconciliations should know that they can select this
+         * update regardless of visibility.
          */
         if (upd_select->upd != NULL)
             F_SET(upd_select->upd, WT_UPDATE_DS);

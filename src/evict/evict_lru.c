@@ -1570,7 +1570,7 @@ static bool
 __evict_push_candidate(
   WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, WT_EVICT_ENTRY *evict, WT_REF *ref)
 {
-    uint16_t orig_flags, new_flags;
+    uint8_t orig_flags, new_flags;
     u_int slot;
 
     /*
@@ -1580,7 +1580,7 @@ __evict_push_candidate(
     orig_flags = new_flags = ref->page->flags_atomic;
     FLD_SET(new_flags, WT_PAGE_EVICT_LRU);
     if (orig_flags == new_flags ||
-      !__wt_atomic_cas16(&ref->page->flags_atomic, orig_flags, new_flags))
+      !__wt_atomic_cas8(&ref->page->flags_atomic, orig_flags, new_flags))
         return (false);
 
     /* Keep track of the maximum slot we are using. */
