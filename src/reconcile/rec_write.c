@@ -361,6 +361,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
     }
 
+    /* Reconciliation was successful so let's clear the failure flag. */
     F_CLR_ATOMIC(page, WT_PAGE_LAST_REC_FAILED);
 }
 
