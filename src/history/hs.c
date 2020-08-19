@@ -1732,7 +1732,6 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     uint64_t hs_counter;
     uint32_t btree_id;
     int cmp;
-    bool found;
 
     hs_cursor = session->hs_cursor;
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
@@ -1768,14 +1767,6 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
             break;
 
         /*
-         * If we have already checked against this key, keep going to the next key. We only need to
-         * check the key once.
-         */
-        WT_ERR(__wt_compare(session, NULL, &hs_key, prev_hs_key, &cmp));
-        if (cmp == 0)
-            continue;
-
-        /*
          * If the stop time pair on the tombstone in the history store is already globally visible
          * we can skip it.
          */
@@ -1784,19 +1775,26 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
             continue;
         }
 
+        /*
+         * If we have already checked against this key, keep going to the next key. We only need to
+         * check the key once.
+         */
+        WT_ERR(__wt_compare(session, NULL, &hs_key, prev_hs_key, &cmp));
+        if (cmp == 0)
+            continue;
+
         WT_WITH_PAGE_INDEX(session, ret = __hs_row_search(cbt, &hs_key, false));
         WT_ERR(ret);
 
-        found = cbt->compare == 0;
-        WT_ERR(__cursor_reset(cbt));
-
-        if (!found) {
+        if (cbt->compare != 0) {
             F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_PANIC(session, WT_PANIC,
               "the associated history store key %s was not found in the data store %s",
               __wt_buf_set_printable(session, hs_key.data, hs_key.size, prev_hs_key),
               session->dhandle->name);
         }
+
+        WT_ERR(__cursor_reset(cbt));
 
         /*
          * Copy the key memory into our scratch buffer. The key will get invalidated on our next
