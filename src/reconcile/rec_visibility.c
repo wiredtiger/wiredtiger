@@ -37,6 +37,13 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
       onpage_upd == NULL || onpage_upd->type == WT_UPDATE_STANDARD ||
         onpage_upd->type == WT_UPDATE_MODIFY);
 
+    /*
+     * Mark this update as being destined for the data store. Subsequent reconciliations should know
+     * not to look past this update.
+     */
+    if (onpage_upd != NULL)
+        F_SET(onpage_upd, WT_UPDATE_DS);
+
     WT_RET(__wt_realloc_def(session, &r->supd_allocated, r->supd_next + 1, &r->supd));
     supd = &r->supd[r->supd_next];
     supd->ins = ins;
