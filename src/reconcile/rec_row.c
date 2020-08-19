@@ -566,6 +566,10 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 
     upd = NULL;
 
+    /* About to do some visibility checks. Update our snapshot for eviction. */
+    if (F_ISSET(session, WT_SESSION_INTERNAL) && F_ISSET(session->txn, WT_TXN_RUNNING) &&
+      F_ISSET(r, WT_REC_EVICT))
+        __wt_txn_bump_snapshot(session);
     for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
         WT_RET(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
         if ((upd = upd_select.upd) == NULL) {
@@ -743,7 +747,7 @@ __wt_rec_row_leaf(
     /* About to do some visibility checks. Update our snapshot for eviction. */
     if (F_ISSET(session, WT_SESSION_INTERNAL) && F_ISSET(session->txn, WT_TXN_RUNNING) &&
       F_ISSET(r, WT_REC_EVICT))
-        __wt_txn_get_snapshot(session);
+        __wt_txn_bump_snapshot(session);
 
     /* For each entry in the page... */
     WT_ROW_FOREACH (page, rip, i) {
