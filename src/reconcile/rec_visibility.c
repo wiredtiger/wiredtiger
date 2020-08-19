@@ -427,7 +427,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                     else if (upd->next->txnid != WT_TXN_NONE &&
                       tombstone->txnid == upd->next->txnid) {
                         upd = upd->next;
-                        same_txn_valid_upd = upd;
+                        /* Save the latest update from the same transaction. */
+                        if (same_txn_valid_upd == NULL)
+                            same_txn_valid_upd = upd;
                     } else
                         break;
                 }

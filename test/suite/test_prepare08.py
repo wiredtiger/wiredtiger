@@ -258,6 +258,9 @@ class test_prepare08(wttest.WiredTigerTestCase):
             cursor_p.set_value(value_c)
             self.assertEquals(cursor_p.update(), 0)
             cursor_p.set_key(ds_1.key(i))
+            cursor_p.set_value(value_d)
+            self.assertEquals(cursor_p.update(), 0)
+            cursor_p.set_key(ds_1.key(i))
             self.assertEquals(cursor_p.remove(), 0)
         session_p.prepare_transaction('prepare_timestamp=' + timestamp_str(40))
 
