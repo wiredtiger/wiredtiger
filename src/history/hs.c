@@ -1724,6 +1724,7 @@ static int
 __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32_t this_btree_id)
 {
     WT_CURSOR *hs_cursor;
+    WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_ITEM(prev_hs_key);
     WT_DECL_RET;
     WT_ITEM hs_key;
@@ -1734,6 +1735,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     bool found;
 
     hs_cursor = session->hs_cursor;
+    hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     WT_CLEAR(hs_key);
 
     WT_ERR(__wt_scr_alloc(session, 0, &prev_hs_key));
@@ -1772,6 +1774,16 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         WT_ERR(__wt_compare(session, NULL, &hs_key, prev_hs_key, &cmp));
         if (cmp == 0)
             continue;
+
+        /*
+         * If the stop time pair on the tombstone in the history store is already globally visible
+         * we can skip it.
+         */
+        if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw)) {
+            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
+            continue;
+        }
+
         WT_WITH_PAGE_INDEX(session, ret = __hs_row_search(cbt, &hs_key, false));
         WT_ERR(ret);
 
