@@ -590,6 +590,17 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             continue;
         }
 
+        /*
+         * If we've selected an update, it should be flagged as being destined for the data store.
+         *
+         * If not, it's either because we're not doing a history store reconciliation or because the
+         * update is globally visible (in which case, subsequent updates become irrelevant for
+         * reconciliation).
+         */
+        WT_ASSERT(session,
+          F_ISSET(upd, WT_UPDATE_DS) || !F_ISSET(r, WT_REC_HS) ||
+            __wt_txn_tw_start_visible_all(session, &upd_select.tw));
+
         WT_TIME_WINDOW_COPY(&tw, &upd_select.tw);
 
         switch (upd->type) {
