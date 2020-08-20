@@ -466,6 +466,9 @@ __txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[])
 
     txn = session->txn;
 
+    if (cfg == NULL)
+        return (0);
+
     /* Retrieve the maximum operation time, defaulting to the database-wide configuration. */
     WT_RET(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
 
@@ -490,6 +493,9 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t read_ts;
 
     txn = session->txn;
+
+    if (cfg == NULL)
+        return (0);
 
     WT_RET(__wt_config_gets_def(session, cfg, "isolation", 0, &cval));
     if (cval.len != 0)
@@ -1274,8 +1280,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
 
     /* Configure the timeout for this commit operation. */
-    if (cfg != NULL)
-        WT_ERR(__txn_config_operation_timeout(session, cfg));
+    WT_ERR(__txn_config_operation_timeout(session, cfg));
 
     /*
      * Clear the prepared round up flag if the transaction is not prepared. There is no rounding up
@@ -1685,8 +1690,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session, txn->id, 0));
 
     /* Configure the timeout for this rollback operation. */
-    if (cfg != NULL)
-        WT_RET(__txn_config_operation_timeout(session, cfg));
+    WT_RET(__txn_config_operation_timeout(session, cfg));
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each

@@ -1045,8 +1045,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
-    if (cfg != NULL)
-        WT_RET(__wt_txn_config(session, cfg));
+    WT_RET(__wt_txn_config(session, cfg));
 
     /* Allocate a snapshot if required. */
     if (txn->isolation == WT_ISO_SNAPSHOT) {
