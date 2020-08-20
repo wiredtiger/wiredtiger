@@ -209,7 +209,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
      * and we can release any snapshot we're holding for read committed isolation.
      */
     if (session->ncursors == 0 && !F_ISSET(cbt, WT_CBT_NO_TXN) &&
-      session->txn->isolation == WT_TXN_ISO_READ_COMMITTED)
+      session->txn->isolation == WT_ISO_READ_COMMITTED)
         __wt_txn_read_last(session);
 
     /* If we're not holding a cursor reference, we're done. */
