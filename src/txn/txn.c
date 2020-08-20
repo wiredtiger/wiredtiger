@@ -476,7 +476,7 @@ __txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[])
      * The default configuration value is 0, we can't tell if they're setting it back to 0 or, if
      * the default was automatically passed in.
      */
-    if (cval.val != 0 || txn->operation_timeout_us == 0)
+    if (cval.val != 0)
         txn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
     return (0);
 }
