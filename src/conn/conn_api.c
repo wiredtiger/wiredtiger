@@ -2464,7 +2464,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__conn_home(session, home, cfg));
 
     /*
-     * Configure and allocate hash buckets. This must be done before the call to load extenstions.
+     * Configure and allocate hash buckets. This must be done before the call to load extensions.
      * Some extensions like encryption or file systems may allocate hash arrays.
      */
     WT_ERR(__conn_hash_config(session, cfg));
