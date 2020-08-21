@@ -76,7 +76,8 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
          * The rename configuration string was added later. Don't error if it is not found. Consider
          * that the same as turned off.
          */
-        WT_RET_NOTFOUND_OK(__wt_config_subgets(session, &v, "rename", &b));
+        ret = __wt_config_subgets(session, &v, "rename", &b);
+        WT_RET_NOTFOUND_OK(ret);
         if (ret == 0 && b.val)
             F_SET(blk_mod, WT_BLOCK_MODS_RENAME);
         else
