@@ -796,10 +796,10 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
     WT_BLOCK_MODS *blk;
     WT_ITEM bitstring;
     u_int i;
-    bool valid;
+    bool skip_rename, valid;
 
     WT_CLEAR(bitstring);
-    valid = false;
+    skip_rename = valid = false;
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk)
         if (F_ISSET(blk, WT_BLOCK_MODS_VALID))
             valid = true;
@@ -819,12 +819,23 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
+
+        /*
+         * Occasionally skip including the rename string at all when it's not necessary for
+         * correctness, that lets us simulate what is generated in the config string by earlier
+         * versions of WiredTiger
+         */
+        if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_BACKUP_RENAME) &&
+          !F_ISSET(blk, WT_BLOCK_MODS_RENAME) && __wt_random(&session->rnd) % 10 == 0)
+            skip_rename = true;
+
         WT_RET(__wt_raw_to_hex(session, blk->bitstring.data, blk->bitstring.size, &bitstring));
         WT_RET(__wt_buf_catfmt(session, buf,
           "%s\"%s\"=(id=%" PRIu32 ",granularity=%" PRIu64 ",nbits=%" PRIu64 ",offset=%" PRIu64
-          ",rename=%d,blocks=%.*s)",
+          "%s,blocks=%.*s)",
           i == 0 ? "" : ",", blk->id_str, i, blk->granularity, blk->nbits, blk->offset,
-          F_ISSET(blk, WT_BLOCK_MODS_RENAME) ? 1 : 0, (int)bitstring.size, (char *)bitstring.data));
+          skip_rename ? "" : F_ISSET(blk, WT_BLOCK_MODS_RENAME) ? ",rename=1" : ",rename=0",
+          (int)bitstring.size, (char *)bitstring.data));
         /* The hex string length should match the appropriate number of bits. */
         WT_ASSERT(session, (blk->nbits >> 2) <= bitstring.size);
         __wt_buf_free(session, &bitstring);
