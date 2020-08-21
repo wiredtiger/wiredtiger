@@ -1739,14 +1739,6 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
 
     WT_ERR(__wt_scr_alloc(session, 0, &prev_hs_key));
 
-    /*
-     * We need to be able to iterate over the history store content for another table. In order to
-     * do this, we must ignore non-globally visible tombstones in the history store since every
-     * history store record is succeeded with a tombstone. We also need to skip the non-globally
-     * visible tombstones in the data table to verify the corresponding entries in the history store
-     * are too present in the data store.
-     */
-    F_SET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
 
     /*
      * The caller is responsible for positioning the history store cursor at the first record to
@@ -1783,7 +1775,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
         if (cmp == 0)
             continue;
 
-        WT_WITH_PAGE_INDEX(session, ret = __hs_row_search(cbt, &hs_key, false));
+        WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &hs_key, false, NULL, false, NULL));
         WT_ERR(ret);
 
         if (cbt->compare != 0) {
@@ -1804,7 +1796,6 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
     }
     WT_ERR_NOTFOUND_OK(ret, true);
 err:
-    F_CLR(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
     WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
     __wt_scr_free(session, &prev_hs_key);
     return (ret);
