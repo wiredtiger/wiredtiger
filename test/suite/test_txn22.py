@@ -108,4 +108,4 @@ class test_txn22(wttest.WiredTigerTestCase):
         self.check(value_d, uri_2, ds_2, nrows, 20)
         self.check(value_c, uri_2, ds_2, nrows, 30)
         self.check(value_b, uri_2, ds_2, nrows, 40)
-        self.check(value_a, uri_2, ds_2, nrows, 50) 
+        self.check(value_a, uri_2, ds_2, nrows, 50)
