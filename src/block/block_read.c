@@ -211,6 +211,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
   uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
+    WT_DECL_RET;
     size_t bufsize;
 
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32,
@@ -245,8 +246,12 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
 
     WT_RET(__wt_buf_init(session, buf, bufsize));
 
-    /* SASHA: Ask the cache to give us the block. If it doesn't have it, read it. */
-    WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+    /* Ask the cache to give us the block. If it doesn't have it, read it. */
+    if (block->fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA ||
+	__wt_blkcache_get_or_check(session, block->fh, offset, size, buf->mem) != 0) {
+        WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+	WT_TRET_ERROR_OK(__wt_blkcache_put(session, block->fh, offset, size, buf->mem), -1);
+    }
     buf->size = size;
 
     /*

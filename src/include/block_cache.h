@@ -7,8 +7,8 @@
  */
 
 /*
- * WiredTiger's block cache. It is used to cache blocks identical to those
- * that live on disk in a faster storage medium, such as NVRAM.
+ * WiredTiger's block cache. It is used to cache blocks identical to those that live on disk in a
+ * faster storage medium, such as NVRAM.
  */
 
 #ifdef HAVE_LIBMEMKIND
@@ -58,5 +58,5 @@ struct __wt_blkcache {
 };
 
 #define BLKCACHE_UNCONFIGURED 0
-#define BLKCACHE_DRAM         1
-#define BLKCACHE_NVRAM        2
+#define BLKCACHE_DRAM 1
+#define BLKCACHE_NVRAM 2

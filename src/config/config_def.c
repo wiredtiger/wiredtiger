@@ -145,11 +145,11 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
-    "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
-    "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
-    "\"history_store\",\"history_store_activity\",\"lsm\","
+    "choices=[\"api\",\"backup\",\"block_cache\",\"block\","
+    "\"checkpoint\",\"checkpoint_gc\",\"checkpoint_progress\","
+    "\"compact\",\"compact_progress\",\"error_returns\",\"evict\","
+    "\"evict_stuck\",\"evictserver\",\"fileops\",\"handleops\","
+    "\"log\",\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
     "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
     "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
@@ -591,11 +591,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"use_environment", "boolean", NULL, NULL, NULL, 0},
   {"use_environment_priv", "boolean", NULL, NULL, NULL, 0},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
-    "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
-    "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
-    "\"history_store\",\"history_store_activity\",\"lsm\","
+    "choices=[\"api\",\"backup\",\"block_cache\",\"block\","
+    "\"checkpoint\",\"checkpoint_gc\",\"checkpoint_progress\","
+    "\"compact\",\"compact_progress\",\"error_returns\",\"evict\","
+    "\"evict_stuck\",\"evictserver\",\"fileops\",\"handleops\","
+    "\"log\",\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
     "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
     "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
@@ -665,11 +665,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"use_environment", "boolean", NULL, NULL, NULL, 0},
   {"use_environment_priv", "boolean", NULL, NULL, NULL, 0},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
-    "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
-    "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
-    "\"history_store\",\"history_store_activity\",\"lsm\","
+    "choices=[\"api\",\"backup\",\"block_cache\",\"block\","
+    "\"checkpoint\",\"checkpoint_gc\",\"checkpoint_progress\","
+    "\"compact\",\"compact_progress\",\"error_returns\",\"evict\","
+    "\"evict_stuck\",\"evictserver\",\"fileops\",\"handleops\","
+    "\"log\",\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
     "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
     "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
@@ -734,11 +734,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
-    "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
-    "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
-    "\"history_store\",\"history_store_activity\",\"lsm\","
+    "choices=[\"api\",\"backup\",\"block_cache\",\"block\","
+    "\"checkpoint\",\"checkpoint_gc\",\"checkpoint_progress\","
+    "\"compact\",\"compact_progress\",\"error_returns\",\"evict\","
+    "\"evict_stuck\",\"evictserver\",\"fileops\",\"handleops\","
+    "\"log\",\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
     "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
     "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
@@ -803,11 +803,11 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
-    "\"checkpoint_gc\",\"checkpoint_progress\",\"compact\","
-    "\"compact_progress\",\"error_returns\",\"evict\",\"evict_stuck\""
-    ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
-    "\"history_store\",\"history_store_activity\",\"lsm\","
+    "choices=[\"api\",\"backup\",\"block_cache\",\"block\","
+    "\"checkpoint\",\"checkpoint_gc\",\"checkpoint_progress\","
+    "\"compact\",\"compact_progress\",\"error_returns\",\"evict\","
+    "\"evict_stuck\",\"evictserver\",\"fileops\",\"handleops\","
+    "\"log\",\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
     "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
     "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","

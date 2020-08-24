@@ -28,9 +28,9 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
     WT_ENCRYPTOR *encryptor;
     WT_ITEM *ip;
     const WT_PAGE_HEADER *dsk;
+    size_t compression_ratio;
     size_t result_len;
     const char *fail_msg;
-    size_t compression_ratio;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -113,8 +113,8 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
             goto corrupt;
         }
 
-	compression_ratio = result_len / (tmp->size - WT_BLOCK_COMPRESS_SKIP);
-	__wt_stat_compr_ratio_hist_incr(session, compression_ratio);
+        compression_ratio = result_len / (tmp->size - WT_BLOCK_COMPRESS_SKIP);
+        __wt_stat_compr_ratio_hist_incr(session, compression_ratio);
 
     } else {
         /*

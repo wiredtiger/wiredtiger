@@ -34,6 +34,7 @@ BBBBBBBBBBBBBBBBBB
 BDB
 BDB's
 BIGENDIAN
+BLKCACHE
 BOOL
 BSR
 BTREE
@@ -215,6 +216,7 @@ Kounavis
 LANGID
 LAS
 LF
+LIBMEMKIND
 LLLLLL
 LLLLLLL
 LOGREC
@@ -284,6 +286,7 @@ NOVALUE
 NOWAIT
 NUL
 NUM
+NVRAM
 NetBSD
 NoAddr
 Noll
@@ -521,6 +524,7 @@ bitpos
 bitstring
 bitwise
 blk
+blkcache
 blkmod
 bm
 bnd
@@ -830,6 +834,7 @@ goutf
 gt
 handleops
 handlep
+hashtable
 hashval
 havesize
 hdr
@@ -939,6 +944,7 @@ lexicographically
 lf
 lfence
 libdatasource
+libmemkind
 libs
 libtool
 libwiredtiger
@@ -1071,6 +1077,7 @@ nuls
 num
 numSymbols
 numbare
+nvram
 offpage
 ok
 oldv
@@ -1341,7 +1348,8 @@ uintmax
 unbare
 unbuffered
 uncompressing
-uncompresssed
+uncompressed
+unconfigured
 undef
 underflowed
 unencrypted

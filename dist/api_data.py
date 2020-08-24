@@ -730,6 +730,7 @@ connection_runtime_config = [
         type='list', choices=[
             'api',
             'backup',
+            'block_cache',
             'block',
             'checkpoint',
             'checkpoint_gc',
