@@ -475,16 +475,18 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             /* The beginning of the validity window is the selected update's time point. */
             WT_TIME_WINDOW_SET_START(select_tw, upd);
         else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
+            /* We only have a tombstone in the update list. */
+            WT_ASSERT(session, tombstone != NULL);
+
+            /* We must have an ondisk value and it can't be a prepared update. */
+            WT_ASSERT(session, vpack != NULL && !vpack->tw.prepare);
+
             /*
-             * If we only have a tombstone in the update list, we must have an ondisk value and it
-             * can't be a prepared update.
-             *
              * We will try to append the onpage value after the last_upd. Make sure it exists and it
              * is the oldest update on the update chain.
              */
-            WT_ASSERT(session,
-              vpack != NULL && tombstone != NULL && !vpack->tw.prepare && last_upd != NULL &&
-                last_upd->next == NULL);
+            WT_ASSERT(session, last_upd != NULL && last_upd->next == NULL);
+
             /*
              * It's possible to have a tombstone as the only update in the update list. If we
              * reconciled before with only a single update and then read the page back into cache,
