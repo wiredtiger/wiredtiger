@@ -475,7 +475,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             /* The beginning of the validity window is the selected update's time point. */
             WT_TIME_WINDOW_SET_START(select_tw, upd);
         else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
-            /* If we only have a tombstone in the update list, we must have an ondisk value. */
+            /*
+             * If we only have a tombstone in the update list, we must have an ondisk value and it
+             * can't be a prepared update.
+             *
+             * We will try to append the onpage value after the last_upd. Make sure it exists and it
+             * is the oldest update on the update chain.
+             */
             WT_ASSERT(session,
               vpack != NULL && tombstone != NULL && !vpack->tw.prepare && last_upd != NULL &&
                 last_upd->next == NULL);
@@ -508,6 +514,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                     WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
                 } else {
                     /*
+                     * It's possible onpage value is not appended if the tombstone becomes globally
+                     * visible as the oldest transaction id or the oldest timestamp is moved
+                     * concurrently.
+                     *
                      * If the tombstone is aborted concurrently, we should still have appended the
                      * onpage value.
                      */
