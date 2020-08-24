@@ -51,7 +51,8 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
     # the history store stats haven't changed.
     def caching_stats(self):
         hs_stats_uri = 'statistics:file:WiredTigerHS.wt'
-        while 1:
+        max_tries = 100
+        for i in range(max_tries):
             hs_stats_before = self.session.open_cursor(hs_stats_uri, None, None)
             conn_stats = self.session.open_cursor('statistics:', None, None)
             hs_stats_after = self.session.open_cursor(hs_stats_uri, None, None)
@@ -69,6 +70,10 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
 
             if hs_before[0] == hs_after[0] and hs_before[1] == hs_after[1]:
                 break
+
+            # Fail if we haven't been able to get stable hs stats after too many attempts.
+            # Seems impossible, but better to check than to have an accidental infinite loop.
+            self.assertNotEqual(i, max_tries - 1)
 
         return [totals[0] - hs_after[0], totals[1] - hs_after[1]]
 
