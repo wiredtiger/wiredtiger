@@ -514,9 +514,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                     WT_TIME_WINDOW_SET_START(select_tw, last_upd->next);
                 } else {
                     /*
-                     * It's possible onpage value is not appended if the tombstone becomes globally
-                     * visible as the oldest transaction id or the oldest timestamp is moved
-                     * concurrently.
+                     * It's possible that onpage value is not appended if the tombstone becomes
+                     * globally visible because the oldest transaction id or the oldest timestamp is
+                     * moved concurrently.
                      *
                      * If the tombstone is aborted concurrently, we should still have appended the
                      * onpage value.
