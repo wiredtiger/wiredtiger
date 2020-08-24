@@ -1739,7 +1739,6 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
 
     WT_ERR(__wt_scr_alloc(session, 0, &prev_hs_key));
 
-
     /*
      * The caller is responsible for positioning the history store cursor at the first record to
      * verify. When we return after moving to a new key the caller is responsible for keeping the
