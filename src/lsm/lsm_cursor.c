@@ -264,6 +264,13 @@ __clsm_leave(WT_CURSOR_LSM *clsm)
     if (F_ISSET(clsm, WT_CLSM_ACTIVE)) {
         --session->ncursors;
         __cursor_leave(session);
+        /*
+         * Decrement the count of active cursors in the session. When that goes to zero, there are
+         * no active cursors, and we can release any snapshot we're holding for read committed
+         * isolation.
+         */
+        if (session->ncursors == 0)
+            __wt_txn_read_last(session);
         F_CLR(clsm, WT_CLSM_ACTIVE);
     }
 }

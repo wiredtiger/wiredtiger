@@ -201,15 +201,15 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
     if (F_ISSET(cbt, WT_CBT_ACTIVE)) {
         if (!F_ISSET(cbt, WT_CBT_NO_TRACKING))
             __cursor_leave(session);
+
+        /*
+         * When the count of active cursors in the session goes to zero, there are no active
+         * cursors, and we can release any snapshot we're holding for read committed isolation.
+         */
+        if (session->ncursors == 0 && !F_ISSET(cbt, WT_CBT_NO_TXN))
+            __wt_txn_read_last(session);
         F_CLR(cbt, WT_CBT_ACTIVE);
     }
-
-    /*
-     * When the count of active cursors in the session goes to zero, there are no active cursors,
-     * and we can release any snapshot we're holding for read committed isolation.
-     */
-    if (session->ncursors == 0 && !F_ISSET(cbt, WT_CBT_NO_TXN))
-        __wt_txn_read_last(session);
 
     /* If we're not holding a cursor reference, we're done. */
     if (cbt->ref == NULL)
