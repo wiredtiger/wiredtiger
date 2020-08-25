@@ -81,7 +81,7 @@ hs_cursor(void *arg)
          * We don't care about tombstones, but we do want to hit every key rather than skip over
          * them. This is a rollback-to-stable flag we're using for our own purposes.
          */
-        F_SET(cursor, WT_CURSTD_BSTONE);
+        F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
 
         /* Search to the last-known location. */
         if (!restart) {
