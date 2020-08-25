@@ -91,7 +91,7 @@ class test_checkpoint08(wttest.WiredTigerTestCase):
         # Update the keys at timestamp 30
         self.large_updates(uri, value2, nrows, 30)
 
-        # Remove the key at timestamp 40
+        # Remove the keys at timestamp 40
         self.large_deletes(uri, nrows, 40)
 
         # Set stable to timestamp 50.
