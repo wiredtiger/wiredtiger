@@ -102,6 +102,7 @@ class test_checkpoint08(wttest.WiredTigerTestCase):
         ckpt = checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
+            # Wait until checkpoint has get its timestamps
             time.sleep(1)
 
             # Concurrently set oldest to timestamp 40.
