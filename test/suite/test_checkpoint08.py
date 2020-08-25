@@ -60,7 +60,7 @@ class test_checkpoint08(wttest.WiredTigerTestCase):
             cursor.remove()
             session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
-    
+
     def check(self, check_value, uri, nrows, read_ts):
         session = self.session
         session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
@@ -84,7 +84,7 @@ class test_checkpoint08(wttest.WiredTigerTestCase):
         # Pin oldest and stable to timestamp 10.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10) +
             ',stable_timestamp=' + timestamp_str(10))
-        
+
         # Insert keys at timestamp 20
         self.large_updates(uri, value1, nrows, 20)
 

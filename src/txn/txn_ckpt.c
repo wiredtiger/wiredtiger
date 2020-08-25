@@ -635,11 +635,11 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     __wt_writeunlock(session, &txn_global->rwlock);
 
     /*
-     * Wait 1000000 microseconds to simulate slowdown in checkpoint prepare after getting the
-     * checkpoint timestamps.
+     * Wait 2 second to simulate slowdown in checkpoint prepare after getting the checkpoint
+     * timestamps.
      */
-    tsp.tv_sec = 0;
-    tsp.tv_nsec = WT_BILLION;
+    tsp.tv_sec = 2;
+    tsp.tv_nsec = 0;
     __checkpoint_timing_stress(
       session, WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY_AFTER_GET_TS, &tsp);
 

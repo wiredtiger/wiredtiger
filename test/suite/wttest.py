@@ -487,7 +487,7 @@ class WiredTigerTestCase(unittest.TestCase):
             shutil.copy(bkp_cursor.get_key(), backup_dir)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         bkp_cursor.close()
-    
+
     def simulate_crash_restart(self, olddir, newdir):
         ''' Simulate a crash from olddir and restart in newdir. '''
         # with the connection still open, copy files to new directory
