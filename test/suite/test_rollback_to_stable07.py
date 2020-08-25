@@ -105,7 +105,7 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         self.check(value_d, uri, nrows, 80)
 
         # Simulate a server crash and restart.
-        self.simulate_crash_restart(uri, ".", "RESTART")
+        self.simulate_crash_restart(".", "RESTART")
 
         # Check that the correct data is seen at and after the stable timestamp.
         self.check(value_b, uri, nrows, 40)
