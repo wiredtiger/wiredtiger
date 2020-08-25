@@ -351,6 +351,8 @@ struct __wt_connection_stats {
     int64_t cache_eviction_get_ref_empty2;
     int64_t cache_eviction_aggressive_set;
     int64_t cache_eviction_empty_score;
+    int64_t cache_eviction_updates_invisible;
+    int64_t cache_eviction_updates_visible;
     int64_t cache_eviction_walk_passes;
     int64_t cache_eviction_queue_empty;
     int64_t cache_eviction_queue_not_empty;

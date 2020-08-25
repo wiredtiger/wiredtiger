@@ -282,6 +282,8 @@ connection_stats = [
     CacheStat('cache_eviction_target_strategy_clean', 'eviction walk target strategy only clean pages'),
     CacheStat('cache_eviction_target_strategy_dirty', 'eviction walk target strategy only dirty pages'),
     CacheStat('cache_eviction_target_strategy_both_clean_and_dirty', 'eviction walk target strategy both clean and dirty pages'),
+    CacheStat('cache_eviction_updates_visible', 'eviction iterated visible updates'),
+    CacheStat('cache_eviction_updates_invisible', 'eviction iterated invisible updates'),
     CacheStat('cache_eviction_walk', 'pages walked for eviction'),
     CacheStat('cache_eviction_walk_from_root', 'eviction walks started from root of tree'),
     CacheStat('cache_eviction_walk_leaf_notfound', 'eviction server waiting for a leaf page'),
