@@ -51,7 +51,7 @@ class test_checkpoint08(wttest.WiredTigerTestCase):
         cursor.close()
 
     def large_deletes(self, uri, nrows, commit_ts):
-        # Update a large number of records.
+        # Delete a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
         for i in range(0, nrows):
