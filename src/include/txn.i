@@ -848,11 +848,11 @@ __wt_txn_read_upd_list(
             continue;
 
         /*
-         * If the cursor is configured to ignore tombstones, copy the timestamps from the tombstones
-         * to the stop time window of the update value being returned to the caller. Caller can
-         * process the stop time window to decide if there was a tombstone on the update chain. If
-         * the time window already has a stop time set then we must have seen a tombstone prior to
-         * ours in the update list, and therefore don't need to do this again.
+         * For the history store record, copy the timestamps from the tombstones to the stop time
+         * window of the update value being returned to the caller. Caller can process the stop time
+         * window to decide if there was a tombstone on the update chain. If the time window already
+         * has a stop time set then we must have seen a tombstone prior to ours in the update list,
+         * and therefore don't need to do this again.
          */
         if (type == WT_UPDATE_TOMBSTONE && WT_IS_HS(S2BT(session)) &&
           !WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
@@ -953,8 +953,7 @@ retry:
     /*
      * If the stop time point is set, that means that there is a tombstone at that time. If it is
      * not prepared and it is visible to our txn it means we've just spotted a tombstone and should
-     * return "not found", except scanning the history store during rollback to stable and when we
-     * are told to ignore non-globally visible tombstones.
+     * return "not found", except the history store.
      */
     if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) && !WT_IS_HS(S2BT(session))) {
         cbt->upd_value->buf.data = NULL;

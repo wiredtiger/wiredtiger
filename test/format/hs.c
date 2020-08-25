@@ -76,13 +76,6 @@ hs_cursor(void *arg)
             __wt_yield();
         testutil_check(ret);
 
-        /*
-         * The history file has mostly tombstones, ignore them and retrieve the underlying values.
-         * We don't care about tombstones, but we do want to hit every key rather than skip over
-         * them. This is a rollback-to-stable flag we're using for our own purposes.
-         */
-        F_SET(cursor, WT_CURSTD_BSTONE);
-
         /* Search to the last-known location. */
         if (!restart) {
             cursor->set_key(cursor, hs_btree_id, &key, hs_start_ts, hs_counter);

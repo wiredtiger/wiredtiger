@@ -52,7 +52,6 @@ int
 util_dump(WT_SESSION *session, int argc, char *argv[])
 {
     WT_CURSOR *cursor;
-    WT_CURSOR_DUMP *hs_dump_cursor;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl;
@@ -63,7 +62,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     session_impl = (WT_SESSION_IMPL *)session;
 
     cursor = NULL;
-    hs_dump_cursor = NULL;
     checkpoint = ofile = simpleuri = uri = timestamp = NULL;
     hex = json = pretty = reverse = false;
     while ((ch = __wt_getopt(progname, argc, argv, "c:f:t:jprx")) != EOF)
@@ -161,8 +159,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         }
         if ((p = strchr(simpleuri, '(')) != NULL)
             *p = '\0';
-        if (WT_STREQ(simpleuri, WT_HS_URI) && timestamp == NULL)
-            hs_dump_cursor = (WT_CURSOR_DUMP *)cursor;
         if (dump_config(session, simpleuri, cursor, hex, json) != 0)
             goto err;
 
@@ -173,7 +169,6 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 
         ret = cursor->close(cursor);
         cursor = NULL;
-        hs_dump_cursor = NULL;
         if (ret != 0) {
             (void)util_err(session, ret, NULL);
             goto err;
@@ -187,12 +182,8 @@ err:
         ret = 1;
     }
 
-    if (cursor != NULL) {
-        if (hs_dump_cursor != NULL)
-            F_CLR(hs_dump_cursor->child, WT_CURSTD_BSTONE);
-        if ((ret = cursor->close(cursor)) != 0)
-            ret = util_err(session, ret, NULL);
-    }
+    if (cursor != NULL && (ret = cursor->close(cursor)) != 0)
+        ret = util_err(session, ret, NULL);
 
     if (ofile != NULL && (ret = fclose(fp)) != 0)
         ret = util_err(session, errno, NULL);
