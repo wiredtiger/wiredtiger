@@ -487,7 +487,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 {
     WT_BTREE *btree;
     WT_TXN_GLOBAL *txn_global;
-    wt_timestamp_t checkpoint_oldest_ts, checkpoint_ts, pinned_ts;
+    wt_timestamp_t checkpoint_ts, pinned_ts;
     bool include_checkpoint_txn;
 
     btree = S2BT_SAFE(session);
@@ -510,22 +510,15 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 
     /*
      * The read of the timestamp pinned by a checkpoint needs to be carefully ordered: if a
-     * checkpoint is starting and we have to use the oldest timestamp stored in the checkpoint, we
-     * take the minimum of it with the oldest timestamp, which is what we want.
+     * checkpoint is starting and we have to use the checkpoint timestamp, we take the minimum of it
+     * with the oldest timestamp, which is what we want.
      */
     WT_READ_BARRIER();
-    checkpoint_oldest_ts = txn_global->checkpoint_oldest_timestamp;
-    /* Make sure we read the checkpoint's oldest timestamp first. Otherwise, if we are interrupted
-     * here, the checkpoint may have been completed and a new checkpoint has been started before we
-     * resume execution. In this case, we may find the oldest timestamp larger than the stable
-     * timestamp. */
-    WT_READ_BARRIER();
+
     checkpoint_ts = txn_global->checkpoint_timestamp;
 
-    if (checkpoint_ts != WT_TS_NONE && checkpoint_oldest_ts < pinned_ts) {
-        WT_ASSERT(session, checkpoint_oldest_ts <= checkpoint_ts);
-        *pinned_tsp = checkpoint_oldest_ts;
-    }
+    if (checkpoint_ts != 0 && checkpoint_ts < pinned_ts)
+        *pinned_tsp = checkpoint_ts;
 }
 
 /*
