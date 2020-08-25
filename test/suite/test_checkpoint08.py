@@ -37,7 +37,7 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_checkpoint08(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=5MB,timing_stress_for_test=[prepare_checkpoint_delay_after_get_ts]'
+    conn_config = 'cache_size=5MB,timing_stress_for_test=[checkpoint_slow]'
     session_config = 'isolation=snapshot'
 
     def large_updates(self, uri, value, nrows, commit_ts):
