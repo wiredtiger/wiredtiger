@@ -515,12 +515,10 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      */
     WT_READ_BARRIER();
     checkpoint_oldest_ts = txn_global->checkpoint_oldest_timestamp;
-    /*
-     * Make sure that we read the checkpoint's oldest timestamp first. Otherwise, if we are
-     * interrupted here, the checkpoint may have been completed and a new checkpoint has been
-     * started before we resume execution. In this case, we may find the oldest timestamp larger
-     * than the stable timestamp.
-     */
+    /* Make sure we read the checkpoint's oldest timestamp first. Otherwise, if we are interrupted
+     * here, the checkpoint may have been completed and a new checkpoint has been started before we
+     * resume execution. In this case, we may find the oldest timestamp larger than the stable
+     * timestamp. */
     WT_READ_BARRIER();
     checkpoint_ts = txn_global->checkpoint_timestamp;
 
