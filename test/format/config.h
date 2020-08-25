@@ -300,12 +300,8 @@ static CONFIG c[] = {
   {"stress.checkpoint", "stress checkpoints", C_BOOL, 2, 0, 0, &g.c_timing_stress_checkpoint, NULL},
 
   /* 2% */
-  {"stress.checkpoint_prepare_after_get_ts", "stress checkpoint prepare after getting timestamps",
-    C_BOOL, 2, 0, 0, &g.c_timing_stress_checkpoint_prepare_after_get_ts, NULL},
-
-  /* 2% */
-  {"stress.checkpoint_prepare_before_get_ts", "stress checkpoint prepare before getting timestamps",
-    C_BOOL, 2, 0, 0, &g.c_timing_stress_checkpoint_prepare_before_get_ts, NULL},
+  {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0,
+    &g.c_timing_stress_checkpoint_prepare, NULL},
 
   /* 2% */
   {"stress.hs_checkpoint_delay", "stress history store checkpoint delay", C_BOOL, 2, 0, 0,

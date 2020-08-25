@@ -545,14 +545,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     __wt_epoch(session, &conn->ckpt_prep_start);
 
     WT_RET(__wt_txn_begin(session, txn_cfg));
-    /*
-     * Wait 1000 microseconds to simulate slowdown in checkpoint prepare before getting the
-     * checkpoint timestamps.
-     */
+    /* Wait 1000 microseconds to simulate slowdown in checkpoint prepare. */
     tsp.tv_sec = 0;
     tsp.tv_nsec = WT_MILLION;
-    __checkpoint_timing_stress(
-      session, WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY_BEFORE_GET_TS, &tsp);
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY, &tsp);
     original_snap_min = session->txn->snap_min;
 
     WT_DIAGNOSTIC_YIELD;
@@ -633,15 +629,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     }
 
     __wt_writeunlock(session, &txn_global->rwlock);
-
-    /*
-     * Wait 2 seconds to simulate slowdown in checkpoint prepare after getting the checkpoint
-     * timestamps.
-     */
-    tsp.tv_sec = 2;
-    tsp.tv_nsec = 0;
-    __checkpoint_timing_stress(
-      session, WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY_AFTER_GET_TS, &tsp);
 
     /*
      * Refresh our snapshot here without publishing our shared ids to the world, doing so prevents
