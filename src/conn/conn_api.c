@@ -1080,7 +1080,7 @@ err:
     WT_TRET(__wt_checkpoint_server_destroy(session));
 
     /* Perform a final checkpoint and shut down the global transaction state. */
-    WT_TRET(__wt_txn_global_shutdown(session, config, cfg));
+    WT_TRET(__wt_txn_global_shutdown(session, cfg));
 
     if (ret != 0) {
         __wt_err(session, ret, "failure during close, disabling further writes");

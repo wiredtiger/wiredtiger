@@ -1101,7 +1101,6 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
 
     conn = S2C(session);
 
@@ -1126,8 +1125,7 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
         conn->log_file_tid_set = false;
     }
     if (conn->log_file_session != NULL) {
-        wt_session = &conn->log_file_session->iface;
-        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_TRET(__wt_session_close_internal(conn->log_file_session));
         conn->log_file_session = NULL;
     }
     if (conn->log_wrlsn_tid_set) {
@@ -1136,8 +1134,7 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
         conn->log_wrlsn_tid_set = false;
     }
     if (conn->log_wrlsn_session != NULL) {
-        wt_session = &conn->log_wrlsn_session->iface;
-        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_TRET(__wt_session_close_internal(conn->log_wrlsn_session));
         conn->log_wrlsn_session = NULL;
     }
 
@@ -1146,8 +1143,7 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 
     /* Close the server thread's session. */
     if (conn->log_session != NULL) {
-        wt_session = &conn->log_session->iface;
-        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_TRET(__wt_session_close_internal(conn->log_session));
         conn->log_session = NULL;
     }
 

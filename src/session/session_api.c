@@ -2188,7 +2188,6 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
   bool open_metadata, WT_SESSION_IMPL **sessionp)
 {
     WT_DECL_RET;
-    WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
 
     *sessionp = NULL;
@@ -2206,8 +2205,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
     if (open_metadata) {
         WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
         if ((ret = __wt_metadata_cursor(session, NULL)) != 0) {
-            wt_session = &session->iface;
-            WT_TRET(wt_session->close(wt_session, NULL));
+            WT_TRET(__wt_session_close_internal(session));
             return (ret);
         }
     }
