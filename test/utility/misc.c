@@ -194,6 +194,19 @@ testutil_cleanup(TEST_OPTS *opts)
 }
 
 /*
+ * testutil_timestamp_parse --
+ *     Parse a timestamp to an integral value.
+ */
+void
+testutil_timestamp_parse(const char *str, uint64_t *tsp)
+{
+    char *p;
+
+    *tsp = __wt_strtouq(str, &p, 16);
+    testutil_assert(p - str <= 16);
+}
+
+/*
  * testutil_is_flag_set --
  *     Return if an environment variable flag is set.
  */
