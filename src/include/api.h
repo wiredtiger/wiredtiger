@@ -49,8 +49,7 @@
      * No code before this line, otherwise error handling won't be \
      * correct.                                                    \
      */                                                            \
-    if (!F_ISSET(s, WT_SESSION_INTERNAL))                          \
-        WT_ERR(WT_SESSION_CHECK_PANIC(s));                         \
+    WT_ERR(WT_SESSION_CHECK_PANIC(s));                             \
     WT_SINGLE_THREAD_CHECK_START(s);                               \
     WT_TRACK_OP_INIT(s);                                           \
     __wt_op_timer_start(s);                                        \
