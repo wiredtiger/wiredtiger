@@ -74,7 +74,7 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
         WT_RET(WT_SESSION_CHECK_PANIC(tmp_session));
         WT_RET(__wt_log_truncate_files(tmp_session, NULL, true));
     }
-    WT_RET(tmp_session->iface.close(&tmp_session->iface, NULL));
+    WT_RET(__wt_session_close_internal(tmp_session));
     return (0);
 }
 

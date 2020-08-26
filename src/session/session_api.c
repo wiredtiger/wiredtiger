@@ -259,22 +259,38 @@ __session_close_cached_cursors(WT_SESSION_IMPL *session)
 static int
 __session_close(WT_SESSION *wt_session, const char *config)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    conn = (WT_CONNECTION_IMPL *)wt_session->connection;
     session = (WT_SESSION_IMPL *)wt_session;
 
     SESSION_API_CALL_PREPARE_ALLOWED(session, close, config, cfg);
     WT_UNUSED(cfg);
+
+    return (__wt_session_close_internal(session));
+
+err:
+    API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __wt_session_close_internal --
+ *     Internal function of WT_SESSION->close method.
+ */
+int
+__wt_session_close_internal(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
 
     /* Close all open cursors while the cursor cache is disabled. */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
 
     /* Rollback any active transaction. */
     if (F_ISSET(session->txn, WT_TXN_RUNNING))
-        WT_TRET(__session_rollback_transaction(wt_session, NULL));
+        WT_TRET(__session_rollback_transaction((WT_SESSION *)session, NULL));
 
     /*
      * Also release any pinned transaction ID from a non-transactional operation.
@@ -350,9 +366,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
     /* We no longer have a session, don't try to update it. */
     session = NULL;
-
-err:
-    API_END_RET_NOTFOUND_MAP(session, ret);
+    return (ret);
 }
 
 /*
