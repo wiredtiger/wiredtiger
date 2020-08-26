@@ -65,8 +65,6 @@ class test_txn22(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri, None)
         self.session.begin_transaction()
         cursor[0] = new_val
-        #self.session.commit_transaction()
-        #cursor.close()
         
         # Start few sessions and transactions, make updates and try committing them.
         session2 = self.setUpSessionOpen(self.conn)
