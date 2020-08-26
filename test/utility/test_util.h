@@ -268,6 +268,7 @@ void testutil_make_work_dir(const char *);
 int testutil_parse_opts(int, char *const *, TEST_OPTS *);
 void testutil_print_command_line(int argc, char *const *argv);
 void testutil_progress(TEST_OPTS *, const char *);
+void testutil_timestamp_parse(const char *p, uint64_t *tsp);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
