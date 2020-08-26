@@ -100,8 +100,8 @@ __wt_blkcache_get_or_check(
                 memcpy(data_ptr, blkcache_item->data, size);
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
             WT_STAT_CONN_INCR(session, block_cache_hits);
-            __wt_verbose(session, WT_VERB_BLKCACHE, "block in cache: "
-			 "off %" PRIuMAX ", size %" PRIu32,
+            __wt_verbose(session, WT_VERB_BLKCACHE, "block found in cache: "
+			 "offset=%" PRIuMAX ", size=%" PRIu32,
 			 (uintmax_t)offset, (uint32_t)size);
             return (0);
         }
@@ -171,7 +171,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t s
     WT_STAT_CONN_INCRV(session, block_cache_bytes, size);
     WT_STAT_CONN_INCR(session, block_cache_blocks);
     __wt_verbose(session, WT_VERB_BLKCACHE, "block inserted in cache: "
-		 "off %" PRIuMAX ", size %" PRIu32,
+		 "offset=%" PRIuMAX ", size=%" PRIu32,
 		 (uintmax_t)offset, (uint32_t)size);
     return (0);
 item_exists:
@@ -219,6 +219,9 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_
             __wt_overwrite_and_free(session, blkcache_item);
             WT_STAT_CONN_DECRV(session, block_cache_bytes, size);
             WT_STAT_CONN_DECR(session, block_cache_blocks);
+	    __wt_verbose(session, WT_VERB_BLKCACHE, "block removed from cache: "
+		 "offset=%" PRIuMAX ", size=%" PRIu32,
+		 (uintmax_t)offset, (uint32_t)size);
             return;
         }
     }
@@ -262,6 +265,11 @@ __wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, int type, char *nvram_
     blkcache->type = type;
     blkcache->max_bytes = size;
 
+    __wt_verbose(session, WT_VERB_BLKCACHE, "block cache initialized: "
+		 "type: %s, size %" PRIu32,
+		 (type == BLKCACHE_NVRAM)?"nvram":(type == BLKCACHE_DRAM)?"dram":"unconfigured",
+		 (uint32_t)size);
+
     return (ret);
 }
 
@@ -280,6 +288,9 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
     blkcache = &conn->blkcache;
     blkcache_item = NULL;
+
+    __wt_verbose(session, WT_VERB_BLKCACHE, "block cache with %" PRIu32
+		 " bytes used to be destroyed", (uint32_t)blkcache->bytes_used);
 
     if (blkcache->bytes_used == 0)
         goto done;
@@ -310,7 +321,6 @@ done:
      * Zeroing the structure has the effect of setting the block cache type to unconfigured.
      */
     memset((void *)blkcache, 0, sizeof(WT_BLKCACHE));
-    printf("block cache destroyed\n");
 }
 
 /*
@@ -360,7 +370,9 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     } else
         WT_RET_MSG(session, EINVAL, "Invalid block cache type.");
 
-    printf("initializing block cache of type %d, size %lu, device path: %s\n", cache_type,
-      cache_size, (nvram_device_path == NULL) ? "-" : nvram_device_path);
+    __wt_verbose(session, WT_VERB_BLKCACHE, "block cache initialization: "
+		 "type: %d, size: %lu, device path: %s\n", cache_type,
+		 cache_size, (nvram_device_path == NULL) ? "-" : nvram_device_path);
+
     return __wt_blkcache_init(session, cache_size, cache_type, nvram_device_path);
 }
