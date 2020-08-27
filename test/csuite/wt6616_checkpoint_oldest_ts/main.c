@@ -40,8 +40,8 @@ static char home[1024]; /* Program working dir */
  * obsolete.
  *
  * In verification, kill the child process and reopen the database to run recovery. Query the
- * database to get the stable and oldest timestamp. For keys from oldest to stable, make sure each
- * key X is visible at timestamp X.
+ * database to get the stable and oldest timestamp. For keys from oldest to stable timestamp, make
+ * sure each key X is visible at timestamp X.
  */
 #define KEY_FORMAT ("%010" PRIu64)
 
@@ -94,18 +94,14 @@ thread_ckpt_run(void *arg)
     __wt_random_init(&rnd);
 
     conn = (WT_CONNECTION *)arg;
-    /*
-     * Keep a separate file with the records we wrote for checking.
-     */
+    /* Keep a separate file with the records we wrote for checking. */
     (void)unlink(ckpt_file);
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     first_ckpt = true;
     for (i = 0;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
         sleep(sleep_time);
-        /*
-         * Since this is the default, send in this string even if running without timestamps.
-         */
+        /* Run checkpoint with timestamps. */
         testutil_check(session->checkpoint(session, "use_timestamp=true"));
         testutil_check(conn->query_timestamp(conn, ts_string, "get=last_checkpoint"));
         testutil_assert(sscanf(ts_string, "%" SCNx64, &stable) == 1);
@@ -143,9 +139,7 @@ thread_run(void *arg)
     testutil_check(conn->open_session(conn, NULL, "isolation=snapshot", &session));
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
-    /*
-     * Insert and then delete the keys until we're killed.
-     */
+    /* Insert and then delete the keys until we're killed. */
     printf("Worker thread started.\n");
     for (ts = 1, oldest_ts = 0;; ++ts) {
         testutil_check(__wt_snprintf(kname, sizeof(kname), KEY_FORMAT, ts));
@@ -173,7 +167,6 @@ thread_run(void *arg)
 
         /* Set the oldest timestamp to make half of the data obsolete. */
         if (ts - oldest_ts > MAX_DATA) {
-            /* Update stable timestamp to the current timestamp. */
             oldest_ts = ts - (ts - oldest_ts) / 2;
             testutil_check(
               __wt_snprintf(tscfg, sizeof(tscfg), "oldest_timestamp=%" PRIx64, oldest_ts));
@@ -216,24 +209,18 @@ run_workload(void)
           session->create(session, uri, "key_format=S,value_format=u,log=(enabled=false)"));
     testutil_check(session->close(session, NULL));
 
-    /*
-     * The checkpoint thread is added at the end.
-     */
+    /* The checkpoint thread is added at the end. */
     printf("Create checkpoint thread\n");
     testutil_check(__wt_thread_create(NULL, &thr[0], thread_ckpt_run, conn));
     printf("Create the worker thread\n");
     testutil_check(__wt_thread_create(NULL, &thr[1], thread_run, conn));
 
-    /*
-     * The threads never exit, so the child will just wait here until it is killed.
-     */
+    /* The threads never exit, so the child will just wait here until it is killed. */
     fflush(stdout);
     for (i = 0; i <= 2; ++i)
         testutil_check(__wt_thread_join(NULL, &thr[i]));
 
-    /*
-     * NOTREACHED
-     */
+    /* NOTREACHED */
     free(thr);
     exit(EXIT_SUCCESS);
 }
@@ -248,9 +235,7 @@ handler(int sig)
 
     WT_UNUSED(sig);
     pid = wait(NULL);
-    /*
-     * The core file will indicate why the child exited. Choose EINVAL here.
-     */
+    /* The core file will indicate why the child exited. Choose EINVAL here. */
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
