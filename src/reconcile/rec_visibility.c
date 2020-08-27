@@ -473,7 +473,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             /* The beginning of the validity window is the selected update's time point. */
             WT_TIME_WINDOW_SET_START(select_tw, upd);
         else if (select_tw->stop_ts != WT_TS_NONE || select_tw->stop_txn != WT_TXN_NONE) {
-            /* We only have a tombstone in the update list. */
+            /*
+             * We only have a tombstone on the update list or all the updates are from the same
+             * transaction.
+             */
             WT_ASSERT(session, tombstone != NULL);
 
             /* We must have an ondisk value and it can't be a prepared update. */
@@ -481,8 +484,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
             /* Move the pointer to the last update on the update chain. */
             for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)
-                /* Tombstone is the only non-aborted update on the update chain. */
-                WT_ASSERT(session, last_upd->next->txnid == WT_TXN_ABORTED);
+                /*
+                 * Tombstone is the only non-aborted update on the update chain or all the updates
+                 * are from the same transaction.
+                 */
+                WT_ASSERT(session,
+                  last_upd->next->txnid == WT_TXN_ABORTED ||
+                    (last_upd->next->txnid == tombstone->txnid &&
+                      last_upd->next->start_ts == tombstone->start_ts));
 
             /*
              * We will try to append the onpage value after the last_upd. Make sure it exists and it
