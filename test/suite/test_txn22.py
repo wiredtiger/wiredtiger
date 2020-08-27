@@ -73,7 +73,7 @@ class test_txn22(wttest.WiredTigerTestCase):
         session2 = self.setUpSessionOpen(self.conn)
         cursor2 = session2.open_cursor(uri)
         session2.begin_transaction('isolation=snapshot')
-        start_row = n_rows/4
+        start_row = int(n_rows/4)
         for i in range(0, 130000):
             cursor2[start_row + i] = new_val
         session2.commit_transaction()
@@ -81,7 +81,7 @@ class test_txn22(wttest.WiredTigerTestCase):
         session3 = self.setUpSessionOpen(self.conn)
         cursor3 = session3.open_cursor(uri)
         session3.begin_transaction('isolation=snapshot')
-        start_row = n_rows/2
+        start_row = int(n_rows/2)
         for i in range(0, 130000):
             cursor3[start_row + i] = new_val
         session3.commit_transaction()
