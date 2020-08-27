@@ -479,7 +479,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             /* We must have an ondisk value and it can't be a prepared update. */
             WT_ASSERT(session, vpack != NULL && vpack->type != WT_CELL_DEL && !vpack->tw.prepare);
 
-            /* Move to the last update on the update chain. */
+            /* Move the pointer to the last update on the update chain. */
             for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)
                 /* Tombstone is the only non-aborted update on the update chain. */
                 WT_ASSERT(session, last_upd->next->txnid == WT_TXN_ABORTED);
