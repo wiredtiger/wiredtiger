@@ -312,8 +312,8 @@ main(int argc, char *argv[])
       log_table ? "-l" : "");
     /*
      * Fork a child to insert and delete as many items. We will then randomly kill the child, run
-     * recovery and make sure all items from the oldest and stable of the checkpoint exist after
-     * recovery runs.
+     * recovery and make sure all items from the oldest to stable timestamps of the checkpoint exist
+     * after recovery runs.
      */
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handler;
