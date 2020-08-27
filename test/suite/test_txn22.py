@@ -39,11 +39,11 @@ class test_txn22(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     def conn_config(self):
-        # Using a small cache configuration. 
-        # We also want to either eliminate or keep the application thread role in eviction to 
-        # minimum. This ensures that the dedicated eviction threads are doing the heavy lifting.
-        return 'cache_size=100MB,eviction_target=70,eviction_dirty_target=20,eviction_trigger=100,\
-                eviction_dirty_trigger=100,eviction_updates_trigger=100,eviction=(threads_max=4)'
+        # We want to either eliminate or keep the application thread role in eviction to minimum. 
+        # This will ensure that the dedicated eviction threads are doing the heavy lifting.
+        return 'cache_size=100MB,eviction_target=80,eviction_dirty_target=5,eviction_trigger=100,\
+                eviction_updates_target=5,eviction_dirty_trigger=99,eviction_updates_trigger=100,\
+                eviction=(threads_max=4)'
     
     def test_snapshot_isolation_and_eviction(self):
         
@@ -61,7 +61,7 @@ class test_txn22(wttest.WiredTigerTestCase):
             cursor[i] = default_val
         cursor.close()
 
-        # Perform a checkpoint. There should be no dirty content in cache after this.
+        # Perform a checkpoint. There should be no dirty content in the cache after this.
         self.session.checkpoint()
 
         # Start a transaction, make an update and keep it running.
@@ -85,19 +85,20 @@ class test_txn22(wttest.WiredTigerTestCase):
         for i in range(0, 130000):
             cursor3[start_row + i] = new_val
         session3.commit_transaction()
-        
-        # Give a chance to eviction threads to clean the cache if they can.
-        time.sleep(10)
 
-        # At this time in point, we have made roughly 90% cache dirty. If we are not using
-        # snaphsots for eviction threads, the cache state will remain like this forever. If we try
-        # to insert new data at this point in time and dirty cache exceedes 100% and eviction threads
-        # are not using snapshot isolation, we should eventually get a rollback error. 
+        # At this point in time, we have made roughly 90% cache dirty. If we are not using
+        # snaphsots for eviction threads, the cache state will remain like this forever and we may
+        # never reach this part of code. We might get a rollback error by now or WT will panic with
+        # cache stuck error.
+        #
+        # Even if we dont get an error by now and if we try to insert new data at this point in
+        # time, dirty cache usage will exceed 100% if eviction threads are not using snapshot
+        # isolation. In that case, we will eventually get a rollback error for sure.
 
         session4 = self.setUpSessionOpen(self.conn)
         cursor4 = session4.open_cursor(uri)
         session4.begin_transaction('isolation=snapshot')
-        for i in range(0, 100000):
+        for i in range(1, 100000):
             cursor4[i] = final_val
         session4.commit_transaction()
         
