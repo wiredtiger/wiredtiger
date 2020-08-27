@@ -16,13 +16,13 @@ bool verbose = false; /* Verbose flag */
 
 static const char *command; /* Command name */
 
+#define COMPRESSOR_PREFIX "compressor="
+#define PATH_PREFIX "path="
 #define READONLY "readonly=true"
 #define REC_ERROR "enabled=true,recover=error"
 #define REC_LOGOFF "enabled=false"
 #define REC_RECOVER "enabled=true,recover=on"
 #define SALVAGE "salvage=true"
-#define COMPRESSOR_PREFIX "compressor="
-#define PATH_PREFIX "path="
 
 static void
 usage(void)
