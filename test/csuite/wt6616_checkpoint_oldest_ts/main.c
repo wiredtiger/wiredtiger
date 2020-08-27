@@ -278,6 +278,7 @@ main(int argc, char *argv[])
 
     (void)testutil_set_progname(argv);
 
+    rand_time = false;
     timeout = MIN_TIME;
     working_dir = "WT_TEST.wt6616-checkpoint-oldest-ts";
 
@@ -364,6 +365,7 @@ main(int argc, char *argv[])
     /* Open a cursor on the table. */
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
+    fatal = false;
     for (ts = oldest_ts; ts <= stable_ts; ++ts) {
         testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "read_timestamp=%" PRIx64, ts));
         testutil_check(session->begin_transaction(session, tscfg));
