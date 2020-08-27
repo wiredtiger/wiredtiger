@@ -11,23 +11,26 @@
 const char *home = "."; /* Home directory */
 const char *progname;   /* Program name */
                         /* Global arguments */
-const char *usage_prefix = "[-LmRrSVv] [-C config] [-E secretkey] [-h home]";
+const char *usage_prefix = "[-LlmRrSVv] [-C config] [-E secretkey] [-h home]";
 bool verbose = false; /* Verbose flag */
 
 static const char *command; /* Command name */
 
 #define READONLY "readonly=true"
-#define REC_ERROR "log=(recover=error)"
-#define REC_LOGOFF "log=(enabled=false)"
-#define REC_RECOVER "log=(recover=on)"
+#define REC_ERROR "enabled=true,recover=error"
+#define REC_LOGOFF "enabled=false"
+#define REC_RECOVER "enabled=true,recover=on"
 #define SALVAGE "salvage=true"
+#define COMPRESSOR_PREFIX "compressor="
+#define PATH_PREFIX "path="
 
 static void
 usage(void)
 {
     static const char *options[] = {"-B", "maintain release 3.3 log file compatibility",
-      "-C config", "wiredtiger_open configuration", "-E key", "secret encryption key", "-h home",
-      "database directory", "-L", "turn logging off for debug-mode", "-m", "run verify on metadata",
+      "-C config", "wiredtiger_open configuration", "-c compressor", "log compressor", "-E key",
+      "secret encryption key", "-h home", "database directory", "-L",
+      "turn logging off for debug-mode", "-l path", "log path", "-m", "run verify on metadata",
       "-R", "run recovery (if recovery configured)", "-r",
       "access the database via a readonly connection", "-S",
       "run salvage recovery (if recovery configured)", "-V", "display library version and exit",
@@ -62,7 +65,8 @@ main(int argc, char *argv[])
     size_t len;
     int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
-    const char *cmd_config, *config, *p1, *p2, *p3, *readonly_config, *rec_config, *salvage_config;
+    const char *cmd_config, *compressor, *config, *log_path, *p1, *p2, *p3;
+    const char *readonly_config, *rec_config, *salvage_config;
     bool backward_compatible, logoff, meta_verify, readonly, recover, salvage;
 
     conn = NULL;
@@ -84,7 +88,8 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     }
 
-    cmd_config = config = readonly_config = salvage_config = secretkey = NULL;
+    cmd_config = compressor = config = log_path = readonly_config = salvage_config = NULL;
+    secretkey = NULL;
     /*
      * We default to returning an error if recovery needs to be run. Generally we expect this to be
      * run after a clean shutdown. The printlog command disables logging entirely. If recovery is
@@ -93,13 +98,16 @@ main(int argc, char *argv[])
     rec_config = REC_ERROR;
     backward_compatible = logoff = meta_verify = readonly = recover = salvage = false;
     /* Check for standard options. */
-    while ((ch = __wt_getopt(progname, argc, argv, "BC:E:h:LmRrSVv")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "BC:c:E:h:Ll:mRrSVv")) != EOF)
         switch (ch) {
         case 'B': /* backward compatibility */
             backward_compatible = true;
             break;
         case 'C': /* wiredtiger_open config */
             cmd_config = __wt_optarg;
+            break;
+        case 'c': /* log compressor */
+            compressor = __wt_optarg;
             break;
         case 'E':            /* secret key */
             free(secretkey); /* lint: set more than once */
@@ -115,6 +123,9 @@ main(int argc, char *argv[])
         case 'L': /* no logging */
             rec_config = REC_LOGOFF;
             logoff = true;
+            break;
+        case 'l': /* log path */
+            log_path = __wt_optarg;
             break;
         case 'm': /* verify metadata on connection open */
             cmd_config = "verify_metadata=true";
@@ -274,14 +285,26 @@ open:
         p2 = secretkey;
         p3 = ")";
     }
+    len += strlen("log=(");
     len += strlen(rec_config);
     if ((p = malloc(len)) == NULL) {
         (void)util_err(NULL, errno, NULL);
         goto err;
     }
-    if ((ret = __wt_snprintf(p, len, "error_prefix=wt,%s,%s,%s,%s,%s%s%s%s",
+    if (compressor != NULL) {
+        len += strlen(COMPRESSOR_PREFIX);
+        len += strlen(compressor);
+    }
+    if (log_path != NULL) {
+        len += strlen(PATH_PREFIX);
+        len += strlen(log_path);
+    }
+    len += strlen(")");
+    if ((ret = __wt_snprintf(p, len, "error_prefix=wt,%s,%s,%s,log=(%s,%s%s,%s%s),%s%s%s%s",
            config == NULL ? "" : config, cmd_config == NULL ? "" : cmd_config,
            readonly_config == NULL ? "" : readonly_config, rec_config,
+           compressor == NULL ? "" : COMPRESSOR_PREFIX, compressor == NULL ? "" : compressor,
+           log_path == NULL ? "" : PATH_PREFIX, log_path == NULL ? "" : log_path,
            salvage_config == NULL ? "" : salvage_config, p1, p2, p3)) != 0) {
         (void)util_err(NULL, ret, NULL);
         goto err;
