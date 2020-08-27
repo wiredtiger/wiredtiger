@@ -440,8 +440,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 }
 
                 WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
-                if (upd->next == NULL)
-                    last_upd = upd;
                 upd_select->upd = upd = upd->next;
 
                 /*
@@ -479,7 +477,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_ASSERT(session, tombstone != NULL);
 
             /* We must have an ondisk value and it can't be a prepared update. */
-            WT_ASSERT(session, vpack != NULL && !vpack->tw.prepare);
+            WT_ASSERT(session, vpack != NULL && vpack->type != WT_CELL_DEL && !vpack->tw.prepare);
+
+            /* Move to the last update on the update chain. */
+            for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)
+                /* Tombstone is the only non-aborted update on the update chain. */
+                WT_ASSERT(session, last_upd->next->txnid == WT_TXN_ABORTED);
 
             /*
              * We will try to append the onpage value after the last_upd. Make sure it exists and it
