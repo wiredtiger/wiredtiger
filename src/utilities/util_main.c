@@ -287,10 +287,6 @@ open:
     }
     len += strlen("log=(");
     len += strlen(rec_config);
-    if ((p = malloc(len)) == NULL) {
-        (void)util_err(NULL, errno, NULL);
-        goto err;
-    }
     if (compressor != NULL) {
         len += strlen(COMPRESSOR_PREFIX);
         len += strlen(compressor);
@@ -300,6 +296,10 @@ open:
         len += strlen(log_path);
     }
     len += strlen(")");
+    if ((p = malloc(len)) == NULL) {
+        (void)util_err(NULL, errno, NULL);
+        goto err;
+    }
     if ((ret = __wt_snprintf(p, len, "error_prefix=wt,%s,%s,%s,log=(%s,%s%s,%s%s),%s%s%s%s",
            config == NULL ? "" : config, cmd_config == NULL ? "" : cmd_config,
            readonly_config == NULL ? "" : readonly_config, rec_config,
