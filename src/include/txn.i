@@ -1298,8 +1298,7 @@ __wt_txn_read_last(WT_SESSION_IMPL *session)
      * If the isolation has been temporarily forced, don't touch the snapshot here: it will be
      * restored by WT_WITH_TXN_ISOLATION.
      */
-    if ((!F_ISSET(txn, WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) &&
-      txn->forced_iso == 0)
+    if (txn->isolation != WT_ISO_SNAPSHOT && txn->forced_iso == 0)
         __wt_txn_release_snapshot(session);
 }
 
