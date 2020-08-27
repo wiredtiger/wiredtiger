@@ -39,14 +39,14 @@ class test_txn22(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     def conn_config(self):
-        # We want to either eliminate or keep the application thread role in eviction to minimum. 
+        # We want to either eliminate or keep the application thread role in eviction to minimum.
         # This will ensure that the dedicated eviction threads are doing the heavy lifting.
         return 'cache_size=100MB,eviction_target=80,eviction_dirty_target=5,eviction_trigger=100,\
                 eviction_updates_target=5,eviction_dirty_trigger=99,eviction_updates_trigger=100,\
                 eviction=(threads_max=4)'
-    
+
     def test_snapshot_isolation_and_eviction(self):
-        
+
         # Create and populate a table.
         uri = "table:test_txn22"
         table_params = 'key_format=i,value_format=S'
@@ -68,7 +68,7 @@ class test_txn22(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri, None)
         self.session.begin_transaction('isolation=snapshot')
         cursor[0] = new_val
-        
+
         # Start few sessions and transactions, make updates and try committing them.
         session2 = self.setUpSessionOpen(self.conn)
         cursor2 = session2.open_cursor(uri)
@@ -101,7 +101,7 @@ class test_txn22(wttest.WiredTigerTestCase):
         for i in range(1, 100000):
             cursor4[i] = final_val
         session4.commit_transaction()
-        
+
         # If we have done all operations error free so far, eviction threads have been successful.
 
         self.session.commit_transaction()
