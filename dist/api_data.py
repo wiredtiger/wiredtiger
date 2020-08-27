@@ -687,7 +687,7 @@ connection_runtime_config = [
         intended for use with internal stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_sweep', 'checkpoint_slow', 'lookaside_sweep_race',
+        'aggressive_sweep', 'backup_rename', 'checkpoint_slow', 'lookaside_sweep_race',
         'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6',
         'split_7', 'split_8']),
     Config('verbose', '', r'''
