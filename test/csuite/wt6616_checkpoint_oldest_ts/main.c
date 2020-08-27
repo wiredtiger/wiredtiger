@@ -35,13 +35,13 @@ static char home[1024]; /* Program working dir */
 
 /*
  * Spin up a child process to do operations and checkpoint. For each set of operations on a key,
- * insert the key at timestamp a, move the stable timestamp to a, and delete the key at timestamp
- * a+1. If the amount of data is larger than MAX_DATA, move the oldest timestamp to make half of the
+ * insert key X at timestamp X, move the stable timestamp to X, and delete the key at timestamp
+ * X+1. If the amount of data is larger than MAX_DATA, move the oldest timestamp to make half of the
  * data obsolete.
  *
  * In verification, kill the child process and reopen the database to run recovery. Query the
  * database to get the stable and oldest timestamp. For keys from oldest to stable, make sure each
- * key a is visible at timestamp a.
+ * key X is visible at timestamp X.
  */
 #define KEY_FORMAT ("%010" PRIu64)
 
