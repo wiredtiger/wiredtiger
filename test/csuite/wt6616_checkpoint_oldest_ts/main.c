@@ -35,9 +35,9 @@ static char home[1024]; /* Program working dir */
 
 /*
  * Spin up a child process to do operations and checkpoint. For each set of operations on a key,
- * insert key X at timestamp X, move the stable timestamp to X, and delete the key at timestamp
- * X+1. If the amount of data is larger than MAX_DATA, move the oldest timestamp to make half of the
- * data obsolete.
+ * insert key X at timestamp X, move the stable timestamp to X, and delete the key at timestamp X+1.
+ * If the amount of data is larger than MAX_DATA, move the oldest timestamp to make half of the data
+ * obsolete.
  *
  * In verification, kill the child process and reopen the database to run recovery. Query the
  * database to get the stable and oldest timestamp. For keys from oldest to stable, make sure each
