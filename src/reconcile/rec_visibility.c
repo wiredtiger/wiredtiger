@@ -305,12 +305,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 return (__wt_set_return(session, EBUSY));
 
             has_newer_updates = true;
-            WT_STAT_CONN_INCR_ATOMIC(session, cache_eviction_updates_invisible);
             continue;
         }
-
-        if (!F_ISSET(upd, WT_UPDATE_DS) && !is_hs_page)
-            WT_STAT_CONN_INCR_ATOMIC(session, cache_eviction_updates_visible);
 
         /* Ignore prepared updates if it is checkpoint. */
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
