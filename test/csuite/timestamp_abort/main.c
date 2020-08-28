@@ -735,6 +735,8 @@ main(int argc, char *argv[])
     /* Copy the data to a separate folder for debugging purpose. */
     testutil_copy_data(home);
 
+    printf("Open database, run recovery and verify content\n");
+
     /*
      * Open the connection which forces recovery to be run.
      */
