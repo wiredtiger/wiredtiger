@@ -686,6 +686,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
          * should implicitly take a snapshot as well.
          */
         WT_RET(__wt_txn_begin(session, txn_cfg));
+        /* Eviction threads do not need to pin anything. */
+        WT_SESSION_TXN_SHARED(session)->pinned_id = WT_TXN_NONE;
         txn_started = true;
     } else {
         /*

@@ -566,7 +566,11 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 
     upd = NULL;
 
-    /* About to do some visibility checks. Update our snapshot for eviction. */
+    /*
+     * About to do some visibility checks so let's update our snapshot for eviction. We only want to
+     * refresh snapshot without publishing the updated shared id because eviction thread
+     * transactions shouldn't pin anything.
+     */
     if (F_ISSET(session, WT_SESSION_INTERNAL) && F_ISSET(session->txn, WT_TXN_RUNNING) &&
       F_ISSET(r, WT_REC_EVICT))
         __wt_txn_bump_snapshot(session);
@@ -755,7 +759,11 @@ __wt_rec_row_leaf(
      */
     WT_ERR(__wt_scr_alloc(session, 0, &tmpkey));
 
-    /* About to do some visibility checks. Update our snapshot for eviction. */
+    /*
+     * About to do some visibility checks so let's update our snapshot for eviction. We only want to
+     * refresh snapshot without publishing the updated shared id because eviction thread
+     * transactions shouldn't pin anything.
+     */
     if (F_ISSET(session, WT_SESSION_INTERNAL) && F_ISSET(session->txn, WT_TXN_RUNNING) &&
       F_ISSET(r, WT_REC_EVICT))
         __wt_txn_bump_snapshot(session);
