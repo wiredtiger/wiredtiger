@@ -108,6 +108,9 @@ __wt_blkcache_get_or_check(
     }
 
     /* Block not found */
+    __wt_verbose(session, WT_VERB_BLKCACHE, "block not found in cache: "
+		 "offset=%" PRIuMAX ", size=%" PRIu32,
+		 (uintmax_t)offset, (uint32_t)size);
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
     WT_STAT_CONN_INCR(session, block_cache_misses);
     return (-1);
@@ -266,9 +269,9 @@ __wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, int type, char *nvram_
     blkcache->max_bytes = size;
 
     __wt_verbose(session, WT_VERB_BLKCACHE, "block cache initialized: "
-		 "type: %s, size %" PRIu32,
+		 "type=%s, size=%" PRIu32 " path=%s",
 		 (type == BLKCACHE_NVRAM)?"nvram":(type == BLKCACHE_DRAM)?"dram":"unconfigured",
-		 (uint32_t)size);
+		 (uint32_t)size, (nvram_device_path == NULL)?"--":nvram_device_path);
 
     return (ret);
 }
@@ -369,10 +372,6 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 #endif
     } else
         WT_RET_MSG(session, EINVAL, "Invalid block cache type.");
-
-    __wt_verbose(session, WT_VERB_BLKCACHE, "block cache initialization: "
-		 "type: %d, size: %lu, device path: %s\n", cache_type,
-		 cache_size, (nvram_device_path == NULL) ? "-" : nvram_device_path);
 
     return __wt_blkcache_init(session, cache_size, cache_type, nvram_device_path);
 }
