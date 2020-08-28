@@ -163,6 +163,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t s
     }
 
     WT_ERR(__wt_calloc_one(session, &blkcache_item));
+    blkcache_item->id = id;
     blkcache_item->data = data_ptr;
     memcpy(blkcache_item->data, data, size);
     TAILQ_INSERT_HEAD(&blkcache->hash[bucket], blkcache_item, hashq);
@@ -178,6 +179,9 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t s
 		 (uintmax_t)offset, (uint32_t)size, hash);
     return (0);
 item_exists:
+    __wt_verbose(session, WT_VERB_BLKCACHE, "block exists during put: "
+		 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64,
+		 (uintmax_t)offset, (uint32_t)size, hash);
 err:
     __wt_blkcache_free(session, data_ptr);
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
