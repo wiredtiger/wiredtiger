@@ -72,19 +72,23 @@ class test_txn22(wttest.WiredTigerTestCase):
         # Start few sessions and transactions, make updates and try committing them.
         session2 = self.setUpSessionOpen(self.conn)
         cursor2 = session2.open_cursor(uri)
-        session2.begin_transaction('isolation=snapshot')
         start_row = int(n_rows/4)
-        for i in range(0, 130000):
-            cursor2[start_row + i] = new_val
-        session2.commit_transaction()
+        for i in range(0, 120):
+            session2.begin_transaction('isolation=snapshot')
+            for j in range(0,1000):
+                cursor2[start_row] = new_val
+                start_row += 1
+            session2.commit_transaction()
 
         session3 = self.setUpSessionOpen(self.conn)
         cursor3 = session3.open_cursor(uri)
-        session3.begin_transaction('isolation=snapshot')
         start_row = int(n_rows/2)
-        for i in range(0, 130000):
-            cursor3[start_row + i] = new_val
-        session3.commit_transaction()
+        for i in range(0, 120):
+            session3.begin_transaction('isolation=snapshot')
+            for j in range(0,1000):
+                cursor3[start_row] = new_val
+                start_row += 1
+            session3.commit_transaction()
 
         # At this point in time, we have made roughly 90% cache dirty. If we are not using
         # snaphsots for eviction threads, the cache state will remain like this forever and we may
@@ -97,10 +101,13 @@ class test_txn22(wttest.WiredTigerTestCase):
 
         session4 = self.setUpSessionOpen(self.conn)
         cursor4 = session4.open_cursor(uri)
-        session4.begin_transaction('isolation=snapshot')
-        for i in range(1, 100000):
-            cursor4[i] = final_val
-        session4.commit_transaction()
+        start_row = 1
+        for i in range(0, 120):
+            session4.begin_transaction('isolation=snapshot')
+            for j in range(0,1000):
+                cursor4[start_row] = new_val
+                start_row += 1
+            session4.commit_transaction()
 
         # If we have done all operations error free so far, eviction threads have been successful.
 
