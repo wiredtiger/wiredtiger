@@ -263,6 +263,7 @@ void op_cursor(void *);
 void op_drop(void *);
 void testutil_clean_work_dir(const char *);
 void testutil_cleanup(TEST_OPTS *);
+void testutil_copy_data(const char *);
 bool testutil_is_flag_set(const char *);
 void testutil_make_work_dir(const char *);
 int testutil_parse_opts(int, char *const *, TEST_OPTS *);

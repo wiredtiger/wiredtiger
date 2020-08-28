@@ -257,7 +257,7 @@ main(int argc, char *argv[])
     uint64_t oldest_ts, stable_ts, ts;
     uint32_t timeout;
     int ch, status;
-    char buf[512], kname[64], statname[1024], tscfg[64];
+    char kname[64], statname[1024], tscfg[64];
     char ts_string[WT_TS_HEX_STRING_SIZE];
     const char *working_dir;
     bool fatal, rand_time;
@@ -339,10 +339,7 @@ main(int argc, char *argv[])
         testutil_die(errno, "parent chdir: %s", home);
 
     /* Copy the data to a separate folder for debugging purpose. */
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && cp -p * ../%s.SAVE", home, home, home));
-    if ((status = system(buf)) < 0)
-        testutil_die(status, "system: %s", buf);
+    testutil_copy_data(home);
 
     printf("Open database and run recovery\n");
 

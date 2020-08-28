@@ -194,6 +194,22 @@ testutil_cleanup(TEST_OPTS *opts)
 }
 
 /*
+ * testutil_copy_data --
+ *     Copy the data to a backup folder.
+ */
+void
+testutil_copy_data(const char *dir)
+{
+    char buf[512];
+    int status;
+
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+      "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && cp -p * ../%s.SAVE", dir, dir, dir));
+    if ((status = system(buf)) < 0)
+        testutil_die(status, "system: %s", buf);
+}
+
+/*
  * testutil_timestamp_parse --
  *     Parse a timestamp to an integral value.
  */

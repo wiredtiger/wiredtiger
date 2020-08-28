@@ -733,11 +733,7 @@ main(int argc, char *argv[])
         testutil_die(errno, "parent chdir: %s", home);
 
     /* Copy the data to a separate folder for debugging purpose. */
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && cp -p * ../%s.SAVE", home, home, home));
-    if ((status = system(buf)) < 0)
-        testutil_die(status, "system: %s", buf);
-    printf("Open database, run recovery and verify content\n");
+    testutil_copy_data(home);
 
     /*
      * Open the connection which forces recovery to be run.
