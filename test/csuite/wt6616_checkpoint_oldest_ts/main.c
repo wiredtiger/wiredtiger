@@ -60,7 +60,7 @@ static bool log_table = false;
     "cache_size=50M,"                                         \
     "create,"                                                 \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
-    "log=(archive=true,file_max=10M,enabled),"                 \
+    "log=(archive=true,file_max=10M,enabled),"                \
     "statistics=(fast),statistics_log=(wait=1,json=true),"    \
     "timing_stress_for_test=[checkpoint_slow]"
 
@@ -355,8 +355,7 @@ main(int argc, char *argv[])
     testutil_check(conn->query_timestamp(conn, ts_string, "get=oldest"));
     testutil_timestamp_parse(ts_string, &oldest_ts);
 
-    printf("Verify data from oldest timestamp %" PRIu64 " to stable timestamp %" PRIu64
-           "\n",
+    printf("Verify data from oldest timestamp %" PRIu64 " to stable timestamp %" PRIu64 "\n",
       oldest_ts, stable_ts);
 
     /* Open a cursor on the table. */

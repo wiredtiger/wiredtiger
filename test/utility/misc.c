@@ -200,8 +200,8 @@ testutil_cleanup(TEST_OPTS *opts)
 void
 testutil_copy_data(const char *dir)
 {
-    char buf[512];
     int status;
+    char buf[512];
 
     testutil_check(__wt_snprintf(buf, sizeof(buf),
       "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && cp -p * ../%s.SAVE", dir, dir, dir));
