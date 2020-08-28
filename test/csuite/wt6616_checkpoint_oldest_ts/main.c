@@ -60,6 +60,7 @@ static bool log_table = false;
     "cache_size=50M,"                                         \
     "create,"                                                 \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
+    "log=(archive=true,file_max=10M,enabled),"                 \
     "statistics=(fast),statistics_log=(wait=1,json=true),"    \
     "timing_stress_for_test=[checkpoint_slow]"
 
@@ -131,7 +132,7 @@ thread_run(void *arg)
     WT_CURSOR *cursor;
     WT_ITEM data;
     WT_SESSION *session;
-    uint64_t ts, oldest_ts;
+    uint64_t oldest_ts, ts;
     char kname[64], tscfg[64];
 
     conn = (WT_CONNECTION *)arg;
@@ -141,7 +142,7 @@ thread_run(void *arg)
 
     /* Insert and then delete the keys until we're killed. */
     printf("Worker thread started.\n");
-    for (ts = 1, oldest_ts = 0;; ++ts) {
+    for (oldest_ts = 0, ts = 1;; ++ts) {
         testutil_check(__wt_snprintf(kname, sizeof(kname), KEY_FORMAT, ts));
 
         /* Insert the same value for key and value. */
@@ -328,8 +329,22 @@ main(int argc, char *argv[])
     testutil_checksys(kill(pid, SIGKILL) != 0);
     testutil_checksys(waitpid(pid, &status, 0) == -1);
 
+    /*
+     * !!! If we wanted to take a copy of the directory before recovery,
+     * this is the place to do it. Don't do it all the time because
+     * it can use a lot of disk space, which can cause test machine
+     * issues.
+     */
     if (chdir(home) != 0)
         testutil_die(errno, "parent chdir: %s", home);
+
+    /* Copy the data to a separate folder for debugging purpose. */
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+      "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && cp -p * ../%s.SAVE", home, home, home));
+    if ((status = system(buf)) < 0)
+        testutil_die(status, "system: %s", buf);
+
+    printf("Open database and run recovery\n");
 
     /* Open the connection which forces recovery to be run. */
     testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
@@ -343,7 +358,7 @@ main(int argc, char *argv[])
     testutil_check(conn->query_timestamp(conn, ts_string, "get=oldest"));
     testutil_timestamp_parse(ts_string, &oldest_ts);
 
-    printf("Start verifying data from oldest timestamp %" PRIu64 " to stable timestamp %" PRIu64
+    printf("Verify data from oldest timestamp %" PRIu64 " to stable timestamp %" PRIu64
            "\n",
       oldest_ts, stable_ts);
 

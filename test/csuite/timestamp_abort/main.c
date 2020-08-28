@@ -722,6 +722,7 @@ main(int argc, char *argv[])
         testutil_checksys(kill(pid, SIGKILL) != 0);
         testutil_checksys(waitpid(pid, &status, 0) == -1);
     }
+
     /*
      * !!! If we wanted to take a copy of the directory before recovery,
      * this is the place to do it. Don't do it all the time because
@@ -730,11 +731,8 @@ main(int argc, char *argv[])
      */
     if (chdir(home) != 0)
         testutil_die(errno, "parent chdir: %s", home);
-    /*
-     * The tables can get very large, so while we'd ideally like to copy the entire database, we
-     * only copy the log files for now. Otherwise it can take far too long to run the test,
-     * particularly in automated testing.
-     */
+
+    /* Copy the data to a separate folder for debugging purpose. */
     testutil_check(__wt_snprintf(buf, sizeof(buf),
       "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && cp -p * ../%s.SAVE", home, home, home));
     if ((status = system(buf)) < 0)
