@@ -494,12 +494,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                       last_upd->next->start_ts == tombstone->start_ts));
 
             /*
-             * We will try to append the onpage value after the last_upd. Make sure it exists and it
-             * is the oldest update on the update chain.
-             */
-            WT_ASSERT(session, last_upd != NULL && last_upd->next == NULL);
-
-            /*
              * It's possible to have a tombstone as the only update in the update list. If we
              * reconciled before with only a single update and then read the page back into cache,
              * we'll have an empty update list. And applying a delete on top of that will result in
