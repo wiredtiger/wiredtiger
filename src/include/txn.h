@@ -328,7 +328,7 @@ struct __wt_txn {
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_TXN_AUTOCOMMIT 0x000001u
-#define WT_TXN_BEGINNING 0x000002u
+#define WT_TXN_BEGINNING 0x000002u /* Set only for explicit transactions. */
 #define WT_TXN_ERROR 0x000004u
 #define WT_TXN_HAS_ID 0x000008u
 #define WT_TXN_HAS_SNAPSHOT 0x000010u
@@ -338,7 +338,7 @@ struct __wt_txn {
 #define WT_TXN_IGNORE_PREPARE 0x000100u
 #define WT_TXN_PREPARE 0x000200u
 #define WT_TXN_READONLY 0x000400u
-#define WT_TXN_RUNNING 0x000800u
+#define WT_TXN_RUNNING 0x000800u /* Set only for explicit transactions. */
 #define WT_TXN_SHARED_TS_DURABLE 0x001000u
 #define WT_TXN_SHARED_TS_READ 0x002000u
 #define WT_TXN_SYNC_SET 0x004000u
