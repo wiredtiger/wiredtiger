@@ -1037,6 +1037,7 @@ retry:
 static inline int
 __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_DECL_RET;
     WT_TXN *txn;
 
     txn = session->txn;
@@ -1045,19 +1046,21 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
-    WT_RET(__wt_txn_config(session, cfg));
+    F_SET(txn, WT_TXN_BEGINNING);
+
+    WT_ERR(__wt_txn_config(session, cfg));
 
     /* Allocate a snapshot if required. */
     if (txn->isolation == WT_ISO_SNAPSHOT) {
         if (session->ncursors > 0)
-            WT_RET(__wt_session_copy_values(session));
+            WT_ERR(__wt_session_copy_values(session));
 
         /*
          * Stall here if the cache is completely full. We have allocated a transaction ID which
          * makes it possible for eviction to decide we're contributing to the problem and return
          * WT_ROLLBACK. The WT_SESSION.begin_transaction API can't return rollback, continue on.
          */
-        WT_RET_ERROR_OK(__wt_cache_eviction_check(session, false, true, NULL), WT_ROLLBACK);
+        WT_ERR_ERROR_OK(__wt_cache_eviction_check(session, false, true, NULL), WT_ROLLBACK, false);
 
         __wt_txn_get_snapshot(session);
     }
@@ -1066,7 +1069,9 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(S2C(session), WT_CONN_READONLY))
         F_SET(txn, WT_TXN_READONLY);
 
-    return (0);
+err:
+    F_CLR(txn, WT_TXN_BEGINNING);
+    return (ret);
 }
 
 /*
@@ -1298,7 +1303,7 @@ __wt_txn_read_last(WT_SESSION_IMPL *session)
      * If the isolation has been temporarily forced, don't touch the snapshot here: it will be
      * restored by WT_WITH_TXN_ISOLATION.
      */
-    if ((!F_ISSET(txn, WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) &&
+    if ((!F_ISSET(txn, WT_TXN_BEGINNING | WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) &&
       txn->forced_iso == 0)
         __wt_txn_release_snapshot(session);
 }
