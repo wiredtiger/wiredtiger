@@ -92,7 +92,7 @@ __wt_blkcache_get_or_check(
     id.size = size;
     hash = __wt_hash_city64(&id, sizeof(id));
 
-    bucket = hash % WT_HASH_ARRAY_SIZE;
+    bucket = hash % conn->hash_size;
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
         if ((ret = memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) == 0) {
@@ -155,7 +155,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t s
     id.size = size;
     hash = __wt_hash_city64(&id, sizeof(id));
 
-    bucket = hash % WT_HASH_ARRAY_SIZE;
+    bucket = hash % conn->hash_size;
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
         if ((ret = memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) == 0)
@@ -214,7 +214,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_
     id.size = size;
     hash = __wt_hash_city64(&id, sizeof(id));
 
-    bucket = hash % WT_HASH_ARRAY_SIZE;
+    bucket = hash % conn->hash_size;
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
         if ((ret = memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) == 0) {
@@ -264,7 +264,12 @@ __wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, int type, char *nvram_
 #endif
     }
 
-    for (i = 0; i < WT_HASH_ARRAY_SIZE; i++) {
+    printf("hash size is %d\n", conn->hash_size);
+
+    WT_RET(__wt_calloc_def(session, conn->hash_size, &blkcache->hash));
+    WT_RET(__wt_calloc_def(session, conn->hash_size, &blkcache->hash_locks));
+
+    for (i = 0; i < conn->hash_size; i++) {
         TAILQ_INIT(&blkcache->hash[i]); /* Block cache hash lists */
         WT_RET(__wt_spin_init(session, &blkcache->hash_locks[i], "block cache bucket locks"));
     }
@@ -302,7 +307,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     if (blkcache->bytes_used == 0)
         goto done;
 
-    for (i = 0; i < WT_HASH_ARRAY_SIZE; i++) {
+    for (i = 0; i < conn->hash_size; i++) {
         __wt_spin_lock(session, &blkcache->hash_locks[i]);
         while (!TAILQ_EMPTY(&blkcache->hash[i])) {
             blkcache_item = TAILQ_FIRST(&blkcache->hash[i]);
@@ -324,6 +329,10 @@ done:
         __wt_free(session, blkcache->nvram_device_path);
     }
 #endif
+    if (blkcache->hash != NULL)
+	__wt_free(session, blkcache->hash);
+    if (blkcache->hash_locks != NULL)
+	__wt_free(session, blkcache->hash_locks);
     /*
      * Zeroing the structure has the effect of setting the block cache type to unconfigured.
      */

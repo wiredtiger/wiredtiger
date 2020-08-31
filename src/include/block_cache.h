@@ -43,8 +43,8 @@ struct __wt_blkcache_item {
  */
 struct __wt_blkcache {
     /* Locked: Block manager cache. Locks are per-bucket. */
-    TAILQ_HEAD(__wt_blkcache_hash, __wt_blkcache_item) hash[WT_HASH_ARRAY_SIZE];
-    WT_SPINLOCK hash_locks[WT_HASH_ARRAY_SIZE];
+    TAILQ_HEAD(__wt_blkcache_hash, __wt_blkcache_item) * hash;
+    WT_SPINLOCK * hash_locks;
 
     size_t bytes_used;
     size_t num_data_blocks;
