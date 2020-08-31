@@ -245,7 +245,7 @@ __wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, int type, char *nvram_
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    int i;
+    uint64_t i;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
@@ -263,8 +263,6 @@ __wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, int type, char *nvram_
         WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind.");
 #endif
     }
-
-    printf("hash size is %d\n", conn->hash_size);
 
     WT_RET(__wt_calloc_def(session, conn->hash_size, &blkcache->hash));
     WT_RET(__wt_calloc_def(session, conn->hash_size, &blkcache->hash_locks));
@@ -295,7 +293,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
     WT_CONNECTION_IMPL *conn;
-    int i;
+    uint64_t i;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
