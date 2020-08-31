@@ -11,6 +11,8 @@
  * faster storage medium, such as NVRAM.
  */
 
+#define WT_HASH_SIZE 512
+
 #ifdef HAVE_LIBMEMKIND
 #include <memkind.h>
 #endif /* HAVE_LIBMEMKIND */

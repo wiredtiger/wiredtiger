@@ -50,7 +50,7 @@ __wt_blkcache_free(WT_SESSION_IMPL *session, void *ptr)
     blkcache = &conn->blkcache;
 
     if (blkcache->type == BLKCACHE_DRAM)
-        __wt_free_int(session, ptr);
+        __wt_free(session, ptr);
     else if (blkcache->type == BLKCACHE_NVRAM) {
 #ifdef HAVE_LIBMEMKIND
         memkind_free(blkcache->pmem_kind, ptr);
@@ -85,7 +85,7 @@ __wt_blkcache_get_or_check(
         WT_STAT_CONN_INCR(session, block_cache_data_refs);
 
     if (fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
-        printf("Non-data file\n");
+	return -1;
 
     id.fh = fh;
     id.offset = offset;
@@ -329,10 +329,8 @@ done:
         __wt_free(session, blkcache->nvram_device_path);
     }
 #endif
-    if (blkcache->hash != NULL)
-	__wt_free(session, blkcache->hash);
-    if (blkcache->hash_locks != NULL)
-	__wt_free(session, blkcache->hash_locks);
+    __wt_free(session, blkcache->hash);
+    __wt_free(session, blkcache->hash_locks);
     /*
      * Zeroing the structure has the effect of setting the block cache type to unconfigured.
      */
