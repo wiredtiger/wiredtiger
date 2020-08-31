@@ -686,7 +686,11 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
          * should implicitly take a snapshot as well.
          */
         WT_RET(__wt_txn_begin(session, txn_cfg));
-        /* Eviction threads do not need to pin anything. */
+        /*
+         * Eviction threads do not need to pin anything in the cache. We have a exlcusive lock for
+         * the page being evicted so we are sure that the page will alway be there while it is being
+         * processed.
+         */
         WT_SESSION_TXN_SHARED(session)->pinned_id = WT_TXN_NONE;
         txn_started = true;
     } else {
@@ -703,7 +707,6 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     /* End the transaction if we started one. */
     if (txn_started) {
-        WT_SESSION_TXN_SHARED(session)->pinned_id = WT_TXN_NONE;
         WT_TRET(__wt_txn_commit(session, NULL));
     }
 
