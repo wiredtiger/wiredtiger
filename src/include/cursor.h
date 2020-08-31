@@ -12,27 +12,27 @@
 /*
  * Initialize a static WT_CURSOR structure.
  */
-#define WT_CURSOR_STATIC_INIT(n, get_key, get_value, set_key, set_value, compare, equals, next, \
-                              prev, reset, search, search_near, insert, modify, update, remove, \
-                              reserve, reconfigure, cache, reopen, close)                       \
-    static const WT_CURSOR n = {                                                                \
-      NULL, /* session */                                                                       \
-      NULL, /* uri */                                                                           \
-      NULL, /* key_format */                                                                    \
-      NULL, /* value_format */                                                                  \
-      get_key, get_value, set_key, set_value, compare, equals, next, prev, reset, search,       \
-      search_near, insert, modify, update, remove, reserve, close, reconfigure, cache, reopen,  \
-      0,                     /* uri_hash */                                                     \
-      {NULL, NULL},          /* TAILQ_ENTRY q */                                                \
-      0,                     /* recno key */                                                    \
-      {0},                   /* recno raw buffer */                                             \
-      NULL,                  /* json_private */                                                 \
-      NULL,                  /* lang_private */                                                 \
-      {NULL, 0, NULL, 0, 0}, /* WT_ITEM key */                                                  \
-      {NULL, 0, NULL, 0, 0}, /* WT_ITEM value */                                                \
-      0,                     /* int saved_err */                                                \
-      NULL,                  /* internal_uri */                                                 \
-      0                      /* uint32_t flags */                                               \
+#define WT_CURSOR_STATIC_INIT(n, get_key, get_value, set_key, set_value, compare, equals, next,  \
+  prev, reset, search, search_near, insert, modify, update, remove, reserve, reconfigure, cache, \
+  reopen, close)                                                                                 \
+    static const WT_CURSOR n = {                                                                 \
+      NULL, /* session */                                                                        \
+      NULL, /* uri */                                                                            \
+      NULL, /* key_format */                                                                     \
+      NULL, /* value_format */                                                                   \
+      get_key, get_value, set_key, set_value, compare, equals, next, prev, reset, search,        \
+      search_near, insert, modify, update, remove, reserve, close, reconfigure, cache, reopen,   \
+      0,                     /* uri_hash */                                                      \
+      {NULL, NULL},          /* TAILQ_ENTRY q */                                                 \
+      0,                     /* recno key */                                                     \
+      {0},                   /* recno raw buffer */                                              \
+      NULL,                  /* json_private */                                                  \
+      NULL,                  /* lang_private */                                                  \
+      {NULL, 0, NULL, 0, 0}, /* WT_ITEM key */                                                   \
+      {NULL, 0, NULL, 0, 0}, /* WT_ITEM value */                                                 \
+      0,                     /* int saved_err */                                                 \
+      NULL,                  /* internal_uri */                                                  \
+      0                      /* uint32_t flags */                                                \
     }
 
 struct __wt_cursor_backup {
@@ -54,7 +54,6 @@ struct __wt_cursor_backup {
 
     WT_CURSOR *incr_cursor; /* File cursor */
 
-    bool incr_init;       /* Cursor traversal initialized */
     WT_ITEM bitstring;    /* List of modified blocks */
     uint64_t nbits;       /* Number of bits in bitstring */
     uint64_t offset;      /* Zero bit offset in bitstring */
@@ -62,13 +61,17 @@ struct __wt_cursor_backup {
     uint64_t granularity; /* Length, transfer size */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CURBACKUP_DUP 0x01u        /* Duplicated backup cursor */
-#define WT_CURBACKUP_FORCE_FULL 0x02u /* Force full file copy for this cursor */
-#define WT_CURBACKUP_FORCE_STOP 0x04u /* Force stop incremental backup */
-#define WT_CURBACKUP_INCR 0x08u       /* Incremental backup cursor */
-#define WT_CURBACKUP_LOCKER 0x10u     /* Hot-backup started */
-                                      /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint8_t flags;
+#define WT_CURBACKUP_CKPT_FAKE 0x001u   /* Object has fake checkpoint */
+#define WT_CURBACKUP_DUP 0x002u         /* Duplicated backup cursor */
+#define WT_CURBACKUP_FORCE_FULL 0x004u  /* Force full file copy for this cursor */
+#define WT_CURBACKUP_FORCE_STOP 0x008u  /* Force stop incremental backup */
+#define WT_CURBACKUP_HAS_CB_INFO 0x010u /* Object has checkpoint backup info */
+#define WT_CURBACKUP_INCR 0x020u        /* Incremental backup cursor */
+#define WT_CURBACKUP_INCR_INIT 0x040u   /* Cursor traversal initialized */
+#define WT_CURBACKUP_LOCKER 0x080u      /* Hot-backup started */
+#define WT_CURBACKUP_RENAME 0x100u      /* Object had a rename */
+                                        /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t flags;
 };
 
 /* Get the WT_BTREE from any WT_CURSOR/WT_CURSOR_BTREE. */
@@ -214,11 +217,12 @@ struct __wt_cursor_btree {
 #define WT_CBT_ITERATE_PREV 0x008u       /* Prev iteration configuration */
 #define WT_CBT_ITERATE_RETRY_NEXT 0x010u /* Prepare conflict by next. */
 #define WT_CBT_ITERATE_RETRY_PREV 0x020u /* Prepare conflict by prev. */
-#define WT_CBT_NO_TXN 0x040u             /* Non-txn cursor (e.g. a checkpoint) */
-#define WT_CBT_READ_ONCE 0x080u          /* Page in with WT_READ_WONT_NEED */
-#define WT_CBT_SEARCH_SMALLEST 0x100u    /* Row-store: small-key insert list */
-#define WT_CBT_VAR_ONPAGE_MATCH 0x200u   /* Var-store: on-page recno match */
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_CBT_NO_TRACKING 0x040u        /* Non tracking cursor. */
+#define WT_CBT_NO_TXN 0x080u             /* Non-txn cursor (e.g. a checkpoint) */
+#define WT_CBT_READ_ONCE 0x100u          /* Page in with WT_READ_WONT_NEED */
+#define WT_CBT_SEARCH_SMALLEST 0x200u    /* Row-store: small-key insert list */
+#define WT_CBT_VAR_ONPAGE_MATCH 0x400u   /* Var-store: on-page recno match */
+    /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 #define WT_CBT_POSITION_MASK /* Flags associated with position */                      \
     (WT_CBT_ITERATE_APPEND | WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV |               \
@@ -502,7 +506,5 @@ struct __wt_cursor_table {
 
 #define WT_CURSOR_RECNO(cursor) WT_STREQ((cursor)->key_format, "r")
 
-#define WT_CURSOR_IS_DUMP(cursor) \
-    F_ISSET(cursor, (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRINT | WT_CURSTD_DUMP_JSON))
-
-#define WT_CURSOR_RAW_OK (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRINT | WT_CURSTD_RAW)
+#define WT_CURSOR_RAW_OK \
+    (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY | WT_CURSTD_DUMP_PRINT | WT_CURSTD_RAW)

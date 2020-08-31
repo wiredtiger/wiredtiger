@@ -102,6 +102,130 @@ random_failure(void)
 TINFO **tinfo_list;
 
 /*
+ * tinfo_init --
+ *     Initialize the worker thread structures.
+ */
+static void
+tinfo_init(void)
+{
+    TINFO *tinfo;
+    u_int i;
+
+    /* Allocate the thread structures separately to minimize false sharing. */
+    if (tinfo_list == NULL) {
+        tinfo_list = dcalloc((size_t)g.c_threads + 1, sizeof(TINFO *));
+        for (i = 0; i < g.c_threads; ++i) {
+            tinfo_list[i] = dcalloc(1, sizeof(TINFO));
+            tinfo = tinfo_list[i];
+
+            tinfo->id = (int)i + 1;
+
+            /* Set up the default key and value buffers. */
+            tinfo->key = &tinfo->_key;
+            key_gen_init(tinfo->key);
+            tinfo->value = &tinfo->_value;
+            val_gen_init(tinfo->value);
+            tinfo->lastkey = &tinfo->_lastkey;
+            key_gen_init(tinfo->lastkey);
+
+            snap_init(tinfo);
+        }
+    }
+
+    /* Cleanup for each new run. */
+    for (i = 0; i < g.c_threads; ++i) {
+        tinfo = tinfo_list[i];
+
+        tinfo->ops = 0;
+        tinfo->commit = 0;
+        tinfo->insert = 0;
+        tinfo->prepare = 0;
+        tinfo->remove = 0;
+        tinfo->rollback = 0;
+        tinfo->search = 0;
+        tinfo->truncate = 0;
+        tinfo->update = 0;
+
+        tinfo->session = NULL;
+        tinfo->cursor = NULL;
+
+        tinfo->insert_list_cnt = 0;
+
+        tinfo->state = TINFO_RUNNING;
+        tinfo->quit = false;
+    }
+}
+
+/*
+ * tinfo_teardown --
+ *     Tear down the worker thread structures.
+ */
+static void
+tinfo_teardown(void)
+{
+    TINFO *tinfo;
+    u_int i;
+
+    for (i = 0; i < g.c_threads; ++i) {
+        tinfo = tinfo_list[i];
+
+        __wt_buf_free(NULL, &tinfo->vprint);
+
+        /*
+         * Assert records were not removed unless configured to do so, otherwise subsequent runs can
+         * incorrectly report scan errors.
+         */
+        testutil_assert(g.c_delete_pct != 0 || tinfo->remove == 0);
+
+        snap_teardown(tinfo);
+        key_gen_teardown(tinfo->key);
+        val_gen_teardown(tinfo->value);
+        key_gen_teardown(tinfo->lastkey);
+
+        free(tinfo);
+    }
+    free(tinfo_list);
+    tinfo_list = NULL;
+}
+
+/*
+ * Command used before rollback to stable to save the interesting files so we can replay the command
+ * as necessary.
+ *
+ * Redirect the "cd" command to /dev/null so chatty cd implementations don't add the new working
+ * directory to our output.
+ */
+#define ROLLBACK_STABLE_COPY_CMD                      \
+    "cd %s > /dev/null && "                           \
+    "rm -rf ROLLBACK.copy && mkdir ROLLBACK.copy && " \
+    "cp WiredTiger* wt* ROLLBACK.copy/"
+
+/*
+ * tinfo_rollback_to_stable_and_check --
+ *     Do a rollback to stable, then check that changes are correct from what we know in the worker
+ *     thread structures.
+ */
+static void
+tinfo_rollback_to_stable_and_check(WT_SESSION *session)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    char cmd[512];
+
+    testutil_check(__wt_snprintf(cmd, sizeof(cmd), ROLLBACK_STABLE_COPY_CMD, g.home));
+    if ((ret = system(cmd)) != 0)
+        testutil_die(ret, "rollback to stable copy (\"%s\") failed", cmd);
+    trace_msg("%-10s ts=%" PRIu64, "rts", g.stable_timestamp);
+
+    g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
+
+    /* Check the saved snap operations for consistency. */
+    testutil_check(session->open_cursor(session, g.uri, NULL, NULL, &cursor));
+    snap_repeat_rollback(cursor, tinfo_list, g.c_threads);
+    testutil_check(cursor->close(cursor));
+}
+
+/*
  * operations --
  *     Perform a number of operations in a set of threads.
  */
@@ -153,29 +277,23 @@ operations(u_int ops_seconds, bool lastrun)
         quit_fourths = fourths + 15 * 4 * 60;
     }
 
+    /* Get a session. */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    tracemsg("%s", "=============== thread ops start");
+
+    /* Initialize and start the worker threads. */
+    tinfo_init();
+    trace_msg("%s", "=============== thread ops start");
 
     /* Initialize locks to single-thread backups, failures, and timestamp updates. */
     lock_init(session, &g.backup_lock);
     lock_init(session, &g.ts_lock);
 
-    /*
-     * Create the per-thread structures and start the worker threads. Allocate the thread structures
-     * separately to minimize false sharing.
-     */
-    tinfo_list = dcalloc((size_t)g.c_threads + 1, sizeof(TINFO *));
     for (i = 0; i < g.c_threads; ++i) {
-        tinfo_list[i] = tinfo = dcalloc(1, sizeof(TINFO));
-
-        tinfo->id = (int)i + 1;
-        tinfo->state = TINFO_RUNNING;
+        tinfo = tinfo_list[i];
         testutil_check(__wt_thread_create(NULL, &tinfo->tid, ops, tinfo));
     }
 
-    /*
-     * If a multi-threaded run, start optional special-purpose threads.
-     */
+    /* Start optional special-purpose threads. */
     if (g.c_alter)
         testutil_check(__wt_thread_create(NULL, &alter_tid, alter, NULL));
     if (g.c_backups)
@@ -277,20 +395,15 @@ operations(u_int ops_seconds, bool lastrun)
     lock_destroy(session, &g.backup_lock);
     lock_destroy(session, &g.ts_lock);
 
-    tracemsg("%s", "=============== thread ops stop");
+    trace_msg("%s", "=============== thread ops stop");
+
+    if (g.c_txn_rollback_to_stable)
+        tinfo_rollback_to_stable_and_check(session);
+
     testutil_check(session->close(session, NULL));
 
-    for (i = 0; i < g.c_threads; ++i) {
-        tinfo = tinfo_list[i];
-
-        /*
-         * Assert records were not removed unless configured to do so, otherwise subsequent runs can
-         * incorrectly report scan errors.
-         */
-        testutil_assert(g.c_delete_pct != 0 || tinfo->remove == 0);
-        free(tinfo);
-    }
-    free(tinfo_list);
+    if (lastrun)
+        tinfo_teardown();
 }
 
 /*
@@ -333,8 +446,8 @@ begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
         testutil_check(__wt_snprintf(buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
         ret = session->timestamp_transaction(session, buf);
         if (ret == 0) {
-            snap_init(tinfo, ts, true);
-            traceop(tinfo, "begin snapshot read-ts=%" PRIu64 " (repeatable)", ts);
+            snap_op_init(tinfo, ts, true);
+            trace_op(tinfo, "begin snapshot read-ts=%" PRIu64 " (repeatable)", ts);
             return;
         }
         if (ret != EINVAL)
@@ -361,8 +474,8 @@ begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
 
     lock_writeunlock(session, &g.ts_lock);
 
-    snap_init(tinfo, ts, false);
-    traceop(tinfo, "begin snapshot read-ts=%" PRIu64 " (not repeatable)", ts);
+    snap_op_init(tinfo, ts, false);
+    trace_op(tinfo, "begin snapshot read-ts=%" PRIu64 " (not repeatable)", ts);
 }
 
 /*
@@ -374,7 +487,7 @@ begin_transaction(TINFO *tinfo, u_int *iso_configp)
 {
     WT_SESSION *session;
     u_int v;
-    const char *config, *log;
+    const char *config;
 
     session = tinfo->session;
 
@@ -383,18 +496,15 @@ begin_transaction(TINFO *tinfo, u_int *iso_configp)
     switch (v) {
     case 1:
         v = ISOLATION_READ_UNCOMMITTED;
-        log = "read-uncommitted";
         config = "isolation=read-uncommitted";
         break;
     case 2:
         v = ISOLATION_READ_COMMITTED;
-        log = "read-committed";
         config = "isolation=read-committed";
         break;
     case 3:
     default:
         v = ISOLATION_SNAPSHOT;
-        log = "snapshot";
         config = "isolation=snapshot";
         break;
     }
@@ -402,8 +512,8 @@ begin_transaction(TINFO *tinfo, u_int *iso_configp)
 
     wiredtiger_begin_transaction(session, config);
 
-    snap_init(tinfo, WT_TS_NONE, false);
-    traceop(tinfo, "begin %s", log);
+    snap_op_init(tinfo, WT_TS_NONE, false);
+    trace_op(tinfo, "begin %s", config);
 }
 
 /*
@@ -442,7 +552,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
     /* Remember our oldest commit timestamp. */
     tinfo->commit_ts = ts;
 
-    traceop(
+    trace_op(
       tinfo, "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64, tinfo->read_ts, tinfo->commit_ts);
 }
 
@@ -461,7 +571,7 @@ rollback_transaction(TINFO *tinfo)
 
     testutil_check(session->rollback_transaction(session, NULL));
 
-    traceop(tinfo, "abort read-ts=%" PRIu64, tinfo->read_ts);
+    trace_op(tinfo, "abort read-ts=%" PRIu64, tinfo->read_ts);
 }
 
 /*
@@ -497,7 +607,7 @@ prepare_transaction(TINFO *tinfo)
     testutil_check(__wt_snprintf(buf, sizeof(buf), "prepare_timestamp=%" PRIx64, ts));
     ret = session->prepare_transaction(session, buf);
 
-    traceop(tinfo, "prepare ts=%" PRIu64, ts);
+    trace_op(tinfo, "prepare ts=%" PRIu64, ts);
 
     lock_writeunlock(session, &g.ts_lock);
 
@@ -606,10 +716,10 @@ ops(void *arg)
     testutil_check(__wt_thread_str(tinfo->tidbuf, sizeof(tinfo->tidbuf)));
 
     /*
-     * Characterize the per-thread random number generator. Normally we want independent behavior
-     * so threads start in different parts of the RNG space, but we've found bugs by having the
-     * threads pound on the same key/value pairs, that is, by making them traverse the same RNG
-     *  space. 75% of the time we run in independent RNG space.
+     * Characterize the per-thread random number generator. Normally we want independent behavior so
+     * threads start in different parts of the RNG space, but we've found bugs by having the threads
+     * pound on the same key/value pairs, that is, by making them traverse the same RNG space. 75%
+     * of the time we run in independent RNG space.
      */
     if (g.c_independent_thread_rng)
         __wt_random_init_seed(NULL, &tinfo->rnd);
@@ -617,17 +727,6 @@ ops(void *arg)
         __wt_random_init(&tinfo->rnd);
 
     iso_config = ISOLATION_RANDOM; /* -Wconditional-uninitialized */
-
-    /* Tracking of transactional snapshot isolation operations. */
-    tinfo->snap = tinfo->snap_first = tinfo->snap_list;
-
-    /* Set up the default key and value buffers. */
-    tinfo->key = &tinfo->_key;
-    key_gen_init(tinfo->key);
-    tinfo->value = &tinfo->_value;
-    val_gen_init(tinfo->value);
-    tinfo->lastkey = &tinfo->_lastkey;
-    key_gen_init(tinfo->lastkey);
 
     /* Set the first operation where we'll create sessions and cursors. */
     cursor = NULL;
@@ -997,16 +1096,11 @@ rollback:
         intxn = false;
     }
 
-    if (session != NULL)
+    if (session != NULL) {
         testutil_check(session->close(session, NULL));
-
-    for (i = 0; i < WT_ELEMENTS(tinfo->snap_list); ++i) {
-        free(tinfo->snap_list[i].kdata);
-        free(tinfo->snap_list[i].vdata);
+        tinfo->cursor = NULL;
+        tinfo->session = NULL;
     }
-    key_gen_teardown(tinfo->key);
-    val_gen_teardown(tinfo->value);
-    key_gen_teardown(tinfo->lastkey);
 
     tinfo->state = TINFO_COMPLETE;
     return (WT_THREAD_RET_VALUE);
@@ -1130,20 +1224,17 @@ read_row_worker(
         switch (g.type) {
         case FIX:
             if (tinfo == NULL && g.trace_all)
-                tracemsg("%-10s%" PRIu64 " {0x%02x}", "read", keyno, ((char *)value->data)[0]);
+                trace_msg("read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
             if (tinfo != NULL)
-                traceop(
-                  tinfo, "%-10s%" PRIu64 " {0x%02x}", "read", keyno, ((char *)value->data)[0]);
+                trace_op(tinfo, "read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
 
             break;
         case ROW:
         case VAR:
             if (tinfo == NULL && g.trace_all)
-                tracemsg(
-                  "%-10s%" PRIu64 " {%.*s}", "read", keyno, (int)value->size, (char *)value->data);
+                trace_msg("read %" PRIu64 " {%.*s}", keyno, (int)value->size, (char *)value->data);
             if (tinfo != NULL)
-                traceop(tinfo, "%-10s%" PRIu64 " {%.*s}", "read", keyno, (int)value->size,
-                  (char *)value->data);
+                trace_op(tinfo, "read %" PRIu64 " {%s}", keyno, trace_item(tinfo, value));
             break;
         }
 
@@ -1279,15 +1370,14 @@ order_error_row:
     if (g.trace_all && ret == 0)
         switch (g.type) {
         case FIX:
-            traceop(tinfo, "%-10s%" PRIu64 " {0x%02x}", which, keyno, ((char *)value.data)[0]);
+            trace_op(tinfo, "%s %" PRIu64 " {0x%02x}", which, keyno, ((char *)value.data)[0]);
             break;
         case ROW:
-            traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", which, keyno, (int)key.size,
-              (char *)key.data, (int)value.size, (char *)value.data);
+            trace_op(tinfo, "%s %" PRIu64 " {%.*s}, {%s}", which, keyno, (int)key.size,
+              (char *)key.data, trace_item(tinfo, &value));
             break;
         case VAR:
-            traceop(
-              tinfo, "%-10s%" PRIu64 " {%.*s}", which, keyno, (int)value.size, (char *)value.data);
+            trace_op(tinfo, "%s %" PRIu64 " {%s}", which, keyno, trace_item(tinfo, &value));
             break;
         }
 
@@ -1311,7 +1401,7 @@ row_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if ((ret = cursor->reserve(cursor)) != 0)
         return (ret);
 
-    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}", "reserve", tinfo->keyno, (int)tinfo->key->size,
+    trace_op(tinfo, "reserve %" PRIu64 " {%.*s}", tinfo->keyno, (int)tinfo->key->size,
       (char *)tinfo->key->data);
 
     return (0);
@@ -1332,7 +1422,7 @@ col_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if ((ret = cursor->reserve(cursor)) != 0)
         return (ret);
 
-    traceop(tinfo, "%-10s%" PRIu64, "reserve", tinfo->keyno);
+    trace_op(tinfo, "reserve %" PRIu64, tinfo->keyno);
 
     return (0);
 }
@@ -1383,8 +1473,8 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
     testutil_check(cursor->get_value(cursor, tinfo->value));
 
-    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "modify", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
+    trace_op(tinfo, "modify %" PRIu64 " {%.*s}, {%s}", tinfo->keyno, (int)tinfo->key->size,
+      (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1409,8 +1499,7 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
     testutil_check(cursor->get_value(cursor, tinfo->value));
 
-    traceop(tinfo, "%-10s%" PRIu64 ", {%.*s}", "modify", tinfo->keyno, (int)tinfo->value->size,
-      (char *)tinfo->value->data);
+    trace_op(tinfo, "modify %" PRIu64 ", {%s}", tinfo->keyno, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1457,7 +1546,7 @@ row_truncate(TINFO *tinfo, WT_CURSOR *cursor)
     if (ret != 0)
         return (ret);
 
-    traceop(tinfo, "%-10s%" PRIu64 ", %" PRIu64, "truncate", tinfo->keyno, tinfo->last);
+    trace_op(tinfo, "truncate %" PRIu64 ", %" PRIu64, "truncate", tinfo->keyno, tinfo->last);
 
     return (0);
 }
@@ -1499,7 +1588,7 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
     if (ret != 0)
         return (ret);
 
-    traceop(tinfo, "%-10s%" PRIu64 "-%" PRIu64, "truncate", tinfo->keyno, tinfo->last);
+    trace_op(tinfo, "truncate %" PRIu64 "-%" PRIu64, tinfo->keyno, tinfo->last);
 
     return (0);
 }
@@ -1523,8 +1612,8 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if ((ret = cursor->update(cursor)) != 0)
         return (ret);
 
-    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "update", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
+    trace_op(tinfo, "update %" PRIu64 " {%.*s}, {%s}", tinfo->keyno, (int)tinfo->key->size,
+      (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1550,11 +1639,10 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
         return (ret);
 
     if (g.type == FIX)
-        traceop(tinfo, "%-10s%" PRIu64 " {0x%02" PRIx8 "}", "update", tinfo->keyno,
+        trace_op(tinfo, "update %" PRIu64 " {0x%02" PRIx8 "}", tinfo->keyno,
           ((uint8_t *)tinfo->value->data)[0]);
     else
-        traceop(tinfo, "%-10s%" PRIu64 " {%.*s}", "update", tinfo->keyno, (int)tinfo->value->size,
-          (char *)tinfo->value->data);
+        trace_op(tinfo, "update %" PRIu64 " {%s}", tinfo->keyno, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1583,8 +1671,8 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
         return (ret);
 
     /* Log the operation */
-    traceop(tinfo, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "insert", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
+    trace_op(tinfo, "insert %" PRIu64 " {%.*s}, {%s}", tinfo->keyno, (int)tinfo->key->size,
+      (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1669,11 +1757,10 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor)
     col_insert_add(tinfo); /* Extend the object. */
 
     if (g.type == FIX)
-        traceop(tinfo, "%-10s%" PRIu64 " {0x%02" PRIx8 "}", "insert", tinfo->keyno,
+        trace_op(tinfo, "insert %" PRIu64 " {0x%02" PRIx8 "}", tinfo->keyno,
           ((uint8_t *)tinfo->value->data)[0]);
     else
-        traceop(tinfo, "%-10s%" PRIu64 " {%.*s}", "insert", tinfo->keyno, (int)tinfo->value->size,
-          (char *)tinfo->value->data);
+        trace_op(tinfo, "insert %" PRIu64 " {%s}", tinfo->keyno, trace_item(tinfo, tinfo->value));
 
     return (0);
 }
@@ -1699,7 +1786,7 @@ row_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
 
-    traceop(tinfo, "%-10s%" PRIu64, "remove", tinfo->keyno);
+    trace_op(tinfo, "remove %" PRIu64, tinfo->keyno);
 
     return (ret);
 }
@@ -1723,7 +1810,7 @@ col_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     if (ret != 0 && ret != WT_NOTFOUND)
         return (ret);
 
-    traceop(tinfo, "%-10s%" PRIu64, "remove", tinfo->keyno);
+    trace_op(tinfo, "remove %" PRIu64, tinfo->keyno);
 
     return (ret);
 }

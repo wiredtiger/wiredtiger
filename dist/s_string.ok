@@ -235,7 +235,7 @@ LeafGreen
 LevelDB
 Levyx
 LmRrSVv
-LmT
+LmsT
 LoadLoad
 LockFile
 Lookaside
@@ -339,6 +339,7 @@ RLEs
 RMW
 RNG
 RPC
+RTS
 RUNDIR
 RWLOCK
 RXB
@@ -389,6 +390,7 @@ TCMalloc
 TESTUTIL
 TIMESTAMP
 TIMESTAMPS
+TMP
 TODO
 TORTIOUS
 TSO
@@ -567,6 +569,8 @@ cb
 ccc
 ccr
 cd
+ce
+ceh
 centric
 cfg
 cfko
@@ -916,7 +920,7 @@ iteratively
 iters
 jjj
 jnr
-jrx
+jprx
 json
 kb
 kbits
@@ -1219,6 +1223,7 @@ rwlock
 sH
 sHQ
 sT
+sanitizer
 sanitizers
 scalability
 sched
@@ -1255,6 +1260,7 @@ srch
 ssize
 startup
 statlog
+stb
 stderr
 stdin
 stdout
@@ -1312,6 +1318,7 @@ timedwait
 timestamp
 timestamped
 timestamps
+tinfo
 tmp
 todo
 tokenizer

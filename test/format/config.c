@@ -30,6 +30,7 @@
 #include "config.h"
 
 static void config_backup_incr(void);
+static void config_backup_incr_granularity(void);
 static void config_backward_compatible(void);
 static void config_cache(void);
 static void config_checkpoint(void);
@@ -280,6 +281,8 @@ config_backup_incr(void)
             if (g.c_logging_archive)
                 config_single("logging.archive=0", false);
         }
+        if (g.c_backup_incr_flag == INCREMENTAL_BLOCK)
+            config_backup_incr_granularity();
         return;
     }
 
@@ -308,8 +311,53 @@ config_backup_incr(void)
     case 9:
     case 10:
         config_single("backup.incremental=block", false);
+        config_backup_incr_granularity();
         break;
     }
+}
+
+/*
+ * config_backup_incr_granularity --
+ *     Configuration of block granularity for incremental backup
+ */
+static void
+config_backup_incr_granularity(void)
+{
+    uint32_t granularity, i;
+    char confbuf[128];
+
+    if (config_is_perm("backup.incr_granularity"))
+        return;
+
+    /*
+     * Three block sizes are interesting. 16MB is the default for WiredTiger and MongoDB. 1MB is the
+     * minimum allowed by MongoDB. Smaller sizes stress block tracking and are good for testing. The
+     * granularity is in units of KB.
+     */
+    granularity = 0;
+    i = mmrand(NULL, 1, 10);
+    switch (i) {
+    case 1: /* 50% small size for stress testing */
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+        granularity = 4 * i;
+        break;
+    case 6: /* 20% 1MB granularity */
+    case 7:
+        granularity = 1024;
+        break;
+    case 8: /* 30% 16MB granularity */
+    case 9:
+    case 10:
+        granularity = 16 * 1024;
+        break;
+    }
+
+    testutil_check(
+      __wt_snprintf(confbuf, sizeof(confbuf), "backup.incr_granularity=%u", granularity));
+    config_single(confbuf, false);
 }
 
 /*
@@ -332,12 +380,6 @@ config_backward_compatible(void)
     if (!backward_compatible)
         return;
 
-    if (g.c_backup_incr_flag != INCREMENTAL_OFF) {
-        if (config_is_perm("backup.incremental"))
-            testutil_die(EINVAL, "incremental backup not supported in backward compatibility mode");
-        config_single("backup.incremental=off", false);
-    }
-
     if (g.c_mmap_all) {
         if (config_is_perm("disk.mmap_all"))
             testutil_die(EINVAL, "disk.mmap_all not supported in backward compatibility mode");
@@ -348,6 +390,13 @@ config_backward_compatible(void)
         if (config_is_perm("stress.hs_sweep"))
             testutil_die(EINVAL, "stress.hs_sweep not supported in backward compatibility mode");
         config_single("stress.hs_sweep=off", false);
+    }
+
+    if (g.c_timing_stress_hs_checkpoint_delay) {
+        if (config_is_perm("stress.hs_checkpoint_delay"))
+            testutil_die(
+              EINVAL, "stress.hs_checkpoint_delay not supported in backward compatibility mode");
+        config_single("stress.hs_checkpoint_delay=off", false);
     }
 }
 
@@ -759,9 +808,11 @@ config_pct(void)
         uint32_t *vp;     /* Value store */
         u_int order;      /* Order of assignment */
     } list[] = {
-      {"ops.pct.delete", &g.c_delete_pct, 0}, {"ops.pct.insert", &g.c_insert_pct, 0},
+      {"ops.pct.delete", &g.c_delete_pct, 0},
+      {"ops.pct.insert", &g.c_insert_pct, 0},
 #define CONFIG_MODIFY_ENTRY 2
-      {"ops.pct.modify", &g.c_modify_pct, 0}, {"ops.pct.read", &g.c_read_pct, 0},
+      {"ops.pct.modify", &g.c_modify_pct, 0},
+      {"ops.pct.read", &g.c_read_pct, 0},
       {"ops.pct.write", &g.c_write_pct, 0},
     };
     u_int i, max_order, max_slot, n, pct;
@@ -875,13 +926,21 @@ config_transaction(void)
         if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
             testutil_die(EINVAL, "timestamps require transaction frequency set to 100");
     }
+    /* FIXME-WT-6410: temporarily disable rebalance with timestamps. */
+    if (g.c_txn_timestamps && g.c_rebalance) {
+        if (config_is_perm("ops.rebalance"))
+            testutil_die(EINVAL, "rebalance cannot run with timestamps");
+        config_single("ops.rebalance=off", false);
+    }
     if (g.c_isolation_flag == ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation")) {
         if (!g.c_txn_timestamps && config_is_perm("transaction.timestamps"))
             testutil_die(EINVAL, "snapshot isolation requires timestamps");
         if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
             testutil_die(EINVAL, "snapshot isolation requires transaction frequency set to 100");
     }
-
+    if (g.c_txn_rollback_to_stable && config_is_perm("transaction.rollback_to_stable") &&
+      g.c_isolation_flag != ISOLATION_SNAPSHOT && config_is_perm("transaction.isolation"))
+        testutil_die(EINVAL, "rollback to stable requires snapshot isolation");
     /*
      * The permanent configuration has no incompatible settings, adjust the temporary configuration
      * as necessary. Prepare overrides timestamps, overrides isolation, for no reason other than
@@ -896,6 +955,12 @@ config_transaction(void)
             config_single("transaction.isolation=snapshot", false);
         if (g.c_txn_freq != 100)
             config_single("transaction.frequency=100", false);
+    }
+    if (g.c_txn_rollback_to_stable) {
+        if (!g.c_txn_timestamps)
+            config_single("transaction.timestamps=on", false);
+        if (g.c_logging)
+            config_single("logging=off", false);
     }
     if (g.c_txn_timestamps) {
         if (g.c_isolation_flag != ISOLATION_SNAPSHOT)

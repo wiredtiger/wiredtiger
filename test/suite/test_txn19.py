@@ -69,7 +69,7 @@ def copy_for_crash_restart(olddir, newdir):
 
 class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     base_config = 'log=(archive=false,enabled,file_max=100K),' + \
-                  'transaction_sync=(enabled,method=none)'
+                  'transaction_sync=(enabled,method=none),cache_size=1GB'
     conn_config = base_config
     corruption_type = [
         ('removal', dict(kind='removal', f=lambda fname:
@@ -354,7 +354,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
 
 class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     base_config = 'log=(archive=false,enabled,file_max=100K),' + \
-                  'transaction_sync=(enabled,method=none)'
+                  'transaction_sync=(enabled,method=none),cache_size=1GB'
     conn_config = base_config
 
     # The type of corruption to be applied
@@ -481,7 +481,13 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
             closeconn=False)
 
         if expect_fail:
-            self.check_file_contains_one_of(errfile, ['WT_TRY_SALVAGE: database corruption detected'])
+            errmsg = 'WT_TRY_SALVAGE: database corruption detected'
+            if self.filename == 'WiredTigerHS.wt':
+                if self.kind == 'removal':
+                    errmsg = 'hs_exists'
+                elif self.kind == 'truncate':
+                    errmsg = 'file size=0, alloc size=4096'
+            self.check_file_contains_one_of(errfile, [errmsg])
 
     def test_corrupt_meta(self):
         errfile = 'list.err'

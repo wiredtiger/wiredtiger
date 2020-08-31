@@ -124,8 +124,8 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     txn_global = &S2C(session)->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
-    WT_ASSERT(session, txn_shared->pinned_id == WT_TXN_NONE ||
-        session->txn->isolation == WT_ISO_READ_UNCOMMITTED ||
+    WT_ASSERT(session,
+      txn_shared->pinned_id == WT_TXN_NONE || session->txn->isolation == WT_ISO_READ_UNCOMMITTED ||
         !__wt_txn_visible_all(session, txn_shared->pinned_id, WT_TS_NONE));
 
     txn_shared->metadata_pinned = txn_shared->pinned_id = WT_TXN_NONE;
@@ -141,11 +141,11 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_get_snapshot --
- *     Allocate a snapshot.
+ * __txn_get_snapshot_int --
+ *     Allocate a snapshot, optionally update our shared txn ids.
  */
-void
-__wt_txn_get_snapshot(WT_SESSION_IMPL *session)
+static void
+__txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
@@ -177,16 +177,21 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
     /*
      * Include the checkpoint transaction, if one is running: we should ignore any uncommitted
      * changes the checkpoint has written to the metadata. We don't have to keep the checkpoint's
-     * changes pinned so don't including it in the published pinned ID.
+     * changes pinned so don't go including it in the published pinned ID.
+     *
+     * We can assume that if a function calls without intention to publish then it is the special
+     * case of checkpoint calling it twice. In which case do not include the checkpoint id.
      */
     if ((id = txn_global->checkpoint_txn_shared.id) != WT_TXN_NONE) {
-        txn->snapshot[n++] = id;
-        txn_shared->metadata_pinned = id;
+        if (txn->id != id)
+            txn->snapshot[n++] = id;
+        if (publish)
+            txn_shared->metadata_pinned = id;
     }
 
     /* For pure read-only workloads, avoid scanning. */
     if (prev_oldest_id == current_id) {
-        txn_shared->pinned_id = current_id;
+        pinned_id = current_id;
         /* Check that the oldest ID has not moved in the meantime. */
         WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
         goto done;
@@ -240,11 +245,31 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
      */
     WT_ASSERT(session, WT_TXNID_LE(prev_oldest_id, pinned_id));
     WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
-    txn_shared->pinned_id = pinned_id;
-
 done:
+    if (publish)
+        txn_shared->pinned_id = pinned_id;
     __wt_readunlock(session, &txn_global->rwlock);
     __txn_sort_snapshot(session, n, current_id);
+}
+
+/*
+ * __wt_txn_get_snapshot --
+ *     Common case, allocate a snapshot and update our shared ids.
+ */
+void
+__wt_txn_get_snapshot(WT_SESSION_IMPL *session)
+{
+    __txn_get_snapshot_int(session, true);
+}
+
+/*
+ * __wt_txn_bump_snapshot --
+ *     Uncommon case, allocate a snapshot but skip updating our shared ids.
+ */
+void
+__wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
+{
+    __txn_get_snapshot_int(session, false);
 }
 
 /*
@@ -381,7 +406,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
     if ((oldest_id == prev_oldest_id ||
           (!strict && WT_TXNID_LT(oldest_id, prev_oldest_id + 100))) &&
       ((last_running == prev_last_running) ||
-          (!strict && WT_TXNID_LT(last_running, prev_last_running + 100))) &&
+        (!strict && WT_TXNID_LT(last_running, prev_last_running + 100))) &&
       metadata_pinned == prev_metadata_pinned)
         return (0);
 
@@ -419,9 +444,7 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
         if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) && current_id - oldest_id > 10000 &&
           oldest_session != NULL) {
             __wt_verbose(session, WT_VERB_TRANSACTION,
-              "old snapshot %" PRIu64 " pinned in session %" PRIu32
-              " [%s]"
-              " with snap_min %" PRIu64,
+              "old snapshot %" PRIu64 " pinned in session %" PRIu32 " [%s] with snap_min %" PRIu64,
               oldest_id, oldest_session->id, oldest_session->lastop, oldest_session->txn->snap_min);
         }
     }
@@ -429,6 +452,33 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 done:
     __wt_writeunlock(session, &txn_global->rwlock);
     return (ret);
+}
+
+/*
+ * __txn_config_operation_timeout --
+ *     Configure a transactions operation timeout duration.
+ */
+static int
+__txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    if (cfg == NULL)
+        return (0);
+
+    /* Retrieve the maximum operation time, defaulting to the database-wide configuration. */
+    WT_RET(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
+
+    /*
+     * The default configuration value is 0, we can't tell if they're setting it back to 0 or, if
+     * the default was automatically passed in.
+     */
+    if (cval.val != 0)
+        txn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
+    return (0);
 }
 
 /*
@@ -444,6 +494,9 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     txn = session->txn;
 
+    if (cfg == NULL)
+        return (0);
+
     WT_RET(__wt_config_gets_def(session, cfg, "isolation", 0, &cval));
     if (cval.len != 0)
         txn->isolation = WT_STRING_MATCH("snapshot", cval.str, cval.len) ?
@@ -451,9 +504,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
           WT_STRING_MATCH("read-committed", cval.str, cval.len) ? WT_ISO_READ_COMMITTED :
                                                                   WT_ISO_READ_UNCOMMITTED;
 
-    /* Retrieve the maximum operation time, defaulting to the database-wide configuration. */
-    WT_RET(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
-    txn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
+    WT_RET(__txn_config_operation_timeout(session, cfg));
 
     /*
      * The default sync setting is inherited from the connection, but can be overridden by an
@@ -629,23 +680,39 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
-    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
+    for (; ret == 0; ret = __wt_hs_cursor_prev(session, hs_cursor)) {
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
-    /* Not found if we cross the tree boundary. */
-    if (hs_btree_id != S2BT(session)->id) {
-        ret = WT_NOTFOUND;
-        goto done;
+        /* Stop before crossing over to the next btree */
+        if (hs_btree_id != S2BT(session)->id) {
+            ret = WT_NOTFOUND;
+            goto done;
+        }
+
+        /*
+         * Keys are sorted in an order, skip the ones before the desired key, and bail out if we
+         * have crossed over the desired key and not found the record we are looking for.
+         */
+        WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+        if (cmp != 0) {
+            ret = WT_NOTFOUND;
+            goto done;
+        }
+
+        /*
+         * If the stop time pair on the tombstone in the history store is already globally visible
+         * we can skip it.
+         */
+        if (!__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw))
+            break;
+        else
+            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
     }
 
-    /*
-     * Keys are sorted in an order, skip the ones before the desired key, and bail out if we have
-     * crossed over the desired key and not found the record we are looking for.
-     */
-    WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
-    if (cmp != 0) {
-        ret = WT_NOTFOUND;
+    /* We walked off the top of the history store. */
+    if (ret == WT_NOTFOUND)
         goto done;
-    }
+    WT_ERR(ret);
 
     /*
      * As part of the history store search, we never get an exact match based on our search criteria
@@ -682,29 +749,40 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     if (commit)
         goto done;
 
+    /*
+     * Set the flag to indicate that this update has been restored from history store for the
+     * rollback of a prepared transaction.
+     */
+    F_SET(upd, WT_UPDATE_RESTORED_FROM_HS);
     total_size += size;
-
-    /* If the history store record has a valid stop time point, append it. */
-    if (hs_stop_durable_ts != WT_TS_MAX) {
-        WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
-        tombstone->durable_ts = hs_cbt->upd_value->tw.durable_stop_ts;
-        tombstone->start_ts = hs_cbt->upd_value->tw.stop_ts;
-        tombstone->txnid = hs_cbt->upd_value->tw.stop_txn;
-        tombstone->next = upd;
-        total_size += size;
-    } else
-        tombstone = upd;
 
     __wt_verbose(session, WT_VERB_TRANSACTION,
       "update restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
       upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
       __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
 
-    /*
-     * Set the flag to indicate that this update has been restored from history store for the
-     * rollback of a prepared transaction.
-     */
-    F_SET(upd, WT_UPDATE_RESTORED_FROM_HS);
+    /* If the history store record has a valid stop time point, append it. */
+    if (hs_stop_durable_ts != WT_TS_MAX) {
+        WT_ASSERT(session, hs_cbt->upd_value->tw.stop_ts != WT_TS_MAX);
+        WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
+        tombstone->durable_ts = hs_cbt->upd_value->tw.durable_stop_ts;
+        tombstone->start_ts = hs_cbt->upd_value->tw.stop_ts;
+        tombstone->txnid = hs_cbt->upd_value->tw.stop_txn;
+        tombstone->next = upd;
+        /*
+         * Set the flag to indicate that this update has been restored from history store for the
+         * rollback of a prepared transaction.
+         */
+        F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS);
+        total_size += size;
+
+        __wt_verbose(session, WT_VERB_TRANSACTION,
+          "tombstone restored from history store (txnid: %" PRIu64 ", start_ts: %s, durable_ts: %s",
+          tombstone->txnid, __wt_timestamp_to_string(tombstone->start_ts, ts_string[0]),
+          __wt_timestamp_to_string(tombstone->durable_ts, ts_string[1]));
+
+        upd = tombstone;
+    }
 
     /* Walk to the end of the chain and we can only have prepared updates on the update chain. */
     for (;; chain = chain->next) {
@@ -716,15 +794,15 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     }
 
     /* Append the update to the end of the chain. */
-    WT_PUBLISH(chain->next, tombstone);
+    WT_PUBLISH(chain->next, upd);
     *upd_appended = true;
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 
     if (0) {
 err:
-        __wt_free(session, upd);
-        __wt_free(session, tombstone);
+        WT_ASSERT(session, tombstone == NULL || upd == tombstone);
+        __wt_free_update_list(session, &upd);
     }
 done:
     __wt_scr_free(session, &hs_key);
@@ -765,8 +843,8 @@ __txn_fixup_prepared_update(
      * If the history update already has a stop time point and we are committing the prepared update
      * there is no work to do.
      */
+    WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
     if (commit) {
-        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         hs_upd->start_ts = txn->commit_timestamp;
         hs_upd->durable_ts = txn->durable_timestamp;
         hs_upd->txnid = txn->id;
@@ -784,9 +862,7 @@ __txn_fixup_prepared_update(
         hs_upd->next->durable_ts = fix_upd->durable_ts;
         hs_upd->next->start_ts = fix_upd->start_ts;
         hs_upd->next->txnid = fix_upd->txnid;
-    } else
-        /* Remove the restored update from history store. */
-        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
+    }
 
     WT_ERR(__wt_hs_modify(hs_cbt, hs_upd));
 
@@ -873,15 +949,14 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_DECL_RET;
     WT_TXN *txn;
     WT_UPDATE *fix_upd, *tombstone, *upd;
-    size_t size;
-    uint32_t hs_btree_id, session_flags;
-    bool is_owner, upd_appended;
+    size_t not_used;
+    uint32_t hs_btree_id;
+    bool upd_appended;
 
-    fix_upd = NULL;
     hs_cursor = NULL;
     txn = session->txn;
-    session_flags = 0;
-    upd_appended = is_owner = false;
+    fix_upd = tombstone = NULL;
+    upd_appended = false;
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
@@ -913,17 +988,15 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         cbt = (WT_CURSOR_BTREE *)(*cursorp);
         hs_btree_id = S2BT(session)->id;
         /* Open a history store table cursor. */
-        WT_ERR(__wt_hs_cursor(session, &session_flags, &is_owner));
-        /* We must be the owner of the history store cursor. */
-        WT_ASSERT(session, is_owner);
+        WT_ERR(__wt_hs_cursor_open(session));
         hs_cursor = session->hs_cursor;
 
         /*
          * Scan the history store for the given btree and key with maximum start timestamp to let
          * the search point to the last version of the key.
          */
-        WT_ERR_NOTFOUND_OK(
-          __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, &op->u.op_row.key, WT_TS_MAX),
+        WT_ERR_NOTFOUND_OK(__wt_hs_cursor_position(
+                             session, hs_cursor, hs_btree_id, &op->u.op_row.key, WT_TS_MAX, NULL),
           true);
 
         if (ret == 0)
@@ -933,15 +1006,16 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
               true);
         if (ret == WT_NOTFOUND && !commit) {
             /*
-             * Allocate a tombstone so that when we reconcile the update chain we don't copy the
-             * prepared cell, which is now associated with a rolled back prepare, and instead write
-             * nothing.
+             * Allocate a tombstone and prepend it to the row so when we reconcile the update chain
+             * we don't copy the prepared cell, which is now associated with a rolled back prepare,
+             * and instead write nothing.
              */
-            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &size));
-            /* Apply the tombstone to the row. */
-            WT_WITH_BTREE(session, op->btree, ret = __wt_row_modify(cbt, &cbt->iface.key, NULL,
-                                                tombstone, WT_UPDATE_INVALID, true));
+            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
+            WT_WITH_BTREE(session, op->btree,
+              ret =
+                __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false));
             WT_ERR(ret);
+            tombstone = NULL;
         } else
             ret = 0;
     }
@@ -1006,9 +1080,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
 err:
     if (hs_cursor != NULL)
-        ret = __wt_hs_cursor_close(session, session_flags, is_owner);
+        WT_TRET(__wt_hs_cursor_close(session));
     if (!upd_appended)
         __wt_free(session, fix_upd);
+    __wt_free(session, tombstone);
     return (ret);
 }
 
@@ -1203,6 +1278,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     /* Permit the commit if the transaction failed, but was read-only. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
+
+    /* Configure the timeout for this commit operation. */
+    WT_ERR(__txn_config_operation_timeout(session, cfg));
 
     /*
      * Clear the prepared round up flag if the transaction is not prepared. There is no rounding up
@@ -1474,8 +1552,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DEBUG_MODE))
         WT_RET_ASSERT(session, txn->logrec == NULL, EINVAL,
-          "A transaction should not have been assigned a log"
-          " record if WT_CONN_LOG_DEBUG mode is not enabled");
+          "A transaction should not have been assigned a log record if WT_CONN_LOG_DEBUG mode is "
+          "not enabled");
 
     /* Set the prepare timestamp.  */
     WT_RET(__wt_txn_set_timestamp(session, cfg));
@@ -1547,10 +1625,13 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
              * If there are older updates to this key by the same transaction, set the repeated key
              * flag on this operation. This is later used in txn commit/rollback so we only resolve
              * each set of prepared updates once. Skip reserved updates, they're ignored as they're
-             * simply discarded when we find them.
+             * simply discarded when we find them. Also ignore updates created by instantiating fast
+             * truncation pages, they aren't linked into the transaction's modify list and so can't
+             * be considered.
              */
             for (tmp = upd->next; tmp != NULL && tmp->txnid == upd->txnid; tmp = tmp->next)
-                if (tmp->type != WT_UPDATE_RESERVE) {
+                if (tmp->type != WT_UPDATE_RESERVE &&
+                  !F_ISSET(tmp, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
                     F_SET(op, WT_TXN_OP_KEY_REPEATED);
                     break;
                 }
@@ -1597,8 +1678,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     u_int i;
     bool prepare, readonly;
 
-    WT_UNUSED(cfg);
-
     cursor = NULL;
     txn = session->txn;
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
@@ -1609,6 +1688,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     /* Rollback notification. */
     if (txn->notify != NULL)
         WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session, txn->id, 0));
+
+    /* Configure the timeout for this rollback operation. */
+    WT_RET(__txn_config_operation_timeout(session, cfg));
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
@@ -1715,7 +1797,8 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
     txn->snapshot = txn->__snapshot;
     txn->id = WT_TXN_NONE;
 
-    WT_ASSERT(session, S2C(session_ret)->txn_global.txn_shared_list == NULL ||
+    WT_ASSERT(session,
+      S2C(session_ret)->txn_global.txn_shared_list == NULL ||
         WT_SESSION_TXN_SHARED(session_ret)->pinned_id == WT_TXN_NONE);
 
     /*
@@ -1908,12 +1991,11 @@ __wt_txn_activity_drain(WT_SESSION_IMPL *session)
  *     Shut down the global transaction state.
  */
 int
-__wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const char **cfg)
+__wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
     WT_SESSION_IMPL *s;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *ckpt_cfg;
@@ -1933,7 +2015,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
         if (conn->txn_global.has_stable_timestamp)
             F_SET(conn, WT_CONN_CLOSING_TIMESTAMP);
     }
-    if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY | WT_CONN_PANIC)) {
         /*
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.
@@ -1950,7 +2032,6 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
         if (s != NULL) {
             const char *checkpoint_cfg[] = {
               WT_CONFIG_BASE(session, WT_SESSION_checkpoint), ckpt_cfg, NULL};
-            wt_session = &s->iface;
             WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
 
             /*
@@ -1958,7 +2039,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
              */
             WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s), __wt_tree_modify_set(s));
 
-            WT_TRET(wt_session->close(wt_session, config));
+            WT_TRET(__wt_session_close_internal(s));
         }
     }
 
@@ -1972,7 +2053,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
  *     eviction.
  */
 int
-__wt_txn_is_blocking(WT_SESSION_IMPL *session)
+__wt_txn_is_blocking(WT_SESSION_IMPL *session, bool conservative)
 {
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
@@ -1986,12 +2067,32 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     if (F_ISSET(txn, WT_TXN_PREPARE))
         return (0);
 
+    /* The checkpoint transaction shouldn't be blocking but if it is don't roll it back. */
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        return (0);
+
     /*
      * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
      * unless there's at least one update or we're configured to time out thread operations (a way
      * to confirm our caller is prepared for rollback).
      */
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
+        return (0);
+
+    /*
+     * Be less aggressive about aborting the oldest transaction in the case of trying to make
+     * forced eviction successful. Specifically excuse it if:
+     *  * Hasn't done many updates
+     *  * Is in the middle of a commit or abort
+     *
+     * This threshold that we're comparing the number of updates to is related and must be greater
+     * than the threshold we use in reconciliation's "need split" helper. If we're going to rollback
+     * a transaction, we need to have considered splitting the page in the case that its updates are
+     * on a single page.
+     */
+    if (conservative &&
+      (txn->mod_count < (10 + WT_REC_SPLIT_MIN_ITEMS_USE_MEM) ||
+        F_ISSET(session, WT_SESSION_RESOLVING_TXN)))
         return (0);
 
     /*
@@ -2037,28 +2138,29 @@ __wt_verbose_dump_txn_one(
      * Dump the information of the passed transaction into a buffer, to be logged with an optional
      * error message.
      */
-    WT_RET(__wt_snprintf(buf,
-      sizeof(buf), "transaction id: %" PRIu64 ", mod count: %u"
-                   ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", snapshot count: %u"
-                   ", commit_timestamp: %s"
-                   ", durable_timestamp: %s"
-                   ", first_commit_timestamp: %s"
-                   ", prepare_timestamp: %s"
-                   ", pinned_durable_timestamp: %s"
-                   ", read_timestamp: %s"
-                   ", checkpoint LSN: [%" PRIu32 "][%" PRIu32 "]"
-                   ", full checkpoint: %s"
-                   ", rollback reason: %s"
-                   ", flags: 0x%08" PRIx32 ", isolation: %s",
-      txn->id, txn->mod_count, txn->snap_min, txn->snap_max, txn->snapshot_count,
-      __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
-      __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
-      __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
-      __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
-      __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
-      __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), txn->ckpt_lsn.l.file,
-      txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
-      txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
+    WT_RET(
+      __wt_snprintf(buf, sizeof(buf),
+        "transaction id: %" PRIu64 ", mod count: %u"
+        ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", snapshot count: %u"
+        ", commit_timestamp: %s"
+        ", durable_timestamp: %s"
+        ", first_commit_timestamp: %s"
+        ", prepare_timestamp: %s"
+        ", pinned_durable_timestamp: %s"
+        ", read_timestamp: %s"
+        ", checkpoint LSN: [%" PRIu32 "][%" PRIu32 "]"
+        ", full checkpoint: %s"
+        ", rollback reason: %s"
+        ", flags: 0x%08" PRIx32 ", isolation: %s",
+        txn->id, txn->mod_count, txn->snap_min, txn->snap_max, txn->snapshot_count,
+        __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
+        __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
+        __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
+        __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
+        __wt_timestamp_to_string(txn_shared->pinned_durable_timestamp, ts_string[4]),
+        __wt_timestamp_to_string(txn_shared->read_timestamp, ts_string[5]), txn->ckpt_lsn.l.file,
+        txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
+        txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
 
     /*
      * Log a message and return an error if error code and an optional error string has been passed.
@@ -2197,13 +2299,14 @@ __wt_verbose_dump_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         break;
     }
 
-    __wt_errx(session, "transaction id: %" PRIu64
-                       ", commit timestamp: %s"
-                       ", durable timestamp: %s"
-                       ", has next: %s"
-                       ", size: %" PRIu32
-                       ", type: %s"
-                       ", prepare state: %s",
+    __wt_errx(session,
+      "transaction id: %" PRIu64
+      ", commit timestamp: %s"
+      ", durable timestamp: %s"
+      ", has next: %s"
+      ", size: %" PRIu32
+      ", type: %s"
+      ", prepare state: %s",
       upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
       __wt_timestamp_to_string(upd->durable_ts, ts_string[1]), upd->next == NULL ? "no" : "yes",
       upd->size, upd_type, prepare_state);

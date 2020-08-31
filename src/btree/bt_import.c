@@ -58,8 +58,8 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
     WT_ERR(__wt_btree_config_encryptor(session, filecfg, &kencryptor));
     if ((kencryptor == NULL && v.val != 0) || (kencryptor != NULL && v.val == 0))
         WT_ERR_MSG(session, EINVAL,
-          "%s: loaded object's encryption configuration doesn't "
-          "match the database's encryption configuration",
+          "%s: loaded object's encryption configuration doesn't match the database's encryption "
+          "configuration",
           filename);
     /*
      * The metadata was quoted to avoid configuration string characters acting as separators.
@@ -108,9 +108,9 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
     __wt_verbose(session, WT_VERB_CHECKPOINT, "import configuration: %s/%s", uri, fileconf);
 
     /*
-     * The just inserted metadata was correct as of immediately before the before the final
-     * checkpoint, but it's not quite right. The block manager returned the corrected final
-     * checkpoint, put it all together.
+     * The just inserted metadata was correct as of immediately before the final checkpoint, but
+     * it's not quite right. The block manager returned the corrected final checkpoint, put it all
+     * together.
      *
      * Get the checkpoint information from the file's metadata as an array of WT_CKPT structures.
      *

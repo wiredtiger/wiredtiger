@@ -169,7 +169,6 @@ struct __wt_btree {
     uint64_t write_gen;   /* Write generation */
     uint64_t rec_max_txn; /* Maximum txn seen (clean trees) */
     wt_timestamp_t rec_max_timestamp;
-    uint64_t hs_counter; /* History store counter */
 
     uint64_t checkpoint_gen;       /* Checkpoint generation */
     WT_SESSION_IMPL *sync_session; /* Syncing session */
@@ -191,16 +190,33 @@ struct __wt_btree {
 #define WT_SESSION_BTREE_SYNC_SAFE(session, btree) \
     ((btree)->syncing != WT_BTREE_SYNC_RUNNING || (btree)->sync_session == (session))
 
-    uint64_t bytes_inmem;       /* Cache bytes in memory. */
     uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
     uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
     uint64_t bytes_dirty_total; /* Bytes ever dirtied in cache. */
+    uint64_t bytes_inmem;       /* Cache bytes in memory. */
+    uint64_t bytes_internal;    /* Bytes in internal pages. */
+    uint64_t bytes_updates;     /* Bytes in updates. */
 
     /*
      * The maximum bytes allowed to be used for the table on disk. This is currently only used for
      * the history store table.
      */
     uint64_t file_max;
+
+/*
+ * We maintain a timer for a clean file to avoid excessive checking of checkpoint information that
+ * incurs a large processing penalty. We avoid that but will periodically incur the cost to clean up
+ * checkpoints that can be deleted.
+ */
+#define WT_BTREE_CLEAN_CKPT(session, btree, val)                          \
+    do {                                                                  \
+        (btree)->clean_ckpt_timer = (val);                                \
+        WT_STAT_DATA_SET((session), btree_clean_checkpoint_timer, (val)); \
+    } while (0)
+/* Statistics don't like UINT64_MAX, use INT64_MAX. It's still forever. */
+#define WT_BTREE_CLEAN_CKPT_FOREVER INT64_MAX
+#define WT_BTREE_CLEAN_MINUTES 10
+    uint64_t clean_ckpt_timer;
 
     /*
      * We flush pages from the tree (in order to make checkpoint faster), without a high-level lock.

@@ -121,8 +121,7 @@ all_TESTS += test_wt3874_pad_byte_collator
 
 test_wt4105_large_doc_small_upd_SOURCES = wt4105_large_doc_small_upd/main.c
 noinst_PROGRAMS += test_wt4105_large_doc_small_upd
-# Temporarily disabled (WT-5579)
-# all_TESTS += test_wt4105_large_doc_small_upd
+all_TESTS += test_wt4105_large_doc_small_upd
 
 test_wt4117_checksum_SOURCES = wt4117_checksum/main.c
 noinst_PROGRAMS += test_wt4117_checksum
@@ -147,6 +146,10 @@ all_TESTS += test_wt4803_history_store_abort
 test_wt4891_meta_ckptlist_get_alloc_SOURCES=wt4891_meta_ckptlist_get_alloc/main.c
 noinst_PROGRAMS += test_wt4891_meta_ckptlist_get_alloc
 all_TESTS += test_wt4891_meta_ckptlist_get_alloc
+
+test_wt6185_modify_ts_SOURCES = wt6185_modify_ts/main.c
+noinst_PROGRAMS += test_wt6185_modify_ts
+all_TESTS += test_wt6185_modify_ts
 
 # Run this during a "make check" smoke test.
 TESTS = $(all_TESTS)

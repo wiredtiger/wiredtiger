@@ -51,7 +51,9 @@
 #undef MEGABYTE
 #define MEGABYTE(v) ((v)*WT_MEGABYTE)
 
-#define WT_NAME "wt" /* Object name */
+#define BACKUP_INFO_FILE "BACKUP_INFO"         /* Format's backup information for restart */
+#define BACKUP_INFO_FILE_TMP "BACKUP_INFO.TMP" /* Format's backup information for restart */
+#define WT_NAME "wt"                           /* Object name */
 
 #define DATASOURCE(v) (strcmp(v, g.c_data_source) == 0 ? 1 : 0)
 
@@ -74,11 +76,11 @@ typedef struct {
 #define LOCK_INITIALIZED(lock) ((lock)->lock_type != LOCK_NONE)
 
 typedef struct {
-    wt_thread_t tid;  /* thread ID */
     char tidbuf[128]; /* thread ID in printable form */
 
     WT_CONNECTION *wts_conn;
     WT_CONNECTION *wts_conn_inmemory;
+    WT_SESSION *wts_session;
 
     char *uri; /* Object name */
 
@@ -111,6 +113,8 @@ typedef struct {
 
     WT_RAND_STATE rnd; /* Global RNG state */
 
+    uint32_t rts_no_check; /* track unsuccessful RTS checking */
+
     /*
      * Prepare will return an error if the prepare timestamp is less than any active read timestamp.
      * Lock across allocating prepare and read timestamps.
@@ -120,7 +124,9 @@ typedef struct {
      */
     RWLOCK ts_lock;
 
-    uint64_t timestamp; /* Counter for timestamps */
+    uint64_t timestamp;        /* Counter for timestamps */
+    uint64_t oldest_timestamp; /* Last timestamp used for oldest */
+    uint64_t stable_timestamp; /* Last timestamp used for stable */
 
     uint64_t truncate_cnt; /* Counter for truncation */
 
@@ -129,6 +135,7 @@ typedef struct {
      * misbehaving.
      */
     pthread_rwlock_t death_lock;
+    WT_CURSOR *page_dump_cursor; /* Snapshot isolation read failed, modifies failure handling. */
 
     uint32_t c_abort; /* Config values */
     uint32_t c_alter;
@@ -136,6 +143,7 @@ typedef struct {
     uint32_t c_assert_read_timestamp;
     uint32_t c_auto_throttle;
     char *c_backup_incremental;
+    uint32_t c_backup_incr_granularity;
     uint32_t c_backups;
     uint32_t c_bitcnt;
     uint32_t c_bloom;
@@ -207,7 +215,9 @@ typedef struct {
     uint32_t c_timer;
     uint32_t c_timing_stress_aggressive_sweep;
     uint32_t c_timing_stress_checkpoint;
+    uint32_t c_timing_stress_hs_checkpoint_delay;
     uint32_t c_timing_stress_hs_sweep;
+    uint32_t c_timing_stress_checkpoint_prepare;
     uint32_t c_timing_stress_split_1;
     uint32_t c_timing_stress_split_2;
     uint32_t c_timing_stress_split_3;
@@ -218,10 +228,12 @@ typedef struct {
     uint32_t c_timing_stress_split_8;
     uint32_t c_truncate;
     uint32_t c_txn_freq;
+    uint32_t c_txn_rollback_to_stable;
     uint32_t c_txn_timestamps;
     uint32_t c_value_max;
     uint32_t c_value_min;
     uint32_t c_verify;
+    uint32_t c_verify_failure_dump;
     uint32_t c_write_pct;
     uint32_t c_wt_mutex;
 
@@ -300,6 +312,13 @@ typedef struct {
 } SNAP_OPS;
 
 typedef struct {
+    SNAP_OPS *snap_state_current;
+    SNAP_OPS *snap_state_end;
+    SNAP_OPS *snap_state_first;
+    SNAP_OPS *snap_state_list;
+} SNAP_STATE;
+
+typedef struct {
     int id;           /* simple thread ID */
     wt_thread_t tid;  /* thread ID */
     char tidbuf[128]; /* thread ID in printable form */
@@ -335,10 +354,19 @@ typedef struct {
     uint64_t opid;         /* Operation ID */
     uint64_t read_ts;      /* read timestamp */
     uint64_t commit_ts;    /* commit timestamp */
-    SNAP_OPS *snap, *snap_first, snap_list[512];
+    uint64_t stable_ts;    /* stable timestamp */
+    SNAP_STATE snap_states[2];
+    SNAP_STATE *s; /* points to one of the snap_states */
+
+#define snap_current s->snap_state_current
+#define snap_end s->snap_state_end
+#define snap_first s->snap_state_first
+#define snap_list s->snap_state_list
 
     uint64_t insert_list[256]; /* column-store inserted records */
     u_int insert_list_cnt;
+
+    WT_ITEM vprint; /* Temporary buffer for printable values */
 
 #define TINFO_RUNNING 1  /* Running */
 #define TINFO_COMPLETE 2 /* Finished */
@@ -346,6 +374,8 @@ typedef struct {
     volatile int state;  /* state */
 } TINFO;
 extern TINFO **tinfo_list;
+
+#define SNAP_LIST_SIZE 512
 
 WT_THREAD_RET alter(void *);
 WT_THREAD_RET backup(void *);
@@ -375,12 +405,17 @@ void operations(u_int, bool);
 void path_setup(const char *);
 void set_alarm(u_int);
 void set_core_off(void);
-void snap_init(TINFO *, uint64_t, bool);
+void set_oldest_timestamp(void);
+void snap_init(TINFO *);
+void snap_teardown(TINFO *);
+void snap_op_init(TINFO *, uint64_t, bool);
+void snap_repeat_rollback(WT_CURSOR *, TINFO **, size_t);
 void snap_repeat_single(WT_CURSOR *, TINFO *);
 int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
-void timestamp_once(WT_SESSION *);
+void timestamp_once(WT_SESSION *, bool);
+void timestamp_parse(WT_SESSION *, const char *, uint64_t *);
 int trace_config(const char *);
 void trace_init(void);
 void trace_ops_init(TINFO *);

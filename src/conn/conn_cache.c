@@ -35,9 +35,7 @@ __cache_config_abs_to_pct(
          */
         if (shared)
             WT_RET_MSG(session, EINVAL,
-              "Shared cache configuration requires a percentage "
-              "value for %s",
-              param_name);
+              "Shared cache configuration requires a percentage value for %s", param_name);
         /* An absolute value can't exceed the cache size. */
         if (input > conn->cache_size)
             WT_RET_MSG(session, EINVAL, "%s should not exceed cache size", param_name);
@@ -120,6 +118,25 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     if (cache->eviction_dirty_trigger > cache->eviction_trigger)
         cache->eviction_dirty_trigger = cache->eviction_trigger;
 
+    /* Configure updates target / trigger */
+    WT_RET(__wt_config_gets(session, cfg, "eviction_updates_target", &cval));
+    cache->eviction_updates_target = (double)cval.val;
+    WT_RET(__cache_config_abs_to_pct(
+      session, &(cache->eviction_updates_target), "eviction updates target", shared));
+    if (cache->eviction_updates_target < DBL_EPSILON)
+        cache->eviction_updates_target = cache->eviction_dirty_target / 2;
+
+    WT_RET(__wt_config_gets(session, cfg, "eviction_updates_trigger", &cval));
+    cache->eviction_updates_trigger = (double)cval.val;
+    WT_RET(__cache_config_abs_to_pct(
+      session, &(cache->eviction_updates_trigger), "eviction updates trigger", shared));
+    if (cache->eviction_updates_trigger < DBL_EPSILON)
+        cache->eviction_updates_trigger = cache->eviction_dirty_trigger / 2;
+
+    /* Don't allow the trigger to be larger than the overall trigger. */
+    if (cache->eviction_updates_trigger > cache->eviction_trigger)
+        cache->eviction_updates_trigger = cache->eviction_trigger;
+
     WT_RET(__wt_config_gets(session, cfg, "eviction.threads_max", &cval));
     WT_ASSERT(session, cval.val > 0);
     evict_threads_max = (uint32_t)cval.val;
@@ -129,9 +146,8 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     evict_threads_min = (uint32_t)cval.val;
 
     if (evict_threads_min > evict_threads_max)
-        WT_RET_MSG(session, EINVAL,
-          "eviction=(threads_min) cannot be greater than "
-          "eviction=(threads_max)");
+        WT_RET_MSG(
+          session, EINVAL, "eviction=(threads_min) cannot be greater than eviction=(threads_max)");
     conn->evict_threads_max = evict_threads_max;
     conn->evict_threads_min = evict_threads_min;
 
@@ -189,7 +205,7 @@ __wt_cache_config(WT_SESSION_IMPL *session, bool reconfigure, const char *cfg[])
      */
     if (reconfigure)
         WT_RET(__wt_thread_group_resize(session, &conn->evict_threads, conn->evict_threads_min,
-          conn->evict_threads_max, WT_THREAD_CAN_WAIT | WT_THREAD_HS | WT_THREAD_PANIC_FAIL));
+          conn->evict_threads_max, WT_THREAD_CAN_WAIT | WT_THREAD_PANIC_FAIL));
 
     return (0);
 }
@@ -267,18 +283,19 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_CONNECTION_STATS **stats;
-    uint64_t inuse, leaf;
+    uint64_t inuse, intl, leaf;
 
     conn = S2C(session);
     cache = conn->cache;
     stats = conn->stats;
 
     inuse = __wt_cache_bytes_inuse(cache);
+    intl = __wt_cache_bytes_plus_overhead(cache, cache->bytes_internal);
     /*
      * There are races updating the different cache tracking values so be paranoid calculating the
      * leaf byte usage.
      */
-    leaf = inuse > cache->bytes_internal ? inuse - cache->bytes_internal : 0;
+    leaf = inuse > intl ? inuse - intl : 0;
 
     WT_STAT_SET(session, stats, cache_bytes_max, conn->cache_size);
     WT_STAT_SET(session, stats, cache_bytes_inuse, inuse);
@@ -287,15 +304,14 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, cache_bytes_dirty, __wt_cache_dirty_inuse(cache));
     WT_STAT_SET(session, stats, cache_bytes_dirty_total,
       __wt_cache_bytes_plus_overhead(cache, cache->bytes_dirty_total));
+    WT_STAT_SET(
+      session, stats, cache_bytes_hs, __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs));
     WT_STAT_SET(session, stats, cache_bytes_image, __wt_cache_bytes_image(cache));
     WT_STAT_SET(session, stats, cache_pages_inuse, __wt_cache_pages_inuse(cache));
-    WT_STAT_SET(session, stats, cache_bytes_internal, cache->bytes_internal);
+    WT_STAT_SET(session, stats, cache_bytes_internal, intl);
     WT_STAT_SET(session, stats, cache_bytes_leaf, leaf);
-    if (F_ISSET(conn, WT_CONN_HS_OPEN)) {
-        WT_STAT_SET(
-          session, stats, cache_bytes_hs, __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs));
-    }
     WT_STAT_SET(session, stats, cache_bytes_other, __wt_cache_bytes_other(cache));
+    WT_STAT_SET(session, stats, cache_bytes_updates, __wt_cache_bytes_updates(cache));
 
     WT_STAT_SET(session, stats, cache_eviction_maximum_page_size, cache->evict_max_page_size);
     WT_STAT_SET(
@@ -333,7 +349,6 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
     int i;
 
     conn = S2C(session);
@@ -344,15 +359,12 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 
     /* The cache should be empty at this point.  Complain if not. */
     if (cache->pages_inmem != cache->pages_evicted)
-        __wt_errx(session, "cache server: exiting with %" PRIu64
-                           " pages in "
-                           "memory and %" PRIu64 " pages evicted",
+        __wt_errx(session,
+          "cache server: exiting with %" PRIu64 " pages in memory and %" PRIu64 " pages evicted",
           cache->pages_inmem, cache->pages_evicted);
-    if (cache->bytes_image != 0)
-        __wt_errx(session, "cache server: exiting with %" PRIu64
-                           " image bytes in "
-                           "memory",
-          cache->bytes_image);
+    if (cache->bytes_image_intl + cache->bytes_image_leaf != 0)
+        __wt_errx(session, "cache server: exiting with %" PRIu64 " image bytes in memory",
+          cache->bytes_image_intl + cache->bytes_image_leaf);
     if (cache->bytes_inmem != 0)
         __wt_errx(
           session, "cache server: exiting with %" PRIu64 " bytes in memory", cache->bytes_inmem);
@@ -367,9 +379,8 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
     __wt_spin_destroy(session, &cache->evict_pass_lock);
     __wt_spin_destroy(session, &cache->evict_queue_lock);
     __wt_spin_destroy(session, &cache->evict_walk_lock);
-    wt_session = &cache->walk_session->iface;
-    if (wt_session != NULL)
-        WT_TRET(wt_session->close(wt_session, NULL));
+    if (cache->walk_session != NULL)
+        WT_TRET(__wt_session_close_internal(cache->walk_session));
 
     for (i = 0; i < WT_EVICT_QUEUE_MAX; ++i) {
         __wt_spin_destroy(session, &cache->evict_queues[i].evict_lock);
