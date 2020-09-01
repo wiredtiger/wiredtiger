@@ -9,8 +9,10 @@
 #include "util.h"
 
 const char *home = "."; /* Home directory */
-const char *progname;   /* Program name */
-                        /* Global arguments */
+/* Give users a hint in the help output if they're trying to read MongoDB data files. */
+const char *mongodb_config = "log=(enabled=true,path=journal,compressor=snappy)";
+const char *progname; /* Program name */
+                      /* Global arguments */
 const char *usage_prefix = "[-LmRrSVv] [-C config] [-E secretkey] [-h home]";
 bool verbose = false; /* Verbose flag */
 
@@ -49,6 +51,7 @@ usage(void)
 
     fprintf(stderr, "WiredTiger Data Engine (version %d.%d)\n", WIREDTIGER_VERSION_MAJOR,
       WIREDTIGER_VERSION_MINOR);
+    fprintf(stderr, "MongoDB wiredtiger_open configuration: \"%s\"\n", mongodb_config);
     util_usage(NULL, "global_options:", options);
     util_usage(NULL, "commands:", commands);
 }
