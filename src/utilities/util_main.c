@@ -9,13 +9,14 @@
 #include "util.h"
 
 const char *home = "."; /* Home directory */
-/* Give users a hint in the help output if they're trying to read MongoDB data files. */
-const char *progname; /* Program name */
-                      /* Global arguments */
+const char *progname;   /* Program name */
+                        /* Global arguments */
 const char *usage_prefix = "[-LmRrSVv] [-C config] [-E secretkey] [-h home]";
 bool verbose = false; /* Verbose flag */
 
 static const char *command; /* Command name */
+
+/* Give users a hint in the help output if they're trying to read MongoDB data files. */
 static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=snappy)";
 
 #define READONLY "readonly=true"
