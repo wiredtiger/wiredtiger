@@ -16,7 +16,7 @@ bool verbose = false; /* Verbose flag */
 
 static const char *command; /* Command name */
 
-/* Give users a hint in the help output if they're trying to read MongoDB data files. */
+/* Give users a hint in the help output for if they're trying to read MongoDB data files */
 static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=snappy)";
 
 #define READONLY "readonly=true"
