@@ -153,7 +153,7 @@ all_TESTS += test_wt6185_modify_ts
 
 test_wt6616_checkpoint_oldest_ts_SOURCES = wt6616_checkpoint_oldest_ts/main.c
 noinst_PROGRAMS += test_wt6616_checkpoint_oldest_ts
-all_TESTS += wt6616_checkpoint_oldest_ts/smoke.sh
+all_TESTS += test_wt6616_checkpoint_oldest_ts
 
 # Run this during a "make check" smoke test.
 TESTS = $(all_TESTS)

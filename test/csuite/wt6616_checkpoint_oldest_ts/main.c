@@ -42,6 +42,12 @@ static char home[1024]; /* Program working dir */
  * In verification, kill the child process and reopen the database to run recovery. Query the
  * database to get the stable and oldest timestamp. For keys from oldest to stable timestamp, make
  * sure each key X is visible at timestamp X.
+ *
+ * The test is only for non-logged tables. For logged tables, the current implementation currently
+ * only guarantees the user to see a consistent snapshot view of data at the last successful commit
+ * after recovery by reading without a timestamp. Whether we should be able to read historical
+ * versions based on timestamps from a logged table after recovery is not defined and implemented
+ * yet.
  */
 #define KEY_FORMAT ("%010" PRIu64)
 
@@ -53,8 +59,6 @@ static char home[1024]; /* Program working dir */
 static const char *const uri = "table:wt6616-checkpoint-oldest-ts";
 
 static const char *const ckpt_file = "checkpoint_done";
-
-static bool log_table = false;
 
 #define ENV_CONFIG                                            \
     "cache_size=50M,"                                         \
@@ -168,7 +172,7 @@ thread_run(void *arg)
 
         /* Set the oldest timestamp to make half of the data obsolete. */
         if (ts - oldest_ts > MAX_DATA) {
-            oldest_ts = ts - (ts - oldest_ts) / 2;
+            oldest_ts = ts - MAX_DATA / 2;
             testutil_check(
               __wt_snprintf(tscfg, sizeof(tscfg), "oldest_timestamp=%" PRIx64, oldest_ts));
             testutil_check(conn->set_timestamp(conn, tscfg));
@@ -202,12 +206,8 @@ run_workload(void)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Create the table. */
-    if (log_table)
-        testutil_check(
-          session->create(session, uri, "key_format=S,value_format=u,log=(enabled=true)"));
-    else
-        testutil_check(
-          session->create(session, uri, "key_format=S,value_format=u,log=(enabled=false)"));
+    testutil_check(
+      session->create(session, uri, "key_format=S,value_format=u,log=(enabled=false)"));
     testutil_check(session->close(session, NULL));
 
     /* The checkpoint thread is added at the end. */
@@ -268,13 +268,10 @@ main(int argc, char *argv[])
     timeout = MIN_TIME;
     working_dir = "WT_TEST.wt6616-checkpoint-oldest-ts";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "h:lt:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "h:t:")) != EOF)
         switch (ch) {
         case 'h':
             working_dir = __wt_optarg;
-            break;
-        case 'l':
-            log_table = true;
             break;
         case 't':
             rand_time = false;
@@ -295,8 +292,7 @@ main(int argc, char *argv[])
             timeout = MIN_TIME;
     }
 
-    printf("CONFIG: %s -h %s -t %" PRIu32 " %s\n", progname, working_dir, timeout,
-      log_table ? "-l" : "");
+    printf("CONFIG: %s -h %s -t %" PRIu32 "\n", progname, working_dir, timeout);
     /*
      * Fork a child to insert and delete as many items. We will then randomly kill the child, run
      * recovery and make sure all items from the oldest to stable timestamps of the checkpoint exist

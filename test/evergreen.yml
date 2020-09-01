@@ -1375,7 +1375,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/../test/csuite/wt6616_checkpoint_oldest_ts/smoke.sh 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt6616_checkpoint_oldest_ts 2>&1
 
   # End of csuite test tasks
 
