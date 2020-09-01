@@ -131,7 +131,7 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     txn_shared->metadata_pinned = txn_shared->pinned_id = WT_TXN_NONE;
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
-    /* Clear a checkpoint's pinned ID. */
+    /* Clear a checkpoint's pinned ID and timestamps. */
     if (WT_SESSION_IS_CHECKPOINT(session)) {
         txn_global->checkpoint_txn_shared.pinned_id = WT_TXN_NONE;
         txn_global->checkpoint_oldest_timestamp = WT_TS_NONE;
