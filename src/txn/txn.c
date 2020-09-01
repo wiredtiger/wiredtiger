@@ -273,6 +273,54 @@ __wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_txn_save_and_update_snapshot --
+ *     Save some of the current transaction's state and update the snapshot.
+ */
+int
+__wt_txn_save_and_update_snapshot(WT_SESSION_IMPL *session, WT_TXN_SAVED_STATE *old_state)
+{
+    WT_TXN *txn;
+    uint64_t *snapshot_buffer;
+
+    txn = session->txn;
+
+    WT_ASSERT(session, txn->id != WT_TXN_NONE);
+    WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
+
+    /* Allocate a buffer to save new snapshot array. */
+    WT_RET(__wt_calloc(
+      session, 1, sizeof(txn->snapshot[0]) * S2C(session)->session_size, &snapshot_buffer));
+
+    old_state->id = txn->id;
+    old_state->snap_min = txn->snap_min;
+    old_state->snap_max = txn->snap_max;
+    old_state->snapshot = txn->snapshot;
+
+    txn->snapshot = snapshot_buffer;
+    __wt_txn_bump_snapshot(session);
+
+    return (0);
+}
+
+/*
+ * __wt_txn_restore_snapshot --
+ *     Restore the current transaction's state and the snapshot.
+ */
+void
+__wt_txn_restore_snapshot(WT_SESSION_IMPL *session, WT_TXN_SAVED_STATE *old_state)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+    WT_ASSERT(session, txn->id == old_state->id);
+
+    __wt_free(session, txn->snapshot);
+    txn->snapshot = old_state->snapshot;
+    txn->snap_min = old_state->snap_min;
+    txn->snap_max = old_state->snap_max;
+}
+
+/*
  * __txn_oldest_scan --
  *     Sweep the running transactions to calculate the oldest ID required.
  */

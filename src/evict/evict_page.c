@@ -544,8 +544,11 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_TXN *txn;
+    WT_TXN_SAVED_STATE old_state;
     uint32_t flags;
     bool closing, modified;
+    bool restore_snapshot;
 
     *inmem_splitp = false;
 
@@ -553,6 +556,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     page = ref->page;
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
+    restore_snapshot = false;
+    txn = session->txn;
     if (!WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_VISIBLE_ALL);
 
@@ -675,11 +680,31 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
             LF_SET(WT_REC_SCRUB);
     }
 
+    /*
+     * If we have entered eviction through application threads and we are running transaction with
+     * snapshot isolation, we like to update our snapshot to evict pages that are not globally
+     * visible based on last_running transaction. We will save some of the running transaction's
+     * context, get a new transaction snapshot, perform eviction and restore the original
+     * transaction's context (including snapshot) once we are finished.
+     */
+    if (!F_ISSET(session, WT_SESSION_INTERNAL) && F_ISSET(txn, WT_TXN_RUNNING) &&
+      txn->isolation == WT_ISO_SNAPSHOT && txn->id != WT_TXN_NONE) {
+        restore_snapshot = true;
+        WT_RET(__wt_txn_save_and_update_snapshot(session, &old_state));
+        /* Clearing this flag means reconcile logic will use a more detailed snapshot visibility
+         * checks rather than using last_running transaction for global visibility checks.
+         */
+        LF_CLR(WT_REC_VISIBLE_ALL);
+    }
+
     /* Reconcile the page. */
     ret = __wt_reconcile(session, ref, NULL, flags);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
+
+    if (restore_snapshot)
+        __wt_txn_restore_snapshot(session, &old_state);
 
     WT_RET(ret);
 
