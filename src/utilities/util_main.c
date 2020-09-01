@@ -158,9 +158,8 @@ main(int argc, char *argv[])
      * If the user specifies log configuration with the -C flag, it will override the log
      * configuration provided by the -R or -L flags. We should warn about this.
      */
-    if ((logoff || recover) && cmd_config != NULL && strstr(cmd_config, "log") != NULL) {
+    if ((logoff || recover) && cmd_config != NULL && strstr(cmd_config, "log") != NULL)
         fprintf(stderr, "Custom \"log\" configuration detected. -R and -L will be overridden.\n");
-    }
     argc -= __wt_optind;
     argv += __wt_optind;
 
