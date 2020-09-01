@@ -277,15 +277,24 @@ __wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
  *     Save some of the current transaction's state and update the snapshot.
  */
 int
-__wt_txn_save_and_update_snapshot(WT_SESSION_IMPL *session, WT_TXN_SAVED_STATE *old_state)
+__wt_txn_save_and_update_snapshot(
+  WT_SESSION_IMPL *session, WT_TXN_SAVED_STATE *old_state, bool *snapshot_updated)
 {
     WT_TXN *txn;
+    uint64_t commit_gen;
     uint64_t *snapshot_buffer;
 
     txn = session->txn;
+    *snapshot_updated = false;
 
     WT_ASSERT(session, txn->id != WT_TXN_NONE);
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
+
+    commit_gen = __wt_session_gen(session, WT_GEN_COMMIT);
+
+    /* Check if there is merit in updating the snapshot. */
+    if (commit_gen != 0 && commit_gen == __wt_gen(session, WT_GEN_COMMIT))
+        return (0);
 
     /* Allocate a buffer to save new snapshot array. */
     WT_RET(__wt_calloc(
@@ -298,7 +307,7 @@ __wt_txn_save_and_update_snapshot(WT_SESSION_IMPL *session, WT_TXN_SAVED_STATE *
 
     txn->snapshot = snapshot_buffer;
     __wt_txn_bump_snapshot(session);
-
+    *snapshot_updated = true;
     return (0);
 }
 
@@ -313,7 +322,7 @@ __wt_txn_restore_snapshot(WT_SESSION_IMPL *session, WT_TXN_SAVED_STATE *old_stat
 
     txn = session->txn;
     WT_ASSERT(session, txn->id == old_state->id);
-
+    WT_ASSERT(session, txn->snapshot != NULL);
     __wt_free(session, txn->snapshot);
     txn->snapshot = old_state->snapshot;
     txn->snap_min = old_state->snap_min;
