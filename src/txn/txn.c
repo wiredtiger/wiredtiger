@@ -134,7 +134,8 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     /* Clear a checkpoint's pinned ID. */
     if (WT_SESSION_IS_CHECKPOINT(session)) {
         txn_global->checkpoint_txn_shared.pinned_id = WT_TXN_NONE;
-        txn_global->checkpoint_timestamp = 0;
+        txn_global->checkpoint_oldest_timestamp = WT_TS_NONE;
+        txn_global->checkpoint_timestamp = WT_TS_NONE;
     }
 
     __wt_txn_clear_read_timestamp(session);
