@@ -267,7 +267,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
     SESSION_API_CALL_PREPARE_ALLOWED(session, close, config, cfg);
     WT_UNUSED(cfg);
 
-    return (__wt_session_close_internal(session));
+    ret = __wt_session_close_internal(session);
 
 err:
     API_END_RET_NOTFOUND_MAP(session, ret);
