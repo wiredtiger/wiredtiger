@@ -559,6 +559,10 @@ __recovery_file_scan(WT_RECOVERY *r)
     }
     WT_RET_NOTFOUND_OK(ret);
 
+    /*
+     * Set the connection level file id tracker, as such upon creation of a new file we'll begin
+     * from the latest file id.
+     */
     S2C(r->session)->next_file_id = r->max_fileid;
 
     return (0);
