@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_txn22.py
+# test_txn23.py
 #   Transactions: ensure read timestamp is not cleared under cache pressure
 #
 
@@ -36,7 +36,7 @@ from wtdataset import SimpleDataSet
 def timestamp_str(t):
     return '%x' % t
 
-class test_txn22(wttest.WiredTigerTestCase):
+class test_txn23(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
     conn_config = 'cache_size=5MB'
 
@@ -61,13 +61,13 @@ class test_txn22(wttest.WiredTigerTestCase):
         nrows = 2000
 
         # Create a table.
-        uri_1 = "table:txn22_1"
+        uri_1 = "table:txn23_1"
         ds_1 = SimpleDataSet(
             self, uri_1, 0, key_format="i", value_format="S")
         ds_1.populate()
 
         # Create another table.
-        uri_2 = "table:txn22_2"
+        uri_2 = "table:txn23_2"
         ds_2 = SimpleDataSet(
             self, uri_2, 0, key_format="i", value_format="S")
         ds_2.populate()
