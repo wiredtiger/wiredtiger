@@ -333,7 +333,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     /* SASHA: make sure we can always write the block that exists in cache, so
      * we don't end up with inconsistent copies.
      */
-    WT_TRET_ERROR_OK(__wt_blkcache_put(session, block->fh, offset, align_size, buf->mem), -1);
+    WT_TRET_ERROR_OK(__wt_blkcache_put(session, block->fh, offset, align_size, buf->mem, true), -1);
 
     /*
      * Optionally schedule writes for dirty pages in the system buffer cache, but only if the

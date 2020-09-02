@@ -121,7 +121,8 @@ __wt_blkcache_get_or_check(
  *     Put a block into the cache.
  */
 int
-__wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t size, void *data)
+__wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t size, void *data,
+		  bool write)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
@@ -174,11 +175,20 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t s
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
     WT_STAT_CONN_INCRV(session, block_cache_bytes, size);
     WT_STAT_CONN_INCR(session, block_cache_blocks);
+    if (write) {
+	WT_STAT_CONN_INCRV(session, block_cache_bytes_write, size);
+	WT_STAT_CONN_INCR(session, block_cache_blocks_write);
+    }
     __wt_verbose(session, WT_VERB_BLKCACHE, "block inserted in cache: "
 		 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64,
 		 (uintmax_t)offset, (uint32_t)size, hash);
     return (0);
 item_exists:
+    if (write) {
+	memcpy(blkcache_item->data, data, size);
+	WT_STAT_CONN_INCRV(session, block_cache_bytes_update, size);
+	WT_STAT_CONN_INCR(session, block_cache_blocks_update);
+    }
     __wt_verbose(session, WT_VERB_BLKCACHE, "block exists during put: "
 		 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64,
 		 (uintmax_t)offset, (uint32_t)size, hash);

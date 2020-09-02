@@ -249,7 +249,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
     if (block->fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA ||
 	__wt_blkcache_get_or_check(session, block->fh, offset, size, buf->mem) != 0) {
         WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
-	WT_TRET_ERROR_OK(__wt_blkcache_put(session, block->fh, offset, size, buf->mem), -1);
+	WT_TRET_ERROR_OK(__wt_blkcache_put(session, block->fh, offset, size, buf->mem, false), -1);
     }
     buf->size = size;
 

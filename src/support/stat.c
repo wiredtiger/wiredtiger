@@ -886,6 +886,15 @@ static const char *const __stats_connection_desc[] = {
   "async: total remove calls",
   "async: total search calls",
   "async: total update calls",
+  "block-manager: block cache cached blocks updated",
+  "block-manager: block cache cached bytes updated",
+  "block-manager: block cache lookups",
+  "block-manager: block cache number of hits, including existence checks",
+  "block-manager: block cache number of misses, including existence checks",
+  "block-manager: block cache total blocks",
+  "block-manager: block cache total blocks inserted on write path",
+  "block-manager: block cache total bytes",
+  "block-manager: block cache total bytes inserted on write path",
   "block-manager: blocks pre-loaded",
   "block-manager: blocks read",
   "block-manager: blocks written",
@@ -898,14 +907,9 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes written via system call API",
   "block-manager: mapped blocks read",
   "block-manager: mapped bytes read",
-  "block-manager: number of cache hits, including existence checks",
-  "block-manager: number of cache misses, including existence checks",
   "block-manager: number of times the file was remapped because it changed size via fallocate or "
   "truncate",
   "block-manager: number of times the region was remapped via write",
-  "block-manager: references asking for data",
-  "block-manager: total blocks",
-  "block-manager: total bytes used",
   "cache: application threads page read from disk to cache count",
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
@@ -1426,6 +1430,15 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->async_op_remove = 0;
     stats->async_op_search = 0;
     stats->async_op_update = 0;
+    stats->block_cache_blocks_update = 0;
+    stats->block_cache_bytes_update = 0;
+    stats->block_cache_data_refs = 0;
+    stats->block_cache_hits = 0;
+    stats->block_cache_misses = 0;
+    stats->block_cache_blocks = 0;
+    stats->block_cache_blocks_write = 0;
+    stats->block_cache_bytes = 0;
+    stats->block_cache_bytes_write = 0;
     stats->block_preload = 0;
     stats->block_read = 0;
     stats->block_write = 0;
@@ -1438,13 +1451,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write_syscall = 0;
     stats->block_map_read = 0;
     stats->block_byte_map_read = 0;
-    stats->block_cache_hits = 0;
-    stats->block_cache_misses = 0;
     stats->block_remap_file_resize = 0;
     stats->block_remap_file_write = 0;
-    stats->block_cache_data_refs = 0;
-    stats->block_cache_blocks = 0;
-    stats->block_cache_bytes = 0;
     stats->cache_read_app_count = 0;
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
@@ -1932,6 +1940,15 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->async_op_remove += WT_STAT_READ(from, async_op_remove);
     to->async_op_search += WT_STAT_READ(from, async_op_search);
     to->async_op_update += WT_STAT_READ(from, async_op_update);
+    to->block_cache_blocks_update += WT_STAT_READ(from, block_cache_blocks_update);
+    to->block_cache_bytes_update += WT_STAT_READ(from, block_cache_bytes_update);
+    to->block_cache_data_refs += WT_STAT_READ(from, block_cache_data_refs);
+    to->block_cache_hits += WT_STAT_READ(from, block_cache_hits);
+    to->block_cache_misses += WT_STAT_READ(from, block_cache_misses);
+    to->block_cache_blocks += WT_STAT_READ(from, block_cache_blocks);
+    to->block_cache_blocks_write += WT_STAT_READ(from, block_cache_blocks_write);
+    to->block_cache_bytes += WT_STAT_READ(from, block_cache_bytes);
+    to->block_cache_bytes_write += WT_STAT_READ(from, block_cache_bytes_write);
     to->block_preload += WT_STAT_READ(from, block_preload);
     to->block_read += WT_STAT_READ(from, block_read);
     to->block_write += WT_STAT_READ(from, block_write);
@@ -1944,13 +1961,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_write_syscall += WT_STAT_READ(from, block_byte_write_syscall);
     to->block_map_read += WT_STAT_READ(from, block_map_read);
     to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
-    to->block_cache_hits += WT_STAT_READ(from, block_cache_hits);
-    to->block_cache_misses += WT_STAT_READ(from, block_cache_misses);
     to->block_remap_file_resize += WT_STAT_READ(from, block_remap_file_resize);
     to->block_remap_file_write += WT_STAT_READ(from, block_remap_file_write);
-    to->block_cache_data_refs += WT_STAT_READ(from, block_cache_data_refs);
-    to->block_cache_blocks += WT_STAT_READ(from, block_cache_blocks);
-    to->block_cache_bytes += WT_STAT_READ(from, block_cache_bytes);
     to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
     to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_READ(from, cache_write_app_count);
