@@ -43,11 +43,10 @@ static char home[1024]; /* Program working dir */
  * database to get the stable and oldest timestamp. For keys from oldest to stable timestamp, make
  * sure each key X is visible at timestamp X.
  *
- * The test is only for non-logged tables. For logged tables, the current implementation currently
- * only guarantees the user to see a consistent snapshot view of data at the last successful commit
- * after recovery by reading without a timestamp. Whether we should be able to read historical
- * versions based on timestamps from a logged table after recovery is not defined and implemented
- * yet.
+ * The test is only for non-logged tables. For logged tables, the current implementation only
+ * guarantees the user to see a consistent snapshot view of data at the last successful commit after
+ * recovery by reading without a timestamp. Whether it is possible to read historical versions based
+ * on timestamps from a logged table after recovery is not defined and implemented yet.
  */
 #define KEY_FORMAT ("%010" PRIu64)
 
