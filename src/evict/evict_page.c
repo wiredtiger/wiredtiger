@@ -691,7 +691,9 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
          * the page being evicted so we are sure that the page will always be there while it is
          * being processed.
          */
+        __wt_writelock(session, &conn->txn_global.rwlock);
         WT_SESSION_TXN_SHARED(session)->pinned_id = WT_TXN_NONE;
+        __wt_writeunlock(session, &conn->txn_global.rwlock);
         txn_started = true;
     } else {
         /*
