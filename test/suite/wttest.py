@@ -266,7 +266,7 @@ class WiredTigerTestCase(unittest.TestCase):
         earlyLoading = ''
         if hasattr(exts, 'skip_if_missing'):
             skipIfMissing = exts.skip_if_missing
-        if hasattr(exts, 'early_load_ext') and exts.early_loading == True:
+        if hasattr(exts, 'early_load_ext') and exts.early_load_ext == True:
             earlyLoading = '=(early_load=true)'
         for ext in exts:
             extconf = ''
