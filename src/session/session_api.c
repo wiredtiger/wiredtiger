@@ -364,8 +364,6 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
 
     __wt_spin_unlock(session, &conn->api_lock);
 
-    /* We no longer have a session, don't try to update it. */
-    session = NULL;
     return (ret);
 }
 
