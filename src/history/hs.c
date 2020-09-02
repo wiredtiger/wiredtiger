@@ -1571,7 +1571,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * we can skip it.
          */
         if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw)) {
-            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
+            WT_STAT_CONN_INCR(session, cursor_next_hs_tombstone);
             continue;
         }
         /*
@@ -1688,7 +1688,7 @@ __hs_delete_key_from_pos(
          * we can skip it.
          */
         if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw)) {
-            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
+            WT_STAT_CONN_INCR(session, cursor_next_hs_tombstone);
             continue;
         }
         /*
@@ -1725,9 +1725,9 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *hs_cbt;
-    WT_DECL_ITEM(prev_hs_key);
+    WT_DECL_ITEM(prev_key);
     WT_DECL_RET;
-    WT_ITEM hs_key;
+    WT_ITEM key;
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t btree_id;
@@ -1735,9 +1735,9 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
 
     hs_cursor = session->hs_cursor;
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
-    WT_CLEAR(hs_key);
+    WT_CLEAR(key);
 
-    WT_ERR(__wt_scr_alloc(session, 0, &prev_hs_key));
+    WT_ERR(__wt_scr_alloc(session, 0, &prev_key));
 
     /*
      * The caller is responsible for positioning the history store cursor at the first record to
@@ -1745,7 +1745,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
      * cursor there or deciding they're done.
      */
     for (; ret == 0; ret = __wt_hs_cursor_next(session, hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &hs_key, &hs_start_ts, &hs_counter));
+        WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
 
         /*
          * If the btree id does not match the preview one, we're done. It is up to the caller to set
@@ -1762,7 +1762,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
          * we can skip it.
          */
         if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw)) {
-            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
+            WT_STAT_CONN_INCR(session, cursor_next_hs_tombstone);
             continue;
         }
 
@@ -1770,18 +1770,18 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
          * If we have already checked against this key, keep going to the next key. We only need to
          * check the key once.
          */
-        WT_ERR(__wt_compare(session, NULL, &hs_key, prev_hs_key, &cmp));
+        WT_ERR(__wt_compare(session, NULL, &key, prev_key, &cmp));
         if (cmp == 0)
             continue;
 
-        WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &hs_key, false, NULL, false, NULL));
+        WT_WITH_PAGE_INDEX(session, ret = __wt_row_search(cbt, &key, false, NULL, false, NULL));
         WT_ERR(ret);
 
         if (cbt->compare != 0) {
             F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
             WT_ERR_PANIC(session, WT_PANIC,
               "the associated history store key %s was not found in the data store %s",
-              __wt_buf_set_printable(session, hs_key.data, hs_key.size, prev_hs_key),
+              __wt_buf_set_printable(session, key.data, key.size, prev_key),
               session->dhandle->name);
         }
 
@@ -1791,12 +1791,12 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint32
          * Copy the key memory into our scratch buffer. The key will get invalidated on our next
          * cursor iteration.
          */
-        WT_ERR(__wt_buf_set(session, prev_hs_key, hs_key.data, hs_key.size));
+        WT_ERR(__wt_buf_set(session, prev_key, key.data, key.size));
     }
     WT_ERR_NOTFOUND_OK(ret, true);
 err:
-    WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
-    __wt_scr_free(session, &prev_hs_key);
+    WT_ASSERT(session, key.mem == NULL && key.memsize == 0);
+    __wt_scr_free(session, &prev_key);
     return (ret);
 }
 
