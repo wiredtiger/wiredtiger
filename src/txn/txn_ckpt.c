@@ -1285,7 +1285,7 @@ __checkpoint_lock_dirty_tree(
         /* In the common case of the timer set forever, don't even check the time. */
         skip_ckpt = true;
         if (btree->clean_ckpt_timer != WT_BTREE_CLEAN_CKPT_FOREVER) {
-            __wt_seconds(session, &now);
+            __wt_seconds64(session, &now);
             if (now > btree->clean_ckpt_timer)
                 skip_ckpt = false;
         }
@@ -1509,7 +1509,7 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * timer.
              */
             if (ckpt - ckptbase > 2) {
-                __wt_seconds(session, &timer);
+                __wt_seconds64(session, &timer);
                 timer += WT_MINUTE * WT_BTREE_CLEAN_MINUTES;
                 WT_BTREE_CLEAN_CKPT(session, btree, timer);
             } else
