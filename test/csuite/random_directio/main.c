@@ -153,7 +153,8 @@ static const char *const uri_rev = "table:rev";
  * that has schema operations happens again at id 200, assuming frequency
  * set to 100. So it is a good test of schema operations 'in flight'.
  */
-#define SCHEMA_OP_FREQUENCY 100
+/*#define SCHEMA_OP_FREQUENCY 100*/
+#define SCHEMA_OP_FREQUENCY 20
 
 #define TEST_STREQ(expect, got, message)                                 \
     do {                                                                 \
@@ -355,7 +356,9 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
         /*
         fprintf(stderr, "CREATE: %s\n", uri1);
         */
+        testutil_check(session->log_printf(session, "CREATE: %s", uri1));
         testutil_check(session->create(session, uri1, "key_format=S,value_format=S"));
+        testutil_check(session->log_printf(session, "CREATE: DONE %s", uri1));
         break;
     case 1:
         /* Insert a value into the table. */
@@ -366,7 +369,9 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
         testutil_check(session->open_cursor(session, uri1, NULL, NULL, &cursor));
         cursor->set_key(cursor, uri1);
         cursor->set_value(cursor, uri1);
+        testutil_check(session->log_printf(session, "INSERT: %s", uri1));
         testutil_check(cursor->insert(cursor));
+        testutil_check(session->log_printf(session, "INSERT: DONE %s", uri1));
         testutil_check(cursor->close(cursor));
         break;
     case 2:
@@ -378,7 +383,9 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
             /*
             fprintf(stderr, "RENAME: %s->%s\n", uri1, uri2);
             */
+            testutil_check(session->log_printf(session, "RENAME: %s->%s", uri1, uri2));
             ret = session->rename(session, uri1, uri2, NULL);
+            testutil_check(session->log_printf(session, "RENAME: DONE %s->%s", uri1, uri2));
         }
         break;
     case 3:
@@ -391,7 +398,9 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
         /*
         fprintf(stderr, "UPDATE: %s\n", uri2);
         */
+        testutil_check(session->log_printf(session, "UPDATE: %s", uri2));
         testutil_check(cursor->update(cursor));
+        testutil_check(session->log_printf(session, "UPDATE: DONE %s", uri2));
         testutil_check(cursor->close(cursor));
         break;
     case 4:
@@ -402,7 +411,9 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id, uint32_t o
             /*
             fprintf(stderr, "DROP: %s\n", uri1);
             */
+            testutil_check(session->log_printf(session, "DROP: %s", uri1));
             ret = session->drop(session, uri1, NULL);
+            testutil_check(session->log_printf(session, "DROP: DONE %s", uri1));
         }
     }
     /*
@@ -756,7 +767,7 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid, uint32_t f
  *     Make a copy of the database and verify its contents.
  */
 static bool
-check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
+check_db(uint32_t nth, uint32_t datasize, pid_t pid, bool directio, uint32_t flags)
 {
     WT_CONNECTION *conn;
     WT_CURSOR *cursor, *meta, *rev;
@@ -765,7 +776,8 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
     uint64_t gotid, id;
     uint64_t *lastid;
     uint32_t gotth, kvsize, th, threadmap;
-    char checkdir[4096], savedir[4096];
+    int status;
+    char checkdir[4096], dbgdir[4096], savedir[4096];
     char *gotkey, *gotvalue, *keybuf, *p;
     char **large_arr;
 
@@ -778,6 +790,7 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
         large_buf(large_arr[th], LARGE_WRITE_SIZE, th, true);
     }
     testutil_check(__wt_snprintf(checkdir, sizeof(checkdir), "%s.CHECK", home));
+    testutil_check(__wt_snprintf(dbgdir, sizeof(savedir), "%s.DEBUG", home));
     testutil_check(__wt_snprintf(savedir, sizeof(savedir), "%s.SAVE", home));
 
     /*
@@ -788,10 +801,30 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
       "Copy database home directory using direct I/O to run recovery,\n"
       "along with a saved 'pre-recovery' copy.\n");
     copy_directory(home, checkdir, directio);
+    /* Copy the original home directory explicitly without direct I/O. */
+    copy_directory(home, dbgdir, false);
     copy_directory(checkdir, savedir, false);
 
     printf("Open database, run recovery and verify content\n");
-    testutil_check(wiredtiger_open(checkdir, NULL, ENV_CONFIG_REC, &conn));
+    ret = wiredtiger_open(checkdir, NULL, ENV_CONFIG_REC, &conn);
+    /* If this fails, abort the child process before we die so we can see what it was doing. */
+    if (ret != 0) {
+        if (pid != 0) {
+            /*
+             * The child is stopped, it won't process an abort until it is continued. First signal
+             * the abort, then signal continue so that the child process will process the abort and
+             * dump core.
+             */
+            printf("Send abort to child process ID %d\n", (int)pid);
+            if (kill(pid, SIGABRT) != 0)
+                testutil_die(errno, "kill");
+            if (kill(pid, SIGCONT) != 0)
+                testutil_die(errno, "kill");
+            if (waitpid(pid, &status, 0) == -1)
+                testutil_die(errno, "waitpid");
+        }
+        testutil_check(ret);
+    }
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     testutil_check(session->open_cursor(session, uri_main, NULL, NULL, &cursor));
     testutil_check(session->open_cursor(session, uri_rev, NULL, NULL, &rev));
@@ -1189,7 +1222,7 @@ main(int argc, char *argv[])
                 testutil_die(errno, "kill");
             printf("Check DB\n");
             fflush(stdout);
-            if (!check_db(nth, datasize, true, flags))
+            if (!check_db(nth, datasize, pid, true, flags))
                 return (EXIT_FAILURE);
             if (kill(pid, SIGCONT) != 0)
                 testutil_die(errno, "kill");
@@ -1204,7 +1237,7 @@ main(int argc, char *argv[])
         if (waitpid(pid, &status, 0) == -1)
             testutil_die(errno, "waitpid");
     }
-    if (verify_only && !check_db(nth, datasize, false, flags)) {
+    if (verify_only && !check_db(nth, datasize, 0, false, flags)) {
         printf("FAIL\n");
         return (EXIT_FAILURE);
     }
