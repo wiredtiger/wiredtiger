@@ -919,7 +919,9 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
     }
 
     /*
-     * We also need to record the oldest timestamp in the metadata so we can set it on startup. We should set the oldest timestamp as the minimum of current oldest timestam and the checkpoint timestamp.
+     * We also need to record the oldest timestamp in the metadata so we can set it on startup. We
+     * should set the oldest timestamp as the minimum of current oldest timestamp and the checkpoint
+     * timestamp.
      */
     __wt_timestamp_to_hex_string(WT_MIN(S2C(session)->txn_global.oldest_timestamp,
                                    S2C(session)->txn_global.meta_ckpt_timestamp),
