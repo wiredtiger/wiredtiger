@@ -171,7 +171,6 @@ struct __wt_txn_global {
     volatile uint32_t checkpoint_id;            /* Checkpoint's session ID */
     WT_TXN_SHARED checkpoint_txn_shared;        /* Checkpoint's txn shared state */
     wt_timestamp_t checkpoint_timestamp;        /* Checkpoint's timestamp */
-    wt_timestamp_t checkpoint_oldest_timestamp; /* The oldest timestamp at the time of checkpoint */
 
     volatile uint64_t debug_ops;       /* Debug mode op counter */
     uint64_t debug_rollback;           /* Debug mode rollback */

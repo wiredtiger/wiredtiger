@@ -918,9 +918,12 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
         WT_ERR(__wt_metadata_update(session, WT_SYSTEM_CKPT_URI, buf->data));
     }
 
-    /* We also need to record the oldest timestamp in the metadata so we can set it on startup. */
-    __wt_timestamp_to_hex_string(
-      S2C(session)->txn_global.checkpoint_oldest_timestamp, hex_timestamp);
+    /*
+     * We also need to record the oldest timestamp in the metadata so we can set it on startup. We should set the oldest timestamp as the minimum of current oldest timestam and the checkpoint timestamp.
+     */
+    __wt_timestamp_to_hex_string(WT_MIN(S2C(session)->txn_global.oldest_timestamp,
+                                   S2C(session)->txn_global.meta_ckpt_timestamp),
+      hex_timestamp);
     if (strcmp(hex_timestamp, "0") == 0)
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, WT_SYSTEM_OLDEST_URI), false);
     else {
