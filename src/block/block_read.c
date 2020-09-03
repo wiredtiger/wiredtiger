@@ -211,8 +211,12 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
   uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
+    WT_BLKCACHE_ID id;
     WT_DECL_RET;
+    uint64_t hash, time_start, time_stop;
     size_t bufsize;
+
+    time_start = time_stop = 0;
 
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32,
       (uintmax_t)offset, size, checksum);
@@ -245,12 +249,58 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
 
     WT_RET(__wt_buf_init(session, buf, bufsize));
 
+#if 0
     /* Ask the cache to give us the block. If it doesn't have it, read it. */
     if (block->fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA ||
 	__wt_blkcache_get_or_check(session, block->fh, offset, size, buf->mem) != 0) {
         WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 	WT_TRET_ERROR_OK(__wt_blkcache_put(session, block->fh, offset, size, buf->mem, false), -1);
     }
+#else
+    if (block->fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
+	WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+    else {
+	/* Read the block from the file system and cache. Log the latency.
+	 * This is done for learning which blocks are worth caching.
+	 */
+	id.fh = block->fh;
+	id.offset = offset;
+	id.size = size;
+	hash = __wt_hash_city64(&id, sizeof(id));
+
+	/* Read from the file system */
+	time_start = __wt_clock(session);
+	WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+	time_stop = __wt_clock(session);
+	__wt_verbose(session, WT_VERB_BLKCACHE, "block cache file system read latency: "
+		     "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64 ", "
+		     "latency=%" PRIu64 " ns.",
+		     (uintmax_t)offset, (uint32_t)size, hash,
+		     WT_CLOCKDIFF_NS(time_stop, time_start));
+
+	/* Read from the cache */
+	time_start = __wt_clock(session);
+	ret =  __wt_blkcache_get_or_check(session, block->fh, offset, size, buf->mem);
+	time_stop = __wt_clock(session);
+
+	if (ret == 0) { /* Block found */
+	    __wt_verbose(session, WT_VERB_BLKCACHE, "block cache memory read latency: "
+			 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64 ", "
+			 "latency=%" PRIu64 " ns.",
+			 (uintmax_t)offset, (uint32_t)size, hash,
+			 WT_CLOCKDIFF_NS(time_stop, time_start));
+	}
+	else { /* Block not found */
+	    __wt_verbose(session, WT_VERB_BLKCACHE, "block cache notfound check latency: "
+			 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64 ", "
+			 "latency=%" PRIu64 " ns.",
+			 (uintmax_t)offset, (uint32_t)size, hash,
+			 WT_CLOCKDIFF_NS(time_stop, time_start));
+	    WT_TRET_ERROR_OK(__wt_blkcache_put(session, block->fh, offset, size,
+					       buf->mem, false), -1);
+	}
+    }
+#endif
     buf->size = size;
 
     /*
