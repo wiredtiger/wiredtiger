@@ -153,8 +153,8 @@ static const char *const uri_rev = "table:rev";
  * that has schema operations happens again at id 200, assuming frequency
  * set to 100. So it is a good test of schema operations 'in flight'.
  */
-/*#define SCHEMA_OP_FREQUENCY 100*/
-#define SCHEMA_OP_FREQUENCY 20
+#define SCHEMA_FREQUENCY_DEFAULT 100
+static uint64_t schema_frequency;
 
 #define TEST_STREQ(expect, got, message)                                 \
     do {                                                                 \
@@ -204,6 +204,8 @@ usage(void)
     fprintf(stderr, "usage: %s [options]\n", progname);
     fprintf(stderr, "options:\n");
     fprintf(stderr, "  %-20s%s\n", "-d data_size", "approximate size of keys and values [1000]");
+    fprintf(stderr, "  %-20s%s\n", "-f schema frequency",
+      "restart schema sequence every frequency period [100]");
     fprintf(stderr, "  %-20s%s\n", "-h home", "WiredTiger home directory [WT_TEST.directio]");
     fprintf(
       stderr, "  %-20s%s\n", "-i interval", "interval timeout between copy/recover cycles [3]");
@@ -244,7 +246,7 @@ usage(void)
 static bool
 has_schema_operation(uint64_t id, uint32_t offset)
 {
-    return (id >= offset && (id - offset) % SCHEMA_OP_FREQUENCY < 10);
+    return (id >= offset && (id - offset) % schema_frequency < 10);
 }
 
 /*
@@ -596,7 +598,8 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
     testutil_check(wiredtiger_open(".", NULL, envconf, &conn));
 
     datasize += 1; /* Add an extra byte for string termination */
-    printf("Create %" PRIu32 " writer threads\n", nth);
+    printf(
+      "Create %" PRIu32 " writer threads. Schema frequency %" PRIu64 "\n", nth, schema_frequency);
     for (i = 0; i < nth; ++i) {
         td[i].conn = conn;
         td[i].data = dcalloc(datasize, 1);
@@ -1058,6 +1061,7 @@ main(int argc, char *argv[])
     working_dir = "WT_TEST.random-directio";
     method = "none";
     pid = 0;
+    schema_frequency = SCHEMA_FREQUENCY_DEFAULT;
     memset(args, 0, sizeof(args));
 
     if (!has_direct_io()) {
@@ -1071,7 +1075,7 @@ main(int argc, char *argv[])
           __wt_snprintf_len_set(p, sizeof(args) - (size_t)(p - args), &size, " %s", argv[i]));
         p += size;
     }
-    while ((ch = __wt_getopt(progname, argc, argv, "d:h:i:m:n:pS:T:t:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "d:f:h:i:m:n:pS:T:t:v")) != EOF)
         switch (ch) {
         case 'd':
             datasize = (uint32_t)atoi(__wt_optarg);
@@ -1079,6 +1083,9 @@ main(int argc, char *argv[])
                 fprintf(stderr, "-d value is larger than maximum %" PRId32 "\n", LARGE_WRITE_SIZE);
                 return (EXIT_FAILURE);
             }
+            break;
+        case 'f':
+            schema_frequency = (uint64_t)atoi(__wt_optarg);
             break;
         case 'h':
             working_dir = __wt_optarg;
