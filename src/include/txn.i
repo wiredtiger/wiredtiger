@@ -508,13 +508,6 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
     if (!include_checkpoint_txn)
         return;
 
-    /*
-     * The read of the timestamp pinned by a checkpoint needs to be carefully ordered: if a
-     * checkpoint is starting and we have to use the checkpoint timestamp, we take the minimum of it
-     * with the oldest timestamp, which is what we want.
-     */
-    WT_READ_BARRIER();
-
     checkpoint_ts = txn_global->checkpoint_timestamp;
 
     if (checkpoint_ts != 0 && checkpoint_ts < pinned_ts)
