@@ -370,4 +370,5 @@ struct __wt_txn_saved_state {
     uint64_t snap_min, snap_max;
     uint64_t *snapshot;
     uint32_t snapshot_count;
+    u_int mod_count;
 };
