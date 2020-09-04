@@ -92,7 +92,7 @@ __wt_blkcache_get_or_check(
     id.size = size;
     hash = __wt_hash_city64(&id, sizeof(id));
 
-    bucket = hash % conn->hash_size;
+    bucket = hash % blkcache->hash_size;
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
         if ((ret = memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) == 0) {
@@ -156,7 +156,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t s
     id.size = size;
     hash = __wt_hash_city64(&id, sizeof(id));
 
-    bucket = hash % conn->hash_size;
+    bucket = hash % blkcache->hash_size;
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
         if ((ret = memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) == 0)
@@ -224,7 +224,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_
     id.size = size;
     hash = __wt_hash_city64(&id, sizeof(id));
 
-    bucket = hash % conn->hash_size;
+    bucket = hash % blkcache->hash_size;
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
         if ((ret = memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) == 0) {
@@ -250,7 +250,8 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_
  *     Initialize the block cache.
  */
 static int
-__wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, int type, char *nvram_device_path)
+__wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, size_t hash_size,
+		   int type, char *nvram_device_path)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -259,6 +260,7 @@ __wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, int type, char *nvram_
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
+    blkcache->hash_size = hash_size;
 
     if (type == BLKCACHE_NVRAM) {
 #ifdef HAVE_LIBMEMKIND
@@ -274,10 +276,10 @@ __wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, int type, char *nvram_
 #endif
     }
 
-    WT_RET(__wt_calloc_def(session, conn->hash_size, &blkcache->hash));
-    WT_RET(__wt_calloc_def(session, conn->hash_size, &blkcache->hash_locks));
+    WT_RET(__wt_calloc_def(session, blkcache->hash_size, &blkcache->hash));
+    WT_RET(__wt_calloc_def(session, blkcache->hash_size, &blkcache->hash_locks));
 
-    for (i = 0; i < conn->hash_size; i++) {
+    for (i = 0; i < blkcache->hash_size; i++) {
         TAILQ_INIT(&blkcache->hash[i]); /* Block cache hash lists */
         WT_RET(__wt_spin_init(session, &blkcache->hash_locks[i], "block cache bucket locks"));
     }
@@ -315,7 +317,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     if (blkcache->bytes_used == 0)
         goto done;
 
-    for (i = 0; i < conn->hash_size; i++) {
+    for (i = 0; i < blkcache->hash_size; i++) {
         __wt_spin_lock(session, &blkcache->hash_locks[i]);
         while (!TAILQ_EMPTY(&blkcache->hash[i])) {
             blkcache_item = TAILQ_FIRST(&blkcache->hash[i]);
@@ -358,10 +360,12 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 
     char *nvram_device_path = NULL;
     int cache_type = BLKCACHE_UNCONFIGURED;
-    size_t cache_size = 0;
+    size_t cache_size, hash_size;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
+    cache_size = 0;
+    hash_size = BLKCACHE_HASHSIZE_DEFAULT;
 
     if (reconfig)
         __wt_block_cache_destroy(session);
@@ -376,6 +380,12 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_RET(__wt_config_gets(session, cfg, "block_cache.size", &cval));
     if ((cache_size = (uint64_t)cval.val) <= 0)
         WT_RET_MSG(session, EINVAL, "block cache size must be greater than zero");
+
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.hashsize", &cval));
+    if ((hash_size = (uint64_t)cval.val) < BLKCACHE_HASHSIZE_MIN ||
+	hash_size > BLKCACHE_HASHSIZE_MAX)
+        WT_RET_MSG(session, EINVAL, "block cache hash size must be between %d and %d entries",
+		   BLKCACHE_HASHSIZE_MIN, BLKCACHE_HASHSIZE_MAX);
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.type", &cval));
     if (WT_STRING_MATCH("dram", cval.str, cval.len) || WT_STRING_MATCH("DRAM", cval.str, cval.len))
@@ -392,5 +402,5 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     } else
         WT_RET_MSG(session, EINVAL, "Invalid block cache type.");
 
-    return __wt_blkcache_init(session, cache_size, cache_type, nvram_device_path);
+    return __wt_blkcache_init(session, cache_size, hash_size, cache_type, nvram_device_path);
 }

@@ -15,6 +15,10 @@
 #include <memkind.h>
 #endif /* HAVE_LIBMEMKIND */
 
+#define BLKCACHE_HASHSIZE_DEFAULT 32768
+#define BLKCACHE_HASHSIZE_MIN 512
+#define BLKCACHE_HASHSIZE_MAX 1024*1024*1024
+
 /*
  * WT_BLKCACHE_ID --
  *     File handle, offset and size uniquely identify a block.
@@ -47,6 +51,7 @@ struct __wt_blkcache {
     WT_SPINLOCK * hash_locks;
 
     size_t bytes_used;
+    size_t hash_size;
     size_t num_data_blocks;
     size_t max_bytes;
 

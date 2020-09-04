@@ -451,6 +451,9 @@ connection_runtime_config = [
                Config('size', '0', r'''
                    maximum memory to allocate for the block cache.''',
                    min='0', max='6GB'),
+               Config('hashsize', '0', r'''
+                   size of the hashtable that keeps track of blocks.''',
+                   min='512', max='1073741824'),
                Config('type', '', r'''
                    cache location: DRAM or NVRAM.'''),
                Config('path', '', r'''

@@ -211,12 +211,16 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
   uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
-    WT_BLKCACHE_ID id;
     WT_DECL_RET;
-    uint64_t hash, time_start, time_stop;
     size_t bufsize;
 
+#define BLKCACHE_TRACE 0
+#if BLKCACHE_TRACE == 1
+    WT_BLKCACHE_ID id;
+    uint64_t hash, time_start, time_stop;
+
     time_start = time_stop = 0;
+#endif
 
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32,
       (uintmax_t)offset, size, checksum);
@@ -249,7 +253,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
 
     WT_RET(__wt_buf_init(session, buf, bufsize));
 
-#if 0
+#if BLKCACHE_TRACE == 0
     /* Ask the cache to give us the block. If it doesn't have it, read it. */
     if (block->fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA ||
 	__wt_blkcache_get_or_check(session, block->fh, offset, size, buf->mem) != 0) {
