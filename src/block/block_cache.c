@@ -364,8 +364,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
-    cache_size = 0;
-    hash_size = BLKCACHE_HASHSIZE_DEFAULT;
+    cache_size = hash_size = 0;
 
     if (reconfig)
         __wt_block_cache_destroy(session);
@@ -382,8 +381,9 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
         WT_RET_MSG(session, EINVAL, "block cache size must be greater than zero");
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.hashsize", &cval));
-    if ((hash_size = (uint64_t)cval.val) < BLKCACHE_HASHSIZE_MIN ||
-	hash_size > BLKCACHE_HASHSIZE_MAX)
+    if ((hash_size = (uint64_t)cval.val) == 0)
+	hash_size = BLKCACHE_HASHSIZE_DEFAULT;
+    else if (hash_size < BLKCACHE_HASHSIZE_MIN || hash_size > BLKCACHE_HASHSIZE_MAX)
         WT_RET_MSG(session, EINVAL, "block cache hash size must be between %d and %d entries",
 		   BLKCACHE_HASHSIZE_MIN, BLKCACHE_HASHSIZE_MAX);
 
