@@ -225,6 +225,20 @@ fclose_and_clear(FILE **fpp)
 }
 
 /*
+ * timestamp_parse --
+ *     Parse a timestamp to an integral value.
+ */
+static void
+timestamp_parse(const char *p, uint64_t *tsp)
+{
+    char *endptr;
+
+    errno = 0;
+    *tsp = __wt_strtouq(p, &endptr, 16);
+    testutil_assert(errno == 0 && endptr[0] == '\0');
+}
+
+/*
  * timestamp_stable --
  *     Set the stable timestamp on open.
  */
@@ -237,7 +251,7 @@ timestamp_init(void)
     conn = g.wts_conn;
 
     testutil_check(conn->query_timestamp(conn, timestamp_buf, "get=recovery"));
-    testutil_timestamp_parse(timestamp_buf, &g.timestamp);
+    timestamp_parse(timestamp_buf, &g.timestamp);
 }
 
 /*
@@ -260,7 +274,7 @@ timestamp_once(bool allow_lag, bool final)
         g.oldest_timestamp = g.stable_timestamp = ++g.timestamp;
     else {
         if ((ret = conn->query_timestamp(conn, buf, "get=all_durable")) == 0)
-            testutil_timestamp_parse(buf, &all_durable);
+            timestamp_parse(buf, &all_durable);
         else {
             testutil_assert(ret == WT_NOTFOUND);
             return;
@@ -346,7 +360,7 @@ set_oldest_timestamp(void)
     conn = g.wts_conn;
 
     if ((ret = conn->query_timestamp(conn, tsbuf, "get=oldest")) == 0) {
-        testutil_timestamp_parse(tsbuf, &oldest_ts);
+        timestamp_parse(tsbuf, &oldest_ts);
         g.timestamp = oldest_ts;
         testutil_check(
           __wt_snprintf(buf, sizeof(buf), "%s%" PRIx64, oldest_timestamp_str, g.oldest_timestamp));
