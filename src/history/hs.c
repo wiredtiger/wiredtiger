@@ -1816,7 +1816,6 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
     uint32_t btree_id;
     int exact;
     char *uri_data;
-    const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
     hs_cursor = session->hs_cursor;
     btree_id = S2BT(session)->id;
@@ -1843,7 +1842,7 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
     }
 
     /* If we positioned the cursor there is something to verify. */
-    WT_ERR(__wt_open_cursor(session, uri_data, NULL, open_cursor_cfg, &ds_cursor));
+    WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &ds_cursor));
     F_SET(ds_cursor, WT_CURSOR_RAW_OK);
     ret = __verify_history_store_id(session, ds_cursor, btree_id);
     WT_TRET(ds_cursor->close(ds_cursor));
