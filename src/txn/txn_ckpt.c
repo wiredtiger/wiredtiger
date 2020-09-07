@@ -1412,6 +1412,7 @@ __checkpoint_lock_dirty_tree(
                 continue;
             if (ret == EBUSY && WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
                 F_CLR(ckpt, WT_CKPT_DELETE);
+                ret = 0;
                 continue;
             }
             WT_ERR_MSG(session, ret, "checkpoints cannot be dropped when in-use");
