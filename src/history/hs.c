@@ -1721,10 +1721,9 @@ err:
  *     store.
  */
 static int
-__verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR *ds_cursor, uint32_t this_btree_id)
+__verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *ds_cbt, uint32_t this_btree_id)
 {
     WT_CURSOR *hs_cursor;
-    WT_CURSOR_BTREE *ds_cbt;
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_ITEM(prev_key);
     WT_DECL_RET;
@@ -1736,7 +1735,6 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR *ds_cursor, uint32
 
     hs_cursor = session->hs_cursor;
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
-    ds_cbt = (WT_CURSOR_BTREE *)ds_cursor;
     WT_CLEAR(key);
 
     WT_ERR(__wt_scr_alloc(session, 0, &prev_key));
@@ -1810,12 +1808,12 @@ err:
 int
 __wt_history_store_verify_one(WT_SESSION_IMPL *session)
 {
-    WT_CURSOR *ds_cursor, *hs_cursor;
+    WT_CURSOR *hs_cursor;
+    WT_CURSOR_BTREE ds_cbt;
     WT_DECL_RET;
     WT_ITEM hs_key;
     uint32_t btree_id;
     int exact;
-    char *uri_data;
 
     hs_cursor = session->hs_cursor;
     btree_id = S2BT(session)->id;
@@ -1830,27 +1828,20 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
     if (ret == 0 && exact < 0)
         ret = __wt_hs_cursor_next(session, hs_cursor);
 
-    if (ret == WT_NOTFOUND)
-        return (0);
-
-    WT_RET(ret);
-
-    if ((ret = __wt_metadata_btree_id_to_uri(session, btree_id, &uri_data)) != 0) {
-        F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-        WT_ERR_PANIC(
-          session, WT_PANIC, "Unable to find btree id %" PRIu32 " in the metadata file", btree_id);
+    /*
+     * If we positioned the cursor there is something to verify.
+     *
+     * We are in verify and we are not able to open a standard cursor because the btree is flagged
+     * as WT_BTREE_VERIFY. However, we have exclusive access to the btree so we can directly open
+     * the btree cursor to work around it.
+     */
+    if (ret == 0) {
+        __wt_btcur_init(session, &ds_cbt);
+        __wt_btcur_open(&ds_cbt);
+        ret = __verify_history_store_id(session, &ds_cbt, btree_id);
+        WT_TRET(__wt_btcur_close(&ds_cbt, false));
     }
-
-    /* If we positioned the cursor there is something to verify. */
-    WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &ds_cursor));
-    F_SET(ds_cursor, WT_CURSOR_RAW_OK);
-    ret = __verify_history_store_id(session, ds_cursor, btree_id);
-    WT_TRET(ds_cursor->close(ds_cursor));
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-err:
-    __wt_free(session, uri_data);
-    return (ret);
+    return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
 /*
@@ -1904,7 +1895,7 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
         }
         WT_ERR(__wt_open_cursor(session, uri_data, NULL, NULL, &ds_cursor));
         F_SET(ds_cursor, WT_CURSOR_RAW_OK);
-        ret = __verify_history_store_id(session, ds_cursor, btree_id);
+        ret = __verify_history_store_id(session, (WT_CURSOR_BTREE *)ds_cursor, btree_id);
         if (ret == WT_NOTFOUND)
             stop = true;
         WT_TRET(ds_cursor->close(ds_cursor));
