@@ -33,13 +33,12 @@ def timestamp_str(t):
 
 # test_truncate05.py
 # Test various fast truncate visibility scenarios
-class test_truncate06(wttest.WiredTigerTestCase):
+class test_truncate05(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB'
     session_config = 'isolation=snapshot'
 
-    def test_truncate06(self):
-        uri = 'table:test_hs15'
-        junk_uri = 'table:junk'
+    def test_truncate_read_older_than_newest(self):
+        uri = 'table:test_truncate05'
         self.session.create(uri, 'key_format=i,value_format=S')
         cursor = self.session.open_cursor(uri)
 
