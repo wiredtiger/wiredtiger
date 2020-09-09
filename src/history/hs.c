@@ -1740,6 +1740,14 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *ds_cbt, uin
     WT_ERR(__wt_scr_alloc(session, 0, &prev_key));
 
     /*
+     * If using standard cursors, we need to skip the non-globally visible tombstones in the data
+     * table to verify the corresponding entries in the history store are too present in the data
+     * store. Though this is not required currently as we are directly searching btree cursors,
+     * leave it here in case we switch to standard cursors.
+     */
+    F_SET(&ds_cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
+
+    /*
      * The caller is responsible for positioning the history store cursor at the first record to
      * verify. When we return after moving to a new key the caller is responsible for keeping the
      * cursor there or deciding they're done.
@@ -1795,6 +1803,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *ds_cbt, uin
     }
     WT_ERR_NOTFOUND_OK(ret, true);
 err:
+    F_CLR(&ds_cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
     WT_ASSERT(session, key.mem == NULL && key.memsize == 0);
     __wt_scr_free(session, &prev_key);
     return (ret);
