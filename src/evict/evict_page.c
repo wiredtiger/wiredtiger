@@ -707,9 +707,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
 
-    if (snapshot_acquired) {
+    if (snapshot_acquired)
         __wt_txn_release_snapshot(session);
-    }
 
     WT_RET(ret);
 
