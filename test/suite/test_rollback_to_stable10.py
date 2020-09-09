@@ -278,7 +278,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
 
         # Here's the update operations we'll perform, encapsulated so we can easily retry
         # it if we get a rollback. Rollbacks may occur when checkpoint is running.
-        def range_updates(cursor, ds, value, session, nrows, prepare_config):
+        def range_updates(session, cursor, ds, value, nrows, prepare_config):
             self.pr("updates")
             for i in range(1, nrows):
                 key = ds.key(i)
@@ -300,7 +300,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
             cursor_p1 = session_p1.open_cursor(uri_1)
             session_p1.begin_transaction('isolation=snapshot')
             retry_rollback(self, 'update ds1', session_p1,
-                           lambda: range_updates(cursor_p1, ds_1, value_e, session_p1, nrows,
+                           lambda: range_updates(session_p1, cursor_p1, ds_1, value_e, nrows,
                                                  'prepare_timestamp=' + timestamp_str(69)))
 
             # Perform several updates in parallel with checkpoint.
@@ -308,7 +308,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
             cursor_p2 = session_p2.open_cursor(uri_2)
             session_p2.begin_transaction('isolation=snapshot')
             retry_rollback(self, 'update ds2', session_p2,
-                           lambda: range_updates(cursor_p2, ds_2, value_e, session_p2, nrows,
+                           lambda: range_updates(session_p2, cursor_p2, ds_2, value_e, nrows,
                                                  'prepare_timestamp=' + timestamp_str(69)))
         finally:
             done.set()
