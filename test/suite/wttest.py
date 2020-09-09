@@ -227,6 +227,7 @@ class WiredTigerTestCase(unittest.TestCase):
         if hasattr(self, 'scenarios'):
             assert(len(self.scenarios) == len(dict(self.scenarios)))
         unittest.TestCase.__init__(self, *args, **kwargs)
+        self.skipped = False
         if not self._globalSetup:
             WiredTigerTestCase.globalSetup()
 
@@ -283,6 +284,7 @@ class WiredTigerTestCase(unittest.TestCase):
             filenames = glob.glob(pat)
             if len(filenames) == 0:
                 if skipIfMissing:
+                    self.skipped = True
                     self.skipTest('extension "' + ext + '" not built')
                     continue
                 else:
@@ -457,9 +459,10 @@ class WiredTigerTestCase(unittest.TestCase):
             for f in files:
                 os.chmod(os.path.join(root, f), 0o666)
         self.pr('passed=' + str(passed))
+        self.pr('skipped=' + str(self.skipped))
 
         # Clean up unless there's a failure
-        if passed and not WiredTigerTestCase._preserveFiles:
+        if passed and not WiredTigerTestCase._preserveFiles or self.skipped:
             shutil.rmtree(self.testdir, ignore_errors=True)
         else:
             self.pr('preserving directory ' + self.testdir)
@@ -467,7 +470,7 @@ class WiredTigerTestCase(unittest.TestCase):
         elapsed = time.time() - self.starttime
         if elapsed > 0.001 and WiredTigerTestCase._verbose >= 2:
             print("%s: %.2f seconds" % (str(self), elapsed))
-        if not passed:
+        if not passed and not self.skipped:
             print("ERROR in " + str(self))
             self.pr('FAIL')
             self.pr('preserving directory ' + self.testdir)
