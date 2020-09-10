@@ -184,6 +184,11 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
           __wt_open_internal_session(conn, group->name, false, session_flags, &thread->session));
         if (LF_ISSET(WT_THREAD_PANIC_FAIL))
             F_SET(thread, WT_THREAD_PANIC_FAIL);
+        /* If asked, set the default isolation level to ISO_READ_COMMITTED.*/
+        if (LF_ISSET(WT_THREAD_ISOLATION_READ_COMMITTED)) {
+            wt_session = (WT_SESSION *)thread->session;
+            WT_ERR(wt_session->reconfigure(wt_session, "isolation=read-committed"));
+        }
         thread->id = i;
         thread->chk_func = group->chk_func;
         thread->run_func = group->run_func;
