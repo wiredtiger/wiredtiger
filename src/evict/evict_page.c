@@ -676,10 +676,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     }
 
     /* Acquire a snapshot if coming through eviction thread route. */
-    if (F_ISSET(session, WT_SESSION_INTERNAL) && !WT_SESSION_BTREE_SYNC(session) &&
-      !F_ISSET(conn,
-        WT_CONN_CLOSING | WT_CONN_RECOVERING | WT_CONN_IN_MEMORY | WT_CONN_CLOSING_TIMESTAMP) &&
-      !WT_IS_HS(S2BT(session)) && !F_ISSET(session->txn, WT_TXN_RUNNING | WT_TXN_HAS_SNAPSHOT)) {
+    if (FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD) && !WT_IS_HS(S2BT(session))) {
         /*
          * Eviction threads do not need to pin anything in the cache. We have a exclusive lock for
          * the page being evicted so we are sure that the page will always be there while it is
