@@ -930,6 +930,8 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
      * Cache the oldest timestamp to prevent us from reading two different values.
      */
     oldest_timestamp = txn_global->oldest_timestamp;
+    /* Add a read barrier to prevent the oldest_timestamp from being optimized away. */
+    WT_READ_BARRIER();
     __wt_timestamp_to_hex_string(
       WT_MIN(oldest_timestamp, txn_global->meta_ckpt_timestamp), hex_timestamp);
     if (strcmp(hex_timestamp, "0") == 0)
