@@ -42,10 +42,7 @@ __hs_start_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sess
 static int
 __hs_release_internal_session(WT_SESSION_IMPL *int_session)
 {
-    WT_SESSION *wt_session;
-
-    wt_session = &int_session->iface;
-    return (wt_session->close(wt_session, NULL));
+    return (__wt_session_close_internal(int_session));
 }
 
 /*
@@ -89,14 +86,6 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     if (cval.val != 0 && cval.val < WT_HS_FILE_MIN)
         WT_ERR_MSG(session, EINVAL, "max history store size %" PRId64 " below minimum %d", cval.val,
           WT_HS_FILE_MIN);
-
-    /* TODO: WT-5585 Remove after we switch to using history_store config in MongoDB. */
-    if (cval.val == 0) {
-        WT_ERR(__wt_config_gets(session, cfg, "cache_overflow.file_max", &cval));
-        if (cval.val != 0 && cval.val < WT_HS_FILE_MIN)
-            WT_ERR_MSG(session, EINVAL, "max history store size %" PRId64 " below minimum %d",
-              cval.val, WT_HS_FILE_MIN);
-    }
 
     /* in-memory or readonly configurations do not have a history store. */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
