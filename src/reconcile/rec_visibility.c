@@ -282,16 +282,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             max_txn = txnid;
 
         /*
-         * If this is an application thread in eviction code and we see an update that belongs to
-         * the current transaction, break early.
-         */
-        if (!F_ISSET(session, WT_SESSION_INTERNAL) && txnid == session->txn->id && !is_hs_page &&
-          !F_ISSET(upd, WT_UPDATE_DS)) {
-            has_newer_updates = true;
-            break;
-        }
-
-        /*
          * Check whether the update was committed before reconciliation started. The global commit
          * point can move forward during reconciliation so we use a cached copy to avoid races when
          * a concurrent transaction commits or rolls back while we are examining its updates. This

@@ -689,8 +689,9 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      */
     if (!F_ISSET(session,
           WT_SESSION_INTERNAL | WT_SESSION_ROLLBACK_TO_STABLE | WT_SESSION_RESOLVING_TXN) &&
-      !WT_IS_HS(S2BT(session)) && F_ISSET(txn, WT_TXN_RUNNING | WT_TXN_HAS_SNAPSHOT) &&
-      txn->isolation == WT_ISO_SNAPSHOT && txn->id != WT_TXN_NONE) {
+      !WT_IS_HS(S2BT(session)) && !WT_IS_METADATA(session->dhandle) &&
+      F_ISSET(txn, WT_TXN_RUNNING | WT_TXN_HAS_SNAPSHOT) && txn->isolation == WT_ISO_SNAPSHOT &&
+      txn->id != WT_TXN_NONE) {
         WT_RET(__wt_txn_save_and_update_snapshot(session, &old_state, &restore_snapshot));
         /* Clearing this flag means reconcile logic will use a more detailed snapshot visibility
          * checks rather than using last_running transaction for global visibility checks.

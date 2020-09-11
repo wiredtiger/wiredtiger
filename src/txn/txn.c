@@ -287,13 +287,14 @@ __wt_txn_save_and_update_snapshot(
     *snapshot_updated = false;
 
     WT_ASSERT(session, txn->id != WT_TXN_NONE);
-    WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
     /* Allocate a buffer to save new snapshot array. */
     WT_RET(__wt_calloc(
       session, 1, sizeof(txn->snapshot[0]) * S2C(session)->session_size, &snapshot_buffer));
 
     old_state->id = txn->id;
+    old_state->flags = txn->flags;
+    old_state->isolation = txn->isolation;
     old_state->snap_min = txn->snap_min;
     old_state->snap_max = txn->snap_max;
     old_state->snapshot = txn->snapshot;
@@ -301,6 +302,10 @@ __wt_txn_save_and_update_snapshot(
     old_state->mod_count = txn->mod_count;
     txn->snapshot = snapshot_buffer;
     __wt_txn_bump_snapshot(session);
+    txn->id = WT_TXN_NONE;
+    txn->flags = WT_TXN_HAS_SNAPSHOT;
+    txn->isolation = WT_ISO_READ_COMMITTED;
+    ++txn->forced_iso;
     *snapshot_updated = true;
     return (0);
 }
@@ -315,14 +320,17 @@ __wt_txn_restore_snapshot(WT_SESSION_IMPL *session, WT_TXN_SAVED_STATE *old_stat
     WT_TXN *txn;
 
     txn = session->txn;
-    WT_ASSERT(session, txn->id == old_state->id);
     WT_ASSERT(session, txn->snapshot != NULL);
     WT_ASSERT(session, txn->mod_count == old_state->mod_count);
     __wt_free(session, txn->snapshot);
+    txn->id = old_state->id;
+    txn->flags = old_state->flags;
+    txn->isolation = old_state->isolation;
     txn->snapshot = old_state->snapshot;
     txn->snap_min = old_state->snap_min;
     txn->snap_max = old_state->snap_max;
     txn->snapshot_count = old_state->snapshot_count;
+    --txn->forced_iso;
 }
 
 /*
