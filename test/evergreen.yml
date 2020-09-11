@@ -1953,25 +1953,25 @@ tasks:
       - func: "format test"
         vars:
           extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row compression=zlib huffman_key=1 huffman_value=1
-      # Temporarily disable lower isolation level test
+      # FIXME-WT-6668: temporarily disable lower isolation level test
       # - func: "format test"
       #   vars:
       #     extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row isolation=random transaction_timestamps=0
       - func: "format test"
         vars:
           extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row data_source=lsm bloom=1
-      # Temporarily disable column store test
+      # FIXME-WT-6669: temporarily disable column store test
       # - func: "format test"
       #   vars:
       #     extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=var compression=snappy checksum=uncompressed dictionary=1 repeat_data_pct=10
       - func: "format test"
         vars:
           extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row compression=lz4 prefix_compression=1 leaf_page_max=9 internal_page_max=9 key_min=256 value_min=256
-      # Temporarily disable column store test
+      # FIXME-WT-6669: temporarily disable column store test
       # - func: "format test"
       #   vars:
       #     extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=var leaf_page_max=9 internal_page_max=9 value_min=256
-      # Temporarily disable column store test
+      # FIXME-WT-6669: temporarily disable column store test
       # - func: "format test"
       #   vars:
       #     extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=fix
