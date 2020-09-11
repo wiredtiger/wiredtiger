@@ -556,6 +556,7 @@ tasks:
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "make check all"
         vars:
+          smp_command: -j 1
           test_env_vars: MSAN_OPTIONS=abort_on_error=1:disable_coredump=0 MSAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer TESTUTIL_SLOW_MACHINE=1
 
   - name: make-check-asan-test
@@ -571,6 +572,7 @@ tasks:
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "make check all"
         vars:
+          smp_command: -j 1
           test_env_vars: ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer TESTUTIL_SLOW_MACHINE=1
 
   - name: make-check-linux-no-ftruncate-test
@@ -1360,6 +1362,21 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt4333_handle_locks 2>&1
 
+  - name: csuite-wt6616-checkpoint-oldest-ts-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt6616_checkpoint_oldest_ts 2>&1
+
   # End of csuite test tasks
 
   # Start of Python unit test tasks
@@ -1912,15 +1929,17 @@ tasks:
         vars:
           # Don't use diagnostic - this test looks for timing problems that are more likely to occur without it
           posix_configure_flags: --enable-strict
-      - func: "checkpoint test"
-        vars:
-          checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
+      # Temporarily disable mix and column file type
+      # FIXME after WT-6608
+      #- func: "checkpoint test"
+      #  vars:
+      #    checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
+      #- func: "checkpoint test"
+      #  vars:
+      #    checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
       - func: "checkpoint test"
         vars:
           checkpoint_args: -t r -n 1000000 -k 5000000 -C cache_size=100MB
-      - func: "checkpoint test"
-        vars:
-          checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
 
   - name: coverage-report
     commands:

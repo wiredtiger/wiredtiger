@@ -72,8 +72,13 @@ __ckpt_load_blk_mods(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt
         blk_mod->nbits = (uint64_t)b.val;
         WT_RET(__wt_config_subgets(session, &v, "offset", &b));
         blk_mod->offset = (uint64_t)b.val;
-        WT_RET(__wt_config_subgets(session, &v, "rename", &b));
-        if (b.val)
+        /*
+         * The rename configuration string component was added later. So don't error if we don't
+         * find it in the string. If we don't have it, we're not doing a rename.
+         */
+        ret = __wt_config_subgets(session, &v, "rename", &b);
+        WT_RET_NOTFOUND_OK(ret);
+        if (ret == 0 && b.val)
             F_SET(blk_mod, WT_BLOCK_MODS_RENAME);
         else
             F_CLR(blk_mod, WT_BLOCK_MODS_RENAME);
@@ -791,10 +796,10 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
     WT_BLOCK_MODS *blk;
     WT_ITEM bitstring;
     u_int i;
-    bool valid;
+    bool skip_rename, valid;
 
     WT_CLEAR(bitstring);
-    valid = false;
+    skip_rename = valid = false;
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk)
         if (F_ISSET(blk, WT_BLOCK_MODS_VALID))
             valid = true;
@@ -814,12 +819,23 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
             continue;
+
+        /*
+         * Occasionally skip including the rename string at all when it's not necessary for
+         * correctness, that lets us simulate what is generated in the config string by earlier
+         * versions of WiredTiger
+         */
+        if (FLD_ISSET(S2C(session)->timing_stress_flags, WT_TIMING_STRESS_BACKUP_RENAME) &&
+          !F_ISSET(blk, WT_BLOCK_MODS_RENAME) && __wt_random(&session->rnd) % 10 == 0)
+            skip_rename = true;
+
         WT_RET(__wt_raw_to_hex(session, blk->bitstring.data, blk->bitstring.size, &bitstring));
         WT_RET(__wt_buf_catfmt(session, buf,
           "%s\"%s\"=(id=%" PRIu32 ",granularity=%" PRIu64 ",nbits=%" PRIu64 ",offset=%" PRIu64
-          ",rename=%d,blocks=%.*s)",
+          "%s,blocks=%.*s)",
           i == 0 ? "" : ",", blk->id_str, i, blk->granularity, blk->nbits, blk->offset,
-          F_ISSET(blk, WT_BLOCK_MODS_RENAME) ? 1 : 0, (int)bitstring.size, (char *)bitstring.data));
+          skip_rename ? "" : F_ISSET(blk, WT_BLOCK_MODS_RENAME) ? ",rename=1" : ",rename=0",
+          (int)bitstring.size, (char *)bitstring.data));
         /* The hex string length should match the appropriate number of bits. */
         WT_ASSERT(session, (blk->nbits >> 2) <= bitstring.size);
         __wt_buf_free(session, &bitstring);
@@ -916,14 +932,18 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    WT_TXN_GLOBAL *txn_global;
+    wt_timestamp_t oldest_timestamp;
     char hex_timestamp[WT_TS_HEX_STRING_SIZE];
+
+    txn_global = &S2C(session)->txn_global;
 
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
     /*
      * We need to record the timestamp of the checkpoint in the metadata. The timestamp value is set
      * at a higher level, either in checkpoint or in recovery.
      */
-    __wt_timestamp_to_hex_string(S2C(session)->txn_global.meta_ckpt_timestamp, hex_timestamp);
+    __wt_timestamp_to_hex_string(txn_global->meta_ckpt_timestamp, hex_timestamp);
 
     /*
      * Don't leave a zero entry in the metadata: remove it. This avoids downgrade issues if the
@@ -937,9 +957,18 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
         WT_ERR(__wt_metadata_update(session, WT_SYSTEM_CKPT_URI, buf->data));
     }
 
-    /* We also need to record the oldest timestamp in the metadata so we can set it on startup. */
+    /*
+     * We also need to record the oldest timestamp in the metadata so we can set it on startup. We
+     * should set the checkpoint's oldest timestamp as the minimum of the current oldest timestamp
+     * and the checkpoint timestamp.
+     *
+     * Cache the oldest timestamp and use a read barrier to prevent us from reading two different
+     * values of the oldest timestamp.
+     */
+    oldest_timestamp = txn_global->oldest_timestamp;
+    WT_READ_BARRIER();
     __wt_timestamp_to_hex_string(
-      S2C(session)->txn_global.checkpoint_oldest_timestamp, hex_timestamp);
+      WT_MIN(oldest_timestamp, txn_global->meta_ckpt_timestamp), hex_timestamp);
     if (strcmp(hex_timestamp, "0") == 0)
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, WT_SYSTEM_OLDEST_URI), false);
     else {

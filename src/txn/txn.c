@@ -131,10 +131,10 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     txn_shared->metadata_pinned = txn_shared->pinned_id = WT_TXN_NONE;
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
-    /* Clear a checkpoint's pinned ID. */
+    /* Clear a checkpoint's pinned ID and timestamp. */
     if (WT_SESSION_IS_CHECKPOINT(session)) {
         txn_global->checkpoint_txn_shared.pinned_id = WT_TXN_NONE;
-        txn_global->checkpoint_timestamp = 0;
+        txn_global->checkpoint_timestamp = WT_TS_NONE;
     }
 
     __wt_txn_clear_read_timestamp(session);
@@ -455,6 +455,33 @@ done:
 }
 
 /*
+ * __txn_config_operation_timeout --
+ *     Configure a transactions operation timeout duration.
+ */
+static int
+__txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    if (cfg == NULL)
+        return (0);
+
+    /* Retrieve the maximum operation time, defaulting to the database-wide configuration. */
+    WT_RET(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
+
+    /*
+     * The default configuration value is 0, we can't tell if they're setting it back to 0 or, if
+     * the default was automatically passed in.
+     */
+    if (cval.val != 0)
+        txn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
+    return (0);
+}
+
+/*
  * __wt_txn_config --
  *     Configure a transaction.
  */
@@ -467,6 +494,9 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     txn = session->txn;
 
+    if (cfg == NULL)
+        return (0);
+
     WT_RET(__wt_config_gets_def(session, cfg, "isolation", 0, &cval));
     if (cval.len != 0)
         txn->isolation = WT_STRING_MATCH("snapshot", cval.str, cval.len) ?
@@ -474,9 +504,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
           WT_STRING_MATCH("read-committed", cval.str, cval.len) ? WT_ISO_READ_COMMITTED :
                                                                   WT_ISO_READ_UNCOMMITTED;
 
-    /* Retrieve the maximum operation time, defaulting to the database-wide configuration. */
-    WT_RET(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
-    txn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
+    WT_RET(__txn_config_operation_timeout(session, cfg));
 
     /*
      * The default sync setting is inherited from the connection, but can be overridden by an
@@ -1251,6 +1279,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
 
+    /* Configure the timeout for this commit operation. */
+    WT_ERR(__txn_config_operation_timeout(session, cfg));
+
     /*
      * Clear the prepared round up flag if the transaction is not prepared. There is no rounding up
      * to do in that case.
@@ -1647,8 +1678,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     u_int i;
     bool prepare, readonly;
 
-    WT_UNUSED(cfg);
-
     cursor = NULL;
     txn = session->txn;
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
@@ -1659,6 +1688,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     /* Rollback notification. */
     if (txn->notify != NULL)
         WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session, txn->id, 0));
+
+    /* Configure the timeout for this rollback operation. */
+    WT_RET(__txn_config_operation_timeout(session, cfg));
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
@@ -1959,12 +1991,11 @@ __wt_txn_activity_drain(WT_SESSION_IMPL *session)
  *     Shut down the global transaction state.
  */
 int
-__wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const char **cfg)
+__wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
     WT_SESSION_IMPL *s;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *ckpt_cfg;
@@ -1984,7 +2015,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
         if (conn->txn_global.has_stable_timestamp)
             F_SET(conn, WT_CONN_CLOSING_TIMESTAMP);
     }
-    if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY | WT_CONN_PANIC)) {
         /*
          * Perform rollback to stable to ensure that the stable version is written to disk on a
          * clean shutdown.
@@ -2001,7 +2032,6 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
         if (s != NULL) {
             const char *checkpoint_cfg[] = {
               WT_CONFIG_BASE(session, WT_SESSION_checkpoint), ckpt_cfg, NULL};
-            wt_session = &s->iface;
             WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
 
             /*
@@ -2009,7 +2039,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
              */
             WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s), __wt_tree_modify_set(s));
 
-            WT_TRET(wt_session->close(wt_session, config));
+            WT_TRET(__wt_session_close_internal(s));
         }
     }
 

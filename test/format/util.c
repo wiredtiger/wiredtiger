@@ -274,7 +274,7 @@ timestamp_once(bool allow_lag, bool final)
         g.oldest_timestamp = g.stable_timestamp = ++g.timestamp;
     else {
         if ((ret = conn->query_timestamp(conn, buf, "get=all_durable")) == 0)
-            timestamp_parse(buf, &all_durable);
+            testutil_timestamp_parse(buf, &all_durable);
         else {
             testutil_assert(ret == WT_NOTFOUND);
             return;
@@ -360,7 +360,7 @@ set_oldest_timestamp(void)
     conn = g.wts_conn;
 
     if ((ret = conn->query_timestamp(conn, tsbuf, "get=oldest")) == 0) {
-        timestamp_parse(tsbuf, &oldest_ts);
+        testutil_timestamp_parse(tsbuf, &oldest_ts);
         g.timestamp = oldest_ts;
         testutil_check(
           __wt_snprintf(buf, sizeof(buf), "%s%" PRIx64, oldest_timestamp_str, g.oldest_timestamp));

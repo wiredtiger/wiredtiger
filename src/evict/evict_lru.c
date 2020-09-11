@@ -1323,7 +1323,7 @@ __evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p
      * If we don't have many dhandles, most hash buckets will be empty. Just pick a random dhandle
      * from the list in that case.
      */
-    if (conn->dhandle_count < WT_HASH_ARRAY_SIZE / 4) {
+    if (conn->dhandle_count < conn->dh_hash_size / 4) {
         rnd_dh = __wt_random(&session->rnd) % conn->dhandle_count;
         dhandle = TAILQ_FIRST(&conn->dhqh);
         for (; rnd_dh > 0; rnd_dh--)
@@ -1336,7 +1336,7 @@ __evict_walk_choose_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p
      * Keep picking up a random bucket until we find one that is not empty.
      */
     do {
-        rnd_bucket = __wt_random(&session->rnd) % WT_HASH_ARRAY_SIZE;
+        rnd_bucket = __wt_random(&session->rnd) & (conn->dh_hash_size - 1);
     } while ((dh_bucket_count = conn->dh_bucket_count[rnd_bucket]) == 0);
 
     /* We can't pick up an empty bucket with a non zero bucket count. */
@@ -1921,6 +1921,17 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         /* Pages that are empty or from dead trees are fast-tracked. */
         if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
             goto fast;
+
+        /*
+         * Do not evict a clean metadata page that contains historical data needed to satisfy a
+         * reader. Since there is no history store for metadata, we won't be able to serve an older
+         * reader if we evict this page.
+         */
+        if (WT_IS_METADATA(session->dhandle) && F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD) &&
+          F_ISSET(ref, WT_REF_FLAG_LEAF) && !modified && page->modify != NULL &&
+          !__wt_txn_visible_all(
+            session, page->modify->rec_max_txn, page->modify->rec_max_timestamp))
+            continue;
 
         /* Skip pages we don't want. */
         want_page = (F_ISSET(cache, WT_CACHE_EVICT_CLEAN) && !modified) ||

@@ -82,7 +82,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     for (i = 0; i < WT_SESSION_CURSOR_SWEEP_MAX && productive; i++) {
         ++nbuckets;
         cached_list = &session->cursor_cache[position];
-        position = (position + 1) % WT_HASH_ARRAY_SIZE;
+        position = (position + 1) & (S2C(session)->hash_size - 1);
         TAILQ_FOREACH_SAFE(cursor, cached_list, q, cursor_tmp)
         {
             /*
@@ -245,9 +245,9 @@ static int
 __session_close_cached_cursors(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
-    int i;
+    uint64_t i;
 
-    for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
+    for (i = 0; i < S2C(session)->hash_size; i++)
         WT_TRET(__session_close_cursors(session, &session->cursor_cache[i]));
     return (ret);
 }
@@ -259,22 +259,39 @@ __session_close_cached_cursors(WT_SESSION_IMPL *session)
 static int
 __session_close(WT_SESSION *wt_session, const char *config)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    conn = (WT_CONNECTION_IMPL *)wt_session->connection;
     session = (WT_SESSION_IMPL *)wt_session;
 
     SESSION_API_CALL_PREPARE_ALLOWED(session, close, config, cfg);
     WT_UNUSED(cfg);
+
+    WT_TRET(__wt_session_close_internal(session));
+    session = NULL;
+
+err:
+    API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __wt_session_close_internal --
+ *     Internal function of WT_SESSION->close method.
+ */
+int
+__wt_session_close_internal(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
 
     /* Close all open cursors while the cursor cache is disabled. */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
 
     /* Rollback any active transaction. */
     if (F_ISSET(session->txn, WT_TXN_RUNNING))
-        WT_TRET(__session_rollback_transaction(wt_session, NULL));
+        WT_TRET(__session_rollback_transaction((WT_SESSION *)session, NULL));
 
     /*
      * Also release any pinned transaction ID from a non-transactional operation.
@@ -348,11 +365,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
     __wt_spin_unlock(session, &conn->api_lock);
 
-    /* We no longer have a session, don't try to update it. */
-    session = NULL;
-
-err:
-    API_END_RET_NOTFOUND_MAP(session, ret);
+    return (ret);
 }
 
 /*
@@ -2092,16 +2105,16 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
      * array as well.
      */
     if (session_ret->cursor_cache == NULL)
-        WT_ERR(__wt_calloc_def(session, WT_HASH_ARRAY_SIZE, &session_ret->cursor_cache));
+        WT_ERR(__wt_calloc_def(session, conn->hash_size, &session_ret->cursor_cache));
     if (session_ret->dhhash == NULL)
-        WT_ERR(__wt_calloc_def(session, WT_HASH_ARRAY_SIZE, &session_ret->dhhash));
+        WT_ERR(__wt_calloc_def(session, conn->dh_hash_size, &session_ret->dhhash));
 
     /* Initialize the dhandle hash array. */
-    for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
+    for (i = 0; i < (uint32_t)conn->dh_hash_size; i++)
         TAILQ_INIT(&session_ret->dhhash[i]);
 
     /* Initialize the cursor cache hash buckets and sweep trigger. */
-    for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
+    for (i = 0; i < (uint32_t)conn->hash_size; i++)
         TAILQ_INIT(&session_ret->cursor_cache[i]);
     session_ret->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
 
@@ -2174,7 +2187,6 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
   bool open_metadata, WT_SESSION_IMPL **sessionp)
 {
     WT_DECL_RET;
-    WT_SESSION *wt_session;
     WT_SESSION_IMPL *session;
 
     *sessionp = NULL;
@@ -2192,8 +2204,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
     if (open_metadata) {
         WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
         if ((ret = __wt_metadata_cursor(session, NULL)) != 0) {
-            wt_session = &session->iface;
-            WT_TRET(wt_session->close(wt_session, NULL));
+            WT_TRET(__wt_session_close_internal(session));
             return (ret);
         }
     }

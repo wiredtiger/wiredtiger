@@ -509,12 +509,13 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
         return;
 
     /*
-     * The read of the timestamp pinned by a checkpoint needs to be carefully ordered: if a
-     * checkpoint is starting and we have to use the checkpoint timestamp, we take the minimum of it
-     * with the oldest timestamp, which is what we want.
+     * The read of checkpoint timestamp needs to be carefully ordered: it needs to be after we have
+     * read the pinned timestamp and the checkpoint generation, otherwise, we may read earlier
+     * checkpoint timestamp before the checkpoint generation that is read resulting more data being
+     * pinned. If a checkpoint is starting and we have to use the checkpoint timestamp, we take the
+     * minimum of it with the oldest timestamp, which is what we want.
      */
     WT_READ_BARRIER();
-
     checkpoint_ts = txn_global->checkpoint_timestamp;
 
     if (checkpoint_ts != 0 && checkpoint_ts < pinned_ts)
@@ -993,7 +994,7 @@ retry:
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
         WT_RET_NOTFOUND_OK(__wt_hs_find_upd(session, key, cbt->iface.value_format, recno,
-          cbt->upd_value, false, &cbt->upd_value->buf));
+          cbt->upd_value, false, &cbt->upd_value->buf, &tw));
 
     /*
      * Retry if we race with prepared commit or rollback. If we race with prepared rollback, the
@@ -1045,8 +1046,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
-    if (cfg != NULL)
-        WT_RET(__wt_txn_config(session, cfg));
+    WT_RET(__wt_txn_config(session, cfg));
 
     /* Allocate a snapshot if required. */
     if (txn->isolation == WT_ISO_SNAPSHOT) {

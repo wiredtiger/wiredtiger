@@ -70,8 +70,12 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
         cb->nbits = (uint64_t)b.val;
         WT_ERR(__wt_config_subgets(session, &v, "offset", &b));
         cb->offset = (uint64_t)b.val;
-        WT_ERR(__wt_config_subgets(session, &v, "rename", &b));
-        if (b.val)
+        /*
+         * The rename configuration string component was added later. So don't error if we don't
+         * find it in the string. If we don't have it, we're not doing a rename.
+         */
+        WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, &v, "rename", &b), true);
+        if (ret == 0 && b.val)
             F_SET(cb, WT_CURBACKUP_RENAME);
         else
             F_CLR(cb, WT_CURBACKUP_RENAME);

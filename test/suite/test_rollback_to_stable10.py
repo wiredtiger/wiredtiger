@@ -29,13 +29,40 @@
 import fnmatch, os, shutil, threading, time
 from helper import copy_wiredtiger_home
 from test_rollback_to_stable01 import test_rollback_to_stable_base
-from wiredtiger import stat
+from wiredtiger import stat, wiredtiger_strerror, WiredTigerError, WT_ROLLBACK
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wtthread import checkpoint_thread, op_thread
+from time import sleep
 
 def timestamp_str(t):
     return '%x' % t
+
+def retry_rollback(self, name, txn_session, code):
+    retry_limit = 100
+    retries = 0
+    completed = False
+    saved_exception = None
+    while not completed and retries < retry_limit:
+        if retries != 0:
+            self.pr("Retrying operation for " + name)
+            if txn_session:
+                txn_session.rollback_transaction()
+            sleep(0.1)
+            if txn_session:
+                txn_session.begin_transaction('isolation=snapshot')
+                self.pr("Began new transaction for " + name)
+        try:
+            code()
+            completed = True
+        except WiredTigerError as e:
+            rollback_str = wiredtiger_strerror(WT_ROLLBACK)
+            if rollback_str not in str(e):
+                raise(e)
+            retries += 1
+            saved_exception = e
+    if not completed and saved_exception:
+        raise(saved_exception)
 
 # test_rollback_to_stable10.py
 # Test the rollback to stable operation performs sweeping history store.
@@ -50,7 +77,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
     scenarios = make_scenarios(prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=5MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[history_store_checkpoint_delay]'
+        config = 'cache_size=6MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[history_store_checkpoint_delay]'
         return config
 
     def simulate_crash_restart(self, olddir, newdir):
@@ -80,6 +107,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         nrows = 1000
 
         # Create a table without logging.
+        self.pr("create/populate tables")
         uri_1 = "table:rollback_to_stable10_1"
         ds_1 = SimpleDataSet(
             self, uri_1, 0, key_format="i", value_format="S", config='log=(enabled=false)')
@@ -103,6 +131,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         value_f = "fffff" * 100
 
         # Perform several updates.
+        self.pr("large updates")
         self.large_updates(uri_1, value_d, ds_1, nrows, 20)
         self.large_updates(uri_1, value_c, ds_1, nrows, 30)
         self.large_updates(uri_1, value_b, ds_1, nrows, 40)
@@ -134,19 +163,28 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done)
         try:
+            self.pr("start checkpoint")
             ckpt.start()
 
             # Perform several updates in parallel with checkpoint.
-            self.large_updates(uri_1, value_e, ds_1, nrows, 70)
-            self.large_updates(uri_2, value_e, ds_2, nrows, 70)
-            self.large_updates(uri_1, value_f, ds_1, nrows, 80)
-            self.large_updates(uri_2, value_f, ds_2, nrows, 80)
+            # Rollbacks may occur when checkpoint is running, so retry as needed.
+            self.pr("updates")
+            retry_rollback(self, 'update ds1, e', None,
+                           lambda: self.large_updates(uri_1, value_e, ds_1, nrows, 70))
+            retry_rollback(self, 'update ds2, e', None,
+                           lambda: self.large_updates(uri_2, value_e, ds_2, nrows, 70))
+            retry_rollback(self, 'update ds1, f', None,
+                           lambda: self.large_updates(uri_1, value_f, ds_1, nrows, 80))
+            retry_rollback(self, 'update ds2, f', None,
+                           lambda: self.large_updates(uri_2, value_f, ds_2, nrows, 80))
         finally:
             done.set()
             ckpt.join()
 
         # Simulate a server crash and restart.
+        self.pr("restart")
         self.simulate_crash_restart(".", "RESTART")
+        self.pr("restart complete")
 
         # Check that the correct data is seen at and after the stable timestamp.
         self.check(value_a, uri_1, nrows, 50)
@@ -184,6 +222,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         nrows = 1000
 
         # Create a table without logging.
+        self.pr("create/populate tables")
         uri_1 = "table:rollback_to_stable10_1"
         ds_1 = SimpleDataSet(
             self, uri_1, 0, key_format="i", value_format="S", config='log=(enabled=false)')
@@ -207,6 +246,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         value_f = "fffff" * 100
 
         # Perform several updates.
+        self.pr("large updates")
         self.large_updates(uri_1, value_d, ds_1, nrows, 20)
         self.large_updates(uri_1, value_c, ds_1, nrows, 30)
         self.large_updates(uri_1, value_b, ds_1, nrows, 40)
@@ -236,31 +276,42 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         else:
             self.conn.set_timestamp('stable_timestamp=' + timestamp_str(50))
 
+        # Here's the update operations we'll perform, encapsulated so we can easily retry
+        # it if we get a rollback. Rollbacks may occur when checkpoint is running.
+        def prepare_range_updates(session, cursor, ds, value, nrows, prepare_config):
+            self.pr("updates")
+            for i in range(1, nrows):
+                key = ds.key(i)
+                cursor.set_key(key)
+                cursor.set_value(value)
+                self.assertEquals(cursor.update(), 0)
+            self.pr("prepare")
+            session.prepare_transaction(prepare_config)
+
         # Create a checkpoint thread
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done)
         try:
+            self.pr("start checkpoint")
             ckpt.start()
 
             # Perform several updates in parallel with checkpoint.
             session_p1 = self.conn.open_session()
             cursor_p1 = session_p1.open_cursor(uri_1)
             session_p1.begin_transaction('isolation=snapshot')
-            for i in range(1, nrows):
-                cursor_p1.set_key(ds_1.key(i))
-                cursor_p1.set_value(value_e)
-                self.assertEquals(cursor_p1.update(), 0)
-            session_p1.prepare_transaction('prepare_timestamp=' + timestamp_str(69))
+            retry_rollback(self, 'update ds1', session_p1,
+                           lambda: prepare_range_updates(
+                               session_p1, cursor_p1, ds_1, value_e, nrows,
+                               'prepare_timestamp=' + timestamp_str(69)))
 
             # Perform several updates in parallel with checkpoint.
             session_p2 = self.conn.open_session()
             cursor_p2 = session_p2.open_cursor(uri_2)
             session_p2.begin_transaction('isolation=snapshot')
-            for i in range(1, nrows):
-                cursor_p2.set_key(ds_2.key(i))
-                cursor_p2.set_value(value_e)
-                self.assertEquals(cursor_p2.update(), 0)
-            session_p2.prepare_transaction('prepare_timestamp=' + timestamp_str(69))
+            retry_rollback(self, 'update ds2', session_p2,
+                           lambda: prepare_range_updates(
+                               session_p2, cursor_p2, ds_2, value_e, nrows,
+                               'prepare_timestamp=' + timestamp_str(69)))
         finally:
             done.set()
             ckpt.join()
@@ -275,8 +326,10 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         session_p2.close()
 
         # Open the new directory.
+        self.pr("restart")
         self.conn = self.setUpConnectionOpen("RESTART")
         self.session = self.setUpSessionOpen(self.conn)
+        self.pr("restart complete")
 
         # Check that the correct data is seen at and after the stable timestamp.
         self.check(value_a, uri_1, nrows, 50)
