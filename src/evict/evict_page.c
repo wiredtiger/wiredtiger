@@ -676,7 +676,14 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     }
 
     /* Acquire a snapshot if coming through eviction thread route. */
-    if (FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD) && !WT_IS_HS(S2BT(session))) {
+
+    /*
+     * TODO: We were deliberately not taking a snapshot when checkpoint is active. This will ensure
+     * that point-in-time checkpoints have a consistent version of data. Remove this condition once
+     * fuzzy transaction ID based checkpoints work is merged.
+     */
+    if (FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD) && !WT_IS_HS(S2BT(session)) &&
+      !conn->txn_global.checkpoint_running) {
         /*
          * Eviction threads do not need to pin anything in the cache. We have a exclusive lock for
          * the page being evicted so we are sure that the page will always be there while it is
