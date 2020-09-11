@@ -1953,9 +1953,10 @@ tasks:
       - func: "format test"
         vars:
           extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row compression=zlib huffman_key=1 huffman_value=1
-      - func: "format test"
-        vars:
-          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row isolation=random transaction_timestamps=0
+      # Temporarily disable lower isolation level test
+      # - func: "format test"
+      #   vars:
+      #     extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row isolation=random transaction_timestamps=0
       - func: "format test"
         vars:
           extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row data_source=lsm bloom=1
