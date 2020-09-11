@@ -286,8 +286,6 @@ __wt_txn_save_and_update_snapshot(
     txn = session->txn;
     *snapshot_updated = false;
 
-    WT_ASSERT(session, txn->id != WT_TXN_NONE);
-
     /* Allocate a buffer to save new snapshot array. */
     WT_RET(__wt_calloc(
       session, 1, sizeof(txn->snapshot[0]) * S2C(session)->session_size, &snapshot_buffer));
