@@ -293,19 +293,30 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * one. This is important as it is never ok to shift the on-disk value backwards in the
          * update chain.
          */
-        if (!F_ISSET(upd, WT_UPDATE_DS) && !is_hs_page &&
-          (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
-                                            !__txn_visible_id(session, txnid))) {
-            /*
-             * Rare case: when applications run at low isolation levels, eviction may see a
-             * committed update followed by uncommitted updates. Give up in that case because we
-             * can't move uncommitted updates to the history store.
-             */
-            if (upd_select->upd != NULL)
-                return (__wt_set_return(session, EBUSY));
+        if (!F_ISSET(upd, WT_UPDATE_DS) && !is_hs_page) {
 
-            has_newer_updates = true;
-            continue;
+            /*
+             * Handle the scenario where application thread in eviction tries to evict it's own
+             * update from active transaction.
+             */
+            if (!F_ISSET(r, WT_REC_VISIBLE_ALL) && F_ISSET(r, WT_REC_EVICT) &&
+              txnid == WT_SESSION_TXN_SHARED(session)->id) {
+                has_newer_updates = true;
+                continue;
+            }
+            if ((F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
+                                                  !__txn_visible_id(session, txnid))) {
+                /*
+                 * Rare case: when applications run at low isolation levels, eviction may see a
+                 * committed update followed by uncommitted updates. Give up in that case because we
+                 * can't move uncommitted updates to the history store.
+                 */
+                if (upd_select->upd != NULL)
+                    return (__wt_set_return(session, EBUSY));
+
+                has_newer_updates = true;
+                continue;
+            }
         }
 
         /* Ignore prepared updates if it is checkpoint. */
