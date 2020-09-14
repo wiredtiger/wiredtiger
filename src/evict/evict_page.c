@@ -685,6 +685,13 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD) && !WT_IS_HS(S2BT(session)) &&
       !conn->txn_global.checkpoint_running) {
         /*
+         * We rely on the fact that the eviction threads are created with read committed isolation
+         * by default. If this fact doesn't hold anymore in future, we have to force isolation
+         * level.
+         */
+        WT_ASSERT(session, session->txn->isolation == WT_ISO_READ_COMMITTED);
+
+        /*
          * Eviction threads do not need to pin anything in the cache. We have a exclusive lock for
          * the page being evicted so we are sure that the page will always be there while it is
          * being processed. Therefore, we use snapshot API that doesn't publish shared IDs to
