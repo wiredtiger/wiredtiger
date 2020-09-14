@@ -687,32 +687,32 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         /*
          * Eviction threads do not need to pin anything in the cache. We have a exclusive lock for
          * the page being evicted so we are sure that the page will always be there while it is
-         * being processed. Therefore, we use snapshot API that doesn't publish shared IDs to the
+         * being processed. Therefore, we use snapshot API that doesn't publish shared IDs to
          * outside world.
          */
         __wt_txn_bump_snapshot(session);
-        /*
-         * If we acquired a snapshot for eviction, used forced isolation as opening and closing
-         * history store cursor for deleting history store record (as part of reconciliation) can
-         * lead to release of snapshot.
-         */
-        ++session->txn->forced_iso;
         snapshot_acquired = true;
     } else if (!WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_VISIBLE_ALL);
 
     WT_ASSERT(session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
-    /* Reconcile the page. */
-    ret = __wt_reconcile(session, ref, NULL, flags);
+    /*
+     * Reconcile the page. If we acquired a snapshot for eviction, used forced isolation as opening
+     * and closing history store cursor for deleting history store record (as part of
+     * reconciliation) can lead to release of snapshot.
+     */
+    if (snapshot_acquired)
+        WT_WITH_TXN_ISOLATION(
+          session, WT_ISO_READ_COMMITTED, ret = __wt_reconcile(session, ref, NULL, flags));
+    else
+        ret = __wt_reconcile(session, ref, NULL, flags);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
 
-    if (snapshot_acquired) {
-        --session->txn->forced_iso;
+    if (snapshot_acquired)
         __wt_txn_release_snapshot(session);
-    }
 
     WT_RET(ret);
 
