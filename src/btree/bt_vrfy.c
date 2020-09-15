@@ -168,7 +168,12 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     size_t root_addr_size;
     uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
     const char *name;
-    bool bm_start, quit, skip_hs;
+    bool bm_start, quit;
+
+#if 0
+    /* FIXME-WT-6682: temporarily disable history store verification. */
+    bool skip_hs;
+#endif
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -176,12 +181,16 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     name = session->dhandle->name;
     bm_start = false;
 
+#if 0
     /*
+     * FIXME-WT-6682: temporarily disable history store verification.
+     *
      * Skip the history store explicit call if we're performing a metadata verification. The
      * metadata file is verified before we verify the history store, and it makes no sense to verify
      * the history store against itself.
      */
     skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0;
+#endif
 
     WT_CLEAR(_vstuff);
     vs = &_vstuff;
@@ -262,9 +271,14 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
 
+#if 0
             /*
+             * FIXME-WT-6682: temporarily disable history store verification.
+             *
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
              * this is the most recent checkpoint, verify the history store against it.
+             *
+             * FIXME-WT-6263: Temporarily disable history store verification.
              */
             if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
                 /* Open a history store cursor. */
@@ -277,6 +291,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
                  * after that and unloading this checkpoint.
                  */
             }
+#endif
 
             /*
              * We have an exclusive lock on the handle, but we're swapping root pages in-and-out of
