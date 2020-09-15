@@ -1840,6 +1840,12 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_PUBLISH(conn->debug_ckpt_cnt, (uint32_t)cval.val);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.abort_on_corruption_in_diagnostic", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_DATA_CORRUPTION_ABORT_DIAG);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_DATA_CORRUPTION_ABORT_DIAG);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.cursor_copy", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CURSOR_COPY);
