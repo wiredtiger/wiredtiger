@@ -277,8 +277,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              *
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
              * this is the most recent checkpoint, verify the history store against it.
-             *
-             * FIXME-WT-6263: Temporarily disable history store verification.
              */
             if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
                 /* Open a history store cursor. */
