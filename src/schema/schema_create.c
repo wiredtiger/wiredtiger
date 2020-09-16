@@ -51,13 +51,14 @@ __wt_direct_io_size_check(
 static int
 __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_DECL_ITEM(val);
     WT_DECL_RET;
     const char *filename, **p,
-      *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL};
+      *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL};
     char *fileconf;
     uint32_t allocsize;
-    bool exists, is_metadata;
+    bool exists, import, import_repair, is_metadata;
 
     fileconf = NULL;
 
@@ -90,8 +91,43 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     /* Sanity check the allocation size. */
     WT_ERR(__wt_direct_io_size_check(session, filecfg, "allocation_size", &allocsize));
 
-    /* Create the file. */
-    WT_ERR(__wt_block_manager_create(session, filename, allocsize));
+    import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
+    /*
+     * If we are importing an existing object rather than creating a new one, there are two possible
+     * scenarios. Either (1) the file configuration string from the source database metadata is
+     * specified in the input config string, or (2) the import.repair option is set and we need to
+     * reconstruct the configuration metadata from the file.
+     */
+    if (import) {
+        import_repair =
+          __wt_config_getones(session, config, "import.repair", &cval) == 0 && cval.val != 0;
+        if (!import_repair) {
+            WT_ERR(__wt_config_getones(session, config, "import.file_metadata", &cval));
+            if (cval.len != 0) {
+                /*
+                 * The string may be enclosed by delimiters (e.g. braces, quotes, parentheses) to
+                 * avoid configuration string characters acting as separators. Discard the first and
+                 * last characters.
+                 */
+                if (cval.type == WT_CONFIG_ITEM_STRUCT) {
+                    cval.str++;
+                    cval.len -= 2;
+                }
+                WT_ERR(__wt_strndup(session, cval.str, cval.len, &filecfg[2]));
+            } else {
+                /*
+                 * Do we want to attempt a repair op if the metadata isn't specified, or return an
+                 * error here?
+                 */
+            }
+        }
+    }
+
+    if (!import) {
+        /* Create the file. */
+        WT_ERR(__wt_block_manager_create(session, filename, allocsize));
+    }
+
     if (WT_META_TRACKING(session))
         WT_ERR(__wt_meta_track_fileop(session, NULL, uri));
 
@@ -100,14 +136,19 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
      * configuration and insert the resulting configuration into the metadata.
      */
     if (!is_metadata) {
-        WT_ERR(__wt_scr_alloc(session, 0, &val));
-        WT_ERR(__wt_buf_fmt(session, val, "id=%" PRIu32 ",version=(major=%d,minor=%d)",
-          ++S2C(session)->next_file_id, WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
-        for (p = filecfg; *p != NULL; ++p)
-            ;
-        *p = val->data;
-        WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
-        WT_ERR(__wt_metadata_insert(session, uri, fileconf));
+        if (!import_repair) {
+            WT_ERR(__wt_scr_alloc(session, 0, &val));
+            WT_ERR(__wt_buf_fmt(session, val, "id=%" PRIu32 ",version=(major=%d,minor=%d)",
+              ++S2C(session)->next_file_id, WT_BTREE_MAJOR_VERSION_MAX,
+              WT_BTREE_MINOR_VERSION_MAX));
+            for (p = filecfg; *p != NULL; ++p)
+                ;
+            *p = val->data;
+            WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
+            WT_ERR(__wt_metadata_insert(session, uri, fileconf));
+        } else {
+            /* TO-DO: WT-6691 */
+        }
     }
 
     /*
