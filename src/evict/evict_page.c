@@ -683,7 +683,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * fuzzy transaction ID based checkpoints work is merged.
      */
     if (FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD) && !WT_IS_HS(S2BT(session)) &&
-      !conn->txn_global.checkpoint_running) {
+      !conn->txn_global.checkpoint_running &&
+      __wt_spin_trylock(session, &conn->checkpoint_lock) == 0) {
+        F_SET(session, WT_SESSION_LOCKED_CHECKPOINT);
+
         /*
          * We rely on the fact that the eviction threads are created with read committed isolation
          * by default. If this fact doesn't hold anymore in future, we have to force isolation
@@ -698,12 +701,15 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
          * outside world.
          */
         __wt_txn_bump_snapshot(session);
+
         /*
          * If we acquired a snapshot for eviction, force the isolation to ensure the snapshot isn't
          * released when history store cursors are closed.
          */
         ++session->txn->forced_iso;
         snapshot_acquired = true;
+        __wt_spin_unlock(session, &conn->checkpoint_lock);
+        F_CLR(session, WT_SESSION_LOCKED_CHECKPOINT);
     } else if (!WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_VISIBLE_ALL);
 
