@@ -281,6 +281,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (WT_TXNID_LT(max_txn, txnid))
             max_txn = txnid;
 
+        /* Special handling for application threads evicting their own updates. */
+        if (!F_ISSET(upd, WT_UPDATE_DS) && F_ISSET(upd, WT_REC_EVICT) && !is_hs_page &&
+          !F_ISSET(r, WT_REC_VISIBLE_ALL) && txnid == WT_SESSION_TXN_SHARED(session)->id) {
+            has_newer_updates = true;
+            continue;
+        }
         /*
          * Check whether the update was committed before reconciliation started. The global commit
          * point can move forward during reconciliation so we use a cached copy to avoid races when

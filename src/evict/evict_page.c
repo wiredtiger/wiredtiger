@@ -686,7 +686,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * transaction's context (including snapshot) once we are finished.
      */
     if (!F_ISSET(session, WT_SESSION_INTERNAL) && !WT_IS_HS(S2BT(session)) &&
-      !WT_IS_METADATA(session->dhandle)) {
+      !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE) {
         WT_RET(__wt_txn_save_and_update_snapshot(session, &old_state, &restore_snapshot));
         /* Clearing this flag means reconcile logic will use a more detailed snapshot visibility
          * checks rather than using last_running transaction for global visibility checks.
