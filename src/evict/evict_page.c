@@ -708,8 +708,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
          */
         ++session->txn->forced_iso;
         snapshot_acquired = true;
-        __wt_spin_unlock(session, &conn->checkpoint_lock);
         F_CLR(session, WT_SESSION_LOCKED_CHECKPOINT);
+        __wt_spin_unlock(session, &conn->checkpoint_lock);
     } else if (!WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_VISIBLE_ALL);
 
