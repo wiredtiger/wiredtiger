@@ -194,12 +194,91 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 }
 
 /*
+ * __hs_exists --
+ *     Check whether the history store exists. This function looks for both the history store URI in
+ *     the metadata file and for the history store data file itself. If we're running salvage, we'll
+ *     attempt to salvage the history store here.
+ */
+static int
+__hs_exists(WT_SESSION_IMPL *session, const char *cfg[], bool *hs_exists)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *metac;
+    WT_DECL_RET;
+    WT_SESSION *wt_session;
+
+    conn = S2C(session);
+    metac = NULL;
+
+    /* We need a internal session for checking history store. */
+    WT_RET(__wt_open_internal_session(conn, "hs-exists", false, WT_SESSION_NO_LOGGING, &session));
+
+    /* Open the metadata cursor. */
+    WT_ERR(__wt_metadata_cursor_open(session, NULL, &metac));
+
+    /*
+     * We should check whether the history store file exists in the metadata or not. If it does not,
+     * then we should skip rollback to stable for each table. This might happen if we're upgrading
+     * from an older version. If it does exist in the metadata we should check that it exists on
+     * disk to confirm that it wasn't deleted between runs.
+     *
+     * This needs to happen after we apply the logs as they may contain the metadata changes which
+     * include the history store creation. As such the on disk metadata file won't contain the
+     * history store but will after log application.
+     */
+    metac->set_key(metac, WT_HS_URI);
+    WT_ERR_NOTFOUND_OK(metac->search(metac), true);
+    if (ret == WT_NOTFOUND) {
+        *hs_exists = false;
+        ret = 0;
+    } else {
+        /* Given the history store exists in the metadata validate whether it exists on disk. */
+        WT_ERR(__wt_fs_exist(session, WT_HS_FILE, hs_exists));
+        if (*hs_exists) {
+            /*
+             * Attempt to configure the history store, this will detect corruption if it fails.
+             */
+            ret = __wt_hs_config(session, cfg);
+            if (ret != 0) {
+                if (F_ISSET(conn, WT_CONN_SALVAGE)) {
+                    wt_session = &session->iface;
+                    WT_ERR(wt_session->salvage(wt_session, WT_HS_URI, NULL));
+                } else
+                    WT_ERR(ret);
+            }
+        } else {
+            /*
+             * We're attempting to salvage the database with a missing history store, remove it from
+             * the metadata and pretend it never existed. As such we won't run rollback to stable
+             * later.
+             */
+            if (F_ISSET(conn, WT_CONN_SALVAGE)) {
+                *hs_exists = false;
+                metac->remove(metac);
+            } else
+                /* The history store file has likely been deleted, we cannot recover from this. */
+                WT_ERR_MSG(session, WT_TRY_SALVAGE, "%s file is corrupted or missing", WT_HS_FILE);
+        }
+    }
+err:
+    if (metac)
+        WT_TRET(metac->close(metac));
+
+    WT_TRET(__wt_session_close_internal(session));
+    return (ret);
+}
+
+/*
  * __wt_connection_workers --
  *     Start the worker threads.
  */
 int
 __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    bool hs_exists;
+
+    hs_exists = true;
+
     /*
      * Start the optional statistics thread. Start statistics first so that other optional threads
      * can know if statistics are enabled or not.
@@ -207,12 +286,15 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_statlog_create(session, cfg));
     WT_RET(__wt_logmgr_create(session));
 
+    /* Verify whether the history store file exists or not before starting recovery. */
+    WT_RET(__hs_exists(session, cfg, &hs_exists));
+
     /*
      * Run recovery. NOTE: This call will start (and stop) eviction if recovery is required.
      * Recovery must run before the history store table is created (because recovery will update the
      * metadata, and set the maximum file id seen), and before eviction is started for real.
      */
-    WT_RET(__wt_txn_recover(session, cfg));
+    WT_RET(__wt_txn_recover(session, cfg, hs_exists));
 
     /* Initialize metadata tracking, required before creating tables. */
     WT_RET(__wt_meta_track_init(session));

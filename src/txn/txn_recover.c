@@ -569,76 +569,11 @@ __recovery_file_scan(WT_RECOVERY *r)
 }
 
 /*
- * __hs_exists --
- *     Check whether the history store exists. This function looks for both the history store URI in
- *     the metadata file and for the history store data file itself. If we're running salvage, we'll
- *     attempt to salvage the history store here.
- */
-static int
-__hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool *hs_exists)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_SESSION *wt_session;
-
-    conn = S2C(session);
-
-    /*
-     * We should check whether the history store file exists in the metadata or not. If it does not,
-     * then we should skip rollback to stable for each table. This might happen if we're upgrading
-     * from an older version. If it does exist in the metadata we should check that it exists on
-     * disk to confirm that it wasn't deleted between runs.
-     *
-     * This needs to happen after we apply the logs as they may contain the metadata changes which
-     * include the history store creation. As such the on disk metadata file won't contain the
-     * history store but will after log application.
-     */
-    metac->set_key(metac, WT_HS_URI);
-    WT_ERR_NOTFOUND_OK(metac->search(metac), true);
-    if (ret == WT_NOTFOUND) {
-        *hs_exists = false;
-        ret = 0;
-    } else {
-        /* Given the history store exists in the metadata validate whether it exists on disk. */
-        WT_ERR(__wt_fs_exist(session, WT_HS_FILE, hs_exists));
-        if (*hs_exists) {
-            /*
-             * Attempt to configure the history store, this will detect corruption if it fails.
-             */
-            ret = __wt_hs_config(session, cfg);
-            if (ret != 0) {
-                if (F_ISSET(conn, WT_CONN_SALVAGE)) {
-                    wt_session = &session->iface;
-                    WT_ERR(wt_session->salvage(wt_session, WT_HS_URI, NULL));
-                } else
-                    WT_ERR(ret);
-            }
-        } else {
-            /*
-             * We're attempting to salvage the database with a missing history store, remove it from
-             * the metadata and pretend it never existed. As such we won't run rollback to stable
-             * later.
-             */
-            if (F_ISSET(conn, WT_CONN_SALVAGE)) {
-                *hs_exists = false;
-                metac->remove(metac);
-            } else
-                /* The history store file has likely been deleted, we cannot recover from this. */
-                WT_ERR_MSG(session, WT_TRY_SALVAGE, "%s file is corrupted or missing", WT_HS_FILE);
-        }
-    }
-err:
-    /* Unpin the page from cache. */
-    WT_TRET(metac->reset(metac));
-    return (ret);
-}
-
-/*
  * __wt_txn_recover --
  *     Run recovery.
  */
 int
-__wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[], bool hs_exists)
 {
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *metac;
@@ -647,13 +582,13 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RECOVERY_FILE *metafile;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
+    bool do_checkpoint, eviction_started, needs_rec, was_backup;
 
     conn = S2C(session);
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
-    do_checkpoint = hs_exists = true;
+    do_checkpoint = true;
     eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
@@ -696,7 +631,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ERR(__wt_log_reset(session, r.max_ckpt_lsn.l.file));
         else
             do_checkpoint = false;
-        WT_ERR(__hs_exists(session, metac, cfg, &hs_exists));
         goto done;
     }
 
@@ -745,9 +679,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(ret);
     }
 
-    /* Check whether the history store exists. */
-    WT_ERR(__hs_exists(session, metac, cfg, &hs_exists));
-
     /* Scan the metadata to find the live files and their IDs. */
     WT_ERR(__recovery_file_scan(&r));
     /*
@@ -791,7 +722,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     if (!hs_exists) {
         __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "%s",
           "Creating the history store before applying log records. Likely recovering after an"
-          "unclean shutdown on an earlier version");
+          " unclean shutdown on an earlier version");
         /*
          * Create the history store as we might need it while applying log records in recovery.
          */
