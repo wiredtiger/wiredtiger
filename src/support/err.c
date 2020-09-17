@@ -375,7 +375,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
 #if defined(HAVE_DIAGNOSTIC)
     /* Drop core if testing, unless it is data corruption and we have been asked not to panic. */
     if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) ||
-      FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_DATA_CORRUPTION_ABORT_DIAG))
+      FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT))
         __wt_abort(session);
 #endif
     /*

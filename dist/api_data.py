@@ -493,7 +493,7 @@ connection_runtime_config = [
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
         type='category', subconfig=[
-        Config('abort_on_corruption_in_diagnostic', 'true', r'''
+        Config('corruption_abort', 'true', r'''
             if true, dump the core in the diagnostic mode on encountering the data corruption.''',
             type='boolean'),
         Config('checkpoint_retention', '0', r'''
