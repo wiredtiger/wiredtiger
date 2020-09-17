@@ -139,6 +139,7 @@ thread_run(void *arg)
     char kname[64], tscfg[64];
 
     conn = (WT_CONNECTION *)arg;
+    memset(kname, 0, sizeof(kname));
 
     testutil_check(conn->open_session(conn, NULL, "isolation=snapshot", &session));
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
