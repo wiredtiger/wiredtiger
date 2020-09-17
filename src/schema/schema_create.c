@@ -587,11 +587,10 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     const char *tablename;
     bool import, import_repair;
 
-    /* FIXME-WT-6690: Handle import.repair. */
     cgname = NULL;
     table = NULL;
     tableconf = NULL;
-    import_repair = false;
+    import = import_repair = false;
 
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE_WRITE));
 
@@ -630,10 +629,10 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     }
 
     /*
-     * FIXME-WT-6690: Since config, will have the "import" configuration, perhaps we need to remove
-     * it before slotting it into the metadata. If you consider a table that has been imported
-     * across multiple systems, it may have multiple "import" configurations in it and will pick the
-     * first one which is wrong.
+     * FIXME-WT-6690: Since config will have the "import" configuration, perhaps we need to remove
+     * it before slotting the config into the metadata. If you consider a table that has been
+     * imported across multiple systems, it may have multiple "import" configurations in it if we
+     * don't remove them and will pick the first one which is wrong.
      */
 
     WT_ERR(__wt_config_collapse(session, cfg, &tableconf));
