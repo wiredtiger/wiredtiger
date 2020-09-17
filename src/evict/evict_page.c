@@ -679,11 +679,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     }
 
     /*
-     * If we have entered eviction through application threads and we are running transaction with
-     * snapshot isolation, we like to update our snapshot to evict pages that are not globally
-     * visible based on last_running transaction. We will save some of the running transaction's
-     * context, get a new transaction snapshot, perform eviction and restore the original
-     * transaction's context (including snapshot) once we are finished.
+     * If we have entered eviction through application threads we like to update our snapshot to
+     * evict pages that are not globally visible based on last_running transaction. We will save
+     * some of the running transaction's context, get a new transaction snapshot, perform eviction
+     * and restore the original transaction's context (including snapshot) once we are finished.
      */
     if (!F_ISSET(session, WT_SESSION_INTERNAL) && !WT_IS_HS(S2BT(session)) &&
       !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE) {
@@ -692,6 +691,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
          * checks rather than using last_running transaction for global visibility checks.
          */
         LF_CLR(WT_REC_VISIBLE_ALL);
+        LF_SET(WT_REC_APP_UPDATED_SNAPSHOT);
     }
 
     /* Reconcile the page. */
