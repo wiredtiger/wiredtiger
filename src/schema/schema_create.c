@@ -583,12 +583,15 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     size_t cgsize;
     int ncolgroups;
     char *tableconf, *cgname;
-    const char *cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
+    const char *cfg[5] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL, NULL};
     const char *tablename;
+    bool import, import_repair;
 
+    /* FIXME-WT-6690: Handle import.repair. */
     cgname = NULL;
     table = NULL;
     tableconf = NULL;
+    import_repair = false;
 
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE_WRITE));
 
@@ -607,6 +610,31 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     for (ncolgroups = 0; (ret = __wt_config_next(&conf, &cgkey, &cgval)) == 0; ncolgroups++)
         ;
     WT_ERR_NOTFOUND_OK(ret, false);
+
+    import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
+    if (import) {
+        import_repair =
+          __wt_config_getones(session, config, "import.repair", &cval) == 0 && cval.val != 0;
+        if (import_repair) {
+            WT_ERR(__wt_config_getones(session, config, "import.file_metadata", &cval));
+            if (cval.len != 0) {
+                if (cval.type == WT_CONFIG_ITEM_STRUCT) {
+                    cval.str++;
+                    cval.len -= 2;
+                }
+                WT_ERR(__wt_strndup(session, cval.str, cval.len, &cfg[2]));
+            }
+        } else {
+            /* FIXME-WT-6691: Implement repair. */
+        }
+    }
+
+    /*
+     * FIXME-WT-6690: Since config, will have the "import" configuration, perhaps we need to remove
+     * it before slotting it into the metadata. If you consider a table that has been imported
+     * across multiple systems, it may have multiple "import" configurations in it and will pick the
+     * first one which is wrong.
+     */
 
     WT_ERR(__wt_config_collapse(session, cfg, &tableconf));
     WT_ERR(__wt_metadata_insert(session, uri, tableconf));
