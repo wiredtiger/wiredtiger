@@ -130,7 +130,8 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
 
     def take_incr_backup(self):
         # Open the backup data source for incremental backup.
-        buf = 'incremental=(src_id="ID' +  str(self.counter-1) + '",this_id="ID' + str(self.counter) + '")'
+        self.assertTrue(self.counter > 0)
+        buf = 'incremental=(src_id="ID' +  str(self.counter - 1) + '",this_id="ID' + str(self.counter) + '")'
         self.pr(buf)
         bkup_c = self.session.open_cursor('backup:', None, buf)
         while True:
@@ -178,11 +179,7 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
                 else:
                     self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
                     read_from = newfile
-                    if self.counter > 0:
-                        old_to = self.home_incr + '.' + str(self.counter - 1) + '/' + newfile
-                    else:
-                        old_to = newfile
-                    write_to = self.home_incr + '.' + str(self.counter) + '/' + newfile
+                    old_to = self.home_incr + '.' + str(self.counter - 1) + '/' + newfile
                     write_to = self.home_incr + '.' + str(self.counter) + '/' + newfile
                     rfp = open(read_from, "r+b")
                     self.pr('RANGE CHECK file ' + old_to + ' offset ' + str(offset) + ' len ' + str(size))
@@ -191,6 +188,8 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
                     rfp2.seek(offset, 0)
                     buf = rfp.read(size)
                     buf2 = rfp2.read(size)
+                    # This assertion tests that the offset range we're given actually changed
+                    # from the previous backup.
                     self.assertNotEqual(buf, buf2)
                     wfp = open(write_to, "w+b")
                     wfp.seek(offset, 0)
