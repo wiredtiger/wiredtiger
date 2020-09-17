@@ -281,7 +281,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (WT_TXNID_LT(max_txn, txnid))
             max_txn = txnid;
 
-        /* 
+        /*
          * Special handling for application threads evicting their own updates.
          */
         if (!F_ISSET(upd, WT_UPDATE_DS) && !is_hs_page && F_ISSET(r, WT_REC_APP_UPDATED_SNAPSHOT) &&
