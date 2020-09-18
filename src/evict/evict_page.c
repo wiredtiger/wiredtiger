@@ -548,6 +548,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     uint32_t flags;
     bool closing, modified;
     bool restore_snapshot;
+    bool use_snapshot_for_app_thread;
+    bool use_snapshot_for_eviction_thread;
 
     *inmem_splitp = false;
 
@@ -556,12 +558,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
     restore_snapshot = false;
-    if (!WT_SESSION_BTREE_SYNC(session))
-        LF_SET(WT_REC_VISIBLE_ALL);
 
     /*
-     * Fail if an internal has active children, the children must be evicted first. The test is
-     * necessary but shouldn't fire much: the eviction code is biased for leaf pages, an internal
      * page shouldn't be selected for eviction until all children have been evicted.
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
@@ -679,22 +677,47 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     }
 
     /*
-     * If we have entered eviction through application threads we like to update our snapshot to
-     * evict pages that are not globally visible based on last_running transaction. We will save
+     * Acquire a snapshot if coming through eviction thread route.
+     *
+     * Also, if we have entered eviction through application threads we like to update our snapshot
+     * to evict pages that are not globally visible based on last_running transaction. We will save
      * some of the running transaction's context, get a new transaction snapshot, perform eviction
      * and restore the original transaction's context (including snapshot) once we are finished.
      */
-    if (!F_ISSET(session, WT_SESSION_INTERNAL) && !WT_IS_HS(S2BT(session)) &&
-      !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE) {
-        WT_RET(__wt_txn_save_and_update_snapshot(session, &old_state, &restore_snapshot));
-        /* Clearing this flag means reconcile logic will use a more detailed snapshot visibility
-         * checks rather than using last_running transaction for global visibility checks.
-         */
-        LF_CLR(WT_REC_VISIBLE_ALL);
-        LF_SET(WT_REC_APP_UPDATED_SNAPSHOT);
-    }
 
-    /* Reconcile the page. */
+    /*
+     * TODO: We are deliberately not using a snapshot when checkpoint is active. This will ensure
+     * that point-in-time checkpoints have a consistent version of data. Remove this condition once
+     * fuzzy transaction ID based checkpoints work is merged.
+     */
+
+    use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
+      !WT_IS_METADATA(session->dhandle) && F_ISSET(session->txn, WT_TXN_RUNNING);
+    use_snapshot_for_eviction_thread = FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD);
+
+    if (!conn->txn_global.checkpoint_running && !WT_IS_HS(S2BT(session)) &&
+      (use_snapshot_for_app_thread || use_snapshot_for_eviction_thread)) {
+        WT_RET(__wt_txn_save_and_update_snapshot(session, &old_state));
+        restore_snapshot = true;
+        /*
+         * Make sure once more that there is no checkpoint running. A new checkpoint might have
+         * started between previous check and acquiring snapshot. If there is a checkpoint running,
+         * release the checkpoint and fallback to global visibility checks.
+         */
+        if (conn->txn_global.checkpoint_running) {
+            __wt_txn_restore_snapshot(session, &old_state);
+            LF_SET(WT_REC_VISIBLE_ALL);
+            restore_snapshot = false;
+        } else if (use_snapshot_for_app_thread)
+            LF_SET(WT_REC_APP_UPDATED_SNAPSHOT);
+    } else if (!WT_SESSION_BTREE_SYNC(session))
+        LF_SET(WT_REC_VISIBLE_ALL);
+
+    WT_ASSERT(session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
+
+    /*
+     * Reconcile the page.
+     */
     ret = __wt_reconcile(session, ref, NULL, flags);
 
     if (ret != 0)

@@ -131,13 +131,11 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     txn_shared->metadata_pinned = txn_shared->pinned_id = WT_TXN_NONE;
     F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
 
-    /* Clear a checkpoint's pinned ID. */
+    /* Clear a checkpoint's pinned ID and timestamp. */
     if (WT_SESSION_IS_CHECKPOINT(session)) {
         txn_global->checkpoint_txn_shared.pinned_id = WT_TXN_NONE;
-        txn_global->checkpoint_timestamp = 0;
+        txn_global->checkpoint_timestamp = WT_TS_NONE;
     }
-
-    __wt_txn_clear_read_timestamp(session);
 }
 
 /*
@@ -277,14 +275,12 @@ __wt_txn_bump_snapshot(WT_SESSION_IMPL *session)
  *     Save some of the current transaction's state and update the snapshot.
  */
 int
-__wt_txn_save_and_update_snapshot(
-  WT_SESSION_IMPL *session, WT_TXN_SAVED_STATE *old_state, bool *snapshot_updated)
+__wt_txn_save_and_update_snapshot(WT_SESSION_IMPL *session, WT_TXN_SAVED_STATE *old_state)
 {
     WT_TXN *txn;
     uint64_t *snapshot_buffer;
 
     txn = session->txn;
-    *snapshot_updated = false;
 
     /* Allocate a buffer to save new snapshot array. */
     WT_RET(__wt_calloc(
@@ -299,12 +295,21 @@ __wt_txn_save_and_update_snapshot(
     old_state->snapshot_count = txn->snapshot_count;
     old_state->mod_count = txn->mod_count;
     txn->snapshot = snapshot_buffer;
+    /*
+     * Eviction threads do not need to pin anything in the cache. We have a exclusive lock for the
+     * page being evicted so we are sure that the page will always be there while it is being
+     * processed. Therefore, we use snapshot API that doesn't publish shared IDs to the outside
+     * world.
+     */
     __wt_txn_bump_snapshot(session);
     txn->id = WT_TXN_NONE;
     txn->flags = WT_TXN_HAS_SNAPSHOT;
     txn->isolation = WT_ISO_READ_COMMITTED;
+    /*
+     * If we acquired a snapshot for eviction, force the isolation to ensure the snapshot isn't
+     * released when history store cursors are closed.
+     */
     ++txn->forced_iso;
-    *snapshot_updated = true;
     return (0);
 }
 
@@ -518,7 +523,7 @@ done:
  *     Configure a transactions operation timeout duration.
  */
 static int
-__txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[])
+__txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[], bool start_timer)
 {
     WT_CONFIG_ITEM cval;
     WT_TXN *txn;
@@ -535,8 +540,15 @@ __txn_config_operation_timeout(WT_SESSION_IMPL *session, const char *cfg[])
      * The default configuration value is 0, we can't tell if they're setting it back to 0 or, if
      * the default was automatically passed in.
      */
-    if (cval.val != 0)
+    if (cval.val != 0) {
         txn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
+        /*
+         * The op timer will generally be started on entry to the API call however when we configure
+         * it internally we need to start it separately.
+         */
+        if (start_timer)
+            __wt_op_timer_start(session);
+    }
     return (0);
 }
 
@@ -563,7 +575,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
           WT_STRING_MATCH("read-committed", cval.str, cval.len) ? WT_ISO_READ_COMMITTED :
                                                                   WT_ISO_READ_UNCOMMITTED;
 
-    WT_RET(__txn_config_operation_timeout(session, cfg));
+    WT_RET(__txn_config_operation_timeout(session, cfg, false));
 
     /*
      * The default sync setting is inherited from the connection, but can be overridden by an
@@ -690,6 +702,8 @@ __wt_txn_release(WT_SESSION_IMPL *session)
      * Reset the transaction state to not running and release the snapshot.
      */
     __wt_txn_release_snapshot(session);
+    /* Clear the read timestamp. */
+    __wt_txn_clear_read_timestamp(session);
     txn->isolation = session->isolation;
 
     txn->rollback_reason = NULL;
@@ -1339,7 +1353,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
 
     /* Configure the timeout for this commit operation. */
-    WT_ERR(__txn_config_operation_timeout(session, cfg));
+    WT_ERR(__txn_config_operation_timeout(session, cfg, true));
 
     /*
      * Clear the prepared round up flag if the transaction is not prepared. There is no rounding up
@@ -1749,7 +1763,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session, txn->id, 0));
 
     /* Configure the timeout for this rollback operation. */
-    WT_RET(__txn_config_operation_timeout(session, cfg));
+    WT_RET(__txn_config_operation_timeout(session, cfg, true));
 
     /*
      * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
