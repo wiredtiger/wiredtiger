@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_txn23.py
+# test_txn24.py
 #   Transactions and eviction: Test if using snapshot isolation for eviction threads helps with
 #   cache stuck issue.
 #
@@ -34,7 +34,7 @@
 import wiredtiger, wttest
 import time
 
-class test_txn23(wttest.WiredTigerTestCase):
+class test_txn24(wttest.WiredTigerTestCase):
 
     session_config = 'isolation=snapshot'
 
@@ -48,7 +48,7 @@ class test_txn23(wttest.WiredTigerTestCase):
     def test_snapshot_isolation_and_eviction(self):
 
         # Create and populate a table.
-        uri = "table:test_txn23"
+        uri = "table:test_txn24"
         table_params = 'key_format=i,value_format=S'
         default_val = 'ABCD' * 60
         new_val = 'YYYY' * 60
