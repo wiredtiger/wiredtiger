@@ -63,6 +63,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     fileconf = NULL;
 
     is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
+    import_repair = false;
 
     filename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
