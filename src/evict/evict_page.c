@@ -690,9 +690,14 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * that point-in-time checkpoints have a consistent version of data. Remove this condition once
      * fuzzy transaction ID based checkpoints work is merged.
      */
-
+    /*
+     * Avoid updating snapshots when application transactions are in final stages of commit or
+     * rollback as they have already released the snapshot. It otherwise makes it harder in later
+     * part of code to detect updates the belonged to last the running transaction from application
+     * thread.
+     */
     use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
-      !WT_IS_METADATA(session->dhandle) && F_ISSET(session->txn, WT_TXN_RUNNING);
+      !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE;
     use_snapshot_for_eviction_thread = FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD);
 
     if (!conn->txn_global.checkpoint_running && !WT_IS_HS(S2BT(session)) &&
