@@ -41,7 +41,7 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
     counter=0
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
     logmax="100K"
-    max_iteration=7
+    max_iteration=5
     mult=0
     nops=100000
     savefirst=0
@@ -70,20 +70,34 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
     #
     def setup_directories(self):
         for i in range(0, self.max_iteration):
-            remove_dir = self.home_incr + '.' + str(i)
+            # The log directory is a subdirectory of the home directory,
+            # creating that will make the home directory also.
+            log_dir = self.home_incr + '.' + str(i) + '/' + self.logpath
+            os.makedirs(log_dir)
+            if i != 0:
+                log_dir = self.home_full + '.' + str(i) + '/' + self.logpath
+                os.makedirs(log_dir)
 
-            create_dir = self.home_incr + '.' + str(i) + '/' + self.logpath
-            if os.path.exists(remove_dir):
-                os.remove(remove_dir)
-            os.makedirs(create_dir)
-
-            if i == 0:
-                continue
-            remove_dir = self.home_full + '.' + str(i)
-            create_dir = self.home_full + '.' + str(i) + '/' + self.logpath
-            if os.path.exists(remove_dir):
-                os.remove(remove_dir)
-            os.makedirs(create_dir)
+    def range_copy(self, filename, offset, size):
+        read_from = filename
+        old_to = self.home_incr + '.' + str(self.counter - 1) + '/' + filename
+        write_to = self.home_incr + '.' + str(self.counter) + '/' + filename
+        rfp = open(read_from, "r+b")
+        self.pr('RANGE CHECK file ' + old_to + ' offset ' + str(offset) + ' len ' + str(size))
+        rfp2 = open(old_to, "r+b")
+        rfp.seek(offset, 0)
+        rfp2.seek(offset, 0)
+        buf = rfp.read(size)
+        buf2 = rfp2.read(size)
+        # This assertion tests that the offset range we're given actually changed
+        # from the previous backup.
+        self.assertNotEqual(buf, buf2)
+        wfp = open(write_to, "w+b")
+        wfp.seek(offset, 0)
+        wfp.write(buf)
+        rfp.close()
+        rfp2.close()
+        wfp.close()
 
     def take_full_backup(self):
         if self.counter != 0:
@@ -99,15 +113,18 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
         if self.initial_backup == True:
             buf = 'incremental=(granularity=1M,enabled=true,this_id=ID0)'
 
-        cursor = self.session.open_cursor('backup:', None, buf)
+        bkup_c = self.session.open_cursor('backup:', None, buf)
+        # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
+        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
+        # If that changes then this, and the use of the duplicate below can change.
         while True:
-            ret = cursor.next()
+            ret = bkup_c.next()
             if ret != 0:
                 break
-            newfile = cursor.get_key()
+            newfile = bkup_c.get_key()
 
             if self.counter == 0:
-                # Take a full backup into each incremental directory.
+                # Take a full bakcup into each incremental directory
                 for i in range(0, self.max_iteration):
                     copy_from = newfile
                     # If it is log file, prepend the path.
@@ -126,14 +143,17 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
 
                 shutil.copy(copy_from, copy_to)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        cursor.close()
+        bkup_c.close()
 
     def take_incr_backup(self):
-        self.assertTrue(self.counter > 0)
-        buf = 'incremental=(src_id="ID' +  str(self.counter - 1) + '",this_id="ID' + str(self.counter) + '")'
-        self.pr(buf)
         # Open the backup data source for incremental backup.
+        buf = 'incremental=(src_id="ID' +  str(self.counter-1) + '",this_id="ID' + str(self.counter) + '")'
+        self.pr(buf)
         bkup_c = self.session.open_cursor('backup:', None, buf)
+
+        # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
+        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
+        # If that changes then this, and the use of the duplicate below can change.
         while True:
             ret = bkup_c.next()
             if ret != 0:
@@ -153,6 +173,10 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
             dup_cnt = 0
             # For each file listed, open a duplicate backup cursor and copy the blocks.
             incr_c = self.session.open_cursor(None, bkup_c, config)
+
+            # We cannot use 'for newfile in incr_c:' usage because backup cursors don't have
+            # values and adding in get_values returns ENOTSUP and causes the usage to fail.
+            # If that changes then this, and the use of the duplicate below can change.
             while True:
                 ret = incr_c.next()
                 if ret != 0:
@@ -161,10 +185,8 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
                 offset = incrlist[0]
                 size = incrlist[1]
                 curtype = incrlist[2]
-                # 1 is WT_BACKUP_FILE
-                # 2 is WT_BACKUP_RANGE
-                self.assertTrue(curtype == 1 or curtype == 2)
-                if curtype == 1:
+                self.assertTrue(curtype == wiredtiger.WT_BACKUP_FILE or curtype == wiredtiger.WT_BACKUP_RANGE)
+                if curtype == wiredtiger.WT_BACKUP_FILE:
                     # Copy the whole file.
                     if first == True:
                         h = self.home_incr + '.' + str(self.counter)
@@ -179,25 +201,7 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
                 else:
                     # Copy the block range.
                     self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
-                    read_from = newfile
-                    old_to = self.home_incr + '.' + str(self.counter - 1) + '/' + newfile
-                    write_to = self.home_incr + '.' + str(self.counter) + '/' + newfile
-                    rfp = open(read_from, "r+b")
-                    self.pr('RANGE CHECK file ' + old_to + ' offset ' + str(offset) + ' len ' + str(size))
-                    rfp2 = open(old_to, "r+b")
-                    rfp.seek(offset, 0)
-                    rfp2.seek(offset, 0)
-                    buf = rfp.read(size)
-                    buf2 = rfp2.read(size)
-                    # This assertion tests that the offset range we're given actually changed
-                    # from the previous backup.
-                    self.assertNotEqual(buf, buf2)
-                    wfp = open(write_to, "w+b")
-                    wfp.seek(offset, 0)
-                    wfp.write(buf)
-                    rfp.close()
-                    rfp2.close()
-                    wfp.close()
+                    self.range_copy(newfile, offset, size)
                 dup_cnt += 1
             self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
             incr_c.close()
@@ -277,28 +281,12 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Each call now to take a full backup will make a copy into a full directory. Then
         # each incremental will take an incremental backup and we can compare them.
-        self.add_data(self.uri)
-        self.session.checkpoint()
-        self.take_full_backup()
-        self.take_incr_backup()
-        self.compare_backups(self.uri)
-
-        self.add_data(self.uri)
-        self.session.checkpoint()
-        self.take_incr_backup()
-        self.take_full_backup()
-        self.compare_backups(self.uri)
-
-        self.add_data(self.uri)
-        self.session.checkpoint()
-        self.take_full_backup()
-        self.take_incr_backup()
-        self.compare_backups(self.uri)
-
-        self.add_data(self.uri)
-        self.take_incr_backup()
-        self.take_full_backup()
-        self.compare_backups(self.uri)
+        for i in range(1, self.max_iteration):
+            self.add_data(self.uri)
+            self.session.checkpoint()
+            self.take_full_backup()
+            self.take_incr_backup()
+            self.compare_backups(self.uri)
 
 if __name__ == '__main__':
     wttest.run()
