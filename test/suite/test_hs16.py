@@ -32,7 +32,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_hs16.py
-# History store does not panic when inserting an update without timestamp.
+# Ensure that we don't panic when inserting an update without timestamp to the history store.
 class test_hs16(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB'
     session_config = 'isolation=snapshot'
