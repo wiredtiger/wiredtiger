@@ -103,8 +103,8 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         import_repair =
           __wt_config_getones(session, config, "import.repair", &cval) == 0 && cval.val != 0;
         if (!import_repair) {
-            WT_ERR(__wt_config_getones(session, config, "import.file_metadata", &cval));
-            if (cval.len != 0) {
+            if (__wt_config_getones(session, config, "import.file_metadata", &cval) == 0 &&
+              cval.len != 0) {
                 /*
                  * The string may be enclosed by delimiters (e.g. braces, quotes, parentheses) to
                  * avoid configuration string characters acting as separators. Discard the first and
@@ -117,9 +117,14 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
                 WT_ERR(__wt_strndup(session, cval.str, cval.len, &filecfg[2]));
             } else {
                 /*
-                 * Do we want to attempt a repair op if the metadata isn't specified, or return an
-                 * error here?
+                 * If there is no file metadata provided, the user should be specifying a "repair".
+                 * To prevent mistakes with API usage, we should return an error here rather than
+                 * inferring a repair.
                  */
+                WT_ERR_MSG(session, EINVAL,
+                  "Attempted to import file \"%s\" without providing file metadata. If metadata "
+                  "cannot be provided, then the \"repair\" option should be provided.",
+                  uri);
             }
         }
     }
