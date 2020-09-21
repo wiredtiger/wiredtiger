@@ -36,7 +36,7 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_import01(wttest.WiredTigerTestCase):
-    conn_config = ('cache_size=50MB,log=(enabled),statistics=(all)')
+    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
     def update(self, uri, key, value, commit_ts):
@@ -55,7 +55,7 @@ class test_import01(wttest.WiredTigerTestCase):
         original_db_file = 'original_db_file'
         uri = 'file:' + original_db_file
 
-        create_config = ('allocation_size=512,key_format=u,log=(enabled=true),value_format=u')
+        create_config = 'allocation_size=512,key_format=u,log=(enabled=true),value_format=u'
         self.session.create(uri, create_config)
 
         # Add some data.
@@ -93,8 +93,8 @@ class test_import01(wttest.WiredTigerTestCase):
         self.copy_file(original_db_file, '.', newdir)
 
         # Contruct the config string.
-        import_config = ('import=(enabled,repair=false,file_metadata=(' +
-            original_db_file_config + '))')
+        import_config = 'import=(enabled,repair=false,file_metadata=(' + \
+            original_db_file_config + '))'
 
         # Import the file.
         self.session.create(uri, import_config)
