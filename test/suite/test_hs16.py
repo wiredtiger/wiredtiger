@@ -57,6 +57,12 @@ class test_hs16(wttest.WiredTigerTestCase):
         cursor[str(0)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(1))
 
+        # Open anther session to make the next update without timestamp non-globally visible
+        session2 = self.setUpSessionOpen(self.conn)
+        cursor2 = session2.open_cursor(uri)
+        session2.begin_transaction()
+        cursor[str(1)] = value1
+
         # Update an update without timestamp
         self.session.begin_transaction()
         cursor[str(0)] = value3
@@ -64,7 +70,7 @@ class test_hs16(wttest.WiredTigerTestCase):
 
         # Update an update at timestamp 2
         self.session.begin_transaction()
-        cursor[str(0)] = value3
+        cursor[str(0)] = value4
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Do a checkpoint, it should not panic
