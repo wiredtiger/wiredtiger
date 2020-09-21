@@ -95,7 +95,7 @@ class test_import01(wttest.WiredTigerTestCase):
         original_db_file_config = c[uri]
         c.close()
 
-        self.tty('\nFILE CONFIG\n' + original_db_file_config)
+        self.printVerbose(3, '\nFILE CONFIG\n' + original_db_file_config)
 
         # Close the connection.
         self.close_conn()
