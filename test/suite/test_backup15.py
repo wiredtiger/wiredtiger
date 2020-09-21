@@ -107,7 +107,7 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
             newfile = cursor.get_key()
 
             if self.counter == 0:
-                # Take a full bakcup into each incremental directory
+                # Take a full backup into each incremental directory.
                 for i in range(0, self.max_iteration):
                     copy_from = newfile
                     # If it is log file, prepend the path.
@@ -129,10 +129,10 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
         cursor.close()
 
     def take_incr_backup(self):
-        # Open the backup data source for incremental backup.
         self.assertTrue(self.counter > 0)
         buf = 'incremental=(src_id="ID' +  str(self.counter - 1) + '",this_id="ID' + str(self.counter) + '")'
         self.pr(buf)
+        # Open the backup data source for incremental backup.
         bkup_c = self.session.open_cursor('backup:', None, buf)
         while True:
             ret = bkup_c.next()
@@ -151,9 +151,8 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
             first = True
             config = 'incremental=(file=' + newfile + ')'
             dup_cnt = 0
-            incr_c = self.session.open_cursor(None, bkup_c, config)
-
             # For each file listed, open a duplicate backup cursor and copy the blocks.
+            incr_c = self.session.open_cursor(None, bkup_c, config)
             while True:
                 ret = incr_c.next()
                 if ret != 0:
@@ -166,6 +165,7 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
                 # 2 is WT_BACKUP_RANGE
                 self.assertTrue(curtype == 1 or curtype == 2)
                 if curtype == 1:
+                    # Copy the whole file.
                     if first == True:
                         h = self.home_incr + '.' + str(self.counter)
                         first = False
@@ -177,6 +177,7 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
                         copy_to = h
                     shutil.copy(copy_from, copy_to)
                 else:
+                    # Copy the block range.
                     self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
                     read_from = newfile
                     old_to = self.home_incr + '.' + str(self.counter - 1) + '/' + newfile
@@ -201,7 +202,7 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
             incr_c.close()
 
-            # For each file, we want to copy the file into each of the later incremental directories
+            # For each file, we want to copy it into each of the later incremental directories.
             for i in range(self.counter, self.max_iteration):
                 h = self.home_incr + '.' + str(i)
                 copy_from = newfile
@@ -214,18 +215,14 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
         bkup_c.close()
 
     def compare_backups(self, t_uri):
-        #
-        # Run wt dump on full backup directory
-        #
+        # Run wt dump on full backup directory.
         full_backup_out = self.full_out + '.' + str(self.counter)
         home_dir = self.home_full + '.' + str(self.counter)
         if self.counter == 0:
             home_dir = self.home
-
         self.runWt(['-R', '-h', home_dir, 'dump', t_uri], outfilename=full_backup_out)
-        #
-        # Run wt dump on incremental backup directory
-        #
+
+        # Run wt dump on incremental backup directory.
         incr_backup_out = self.incr_out + '.' + str(self.counter)
         home_dir = self.home_incr + '.' + str(self.counter)
         self.runWt(['-R', '-h', home_dir, 'dump', t_uri], outfilename=incr_backup_out)
@@ -263,11 +260,14 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
         if self.initial_backup == False:
             self.counter += 1
 
-    #
-    # This function will add records to the table (table:main), take incremental/full backups and
-    # validate the backups.
-    #
-    def add_data_validate_backups(self):
+    def test_backup15(self):
+        os.mkdir(self.bkp_home)
+        self.home = self.bkp_home
+        self.session.create(self.uri, "key_format=S,value_format=S")
+
+        self.setup_directories()
+
+        self.pr('*** Add data, checkpoint, take backups and validate ***')
         self.pr('Adding initial data')
         self.initial_backup = True
         self.add_data(self.uri)
@@ -299,16 +299,6 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
         self.take_incr_backup()
         self.take_full_backup()
         self.compare_backups(self.uri)
-
-    def test_backup15(self):
-        os.mkdir(self.bkp_home)
-        self.home = self.bkp_home
-        self.session.create(self.uri, "key_format=S,value_format=S")
-
-        self.setup_directories()
-
-        self.pr('*** Add data, checkpoint, take backups and validate ***')
-        self.add_data_validate_backups()
 
 if __name__ == '__main__':
     wttest.run()
