@@ -58,11 +58,23 @@ class test_import03(wttest.WiredTigerTestCase):
         cursor.close()
 
     def check(self, uri, key, value_tuple, read_ts):
+        # Read the entire record.
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
         cursor.set_key(key)
         self.assertEqual(0, cursor.search())
         self.assertEqual(list(value_tuple), cursor.get_value())
+        self.session.rollback_transaction()
+        cursor.close()
+
+        # Now let's test something table specific like a projection.
+        # We're unpacking only the country and population columns here.
+        projection_uri = uri + '(country,population)'
+        cursor = self.session.open_cursor(projection_uri)
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        cursor.set_key(key)
+        self.assertEqual(0, cursor.search())
+        self.assertEqual([value_tuple[0], value_tuple[2]], cursor.get_value())
         self.session.rollback_transaction()
         cursor.close()
 
@@ -117,14 +129,15 @@ class test_import03(wttest.WiredTigerTestCase):
         # Export the metadata for the table.
         original_db_file_uri = 'file:' + original_db_table + '.wt'
         c = self.session.open_cursor('metadata:', None, None)
-        original_db_table_config = c[original_db_file_uri]
+        original_db_table_config = c[uri]
+        original_db_file_config = c[original_db_file_uri]
         c.close()
 
-        self.printVerbose(3, '\nFILE CONFIG\n' + original_db_table_config)
+        self.printVerbose(3, '\nFILE CONFIG\n' + original_db_file_config)
 
         # Contruct the config string.
-        import_config = 'import=(enabled,repair=false,file_metadata=(' + \
-            original_db_table_config + '))'
+        import_config = '{},import=(enabled,repair=false,file_metadata=({}))'.format(
+            original_db_table_config, original_db_file_config)
 
         if self.import_type == 'same':
             # Try to import the table even though it already exists in our database.
