@@ -46,6 +46,15 @@ class test_import01(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
+    def check(self, uri, key, value, read_ts):
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        cursor.set_key(key)
+        self.assertEqual(0, cursor.search())
+        self.assertEqual(value, cursor.get_value())
+        self.session.rollback_transaction()
+        cursor.close()
+
     def copy_file(self, file_name, old_dir, new_dir):
         if os.path.isfile(file_name) and "WiredTiger.lock" not in file_name and \
             "Tmplog" not in file_name and "Preplog" not in file_name:
@@ -58,16 +67,25 @@ class test_import01(wttest.WiredTigerTestCase):
         create_config = 'allocation_size=512,key_format=u,log=(enabled=true),value_format=u'
         self.session.create(uri, create_config)
 
+        key1 = b'1'
+        key2 = b'2'
+        key3 = b'3'
+        key4 = b'4'
+        value1 = b'\x01\x02aaa\x03\x04'
+        value2 = b'\x01\x02bbb\x03\x04'
+        value3 = b'\x01\x02ccc\x03\x04'
+        value4 = b'\x01\x02ddd\x03\x04'
+
         # Add some data.
-        self.update(uri, b'1', b'\x01\x02aaa\x03\x04', 10)
-        self.update(uri, b'2', b'\x01\x02bbb\x03\x04', 20)
+        self.update(uri, key1, value1, 10)
+        self.update(uri, key2, value2, 20)
 
         # Perform a checkpoint.
         self.session.checkpoint()
 
         # Add more data.
-        self.update(uri, b'3', b'\x01\x02ccc\x03\x04', 30)
-        self.update(uri, b'4', b'\x01\x02ddd\x03\x04', 40)
+        self.update(uri, key3, value3, 30)
+        self.update(uri, key4, value4, 40)
 
         # Perform a checkpoint.
         self.session.checkpoint()
@@ -102,6 +120,12 @@ class test_import01(wttest.WiredTigerTestCase):
         # Verify object.
         self.session.verify(uri)
 
+        # Check that the previously inserted values survived the import.
+        self.check(uri, key1, value1, 10)
+        self.check(uri, key2, value2, 20)
+        self.check(uri, key3, value3, 30)
+        self.check(uri, key4, value4, 40)
+
         # Compare checkpoint information.
         # TO-DO: We really want to compare the complete metadata, but we need to split and
         # sort it first. We can't use the easy python split, but re.split might do the trick.
@@ -112,9 +136,17 @@ class test_import01(wttest.WiredTigerTestCase):
         current_db_file_ckpt = re.match("checkpoint=\(.*\)\)", current_db_file_config)
         self.assertEqual(original_db_file_ckpt, current_db_file_ckpt)
 
-        # Add some data.
-        self.update(uri, b'5', b'\x01\x02eee\x03\x04', 50)
-        self.update(uri, b'6', b'\x01\x02fff\x03\x04', 60)
+        key5 = b'5'
+        key6 = b'6'
+        value5 = b'\x01\x02eee\x03\x04'
+        value6 = b'\x01\x02fff\x03\x04'
+
+        # Add some data and check that the file operates as usual after importing.
+        self.update(uri, key5, value5, 50)
+        self.update(uri, key6, value6, 60)
+
+        self.check(uri, key5, value5, 50)
+        self.check(uri, key6, value6, 60)
 
         # Perform a checkpoint.
         self.session.checkpoint()
