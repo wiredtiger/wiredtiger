@@ -124,7 +124,7 @@ class test_import03(wttest.WiredTigerTestCase):
             original_db_table_config + '))'
 
         if self.import_type == 'same':
-            # Try to import the file even though it already exists in our database.
+            # Try to import the table even though it already exists in our database.
             # We should get an error back.
             self.assertRaisesException(wiredtiger.WiredTigerError,
                 lambda: self.session.create(uri, import_config))
@@ -140,7 +140,7 @@ class test_import03(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)
 
-        # Simulate importing a file into an existing database.
+        # Simulate importing a table into an existing database.
         # Make a bunch of files and fill them with data.
         if self.import_type == 'existing':
             self.populate()
@@ -148,7 +148,7 @@ class test_import03(wttest.WiredTigerTestCase):
         # Copy over the datafiles for the object we want to import.
         self.copy_file(original_db_table + '.wt', '.', newdir)
 
-        # Import the file.
+        # Import the table.
         self.session.create(uri, import_config)
 
         # Verify object.
@@ -175,7 +175,7 @@ class test_import03(wttest.WiredTigerTestCase):
         value5 = b'\x01\x02eee\x03\x04'
         value6 = b'\x01\x02fff\x03\x04'
 
-        # Add some data and check that the file operates as usual after importing.
+        # Add some data and check that the table operates as usual after importing.
         self.update(uri, key5, value5, 50)
         self.update(uri, key6, value6, 60)
 
