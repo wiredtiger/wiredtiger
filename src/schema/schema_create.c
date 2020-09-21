@@ -71,6 +71,10 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
 
     /* Check if the file already exists. */
     if (!is_metadata && (ret = __wt_metadata_search(session, uri, &fileconf)) != WT_NOTFOUND) {
+        /*
+         * Don't allow a file to get imported if it already exists in our database. This is most
+         * likely a mistake.
+         */
         if (exclusive || import)
             WT_TRET(EEXIST);
         goto err;
