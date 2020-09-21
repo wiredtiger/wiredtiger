@@ -42,35 +42,30 @@ class test_hs16(wttest.WiredTigerTestCase):
         self.session.create(uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(uri)
 
-        value1 = 'a'
-        value2 = 'b'
-        value3 = 'c'
-        value4 = 'd'
-
         # Insert an update without timestamp
         self.session.begin_transaction()
-        cursor[str(0)] = value1
+        cursor[str(0)] = 'a'
         self.session.commit_transaction()
 
         # Update an update at timestamp 1
         self.session.begin_transaction()
-        cursor[str(0)] = value2
+        cursor[str(0)] = 'b'
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(1))
 
         # Open anther session to make the next update without timestamp non-globally visible
         session2 = self.setUpSessionOpen(self.conn)
         cursor2 = session2.open_cursor(uri)
         session2.begin_transaction()
-        cursor[str(1)] = value1
+        cursor[str(1)] = 'a'
 
         # Update an update without timestamp
         self.session.begin_transaction()
-        cursor[str(0)] = value3
+        cursor[str(0)] = 'c'
         self.session.commit_transaction()
 
         # Update an update at timestamp 2
         self.session.begin_transaction()
-        cursor[str(0)] = value4
+        cursor[str(0)] = 'd'
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Do a checkpoint, it should not panic
