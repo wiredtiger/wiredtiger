@@ -63,6 +63,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     fileconf = NULL;
 
     is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
+    import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
     import_repair = false;
 
     filename = uri;
@@ -70,7 +71,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
 
     /* Check if the file already exists. */
     if (!is_metadata && (ret = __wt_metadata_search(session, uri, &fileconf)) != WT_NOTFOUND) {
-        if (exclusive)
+        if (exclusive || import)
             WT_TRET(EEXIST);
         goto err;
     }
@@ -92,7 +93,6 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     /* Sanity check the allocation size. */
     WT_ERR(__wt_direct_io_size_check(session, filecfg, "allocation_size", &allocsize));
 
-    import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
     /*
      * If we are importing an existing object rather than creating a new one, there are two possible
      * scenarios. Either (1) the file configuration string from the source database metadata is

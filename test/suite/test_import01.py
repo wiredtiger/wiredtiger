@@ -118,6 +118,17 @@ class test_import01(wttest.WiredTigerTestCase):
 
         self.printVerbose(3, '\nFILE CONFIG\n' + original_db_file_config)
 
+        # Contruct the config string.
+        import_config = 'import=(enabled,repair=false,file_metadata=(' + \
+            original_db_file_config + '))'
+
+        if self.import_type == 'same':
+            # Try to import the file even though it already exists in our database.
+            # We should get an error back.
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: self.session.create(uri, import_config))
+            return
+
         # Close the connection.
         self.close_conn()
 
@@ -135,10 +146,6 @@ class test_import01(wttest.WiredTigerTestCase):
 
         # Copy over the datafiles for the object we want to import.
         self.copy_file(original_db_file, '.', newdir)
-
-        # Contruct the config string.
-        import_config = 'import=(enabled,repair=false,file_metadata=(' + \
-            original_db_file_config + '))'
 
         # Import the file.
         self.session.create(uri, import_config)
