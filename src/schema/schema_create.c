@@ -595,6 +595,7 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     char *tableconf, *cgname;
     const char *cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *tablename;
+    bool import;
 
     cgname = NULL;
     table = NULL;
@@ -604,10 +605,15 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
 
     tablename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
+    import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
 
     /* Check if the table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &tableconf)) != WT_NOTFOUND) {
-        if (exclusive)
+        /*
+         * Don't allow a file to get imported if it already exists in our database. This is most
+         * likely a mistake.
+         */
+        if (exclusive || import)
             WT_TRET(EEXIST);
         goto err;
     }
