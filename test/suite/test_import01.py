@@ -31,6 +31,7 @@
 
 import os, re, shutil
 import wiredtiger, wttest
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
@@ -38,6 +39,14 @@ def timestamp_str(t):
 class test_import01(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
+    scenarios = make_scenarios([
+        # Importing into a new database.
+        ('new', dict(import_type='new')),
+        # Importing into an existing database with other files.
+        ('existing', dict(import_type='existing')),
+        # Importing into the same database. We should expect a failure.
+        ('same', dict(import_type='same')),
+    ])
 
     def update(self, uri, key, value, commit_ts):
         cursor = self.session.open_cursor(uri)
@@ -54,6 +63,18 @@ class test_import01(wttest.WiredTigerTestCase):
         self.assertEqual(value, cursor.get_value())
         self.session.rollback_transaction()
         cursor.close()
+
+    # Helper for populating a database to simulate importing files into an existing database.
+    def populate(self):
+        # Create file:test_import01_[1-100].
+        for fileno in range(1, 100):
+            uri = 'file:test_import01_{}'.format(fileno)
+            self.session.create(uri, 'key_format=i,value_format=S')
+            cursor = self.session.open_cursor(uri)
+            # Insert keys [1-100] with value 'foo'.
+            for key in range(1, 100):
+                cursor[key] = 'foo'
+            cursor.close()
 
     def copy_file(self, file_name, old_dir, new_dir):
         if os.path.isfile(file_name) and "WiredTiger.lock" not in file_name and \
@@ -106,6 +127,11 @@ class test_import01(wttest.WiredTigerTestCase):
         os.mkdir(newdir)
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)
+
+        # Simulate importing a file into an existing database.
+        # Make a bunch of files and fill them with data.
+        if self.import_type == 'existing':
+            self.populate()
 
         # Copy over the datafiles for the object we want to import.
         self.copy_file(original_db_file, '.', newdir)
