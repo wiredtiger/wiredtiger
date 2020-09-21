@@ -48,19 +48,21 @@ class test_import03(wttest.WiredTigerTestCase):
         ('same', dict(import_type='same')),
     ])
 
-    def update(self, uri, key, value, commit_ts):
+    def update(self, uri, key, value_tuple, commit_ts):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        cursor[key] = value
+        cursor.set_key(key)
+        cursor.set_value(*value_tuple)
+        cursor.insert()
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
-    def check(self, uri, key, value, read_ts):
+    def check(self, uri, key, value_tuple, read_ts):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
         cursor.set_key(key)
         self.assertEqual(0, cursor.search())
-        self.assertEqual(value, cursor.get_value())
+        self.assertEqual(list(value_tuple), cursor.get_value())
         self.session.rollback_transaction()
         cursor.close()
 
@@ -85,17 +87,18 @@ class test_import03(wttest.WiredTigerTestCase):
         original_db_table = 'original_db_table'
         uri = 'table:' + original_db_table
 
-        create_config = 'allocation_size=512,key_format=u,log=(enabled=true),value_format=u'
+        create_config = 'allocation_size=512,key_format=r,log=(enabled=true),value_format=SSi,' \
+            'columns=(id,country,capital,population)'
         self.session.create(uri, create_config)
 
         key1 = b'1'
         key2 = b'2'
         key3 = b'3'
         key4 = b'4'
-        value1 = b'\x01\x02aaa\x03\x04'
-        value2 = b'\x01\x02bbb\x03\x04'
-        value3 = b'\x01\x02ccc\x03\x04'
-        value4 = b'\x01\x02ddd\x03\x04'
+        value1 = ('Australia', 'Canberra', 1)
+        value2 = ('Japan', 'Tokyo', 2)
+        value3 = ('Italy', 'Rome', 3)
+        value4 = ('China', 'Beijing', 4)
 
         # Add some data.
         self.update(uri, key1, value1, 10)
@@ -172,8 +175,8 @@ class test_import03(wttest.WiredTigerTestCase):
 
         key5 = b'5'
         key6 = b'6'
-        value5 = b'\x01\x02eee\x03\x04'
-        value6 = b'\x01\x02fff\x03\x04'
+        value5 = ('Germany', 'Berlin', 5)
+        value6 = ('South Korea', 'Seoul', 6)
 
         # Add some data and check that the table operates as usual after importing.
         self.update(uri, key5, value5, 50)
