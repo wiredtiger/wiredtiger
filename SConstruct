@@ -354,9 +354,7 @@ if enableJava and enableJava.count(",") == 1:
     conf.env.Append(CPPPATH=[ javaPath + '/include'])
     conf.env.Append(CPPPATH=[ javaPath + '/include/win32'])
 
-    swigJavaFiles = ["lang/java/src/com/wiredtiger/db/AsyncOp.java",
-    "lang/java/src/com/wiredtiger/db/AsyncOpType.java",
-    "lang/java/src/com/wiredtiger/db/Connection.java",
+    swigJavaFiles = ["lang/java/src/com/wiredtiger/db/Connection.java",
     "lang/java/src/com/wiredtiger/db/Cursor.java",
     "lang/java/src/com/wiredtiger/db/Modify.java",
     "lang/java/src/com/wiredtiger/db/SearchStatus.java",
