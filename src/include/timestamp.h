@@ -46,7 +46,7 @@ struct __wt_time_aggregate {
     wt_timestamp_t newest_stop_durable_ts;  /* default value: WT_TS_NONE */
 
     wt_timestamp_t oldest_start_ts; /* default value: WT_TS_NONE */
-    uint64_t oldest_start_txn;      /* default value: WT_TXN_NONE */
+    uint64_t newest_txn;            /* default value: WT_TXN_NONE */
     wt_timestamp_t newest_stop_ts;  /* default value: WT_TS_MAX */
     uint64_t newest_stop_txn;       /* default value: WT_TXN_MAX */
 

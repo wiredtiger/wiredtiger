@@ -168,8 +168,8 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: pages written including an aggregated newest stop durable timestamp ",
   "reconciliation: pages written including an aggregated newest stop timestamp ",
   "reconciliation: pages written including an aggregated newest stop transaction ID",
+  "reconciliation: pages written including an aggregated newest transaction ID ",
   "reconciliation: pages written including an aggregated oldest start timestamp ",
-  "reconciliation: pages written including an aggregated oldest start transaction ID ",
   "reconciliation: pages written including an aggregated prepare",
   "reconciliation: pages written including at least one prepare",
   "reconciliation: pages written including at least one start durable timestamp",
@@ -391,8 +391,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_aggr_newest_stop_durable_ts = 0;
     stats->rec_time_aggr_newest_stop_ts = 0;
     stats->rec_time_aggr_newest_stop_txn = 0;
+    stats->rec_time_aggr_newest_txn = 0;
     stats->rec_time_aggr_oldest_start_ts = 0;
-    stats->rec_time_aggr_oldest_start_txn = 0;
     stats->rec_time_aggr_prepared = 0;
     stats->rec_time_window_pages_prepared = 0;
     stats->rec_time_window_pages_durable_start_ts = 0;
@@ -601,8 +601,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_time_aggr_newest_stop_durable_ts += from->rec_time_aggr_newest_stop_durable_ts;
     to->rec_time_aggr_newest_stop_ts += from->rec_time_aggr_newest_stop_ts;
     to->rec_time_aggr_newest_stop_txn += from->rec_time_aggr_newest_stop_txn;
+    to->rec_time_aggr_newest_txn += from->rec_time_aggr_newest_txn;
     to->rec_time_aggr_oldest_start_ts += from->rec_time_aggr_oldest_start_ts;
-    to->rec_time_aggr_oldest_start_txn += from->rec_time_aggr_oldest_start_txn;
     to->rec_time_aggr_prepared += from->rec_time_aggr_prepared;
     to->rec_time_window_pages_prepared += from->rec_time_window_pages_prepared;
     to->rec_time_window_pages_durable_start_ts += from->rec_time_window_pages_durable_start_ts;
@@ -810,8 +810,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
       WT_STAT_READ(from, rec_time_aggr_newest_stop_durable_ts);
     to->rec_time_aggr_newest_stop_ts += WT_STAT_READ(from, rec_time_aggr_newest_stop_ts);
     to->rec_time_aggr_newest_stop_txn += WT_STAT_READ(from, rec_time_aggr_newest_stop_txn);
+    to->rec_time_aggr_newest_txn += WT_STAT_READ(from, rec_time_aggr_newest_txn);
     to->rec_time_aggr_oldest_start_ts += WT_STAT_READ(from, rec_time_aggr_oldest_start_ts);
-    to->rec_time_aggr_oldest_start_txn += WT_STAT_READ(from, rec_time_aggr_oldest_start_txn);
     to->rec_time_aggr_prepared += WT_STAT_READ(from, rec_time_aggr_prepared);
     to->rec_time_window_pages_prepared += WT_STAT_READ(from, rec_time_window_pages_prepared);
     to->rec_time_window_pages_durable_start_ts +=
@@ -1201,8 +1201,8 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: pages written including an aggregated newest stop durable timestamp ",
   "reconciliation: pages written including an aggregated newest stop timestamp ",
   "reconciliation: pages written including an aggregated newest stop transaction ID",
+  "reconciliation: pages written including an aggregated newest transaction ID ",
   "reconciliation: pages written including an aggregated oldest start timestamp ",
-  "reconciliation: pages written including an aggregated oldest start transaction ID ",
   "reconciliation: pages written including an aggregated prepare",
   "reconciliation: pages written including at least one prepare state",
   "reconciliation: pages written including at least one start durable timestamp",
@@ -1729,8 +1729,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_aggr_newest_stop_durable_ts = 0;
     stats->rec_time_aggr_newest_stop_ts = 0;
     stats->rec_time_aggr_newest_stop_txn = 0;
+    stats->rec_time_aggr_newest_txn = 0;
     stats->rec_time_aggr_oldest_start_ts = 0;
-    stats->rec_time_aggr_oldest_start_txn = 0;
     stats->rec_time_aggr_prepared = 0;
     stats->rec_time_window_pages_prepared = 0;
     stats->rec_time_window_pages_durable_start_ts = 0;
@@ -2259,8 +2259,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, rec_time_aggr_newest_stop_durable_ts);
     to->rec_time_aggr_newest_stop_ts += WT_STAT_READ(from, rec_time_aggr_newest_stop_ts);
     to->rec_time_aggr_newest_stop_txn += WT_STAT_READ(from, rec_time_aggr_newest_stop_txn);
+    to->rec_time_aggr_newest_txn += WT_STAT_READ(from, rec_time_aggr_newest_txn);
     to->rec_time_aggr_oldest_start_ts += WT_STAT_READ(from, rec_time_aggr_oldest_start_ts);
-    to->rec_time_aggr_oldest_start_txn += WT_STAT_READ(from, rec_time_aggr_oldest_start_txn);
     to->rec_time_aggr_prepared += WT_STAT_READ(from, rec_time_aggr_prepared);
     to->rec_time_window_pages_prepared += WT_STAT_READ(from, rec_time_window_pages_prepared);
     to->rec_time_window_pages_durable_start_ts +=
