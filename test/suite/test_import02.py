@@ -149,3 +149,31 @@ class test_import02(wttest.WiredTigerTestCase):
         # We should get an error back.
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.create(uri, import_config))
+
+    def test_import_file_missing_file(self):
+        original_db_file = 'original_db_file'
+        uri = 'file:' + original_db_file
+
+        # Make a bunch of files and fill them with data.
+        self.populate()
+
+        self.session.checkpoint()
+
+        # Export the metadata for one of the files we made.
+        # We just need an example of what a file configuration would typically look like.
+        c = self.session.open_cursor('metadata:', None, None)
+        example_db_file_config = c['file:test_import02_1']
+        c.close()
+
+        self.printVerbose(3, '\nFILE CONFIG\n' + example_db_file_config)
+
+        # Contruct the config string.
+        import_config = 'import=(enabled,repair=false,file_metadata=(' + \
+            example_db_file_config + '))'
+
+        # Try to import a file that doesn't exist on disk.
+        # We should get an error back.
+        with self.expectedStderrPattern(
+            'file:original_db_file: attempted to import file that does not exist'):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: self.session.create(uri, import_config))

@@ -133,7 +133,11 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         }
     }
 
-    if (!import) {
+    if (import) {
+        WT_IGNORE_RET(__wt_fs_exist(session, filename, &exists));
+        if (!exists)
+            WT_ERR_MSG(session, ENOENT, "%s: attempted to import file that does not exist", uri);
+    } else {
         /* Create the file. */
         WT_ERR(__wt_block_manager_create(session, filename, allocsize));
     }
