@@ -31,7 +31,6 @@
 
 import os, re, shutil
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
@@ -39,14 +38,6 @@ def timestamp_str(t):
 class test_import03(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
-    scenarios = make_scenarios([
-        # Importing into a new database.
-        ('new', dict(import_type='new')),
-        # Importing into an existing database with other files.
-        ('existing', dict(import_type='existing')),
-        # Importing into the same database. We should expect a failure.
-        ('same', dict(import_type='same')),
-    ])
 
     def update(self, uri, key, value_tuple, commit_ts):
         cursor = self.session.open_cursor(uri)
@@ -139,13 +130,6 @@ class test_import03(wttest.WiredTigerTestCase):
         import_config = '{},import=(enabled,repair=false,file_metadata=({}))'.format(
             original_db_table_config, original_db_file_config)
 
-        if self.import_type == 'same':
-            # Try to import the table even though it already exists in our database.
-            # We should get an error back.
-            self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: self.session.create(uri, import_config))
-            return
-
         # Close the connection.
         self.close_conn()
 
@@ -156,10 +140,8 @@ class test_import03(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)
 
-        # Simulate importing a table into an existing database.
         # Make a bunch of files and fill them with data.
-        if self.import_type == 'existing':
-            self.populate()
+        self.populate()
 
         # Copy over the datafiles for the object we want to import.
         self.copy_file(original_db_table + '.wt', '.', newdir)
