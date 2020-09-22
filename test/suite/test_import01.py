@@ -153,9 +153,7 @@ class test_import01(wttest.WiredTigerTestCase):
         self.check(uri, key3, value3, 30)
         self.check(uri, key4, value4, 40)
 
-        # Compare checkpoint information.
-        # TO-DO: We really want to compare the complete metadata, but we need to split and
-        # sort it first. We can't use the easy python split, but re.split might do the trick.
+        # Compare configuration metadata.
         c = self.session.open_cursor('metadata:', None, None)
         current_db_file_config = c[uri]
         c.close()
@@ -232,9 +230,7 @@ class test_import01(wttest.WiredTigerTestCase):
         self.check(uri, key1, value1, 10)
         self.check(uri, key2, value2, 20)
 
-        # Compare checkpoint information.
-        # TO-DO: We really want to compare the complete metadata, but we need to split and
-        # sort it first. We can't use the easy python split, but re.split might do the trick.
+        # Compare configuration metadata.
         c = self.session.open_cursor('metadata:', None, None)
         current_db_file_config = c[uri]
         c.close()
