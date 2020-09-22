@@ -176,5 +176,69 @@ class test_import01(wttest.WiredTigerTestCase):
         # Perform a checkpoint.
         self.session.checkpoint()
 
+    def test_file_import_dropped_file(self):
+        original_db_file = 'original_db_file'
+        uri = 'file:' + original_db_file
+
+        create_config = 'allocation_size=512,key_format=u,log=(enabled=true),value_format=u'
+        self.session.create(uri, create_config)
+
+        key1 = b'1'
+        key2 = b'2'
+        value1 = b'\x01\x02aaa\x03\x04'
+        value2 = b'\x01\x02bbb\x03\x04'
+
+        # Add some data.
+        self.update(uri, key1, value1, 10)
+        self.update(uri, key2, value2, 20)
+
+        # Perform a checkpoint.
+        self.session.checkpoint()
+
+        # Export the metadata for the table.
+        c = self.session.open_cursor('metadata:', None, None)
+        original_db_file_config = c[uri]
+        c.close()
+
+        self.printVerbose(3, '\nFILE CONFIG\n' + original_db_file_config)
+
+        # Make a bunch of files and fill them with data.
+        self.populate()
+
+        # Make a copy of the data file that we're about to drop.
+        backup_dir = 'BACKUP'
+        shutil.rmtree(backup_dir, ignore_errors=True)
+        os.mkdir(backup_dir)
+        self.copy_file(original_db_file, '.', backup_dir)
+
+        # Drop the table.
+        # We'll be importing it back into our database shortly.
+        self.session.drop(uri)
+
+        # Now copy it back to our database directory.
+        self.copy_file(original_db_file, backup_dir, '.')
+
+        # Contruct the config string.
+        import_config = 'import=(enabled,repair=false,file_metadata=(' + \
+            original_db_file_config + '))'
+
+        # Import the file.
+        self.session.create(uri, import_config)
+
+        # Verify object.
+        self.session.verify(uri)
+
+        # Check that the previously inserted values survived the import.
+        self.check(uri, key1, value1, 10)
+        self.check(uri, key2, value2, 20)
+
+        # Compare checkpoint information.
+        # TO-DO: We really want to compare the complete metadata, but we need to split and
+        # sort it first. We can't use the easy python split, but re.split might do the trick.
+        c = self.session.open_cursor('metadata:', None, None)
+        current_db_file_config = c[uri]
+        c.close()
+        self.config_compare(original_db_file_config, current_db_file_config)
+
 if __name__ == '__main__':
     wttest.run()
