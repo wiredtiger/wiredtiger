@@ -409,7 +409,6 @@ examples = [
     "ex_access",
     # Temporarily disabled
     # "ex_all",
-    "ex_async",
     "ex_call_center",
     "ex_config_parse",
     "ex_cursor",
