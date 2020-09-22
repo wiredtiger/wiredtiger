@@ -68,9 +68,10 @@ class test_import01(wttest.WiredTigerTestCase):
             cursor.close()
 
     def copy_file(self, file_name, old_dir, new_dir):
-        if os.path.isfile(file_name) and "WiredTiger.lock" not in file_name and \
+        old_path = os.path.join(old_dir, file_name)
+        if os.path.isfile(old_path) and "WiredTiger.lock" not in file_name and \
             "Tmplog" not in file_name and "Preplog" not in file_name:
-            shutil.copy(os.path.join(old_dir, file_name), new_dir)
+            shutil.copy(old_path, new_dir)
 
     def test_file_import(self):
         original_db_file = 'original_db_file'
