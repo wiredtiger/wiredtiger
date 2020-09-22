@@ -146,8 +146,9 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
         bkup_c.close()
 
     def take_incr_backup(self):
+        self.assertTrue(self.counter > 0)
         # Open the backup data source for incremental backup.
-        buf = 'incremental=(src_id="ID' +  str(self.counter-1) + '",this_id="ID' + str(self.counter) + '")'
+        buf = 'incremental=(src_id="ID' +  str(self.counter - 1) + '",this_id="ID' + str(self.counter) + '")'
         self.pr(buf)
         bkup_c = self.session.open_cursor('backup:', None, buf)
 
@@ -284,8 +285,14 @@ class test_backup15(wttest.WiredTigerTestCase, suite_subprocess):
         for i in range(1, self.max_iteration):
             self.add_data(self.uri)
             self.session.checkpoint()
-            self.take_full_backup()
-            self.take_incr_backup()
+            # Swap the order of the full and incremental backups. It should not matter. They
+            # should not interfere with each other.
+            if i % 2 == 0:
+                self.take_full_backup()
+                self.take_incr_backup()
+            else:
+                self.take_incr_backup()
+                self.take_full_backup()
             self.compare_backups(self.uri)
 
 if __name__ == '__main__':
