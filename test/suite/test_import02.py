@@ -138,6 +138,9 @@ class test_import02(wttest.WiredTigerTestCase):
 
         self.printVerbose(3, '\nFILE CONFIG\n' + original_db_file_config)
 
+        # Make a bunch of files and fill them with data.
+        self.populate()
+
         # Contruct the config string.
         import_config = 'import=(enabled,repair=false,file_metadata=(' + \
             original_db_file_config + '))'
