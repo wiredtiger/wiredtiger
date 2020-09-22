@@ -284,7 +284,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         /*
          * Special handling for application threads evicting their own updates.
          */
-        if (!F_ISSET(upd, WT_UPDATE_DS) && !is_hs_page && F_ISSET(r, WT_REC_APP_UPDATED_SNAPSHOT) &&
+        if (!is_hs_page && F_ISSET(r, WT_REC_APP_UPDATED_SNAPSHOT) &&
           txnid == WT_SESSION_TXN_SHARED(session)->id) {
             has_newer_updates = true;
             continue;
