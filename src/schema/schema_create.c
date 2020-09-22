@@ -614,8 +614,8 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
     /* Check if the table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &tableconf)) != WT_NOTFOUND) {
         /*
-         * Don't allow a file to get imported if it already exists in our database. This is most
-         * likely a mistake.
+         * Regardless of the 'exclusive' flag, we should raise an error if we try to import an
+         * existing URI rather than just silently returning.
          */
         if (exclusive || import)
             WT_TRET(EEXIST);
