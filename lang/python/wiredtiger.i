@@ -467,20 +467,6 @@ do {
 		SWIG_ERROR_IF_NOT_SET(result);
 }
 
-%exception m {
-retry:
-	$action
-	if (result != 0 && result != EBUSY)
-		SWIG_ERROR_IF_NOT_SET(result);
-	else if (result == EBUSY) {
-		SWIG_PYTHON_THREAD_BEGIN_ALLOW;
-		__wt_sleep(0, 10000);
-		SWIG_PYTHON_THREAD_END_ALLOW;
-		goto retry;
-	}
-}
-%enddef
-
 /* An API that returns a value that shouldn't be checked uses this. */
 %define ANY_OK(m)
 %exception m {
