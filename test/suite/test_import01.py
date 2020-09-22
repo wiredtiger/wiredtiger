@@ -39,14 +39,6 @@ def timestamp_str(t):
 class test_import01(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
-    scenarios = make_scenarios([
-        # Importing into a new database.
-        ('new', dict(import_type='new')),
-        # Importing into an existing database with other files.
-        ('existing', dict(import_type='existing')),
-        # Importing into the same database. We should expect a failure.
-        ('same', dict(import_type='same')),
-    ])
 
     def update(self, uri, key, value, commit_ts):
         cursor = self.session.open_cursor(uri)
@@ -118,17 +110,6 @@ class test_import01(wttest.WiredTigerTestCase):
 
         self.printVerbose(3, '\nFILE CONFIG\n' + original_db_file_config)
 
-        # Contruct the config string.
-        import_config = 'import=(enabled,repair=false,file_metadata=(' + \
-            original_db_file_config + '))'
-
-        if self.import_type == 'same':
-            # Try to import the file even though it already exists in our database.
-            # We should get an error back.
-            self.assertRaisesException(wiredtiger.WiredTigerError,
-                lambda: self.session.create(uri, import_config))
-            return
-
         # Close the connection.
         self.close_conn()
 
@@ -139,13 +120,15 @@ class test_import01(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)
 
-        # Simulate importing a file into an existing database.
         # Make a bunch of files and fill them with data.
-        if self.import_type == 'existing':
-            self.populate()
+        self.populate()
 
         # Copy over the datafiles for the object we want to import.
         self.copy_file(original_db_file, '.', newdir)
+
+        # Contruct the config string.
+        import_config = 'import=(enabled,repair=false,file_metadata=(' + \
+            original_db_file_config + '))'
 
         # Import the file.
         self.session.create(uri, import_config)

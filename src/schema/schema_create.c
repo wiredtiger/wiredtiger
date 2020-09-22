@@ -72,8 +72,8 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
     /* Check if the file already exists. */
     if (!is_metadata && (ret = __wt_metadata_search(session, uri, &fileconf)) != WT_NOTFOUND) {
         /*
-         * Don't allow a file to get imported if it already exists in our database. This is most
-         * likely a mistake.
+         * Regardless of the 'exclusive' flag, we should raise an error if we try to import an
+         * existing URI rather than just silently returning.
          */
         if (exclusive || import)
             WT_TRET(EEXIST);
@@ -126,14 +126,18 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
                  * inferring a repair.
                  */
                 WT_ERR_MSG(session, EINVAL,
-                  "Attempted to import file \"%s\" without providing file metadata. If metadata "
-                  "cannot be provided, then the \"repair\" option should be provided.",
+                  "%s: import requires that 'file_metadata' is specified or the 'repair' option is "
+                  "provided",
                   uri);
             }
         }
     }
 
-    if (!import) {
+    if (import) {
+        WT_IGNORE_RET(__wt_fs_exist(session, filename, &exists));
+        if (!exists)
+            WT_ERR_MSG(session, ENOENT, "%s: attempted to import file that does not exist", uri);
+    } else {
         /* Create the file. */
         WT_ERR(__wt_block_manager_create(session, filename, allocsize));
     }
