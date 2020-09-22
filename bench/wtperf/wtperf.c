@@ -1389,12 +1389,11 @@ execute_populate(WTPERF *wtperf)
 {
     CONFIG_OPTS *opts;
     WTPERF_THREAD *popth;
-    size_t i;
     uint64_t last_ops, max_key, msecs, print_ops_sec, start, stop;
-    uint32_t interval, tables;
+    uint32_t interval;
     wt_thread_t idle_table_cycle_thread;
     double print_secs;
-    int elapsed, ret;
+    int elapsed;
 
     opts = wtperf->opts;
     max_key = (uint64_t)opts->icount + (uint64_t)opts->scan_icount;
