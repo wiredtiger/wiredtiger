@@ -126,8 +126,8 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
                  * inferring a repair.
                  */
                 WT_ERR_MSG(session, EINVAL,
-                  "Attempted to import file \"%s\" without providing file metadata. If metadata "
-                  "cannot be provided, then the \"repair\" option should be provided.",
+                  "%s: import requires that 'file_metadata' is specified or the 'repair' option is "
+                  "provided",
                   uri);
             }
         }
