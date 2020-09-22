@@ -55,6 +55,17 @@ class test_import01(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
         cursor.close()
 
+    # We know the ID can be different between configs, so just remove it from comparison.
+    # Everything else should be the same.
+    def config_compare(self, aconf, bconf):
+        a = re.sub('id=\d+,?', '', aconf)
+        a = (re.sub('\w+=\(.*?\)+,?', '', a).strip(',').split(',') +
+             re.findall('\w+=\(.*?\)+', a))
+        b = re.sub('id=\d+,?', '', bconf)
+        b = (re.sub('\w+=\(.*?\)+,?', '', b).strip(',').split(',') +
+             re.findall('\w+=\(.*?\)+', b))
+        self.assertTrue(a.sort() == b.sort())
+
     # Helper for populating a database to simulate importing files into an existing database.
     def populate(self):
         # Create file:test_import01_[1-100].
@@ -148,9 +159,7 @@ class test_import01(wttest.WiredTigerTestCase):
         c = self.session.open_cursor('metadata:', None, None)
         current_db_file_config = c[uri]
         c.close()
-        original_db_file_ckpt = re.match("checkpoint=\(.*\)\)", original_db_file_config)
-        current_db_file_ckpt = re.match("checkpoint=\(.*\)\)", current_db_file_config)
-        self.assertEqual(original_db_file_ckpt, current_db_file_ckpt)
+        self.config_compare(original_db_file_config, current_db_file_config)
 
         key5 = b'5'
         key6 = b'6'
