@@ -802,6 +802,7 @@ restart:
                  */
                 if (slot->slot_start_lsn.l.offset != slot->slot_last_offset)
                     slot->slot_start_lsn.l.offset = (uint32_t)slot->slot_last_offset;
+                WT_READ_BARRIER();
                 log->write_start_lsn = slot->slot_start_lsn;
                 log->write_lsn = slot->slot_end_lsn;
                 __wt_cond_signal(session, log->log_write_cond);

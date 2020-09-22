@@ -1930,6 +1930,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
     WT_STAT_CONN_INCR(session, log_release_write_lsn);
     __log_wait_for_earlier_slot(session, slot);
 
+    WT_READ_BARRIER();
     log->write_start_lsn = slot->slot_start_lsn;
     log->write_lsn = slot->slot_end_lsn;
 
