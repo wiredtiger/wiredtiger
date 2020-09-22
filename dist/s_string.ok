@@ -19,6 +19,7 @@ Ailamaki
 Alakuijala
 Alexandrescu's
 Alloc
+AsyncOp
 Athanassoulis
 Athlon
 Axxx
@@ -495,6 +496,7 @@ argv
 asm
 aspell
 assertfmt
+async
 atomicity
 autocommit
 autoconf
