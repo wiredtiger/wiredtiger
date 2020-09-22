@@ -902,8 +902,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             if (F_ISSET(upd, WT_UPDATE_HS)) {
                 if (hs_inserted)
                     WT_ERR_PANIC(session, WT_PANIC,
-                      "Inserting updates older than updates that are already in the history store "
-                      "to the history store may corrupt the data.");
+                      "Reinserting updates to the history store may corrupt the data as it may "
+                      "clear the history store data newer than it.");
                 continue;
             }
 
