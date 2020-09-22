@@ -49,9 +49,9 @@ class test_import02(wttest.WiredTigerTestCase):
 
     # Helper for populating a database to simulate importing files into an existing database.
     def populate(self):
-        # Create file:test_import01_[1-100].
+        # Create file:test_import02_[1-100].
         for fileno in range(1, 100):
-            uri = 'file:test_import01_{}'.format(fileno)
+            uri = 'file:test_import02_{}'.format(fileno)
             self.session.create(uri, 'key_format=i,value_format=S')
             cursor = self.session.open_cursor(uri)
             # Insert keys [1-100] with value 'foo'.
