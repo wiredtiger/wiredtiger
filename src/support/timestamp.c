@@ -252,7 +252,7 @@ __wt_time_aggregate_validate(
           "aggregate %s",
           __wt_time_aggregate_to_string(ta, time_string[0]));
 
-    if (ta->newest_txn < ta->newest_stop_txn)
+    if (ta->newest_stop_txn != WT_TXN_MAX && ta->newest_txn < ta->newest_stop_txn)
         WT_TIME_VALIDATE_RET(session,
           "aggregate time window has a newest transaction before its newest stop "
           "transaction; time aggregate %s",
