@@ -507,7 +507,8 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
         if (cval.len != 0) {
             WT_RET(__wt_strndup(session, cval.str, strlen(cval.str), &str));
 
-            WT_RET(__wt_calloc_def(session, conn->txn_global.snapshot_count, &conn->txn_global.snapshots));
+            WT_RET(__wt_calloc_def(
+              session, conn->txn_global.snapshot_count, &conn->txn_global.snapshots));
             sep = ",";
 
             WT_RET(__wt_config_tokenize(str, sep, conn->txn_global.snapshots));

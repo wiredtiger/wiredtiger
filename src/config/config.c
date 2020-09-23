@@ -663,9 +663,9 @@ __wt_config_getones_none(
 int
 __wt_config_tokenize(char *str, const char *delimeter, uint64_t *parse_array)
 {
-    char *token;
     uint64_t snap_value;
     uint16_t snap_counter;
+    char *token;
 
     snap_counter = 0;
 
@@ -678,7 +678,6 @@ __wt_config_tokenize(char *str, const char *delimeter, uint64_t *parse_array)
     }
     return 0;
 }
-
 
 /*
  * __wt_config_gets_def --

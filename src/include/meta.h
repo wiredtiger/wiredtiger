@@ -38,11 +38,11 @@
 #define WT_SYSTEM_CKPT_URI "system:checkpoint"                   /* Checkpoint timestamp URI */
 #define WT_SYSTEM_OLDEST_TS "oldest_timestamp"                   /* Oldest timestamp name */
 #define WT_SYSTEM_OLDEST_URI "system:oldest"                     /* Oldest timestamp URI */
-#define WT_SYSTEM_CKPT_SNAPSHOT "snapshots"                      /* Checkpoint timestamp name */
-#define WT_SYSTEM_CKPT_SNAPSHOT_MIN "snaphot_min"                /* Checkpoint timestamp name */
-#define WT_SYSTEM_CKPT_SNAPSHOT_MAX "snapshot_max"               /* Checkpoint timestamp URI */
-#define WT_SYSTEM_CKPT_SNAPSHOT_COUNT "snapshot_count"           /* Checkpoint timestamp name */
-#define WT_SYSTEM_CKPT_SNAPSHOT_URI "system:checkpoint_snapshot" /* Checkpoint timestamp URI */
+#define WT_SYSTEM_CKPT_SNAPSHOT "snapshots"                      /* List of snapshots */
+#define WT_SYSTEM_CKPT_SNAPSHOT_MIN "snaphot_min"                /* Snapshot minimum */
+#define WT_SYSTEM_CKPT_SNAPSHOT_MAX "snapshot_max"               /* Snapshot maximum */
+#define WT_SYSTEM_CKPT_SNAPSHOT_COUNT "snapshot_count"           /* Snapshot count */
+#define WT_SYSTEM_CKPT_SNAPSHOT_URI "system:checkpoint_snapshot" /* Checkpoint snapshot URI */
 
 /*
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
