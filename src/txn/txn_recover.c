@@ -453,6 +453,79 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
 }
 
 /*
+ * __recovery_set_checkpoint_snapshot --
+ *     Set the oldest timestamp as retrieved from the metadata file.
+ */
+static int
+__recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    char *sys_config;
+    char *str;
+    const char *sep;
+
+    sys_config = NULL;
+
+    session = r->session;
+    conn = S2C(session);
+
+    /*
+     * Read the system checkpoint information from the metadata file and save the snapshot related
+     * details of the last checkpoint for later query. This gets saved in the connection.
+     */
+
+    /* Search the metadata for the system information. */
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, &sys_config), false);
+    if (sys_config != NULL) {
+        WT_CLEAR(cval);
+        printf("sysconfig : %s\n", sys_config);
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval), false);
+        if (cval.len != 0) {
+            conn->txn_global.snapshot_min = cval.val;
+        }
+
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MAX, &cval), false);
+        if (cval.len != 0) {
+            conn->txn_global.snapshot_max = cval.val;
+        }
+
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_COUNT, &cval), false);
+        if (cval.len != 0) {
+            conn->txn_global.snapshot_count = cval.val;
+        }
+
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT, &cval), false);
+        if (cval.len != 0) {
+            WT_RET(__wt_strndup(session, cval.str, strlen(cval.str), &str));
+
+            WT_RET(__wt_calloc_def(session, conn->txn_global.snapshot_count, &conn->txn_global.snapshots));
+            sep = ",";
+
+            WT_RET(__wt_config_tokenize(str, sep, conn->txn_global.snapshots));
+        }
+
+        printf("Printing snapshots from array\n");
+        for (int i = 0; i < conn->txn_global.snapshot_count; ++i) {
+            printf("Value : %" PRIu64 " ", conn->txn_global.snapshots[i]);
+        }
+    }
+
+err:
+    __wt_free(session, sys_config);
+    __wt_free(session, str);
+    return (ret);
+}
+
+/*
  * __recovery_setup_file --
  *     Set up the recovery slot for a file, track the largest file ID, and update the base write gen
  *     based on the file's configuration.
@@ -823,6 +896,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 done:
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
     WT_ERR(__recovery_set_oldest_timestamp(&r));
+    WT_ERR(__recovery_set_checkpoint_snapshot(&r));
+
     /*
      * Perform rollback to stable only when the following conditions met.
      * 1. The connection is not read-only. A read-only connection expects that there shouldn't be

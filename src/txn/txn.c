@@ -229,6 +229,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
                 WT_READ_BARRIER();
                 if (id == s->id) {
                     txn->snapshot[n++] = id;
+
                     if (WT_TXNID_LT(id, pinned_id))
                         pinned_id = id;
                     break;
@@ -1965,6 +1966,7 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
     __wt_rwlock_destroy(session, &txn_global->read_timestamp_rwlock);
     __wt_rwlock_destroy(session, &txn_global->visibility_rwlock);
     __wt_free(session, txn_global->txn_shared_list);
+    __wt_free(session, txn_global->snapshots);
 }
 
 /*

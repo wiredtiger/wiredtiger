@@ -657,6 +657,30 @@ __wt_config_getones_none(
 }
 
 /*
+ * __wt_config_tokenize --
+ *     Toekinize a given string and serialiaze into the given array.
+ */
+int
+__wt_config_tokenize(char *str, const char *delimeter, uint64_t *parse_array)
+{
+    char *token;
+    uint64_t snap_value;
+    uint16_t snap_counter;
+
+    snap_counter = 0;
+
+    token = strtok(str, delimeter);
+
+    while (token != NULL) {
+        sscanf(token, "%" PRIu64, &snap_value);
+        parse_array[snap_counter++] = snap_value;
+        token = strtok(NULL, delimeter);
+    }
+    return 0;
+}
+
+
+/*
  * __wt_config_gets_def --
  *     Performance hack: skip parsing config strings by hard-coding defaults. It's expensive to
  *     repeatedly parse configuration strings, so don't do it unless it's necessary in performance
