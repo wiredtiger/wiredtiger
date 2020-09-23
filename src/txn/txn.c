@@ -301,10 +301,10 @@ __wt_txn_save_and_update_snapshot(WT_SESSION_IMPL *session, WT_TXN_SAVED_STATE *
      * processed. Therefore, we use snapshot API that doesn't publish shared IDs to the outside
      * world.
      */
-    __wt_txn_bump_snapshot(session);
     txn->id = WT_TXN_NONE;
-    txn->flags = WT_TXN_HAS_SNAPSHOT;
+    txn->flags = 0;
     txn->isolation = WT_ISO_READ_COMMITTED;
+    __wt_txn_bump_snapshot(session);
     /*
      * If we acquired a snapshot for eviction, force the isolation to ensure the snapshot isn't
      * released when history store cursors are closed.
