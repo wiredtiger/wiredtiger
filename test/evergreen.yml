@@ -2393,6 +2393,26 @@ tasks:
   - <<: *recovery-stress-test
     name: recovery-stress-test-3
     tags: ["stress-test-3", "stress-test-zseries-3"]
+  
+  - name: cyclomatic-complexity
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/src"
+          shell: bash
+          script: |
+            set -o verbose
+
+            git clone https://github.com/metrixplusplus/metrixplusplus metrixplusplus
+            python "metrixplusplus/metrix++.py" collect --std.code.lines.code --std.code.complexity.cyclomatic
+            python "metrixplusplus/metrix++.py" view
+
+            # Set the cyclomatic complexity limit to 20
+            python "metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:20
+
+            # cyclomatic-complexity runs successfully
+            exit 0
 
 buildvariants:
 
@@ -2426,6 +2446,7 @@ buildvariants:
     - name: ftruncate-test
     - name: long-test
     - name: static-wt-build-test
+    - name: cyclomatic-complexity
 
 - name: ubuntu1804-compilers
   display_name: "! Ubuntu 18.04 Compilers"
