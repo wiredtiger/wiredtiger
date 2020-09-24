@@ -112,7 +112,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
                 /*
                  * The string may be enclosed by delimiters (e.g. braces, quotes, parentheses) to
                  * avoid configuration string characters acting as separators. Discard the first and
-                 * last characters.
+                 * last characters in this case.
                  */
                 if (cval.type == WT_CONFIG_ITEM_STRUCT) {
                     cval.str++;
