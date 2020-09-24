@@ -690,7 +690,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /*
      * TODO: We are deliberately not using a snapshot when checkpoint is active. This will ensure
      * that point-in-time checkpoints have a consistent version of data. Remove this condition once
-     * fuzzy transaction ID based checkpoints work is merged.
+     * fuzzy transaction ID based checkpoints work is merged (WT-6673).
      */
     /*
      * Avoid updating snapshots when application transactions are in final stages of commit or
