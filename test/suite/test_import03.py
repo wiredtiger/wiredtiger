@@ -155,6 +155,9 @@ class test_import03(wttest.WiredTigerTestCase):
         # Make a bunch of files and fill them with data.
         self.populate()
 
+        # Bring forward the stable timestamp to be past the timestamps we'll be importing.
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(40))
+
         # Copy over the datafiles for the object we want to import.
         self.copy_file(original_db_table + '.wt', '.', newdir)
 

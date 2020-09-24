@@ -45,6 +45,49 @@ __wt_direct_io_size_check(
 }
 
 /*
+ * __check_imported_ts --
+ *     Check the aggregated timestamps for each checkpoint in a file that we've imported. We're not
+ *     allowed to import files with timestamps ahead of our stable timestamp since a subsequent
+ *     rollback to stable could result in data loss. Therefore, this function should return non-zero
+ *     to callers to signify that this is the case.
+ */
+static int
+__check_imported_ts(WT_SESSION_IMPL *session, const char *uri, const char *config)
+{
+    WT_CKPT *ckptbase, *ckpt;
+    WT_DECL_RET;
+    WT_TXN_GLOBAL *txn_global;
+
+    ckptbase = NULL;
+    txn_global = &S2C(session)->txn_global;
+
+    WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get(session, uri, false, &ckptbase, config), true);
+    if (ret == WT_NOTFOUND)
+        WT_ERR_MSG(session, EINVAL,
+          "%s: import could not find any checkpoint information in supplied metadata", uri);
+
+    /* Now iterate over each checkpoint and compare the aggregate timestamps with our global. */
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (ckpt->ta.newest_start_durable_ts > txn_global->stable_timestamp)
+            WT_ERR_MSG(session, EINVAL,
+              "%s: import found an aggregated durable timestamp newer than the current stable "
+              "timestamp, newest_start_durable_ts=%" PRIu64 ", stable_ts=%" PRIu64,
+              uri, ckpt->ta.newest_start_durable_ts, txn_global->stable_timestamp);
+
+        if (ckpt->ta.oldest_start_ts > txn_global->stable_timestamp)
+            WT_ERR_MSG(session, EINVAL,
+              "%s: import found an aggregated commit timestamp newer than the current stable "
+              "timestamp, oldest_start_ts=%" PRIu64 ", stable_ts=%" PRIu64,
+              uri, ckpt->ta.oldest_start_ts, txn_global->stable_timestamp);
+    }
+
+err:
+    if (ckptbase != NULL)
+        __wt_meta_ckptlist_free(session, &ckptbase);
+    return (ret);
+}
+
+/*
  * __create_file --
  *     Create a new 'file:' object.
  */
@@ -163,6 +206,13 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
         } else {
             /* TO-DO: WT-6691 */
         }
+
+        /*
+         * Ensure that the timestamps in the imported data file are not in the future relative to
+         * our stable timestamp.
+         */
+        if (import)
+            WT_ERR(__check_imported_ts(session, filename, fileconf));
     }
 
     /*

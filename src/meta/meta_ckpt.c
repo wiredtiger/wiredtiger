@@ -493,7 +493,7 @@ __wt_meta_blk_mods_load(WT_SESSION_IMPL *session, const char *config, WT_CKPT *c
  */
 int
 __wt_meta_ckptlist_get(
-  WT_SESSION_IMPL *session, const char *fname, bool update, WT_CKPT **ckptbasep)
+  WT_SESSION_IMPL *session, const char *fname, bool update, WT_CKPT **ckptbasep, const char *config)
 {
     WT_CKPT *ckpt, *ckptbase;
     WT_CONFIG ckptconf;
@@ -502,17 +502,20 @@ __wt_meta_ckptlist_get(
     WT_DECL_RET;
     size_t allocated, slot;
     uint64_t most_recent;
-    char *config;
+    char *metadata_config;
 
     *ckptbasep = NULL;
 
     ckptbase = NULL;
     allocated = slot = 0;
-    config = NULL;
     conn = S2C(session);
+    metadata_config = NULL;
 
-    /* Retrieve the metadata information for the file. */
-    WT_RET(__wt_metadata_search(session, fname, &config));
+    /* Retrieve the metadata information for the file if it hasn't been provided. */
+    if (config == NULL) {
+        WT_RET(__wt_metadata_search(session, fname, &metadata_config));
+        config = metadata_config;
+    }
 
     /* Load any existing checkpoints into the array. */
     if ((ret = __wt_config_getones(session, config, "checkpoint", &v)) == 0) {
@@ -571,7 +574,8 @@ __wt_meta_ckptlist_get(
 err:
         __wt_meta_ckptlist_free(session, &ckptbase);
     }
-    __wt_free(session, config);
+    if (metadata_config != NULL)
+        __wt_free(session, metadata_config);
 
     return (ret);
 }
