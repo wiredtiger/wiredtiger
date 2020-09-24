@@ -106,10 +106,10 @@ class test_import03(wttest.WiredTigerTestCase):
             'columns=(id,country,capital,population)'
         self.session.create(uri, create_config)
 
-        key1 = b'1'
-        key2 = b'2'
-        key3 = b'3'
-        key4 = b'4'
+        key1 = 1
+        key2 = 2
+        key3 = 3
+        key4 = 4
         value1 = ('Australia', 'Canberra', 1)
         value2 = ('Japan', 'Tokyo', 2)
         value3 = ('Italy', 'Rome', 3)
@@ -176,8 +176,8 @@ class test_import03(wttest.WiredTigerTestCase):
         c.close()
         self.config_compare(original_db_table_config, current_db_table_config)
 
-        key5 = b'5'
-        key6 = b'6'
+        key5 = 5
+        key6 = 6
         value5 = ('Germany', 'Berlin', 5)
         value6 = ('South Korea', 'Seoul', 6)
 
