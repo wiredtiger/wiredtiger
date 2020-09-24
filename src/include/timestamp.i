@@ -72,7 +72,7 @@
         (ta)->newest_start_durable_ts = WT_TS_NONE; \
         (ta)->newest_stop_durable_ts = WT_TS_NONE;  \
         (ta)->oldest_start_ts = WT_TS_NONE;         \
-        (ta)->newest_txn = WT_TXN_MAX;             \
+        (ta)->newest_txn = WT_TXN_NONE;             \
         (ta)->newest_stop_ts = WT_TS_MAX;           \
         (ta)->newest_stop_txn = WT_TXN_MAX;         \
         (ta)->prepare = 0;                          \
@@ -108,7 +108,7 @@
           (ta)->newest_stop_txn == WT_TXN_MAX && (ta)->prepare == 0) :                         \
         ((ta)->newest_start_durable_ts == WT_TS_NONE &&                                        \
           (ta)->newest_stop_durable_ts == WT_TS_NONE && (ta)->oldest_start_ts == WT_TS_MAX &&  \
-          (ta)->newest_txn == WT_TXN_MAX && (ta)->newest_stop_ts == WT_TS_NONE &&              \
+          (ta)->newest_txn == WT_TXN_NONE && (ta)->newest_stop_ts == WT_TS_NONE &&              \
           (ta)->newest_stop_txn == WT_TXN_NONE && (ta)->prepare == 0))
 
 /* Copy the values from one time aggregate structure to another. */
