@@ -49,8 +49,6 @@ def java_post_substitutions(source):
     for datatype in [['WT_CONNECTION', 'Connection'],
              ['WT_CURSOR', 'Cursor'],
              ['WT_SESSION', 'Session'],
-             ['WT_ASYNC_OPTYPE', 'AsyncOpType'],
-             ['WT_ASYNC_OP', 'AsyncOp']]:
         fromdt = datatype[0]
         todt = datatype[1]
 
