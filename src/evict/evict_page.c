@@ -685,18 +685,15 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * evict pages that are not globally visible based on last_running transaction. We will save
      * some of the running transaction's context, get a new transaction snapshot, perform eviction
      * and restore the original transaction's context (including snapshot) once we are finished.
+     * Avoid updating snapshots when application transactions are in final stages of commit or
+     * rollback as they have already released the snapshot. Otherwise, it becomes harder in later
+     * part of the code to detect updates the belonged to the last running application transaction.
      */
 
     /*
      * TODO: We are deliberately not using a snapshot when checkpoint is active. This will ensure
      * that point-in-time checkpoints have a consistent version of data. Remove this condition once
      * fuzzy transaction ID based checkpoints work is merged (WT-6673).
-     */
-    /*
-     * Avoid updating snapshots when application transactions are in final stages of commit or
-     * rollback as they have already released the snapshot. It otherwise makes it harder in later
-     * part of code to detect updates the belonged to last the running transaction from application
-     * thread.
      */
     use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
       !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE;
@@ -709,7 +706,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         /*
          * Make sure once more that there is no checkpoint running. A new checkpoint might have
          * started between previous check and acquiring snapshot. If there is a checkpoint running,
-         * release the checkpoint and fallback to global visibility checks.
+         * release the snapshot and fallback to global visibility checks.
          */
         if (conn->txn_global.checkpoint_running) {
             __wt_txn_restore_snapshot(session, &old_state);
