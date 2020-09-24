@@ -547,7 +547,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_TXN_SAVED_STATE old_state;
     uint32_t flags;
     bool closing, modified;
-    bool restore_snapshot;
+    bool snapshot_acquired;
     bool use_snapshot_for_app_thread;
     bool use_snapshot_for_eviction_thread;
 
@@ -557,7 +557,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     page = ref->page;
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
-    restore_snapshot = false;
+    snapshot_acquired = false;
 
     /*
      * Fail if an internal has active children, the children must be evicted first. The test is
@@ -702,7 +702,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (!conn->txn_global.checkpoint_running && !WT_IS_HS(S2BT(session)) &&
       (use_snapshot_for_app_thread || use_snapshot_for_eviction_thread)) {
         WT_RET(__wt_txn_save_and_update_snapshot(session, &old_state));
-        restore_snapshot = true;
+        snapshot_acquired = true;
         /*
          * Make sure once more that there is no checkpoint running. A new checkpoint might have
          * started between previous check and acquiring snapshot. If there is a checkpoint running,
@@ -711,7 +711,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         if (conn->txn_global.checkpoint_running) {
             __wt_txn_restore_snapshot(session, &old_state);
             LF_SET(WT_REC_VISIBLE_ALL);
-            restore_snapshot = false;
+            snapshot_acquired = false;
         } else if (use_snapshot_for_app_thread)
             LF_SET(WT_REC_APP_UPDATED_SNAPSHOT);
     } else if (!WT_SESSION_BTREE_SYNC(session))
@@ -727,7 +727,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
 
-    if (restore_snapshot)
+    if (snapshot_acquired)
         __wt_txn_restore_snapshot(session, &old_state);
 
     WT_RET(ret);
