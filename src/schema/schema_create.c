@@ -79,6 +79,20 @@ __check_imported_ts(WT_SESSION_IMPL *session, const char *uri, const char *confi
               "%s: import found an aggregated commit timestamp newer than the current stable "
               "timestamp, oldest_start_ts=%" PRIu64 ", stable_ts=%" PRIu64,
               uri, ckpt->ta.oldest_start_ts, txn_global->stable_timestamp);
+
+        if (ckpt->ta.newest_stop_ts != WT_TS_MAX &&
+          ckpt->ta.newest_stop_ts > txn_global->stable_timestamp)
+            WT_ERR_MSG(session, EINVAL,
+              "%s: import found an aggregated commit timestamp newer than the current stable "
+              "timestamp, newest_stop_ts=%" PRIu64 ", stable_ts=%" PRIu64,
+              uri, ckpt->ta.newest_stop_ts, txn_global->stable_timestamp);
+
+        if (ckpt->ta.newest_stop_durable_ts != WT_TS_MAX &&
+          ckpt->ta.newest_stop_durable_ts > txn_global->stable_timestamp)
+            WT_ERR_MSG(session, EINVAL,
+              "%s: import found an aggregated durable timestamp newer than the current stable "
+              "timestamp, newest_stop_durable_ts=%" PRIu64 ", stable_ts=%" PRIu64,
+              uri, ckpt->ta.newest_stop_durable_ts, txn_global->stable_timestamp);
     }
 
 err:
