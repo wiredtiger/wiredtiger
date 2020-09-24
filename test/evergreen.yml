@@ -2149,6 +2149,20 @@ tasks:
             cp ../../../bench/wtperf/split_heavy.wtperf .
             ./wtperf -O ./split_heavy.wtperf -o verbose=2
 
+  - name: format-failure-configs-test
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/evergreen"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ./run_format_configs.sh
+
   - name: static-wt-build-test
     commands:
       - func: "get project"
@@ -2382,6 +2396,7 @@ buildvariants:
     - name: ftruncate-test
     - name: long-test
     - name: static-wt-build-test
+    - name: format-failure-configs-test
 
 - name: ubuntu1804-compilers
   display_name: "! Ubuntu 18.04 Compilers"
