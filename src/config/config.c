@@ -657,11 +657,11 @@ __wt_config_getones_none(
 }
 
 /*
- * __wt_config_tokenize --
- *     Toekinize a given string and serialiaze into the given array.
+ * __wt_config_tokenizer --
+ *     String tokenizer into the given array.
  */
 int
-__wt_config_tokenize(char *str, const char *delimeter, uint64_t *parse_array)
+__wt_config_tokenizer(char *str, const char *delimeter, uint64_t *parse_array)
 {
     uint64_t snap_value;
     uint16_t snap_counter;

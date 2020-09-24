@@ -468,7 +468,7 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
     char *str;
     const char *sep;
 
-    sys_config = NULL;
+    sys_config = str = NULL;
 
     session = r->session;
     conn = S2C(session);
@@ -483,7 +483,7 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
       __wt_metadata_search(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, &sys_config), false);
     if (sys_config != NULL) {
         WT_CLEAR(cval);
-        printf("sysconfig : %s\n", sys_config);
+        // printf("sysconfig : %s\n", sys_config);
         WT_ERR_NOTFOUND_OK(
           __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval), false);
         if (cval.len != 0) {
@@ -511,7 +511,7 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
               session, conn->txn_global.snapshot_count, &conn->txn_global.snapshots));
             sep = ",";
 
-            WT_RET(__wt_config_tokenize(str, sep, conn->txn_global.snapshots));
+            WT_RET(__wt_config_tokenizer(str, sep, conn->txn_global.snapshots));
         }
 
         printf("Printing snapshots from array\n");
@@ -522,7 +522,8 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
 
 err:
     __wt_free(session, sys_config);
-    __wt_free(session, str);
+    if (str != NULL)
+        __wt_free(session, str);
     return (ret);
 }
 
