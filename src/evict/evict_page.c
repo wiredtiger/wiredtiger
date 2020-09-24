@@ -560,6 +560,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     restore_snapshot = false;
 
     /*
+     * Fail if an internal has active children, the children must be evicted first. The test is
+     * necessary but shouldn't fire much: the eviction code is biased for leaf pages, an internal
      * page shouldn't be selected for eviction until all children have been evicted.
      */
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
