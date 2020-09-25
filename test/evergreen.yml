@@ -2411,8 +2411,9 @@ tasks:
             # Set the cyclomatic complexity limit to 20
             python "metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:20
 
-            # cyclomatic-complexity runs successfully
-            exit 0
+            # Fail if there are functions with cyclomatic complexity larger than 92
+            set -o errexit
+            python "metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:92
 
 buildvariants:
 
