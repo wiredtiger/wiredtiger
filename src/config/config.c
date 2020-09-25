@@ -661,13 +661,18 @@ __wt_config_getones_none(
  *     String tokenizer into the given array.
  */
 int
-__wt_config_tokenizer(char *str, const char *delimeter, uint64_t *parse_array)
+__wt_config_tokenizer(
+  WT_SESSION_IMPL *session, const char *cval_str, const char *delimeter, uint64_t *parse_array)
 {
     uint64_t snap_value;
     uint16_t snap_counter;
+    char *str;
     char *token;
 
+    str = NULL;
     snap_counter = 0;
+
+    WT_RET(__wt_strndup(session, cval_str, strlen(cval_str), &str));
 
     token = strtok(str, delimeter);
 
@@ -676,6 +681,9 @@ __wt_config_tokenizer(char *str, const char *delimeter, uint64_t *parse_array)
         parse_array[snap_counter++] = snap_value;
         token = strtok(NULL, delimeter);
     }
+    if (str != NULL)
+        __wt_free(session, str);
+
     return 0;
 }
 

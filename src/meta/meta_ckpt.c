@@ -1003,6 +1003,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 
 err:
     __wt_scr_free(session, &buf);
+    __wt_free(session, buf2);
     return (ret);
 }
 
