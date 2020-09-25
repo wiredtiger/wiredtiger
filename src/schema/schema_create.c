@@ -70,29 +70,23 @@ __check_imported_ts(WT_SESSION_IMPL *session, const char *uri, const char *confi
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         if (ckpt->ta.newest_start_durable_ts > txn_global->stable_timestamp)
             WT_ERR_MSG(session, EINVAL,
-              "%s: import found an aggregated durable timestamp newer than the current stable "
-              "timestamp, newest_start_durable_ts=%" PRIu64 ", stable_ts=%" PRIu64,
+              "%s: import found aggregated newest start durable timestamp newer than the current "
+              "stable timestamp, newest_start_durable_ts=%" PRIu64 ", stable_ts=%" PRIu64,
               uri, ckpt->ta.newest_start_durable_ts, txn_global->stable_timestamp);
 
-        if (ckpt->ta.oldest_start_ts > txn_global->stable_timestamp)
+        /*
+         * No need to check "newest stop" here as "newest stop durable" serves that purpose. When a
+         * file has at least one record without a stop timestamp, "newest stop" will be set to max
+         * whereas "newest stop durable" refers to the newest non-max timestamp which is more useful
+         * to us in terms of comparing with stable.
+         */
+        if (ckpt->ta.newest_stop_durable_ts > txn_global->stable_timestamp) {
+            WT_ASSERT(session, ckpt->ta.newest_stop_durable_ts != WT_TS_MAX);
             WT_ERR_MSG(session, EINVAL,
-              "%s: import found an aggregated commit timestamp newer than the current stable "
-              "timestamp, oldest_start_ts=%" PRIu64 ", stable_ts=%" PRIu64,
-              uri, ckpt->ta.oldest_start_ts, txn_global->stable_timestamp);
-
-        if (ckpt->ta.newest_stop_ts != WT_TS_MAX &&
-          ckpt->ta.newest_stop_ts > txn_global->stable_timestamp)
-            WT_ERR_MSG(session, EINVAL,
-              "%s: import found an aggregated commit timestamp newer than the current stable "
-              "timestamp, newest_stop_ts=%" PRIu64 ", stable_ts=%" PRIu64,
-              uri, ckpt->ta.newest_stop_ts, txn_global->stable_timestamp);
-
-        if (ckpt->ta.newest_stop_durable_ts != WT_TS_MAX &&
-          ckpt->ta.newest_stop_durable_ts > txn_global->stable_timestamp)
-            WT_ERR_MSG(session, EINVAL,
-              "%s: import found an aggregated durable timestamp newer than the current stable "
-              "timestamp, newest_stop_durable_ts=%" PRIu64 ", stable_ts=%" PRIu64,
+              "%s: import found aggregated newest stop durable timestamp newer than the current "
+              "stable timestamp, newest_stop_durable_ts=%" PRIu64 ", stable_ts=%" PRIu64,
               uri, ckpt->ta.newest_stop_durable_ts, txn_global->stable_timestamp);
+        }
     }
 
 err:
