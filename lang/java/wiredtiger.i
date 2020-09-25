@@ -443,6 +443,7 @@ javaCloseHandler(WT_EVENT_HANDLER *handler, WT_SESSION *session,
 }
 
 WT_EVENT_HANDLER javaApiEventHandler = {NULL, NULL, NULL, javaCloseHandler};
+%}
 
 %extend __wt_cursor {
 
