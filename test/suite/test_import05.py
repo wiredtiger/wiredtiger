@@ -31,6 +31,7 @@
 
 import os, shutil
 import wiredtiger, wttest
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
@@ -38,11 +39,23 @@ def timestamp_str(t):
 class test_import05(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
+    scenarios = make_scenarios([
+        ('insert', dict(op_type='insert')),
+        ('delete', dict(op_type='delete')),
+    ])
 
     def update(self, uri, key, value, commit_ts):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
         cursor[key] = value
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+        cursor.close()
+
+    def delete(self, uri, key, commit_ts):
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        cursor.set_key(key)
+        self.assertEqual(0, cursor.remove())
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
@@ -74,7 +87,7 @@ class test_import05(wttest.WiredTigerTestCase):
             "Tmplog" not in file_name and "Preplog" not in file_name:
             shutil.copy(old_path, new_dir)
 
-    def test_file_import_future_insert(self):
+    def test_file_import_future_ts(self):
         original_db_file = 'original_db_file'
         uri = 'file:' + original_db_file
 
@@ -88,7 +101,12 @@ class test_import05(wttest.WiredTigerTestCase):
 
         # Add some data.
         self.update(uri, key1, value1, 10)
-        self.update(uri, key2, value2, 20)
+
+        if self.op_type == 'insert':
+            self.update(uri, key2, value2, 20)
+        else:
+            self.assertEqual(self.op_type, 'delete')
+            self.delete(uri, key2, 20)
 
         # Perform a checkpoint.
         self.session.checkpoint()
