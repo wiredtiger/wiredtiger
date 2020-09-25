@@ -2395,6 +2395,7 @@ tasks:
     tags: ["stress-test-3", "stress-test-zseries-3"]
   
   - name: cyclomatic-complexity
+    tags: ["pull_request"]
     commands:
       - func: "get project"
       - command: shell.exec
