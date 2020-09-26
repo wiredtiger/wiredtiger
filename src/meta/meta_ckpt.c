@@ -935,7 +935,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t oldest_timestamp;
     uint32_t i;
-    char buf2[256];
+    char buf2[WT_INTPACK64_MAXSIZE];
     char hex_timestamp[WT_TS_HEX_STRING_SIZE];
 
     WT_TXN *txn;
@@ -1003,7 +1003,6 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 
 err:
     __wt_scr_free(session, &buf);
-    __wt_free(session, buf2);
     return (ret);
 }
 

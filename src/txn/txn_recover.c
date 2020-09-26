@@ -484,9 +484,8 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
         WT_CLEAR(cval);
         WT_ERR_NOTFOUND_OK(
           __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval), false);
-        if (cval.len != 0) {
+        if (cval.len != 0)
             conn->txn_global.snapshot_min = (uint16_t)cval.val;
-        }
 
         WT_ERR_NOTFOUND_OK(
           __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MAX, &cval), false);

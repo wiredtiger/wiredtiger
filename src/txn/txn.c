@@ -229,7 +229,6 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
                 WT_READ_BARRIER();
                 if (id == s->id) {
                     txn->snapshot[n++] = id;
-
                     if (WT_TXNID_LT(id, pinned_id))
                         pinned_id = id;
                     break;
