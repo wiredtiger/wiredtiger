@@ -123,14 +123,14 @@ class test_import01(test_import_base):
 
         # Add data and perform a checkpoint.
         min_idx = 0
-        max_idx = len(self.keys)/3
+        max_idx = len(self.keys) // 3
         for i in range(min_idx, max_idx):
             self.update(self.uri, self.keys[i], self.values[i], self.ts[i])
         self.session.checkpoint()
 
         # Add more data and checkpoint again.
         min_idx = max_idx
-        max_idx = 2*len(self.keys)/3
+        max_idx = 2*len(self.keys) // 3
         for i in range(min_idx, max_idx):
             self.update(self.uri, self.keys[i], self.values[i], self.ts[i])
         self.session.checkpoint()
