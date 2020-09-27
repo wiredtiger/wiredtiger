@@ -26,14 +26,34 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_import03.py
-# Import a table into a running database.
+# test_import04.py
+# Test success and failure scenarios for importing a table into a running database.
+# 1. Attempt to import a table into a destination database where a table object of
+#    that name already exists.
+#    Expected outcome: FAILURE
+# 2. Drop a table from a database without removing the data files, then attempt to
+#    import that table into the same database.
+#    Expected outcome: SUCCESS
+# 3. Attempt to import a table into a destination database where the required data
+#    files do not exist in the destination database directory.
+#    Expected outcome: FAILURE
+# 4. Attempt to import a table into a destination database without specifying the
+#    exported table configuration.
+#    Expected outcome: FAILURE
+# 5. Attempt to import a table into a destination database without specifying the
+#    exported file configuration.
+#    Expected outcome: FAILURE
+# 6. Attempt to import a table into a destination database with the exported
+#    configuration strings supplied, the required data files are present and the
+#    table object does not already exist in the destination database.
+#    Expected outcome: SUCCESS
 
 import os, random, shutil
+import wiredtiger, wttest
 from wtscenario import make_scenarios
 from test_import01 import test_import_base
 
-class test_import03(test_import_base):
+class test_import04(test_import_base):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
@@ -42,18 +62,18 @@ class test_import03(test_import_base):
     scenarios = make_scenarios([
         ('simple_table', dict(
             is_simple = True,
-            keys = [k for k in range(1, nrows+1)],
-            values = random.sample(range(1000000), k=nrows),
-            config = 'key_format=r,value_format=i')),
+            keys=[k for k in range(1, nrows+1)],
+            values=random.sample(range(1000000), k=nrows),
+            config='key_format=r,value_format=i')),
         ('table_with_named_columns', dict(
             is_simple = False,
-            keys = [k for k in range(1, 7)],
-            values = [('Australia', 'Canberra', 1),('Japan', 'Tokyo', 2),('Italy', 'Rome', 3),
+            keys=[k for k in range(1, 7)],
+            values=[('Australia', 'Canberra', 1),('Japan', 'Tokyo', 2),('Italy', 'Rome', 3),
               ('China', 'Beijing', 4),('Germany', 'Berlin', 5),('South Korea', 'Seoul', 6)],
-            config = 'columns=(id,country,capital,population),key_format=r,value_format=SSi')),
+            config='columns=(id,country,capital,population),key_format=r,value_format=SSi')),
     ])
 
-    # Test something table specific like a projection.
+    # Test table projections.
     def check_projections(self, uri, keys, values, ts):
         for i in range(0, len(keys)):
             self.check_record(uri + '(country,capital)',
@@ -68,6 +88,7 @@ class test_import03(test_import_base):
         self.populate(self.ntables, self.nrows)
         self.session.checkpoint()
 
+        # Create the target table for import tests.
         original_db_table = 'original_db_table'
         uri = 'table:' + original_db_table
         create_config = 'allocation_size=512,log=(enabled=true),' + self.config
@@ -91,6 +112,13 @@ class test_import03(test_import_base):
             self.update(uri, keys[i], values[i], ts[i])
         self.session.checkpoint()
 
+        # Check the inserted values are in the table.
+        self.check(uri, keys[:max_idx], values[:max_idx], ts[:max_idx])
+
+        # Check against projections when the table is not simple.
+        if not self.is_simple:
+            self.check_projections(uri, keys[:max_idx], values[:max_idx], ts[:max_idx])
+
         # Export the metadata for the table.
         original_db_file_uri = 'file:' + original_db_table + '.wt'
         c = self.session.open_cursor('metadata:', None, None)
@@ -98,29 +126,60 @@ class test_import03(test_import_base):
         original_db_file_config = c[original_db_file_uri]
         c.close()
 
-        self.printVerbose(3, '\nFile configuration:\n' + original_db_file_config)
-        self.printVerbose(3, '\nTable configuration:\n' + original_db_table_config)
-
-        # Contruct the config string.
-        import_config = '{},import=(enabled,repair=false,file_metadata=({}))'.format(
-            original_db_table_config, original_db_file_config)
-
         # Close the connection.
         self.close_conn()
 
-        # Create a new database and connect to it.
+        # Construct the config string from the exported metadata.
+        import_config = '{},import=(enabled,file_metadata=({}))'.format(
+            original_db_table_config, original_db_file_config)
+
+        # Reopen the connection, add some data and attempt to import the table. We expect
+        # this to fail.
+        self.conn = self.setUpConnectionOpen('.')
+        self.session = self.setUpSessionOpen(self.conn)
+        self.populate(self.ntables, self.nrows)
+        self.session.checkpoint()
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: self.session.create(uri, import_config))
+
+        # Drop the table without removing the data files then attempt to import. We expect
+        # this operation to succeed.
+        self.session.drop(uri, 'remove_files=false')
+        # Verify the table is dropped.
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: self.session.open_cursor(uri, None, None))
+        self.session.create(uri, import_config)
+
+        self.close_conn()
+
+        # Create a new database, connect and populate.
         newdir = 'IMPORT_DB'
         shutil.rmtree(newdir, ignore_errors=True)
         os.mkdir(newdir)
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)
-
-        # Make a bunch of files and fill them with data.
         self.populate(self.ntables, self.nrows)
         self.session.checkpoint()
 
+        # Attempt to import the table before copying the file. We expect this to fail.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.create(uri, import_config), '/No such file or directory/')
+
         # Copy over the datafiles for the object we want to import.
         self.copy_file(original_db_table + '.wt', '.', newdir)
+
+        # Construct the config string incorrectly by omitting the table config.
+        no_table_config = 'import=(enabled,file_metadata=({}))'.format(original_db_file_config)
+
+        # Attempt to import the table. We expect this to fail.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.create(uri, no_table_config), '/Invalid argument/')
+
+        # Construct the config string incorrectly by omitting the file_metadata and attempt to
+        # import the table. We expect this to fail.
+        no_file_config = '{},import=(enabled)'.format(original_db_table_config)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.create(uri, no_file_config), '/Invalid argument/')
 
         # Import the table.
         self.session.create(uri, import_config)
@@ -130,8 +189,6 @@ class test_import03(test_import_base):
 
         # Check that the previously inserted values survived the import.
         self.check(uri, keys[:max_idx], values[:max_idx], ts[:max_idx])
-
-        # Check against projections when the table is not simple.
         if not self.is_simple:
             self.check_projections(uri, keys[:max_idx], values[:max_idx], ts[:max_idx])
 
@@ -148,7 +205,7 @@ class test_import03(test_import_base):
             self.update(uri, keys[i], values[i], ts[i])
         self.check(uri, keys, values, ts)
         if not self.is_simple:
-            self.check_projections(uri, keys, values, ts) 
+            self.check_projections(uri, keys, values, ts)
 
         # Perform a checkpoint.
         self.session.checkpoint()
