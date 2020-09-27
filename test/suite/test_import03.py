@@ -85,7 +85,7 @@ class test_import03(test_import_base):
         self.session.checkpoint()
 
         # Add more data and checkpoint again.
-        min_idx = max_idx;
+        min_idx = max_idx
         max_idx = 2*len(keys)/3
         for i in range(min_idx, max_idx):
             self.update(uri, keys[i], values[i], ts[i])
@@ -148,7 +148,7 @@ class test_import03(test_import_base):
             self.update(uri, keys[i], values[i], ts[i])
         self.check(uri, keys, values, ts)
         if not self.is_simple:
-            self.check_projections(uri, keys, values, ts) 
+            self.check_projections(uri, keys, values, ts)
 
         # Perform a checkpoint.
         self.session.checkpoint()

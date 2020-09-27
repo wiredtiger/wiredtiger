@@ -47,7 +47,7 @@ class test_import02(test_import_base):
               b'\x01\x02ddd\x03\x04', b'\x01\x02eee\x03\x04', b'\x01\x02fff\x03\x04']
     ts = [10*k for k in range(1, len(keys)+1)]
     create_config = 'allocation_size=512,key_format=u,log=(enabled=true),value_format=u'
-    
+
     # The cases where 'file_metadata' is empty or the config option itself is missing entirely are
     # almost identical. Let's capture this in a helper and call them from each test.
     def no_metadata_helper(self, import_config):

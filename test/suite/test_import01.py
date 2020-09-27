@@ -129,7 +129,7 @@ class test_import01(test_import_base):
         self.session.checkpoint()
 
         # Add more data and checkpoint again.
-        min_idx = max_idx;
+        min_idx = max_idx
         max_idx = 2*len(self.keys)/3
         for i in range(min_idx, max_idx):
             self.update(self.uri, self.keys[i], self.values[i], self.ts[i])
