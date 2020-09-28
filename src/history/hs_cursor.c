@@ -77,6 +77,87 @@ __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
 }
 
 /*
+ * __hs_cursor_position_int --
+ *     Internal function to position a history store cursor at the end of a set of updates for a
+ *     given btree id, record key and timestamp.
+ */
+static int
+__hs_cursor_position_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
+  const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
+{
+    WT_DECL_ITEM(srch_key);
+    WT_DECL_RET;
+    int cmp, exact;
+
+    if (user_srch_key == NULL)
+        WT_RET(__wt_scr_alloc(session, 0, &srch_key));
+    else
+        srch_key = user_srch_key;
+
+    /*
+     * Because of the special visibility rules for the history store, a new key can appear in
+     * between our search and the set of updates that we're interested in. Keep trying until we find
+     * it.
+     *
+     * There may be no history store entries for the given btree id and record key if they have been
+     * removed by WT_CONNECTION::rollback_to_stable.
+     *
+     * Note that we need to compare the raw key off the cursor to determine where we are in the
+     * history store as opposed to comparing the embedded data store key since the ordering is not
+     * guaranteed to be the same.
+     */
+    cursor->set_key(
+      cursor, btree_id, key, timestamp != WT_TS_NONE ? timestamp : WT_TS_MAX, UINT64_MAX);
+    /* Copy the raw key before searching as a basis for comparison. */
+    WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
+    WT_ERR(cursor->search_near(cursor, &exact));
+    if (exact > 0) {
+        /*
+         * It's possible that we may race with a history store insert for another key. So we may be
+         * more than one record away the end of our target key/timestamp range. Keep iterating
+         * backwards until we land on our key.
+         */
+        while ((ret = cursor->prev(cursor)) == 0) {
+            WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
+            WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
+
+            WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
+            if (cmp <= 0)
+                break;
+        }
+    }
+#ifdef HAVE_DIAGNOSTIC
+    if (ret == 0) {
+        WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
+        WT_ASSERT(session, cmp <= 0);
+    }
+#endif
+err:
+    if (user_srch_key == NULL)
+        __wt_scr_free(session, &srch_key);
+    return (ret);
+}
+
+/*
+ * __wt_hs_cursor_position --
+ *     Position a history store cursor at the end of a set of updates for a given btree id, record
+ *     key and timestamp. There may be no history store entries for the given btree id and record
+ *     key if they have been removed by WT_CONNECTION::rollback_to_stable. There is an optional
+ *     argument to store the key that we used to position the cursor which can be used to assess
+ *     where the cursor is relative to it. The function executes with isolation level set as
+ *     WT_ISO_READ_UNCOMMITTED.
+ */
+int
+__wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
+  const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
+{
+    WT_DECL_RET;
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+      ret = __hs_cursor_position_int(session, cursor, btree_id, key, timestamp, user_srch_key));
+    return (ret);
+}
+
+/*
  * __wt_hs_find_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
  *     for the record and return to the caller. The caller may choose to optionally allow prepared
