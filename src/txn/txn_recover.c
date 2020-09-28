@@ -454,7 +454,7 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
 
 /*
  * __recovery_set_checkpoint_snapshot --
- *     Set the oldest timestamp as retrieved from the metadata file.
+ *     Set the checkpoint snapshot details as retrieved from the metadata file.
  */
 static int
 __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
@@ -489,15 +489,13 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
 
         WT_ERR_NOTFOUND_OK(
           __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MAX, &cval), false);
-        if (cval.len != 0) {
+        if (cval.len != 0)
             conn->txn_global.snapshot_max = (uint16_t)cval.val;
-        }
 
         WT_ERR_NOTFOUND_OK(
           __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_COUNT, &cval), false);
-        if (cval.len != 0) {
+        if (cval.len != 0)
             conn->txn_global.snapshot_count = (uint16_t)cval.val;
-        }
 
         WT_ERR_NOTFOUND_OK(
           __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT, &cval), false);

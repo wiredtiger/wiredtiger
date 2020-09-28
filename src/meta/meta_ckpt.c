@@ -983,10 +983,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
         WT_ERR(__wt_metadata_update(session, WT_SYSTEM_OLDEST_URI, buf->data));
     }
 
-    /*
-     * Record snapshot information in metadata for checkpoint.
-     *
-     */
+    /* Record snapshot information in metadata for checkpoint. */
     if (txn->snapshot_count > 0) {
         WT_ERR(__wt_buf_fmt(session, buf,
           WT_SYSTEM_CKPT_SNAPSHOT_MIN "=%" PRIu64 "," WT_SYSTEM_CKPT_SNAPSHOT_MAX "=%" PRIu64
