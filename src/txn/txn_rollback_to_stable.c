@@ -1157,7 +1157,6 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
      * without a lock would violate protocol.
      */
     WT_ORDERED_READ(rollback_timestamp, txn_global->stable_timestamp);
-    printf ("RAVI Stable Timestamp - %s\n", __wt_timestamp_to_string(rollback_timestamp, ts_string[0]);
     __wt_verbose(session, WT_VERB_RTS,
       "performing rollback to stable with stable timestamp: %s and oldest timestamp: %s",
       __wt_timestamp_to_string(rollback_timestamp, ts_string[0]),
