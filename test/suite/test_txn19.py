@@ -478,8 +478,11 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
             if self.filename == 'WiredTiger.basecfg':
                 if self.kind == 'garbage-begin' or self.kind == 'garbage-end':
                     errmsg = '/Bad!Bad!Bad!/'
-            if self.filename == 'WiredTiger.wt' and self.kind == 'truncate':
-                errmsg = '/is smaller than allocation size; file size=0, alloc size=4096/'
+            if self.filename == 'WiredTiger.wt':
+                if self.kind == 'truncate':
+                    errmsg = '/is smaller than allocation size; file size=0, alloc size=4096/'
+                if self.kind == 'removal':
+                    errmsg = '/No such file or directory/'
             with self.expectedStdoutPattern('.'):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.reopen_conn(dir, self.conn_config), errmsg)
