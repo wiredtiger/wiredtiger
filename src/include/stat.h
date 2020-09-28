@@ -305,19 +305,6 @@ struct __wt_connection_stats {
     int64_t lsm_work_units_done;
     int64_t lsm_work_units_created;
     int64_t lsm_work_queue_max;
-    int64_t async_cur_queue;
-    int64_t async_max_queue;
-    int64_t async_alloc_race;
-    int64_t async_flush;
-    int64_t async_alloc_view;
-    int64_t async_full;
-    int64_t async_nowork;
-    int64_t async_op_alloc;
-    int64_t async_op_compact;
-    int64_t async_op_insert;
-    int64_t async_op_remove;
-    int64_t async_op_search;
-    int64_t async_op_update;
     int64_t block_preload;
     int64_t block_read;
     int64_t block_write;
@@ -504,6 +491,8 @@ struct __wt_connection_stats {
     int64_t cursor_modify_bytes;
     int64_t cursor_modify_bytes_touch;
     int64_t cursor_next;
+    int64_t cursor_next_hs_tombstone;
+    int64_t cursor_next_hs_tombstone_rts;
     int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_skip_lt_100;
     int64_t cursor_restart;

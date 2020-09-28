@@ -31,10 +31,6 @@ class Stat:
     def __cmp__(self, other):
         return cmp(self.desc.lower(), other.desc.lower())
 
-class AsyncStat(Stat):
-    prefix = 'async'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, AsyncStat.prefix, desc, flags)
 class BlockStat(Stat):
     prefix = 'block-manager'
     def __init__(self, name, desc, flags=''):
@@ -173,23 +169,6 @@ connection_stats = [
     ConnStat('rwlock_write', 'pthread mutex shared lock write-lock calls'),
     ConnStat('time_travel', 'detected system time went backwards'),
     ConnStat('write_io', 'total write I/Os'),
-
-    ##########################################
-    # Async API statistics
-    ##########################################
-    AsyncStat('async_alloc_race', 'number of allocation state races'),
-    AsyncStat('async_alloc_view', 'number of operation slots viewed for allocation'),
-    AsyncStat('async_cur_queue', 'current work queue length', 'no_scale'),
-    AsyncStat('async_flush', 'number of flush calls'),
-    AsyncStat('async_full', 'number of times operation allocation failed'),
-    AsyncStat('async_max_queue', 'maximum work queue length', 'no_clear,no_scale'),
-    AsyncStat('async_nowork', 'number of times worker found no work'),
-    AsyncStat('async_op_alloc', 'total allocations'),
-    AsyncStat('async_op_compact', 'total compact calls'),
-    AsyncStat('async_op_insert', 'total insert calls'),
-    AsyncStat('async_op_remove', 'total remove calls'),
-    AsyncStat('async_op_search', 'total search calls'),
-    AsyncStat('async_op_update', 'total update calls'),
 
     ##########################################
     # Block manager statistics
@@ -370,6 +349,8 @@ connection_stats = [
     CursorStat('cursor_modify_bytes', 'cursor modify key and value bytes affected', 'size'),
     CursorStat('cursor_modify_bytes_touch', 'cursor modify value bytes modified', 'size'),
     CursorStat('cursor_next', 'cursor next calls'),
+    CursorStat('cursor_next_hs_tombstone', 'cursor next calls that skip due to a globally visible history store tombstone'),
+    CursorStat('cursor_next_hs_tombstone_rts', 'cursor next calls that skip due to a globally visible history store tombstone in rollback to stable'),
     CursorStat('cursor_next_skip_ge_100', 'cursor next calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_next_skip_lt_100', 'cursor next calls that skip less than 100 entries'),
     CursorStat('cursor_next_skip_total', 'Total number of entries skipped by cursor next calls'),
