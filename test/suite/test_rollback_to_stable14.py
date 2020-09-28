@@ -121,4 +121,3 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
 
 if __name__ == '__main__':
     wttest.run()
-
