@@ -157,7 +157,7 @@ class test_import01(test_import_base):
         self.session.checkpoint()
 
         # Bring forward the stable timestamp to be past the timestamps we'll be importing.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(40))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.ts[max_idx]))
 
         # Copy over the datafiles for the object we want to import.
         self.copy_file(self.original_db_file, '.', newdir)
@@ -210,7 +210,7 @@ class test_import01(test_import_base):
         self.populate(self.ntables, self.nrows)
 
         # Bring forward the stable timestamp to be past the timestamps we'll be importing.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.ts[-1]))
 
         # Make a copy of the data file that we're about to drop.
         backup_dir = 'BACKUP'

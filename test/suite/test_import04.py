@@ -139,6 +139,10 @@ class test_import04(test_import_base):
         self.session = self.setUpSessionOpen(self.conn)
         self.populate(self.ntables, self.nrows)
         self.session.checkpoint()
+
+        # Bring forward the stable timestamp to be past the timestamps we'll be importing.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts[max_idx]))
+
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.create(uri, import_config))
 
@@ -160,6 +164,9 @@ class test_import04(test_import_base):
         self.session = self.setUpSessionOpen(self.conn)
         self.populate(self.ntables, self.nrows)
         self.session.checkpoint()
+
+        # Bring forward the stable timestamp to be past the timestamps we'll be importing.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts[max_idx]))
 
         # Attempt to import the table before copying the file. We expect this to fail.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,

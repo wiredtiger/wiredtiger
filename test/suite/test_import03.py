@@ -120,7 +120,7 @@ class test_import03(test_import_base):
         self.session.checkpoint()
 
         # Bring forward the stable timestamp to be past the timestamps we'll be importing.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(40))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts[max_idx]))
 
         # Copy over the datafiles for the object we want to import.
         self.copy_file(original_db_table + '.wt', '.', newdir)
