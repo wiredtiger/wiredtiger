@@ -106,7 +106,7 @@ class test_import05(wttest.WiredTigerTestCase):
             self.update(uri, key2, value2, 20)
         else:
             self.assertEqual(self.op_type, 'delete')
-            self.delete(uri, key2, 20)
+            self.delete(uri, key1, 20)
 
         # Perform a checkpoint.
         self.session.checkpoint()
