@@ -37,9 +37,9 @@ from test_rollback_to_stable01 import test_rollback_to_stable_base
 def timestamp_str(t):
     return '%x' % t
 
-# test_rollback_to_stable05.py
+# test_rollback_to_stable14.py
 # Test that rollback to stable works without stable timestamp.
-class test_rollback_to_stable05(test_rollback_to_stable_base):
+class test_rollback_to_stable14(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
 
     in_memory_values = [
