@@ -967,16 +967,8 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 static int
 __rollback_to_stable_check(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_TXN_GLOBAL *txn_global;
     bool txn_active;
-
-    conn = S2C(session);
-    txn_global = &conn->txn_global;
-
-    if (!txn_global->has_stable_timestamp)
-        WT_RET_MSG(session, EINVAL, "rollback_to_stable requires a stable timestamp");
 
     /*
      * Help the user comply with the requirement that there are no concurrent operations. Protect
@@ -1165,6 +1157,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
      * without a lock would violate protocol.
      */
     WT_ORDERED_READ(rollback_timestamp, txn_global->stable_timestamp);
+    printf ("RAVI Stable Timestamp - %s\n", __wt_timestamp_to_string(rollback_timestamp, ts_string[0]);
     __wt_verbose(session, WT_VERB_RTS,
       "performing rollback to stable with stable timestamp: %s and oldest timestamp: %s",
       __wt_timestamp_to_string(rollback_timestamp, ts_string[0]),

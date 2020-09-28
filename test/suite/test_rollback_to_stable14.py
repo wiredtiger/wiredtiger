@@ -38,7 +38,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_rollback_to_stable05.py
-# Test without stable timestamp that rollback to stable cleans history store for non-timestamp tables.
+# Test that rollback to stable works without stable timestamp.
 class test_rollback_to_stable05(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
 
@@ -47,12 +47,7 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
         ('inmem', dict(in_memory=True))
     ]
 
-    prepare_values = [
-        ('no_prepare', dict(prepare=False)),
-        ('prepare', dict(prepare=True))
-    ]
-
-    scenarios = make_scenarios(in_memory_values, prepare_values)
+    scenarios = make_scenarios(in_memory_values)
 
     def conn_config(self):
         config = 'cache_size=50MB,statistics=(all)'
@@ -66,12 +61,12 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
         nrows = 1000
 
         # Create two tables without logging.
-        uri_1 = "table:rollback_to_stable05_1"
+        uri_1 = "table:rollback_to_stable14_1"
         ds_1 = SimpleDataSet(
             self, uri_1, 0, key_format="i", value_format="S", config='log=(enabled=false)')
         ds_1.populate()
 
-        uri_2 = "table:rollback_to_stable05_2"
+        uri_2 = "table:rollback_to_stable14_2"
         ds_2 = SimpleDataSet(
             self, uri_2, 0, key_format="i", value_format="S", config='log=(enabled=false)')
         ds_2.populate()
@@ -124,26 +119,6 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
         self.check(valued, uri_1, nrows, 0)
         self.check(valued, uri_2, nrows, 0)
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        calls = stat_cursor[stat.conn.txn_rts][2]
-        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
-        hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
-        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
-        keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
-        pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
-        stat_cursor.close()
-
-        self.assertEqual(calls, 1)
-        self.assertEqual(keys_removed, 0)
-        self.assertEqual(keys_restored, 0)
-        if self.in_memory:
-            self.assertGreaterEqual(pages_visited, 0)
-            self.assertEqual(upd_aborted, 0)
-            self.assertEqual(hs_removed, 0)
-        else:
-            self.assertEqual(pages_visited, 0)
-            self.assertEqual(upd_aborted, 0)
-            self.assertEqual(hs_removed, 0)
-
 if __name__ == '__main__':
     wttest.run()
+
