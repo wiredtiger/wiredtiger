@@ -501,7 +501,7 @@ __wt_meta_ckptlist_get(
     config = NULL;
 
     WT_ERR(__wt_metadata_search(session, fname, &config));
-    WT_ERR(__wt_meta_ckptlist_get_with_config(session, fname, update, ckptbasep, config));
+    WT_ERR(__wt_meta_ckptlist_get_with_config(session, update, ckptbasep, config));
 
 err:
     __wt_free(session, config);
@@ -514,7 +514,7 @@ err:
  */
 int
 __wt_meta_ckptlist_get_with_config(
-  WT_SESSION_IMPL *session, const char *fname, bool update, WT_CKPT **ckptbasep, const char *config)
+  WT_SESSION_IMPL *session, bool update, WT_CKPT **ckptbasep, const char *config)
 {
     WT_CKPT *ckpt, *ckptbase;
     WT_CONFIG ckptconf;
