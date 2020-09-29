@@ -291,9 +291,13 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
 
         if expect_fail:
             with self.expectedStdoutPattern('.'):
+                errmsg = '/WT_TRY_SALVAGE: database corruption detected/'
+                if self.kind == 'removal':
+                    errmsg = '/No such file or directory/'
+                if self.kind == 'truncate':
+                    errmsg = '/failed to read 128 bytes at offset 0/'
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                    lambda: self.reopen_conn(newdir, self.base_config),
-                    "/WT_TRY_SALVAGE: database corruption detected/")
+                    lambda: self.reopen_conn(newdir, self.base_config), errmsg)
         else:
             if self.expect_warning_corruption():
                 with self.expectedStdoutPattern('log file .* corrupted'):
@@ -384,6 +388,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     openable = [
         "removal:WiredTiger.basecfg",
         "removal:WiredTiger.turtle",
+        "removal:WiredTiger",
         "truncate:WiredTiger",
         "truncate:WiredTiger.basecfg",
         "truncate-middle:WiredTiger",
@@ -487,7 +492,13 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.reopen_conn(dir, self.conn_config), errmsg)
         else:
-            self.reopen_conn(dir, self.conn_config)
+            if self.filename == 'WiredTiger.turtle' and self.kind == 'removal':
+                with self.expectedStderrPattern('File exists'):
+                    self.reopen_conn(dir, self.conn_config)
+                    self.captureout.checkAdditionalPattern(self,
+                        'unexpected file WiredTiger.wt found, renamed to WiredTiger.wt.1')
+            else:
+                self.reopen_conn(dir, self.conn_config)
             self.close_conn()
 
     def test_corrupt_meta(self):
