@@ -68,8 +68,8 @@ class test_import02(test_import_base):
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)
 
-        # Bring forward the stable timestamp to be past the timestamps we'll be importing.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.ts[-1]))
+        # Bring forward the oldest to be past or equal to the timestamps we'll be importing.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.ts[-1]))
 
         # Copy over the datafiles for the object we want to import.
         self.copy_file(self.original_db_file, '.', newdir)
@@ -105,8 +105,8 @@ class test_import02(test_import_base):
         # Make a bunch of files and fill them with data.
         self.populate(self.ntables, self.nrows)
 
-        # Bring forward the stable timestamp to be past the timestamps we'll be importing.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.ts[-1]))
+        # Bring forward the oldest to be past or equal to the timestamps we'll be importing.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.ts[-1]))
 
         # Contruct the config string.
         import_config = 'import=(enabled,repair=false,file_metadata=(' + \

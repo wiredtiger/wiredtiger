@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_import05.py
-# Error conditions when trying to import files with timestamps past stable.
+# Error conditions when trying to import files with timestamps past oldest.
 
 import os, shutil
 import wiredtiger
@@ -49,7 +49,7 @@ class test_import05(test_import_base):
         ('delete', dict(op_type='delete')),
     ])
 
-    def test_file_import_ts_past_stable(self):
+    def test_file_import_ts_past_oldest(self):
         original_db_file = 'original_db_file'
         uri = 'file:' + original_db_file
         create_config = 'allocation_size=512,key_format=u,log=(enabled=true),value_format=u'
@@ -63,7 +63,7 @@ class test_import05(test_import_base):
         self.session.checkpoint()
 
         # Place the last insert/delete.
-        # We also want to check that a stop timestamp later than stable will prevent imports. In the
+        # We also want to check that a stop timestamp later than oldest will prevent imports. In the
         # delete case, we should use the last timestamp in our data set and use it delete the first
         # key we inserted.
         if self.op_type == 'insert':
@@ -102,11 +102,11 @@ class test_import05(test_import_base):
         # Create error pattern. Depending on the situation, we substitute a different timestamp into
         # error message to check against.
         error_pattern = \
-            'import found aggregated {} timestamp newer than the current stable timestamp'
+            'import found aggregated {} timestamp newer than the current oldest timestamp'
 
         # Now begin trying to import the file.
         #
-        # Since we haven't set stable (and it defaults to 0), we're expecting an error here as the
+        # Since we haven't set oldest (and it defaults to 0), we're expecting an error here as the
         # table has timestamps past 0.
         #
         # Start timestamps get checked first so that's the error msg we expect.
@@ -116,11 +116,11 @@ class test_import05(test_import_base):
             self.assertRaisesException(wiredtiger.WiredTigerError,
                 lambda: self.session.create(uri, import_config))
 
-        # Place the stable timestamp just BEFORE the last insert/delete we made.
+        # Place the oldest timestamp just BEFORE the last insert/delete we made.
         #
         # The table we're importing had an operation past this point so we're still expecting an
         # error.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.ts[-1] - 1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.ts[-1] - 1))
 
         # If our latest operation was an insert, we're expecting it to complain about the aggregated
         # start timestamp whereas if we did a delete, we should expect it to complain about stop.
@@ -131,7 +131,7 @@ class test_import05(test_import_base):
             self.assertRaisesException(wiredtiger.WiredTigerError,
                 lambda: self.session.create(uri, import_config))
 
-        # Now place stable just AFTER the last insert/delete we made.
-        # This should succeed since all of our aggregated timestamps are now behind stable.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.ts[-1]))
+        # Now place oldest equal to the last insert/delete we made. This should succeed since all
+        # of our aggregated timestamps are now equal to or behind oldest.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.ts[-1]))
         self.session.create(uri, import_config)
