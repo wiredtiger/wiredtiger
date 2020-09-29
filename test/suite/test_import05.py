@@ -49,20 +49,24 @@ class test_import05(test_import_base):
         ('delete', dict(op_type='delete')),
     ])
 
-    def test_file_import_future_ts(self):
+    def test_file_import_ts_past_stable(self):
         original_db_file = 'original_db_file'
         uri = 'file:' + original_db_file
         create_config = 'allocation_size=512,key_format=u,log=(enabled=true),value_format=u'
         self.session.create(uri, create_config)
 
         # Add data and perform a checkpoint.
+        # We're inserting everything EXCEPT the last record.
         for i in range(0, len(self.keys) - 1):
             self.update(uri, self.keys[i], self.values[i], self.ts[i])
 
         self.session.checkpoint()
 
+        # Place the last insert/delete.
+        # We also want to check that a stop timestamp later than stable will prevent imports. In the
+        # delete case, we should use the last timestamp in our data set and use it delete the first
+        # key we inserted.
         if self.op_type == 'insert':
-            # Insert the last test record.
             self.update(uri, self.keys[-1], self.values[-1], self.ts[-1])
         else:
             self.assertEqual(self.op_type, 'delete')
@@ -76,7 +80,7 @@ class test_import05(test_import_base):
         original_db_file_config = c[uri]
         c.close()
 
-        self.printVerbose(3, '\nFILE CONFIG\n' + original_db_file_config)
+        self.printVerbose(3, '\nFile configuration:\n' + original_db_file_config)
 
         # Close the connection.
         self.close_conn()
@@ -88,10 +92,6 @@ class test_import05(test_import_base):
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)
 
-        # Place the stable timestamp to 10.
-        # The table we're importing had a insert timestamped with 20 so we're expecting an error.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.ts[-2]))
-
         # Copy over the datafiles for the object we want to import.
         self.copy_file(original_db_file, '.', newdir)
 
@@ -99,8 +99,39 @@ class test_import05(test_import_base):
         import_config = 'import=(enabled,repair=false,file_metadata=(' + \
             original_db_file_config + '))'
 
-        # Import the file.
-        # Since the file has timestamps past stable, we return an error.
-        with self.expectedStderrPattern('.*'):
+        # Create error pattern. Depending on the situation, we substitute a different timestamp into
+        # error message to check against.
+        error_pattern = \
+            'import found aggregated {} timestamp newer than the current stable timestamp'
+
+        # Now begin trying to import the file.
+        #
+        # Since we haven't set stable (and it defaults to 0), we're expecting an error here as the
+        # table has timestamps past 0.
+        #
+        # Start timestamps get checked first so that's the error msg we expect.
+        error_msg = error_pattern.format('newest start durable')
+
+        with self.expectedStderrPattern(error_msg):
             self.assertRaisesException(wiredtiger.WiredTigerError,
                 lambda: self.session.create(uri, import_config))
+
+        # Place the stable timestamp just BEFORE the last insert/delete we made.
+        #
+        # The table we're importing had an operation past this point so we're still expecting an
+        # error.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.ts[-1] - 1))
+
+        # If our latest operation was an insert, we're expecting it to complain about the aggregated
+        # start timestamp whereas if we did a delete, we should expect it to complain about stop.
+        error_msg = error_pattern.format(
+            'newest start durable' if self.op_type == 'insert' else 'newest stop durable')
+
+        with self.expectedStderrPattern(error_msg):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: self.session.create(uri, import_config))
+
+        # Now place stable just AFTER the last insert/delete we made.
+        # This should succeed since all of our aggregated timestamps are now behind stable.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.ts[-1]))
+        self.session.create(uri, import_config)
