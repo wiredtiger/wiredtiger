@@ -128,7 +128,7 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
      * Update the last checkpoint with the corrected information. Update the file's metadata with
      * the new checkpoint information.
      */
-    WT_ERR(__wt_meta_ckptlist_get(session, uri, false, &ckptbase, NULL));
+    WT_ERR(__wt_meta_ckptlist_get(session, uri, false, &ckptbase));
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (ckpt->name == NULL || (ckpt + 1)->name == NULL)
             break;
