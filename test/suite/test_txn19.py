@@ -495,8 +495,10 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
             if self.filename == 'WiredTiger.turtle' and self.kind == 'removal':
                 with self.expectedStderrPattern('File exists'):
                     self.reopen_conn(dir, self.conn_config)
-                    self.captureout.checkAdditionalPattern(self,
-                        'unexpected file WiredTiger.wt found, renamed to WiredTiger.wt.1')
+                    # On non-windows platforms, we capture the renaming of WiredTiger.wt file.
+                    if os.name != "nt":
+                        self.captureout.checkAdditionalPattern(self,
+                            'unexpected file WiredTiger.wt found, renamed to WiredTiger.wt.1')
             else:
                 self.reopen_conn(dir, self.conn_config)
             self.close_conn()
