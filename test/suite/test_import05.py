@@ -49,14 +49,6 @@ class test_import05(test_import_base):
         ('delete', dict(op_type='delete')),
     ])
 
-    def delete(self, uri, key, commit_ts):
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        cursor.set_key(key)
-        self.assertEqual(0, cursor.remove())
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-        cursor.close()
-
     def test_file_import_future_ts(self):
         original_db_file = 'original_db_file'
         uri = 'file:' + original_db_file

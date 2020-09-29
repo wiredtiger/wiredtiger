@@ -50,6 +50,14 @@ class test_import_base(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
         cursor.close()
 
+    def delete(self, uri, key, ts):
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        cursor.set_key(key)
+        self.assertEqual(0, cursor.remove())
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
+        cursor.close()
+
     # Verify the specified key/value is visible at the supplied timestamp.
     def check_record(self, uri, key, value, ts):
         cursor = self.session.open_cursor(uri)
