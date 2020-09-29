@@ -199,7 +199,8 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
          * NOT track the op in the import case since we do not want to wipe a data file just because
          * we fail to import it.
          */
-        WT_ERR(__wt_meta_track_fileop(session, NULL, uri));
+        if (WT_META_TRACKING(session))
+            WT_ERR(__wt_meta_track_fileop(session, NULL, uri));
     }
 
     /*
