@@ -30,83 +30,51 @@
 # Error conditions when trying to import files with timestamps past stable.
 
 import os, shutil
-import wiredtiger, wttest
+import wiredtiger
 from wtscenario import make_scenarios
+from test_import01 import test_import_base
 
-def timestamp_str(t):
-    return '%x' % t
-
-class test_import05(wttest.WiredTigerTestCase):
+class test_import05(test_import_base):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
+
+    ntables = 10
+    nrows = 100
+    keys = [b'1', b'2', b'3', b'4', b'5', b'6']
+    values = [b'\x01\x02aaa\x03\x04', b'\x01\x02bbb\x03\x04', b'\x01\x02ccc\x03\x04',
+              b'\x01\x02ddd\x03\x04', b'\x01\x02eee\x03\x04', b'\x01\x02fff\x03\x04']
+    ts = [10*k for k in range(1, len(keys)+1)]
     scenarios = make_scenarios([
         ('insert', dict(op_type='insert')),
         ('delete', dict(op_type='delete')),
     ])
-
-    def update(self, uri, key, value, commit_ts):
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        cursor[key] = value
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-        cursor.close()
 
     def delete(self, uri, key, commit_ts):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
         cursor.set_key(key)
         self.assertEqual(0, cursor.remove())
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
-
-    def check(self, uri, key, value, read_ts):
-        # Read the entire record.
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
-        cursor.set_key(key)
-        self.assertEqual(0, cursor.search())
-        self.assertEqual(value, cursor.get_value())
-        self.session.rollback_transaction()
-        cursor.close()
-
-    # Helper for populating a database to simulate importing files into an existing database.
-    def populate(self):
-        # Create file:test_import05_[1-100].
-        for fileno in range(1, 100):
-            uri = 'file:test_import05_{}'.format(fileno)
-            self.session.create(uri, 'key_format=i,value_format=S')
-            cursor = self.session.open_cursor(uri)
-            # Insert keys [1-100] with value 'foo'.
-            for key in range(1, 100):
-                cursor[key] = 'foo'
-            cursor.close()
-
-    def copy_file(self, file_name, old_dir, new_dir):
-        old_path = os.path.join(old_dir, file_name)
-        if os.path.isfile(old_path) and "WiredTiger.lock" not in file_name and \
-            "Tmplog" not in file_name and "Preplog" not in file_name:
-            shutil.copy(old_path, new_dir)
 
     def test_file_import_future_ts(self):
         original_db_file = 'original_db_file'
         uri = 'file:' + original_db_file
-
         create_config = 'allocation_size=512,key_format=u,log=(enabled=true),value_format=u'
         self.session.create(uri, create_config)
 
-        key1 = b'1'
-        key2 = b'2'
-        value1 = b'\x01\x02aaa\x03\x04'
-        value2 = b'\x01\x02bbb\x03\x04'
+        # Add data and perform a checkpoint.
+        for i in range(0, len(self.keys) - 1):
+            self.update(uri, self.keys[i], self.values[i], self.ts[i])
 
-        # Add some data.
-        self.update(uri, key1, value1, 10)
+        self.session.checkpoint()
 
         if self.op_type == 'insert':
-            self.update(uri, key2, value2, 20)
+            # Insert the last test record.
+            self.update(uri, self.keys[-1], self.values[-1], self.ts[-1])
         else:
             self.assertEqual(self.op_type, 'delete')
-            self.delete(uri, key1, 20)
+            self.delete(uri, self.keys[0], self.ts[-1])
 
         # Perform a checkpoint.
         self.session.checkpoint()
@@ -130,7 +98,7 @@ class test_import05(wttest.WiredTigerTestCase):
 
         # Place the stable timestamp to 10.
         # The table we're importing had a insert timestamped with 20 so we're expecting an error.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.ts[-2]))
 
         # Copy over the datafiles for the object we want to import.
         self.copy_file(original_db_file, '.', newdir)
