@@ -992,7 +992,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
           txn->snap_min, txn->snap_max, txn->snapshot_count));
 
         for (i = 0; i < txn->snapshot_count; i++) {
-            WT_RET(__wt_snprintf(buf2, sizeof(buf2), "%" PRIu64, txn->snapshot[i]));
+            WT_ERR(__wt_snprintf(buf2, sizeof(buf2), "%" PRIu64, txn->snapshot[i]));
             WT_ERR(__wt_buf_catfmt(session, buf, "%s%s", buf2, sep));
         }
         WT_ERR(__wt_metadata_update(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, buf->data));

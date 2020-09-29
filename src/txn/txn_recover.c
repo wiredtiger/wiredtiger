@@ -500,11 +500,11 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
         WT_ERR_NOTFOUND_OK(
           __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT, &cval), false);
         if (cval.len != 0) {
-            WT_RET(__wt_calloc_def(
+            WT_ERR(__wt_calloc_def(
               session, conn->txn_global.snapshot_count, &conn->txn_global.snapshots));
             sep = ",";
 
-            WT_RET(__wt_config_tokenizer(session, cval.str, sep, conn->txn_global.snapshots));
+            WT_ERR(__wt_config_tokenizer(session, cval.str, sep, conn->txn_global.snapshots));
         }
     }
 
