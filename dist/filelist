@@ -31,7 +31,6 @@ src/btree/bt_ovfl.c
 src/btree/bt_page.c
 src/btree/bt_random.c
 src/btree/bt_read.c
-src/btree/bt_rebalance.c
 src/btree/bt_ret.c
 src/btree/bt_slvg.c
 src/btree/bt_split.c
