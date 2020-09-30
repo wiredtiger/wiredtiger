@@ -14,13 +14,11 @@ APIs
 ARG
 ARGS
 ASM
-ASYNC
 Addr
 Ailamaki
 Alakuijala
 Alexandrescu's
 Alloc
-Async
 AsyncOp
 Athanassoulis
 Athlon
@@ -325,7 +323,6 @@ RCS
 RDNOLOCK
 RDONLY
 READONLY
-REBALANCE
 RECNO
 REF's
 REFs
@@ -343,7 +340,6 @@ RXB
 Radu
 ReadFile
 Readonly
-Rebalance
 RedHat
 Redistributions
 Refactor
@@ -499,8 +495,6 @@ asm
 aspell
 assertfmt
 async
-asyncopp
-asyncops
 atomicity
 autocommit
 autoconf
@@ -1178,7 +1172,6 @@ readunlock
 readv
 realloc
 rebalance
-rebalanced
 rebalancing
 recno
 recnos
