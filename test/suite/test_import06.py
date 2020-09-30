@@ -30,7 +30,6 @@
 # Import a file with the repair option (without the file metadata).
 
 import os, shutil
-import wiredtiger, wttest
 from test_import01 import test_import_base
 
 class test_import06(test_import_base):
