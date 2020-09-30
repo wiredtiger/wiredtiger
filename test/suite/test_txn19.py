@@ -488,7 +488,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
                     errmsg = '/is smaller than allocation size; file size=0, alloc size=4096/'
                 if self.kind == 'removal':
                     errmsg = '/No such file or directory/'
-            with self.expectedStdoutPattern('.'):
+            with self.expectedStdoutPattern('Failed wiredtiger_open'):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.reopen_conn(dir, self.conn_config), errmsg)
         else:
