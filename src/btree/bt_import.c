@@ -24,7 +24,8 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
     WT_DECL_RET;
     WT_KEYED_ENCRYPTOR *kencryptor;
     char *checkpoint_list, *fileconf, *metadata, fileid[64];
-    const char *filecfg[] = {WT_CONFIG_BASE(session, file_meta), NULL, NULL, NULL, NULL, NULL};
+    const char *filecfg[] = {
+      WT_CONFIG_BASE(session, file_meta), NULL, NULL, NULL, NULL, NULL, NULL};
     const char *filename;
 
     ckptbase = NULL;
@@ -102,7 +103,7 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
     WT_WITH_SCHEMA_LOCK(session,
       ret = __wt_snprintf(fileid, sizeof(fileid), "id=%" PRIu32, ++S2C(session)->next_file_id));
     WT_ERR(ret);
-    filecfg[4] = fileid;
+    filecfg[5] = fileid;
     WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
     WT_ERR(__wt_metadata_insert(session, uri, fileconf));
     __wt_verbose(session, WT_VERB_CHECKPOINT, "import configuration: %s/%s", uri, fileconf);
