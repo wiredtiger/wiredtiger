@@ -159,7 +159,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
             WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
             WT_ERR(__wt_metadata_insert(session, uri, fileconf));
         } else {
-            /* TO-DO: WT-6691 */
+            session->iface.import(&session->iface, uri, NULL);
         }
     }
 
