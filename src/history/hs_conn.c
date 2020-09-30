@@ -30,6 +30,30 @@ __hs_release_internal_session(WT_SESSION_IMPL *int_session)
 }
 
 /*
+ * __hs_cleanup_las --
+ *     Drop the lookaside file if it exists.
+ */
+static int
+__hs_cleanup_las(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
+
+    conn = S2C(session);
+
+    /* Read-only and in-memory configurations won't drop the lookaside. */
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
+        return (0);
+
+    /* The LAS table may exist on upgrade. Discard it. */
+    WT_WITH_SCHEMA_LOCK(
+      session, ret = __wt_schema_drop(session, "file:WiredTigerLAS.wt", drop_cfg));
+
+    return (ret);
+}
+
+/*
  * __wt_hs_get_btree --
  *     Get the history store btree. Open a history store cursor if needed to get the btree.
  */
@@ -111,35 +135,11 @@ err:
 }
 
 /*
- * __wt_hs_cleanup_las --
- *     Drop the lookaside file if it exists.
- */
-int
-__wt_hs_cleanup_las(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
-
-    conn = S2C(session);
-
-    /* Read-only and in-memory configurations won't drop the lookaside. */
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
-        return (0);
-
-    /* The LAS table may exist on upgrade. Discard it. */
-    WT_WITH_SCHEMA_LOCK(
-      session, ret = __wt_schema_drop(session, "file:WiredTigerLAS.wt", drop_cfg));
-
-    return (ret);
-}
-
-/*
- * __wt_hs_create --
+ * __wt_hs_open --
  *     Initialize the database's history store.
  */
 int
-__wt_hs_create(WT_SESSION_IMPL *session, const char **cfg)
+__wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -148,6 +148,9 @@ __wt_hs_create(WT_SESSION_IMPL *session, const char **cfg)
     /* Read-only and in-memory configurations don't need the history store table. */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
+
+    /* Drop the lookaside file if it still exists. */
+    WT_RET(__hs_cleanup_las(session));
 
     /* Create the table. */
     WT_RET(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
@@ -162,11 +165,11 @@ __wt_hs_create(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
- * __wt_hs_destroy --
+ * __wt_hs_close --
  *     Destroy the database's history store.
  */
 void
-__wt_hs_destroy(WT_SESSION_IMPL *session)
+__wt_hs_close(WT_SESSION_IMPL *session)
 {
     F_CLR(S2C(session), WT_CONN_HS_OPEN);
 }
