@@ -1789,6 +1789,12 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_PUBLISH(conn->debug_ckpt_cnt, (uint32_t)cval.val);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.corruption_abort", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.cursor_copy", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CURSOR_COPY);
@@ -1852,9 +1858,9 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
       {"mutex", WT_VERB_MUTEX}, {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ},
-      {"rebalance", WT_VERB_REBALANCE}, {"reconcile", WT_VERB_RECONCILE},
-      {"recovery", WT_VERB_RECOVERY}, {"recovery_progress", WT_VERB_RECOVERY_PROGRESS},
-      {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
+      {"reconcile", WT_VERB_RECONCILE}, {"recovery", WT_VERB_RECOVERY},
+      {"recovery_progress", WT_VERB_RECOVERY_PROGRESS}, {"rts", WT_VERB_RTS},
+      {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"temporary", WT_VERB_TEMPORARY},
       {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
       {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},

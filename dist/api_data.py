@@ -478,6 +478,9 @@ connection_runtime_config = [
     Config('debug_mode', '', r'''
         control the settings of various extended debugging features''',
         type='category', subconfig=[
+        Config('corruption_abort', 'true', r'''
+            if true, dump the core in the diagnostic mode on encountering the data corruption.''',
+            type='boolean'),
         Config('checkpoint_retention', '0', r'''
             adjust log archiving to retain the log records of this number
             of checkpoints. Zero or one means perform normal archiving.''',
@@ -725,7 +728,6 @@ connection_runtime_config = [
             'mutex',
             'overflow',
             'read',
-            'rebalance',
             'reconcile',
             'recovery',
             'recovery_progress',
@@ -1376,7 +1378,6 @@ methods = {
         choices=['commit', 'first_commit', 'prepare', 'read']),
 ]),
 
-'WT_SESSION.rebalance' : Method([]),
 'WT_SESSION.rename' : Method([]),
 'WT_SESSION.reset' : Method([]),
 'WT_SESSION.salvage' : Method([
