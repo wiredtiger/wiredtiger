@@ -290,7 +290,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         expect_fail = self.expect_recovery_failure()
 
         if expect_fail:
-            with self.expectedStdoutPattern('.'):
+            with self.expectedStdoutPattern('Failed wiredtiger_open'):
                 errmsg = '/WT_TRY_SALVAGE: database corruption detected/'
                 if self.kind == 'removal':
                     errmsg = '/No such file or directory/'

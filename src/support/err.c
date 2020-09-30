@@ -373,7 +373,14 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
     va_end(ap);
 
 #if defined(HAVE_DIAGNOSTIC)
-    /* Drop core if testing, unless it is data corruption and we have been asked not to panic. */
+    /*
+     * In the diagnostic builds, we want to drop core in case of the panics that are not due to data
+     * corruption. A core could be useful in debugging the bugs.
+     *
+     * In the case of corruption, we want to be able to test the application's capability to
+     * salvage, but we also like to get the core if needed. Hence in the diagnostic mode, the
+     * application can set the debug flag to choose between dropping a core and returning an error.
+     */
     if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) ||
       FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT))
         __wt_abort(session);
