@@ -63,9 +63,9 @@ static char home[1024]; /* Program working dir */
 #define MAX_VAL 1024
 #define MIN_TH 5
 #define MIN_TIME 10
+#define PREPARE_DURABLE_AHEAD_COMMIT 10
 #define PREPARE_FREQ 5
 #define PREPARE_PCT 10
-#define PREPARE_DURABLE_AHEAD_COMMIT 10
 #define PREPARE_YIELD (PREPARE_FREQ * 10)
 #define RECORDS_FILE "records-%" PRIu32
 /* Include worker threads and prepare extra sessions */
@@ -396,6 +396,10 @@ thread_run(void *arg)
                 testutil_check(prepared_session->prepare_transaction(prepared_session, tscfg));
                 if (i % PREPARE_YIELD == 0)
                     __wt_yield();
+                /*
+                 * Make half of the prepared transactions' durable timestamp larger than their
+                 * commit timestamp.
+                 */
                 durable_ahead_commit = i % PREPARE_DURABLE_AHEAD_COMMIT == 0;
                 testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
                   "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, active_ts,
