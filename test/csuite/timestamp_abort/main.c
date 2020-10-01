@@ -65,6 +65,7 @@ static char home[1024]; /* Program working dir */
 #define MIN_TIME 10
 #define PREPARE_FREQ 5
 #define PREPARE_PCT 10
+#define PREPARE_DURABLE_AHEAD_COMMIT 10
 #define PREPARE_YIELD (PREPARE_FREQ * 10)
 #define RECORDS_FILE "records-%" PRIu32
 /* Include worker threads and prepare extra sessions */
@@ -395,7 +396,8 @@ thread_run(void *arg)
                 if (i % PREPARE_YIELD == 0)
                     __wt_yield();
                 testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-                  "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, active_ts, active_ts));
+                  "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, active_ts,
+                  i % PREPARE_DURABLE_AHEAD_COMMIT == 0 ? active_ts + 2 : active_ts));
             } else
                 testutil_check(
                   __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts));
