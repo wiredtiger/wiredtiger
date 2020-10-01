@@ -258,7 +258,7 @@ thread_run(void *arg)
     uint64_t i, active_ts;
     char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
     char kname[64], tscfg[64], uri[128];
-    bool use_prep;
+    bool durable_ahead_commit, use_prep;
 
     __wt_random_init(&rnd);
     memset(cbuf, 0, sizeof(cbuf));
@@ -395,9 +395,13 @@ thread_run(void *arg)
                 testutil_check(prepared_session->prepare_transaction(prepared_session, tscfg));
                 if (i % PREPARE_YIELD == 0)
                     __wt_yield();
+                durable_ahead_commit = i % PREPARE_DURABLE_AHEAD_COMMIT == 0;
                 testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
                   "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, active_ts,
-                  i % PREPARE_DURABLE_AHEAD_COMMIT == 0 ? active_ts + 2 : active_ts));
+                  durable_ahead_commit ? active_ts + 4 : active_ts));
+                /* Ensure the global timestamp is not behind the all durable timestamp. */
+                if (durable_ahead_commit)
+                    __wt_atomic_addv64(&global_ts, 3);
             } else
                 testutil_check(
                   __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts));
@@ -418,7 +422,8 @@ thread_run(void *arg)
         /*
          * Save the timestamp and key separately for checking later.
          */
-        if (fprintf(fp, "%" PRIu64 " %" PRIu64 "\n", active_ts, i) < 0)
+        if (fprintf(fp, "%" PRIu64 " %" PRIu64 "\n",
+              durable_ahead_commit ? active_ts + 4 : active_ts, i) < 0)
             testutil_die(EIO, "fprintf");
 
         if (0) {
