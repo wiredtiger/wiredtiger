@@ -871,7 +871,7 @@ __txn_fixup_prepared_update(
         hs_upd->next->txnid = fix_upd->txnid;
     }
 
-    WT_ERR(__wt_hs_modify(hs_cbt, hs_upd));
+    WT_ERR(__wt_history_modify(hs_cbt, hs_upd));
 
     if (0) {
 err:
@@ -1002,7 +1002,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * Scan the history store for the given btree and key with maximum start timestamp to let
          * the search point to the last version of the key.
          */
-        WT_ERR_NOTFOUND_OK(__wt_hs_cursor_position(
+        WT_ERR_NOTFOUND_OK(__wt_history_cursor_position(
                              session, hs_cursor, hs_btree_id, &op->u.op_row.key, WT_TS_MAX, NULL),
           true);
 

@@ -55,7 +55,7 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
 }
 
 /*
- * __wt_hs_modify --
+ * __wt_history_modify --
  *     Make an update to the history store.
  *
  * History store updates don't use transactions as those updates should be immediately visible and
@@ -63,7 +63,7 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
  *     directly modified using the low level api instead of the ordinary cursor api.
  */
 int
-__wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
+__wt_history_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
 {
     WT_DECL_RET;
 
@@ -139,7 +139,7 @@ err:
 }
 
 /*
- * __wt_hs_cursor_position --
+ * __wt_history_cursor_position --
  *     Position a history store cursor at the end of a set of updates for a given btree id, record
  *     key and timestamp. There may be no history store entries for the given btree id and record
  *     key if they have been removed by WT_CONNECTION::rollback_to_stable. There is an optional
@@ -148,7 +148,7 @@ err:
  *     WT_ISO_READ_UNCOMMITTED.
  */
 int
-__wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
+__wt_history_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
 {
     WT_DECL_RET;
@@ -158,15 +158,16 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
 }
 
 /*
- * __wt_hs_find_upd --
+ * __wt_history_find_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
  *     for the record and return to the caller. The caller may choose to optionally allow prepared
  *     updates to be returned regardless of whether prepare is being ignored globally. Otherwise, a
  *     prepare conflict will be returned upon reading a prepared update.
  */
 int
-__wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
-  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf, WT_TIME_WINDOW *on_disk_tw)
+__wt_history_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format,
+  uint64_t recno, WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf,
+  WT_TIME_WINDOW *on_disk_tw)
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *hs_cbt;
@@ -226,7 +227,8 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
      */
     read_timestamp = allow_prepare ? txn->prepare_timestamp : txn_shared->read_timestamp;
     WT_ERR_NOTFOUND_OK(
-      __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp, NULL), true);
+      __wt_history_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp, NULL),
+      true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;

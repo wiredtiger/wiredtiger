@@ -125,7 +125,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
     /* Search the page and insert the updates. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &cursor->key, true));
     WT_ERR(ret);
-    WT_ERR(__wt_hs_modify(cbt, hs_upd));
+    WT_ERR(__wt_history_modify(cbt, hs_upd));
 
     /*
      * Since the two updates (tombstone and the standard) will reconcile into a single entry, we are
@@ -201,7 +201,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      * one can lead to wrong order.
      */
     WT_ERR_NOTFOUND_OK(
-      __wt_hs_cursor_position(session, cursor, btree->id, key, upd->start_ts, srch_key), true);
+      __wt_history_cursor_position(session, cursor, btree->id, key, upd->start_ts, srch_key), true);
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
@@ -986,7 +986,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->txnid = WT_TXN_NONE;
         tombstone->start_ts = tombstone->durable_ts = WT_TS_NONE;
-        while ((ret = __wt_hs_modify(hs_cbt, tombstone)) == WT_RESTART)
+        while ((ret = __wt_history_modify(hs_cbt, tombstone)) == WT_RESTART)
             ;
         WT_ERR(ret);
         tombstone = NULL;
@@ -1055,7 +1055,7 @@ __hs_delete_key_from_pos(
         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
         upd->txnid = WT_TXN_NONE;
         upd->start_ts = upd->durable_ts = WT_TS_NONE;
-        WT_ERR(__wt_hs_modify(hs_cbt, upd));
+        WT_ERR(__wt_history_modify(hs_cbt, upd));
         upd = NULL;
         WT_STAT_CONN_INCR(session, cache_hs_key_truncate);
     }
