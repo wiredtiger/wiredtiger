@@ -286,6 +286,7 @@ thread_run(void *arg)
      * transactions.
      */
     use_prep = (use_ts && td->info % PREPARE_PCT == 0) ? true : false;
+    durable_ahead_commit = false;
 
     /*
      * For the prepared case we have two sessions so that the oplog session can have its own
