@@ -153,7 +153,7 @@ functions:
         set -o errexit
         set -o verbose
 
-        ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+        ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
     params:
@@ -1561,7 +1561,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../../test/wtperf/test_conf_dump.py 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../../test/wtperf/test_conf_dump.py 2>&1
 
   - name: compile-windows-alt
     tags: ["pull_request", "windows_only"]
@@ -1878,7 +1878,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${python_binary|python} syscall.py --verbose --preserve
+            ${python_binary|python3} syscall.py --verbose --preserve
 
   - name: checkpoint-filetypes-test
     commands:
@@ -2240,7 +2240,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            for i in {1..10}; do ${python_binary|python} split_stress.py; done
+            for i in {1..10}; do ${python_binary|python3} split_stress.py; done
 
   # The task name is ppc-zseries because this task will be used in both buildVariants
   - name: format-stress-ppc-zseries-test
@@ -2396,10 +2396,8 @@ buildvariants:
   expansions:
     test_env_vars: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    configure_python_setting: PYTHON=python3
     posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
-    python_binary: python3
   tasks:
     - name: ".pull_request !.windows_only !.pull_request_compilers"
     - name: compile-msan
