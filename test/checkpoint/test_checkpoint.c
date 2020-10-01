@@ -336,7 +336,7 @@ static int
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys]\n\t[-l log] [-n ops]"
+      "usage: %s [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys]\n\t[-l log] [-n ops] "
       "[-r runs] [-T table-config] [-t f|r|v]\n\t[-W workers]\n",
       progname);
     fprintf(stderr, "%s",
