@@ -215,7 +215,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     /* Open a history store table cursor. */
-    WT_ERR(__wt_hs_cursor_open(session));
+    WT_ERR(__wt_history_cursor_open(session));
     hs_cursor = session->hs_cursor;
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
 
@@ -231,7 +231,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
         ret = 0;
         goto done;
     }
-    for (;; ret = __wt_hs_cursor_prev(session, hs_cursor)) {
+    for (;; ret = __wt_history_cursor_prev(session, hs_cursor)) {
         WT_ERR_NOTFOUND_OK(ret, true);
         /* If we hit the end of the table, let's get out of here. */
         if (ret == WT_NOTFOUND) {
@@ -310,7 +310,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
              * update here we fall back to the datastore version. If its timestamp doesn't match our
              * timestamp then we return not found.
              */
-            WT_ERR_NOTFOUND_OK(__wt_hs_cursor_next(session, hs_cursor), true);
+            WT_ERR_NOTFOUND_OK(__wt_history_cursor_next(session, hs_cursor), true);
             if (ret == WT_NOTFOUND) {
                 /* Fallback to the onpage value as the base value. */
                 orig_hs_value_buf = hs_value;
@@ -395,7 +395,7 @@ err:
         __wt_scr_free(session, &hs_value);
     WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
 
-    WT_TRET(__wt_hs_cursor_close(session));
+    WT_TRET(__wt_history_cursor_close(session));
 
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {

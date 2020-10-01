@@ -142,8 +142,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (!WT_IS_METADATA(S2BT(session)->dhandle) && !F_ISSET(conn, WT_CONN_IN_MEMORY) &&
       session->hs_cursor == NULL && !F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
       session != conn->default_session) {
-        WT_RET(__wt_hs_cursor_open(session));
-        WT_RET(__wt_hs_cursor_close(session));
+        WT_RET(__wt_history_cursor_open(session));
+        WT_RET(__wt_history_cursor_close(session));
     }
 
     /*

@@ -282,9 +282,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              */
             if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
                 /* Open a history store cursor. */
-                WT_ERR(__wt_hs_cursor_open(session));
+                WT_ERR(__wt_history_cursor_open(session));
                 WT_TRET(__wt_history_store_verify_one(session));
-                WT_TRET(__wt_hs_cursor_close(session));
+                WT_TRET(__wt_history_cursor_close(session));
                 /*
                  * We cannot error out here. If we got an error verifying the history store, we need
                  * to follow through with reacquiring the exclusive call below. We'll error out

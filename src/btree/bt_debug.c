@@ -286,7 +286,7 @@ __debug_wrapup(WT_DBG *ds)
     msg = ds->msg;
 
     if (session->hs_cursor != NULL)
-        WT_TRET(__wt_hs_cursor_close(session));
+        WT_TRET(__wt_history_cursor_close(session));
 
     __wt_scr_free(session, &ds->key);
     __wt_scr_free(session, &ds->hs_key);
@@ -977,10 +977,10 @@ __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
 
     session = CUR2S(cursor_arg);
 
-    WT_RET(__wt_hs_cursor_open(session));
+    WT_RET(__wt_history_cursor_open(session));
     cbt = (WT_CURSOR_BTREE *)session->hs_cursor;
     WT_WITH_BTREE(session, CUR2BT(cbt), ret = __wt_debug_tree_all(session, NULL, NULL, ofile));
-    WT_TRET(__wt_hs_cursor_close(session));
+    WT_TRET(__wt_history_cursor_close(session));
 
     return (ret);
 }
@@ -1026,7 +1026,7 @@ __debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
      * doesn't work, we may be running in-memory.
      */
     if (!WT_IS_HS(S2BT(session))) {
-        if (session->hs_cursor != NULL || __wt_hs_cursor_open(session) == 0) {
+        if (session->hs_cursor != NULL || __wt_history_cursor_open(session) == 0) {
             WT_RET(__wt_scr_alloc(session, 0, &ds->hs_key));
             WT_RET(__wt_scr_alloc(session, 0, &ds->hs_value));
         }

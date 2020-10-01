@@ -283,8 +283,8 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * thread waiting for the first file to drain from the eviction queue. See WT-5946 for details.
      */
     if (session->hs_cursor == NULL && !F_ISSET(conn, WT_CONN_IN_MEMORY)) {
-        WT_RET(__wt_hs_cursor_open(session));
-        WT_RET(__wt_hs_cursor_close(session));
+        WT_RET(__wt_history_cursor_open(session));
+        WT_RET(__wt_history_cursor_close(session));
     }
 
     if (conn->evict_server_running && __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {

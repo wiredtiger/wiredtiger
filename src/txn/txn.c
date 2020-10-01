@@ -687,7 +687,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
-    for (; ret == 0; ret = __wt_hs_cursor_prev(session, hs_cursor)) {
+    for (; ret == 0; ret = __wt_history_cursor_prev(session, hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         /* Stop before crossing over to the next btree */
@@ -995,7 +995,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         cbt = (WT_CURSOR_BTREE *)(*cursorp);
         hs_btree_id = S2BT(session)->id;
         /* Open a history store table cursor. */
-        WT_ERR(__wt_hs_cursor_open(session));
+        WT_ERR(__wt_history_cursor_open(session));
         hs_cursor = session->hs_cursor;
 
         /*
@@ -1087,7 +1087,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
 err:
     if (hs_cursor != NULL)
-        WT_TRET(__wt_hs_cursor_close(session));
+        WT_TRET(__wt_history_cursor_close(session));
     if (!upd_appended)
         __wt_free(session, fix_upd);
     __wt_free(session, tombstone);

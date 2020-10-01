@@ -64,12 +64,12 @@ __wt_history_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 
     *hs_btreep = NULL;
 
-    WT_RET(__wt_hs_cursor_open(session));
+    WT_RET(__wt_history_cursor_open(session));
 
     *hs_btreep = CUR2BT(session->hs_cursor);
     WT_ASSERT(session, *hs_btreep != NULL);
 
-    WT_TRET(__wt_hs_cursor_close(session));
+    WT_TRET(__wt_history_cursor_close(session));
 
     return (ret);
 }

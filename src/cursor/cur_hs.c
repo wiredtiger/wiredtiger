@@ -10,11 +10,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_hs_cursor_open --
+ * __wt_history_cursor_open --
  *     Open a new history store table cursor.
  */
 int
-__wt_hs_cursor_open(WT_SESSION_IMPL *session)
+__wt_history_cursor_open(WT_SESSION_IMPL *session)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -35,11 +35,11 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_hs_cursor_close --
+ * __wt_history_cursor_close --
  *     Discard a history store cursor.
  */
 int
-__wt_hs_cursor_close(WT_SESSION_IMPL *session)
+__wt_history_cursor_close(WT_SESSION_IMPL *session)
 {
     /* Should only be called when session has an open history store cursor */
     WT_ASSERT(session, session->hs_cursor != NULL);
@@ -50,11 +50,11 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_hs_cursor_next --
+ * __wt_history_cursor_next --
  *     Execute a next operation on a history store cursor with the appropriate isolation level.
  */
 int
-__wt_hs_cursor_next(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__wt_history_cursor_next(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
     WT_DECL_RET;
 
@@ -63,11 +63,11 @@ __wt_hs_cursor_next(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 }
 
 /*
- * __wt_hs_cursor_prev --
+ * __wt_history_cursor_prev --
  *     Execute a prev operation on a history store cursor with the appropriate isolation level.
  */
 int
-__wt_hs_cursor_prev(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__wt_history_cursor_prev(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
     WT_DECL_RET;
 
@@ -76,12 +76,12 @@ __wt_hs_cursor_prev(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 }
 
 /*
- * __wt_hs_cursor_search_near --
+ * __wt_history_cursor_search_near --
  *     Execute a search near operation on a history store cursor with the appropriate isolation
  *     level.
  */
 int
-__wt_hs_cursor_search_near(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exactp)
+__wt_history_cursor_search_near(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exactp)
 {
     WT_DECL_RET;
 

@@ -46,7 +46,7 @@ __verify_history_store_id(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *ds_cbt, uin
      * verify. When we return after moving to a new key the caller is responsible for keeping the
      * cursor there or deciding they're done.
      */
-    for (; ret == 0; ret = __wt_hs_cursor_next(session, hs_cursor)) {
+    for (; ret == 0; ret = __wt_history_cursor_next(session, hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
 
         /*
@@ -127,9 +127,9 @@ __wt_history_store_verify_one(WT_SESSION_IMPL *session)
      */
     memset(&hs_key, 0, sizeof(hs_key));
     hs_cursor->set_key(hs_cursor, btree_id, &hs_key, 0, 0);
-    ret = __wt_hs_cursor_search_near(session, hs_cursor, &exact);
+    ret = __wt_history_cursor_search_near(session, hs_cursor, &exact);
     if (ret == 0 && exact < 0)
-        ret = __wt_hs_cursor_next(session, hs_cursor);
+        ret = __wt_history_cursor_next(session, hs_cursor);
 
     /*
      * If we positioned the cursor there is something to verify.
@@ -174,9 +174,9 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
     uri_data = NULL;
 
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_hs_cursor_open(session));
+    WT_ERR(__wt_history_cursor_open(session));
     hs_cursor = session->hs_cursor;
-    WT_ERR_NOTFOUND_OK(__wt_hs_cursor_next(session, hs_cursor), true);
+    WT_ERR_NOTFOUND_OK(__wt_history_cursor_next(session, hs_cursor), true);
     stop = ret == WT_NOTFOUND ? true : false;
     ret = 0;
 
@@ -205,7 +205,7 @@ __wt_history_store_verify(WT_SESSION_IMPL *session)
         WT_ERR_NOTFOUND_OK(ret, false);
     }
 err:
-    WT_TRET(__wt_hs_cursor_close(session));
+    WT_TRET(__wt_history_cursor_close(session));
 
     __wt_scr_free(session, &buf);
     WT_ASSERT(session, key.mem == NULL && key.memsize == 0);
