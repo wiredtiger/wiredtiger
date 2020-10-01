@@ -605,7 +605,7 @@ __hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool 
             /*
              * Attempt to configure the history store, this will detect corruption if it fails.
              */
-            ret = __wt_hs_config(session, cfg);
+            ret = __wt_history_config(session, cfg);
             if (ret != 0) {
                 if (F_ISSET(conn, WT_CONN_SALVAGE)) {
                     wt_session = &session->iface;
@@ -795,7 +795,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         /*
          * Create the history store as we might need it while applying log records in recovery.
          */
-        WT_ERR(__wt_hs_open(session, cfg));
+        WT_ERR(__wt_history_open(session, cfg));
     }
 
     /*

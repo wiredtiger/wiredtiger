@@ -220,7 +220,7 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * Create the history store file. This will only actually create it on a clean upgrade or when
      * creating a new database.
      */
-    WT_RET(__wt_hs_open(session, cfg));
+    WT_RET(__wt_history_open(session, cfg));
 
     /*
      * Start the optional logging/archive threads. NOTE: The log manager must be started before

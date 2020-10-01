@@ -54,11 +54,11 @@ __hs_cleanup_las(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_hs_get_btree --
+ * __wt_history_get_btree --
  *     Get the history store btree. Open a history store cursor if needed to get the btree.
  */
 int
-__wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
+__wt_history_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 {
     WT_DECL_RET;
 
@@ -75,11 +75,11 @@ __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 }
 
 /*
- * __wt_hs_config --
+ * __wt_history_config --
  *     Configure the history store table.
  */
 int
-__wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
+__wt_history_config(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_BTREE *btree;
     WT_CONFIG_ITEM cval;
@@ -104,7 +104,7 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     /*
      * Retrieve the btree from the history store cursor.
      */
-    WT_ERR(__wt_hs_get_btree(tmp_setup_session, &btree));
+    WT_ERR(__wt_history_get_btree(tmp_setup_session, &btree));
 
     /* Track the history store file ID. */
     if (conn->cache->hs_fileid == 0)
@@ -135,11 +135,11 @@ err:
 }
 
 /*
- * __wt_hs_open --
+ * __wt_history_open --
  *     Initialize the database's history store.
  */
 int
-__wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
+__wt_history_open(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CONNECTION_IMPL *conn;
 
@@ -155,7 +155,7 @@ __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
     /* Create the table. */
     WT_RET(__wt_session_create(session, WT_HS_URI, WT_HS_CONFIG));
 
-    WT_RET(__wt_hs_config(session, cfg));
+    WT_RET(__wt_history_config(session, cfg));
 
     /* The statistics server is already running, make sure we don't race. */
     WT_WRITE_BARRIER();
@@ -165,11 +165,11 @@ __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
- * __wt_hs_close --
+ * __wt_history_close --
  *     Destroy the database's history store.
  */
 void
-__wt_hs_close(WT_SESSION_IMPL *session)
+__wt_history_close(WT_SESSION_IMPL *session)
 {
     F_CLR(S2C(session), WT_CONN_HS_OPEN);
 }
