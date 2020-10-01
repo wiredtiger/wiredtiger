@@ -68,6 +68,7 @@ typedef struct {
     u_int ts_oldest;               /* Current oldest timestamp */
     u_int ts_stable;               /* Current stable timestamp */
     bool use_timestamps;           /* Use txn timestamps */
+    bool prepare;                  /* Use prepare transactions */
     COOKIE *cookies;               /* Per-thread info */
     WT_RWLOCK clock_lock;          /* Clock synchronization */
     wt_thread_t checkpoint_thread; /* Checkpoint thread */
