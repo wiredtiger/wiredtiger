@@ -30,8 +30,6 @@ import string, os, sys, random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
-_python3 = (sys.version_info >= (3, 0, 0))
-
 def timestamp_str(t):
     return '%x' % t
 
@@ -100,19 +98,11 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
     def get_value(self, i):
         return self.get_bytes(i, 1000)
 
-    if _python3:
-        def _ord(self, byte):
-            return byte
+    def _ord(self, byte):
+        return byte
 
-        def _byte_to_str(self, byte):
-            return chr(byte)
-
-    else:
-        def _ord(self, byte):
-            return ord(byte)
-
-        def _byte_to_str(self, byte):
-            return byte
+    def _byte_to_str(self, byte):
+        return chr(byte)
 
     def dumpstr(self, s, hexoutput):
         """
