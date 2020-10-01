@@ -932,13 +932,12 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 {
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t oldest_timestamp;
     uint32_t i;
     char buf2[WT_INTPACK64_MAXSIZE];
     char hex_timestamp[WT_TS_HEX_STRING_SIZE];
-
-    WT_TXN *txn;
     const char *sep;
 
     sep = ",";
