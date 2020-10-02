@@ -544,10 +544,9 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_TXN_SAVED_STATE old_state;
     uint32_t flags;
     bool closing, modified;
-    bool snapshot_acquired;
+    bool snapshot_acquired_for_eviction;
     bool use_snapshot_for_app_thread;
     bool use_snapshot_for_eviction_thread;
 
@@ -557,7 +556,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     page = ref->page;
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
-    snapshot_acquired = false;
+    snapshot_acquired_for_eviction = false;
 
     /*
      * Fail if an internal has active children, the children must be evicted first. The test is
@@ -679,15 +678,12 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     }
 
     /*
-     * Acquire a snapshot if coming through eviction thread route.
-     *
-     * Also, if we have entered eviction through application threads, we will update our snapshot to
-     * evict pages that are not globally visible based on last_running transaction. We will save
-     * some of the running transaction's context, get a new transaction snapshot, perform eviction
-     * and restore the original transaction's context (including snapshot) once we are finished.
-     * Avoid updating snapshots when application transactions are in final stages of commit or
-     * rollback as they have already released the snapshot. Otherwise, it becomes harder in later
-     * part of the code to detect updates the belonged to the last running application transaction.
+     * Acquire a snapshot if coming through eviction thread route. Also, if we have entered eviction
+     * through application threads and we have a transaction snapshot, we will use our existing
+     * snapshot to evict pages that are not globally visible based on last_running transaction.
+     * Avoid using snapshots when application transactions are in final stages of commit or rollback
+     * as they have already released the snapshot. Otherwise, it becomes harder in later part of the
+     * code to detect updates the belonged to the last running application transaction.
      */
 
     /*
@@ -696,39 +692,56 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * fuzzy transaction ID based checkpoints work is merged (WT-6673).
      */
     use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
-      !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE;
+      !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE &&
+      F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
     use_snapshot_for_eviction_thread = FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD);
 
     if (!conn->txn_global.checkpoint_running && !WT_IS_HS(S2BT(session)) &&
       (use_snapshot_for_app_thread || use_snapshot_for_eviction_thread)) {
-        WT_RET(__wt_txn_save_and_update_snapshot(session, &old_state));
-        snapshot_acquired = true;
-        /*
-         * Make sure once more that there is no checkpoint running. A new checkpoint might have
-         * started between previous check and acquiring snapshot. If there is a checkpoint running,
-         * release the snapshot and fallback to global visibility checks.
-         */
-        if (conn->txn_global.checkpoint_running) {
-            __wt_txn_restore_snapshot(session, &old_state);
+        if (use_snapshot_for_eviction_thread) {
+            /*
+             * Eviction threads do not need to pin anything in the cache. We have a exclusive lock
+             * for the page being evicted so we are sure that the page will always be there while it
+             * is being processed. Therefore, we use snapshot API that doesn't publish shared IDs to
+             * the outside world.
+             */
+            __wt_txn_bump_snapshot(session);
+            snapshot_acquired_for_eviction = true;
+
+            /*
+             * Make sure once more that there is no checkpoint running. A new checkpoint might have
+             * started between previous check and acquiring snapshot. If there is a checkpoint
+             * running, release the snapshot and fallback to global visibility checks.
+             */
+            if (conn->txn_global.checkpoint_running) {
+                __wt_txn_release_snapshot(session);
+                snapshot_acquired_for_eviction = false;
+            }
+        }
+        if (use_snapshot_for_eviction_thread && !snapshot_acquired_for_eviction)
             LF_SET(WT_REC_VISIBLE_ALL);
-            snapshot_acquired = false;
-        } else if (use_snapshot_for_app_thread)
-            LF_SET(WT_REC_APP_UPDATED_SNAPSHOT);
+        if (use_snapshot_for_app_thread)
+            LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
     } else if (!WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_VISIBLE_ALL);
 
     WT_ASSERT(session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /*
-     * Reconcile the page.
+     * Reconcile the page. Force read-committed isolation level if we are using snapshots for
+     * eviction workers or application threads.
      */
-    ret = __wt_reconcile(session, ref, NULL, flags);
+    if (LF_ISSET(WT_REC_APP_EVICTION_SNAPSHOT) || snapshot_acquired_for_eviction)
+        WT_WITH_TXN_ISOLATION(
+          session, WT_ISO_READ_COMMITTED, ret = __wt_reconcile(session, ref, NULL, flags));
+    else
+        ret = __wt_reconcile(session, ref, NULL, flags);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
 
-    if (snapshot_acquired)
-        __wt_txn_restore_snapshot(session, &old_state);
+    if (snapshot_acquired_for_eviction)
+        __wt_txn_release_snapshot(session);
 
     WT_RET(ret);
 

@@ -358,18 +358,3 @@ struct __wt_txn {
      */
     uint64_t __snapshot[];
 };
-
-/*
- * WT_TXN_SAVED_STATE --
- *	A placeholder for transaction context in case snapshot
- *  will be temporarily modified and need to be restored.
- */
-struct __wt_txn_saved_state {
-    uint64_t id;
-    uint32_t flags;
-    WT_TXN_ISOLATION isolation;
-    uint64_t snap_min, snap_max;
-    uint64_t *snapshot;
-    uint32_t snapshot_count;
-    u_int mod_count;
-};

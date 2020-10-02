@@ -331,8 +331,6 @@ struct __wt_txn_op;
 typedef struct __wt_txn_op WT_TXN_OP;
 struct __wt_txn_printlog_args;
 typedef struct __wt_txn_printlog_args WT_TXN_PRINTLOG_ARGS;
-struct __wt_txn_saved_state;
-typedef struct __wt_txn_saved_state WT_TXN_SAVED_STATE;
 struct __wt_txn_shared;
 typedef struct __wt_txn_shared WT_TXN_SHARED;
 struct __wt_update;
