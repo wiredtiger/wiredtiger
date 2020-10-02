@@ -2538,7 +2538,7 @@ buildvariants:
   run_on:
   - windows-64-vs2017-test
   expansions:
-    python_binary: python
+    python_binary: '/cygdrive/c/python/python37/python.exe'
   tasks:
     - name: compile
     - name: ".windows_only"
