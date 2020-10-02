@@ -59,7 +59,7 @@ class test_prepare12(wttest.WiredTigerTestCase):
             session3.begin_transaction()
             cursor3[i] = 'a' * 500
             session3.commit_transaction()
-        
+
         # Commit the prepared update
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(1) + ',durable_timestamp=' + timestamp_str(2))
 
