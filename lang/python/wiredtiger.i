@@ -548,11 +548,7 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, equals, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 
 /* SWIG magic to turn Python byte strings into data / size. */
-#if PY_MAJOR_VERSION >= 3
-	%apply (char *STRING, int LENGTH) { (char *data, int size) };
-#else
-%apply (char *STRING, int LENGTH) { (void *data, int size) };
-#endif
+%apply (char *STRING, int LENGTH) { (char *data, int size) };
 
 /* Handle binary data returns from get_key/value -- avoid cstring.i: it creates a list of returns. */
 %typemap(in,numinputs=0) (char **datap, int *sizep) (char *data, int size) { $1 = &data; $2 = &size; }
