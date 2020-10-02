@@ -63,7 +63,6 @@ static char home[1024]; /* Program working dir */
 #define MAX_VAL 1024
 #define MIN_TH 5
 #define MIN_TIME 10
-#define PREPARE_DURABLE_AHEAD_COMMIT 10
 #define PREPARE_FREQ 5
 #define PREPARE_PCT 10
 #define PREPARE_YIELD (PREPARE_FREQ * 10)
@@ -258,7 +257,7 @@ thread_run(void *arg)
     uint64_t i, active_ts;
     char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
     char kname[64], tscfg[64], uri[128];
-    bool durable_ahead_commit, use_prep;
+    bool use_prep;
 
     __wt_random_init(&rnd);
     memset(cbuf, 0, sizeof(cbuf));
@@ -286,7 +285,6 @@ thread_run(void *arg)
      * transactions.
      */
     use_prep = (use_ts && td->info % PREPARE_PCT == 0) ? true : false;
-    durable_ahead_commit = false;
 
     /*
      * For the prepared case we have two sessions so that the oplog session can have its own
@@ -396,17 +394,8 @@ thread_run(void *arg)
                 testutil_check(prepared_session->prepare_transaction(prepared_session, tscfg));
                 if (i % PREPARE_YIELD == 0)
                     __wt_yield();
-                /*
-                 * Make half of the prepared transactions' durable timestamp larger than their
-                 * commit timestamp.
-                 */
-                durable_ahead_commit = i % PREPARE_DURABLE_AHEAD_COMMIT == 0;
                 testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-                  "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, active_ts,
-                  durable_ahead_commit ? active_ts + 4 : active_ts));
-                /* Ensure the global timestamp is not behind the all durable timestamp. */
-                if (durable_ahead_commit)
-                    __wt_atomic_addv64(&global_ts, 3);
+                  "commit_timestamp=%" PRIx64 ",durable_timestamp=%" PRIx64, active_ts, active_ts));
             } else
                 testutil_check(
                   __wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%" PRIx64, active_ts));
@@ -427,8 +416,7 @@ thread_run(void *arg)
         /*
          * Save the timestamp and key separately for checking later.
          */
-        if (fprintf(fp, "%" PRIu64 " %" PRIu64 "\n",
-              durable_ahead_commit ? active_ts + 4 : active_ts, i) < 0)
+        if (fprintf(fp, "%" PRIu64 " %" PRIu64 "\n", active_ts, i) < 0)
             testutil_die(EIO, "fprintf");
 
         if (0) {
