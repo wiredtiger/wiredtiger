@@ -332,11 +332,11 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
 }
 
 /*
- * __wt_hs_insert_updates --
+ * __wt_history_insert_updates --
  *     Copy one set of saved updates into the database's history store table.
  */
 int
-__wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
+__wt_history_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
@@ -557,7 +557,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd == first_non_ts_upd &&
           !F_ISSET(first_non_ts_upd, WT_UPDATE_CLEARED_HS)) {
             /* We can only delete history store entries that have timestamps. */
-            WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
+            WT_ERR(__wt_history_delete_key_from_ts(session, btree->id, key, 1));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
             clear_hs = false;
             F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
@@ -663,7 +663,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              */
             if (clear_hs && upd->start_ts != WT_TS_NONE) {
                 /* We can only delete history store entries that have timestamps. */
-                WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
+                WT_ERR(__wt_history_delete_key_from_ts(session, btree->id, key, 1));
                 WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
                 clear_hs = false;
                 F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
@@ -723,7 +723,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
           (first_non_ts_upd->txnid != list->onpage_upd->txnid ||
             first_non_ts_upd->start_ts != list->onpage_upd->start_ts)) {
             /* We can only delete history store entries that have timestamps. */
-            WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1));
+            WT_ERR(__wt_history_delete_key_from_ts(session, btree->id, key, 1));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
             F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
         }
@@ -814,11 +814,11 @@ err:
 }
 
 /*
- * __wt_hs_delete_key_from_ts --
+ * __wt_history_delete_key_from_ts --
  *     Delete history store content of a given key from a timestamp.
  */
 int
-__wt_hs_delete_key_from_ts(
+__wt_history_delete_key_from_ts(
   WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts)
 {
     WT_DECL_RET;
