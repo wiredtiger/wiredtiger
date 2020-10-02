@@ -424,10 +424,8 @@ thread_run(void *arg)
         cur_local->set_value(cur_local, &data);
         testutil_check(cur_local->insert(cur_local));
 
-        /*
-         * Save the timestamp and key separately for checking later.
-         */
-        if (fprintf(fp, "%" PRIu64 " %" PRIu64 "\n",
+        /* Save the timestamps and key separately for checking later. */
+        if (fprintf(fp, "%" PRIu64 " %" PRIu64 " %" PRIu64 "\n", active_ts,
               durable_ahead_commit ? active_ts + 4 : active_ts, i) < 0)
             testutil_die(EIO, "fprintf");
 
@@ -602,7 +600,7 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     pid_t pid;
     uint64_t absent_coll, absent_local, absent_oplog, absent_shadow, count, key, last_key;
-    uint64_t stable_fp, stable_val;
+    uint64_t commit_fp, durable_fp, stable_val;
     uint32_t i, nth, timeout;
     int ch, status, ret;
     const char *working_dir;
@@ -794,7 +792,7 @@ main(int argc, char *argv[])
          * have been recovered.
          */
         for (last_key = INVALID_KEY;; ++count, last_key = key) {
-            ret = fscanf(fp, "%" SCNu64 "%" SCNu64 "\n", &stable_fp, &key);
+            ret = fscanf(fp, "%" SCNu64 "%" SCNu64 "%" SCNu64 "\n", &commit_fp, &durable_fp, &key);
             if (last_key == INVALID_KEY) {
                 c_rep[i].first_key = key;
                 l_rep[i].first_key = key;
@@ -835,13 +833,13 @@ main(int argc, char *argv[])
                     testutil_die(ret, "shadow search success");
 
                 /*
-                 * If we don't find a record, the stable timestamp written to our file better be
+                 * If we don't find a record, the durable timestamp written to our file better be
                  * larger than the saved one.
                  */
-                if (!inmem && stable_fp != 0 && stable_fp <= stable_val) {
-                    printf("%s: COLLECTION no record with key %" PRIu64 " record ts %" PRIu64
-                           " <= stable ts %" PRIu64 "\n",
-                      fname, key, stable_fp, stable_val);
+                if (!inmem && durable_fp != 0 && durable_fp <= stable_val) {
+                    printf("%s: COLLECTION no record with key %" PRIu64
+                           " record durable ts %" PRIu64 " <= stable ts %" PRIu64 "\n",
+                      fname, key, durable_fp, stable_val);
                     absent_coll++;
                 }
                 if (c_rep[i].first_miss == INVALID_KEY)
@@ -861,14 +859,14 @@ main(int argc, char *argv[])
                  */
                 c_rep[i].exist_key = key;
                 fatal = true;
-            } else if (!inmem && stable_fp != 0 && stable_fp > stable_val) {
+            } else if (!inmem && commit_fp != 0 && commit_fp > stable_val) {
                 /*
-                 * If we found a record, the stable timestamp written to our file better be no
+                 * If we found a record, the commit timestamp written to our file better be no
                  * larger than the checkpoint one.
                  */
-                printf("%s: COLLECTION record with key %" PRIu64 " record ts %" PRIu64
+                printf("%s: COLLECTION record with key %" PRIu64 " commit record ts %" PRIu64
                        " > stable ts %" PRIu64 "\n",
-                  fname, key, stable_fp, stable_val);
+                  fname, key, commit_fp, stable_val);
                 fatal = true;
             } else if ((ret = cur_shadow->search(cur_shadow)) != 0)
                 /* Collection and shadow both have the data. */
