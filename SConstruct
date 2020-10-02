@@ -9,6 +9,7 @@ import textwrap
 import distutils.sysconfig
 
 EnsureSConsVersion( 2, 0, 0 )
+EnsurePythonVersion(3, 0)
 
 if not os.sys.platform == "win32":
     print ("SConstruct is only supported for Windows, use build_posix for other platforms")
