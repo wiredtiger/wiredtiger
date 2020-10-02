@@ -798,11 +798,11 @@ main(int argc, char *argv[])
                 l_rep[i].first_key = key;
                 o_rep[i].first_key = key;
             }
-            if (ret != EOF && ret != 2) {
+            if (ret != EOF && ret != 3) {
                 /*
                  * If we find a partial line, consider it like an EOF.
                  */
-                if (ret == 1 || ret == 0)
+                if (ret == 2 || ret == 1 || ret == 0)
                     break;
                 testutil_die(errno, "fscanf");
             }
