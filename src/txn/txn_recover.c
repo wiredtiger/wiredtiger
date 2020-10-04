@@ -459,18 +459,20 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
 static int
 __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
 {
+    WT_CONFIG list;
     WT_CONFIG_ITEM cval;
+    WT_CONFIG_ITEM k, v;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-
+    uint8_t counter;
+    char *endptr;
     char *sys_config;
-    const char *sep;
 
     sys_config = NULL;
-
     session = r->session;
     conn = S2C(session);
+    counter = 0;
 
     /*
      * Read the system checkpoint information from the metadata file and save the snapshot related
@@ -482,30 +484,29 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
       __wt_metadata_search(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, &sys_config), false);
     if (sys_config != NULL) {
         WT_CLEAR(cval);
-        WT_ERR_NOTFOUND_OK(
-          __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval), false);
+        WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval));
         if (cval.len != 0)
             conn->txn_global.snapshot_min = (uint16_t)cval.val;
 
-        WT_ERR_NOTFOUND_OK(
-          __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MAX, &cval), false);
+        WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MAX, &cval));
         if (cval.len != 0)
             conn->txn_global.snapshot_max = (uint16_t)cval.val;
 
-        WT_ERR_NOTFOUND_OK(
-          __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_COUNT, &cval), false);
+        WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_COUNT, &cval));
         if (cval.len != 0)
             conn->txn_global.snapshot_count = (uint16_t)cval.val;
 
-        WT_ERR_NOTFOUND_OK(
-          __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT, &cval), false);
+        WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT, &cval));
         if (cval.len != 0) {
+            __wt_config_subinit(session, &list, &cval);
             WT_ERR(__wt_calloc_def(
               session, conn->txn_global.snapshot_count, &conn->txn_global.snapshots));
-            sep = ",";
-
-            WT_ERR(__wt_config_tokenizer(session, cval.str, sep, conn->txn_global.snapshots));
+            while (__wt_config_next(&list, &k, &v) == 0) {
+                if (k.type == WT_CONFIG_ITEM_NUM)
+                    conn->txn_global.snapshots[counter++] = (uint64_t)strtoll(k.str, &endptr, 10);
+            }
         }
+        WT_ASSERT(session, conn->txn_global.snapshot_count == counter);
     }
 
 err:

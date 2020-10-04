@@ -657,37 +657,6 @@ __wt_config_getones_none(
 }
 
 /*
- * __wt_config_tokenizer --
- *     String tokenizer into the given array.
- */
-int
-__wt_config_tokenizer(
-  WT_SESSION_IMPL *session, const char *cval_str, const char *delimeter, uint64_t *parse_array)
-{
-    uint64_t value;
-    uint16_t counter;
-    char *str;
-    char *token;
-
-    str = NULL;
-    counter = 0;
-
-    WT_RET(__wt_strndup(session, cval_str, strlen(cval_str), &str));
-
-    token = strtok(str, delimeter);
-
-    while (token != NULL) {
-        sscanf(token, "%" PRIu64, &value);
-        parse_array[counter++] = value;
-        token = strtok(NULL, delimeter);
-    }
-    if (str != NULL)
-        __wt_free(session, str);
-
-    return 0;
-}
-
-/*
  * __wt_config_gets_def --
  *     Performance hack: skip parsing config strings by hard-coding defaults. It's expensive to
  *     repeatedly parse configuration strings, so don't do it unless it's necessary in performance

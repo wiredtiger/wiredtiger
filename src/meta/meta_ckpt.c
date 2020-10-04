@@ -936,7 +936,6 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t oldest_timestamp;
     uint32_t i;
-    char buf2[WT_INTPACK64_MAXSIZE];
     char hex_timestamp[WT_TS_HEX_STRING_SIZE];
     const char *sep;
 
@@ -987,13 +986,13 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
         WT_ERR(__wt_buf_fmt(session, buf,
           WT_SYSTEM_CKPT_SNAPSHOT_MIN "=%" PRIu64 "," WT_SYSTEM_CKPT_SNAPSHOT_MAX "=%" PRIu64
                                       "," WT_SYSTEM_CKPT_SNAPSHOT_COUNT "=%" PRIu32
-                                      "," WT_SYSTEM_CKPT_SNAPSHOT "=",
+                                      "," WT_SYSTEM_CKPT_SNAPSHOT "=[",
           txn->snap_min, txn->snap_max, txn->snapshot_count));
 
-        for (i = 0; i < txn->snapshot_count; i++) {
-            WT_ERR(__wt_snprintf(buf2, sizeof(buf2), "%" PRIu64, txn->snapshot[i]));
-            WT_ERR(__wt_buf_catfmt(session, buf, "%s%s", buf2, sep));
-        }
+        for (i = 0; i < txn->snapshot_count; i++)
+            WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "%s", txn->snapshot[i], sep));
+
+        WT_ERR(__wt_buf_catfmt(session, buf, "%s", "]"));
         WT_ERR(__wt_metadata_update(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, buf->data));
     }
 
