@@ -59,19 +59,19 @@ functions:
 
         venv_dir="./venv"
         if [ ! -d $venv_dir ]; then
-          python_loc=$(which ${python|/opt/mongodbtoolchain/v3/bin/python3})
-          virtualenv_loc=$(which ${virtualenv|virtualenv})
-
-          if command -V cygpath; then
+          if test "Windows_NT" = "$OS" && command -V cygpath; then
             # Sad note: We have to use the Windows path instead of the posix path here.
             # Otherwise, virtualenv may mistakenly resolve paths relative to c:\cygdrive.
             # Creating a virtualenv in cygwin with 'python -m venv', will not work correctly
             # since the paths will be wrong.  We need to use virtualenv and specify the
             # python path as 'C:\python\python_version'
+            python_loc=$(which ${python|/cygdrive/c/python/python37/python.exe})
             python_loc=$(cygpath -w $python_loc)
+            virtualenv_loc=$(which ${virtualenv|virtualenv})
             venv_dir="$(cygpath -w "$venv_dir")"
             "$virtualenv_loc" --python "$python_loc" --system-site-packages "$venv_dir"
           else
+            python_loc=$(which ${python|/opt/mongodbtoolchain/v3/bin/python3})
             "$python_loc" -m venv --system-site-packages "$venv_dir"
           fi
         fi
