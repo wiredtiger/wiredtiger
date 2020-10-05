@@ -2089,11 +2089,11 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
     lastlog = 0;
     if (log != NULL) {
         allocsize = log->allocsize;
-        end_lsn = log->alloc_lsn;
-        start_lsn = log->first_lsn;
+        WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
+        WT_ASSIGN_LSN(&start_lsn, &log->first_lsn);
         if (lsnp == NULL) {
             if (LF_ISSET(WT_LOGSCAN_FROM_CKP))
-                start_lsn = log->ckpt_lsn;
+                WT_ASSIGN_LSN(&start_lsn, &log->ckpt_lsn);
             else if (!LF_ISSET(WT_LOGSCAN_FIRST))
                 WT_RET_MSG(session, WT_ERROR, "WT_LOGSCAN_FIRST not set");
         }
@@ -2152,13 +2152,13 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
          * smallest LSN, start from the beginning of the log.
          */
         if (!WT_IS_INIT_LSN(lsnp))
-            start_lsn = *lsnp;
+            WT_ASSIGN_LSN(&start_lsn, lsnp);
     }
     WT_ERR(__log_open_verify(session, start_lsn.l.file, &log_fh, &prev_lsn, NULL, &need_salvage));
     if (need_salvage)
         WT_ERR_MSG(session, WT_ERROR, "log file requires salvage");
     WT_ERR(__wt_filesize(session, log_fh, &log_size));
-    rd_lsn = start_lsn;
+    WT_ASSIGN_LSN(&rd_lsn, &start_lsn);
     if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
         __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
           "Recovering log %" PRIu32 " through %" PRIu32, rd_lsn.l.file, end_lsn.l.file);
@@ -2360,7 +2360,7 @@ advance:
          * We have a valid log record. If it is not the log file header, invoke the callback.
          */
         WT_STAT_CONN_INCR(session, log_scan_records);
-        next_lsn = rd_lsn;
+        WT_ASSIGN_LSN(&next_lsn, &rd_lsn);
         next_lsn.l.offset += rdup_len;
         if (rd_lsn.l.offset != 0) {
             /*
@@ -2387,7 +2387,7 @@ advance:
             if (LF_ISSET(WT_LOGSCAN_ONE))
                 break;
         }
-        rd_lsn = next_lsn;
+        WT_ASSIGN_LSN(&rd_lsn, &next_lsn);
     }
 
     /* Truncate if we're in recovery. */
@@ -2804,7 +2804,7 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
      * We need to flush out the current slot first to get the real end of log LSN in log->alloc_lsn.
      */
     WT_RET(__wt_log_flush_lsn(session, &lsn, false));
-    last_lsn = log->alloc_lsn;
+    WT_ASSIGN_LSN(&last_lsn, &log->alloc_lsn);
 
     /*
      * If the last write caused a switch to a new log file, we should only wait for the last write
@@ -2812,7 +2812,7 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
      * because the write LSN doesn't switch into the new file until it contains a record.
      */
     if (last_lsn.l.offset == log->first_record)
-        last_lsn = log->log_close_lsn;
+        WT_ASSIGN_LSN(&last_lsn, &log->log_close_lsn);
 
     /*
      * Wait until all current outstanding writes have been written to the file system.

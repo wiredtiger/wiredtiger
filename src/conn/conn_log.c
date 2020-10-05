@@ -625,7 +625,7 @@ __log_file_server(void *arg)
             /*
              * Save the latest write LSN which is the minimum we will have written to disk.
              */
-            min_lsn = log->write_lsn;
+            WT_ASSIGN_LSN(&min_lsn, &log->write_lsn);
             /*
              * We have to wait until the LSN we asked for is written. If it isn't signal the wrlsn
              * thread to get it written.
@@ -786,7 +786,7 @@ restart:
                  * slots. A synchronous write may update write_lsn so save the last one we saw to
                  * check when coalescing slots.
                  */
-                save_lsn = log->write_lsn;
+                WT_ASSIGN_LSN(&save_lsn, &log->write_lsn);
                 if (__wt_log_cmp(&log->write_lsn, &written[i].lsn) != 0) {
                     coalescing = slot;
                     continue;
