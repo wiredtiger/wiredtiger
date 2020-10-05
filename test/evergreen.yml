@@ -84,10 +84,12 @@ functions:
         if [ "Windows_NT" = "$OS" ]; then
           # Need to quote the path on Windows to preserve the separator.
           echo "!! Activating venv"
-          . "${venv_dir}/Scripts/activate" 2> /tmp/activate_error.log
+          #. "${venv_dir}/Scripts/activate" 2> /tmp/activate_error.log
+          . "${venv_dir}/Scripts/activate"
         else
           echo "!! Activating venv"
-          . ${venv_dir}/bin/activate 2> /tmp/activate_error.log
+          #. ${venv_dir}/bin/activate 2> /tmp/activate_error.log
+          . ${venv_dir}/bin/activate
         fi
         if [ $? -ne 0 ]; then
           echo "Failed to activate virtualenv: $(cat /tmp/activate_error.log)"
