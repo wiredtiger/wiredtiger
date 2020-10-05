@@ -678,12 +678,13 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     }
 
     /*
-     * Acquire a snapshot if coming through eviction thread route. Also, if we have entered eviction
-     * through application threads and we have a transaction snapshot, we will use our existing
-     * snapshot to evict pages that are not globally visible based on last_running transaction.
-     * Avoid using snapshots when application transactions are in final stages of commit or rollback
-     * as they have already released the snapshot. Otherwise, it becomes harder in later part of the
-     * code to detect updates the belonged to the last running application transaction.
+     * Acquire a snapshot if coming through the eviction thread route. Also, if we have entered
+     * eviction through application threads and we have a transaction snapshot, we will use our
+     * existing snapshot to evict pages that are not globally visible based on the last_running
+     * transaction. Avoid using snapshots when application transactions are in the final stages of
+     * commit or rollback as they have already released the snapshot. Otherwise, it becomes harder
+     * in the later part of the code to detect updates the belonged to the last running application
+     * transaction.
      */
 
     /*
