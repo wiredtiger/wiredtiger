@@ -72,7 +72,7 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
      */
     slot->slot_unbuffered = 0;
     WT_ASSIGN_LSN(&slot->slot_start_lsn, &log->alloc_lsn);
-    WT_ASSIGN_LSN(&slot->slot_end_lsn, &log->alloc_lsn);
+    WT_ASSIGN_LSN(&slot->slot_end_lsn, &slot->slot_start_lsn);
     slot->slot_start_offset = log->alloc_lsn.l.offset;
     slot->slot_last_offset = log->alloc_lsn.l.offset;
     slot->slot_fh = log->log_fh;
