@@ -57,6 +57,7 @@ functions:
         # exit immediately if virtualenv is not found
         set -o errexit
 
+        echo "!! Checking for venv"
         venv_dir="./venv"
         if [ ! -d $venv_dir ]; then
           if test "Windows_NT" = "$OS" && command -V cygpath; then
@@ -69,9 +70,11 @@ functions:
             python_loc=$(cygpath -w $python_loc)
             virtualenv_loc=$(which ${virtualenv|virtualenv})
             venv_dir="$(cygpath -w "$venv_dir")"
+            echo "!! Creating venv"
             "$virtualenv_loc" --python "$python_loc" --system-site-packages "$venv_dir"
           else
             python_loc=$(which ${python|/opt/mongodbtoolchain/v3/bin/python3})
+            echo "!! Creating venv"
             "$python_loc" -m venv --system-site-packages "$venv_dir"
           fi
         fi
@@ -80,8 +83,10 @@ functions:
 
         if [ "Windows_NT" = "$OS" ]; then
           # Need to quote the path on Windows to preserve the separator.
+          echo "!! Activating venv"
           . "${venv_dir}/Scripts/activate" 2> /tmp/activate_error.log
         else
+          echo "!! Activating venv"
           . ${venv_dir}/bin/activate 2> /tmp/activate_error.log
         fi
         if [ $? -ne 0 ]; then
