@@ -45,6 +45,51 @@ functions:
     params:
       script: |
         git clone https://github.com/wiredtiger/mongo-tests
+
+  # Note: setting up the virtual environment is adapted from etc/evergreen.yml in the
+  # MongoDB source tree.
+  "set up virtualenv": &set_up_virtualenv
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/build_posix"
+      shell: bash
+      script: |
+        # exit immediately if virtualenv is not found
+        set -o errexit
+
+        venv_dir="./venv"
+        if [ ! -d $venv_dir ]; then
+          python_loc=$(which ${python|/opt/mongodbtoolchain/v3/bin/python3})
+          virtualenv_loc=$(which ${virtualenv|virtualenv})
+
+          if command -V cygpath; then
+            # Sad note: We have to use the Windows path instead of the posix path here.
+            # Otherwise, virtualenv may mistakenly resolve paths relative to c:\cygdrive.
+            # Creating a virtualenv in cygwin with 'python -m venv', will not work correctly
+            # since the paths will be wrong.  We need to use virtualenv and specify the
+            # python path as 'C:\python\python_version'
+            python_loc=$(cygpath -w $python_loc)
+            venv_dir="$(cygpath -w "$venv_dir")"
+            "$virtualenv_loc" --python "$python_loc" --system-site-packages "$venv_dir"
+          else
+            "$python_loc" -m venv --system-site-packages "$venv_dir"
+          fi
+        fi
+
+        export VIRTUAL_ENV_DISABLE_PROMPT=yes
+
+        if [ "Windows_NT" = "$OS" ]; then
+          # Need to quote the path on Windows to preserve the separator.
+          . "${venv_dir}/Scripts/activate" 2> /tmp/activate_error.log
+        else
+          . ${venv_dir}/bin/activate 2> /tmp/activate_error.log
+        fi
+        if [ $? -ne 0 ]; then
+          echo "Failed to activate virtualenv: $(cat /tmp/activate_error.log)"
+        fi
+        python=python
+        echo "python set to $(which $python)"
+
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
     params:
@@ -84,9 +129,11 @@ functions:
           fi
         fi
   "compile wiredtiger":
+    - *set_up_virtualenv
     - *configure_wiredtiger
     - *make_wiredtiger
   "compile wiredtiger no linux ftruncate":
+    - *set_up_virtualenv
     - *configure_wiredtiger
     - command: shell.exec
       params:
@@ -153,7 +200,7 @@ functions:
         set -o errexit
         set -o verbose
 
-        ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+        ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
     params:
@@ -1561,7 +1608,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python3} ../../test/wtperf/test_conf_dump.py 2>&1
+            ${test_env_vars|} ${python_binary|python} ../../test/wtperf/test_conf_dump.py 2>&1
 
   - name: compile-windows-alt
     tags: ["pull_request", "windows_only"]
@@ -1878,7 +1925,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${python_binary|python3} syscall.py --verbose --preserve
+            ${python_binary|python} syscall.py --verbose --preserve
 
   - name: checkpoint-filetypes-test
     commands:
@@ -2240,7 +2287,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            for i in {1..10}; do ${python_binary|python3} split_stress.py; done
+            for i in {1..10}; do ${python_binary|python} split_stress.py; done
 
   # The task name is ppc-zseries because this task will be used in both buildVariants
   - name: format-stress-ppc-zseries-test
