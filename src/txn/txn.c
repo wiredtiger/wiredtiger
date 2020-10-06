@@ -560,7 +560,12 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
               "cannot specify roundup_timestamps.read and "
               "allow_read_timestamp_before_oldest on the same transaction");
         F_SET(txn, WT_TXN_TS_READ_BEFORE_OLDEST);
-    }
+    } else
+        /*
+         * We need to clear the flag here in case it was set in a previous iteration of transaction
+         * begin that exited due to an error, as such the flag may still be set.
+         */
+        F_CLR(txn, WT_TXN_TS_READ_BEFORE_OLDEST);
 
     WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
     if (cval.len != 0) {
