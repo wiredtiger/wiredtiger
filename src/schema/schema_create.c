@@ -159,6 +159,10 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
             WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
             WT_ERR(__wt_metadata_insert(session, uri, fileconf));
         } else {
+            /*
+             * In the repair case we need to use the import API call. This will read the data file's
+             * descriptor block and try to recreate the associated metadata.
+             */
             WT_ERR(session->iface.import(&session->iface, uri, NULL));
         }
     }
