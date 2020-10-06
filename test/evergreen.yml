@@ -123,7 +123,7 @@ functions:
         if [ "Windows_NT" == "$OS" ]; then
           . "./build_posix/venv/Scripts/activate" || exit 1
           python -m pip install scons==3.1.1
-          scons-3.1.1.bat ${win_configure_flags|--enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic} ${smp_command|}
+          scons-3.1.1.bat ${win_configure_flags|--enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic} LIBS=c:\\python\\Python37\libs ${smp_command|}
         else
           cd build_posix
           . "./venv/bin/activate" || exit 1
