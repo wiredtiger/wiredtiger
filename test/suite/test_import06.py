@@ -54,7 +54,19 @@ class test_import06(test_import_base):
         ('2048', dict(allocsize='2048')),
         ('4096', dict(allocsize='4096')),
     ]
-    scenarios = make_scenarios(allocsizes)
+    compressors = [
+        ('nop', dict(compressor='nop')),
+        ('lz4', dict(compressor='lz4')),
+        ('snappy', dict(compressor='snappy')),
+        ('zlib', dict(compressor='zlib')),
+        ('zstd', dict(compressor='zstd')),
+    ]
+    scenarios = make_scenarios(allocsizes, compressors)
+
+    # Load the compressor extension, skip the test if missing.
+    def conn_extensions(self, extlist):
+        extlist.skip_if_missing = True
+        extlist.extension('compressors', self.compressor)
 
     def test_import_repair(self):
         self.session.create(self.uri, self.create_config.format(self.allocsize))
