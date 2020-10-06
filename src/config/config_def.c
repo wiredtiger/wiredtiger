@@ -182,6 +182,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction_roundup_timest
     {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction[] = {
+  {"allow_read_timestamp_before_oldest", "boolean", NULL, NULL, NULL, 0},
   {"ignore_prepare", "string", NULL, "choices=[\"false\",\"force\",\"true\"]", NULL, 0},
   {"isolation", "string", NULL,
     "choices=[\"read-uncommitted\",\"read-committed\","
@@ -876,10 +877,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     ",os_cache_max=0",
     confchk_WT_SESSION_alter, 8},
   {"WT_SESSION.begin_transaction",
-    "ignore_prepare=false,isolation=,name=,operation_timeout_ms=0,"
-    "priority=0,read_timestamp=,roundup_timestamps=(prepared=false,"
-    "read=false),sync=",
-    confchk_WT_SESSION_begin_transaction, 8},
+    "allow_read_timestamp_before_oldest=false,ignore_prepare=false,"
+    "isolation=,name=,operation_timeout_ms=0,priority=0,"
+    "read_timestamp=,roundup_timestamps=(prepared=false,read=false),"
+    "sync=",
+    confchk_WT_SESSION_begin_transaction, 9},
   {"WT_SESSION.checkpoint", "drop=,force=false,name=,target=,use_timestamp=true",
     confchk_WT_SESSION_checkpoint, 5},
   {"WT_SESSION.close", "", NULL, 0},

@@ -1554,6 +1554,10 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.begin_transaction, see dist/api_data.py}
+	 * @config{allow_read_timestamp_before_oldest, allows the caller to specify a read timestamp
+	 * less than the oldest timestamp but newer than the pinned timestamp\, cannot be set to
+	 * true while also rounding up the read timestamp.  See @ref transaction_timestamps., a
+	 * boolean flag; default \c false.}
 	 * @config{ignore_prepare, whether to ignore the updates by other prepared transactions as
 	 * part of read operations of this transaction.  When \c true\, forces the transaction to be
 	 * read-only.  Use \c force to ignore prepared updates and permit writes (which can cause

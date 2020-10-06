@@ -1430,6 +1430,10 @@ methods = {
 ]),
 
 'WT_SESSION.begin_transaction' : Method([
+    Config('allow_read_timestamp_before_oldest', 'false', r'''
+        allows the caller to specify a read timestamp less than the oldest timestamp but newer
+        than the pinned timestamp, cannot be set to true while also rounding up the read timestamp.
+        See @ref transaction_timestamps''', type='boolean'),
     Config('ignore_prepare', 'false', r'''
         whether to ignore the updates by other prepared transactions as part of
         read operations of this transaction.  When \c true, forces the
