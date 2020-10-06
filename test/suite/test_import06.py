@@ -31,6 +31,7 @@
 
 import os, shutil
 from test_import01 import test_import_base
+from wtscenario import make_scenarios
 
 class test_import06(test_import_base):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
@@ -45,10 +46,18 @@ class test_import06(test_import_base):
     values = [b'\x01\x02aaa\x03\x04', b'\x01\x02bbb\x03\x04', b'\x01\x02ccc\x03\x04',
               b'\x01\x02ddd\x03\x04', b'\x01\x02eee\x03\x04', b'\x01\x02fff\x03\x04']
     ts = [10*k for k in range(1, len(keys)+1)]
-    create_config = 'allocation_size=512,key_format=u,log=(enabled=true),value_format=u'
+    create_config = 'allocation_size={},key_format=u,log=(enabled=true),value_format=u'
+
+    allocsizes = [
+        ('512', dict(allocsize='512')),
+        ('1024', dict(allocsize='1024')),
+        ('2048', dict(allocsize='2048')),
+        ('4096', dict(allocsize='4096')),
+    ]
+    scenarios = make_scenarios(allocsizes)
 
     def test_import_repair(self):
-        self.session.create(self.uri, self.create_config)
+        self.session.create(self.uri, self.create_config.format(self.allocsize))
 
         # Add data and perform a checkpoint.
         min_idx = 0
