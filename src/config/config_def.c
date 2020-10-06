@@ -45,7 +45,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_async_subconfigs[] = {
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_block_cache_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0},
   {"hashsize", "int", NULL, "min=512,max=1073741824", NULL, 0},
-  {"path", "string", NULL, NULL, NULL, 0}, {"size", "int", NULL, "min=0,max=6GB", NULL, 0},
+  {"path", "string", NULL, NULL, NULL, 0}, {"size", "int", NULL, "min=0,max=128GB", NULL, 0},
   {"type", "string", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_cache_overflow_subconfigs[] = {

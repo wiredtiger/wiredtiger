@@ -100,17 +100,17 @@ __wt_blkcache_get_or_check(
                 memcpy(data_ptr, blkcache_item->data, size);
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
             WT_STAT_CONN_INCR(session, block_cache_hits);
-            __wt_verbose(session, WT_VERB_BLKCACHE, "block found in cache: "
+            /*__wt_verbose(session, WT_VERB_BLKCACHE, "block found in cache: "
 			 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64,
-			 (uintmax_t)offset, (uint32_t)size, hash);
+			 (uintmax_t)offset, (uint32_t)size, hash);*/
             return (0);
         }
     }
 
     /* Block not found */
-    __wt_verbose(session, WT_VERB_BLKCACHE, "block not found in cache: "
+/*    __wt_verbose(session, WT_VERB_BLKCACHE, "block not found in cache: "
 		 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64,
-		 (uintmax_t)offset, (uint32_t)size, hash);
+		 (uintmax_t)offset, (uint32_t)size, hash); */
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
     WT_STAT_CONN_INCR(session, block_cache_misses);
     return (-1);

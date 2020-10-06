@@ -2164,7 +2164,7 @@ struct __wt_connection {
 	 * NVRAM that will be used as a cache if cache type NVRAM is chosen., a string; default
 	 * empty.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to allocate for the block
-	 * cache., an integer between 0 and 6GB; default \c 0.}
+	 * cache., an integer between 0 and 128GB; default \c 0.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * type, cache location: DRAM or NVRAM., a string; default empty.}
 	 * @config{ ),,}
@@ -2791,7 +2791,7 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the file path for the NVRAM that will be used as a cache if
  * cache type NVRAM is chosen., a string; default empty.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;size,
- * maximum memory to allocate for the block cache., an integer between 0 and 6GB; default \c 0.}
+ * maximum memory to allocate for the block cache., an integer between 0 and 128GB; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM or NVRAM., a string; default empty.}
  * @config{ ),,}
  * @config{buffer_alignment, in-memory alignment (in bytes) for buffers used for I/O. The default

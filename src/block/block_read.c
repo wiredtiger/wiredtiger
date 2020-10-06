@@ -214,7 +214,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
     WT_DECL_RET;
     size_t bufsize;
 
-#define BLKCACHE_TRACE 0
+#define BLKCACHE_TRACE 1
 #if BLKCACHE_TRACE == 1
     WT_BLKCACHE_ID id;
     uint64_t hash, time_start, time_stop;
@@ -300,8 +300,16 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
 			 "latency=%" PRIu64 " ns.",
 			 (uintmax_t)offset, (uint32_t)size, hash,
 			 WT_CLOCKDIFF_NS(time_stop, time_start));
+
+	    time_start = __wt_clock(session);
 	    WT_TRET_ERROR_OK(__wt_blkcache_put(session, block->fh, offset, size,
 					       buf->mem, false), -1);
+	    time_stop = __wt_clock(session);
+	    __wt_verbose(session, WT_VERB_BLKCACHE, "block cache memory write latency: "
+                         "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64 ", "
+                         "latency=%" PRIu64 " ns.",
+                         (uintmax_t)offset, (uint32_t)size, hash,
+                         WT_CLOCKDIFF_NS(time_stop, time_start));
 	}
     }
 #endif
