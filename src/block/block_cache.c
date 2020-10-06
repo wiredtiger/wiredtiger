@@ -74,6 +74,11 @@ __wt_blkcache_get_or_check(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t bucket, hash;
+#if BLKCACHE_TRACE == 1
+    uint64_t time_start, time_stop;
+
+    time_start = time_stop = 0;
+#endif
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
@@ -96,9 +101,23 @@ __wt_blkcache_get_or_check(
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
         if ((ret = memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) == 0) {
+#if BLKCACHE_TRACE == 1
+	    time_start = __wt_clock(session);
+#endif
             if (data_ptr != NULL)
                 memcpy(data_ptr, blkcache_item->data, size);
+
+#if BLKCACHE_TRACE == 1
+	    time_stop = __wt_clock(session);
+#endif
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
+#if BLKCACHE_TRACE == 1
+	    __wt_verbose(session, WT_VERB_BLKCACHE, "memory read latency: "
+			 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64 ", "
+			 "latency=%" PRIu64 " ns.",
+			 (uintmax_t)offset, (uint32_t)size, hash,
+			 WT_CLOCKDIFF_NS(time_stop, time_start));
+#endif
             WT_STAT_CONN_INCR(session, block_cache_hits);
             /*__wt_verbose(session, WT_VERB_BLKCACHE, "block found in cache: "
 			 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64,
@@ -131,6 +150,11 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t s
     WT_DECL_RET;
     uint64_t bucket, hash;
     void *data_ptr;
+#if BLKCACHE_TRACE == 1
+    uint64_t time_start, time_stop;
+
+    time_start = time_stop = 0;
+#endif
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
@@ -166,22 +190,41 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t s
     WT_ERR(__wt_calloc_one(session, &blkcache_item));
     blkcache_item->id = id;
     blkcache_item->data = data_ptr;
+
+#if BLKCACHE_TRACE == 1
+    time_start = __wt_clock(session);
+#endif
     memcpy(blkcache_item->data, data, size);
+#if BLKCACHE_TRACE == 1
+    time_stop = __wt_clock(session);
+#endif
+
     TAILQ_INSERT_HEAD(&blkcache->hash[bucket], blkcache_item, hashq);
 
     blkcache->num_data_blocks++;
     blkcache->bytes_used += size;
 
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
+
+#if BLKCACHE_TRACE == 1
+    __wt_verbose(session, WT_VERB_BLKCACHE, "memory write latency: "
+		 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64 ", "
+		 "latency=%" PRIu64 " ns.",
+		 (uintmax_t)offset, (uint32_t)size, hash,
+		 WT_CLOCKDIFF_NS(time_stop, time_start));
+#endif
+
     WT_STAT_CONN_INCRV(session, block_cache_bytes, size);
     WT_STAT_CONN_INCR(session, block_cache_blocks);
     if (write) {
 	WT_STAT_CONN_INCRV(session, block_cache_bytes_write, size);
 	WT_STAT_CONN_INCR(session, block_cache_blocks_write);
     }
+    /*
     __wt_verbose(session, WT_VERB_BLKCACHE, "block inserted in cache: "
 		 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64,
 		 (uintmax_t)offset, (uint32_t)size, hash);
+    */
     return (0);
 item_exists:
     if (write) {

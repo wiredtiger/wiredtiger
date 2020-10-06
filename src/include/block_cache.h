@@ -19,6 +19,8 @@
 #define BLKCACHE_HASHSIZE_MIN 512
 #define BLKCACHE_HASHSIZE_MAX 1024*1024*1024
 
+#define BLKCACHE_TRACE 1
+
 /*
  * WT_BLKCACHE_ID --
  *     File handle, offset and size uniquely identify a block.

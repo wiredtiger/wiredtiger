@@ -219,7 +219,6 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     uint8_t *file_sizep;
     bool local_locked;
 
-#define BLKCACHE_TRACE 1
 #if BLKCACHE_TRACE == 1
     WT_BLKCACHE_ID id;
     uint64_t hash, time_start, time_stop;
@@ -350,7 +349,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
 #if BLKCACHE_TRACE == 1
     time_stop = __wt_clock(session);
 
-    __wt_verbose(session, WT_VERB_BLKCACHE, "block cache file system write latency: "
+    __wt_verbose(session, WT_VERB_BLKCACHE, "file system write latency: "
 		 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64 ", "
 		 "latency=%" PRIu64 " ns.",
 		 (uintmax_t)offset, (uint32_t)align_size, hash,
@@ -366,7 +365,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     WT_TRET_ERROR_OK(__wt_blkcache_put(session, block->fh, offset, align_size, buf->mem, true), -1);
 #if BLKCACHE_TRACE == 1
     time_stop = __wt_clock(session);
-    __wt_verbose(session, WT_VERB_BLKCACHE, "block cache memory write latency: "
+    __wt_verbose(session, WT_VERB_BLKCACHE, "put latency: "
 		 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64 ", "
 		 "latency=%" PRIu64 " ns.",
 		 (uintmax_t)offset, (uint32_t)align_size, hash,
