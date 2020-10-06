@@ -74,11 +74,10 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     session = conn->default_session;
 
     /*
-     * The LSM and async services are not shut down in this path (which is called when
-     * wiredtiger_open hits an error (as well as during normal shutdown). Assert they're not
-     * running.
+     * The LSM services are not shut down in this path (which is called when wiredtiger_open hits an
+     * error (as well as during normal shutdown). Assert they're not running.
      */
-    WT_ASSERT(session, !F_ISSET(conn, WT_CONN_SERVER_ASYNC | WT_CONN_SERVER_LSM));
+    WT_ASSERT(session, !F_ISSET(conn, WT_CONN_SERVER_LSM));
 
     /* Shut down the subsystems, ensuring workers see the state change. */
     F_SET(conn, WT_CONN_CLOSING);
@@ -218,15 +217,10 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_meta_track_init(session));
 
     /*
-     * Drop the lookaside file if it still exists.
-     */
-    WT_RET(__wt_hs_cleanup_las(session));
-
-    /*
      * Create the history store file. This will only actually create it on a clean upgrade or when
      * creating a new database.
      */
-    WT_RET(__wt_hs_create(session, cfg));
+    WT_RET(__wt_hs_open(session, cfg));
 
     /*
      * Start the optional logging/archive threads. NOTE: The log manager must be started before

@@ -31,10 +31,6 @@ class Stat:
     def __cmp__(self, other):
         return cmp(self.desc.lower(), other.desc.lower())
 
-class AsyncStat(Stat):
-    prefix = 'async'
-    def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, AsyncStat.prefix, desc, flags)
 class BlockStat(Stat):
     prefix = 'block-manager'
     def __init__(self, name, desc, flags=''):
@@ -175,23 +171,6 @@ connection_stats = [
     ConnStat('write_io', 'total write I/Os'),
 
     ##########################################
-    # Async API statistics
-    ##########################################
-    AsyncStat('async_alloc_race', 'number of allocation state races'),
-    AsyncStat('async_alloc_view', 'number of operation slots viewed for allocation'),
-    AsyncStat('async_cur_queue', 'current work queue length', 'no_scale'),
-    AsyncStat('async_flush', 'number of flush calls'),
-    AsyncStat('async_full', 'number of times operation allocation failed'),
-    AsyncStat('async_max_queue', 'maximum work queue length', 'no_clear,no_scale'),
-    AsyncStat('async_nowork', 'number of times worker found no work'),
-    AsyncStat('async_op_alloc', 'total allocations'),
-    AsyncStat('async_op_compact', 'total compact calls'),
-    AsyncStat('async_op_insert', 'total insert calls'),
-    AsyncStat('async_op_remove', 'total remove calls'),
-    AsyncStat('async_op_search', 'total search calls'),
-    AsyncStat('async_op_update', 'total update calls'),
-
-    ##########################################
     # Block manager statistics
     ##########################################
     BlockStat('block_byte_map_read', 'mapped bytes read', 'size'),
@@ -286,6 +265,7 @@ connection_stats = [
     CacheStat('cache_eviction_walk_from_root', 'eviction walks started from root of tree'),
     CacheStat('cache_eviction_walk_leaf_notfound', 'eviction server waiting for a leaf page'),
     CacheStat('cache_eviction_walk_passes', 'eviction passes of a file'),
+    CacheStat('cache_eviction_walk_restart', 'eviction walks restarted'),
     CacheStat('cache_eviction_walk_saved_pos', 'eviction walks started from saved location in tree'),
     CacheStat('cache_eviction_walks_abandoned', 'eviction walks abandoned'),
     CacheStat('cache_eviction_walks_active', 'files with active eviction walks', 'no_clear,no_scale'),
@@ -601,8 +581,6 @@ connection_stats = [
     SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_import_fail', 'table import failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_import_success', 'table import successful calls', 'no_clear,no_scale'),
-    SessionOpStat('session_table_rebalance_fail', 'table rebalance failed calls', 'no_clear,no_scale'),
-    SessionOpStat('session_table_rebalance_success', 'table rebalance successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_rename_fail', 'table rename failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_rename_success', 'table rename successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_salvage_fail', 'table salvage failed calls', 'no_clear,no_scale'),
@@ -783,6 +761,7 @@ dsrc_stats = [
     CacheStat('cache_eviction_target_page_lt64', 'eviction walk target pages histogram - 32-63'),
     CacheStat('cache_eviction_walk_from_root', 'eviction walks started from root of tree'),
     CacheStat('cache_eviction_walk_passes', 'eviction walk passes of a file'),
+    CacheStat('cache_eviction_walk_restart', 'eviction walks restarted'),
     CacheStat('cache_eviction_walk_saved_pos', 'eviction walks started from saved location in tree'),
     CacheStat('cache_eviction_walks_abandoned', 'eviction walks abandoned'),
     CacheStat('cache_eviction_walks_ended', 'eviction walks reached end of tree'),

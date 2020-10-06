@@ -34,11 +34,7 @@
  * reconfiguration.
  */
 
-static const char *const list[] = {",async=(enabled=0)", ",async=(enabled=1)",
-  ",async=(ops_max=2048)", ",async=(ops_max=2348)", ",async=(ops_max=1790)", ",async=(threads=10)",
-  ",async=(threads=7)", ",async=(threads=17)",
-
-  ",cache_overhead=13", ",cache_overhead=27", ",cache_overhead=8",
+static const char *const list[] = {",cache_overhead=13", ",cache_overhead=27", ",cache_overhead=8",
 
   ",cache_size=75MB", ",cache_size=214MB", ",cache_size=37MB",
 
@@ -95,10 +91,10 @@ static const char *const list[] = {",async=(enabled=0)", ",async=(enabled=1)",
   ",verbose=(\"compact\")", ",verbose=(\"evict\")", ",verbose=(\"evictserver\")",
   ",verbose=(\"fileops\")", ",verbose=(\"handleops\")", ",verbose=(\"log\")", ",verbose=(\"lsm\")",
   ",verbose=(\"lsm_manager\")", ",verbose=(\"metadata\")", ",verbose=(\"mutex\")",
-  ",verbose=(\"overflow\")", ",verbose=(\"read\")", ",verbose=(\"rebalance\")",
-  ",verbose=(\"reconcile\")", ",verbose=(\"recovery\")", ",verbose=(\"salvage\")",
-  ",verbose=(\"shared_cache\")", ",verbose=(\"split\")", ",verbose=(\"transaction\")",
-  ",verbose=(\"verify\")", ",verbose=(\"version\")", ",verbose=(\"write\")", ",verbose=()"};
+  ",verbose=(\"overflow\")", ",verbose=(\"read\")", ",verbose=(\"reconcile\")",
+  ",verbose=(\"recovery\")", ",verbose=(\"salvage\")", ",verbose=(\"shared_cache\")",
+  ",verbose=(\"split\")", ",verbose=(\"transaction\")", ",verbose=(\"verify\")",
+  ",verbose=(\"version\")", ",verbose=(\"write\")", ",verbose=()"};
 
 static int
 handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
