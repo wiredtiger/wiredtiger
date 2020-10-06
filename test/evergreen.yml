@@ -120,7 +120,7 @@ functions:
         set -o errexit
         set -o verbose
         if [ "Windows_NT" == "$OS" ]; then
-          pip install scons==3.1.1
+          python -m pip install scons==3.1.1
           scons-3.1.1.bat ${win_configure_flags|--enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic} ${smp_command|}
         else
           cd build_posix
@@ -200,14 +200,15 @@ functions:
 
         ${test_env_vars|} ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
   "unit test":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger/build_posix"
-      script: |
-        set -o errexit
-        set -o verbose
+    - *set_up_virtualenv
+    - command: shell.exec
+      params:
+        working_dir: "wiredtiger/build_posix"
+        script: |
+          set -o errexit
+          set -o verbose
 
-        ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+          ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
     params:
@@ -1630,7 +1631,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            pip install scons==3.1.1
+            python -m pip install scons==3.1.1
             scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" wiredtiger.dll libwiredtiger.lib
 
   - name: scons-check
@@ -1646,7 +1647,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            pip install scons==3.1.1
+            python -m pip install scons==3.1.1
             scons-3.1.1.bat ${smp_command|} check
 
   - name: fops
