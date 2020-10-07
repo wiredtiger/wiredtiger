@@ -1105,7 +1105,7 @@ __session_import(WT_SESSION *wt_session, const char *uri, const char *config)
         WT_ERR_MSG(session, EINVAL, "an object named \"%s\" already exists in the database", uri);
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    WT_ERR(__wt_import(session, uri));
+    WT_ERR(__wt_import_repair(session, uri));
 
 err:
     if (ret != 0)

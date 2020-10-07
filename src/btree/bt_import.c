@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_import --
+ * __wt_import_repair --
  *     Import a WiredTiger file into the database.
  */
 int
-__wt_import(WT_SESSION_IMPL *session, const char *uri)
+__wt_import_repair(WT_SESSION_IMPL *session, const char *uri)
 {
     WT_BM *bm;
     WT_CKPT *ckpt, *ckptbase;
