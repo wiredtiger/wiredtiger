@@ -250,9 +250,9 @@ __posix_fs_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
      * not provide the guarantee or only provide the guarantee with specific mount options. Flush
      * both of the from/to directories until it's a performance problem.
      */
-    WT_RET(__wt_log_printf(session, "RENAME: posix_directory_sync %s", name));
+    WT_RET(__wt_log_printf(session, "RENAME: posix_directory_sync %s", from));
     WT_RET(__posix_directory_sync(session, from));
-    WT_RET(__wt_log_printf(session, "RENAME: DONE posix_directory_sync %s", name));
+    WT_RET(__wt_log_printf(session, "RENAME: DONE posix_directory_sync %s", from));
 
     /*
      * In almost all cases, we're going to be renaming files in the same directory, we can at least
