@@ -113,7 +113,7 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
 
     /* Now that we've retrieved the configuration, let's get the real allocation size. */
     WT_ERR(__wt_config_getones(session, fileconf, "allocation_size", &v));
-    allocsize = v.val;
+    allocsize = (uint32_t)v.val;
 
     /*
      * Now we need to retrieve the last checkpoint again but this time, with the correct allocation
