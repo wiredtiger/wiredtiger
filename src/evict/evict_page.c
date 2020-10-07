@@ -545,10 +545,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_DECL_RET;
     WT_PAGE *page;
     uint32_t flags;
-    bool closing, modified;
-    bool snapshot_acquired;
-    bool use_snapshot_for_app_thread;
-    bool use_snapshot_for_eviction_thread;
+    bool closing, modified, snapshot_acquired;
+    bool use_snapshot_for_app_thread, is_eviction_thread;
 
     *inmem_splitp = false;
 
@@ -683,7 +681,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * existing snapshot to evict pages that are not globally visible based on the last_running
      * transaction. Avoid using snapshots when application transactions are in the final stages of
      * commit or rollback as they have already released the snapshot. Otherwise, it becomes harder
-     * in the later part of the code to detect updates the belonged to the last running application
+     * in the later part of the code to detect updates that belonged to the last running application
      * transaction.
      */
 
@@ -695,14 +693,14 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
       !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE &&
       F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
-    use_snapshot_for_eviction_thread = FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD);
+    is_eviction_thread = FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD);
 
     /* Make sure that both conditions above are not true at the same time. */
-    WT_ASSERT(session, !use_snapshot_for_app_thread || !use_snapshot_for_eviction_thread);
+    WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
 
     if (!conn->txn_global.checkpoint_running && !WT_IS_HS(S2BT(session)) &&
-      (use_snapshot_for_app_thread || use_snapshot_for_eviction_thread)) {
-        if (use_snapshot_for_eviction_thread) {
+      (use_snapshot_for_app_thread || is_eviction_thread)) {
+        if (is_eviction_thread) {
             /*
              * Eviction threads do not need to pin anything in the cache. We have a exclusive lock
              * for the page being evicted so we are sure that the page will always be there while it
@@ -722,7 +720,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
                 snapshot_acquired = false;
             }
         }
-        if (use_snapshot_for_eviction_thread && !snapshot_acquired)
+        if (is_eviction_thread && !snapshot_acquired)
             LF_SET(WT_REC_VISIBLE_ALL);
         if (use_snapshot_for_app_thread)
             LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
