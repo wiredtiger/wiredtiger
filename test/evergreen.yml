@@ -607,6 +607,7 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "compile wiredtiger"
       - func: "make check all"
 
@@ -617,6 +618,7 @@ tasks:
       - func: "fetch artifacts"
         vars:
           dependent_task: compile-msan
+      - func: "set up virtualenv"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=memory -ggdb"
@@ -633,6 +635,7 @@ tasks:
       - func: "fetch artifacts"
         vars:
           dependent_task: compile-asan
+      - func: "set up virtualenv"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
@@ -649,6 +652,7 @@ tasks:
       - func: "fetch artifacts"
         vars:
           dependent_task: compile-linux-no-ftruncate
+      - func: "set up virtualenv"
       - func: "compile wiredtiger no linux ftruncate"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python
@@ -662,6 +666,7 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
@@ -673,6 +678,7 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
@@ -686,6 +692,7 @@ tasks:
       - func: "fetch artifacts"
         vars:
           dependent_task: compile-asan
+      - func: "set up virtualenv"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=address -ggdb"
@@ -703,6 +710,7 @@ tasks:
       - func: "fetch artifacts"
         vars:
           dependent_task: compile-production-disable-shared
+      - func: "set up virtualenv"
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-strict --disable-shared
@@ -1484,6 +1492,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 0/11
@@ -1494,6 +1503,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 1/11
@@ -1504,6 +1514,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 2/11
@@ -1514,6 +1525,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 3/11
@@ -1524,6 +1536,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 4/11
@@ -1534,6 +1547,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 5/11
@@ -1544,6 +1558,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 6/11
@@ -1554,6 +1569,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 7/11
@@ -1564,6 +1580,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 8/11
@@ -1574,6 +1591,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 9/11
@@ -1584,6 +1602,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 10/11
@@ -1609,13 +1628,16 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
+            . start_venv || exit 1
+            cd ./test
             ${test_env_vars|} ${python_binary|python} ../../test/wtperf/test_conf_dump.py 2>&1
 
   - name: compile-windows-alt
@@ -1624,6 +1646,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
@@ -1642,6 +1665,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - func: "set up virtualenv"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
