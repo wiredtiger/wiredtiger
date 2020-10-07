@@ -486,27 +486,28 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
         WT_CLEAR(cval);
         WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval));
         if (cval.len != 0)
-            conn->txn_global.snapshot_min = (uint16_t)cval.val;
+            conn->txn_global.ckpt_snap_min = (uint64_t)cval.val;
 
         WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MAX, &cval));
         if (cval.len != 0)
-            conn->txn_global.snapshot_max = (uint16_t)cval.val;
+            conn->txn_global.ckpt_snap_max = (uint64_t)cval.val;
 
         WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_COUNT, &cval));
         if (cval.len != 0)
-            conn->txn_global.snapshot_count = (uint16_t)cval.val;
+            conn->txn_global.ckpt_snapshot_count = (uint32_t)cval.val;
 
         WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT, &cval));
         if (cval.len != 0) {
             __wt_config_subinit(session, &list, &cval);
             WT_ERR(__wt_calloc_def(
-              session, conn->txn_global.snapshot_count, &conn->txn_global.snapshots));
+              session, conn->txn_global.ckpt_snapshot_count, &conn->txn_global.ckpt_snapshot));
             while (__wt_config_next(&list, &k, &v) == 0) {
                 if (k.type == WT_CONFIG_ITEM_NUM)
-                    conn->txn_global.snapshots[counter++] = (uint64_t)strtoll(k.str, &endptr, 10);
+                    conn->txn_global.ckpt_snapshot[counter++] =
+                      (uint64_t)strtoll(k.str, &endptr, 10);
             }
         }
-        WT_ASSERT(session, conn->txn_global.snapshot_count == counter);
+        WT_ASSERT(session, conn->txn_global.ckpt_snapshot_count == counter);
     }
 
 err:
