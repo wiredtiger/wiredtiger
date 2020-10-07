@@ -1038,6 +1038,7 @@ retry:
 static inline int
 __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_DECL_RET;
     WT_TXN *txn;
 
     txn = session->txn;
@@ -1046,7 +1047,16 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
-    WT_RET(__wt_txn_config(session, cfg));
+    ret = __wt_txn_config(session, cfg);
+    /*
+     * Its possible that we fail to configure by providing an invalid set of configuration options,
+     * in this scenario we should clear the flags on the transaction so they are not set in a
+     * subsequent call to transaction begin.
+     */
+    if (ret != 0) {
+        txn->flags = 0;
+        return (ret);
+    }
 
     /* Allocate a snapshot if required. */
     if (txn->isolation == WT_ISO_SNAPSHOT) {

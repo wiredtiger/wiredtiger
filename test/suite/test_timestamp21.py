@@ -55,10 +55,9 @@ class test_timestamp21(wttest.WiredTigerTestCase):
         # Move the oldest timestamp beyond the currently open transactions read timestamp.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(8))
 
-        # Begin a transaction with a read timestamp of 6 and allow_read_timestamp_before_oldest
-        # specified.
+        # Begin a transaction with a read timestamp of 6 and read_before_oldest specified.
         self.assertEqual(session2.begin_transaction(
-            'read_timestamp=' + timestamp_str(6) + ',allow_read_timestamp_before_oldest=true'), 0)
+            'read_timestamp=' + timestamp_str(6) + ',read_before_oldest=true'), 0)
         session2.rollback_transaction()
 
         # Begin a transaction with a read timestamp of 6 and no additional config.
@@ -67,32 +66,31 @@ class test_timestamp21(wttest.WiredTigerTestCase):
             'read_timestamp=' + timestamp_str(6)))
 
         # Begin a transaction with the config specified but no read timestamp.
-        session2.begin_transaction('allow_read_timestamp_before_oldest=true')
+        session2.begin_transaction('read_before_oldest=true')
         # Set a read timestamp behind the oldest timestamp.
         self.assertEqual(session2.timestamp_transaction('read_timestamp=' + timestamp_str(5)), 0)
         session2.rollback_transaction()
 
-        # Begin a transaction with a read timestamp of 5 and allow_read_timestamp_before_oldest
-        # specified.
+        # Begin a transaction with a read timestamp of 5 and read_before_oldest specified.
         self.assertEqual(session2.begin_transaction(
-            'read_timestamp=' + timestamp_str(5) + ',allow_read_timestamp_before_oldest=true'), 0)
+            'read_timestamp=' + timestamp_str(5) + ',read_before_oldest=true'), 0)
         session2.rollback_transaction()
 
-        # Begin a transaction with a read timestamp of 4 and allow_read_timestamp_before_oldest
-        # specified. We get a different std out message in this scenario.
+        # Begin a transaction with a read timestamp of 4 and read_before_oldest specified. We get a
+        # different std out message in this scenario.
         with self.expectedStdoutPattern('less than the pinned timestamp'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda: session2.begin_transaction(
-            'read_timestamp=' + timestamp_str(4) + ',allow_read_timestamp_before_oldest=true'))
+            'read_timestamp=' + timestamp_str(4) + ',read_before_oldest=true'))
 
-        # Begin a transaction with a read timestamp of 6 and allow_read_timestamp_before_oldest off
+        # Begin a transaction with a read timestamp of 6 and read_before_oldest off
         with self.expectedStdoutPattern('less than the oldest timestamp'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda: session2.begin_transaction(
-            'read_timestamp=' + timestamp_str(6) + ',allow_read_timestamp_before_oldest=false'))
+            'read_timestamp=' + timestamp_str(6) + ',read_before_oldest=false'))
 
         # Expect an error when we use roundup timestamps alongside allow read timestamp before
         # oldest.
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, lambda: session2.begin_transaction(
             'read_timestamp=' + timestamp_str(6) +
-            ',allow_read_timestamp_before_oldest=true,roundup_timestamps=(read)'),
-            '/cannot specify roundup_timestamps.read and allow_read_timestamp_before_oldest/')
+            ',read_before_oldest=true,roundup_timestamps=(read)'),
+            '/cannot specify roundup_timestamps.read and read_before_oldest/')
