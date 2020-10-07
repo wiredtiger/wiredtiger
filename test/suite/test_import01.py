@@ -59,22 +59,20 @@ class test_import_base(wttest.WiredTigerTestCase):
         cursor.close()
 
     # Verify the specified key/value is visible at the supplied timestamp.
-    def check_record(self, uri, key, value, ts):
+    def check_record(self, uri, key, value):
         cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
         cursor.set_key(key)
         self.assertEqual(0, cursor.search())
         self.assertEqual(value, cursor.get_value())
-        self.session.rollback_transaction()
         cursor.close()
 
     # Verify a range of records/timestamps.
-    def check(self, uri, keys, values, ts):
+    def check(self, uri, keys, values):
         for i in range(len(keys)):
             if type(values[i]) in [tuple]:
-                self.check_record(uri, keys[i], list(values[i]), ts)
+                self.check_record(uri, keys[i], list(values[i]))
             else:
-                self.check_record(uri, keys[i], values[i], ts)
+                self.check_record(uri, keys[i], values[i])
 
     # We know the ID can be different between configs, so just remove it from comparison.
     # Everything else should be the same.
@@ -181,7 +179,7 @@ class test_import01(test_import_base):
         self.session.verify(self.uri)
 
         # Check that the previously inserted values survived the import.
-        self.check(self.uri, self.keys[:max_idx], self.values[:max_idx], self.ts[max_idx])
+        self.check(self.uri, self.keys[:max_idx], self.values[:max_idx])
 
         # Compare configuration metadata.
         c = self.session.open_cursor('metadata:', None, None)
@@ -194,7 +192,7 @@ class test_import01(test_import_base):
         max_idx = len(self.keys)
         for i in range(min_idx, max_idx):
             self.update(self.uri, self.keys[i], self.values[i], self.ts[i])
-        self.check(self.uri, self.keys, self.values, self.ts[-1])
+        self.check(self.uri, self.keys, self.values)
 
         # Perform a checkpoint.
         self.session.checkpoint()
@@ -244,7 +242,7 @@ class test_import01(test_import_base):
         self.session.verify(self.uri)
 
         # Check that the previously inserted values survived the import.
-        self.check(self.uri, self.keys, self.values, self.ts[-1])
+        self.check(self.uri, self.keys, self.values)
 
         # Compare configuration metadata.
         c = self.session.open_cursor('metadata:', None, None)
