@@ -100,14 +100,14 @@ copy_directory(const char *fromdir, const char *todir, bool directio, bool *fata
             fdp = readdir(fddirp);
             if (fdp == NULL) {
                 printf("COPY_DIR: mismatch. fdp NULL dp name %s\n", dp->d_name);
-	        *fatal = true;
-	    }
-	    if (strcmp(dp->d_name, fdp->d_name) != 0) {
+                *fatal = true;
+            }
+            if (strcmp(dp->d_name, fdp->d_name) != 0) {
                 printf("COPY_DIR: NAME mismatch. directio dir %s dp name %s\n",
                   fdp->d_name, dp->d_name);
-	        *fatal = true;
-	    }
-	}
+                *fatal = true;
+            }
+        }
         /*
          * Skip . and ..
          */
