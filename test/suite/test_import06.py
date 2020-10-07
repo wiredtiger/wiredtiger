@@ -34,7 +34,6 @@ from test_import01 import test_import_base
 from wtscenario import make_scenarios
 
 class test_import06(test_import_base):
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
     session_config = 'isolation=snapshot'
 
     original_db_file = 'original_db_file'
@@ -46,7 +45,8 @@ class test_import06(test_import_base):
     values = [b'\x01\x02aaa\x03\x04', b'\x01\x02bbb\x03\x04', b'\x01\x02ccc\x03\x04',
               b'\x01\x02ddd\x03\x04', b'\x01\x02eee\x03\x04', b'\x01\x02fff\x03\x04']
     ts = [10*k for k in range(1, len(keys)+1)]
-    create_config = 'allocation_size={},key_format=u,log=(enabled=true),value_format=u,block_compressor={}'
+    create_config = 'allocation_size={},key_format=u,log=(enabled=true),value_format=u,' \
+        'block_compressor={},encryption=(name={})'
 
     allocsizes = [
         ('512', dict(allocsize='512')),
@@ -62,16 +62,26 @@ class test_import06(test_import_base):
         ('zlib', dict(compressor='zlib')),
         ('zstd', dict(compressor='zstd')),
     ]
-    scenarios = make_scenarios(allocsizes, compressors)
+    encryptors = [
+        ('none', dict(encryptor='none')),
+        ('nop', dict(encryptor='none')),
+        ('rotn', dict(encryptor='rotn')),
+    ]
+    scenarios = make_scenarios(allocsizes, compressors, encryptors)
 
     # Load the compressor extension, skip the test if missing.
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
         extlist.extension('compressors', self.compressor)
+        extlist.extension('encryptors', self.encryptor)
+
+    def conn_config(self):
+        return 'cache_size=50MB,log=(enabled),statistics=(all),encryption=(name={})'.format(
+            self.encryptor)
 
     def test_import_repair(self):
         self.session.create(self.uri,
-            self.create_config.format(self.allocsize, self.compressor))
+            self.create_config.format(self.allocsize, self.compressor, self.encryptor))
 
         # Add data and perform a checkpoint.
         min_idx = 0
