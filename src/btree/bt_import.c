@@ -10,7 +10,7 @@
 
 /*
  * __wt_import_repair --
- *     Import a WiredTiger file into the database.
+ *     Import a WiredTiger file into the database and reconstruct its metadata.
  */
 int
 __wt_import_repair(WT_SESSION_IMPL *session, const char *uri)
