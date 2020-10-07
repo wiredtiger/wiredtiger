@@ -44,15 +44,15 @@
  *     Copy a directory, using direct IO if indicated.
  */
 void
-copy_directory(const char *fromdir, const char *todir, bool directio)
+copy_directory(const char *fromdir, const char *todir, bool directio, bool *fatal)
 {
-    struct dirent *dp;
+    struct dirent *dp, *fdp;
     struct stat sb;
-    DIR *dirp;
+    DIR *dirp, *fddirp;
     size_t blksize, bufsize, readbytes, n, remaining;
     ssize_t ioret;
     uintptr_t bufptr;
-    int openflags, rfd, wfd;
+    int dirfd, enoent, openflags, rfd, wfd;
     u_char *buf, *orig_buf;
     char fromfile[4096], tofile[4096];
 
@@ -65,6 +65,9 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
     orig_buf = dcalloc(COPY_BUF_SIZE, sizeof(u_char));
     buf = NULL;
     blksize = bufsize = 0;
+    fddirp = NULL;
+    dirfd = enoent = 0;
+    *fatal = false;
 
     dirp = opendir(todir);
     if (dirp != NULL) {
@@ -84,8 +87,27 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
     testutil_check(mkdir(todir, 0777));
     dirp = opendir(fromdir);
     testutil_assert(dirp != NULL);
+    if (directio) {
+        dirfd = open(fromdir, O_RDONLY | openflags, 0);
+        testutil_assertfmt(dirfd >= 0, "Open O_DIRECT source dir failed with %d\n", fromdir, errno);
+	fddirp = fdopendir(dirfd);
+        testutil_assert(fddirp != NULL);
+    }
 
     while ((dp = readdir(dirp)) != NULL) {
+        /* Use main dp for the directory. Detect if directio on has fewer entries. */
+        if (directio) {
+            fdp = readdir(fddirp);
+            if (fdp == NULL) {
+                printf("COPY_DIR: mismatch. fdp NULL dp name %s\n", dp->d_name);
+	        *fatal = true;
+	    }
+	    if (strcmp(dp->d_name, fdp->d_name) != 0) {
+                printf("COPY_DIR: NAME mismatch. directio dir %s dp name %s\n",
+                  fdp->d_name, dp->d_name);
+	        *fatal = true;
+	    }
+	}
         /*
          * Skip . and ..
          */
@@ -101,8 +123,19 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
          * delivered in between those calls so the file may no longer exist but reading the
          * directory will still return its entry. Handle that case and skip the file if it happens.
          */
-        if (rfd < 0 && errno == ENOENT)
+        if (rfd < 0 && errno == ENOENT) {
+            ++enoent;
+            /*
+             * At most there can be one thread in the middle of drop due to the schema lock. So if
+             * we find more than one missing file, we have a fatal and unexpected situation. We want
+             * to know all the files in this. So note them here and fail later.
+             */
+            printf("COPY_DIR: direct:%d ENOENT %d: Source file %s not found.\n", directio, enoent,
+              dp->d_name);
+            if (enoent > 1)
+                *fatal = true;
             continue;
+        }
         testutil_assertfmt(rfd >= 0, "Open of source %s failed with %d\n", fromfile, errno);
         wfd = open(tofile, O_WRONLY | O_CREAT, 0666);
         testutil_assertfmt(wfd >= 0, "Open of dest %s failed with %d\n", tofile, errno);
@@ -151,5 +184,9 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
         testutil_check(close(wfd));
     }
     testutil_check(closedir(dirp));
+    if (directio) {
+        testutil_check(closedir(fddirp));
+        testutil_check(close(dirfd));
+    }
     free(orig_buf);
 }
