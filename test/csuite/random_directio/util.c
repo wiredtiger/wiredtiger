@@ -89,7 +89,7 @@ copy_directory(const char *fromdir, const char *todir, bool directio, bool *fata
     testutil_assert(dirp != NULL);
     if (directio) {
         dirfd = open(fromdir, O_RDONLY | openflags, 0);
-        testutil_assertfmt(dirfd >= 0, "Open O_DIRECT source dir failed with %d\n", fromdir, errno);
+        testutil_assertfmt(dirfd >= 0, "Open O_DIRECT source dir %s failed with %d\n", fromdir, errno);
 	fddirp = fdopendir(dirfd);
         testutil_assert(fddirp != NULL);
     }
