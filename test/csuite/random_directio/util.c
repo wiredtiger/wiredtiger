@@ -46,13 +46,13 @@
 void
 copy_directory(const char *fromdir, const char *todir, bool directio, bool *fatal)
 {
-    struct dirent *dp, *fdp;
+    struct dirent *dp;
     struct stat sb;
-    DIR *dirp, *fddirp;
+    DIR *dirp;
     size_t blksize, bufsize, readbytes, n, remaining;
     ssize_t ioret;
     uintptr_t bufptr;
-    int dirfd, enoent, openflags, rfd, wfd;
+    int enoent, openflags, rfd, wfd;
     u_char *buf, *orig_buf;
     char fromfile[4096], tofile[4096];
 
@@ -65,8 +65,7 @@ copy_directory(const char *fromdir, const char *todir, bool directio, bool *fata
     orig_buf = dcalloc(COPY_BUF_SIZE, sizeof(u_char));
     buf = NULL;
     blksize = bufsize = 0;
-    fddirp = NULL;
-    dirfd = enoent = 0;
+    enoent = 0;
     *fatal = false;
 
     dirp = opendir(todir);
@@ -87,27 +86,8 @@ copy_directory(const char *fromdir, const char *todir, bool directio, bool *fata
     testutil_check(mkdir(todir, 0777));
     dirp = opendir(fromdir);
     testutil_assert(dirp != NULL);
-    if (directio) {
-        dirfd = open(fromdir, O_RDONLY | openflags, 0);
-        testutil_assertfmt(dirfd >= 0, "Open O_DIRECT source dir %s failed with %d\n", fromdir, errno);
-	fddirp = fdopendir(dirfd);
-        testutil_assert(fddirp != NULL);
-    }
 
     while ((dp = readdir(dirp)) != NULL) {
-        /* Use main dp for the directory. Detect if directio on has fewer entries. */
-        if (directio) {
-            fdp = readdir(fddirp);
-            if (fdp == NULL) {
-                printf("COPY_DIR: mismatch. fdp NULL dp name %s\n", dp->d_name);
-                *fatal = true;
-            }
-            if (strcmp(dp->d_name, fdp->d_name) != 0) {
-                printf("COPY_DIR: NAME mismatch. directio dir %s dp name %s\n",
-                  fdp->d_name, dp->d_name);
-                *fatal = true;
-            }
-        }
         /*
          * Skip . and ..
          */
@@ -184,9 +164,5 @@ copy_directory(const char *fromdir, const char *todir, bool directio, bool *fata
         testutil_check(close(wfd));
     }
     testutil_check(closedir(dirp));
-    if (directio) {
-        testutil_check(closedir(fddirp));
-        testutil_check(close(dirfd));
-    }
     free(orig_buf);
 }
