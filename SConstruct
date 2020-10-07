@@ -64,6 +64,8 @@ var.Add('CPPPATH', 'C Preprocessor include path', [
     "#/.",
 ])
 
+var.Add('LIBPATH', 'Adds paths to the linker search path', [])
+
 var.Add('CFLAGS', 'C Compiler Flags', [
     "/W3", # Warning level 3
     "/WX", # Warnings are fatal
@@ -326,7 +328,6 @@ if GetOption("lang-python"):
     # Ignore warnings in swig-generated code.
     pythonEnv['CFLAGS'].remove("/WX")
     pythonEnv['CFLAGS'].remove("/we4100")
-    #pythonEnv['LIBPATH'].append("c:\\python\\Python37\\libs")
 
     swiglib = pythonEnv.SharedLibrary('_wiredtiger',
                       [ 'lang\python\wiredtiger.i'],

@@ -123,8 +123,7 @@ functions:
         if [ "Windows_NT" = "$OS" ]; then
           . "./build_posix/venv/Scripts/activate" || exit 1
           python -m pip install scons==3.1.1
-          export LIBPATH=c:\\python\\Python37\\libs
-          scons-3.1.1.bat ${win_configure_flags|--enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic} LIBPATH=c:\\python\\Python37\\libs ${smp_command|}
+          scons-3.1.1.bat ${win_configure_flags|"LIBPATH=c:\\python\\Python37\\libs" --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic} ${smp_command|}
         else
           cd build_posix
           . "./venv/bin/activate" || exit 1
@@ -1649,8 +1648,7 @@ tasks:
 
             . "./build_posix/venv/Scripts/activate" || exit 1
             python -m pip install scons==3.1.1
-            export LIBPATH=c:\\python\\Python37\\libs
-            scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" wiredtiger.dll libwiredtiger.lib
+            scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" "LIBPATH=c:\\python\\Python37\\libs" wiredtiger.dll libwiredtiger.lib
 
   - name: scons-check
     tags: ["pull_request", "windows_only"]
@@ -1667,8 +1665,7 @@ tasks:
 
             . "./build_posix/venv/Scripts/activate" || exit 1
             python -m pip install scons==3.1.1
-            export LIBPATH=c:\\python\\Python37\\libs
-            scons-3.1.1.bat ${smp_command|} check
+            scons-3.1.1.bat "LIBPATH=c:\\python\\Python37\\libs" ${smp_command|} check
 
   - name: fops
     tags: ["pull_request"]
