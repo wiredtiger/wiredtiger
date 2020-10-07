@@ -44,11 +44,11 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri)
      * Open the file, request block manager checkpoint information. We don't know the allocation
      * size, but 512B allows us to read the descriptor block and that's all we care about.
      */
-    F_SET(session, WT_SESSION_IMPORT);
+    F_SET(session, WT_SESSION_IMPORT_REPAIR);
     WT_ERR(__wt_block_manager_open(session, filename, filecfg, false, true, 512, &bm));
     ret = bm->checkpoint_last(bm, session, &metadata, &checkpoint_list, checkpoint);
     WT_TRET(bm->close(bm, session));
-    F_CLR(session, WT_SESSION_IMPORT);
+    F_CLR(session, WT_SESSION_IMPORT_REPAIR);
     WT_ERR(ret);
     __wt_verbose(session, WT_VERB_CHECKPOINT, "import metadata: %s", metadata);
     __wt_verbose(session, WT_VERB_CHECKPOINT, "import checkpoint-list: %s", checkpoint_list);
@@ -156,7 +156,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri)
     WT_ERR(__wt_meta_ckptlist_set(session, uri, ckptbase, NULL));
 
 err:
-    F_CLR(session, WT_SESSION_IMPORT);
+    F_CLR(session, WT_SESSION_IMPORT_REPAIR);
 
     __wt_meta_ckptlist_free(session, &ckptbase);
 

@@ -382,7 +382,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
          * know the allocation size being used. This isn't an error so we should just return success
          * and let import get whatever information it needs.
          */
-        if (F_ISSET(session, WT_SESSION_IMPORT))
+        if (F_ISSET(session, WT_SESSION_IMPORT_REPAIR))
             goto err;
         WT_ERR_MSG(session, WT_ERROR, "%s does not appear to be a WiredTiger file", block->name);
     }
