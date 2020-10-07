@@ -57,7 +57,7 @@ functions:
         # exit immediately if virtualenv is not found
         set -o errexit
 
-        cat > start_venv << EOF
+        cat > start_venv << 'EOF'
         test -f start_env || exit 1   # must run in the same directory as this script
         venv_dir="./venv"
         rm -rf "$venv_dir"
