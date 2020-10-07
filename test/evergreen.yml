@@ -57,45 +57,35 @@ functions:
         # exit immediately if virtualenv is not found
         set -o errexit
 
-        echo "!! Checking for venv"
+        cat > start_venv << EOF
+        test -f start_env || exit 1   # must run in the same directory as this script
         venv_dir="./venv"
-        if [ ! -d "$venv_dir" ]; then
-          if test "Windows_NT" = "$OS" && command -V cygpath; then
-            # Sad note: We have to use the Windows path instead of the posix path here.
-            # Otherwise, virtualenv may mistakenly resolve paths relative to c:\cygdrive.
-            # Creating a virtualenv in cygwin with 'python -m venv', will not work correctly
-            # since the paths will be wrong.  We need to use virtualenv and specify the
-            # python path as 'C:\python\python_version'
-            python_loc=$(which ${python|/cygdrive/c/python/python37/python.exe})
-            python_loc=$(cygpath -w $python_loc)
-            virtualenv_loc=$(which ${virtualenv|virtualenv})
-            venv_dir="$(cygpath -w "$venv_dir")"
-            echo "!! Creating venv"
-            "$virtualenv_loc" --python "$python_loc" --system-site-packages "$venv_dir"
-          else
-            python_loc=$(which ${python|/opt/mongodbtoolchain/v3/bin/python3})
-            echo "!! Creating venv"
-            "$python_loc" -m venv --system-site-packages "$venv_dir"
-          fi
-        fi
-
+        rm -rf "$venv_dir"
         export VIRTUAL_ENV_DISABLE_PROMPT=yes
-
-        if [ "Windows_NT" = "$OS" ]; then
-          # Need to quote the path on Windows to preserve the separator.
-          echo "!! Activating venv: $venv_dir"
-          #. "$venv_dir/Scripts/activate" 2> /tmp/activate_error.log
-          . "$venv_dir/Scripts/activate"
+        if test "Windows_NT" = "$OS" && command -V cygpath; then
+          # Sad note: We have to use the Windows path instead of the posix path here.
+          # Otherwise, virtualenv may mistakenly resolve paths relative to c:\cygdrive.
+          # Creating a virtualenv in cygwin with 'python -m venv', will not work correctly
+          # since the paths will be wrong.  We need to use virtualenv and specify the
+          # python path as 'C:\python\python_version'
+          python_loc=$(which ${python|/cygdrive/c/python/python37/python.exe})
+          python_loc=$(cygpath -w $python_loc)
+          virtualenv_loc=$(which ${virtualenv|virtualenv})
+          venv_dir="$(cygpath -w "$venv_dir")"
+          "$virtualenv_loc" --python "$python_loc" "$venv_dir"
+          . "$venv_dir/Scripts/activate" 2> /tmp/activate_error.log
         else
-          echo "!! Activating venv: $venv_dir"
-          #. "$venv_dir/bin/activate" 2> /tmp/activate_error.log
-          . "$venv_dir/bin/activate"
+          python_loc=$(which ${python|/opt/mongodbtoolchain/v3/bin/python3})
+          echo "!! Creating venv"
+          "$python_loc" -m venv "$venv_dir"
+          . "$venv_dir/bin/activate" 2> /tmp/activate_error.log
         fi
         if [ $? -ne 0 ]; then
           echo "Failed to activate virtualenv: $(cat /tmp/activate_error.log)"
         fi
         python=python
         echo "python set to $(which $python)"
+        EOF
 
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
@@ -106,7 +96,7 @@ functions:
         set -o errexit
         set -o verbose
         if [ "$OS" != "Windows_NT" ]; then
-          . "./venv/bin/activate" || exit 1
+          . start_env || exit 1
           sh reconf
           ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} \
             ../configure ${configure_python_setting|} \
@@ -115,18 +105,17 @@ functions:
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
     params:
-      working_dir: "wiredtiger"
+      working_dir: "wiredtiger/build_posix"
       shell: bash
       script: |
         set -o errexit
         set -o verbose
+        . start_env || exit 1
         if [ "Windows_NT" = "$OS" ]; then
-          . "./build_posix/venv/Scripts/activate" || exit 1
+          cd ..
           python -m pip install scons==3.1.1
           scons-3.1.1.bat ${win_configure_flags|"LIBPATH=c:\\python\\Python37\\libs" --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic} ${smp_command|}
         else
-          cd build_posix
-          . "./venv/bin/activate" || exit 1
           ${make_command|make} ${smp_command|} 2>&1
 
           # On macOS, change the binary location with install_name_tool since DYLD_LIBRARY_PATH
@@ -155,6 +144,7 @@ functions:
           echo '#undef HAVE_FTRUNCATE' >> wiredtiger_config.h
     - *make_wiredtiger
   "compile wiredtiger address sanitizer":
+    - *set_up_virtualenv
     - command: shell.exec
       params:
         working_dir: "wiredtiger/build_posix"
@@ -164,13 +154,14 @@ functions:
           set -o verbose
           sh reconf
           if [ "$OS" != "Windows_NT" ]; then
-            . "./venv/bin/activate" || exit 1
+            . start_env || exit 1
             CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -fsanitize=address" \
               ../configure ${configure_python_setting|} \
               --enable-diagnostic --with-builtins=lz4,snappy,zlib
           fi
     - *make_wiredtiger
   "compile wiredtiger with builtins":
+    - *set_up_virtualenv
     - command: shell.exec
       params:
         working_dir: "wiredtiger/build_posix"
@@ -180,7 +171,7 @@ functions:
           set -o verbose
           sh reconf
           if [ "$OS" != "Windows_NT" ]; then
-            . "./venv/bin/activate" || exit 1
+            . start_env || exit 1
             CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC" \
               ../configure ${configure_python_setting|} \
               --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
@@ -212,17 +203,7 @@ functions:
         set -o errexit
         set -o verbose
 
-        if [ "$OS" = "Windows_NT" ]; then
-          . "./venv/Scripts/activate" || exit 1
-        else
-          . "./venv/bin/activate" || exit 1
-        fi
-        echo ==== "VIRTUAL_ENV=$VIRTUAL_ENV"
-        echo ==== "PATH=$PATH"
-        echo "ls $VIRTUAL_ENV/bin:"
-        ls "$VIRTUAL_ENV/bin" || true
-        echo "ls $VIRTUAL_ENV:"
-        ls "$VIRTUAL_ENV" || true
+        . start_env || exit 1
         echo "which python"
         which python
         ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
@@ -1472,6 +1453,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - *set_up_virtualenv
       - func: "unit test"
 
   - name: unit-test-long
@@ -1479,6 +1461,7 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
+      - *set_up_virtualenv
       - func: "unit test"
         vars:
           unit_test_args: -v 2 --long
@@ -1643,12 +1626,13 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            . "./build_posix/venv/Scripts/activate" || exit 1
+            . start_env || exit 1
+            cd ..
             python -m pip install scons==3.1.1
             scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" "LIBPATH=c:\\python\\Python37\\libs" wiredtiger.dll libwiredtiger.lib
 
@@ -1660,12 +1644,13 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            . "./build_posix/venv/Scripts/activate" || exit 1
+            . start_env || exit 1
+            cd ..
             python -m pip install scons==3.1.1
             scons-3.1.1.bat "LIBPATH=c:\\python\\Python37\\libs" ${smp_command|} check
 
