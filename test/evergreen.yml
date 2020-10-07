@@ -123,7 +123,7 @@ functions:
         if [ "Windows_NT" == "$OS" ]; then
           . "./build_posix/venv/Scripts/activate" || exit 1
           python -m pip install scons==3.1.1
-          scons-3.1.1.bat ${win_configure_flags|--enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic} LIBS=c:\\python\\Python37\\libs ${smp_command|}
+          scons-3.1.1.bat ${win_configure_flags|--enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic} LIBPATH=c:\\python\\Python37\\libs ${smp_command|}
         else
           cd build_posix
           . "./venv/bin/activate" || exit 1
@@ -217,6 +217,12 @@ functions:
         else
           . "./venv/bin/activate" || exit 1
         fi
+        echo ==== "VIRTUAL_ENV=$VIRTUAL_ENV"
+        echo ==== "PATH=$PATH"
+        echo "ls $VIRTUAL_ENV/bin:"
+        ls "$VIRTUAL_ENV/bin"
+        echo "which python"
+        which python
         ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
