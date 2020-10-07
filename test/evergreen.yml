@@ -58,7 +58,7 @@ functions:
         set -o errexit
 
         cat > start_venv << 'EOF'
-        test -f start_env || exit 1   # must run in the same directory as this script
+        test -f start_venv || exit 1   # must run in the same directory as this script
         venv_dir="./venv"
         rm -rf "$venv_dir"
         export VIRTUAL_ENV_DISABLE_PROMPT=yes
@@ -96,7 +96,7 @@ functions:
         set -o errexit
         set -o verbose
         if [ "$OS" != "Windows_NT" ]; then
-          . start_env || exit 1
+          . start_venv || exit 1
           sh reconf
           ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} \
             ../configure ${configure_python_setting|} \
@@ -110,7 +110,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        . start_env || exit 1
+        . start_venv || exit 1
         if [ "Windows_NT" = "$OS" ]; then
           cd ..
           python -m pip install scons==3.1.1
@@ -154,7 +154,7 @@ functions:
           set -o verbose
           sh reconf
           if [ "$OS" != "Windows_NT" ]; then
-            . start_env || exit 1
+            . start_venv || exit 1
             CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -fsanitize=address" \
               ../configure ${configure_python_setting|} \
               --enable-diagnostic --with-builtins=lz4,snappy,zlib
@@ -171,7 +171,7 @@ functions:
           set -o verbose
           sh reconf
           if [ "$OS" != "Windows_NT" ]; then
-            . start_env || exit 1
+            . start_venv || exit 1
             CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC" \
               ../configure ${configure_python_setting|} \
               --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
@@ -203,7 +203,7 @@ functions:
         set -o errexit
         set -o verbose
 
-        . start_env || exit 1
+        . start_venv || exit 1
         echo "which python"
         which python
         ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
@@ -1631,7 +1631,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            . start_env || exit 1
+            . start_venv || exit 1
             cd ..
             python -m pip install scons==3.1.1
             scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" "LIBPATH=c:\\python\\Python37\\libs" wiredtiger.dll libwiredtiger.lib
@@ -1649,7 +1649,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            . start_env || exit 1
+            . start_venv || exit 1
             cd ..
             python -m pip install scons==3.1.1
             scons-3.1.1.bat "LIBPATH=c:\\python\\Python37\\libs" ${smp_command|} check
