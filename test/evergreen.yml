@@ -220,7 +220,9 @@ functions:
         echo ==== "VIRTUAL_ENV=$VIRTUAL_ENV"
         echo ==== "PATH=$PATH"
         echo "ls $VIRTUAL_ENV/bin:"
-        ls "$VIRTUAL_ENV/bin"
+        ls "$VIRTUAL_ENV/bin" || true
+        echo "ls $VIRTUAL_ENV:"
+        ls "$VIRTUAL_ENV" || true
         echo "which python"
         which python
         ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
