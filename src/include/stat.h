@@ -669,8 +669,6 @@ struct __wt_connection_stats {
     int64_t session_table_create_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
-    int64_t session_table_rebalance_fail;
-    int64_t session_table_rebalance_success;
     int64_t session_table_rename_fail;
     int64_t session_table_rename_success;
     int64_t session_table_salvage_fail;
