@@ -46,7 +46,7 @@ class test_import06(test_import_base):
     values = [b'\x01\x02aaa\x03\x04', b'\x01\x02bbb\x03\x04', b'\x01\x02ccc\x03\x04',
               b'\x01\x02ddd\x03\x04', b'\x01\x02eee\x03\x04', b'\x01\x02fff\x03\x04']
     ts = [10*k for k in range(1, len(keys)+1)]
-    create_config = 'allocation_size={},key_format=u,log=(enabled=true),value_format=u'
+    create_config = 'allocation_size={},key_format=u,log=(enabled=true),value_format=u,block_compressor={}'
 
     allocsizes = [
         ('512', dict(allocsize='512')),
@@ -55,6 +55,7 @@ class test_import06(test_import_base):
         ('4096', dict(allocsize='4096')),
     ]
     compressors = [
+        ('none', dict(compressor='none')),
         ('nop', dict(compressor='nop')),
         ('lz4', dict(compressor='lz4')),
         ('snappy', dict(compressor='snappy')),
@@ -69,7 +70,8 @@ class test_import06(test_import_base):
         extlist.extension('compressors', self.compressor)
 
     def test_import_repair(self):
-        self.session.create(self.uri, self.create_config.format(self.allocsize))
+        self.session.create(self.uri,
+            self.create_config.format(self.allocsize, self.compressor))
 
         # Add data and perform a checkpoint.
         min_idx = 0
