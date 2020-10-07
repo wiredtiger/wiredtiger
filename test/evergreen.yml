@@ -120,7 +120,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        if [ "Windows_NT" == "$OS" ]; then
+        if [ "Windows_NT" = "$OS" ]; then
           . "./build_posix/venv/Scripts/activate" || exit 1
           python -m pip install scons==3.1.1
           export LIBPATH=c:\\python\\Python37\\libs
@@ -1647,7 +1647,9 @@ tasks:
             set -o errexit
             set -o verbose
 
+            . "./build_posix/venv/Scripts/activate" || exit 1
             python -m pip install scons==3.1.1
+            export LIBPATH=c:\\python\\Python37\\libs
             scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" wiredtiger.dll libwiredtiger.lib
 
   - name: scons-check
@@ -1663,7 +1665,9 @@ tasks:
             set -o errexit
             set -o verbose
 
+            . "./build_posix/venv/Scripts/activate" || exit 1
             python -m pip install scons==3.1.1
+            export LIBPATH=c:\\python\\Python37\\libs
             scons-3.1.1.bat ${smp_command|} check
 
   - name: fops

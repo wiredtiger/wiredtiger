@@ -326,7 +326,7 @@ if GetOption("lang-python"):
     # Ignore warnings in swig-generated code.
     pythonEnv['CFLAGS'].remove("/WX")
     pythonEnv['CFLAGS'].remove("/we4100")
-    pythonEnv['LIBPATH'].append("c:\\python\\Python37\\libs")
+    #pythonEnv['LIBPATH'].append("c:\\python\\Python37\\libs")
 
     swiglib = pythonEnv.SharedLibrary('_wiredtiger',
                       [ 'lang\python\wiredtiger.i'],
