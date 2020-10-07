@@ -43,8 +43,8 @@
  * copy_directory --
  *     Copy a directory, using direct IO if indicated.
  */
-void
-copy_directory(const char *fromdir, const char *todir, bool directio, bool *fatal)
+bool
+copy_directory(const char *fromdir, const char *todir, bool directio)
 {
     struct dirent *dp;
     struct stat sb;
@@ -55,6 +55,7 @@ copy_directory(const char *fromdir, const char *todir, bool directio, bool *fata
     int enoent, openflags, rfd, wfd;
     u_char *buf, *orig_buf;
     char fromfile[4096], tofile[4096];
+    bool fatal;
 
 #ifdef O_DIRECT
     openflags = directio ? O_DIRECT : 0;
@@ -66,7 +67,7 @@ copy_directory(const char *fromdir, const char *todir, bool directio, bool *fata
     buf = NULL;
     blksize = bufsize = 0;
     enoent = 0;
-    *fatal = false;
+    fatal = false;
 
     dirp = opendir(todir);
     if (dirp != NULL) {
@@ -113,7 +114,7 @@ copy_directory(const char *fromdir, const char *todir, bool directio, bool *fata
             printf("COPY_DIR: direct:%d ENOENT %d: Source file %s not found.\n", directio, enoent,
               dp->d_name);
             if (enoent > 1)
-                *fatal = true;
+                fatal = true;
             continue;
         }
         testutil_assertfmt(rfd >= 0, "Open of source %s failed with %d\n", fromfile, errno);
@@ -165,4 +166,5 @@ copy_directory(const char *fromdir, const char *todir, bool directio, bool *fata
     }
     testutil_check(closedir(dirp));
     free(orig_buf);
+    return (fatal);
 }

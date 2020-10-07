@@ -825,17 +825,17 @@ check_db(uint32_t nth, uint32_t datasize, pid_t pid, bool directio, uint32_t fla
      * Copy the original home directory explicitly without direct I/O. Copy this first because
      * copying with directio may abort and we want to see what the original copy saw.
      */
-    copy_directory(home, dbgdir, false, &fatal);
+    fatal = copy_directory(home, dbgdir, false);
     if (fatal) {
         printf("FATAL: Copying from %s to %s, directio %d\n", home, dbgdir, false);
         kill_child(pid);
     }
-    copy_directory(home, checkdir, directio, &fatal);
+    fatal = copy_directory(home, checkdir, directio);
     if (fatal) {
         printf("FATAL: Copying from %s to %s, directio %d\n", home, checkdir, directio);
         kill_child(pid);
     }
-    copy_directory(checkdir, savedir, false, &fatal);
+    fatal = copy_directory(checkdir, savedir, false);
     if (fatal) {
         printf("FATAL: Copying from %s to %s, directio %d\n", checkdir, savedir, false);
         kill_child(pid);
