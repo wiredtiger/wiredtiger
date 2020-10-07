@@ -54,8 +54,8 @@ functions:
       working_dir: "wiredtiger/build_posix"
       shell: bash
       script: |
-        # exit immediately if virtualenv is not found
         set -o errexit
+        set -o verbose
 
         cat > start_venv << 'EOF'
         test -f start_venv || exit 1   # must run in the same directory as this script
@@ -86,6 +86,8 @@ functions:
         python=python
         echo "python set to $(which $python)"
         EOF
+        echo created start_venv
+        echo '===='; cat start_venv; echo '===='
 
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
