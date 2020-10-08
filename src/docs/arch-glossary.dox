@@ -1,4 +1,4 @@
-/*! @page arch-glossary Developer Documentation Glossary of Terms
+/*! @page arch-glossary Architecture Guide Glossary of Terms
 
 WiredTiger has a lot of domain specific nomenclature - this page attempts
 to decode it. This is intended for those navigating the WiredTiger source
