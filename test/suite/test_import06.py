@@ -134,7 +134,7 @@ class test_import06(test_import_base):
         self.session.verify(self.uri)
 
         # Check that the previously inserted values survived the import.
-        self.check(self.uri, self.keys[:max_idx], self.values[:max_idx], self.ts[:max_idx])
+        self.check(self.uri, self.keys[:max_idx], self.values[:max_idx])
 
         # Compare configuration metadata.
         c = self.session.open_cursor('metadata:', None, None)
@@ -147,7 +147,7 @@ class test_import06(test_import_base):
         max_idx = len(self.keys)
         for i in range(min_idx, max_idx):
             self.update(self.uri, self.keys[i], self.values[i], self.ts[i])
-        self.check(self.uri, self.keys, self.values, self.ts)
+        self.check(self.uri, self.keys, self.values)
 
         # Perform a checkpoint.
         self.session.checkpoint()
