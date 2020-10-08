@@ -35,7 +35,7 @@ Why is my CPU busy? FlameGraphs help visually summarize on-CPU call stacks and
 allow for the quick identification of hot code paths. Here we explain how to
 generate FlameGraphs from WiredTiger `perf` data.
 
-@subsection tool-other Other Resources
+@section tool-other Other Resources
 
 The WiredTiger @ref command_line has facilities for examining tables
 and metadata, and has various other administrative functions.
