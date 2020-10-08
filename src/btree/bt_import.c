@@ -13,7 +13,7 @@
  *     Import a WiredTiger file into the database and reconstruct its metadata.
  */
 int
-__wt_import_repair(WT_SESSION_IMPL *session, const char *uri)
+__wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **fileconfp)
 {
     WT_BM *bm;
     WT_CKPT *ckpt, *ckptbase;
@@ -155,12 +155,16 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri)
     WT_ERR(__wt_buf_set(session, &ckpt->raw, checkpoint->data, checkpoint->size));
     WT_ERR(__wt_meta_ckptlist_set(session, uri, ckptbase, NULL));
 
+    WT_ASSERT(session, fileconfp != NULL);
+    *fileconfp = fileconf;
+
 err:
     F_CLR(session, WT_SESSION_IMPORT_REPAIR);
 
     __wt_meta_ckptlist_free(session, &ckptbase);
 
-    __wt_free(session, fileconf);
+    if (ret != 0)
+        __wt_free(session, fileconf);
     __wt_free(session, metadata);
     __wt_free(session, checkpoint_list);
 

@@ -121,6 +121,9 @@ class test_import06(test_import_base):
         self.populate(self.ntables, self.nrows)
         self.session.checkpoint()
 
+        # Bring forward the oldest to be past or equal to the timestamps we'll be importing.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.ts[max_idx]))
+
         # Copy over the datafiles for the object we want to import.
         self.copy_file(self.original_db_file, '.', newdir)
 

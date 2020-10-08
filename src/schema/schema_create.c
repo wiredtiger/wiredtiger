@@ -220,7 +220,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
             WT_ERR(__wt_metadata_insert(session, uri, fileconf));
         } else {
             /* Read the data file's descriptor block and try to recreate the associated metadata. */
-            WT_ERR(__wt_import_repair(session, uri));
+            WT_ERR(__wt_import_repair(session, uri, &fileconf));
         }
 
         /*
