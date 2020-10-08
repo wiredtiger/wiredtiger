@@ -784,7 +784,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     bool exclusive, import;
 
     exclusive = __wt_config_getones(session, config, "exclusive", &cval) == 0 && cval.val != 0;
-    import = __wt_config_getones(session, config, "import", &cval) == 0 && cval.val != 0;
+    import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
 
     if (import && !WT_PREFIX_MATCH(uri, "file:") && !WT_PREFIX_MATCH(uri, "table:"))
         WT_RET_MSG(session, ENOTSUP,
