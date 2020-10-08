@@ -63,7 +63,7 @@ import()
 	cp $rundir/wt $foreign/yyy
 
 	# Import the table.
-	$wt -C "$EXT" -h $foreign import file:yyy
+	$wt -C "$EXT" -h $foreign create -c 'import=(enabled,repair=true)' file:yyy
 
 	# Dump the imported metadata.
 	echo; echo 'dumping the imported metadata'
