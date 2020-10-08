@@ -1965,7 +1965,6 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
     __wt_rwlock_destroy(session, &txn_global->read_timestamp_rwlock);
     __wt_rwlock_destroy(session, &txn_global->visibility_rwlock);
     __wt_free(session, txn_global->txn_shared_list);
-    __wt_free(session, txn_global->ckpt_snapshot);
 }
 
 /*
