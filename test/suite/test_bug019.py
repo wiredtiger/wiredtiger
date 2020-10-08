@@ -82,7 +82,7 @@ class test_bug019(wttest.WiredTigerTestCase):
             if f:
                 return
             time.sleep(1.0)
-        self.assertFalse(not f)
+        self.fail('No pre-allocated files created after 90 seconds')
 
     # There was a bug where pre-allocated log files accumulated on
     # Windows systems due to an issue with the directory list code.
