@@ -136,17 +136,6 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
          * serialization function lock acts as our memory barrier to flush this write.
          */
         upd->next = old_upd;
-        /*
-         * Verify that we are not appending a new update in front of a prepared update that was
-         * restored from data store.
-         */
-        WT_ASSERT(session,
-          old_upd == NULL || old_upd->txnid == WT_TXN_ABORTED ||
-            (old_upd->prepare_state != WT_PREPARE_INPROGRESS &&
-              old_upd->prepare_state != WT_PREPARE_LOCKED) ||
-            !F_ISSET(old_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) ||
-            (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE &&
-              upd->start_ts == WT_TS_NONE));
 
         /* Serialize the update. */
         WT_ERR(__wt_update_serial(session, cbt, page, upd_entry, &upd, upd_size, exclusive));
