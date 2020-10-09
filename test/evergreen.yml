@@ -46,8 +46,12 @@ functions:
       script: |
         git clone https://github.com/wiredtiger/mongo-tests
 
+
   # Note: setting up the virtual environment is adapted from etc/evergreen.yml in the
-  # MongoDB source tree.
+  # MongoDB source tree.  Here we've put the virtual environment (venv) creation into a script
+  # that gets run.  We can't actually create the venv here, because the resulting venv directory
+  # will get copied to a new directory each time a task is run, and the venv directory cannot
+  # be moved, it is hardcoded to point to itself.
   "set up virtualenv": &set_up_virtualenv
     command: shell.exec
     params:
@@ -58,11 +62,11 @@ functions:
         set -o verbose
 
         cat > start_venv << 'EOF'
-        test -f start_venv || exit 1   # must run in the same directory as this script
-        venv_dir="./venv"
-        rm -rf "$venv_dir"
-        export VIRTUAL_ENV_DISABLE_PROMPT=yes
         if test "Windows_NT" = "$OS" && command -V cygpath; then
+          test -f start_venv || exit 1   # must run in the same directory as this script
+          venv_dir="./venv"
+          rm -rf "$venv_dir"
+
           # Sad note: We have to use the Windows path instead of the posix path here.
           # Otherwise, virtualenv may mistakenly resolve paths relative to c:\cygdrive.
           # Creating a virtualenv in cygwin with 'python -m venv', will not work correctly
@@ -73,21 +77,17 @@ functions:
           virtualenv_loc=$(which ${virtualenv|virtualenv})
           venv_dir="$(cygpath -w "$venv_dir")"
           "$virtualenv_loc" --python "$python_loc" "$venv_dir"
+          export VIRTUAL_ENV_DISABLE_PROMPT=yes
           . "$venv_dir/Scripts/activate" 2> /tmp/activate_error.log
+          if [ $? -ne 0 ]; then
+            echo "Failed to activate virtualenv: $(cat /tmp/activate_error.log)"
+          fi
+          python=python
+          echo "python set to $(which $python)"
         else
-          python_loc=$(which ${python|/opt/mongodbtoolchain/v3/bin/python3})
-          echo "!! Creating venv"
-          "$python_loc" -m venv "$venv_dir"
-          . "$venv_dir/bin/activate" 2> /tmp/activate_error.log
+          echo "No python virtual env needed on this system"
         fi
-        if [ $? -ne 0 ]; then
-          echo "Failed to activate virtualenv: $(cat /tmp/activate_error.log)"
-        fi
-        python=python
-        echo "python set to $(which $python)"
         EOF
-        echo created start_venv
-        echo '===='; cat start_venv; echo '===='
 
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
@@ -98,10 +98,8 @@ functions:
         set -o errexit
         set -o verbose
         if [ "$OS" != "Windows_NT" ]; then
-          export PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-          . ./start_venv || exit 1
           sh reconf
-          ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ ADD_CFLAGS="-ggdb -fPIC"} \
+          ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} \
             ../configure ${configure_python_setting|} \
             ${posix_configure_flags|--enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL}
         fi
@@ -113,8 +111,8 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        . ./start_venv || exit 1
-        if [ "Windows_NT" = "$OS" ]; then
+        if [ "Windows_NT" == "$OS" ]; then
+          . ./start_venv || exit 1
           cd ..
           python -m pip install scons==3.1.1
           scons-3.1.1.bat ${win_configure_flags|"LIBPATH=c:\\python\\Python37\\libs" --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic} ${smp_command|}
@@ -131,11 +129,9 @@ functions:
           fi
         fi
   "compile wiredtiger":
-    - *set_up_virtualenv
     - *configure_wiredtiger
     - *make_wiredtiger
   "compile wiredtiger no linux ftruncate":
-    - *set_up_virtualenv
     - *configure_wiredtiger
     - command: shell.exec
       params:
@@ -147,7 +143,6 @@ functions:
           echo '#undef HAVE_FTRUNCATE' >> wiredtiger_config.h
     - *make_wiredtiger
   "compile wiredtiger address sanitizer":
-    - *set_up_virtualenv
     - command: shell.exec
       params:
         working_dir: "wiredtiger/build_posix"
@@ -157,15 +152,12 @@ functions:
           set -o verbose
           sh reconf
           if [ "$OS" != "Windows_NT" ]; then
-            export PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-            . ./start_venv || exit 1
-            CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -fsanitize=address" \
+            CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -fsanitize=address" \
               ../configure ${configure_python_setting|} \
               --enable-diagnostic --with-builtins=lz4,snappy,zlib
           fi
     - *make_wiredtiger
   "compile wiredtiger with builtins":
-    - *set_up_virtualenv
     - command: shell.exec
       params:
         working_dir: "wiredtiger/build_posix"
@@ -175,9 +167,7 @@ functions:
           set -o verbose
           sh reconf
           if [ "$OS" != "Windows_NT" ]; then
-            export PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-            . ./start_venv || exit 1
-            CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ ADD_CFLAGS="-ggdb -fPIC" \
+            CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC" \
               ../configure ${configure_python_setting|} \
               --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
           fi
@@ -208,9 +198,6 @@ functions:
         set -o errexit
         set -o verbose
 
-        . ./start_venv || exit 1
-        echo "which python"
-        which python
         ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
@@ -483,6 +470,7 @@ tasks:
     tags: ["pull_request"]
     commands:
       - func: "get project"
+      - func: "set up virtualenv"
       - func: "compile wiredtiger"
       - func: "upload artifact"
       - func: "cleanup"
@@ -612,7 +600,6 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "compile wiredtiger"
       - func: "make check all"
 
@@ -623,7 +610,6 @@ tasks:
       - func: "fetch artifacts"
         vars:
           dependent_task: compile-msan
-      - func: "set up virtualenv"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=memory -ggdb"
@@ -640,7 +626,6 @@ tasks:
       - func: "fetch artifacts"
         vars:
           dependent_task: compile-asan
-      - func: "set up virtualenv"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
@@ -657,7 +642,6 @@ tasks:
       - func: "fetch artifacts"
         vars:
           dependent_task: compile-linux-no-ftruncate
-      - func: "set up virtualenv"
       - func: "compile wiredtiger no linux ftruncate"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python
@@ -671,7 +655,6 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
@@ -683,7 +666,6 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "compile wiredtiger"
       - func: "make check directory"
         vars:
@@ -697,7 +679,6 @@ tasks:
       - func: "fetch artifacts"
         vars:
           dependent_task: compile-asan
-      - func: "set up virtualenv"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=address -ggdb"
@@ -715,7 +696,6 @@ tasks:
       - func: "fetch artifacts"
         vars:
           dependent_task: compile-production-disable-shared
-      - func: "set up virtualenv"
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-strict --disable-shared
@@ -1466,7 +1446,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - *set_up_virtualenv
       - func: "unit test"
 
   - name: unit-test-long
@@ -1474,7 +1453,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - *set_up_virtualenv
       - func: "unit test"
         vars:
           unit_test_args: -v 2 --long
@@ -1497,7 +1475,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 0/11
@@ -1508,7 +1485,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 1/11
@@ -1519,7 +1495,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 2/11
@@ -1530,7 +1505,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 3/11
@@ -1541,7 +1515,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 4/11
@@ -1552,7 +1525,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 5/11
@@ -1563,7 +1535,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 6/11
@@ -1574,7 +1545,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 7/11
@@ -1585,7 +1555,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 8/11
@@ -1596,7 +1565,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 9/11
@@ -1607,7 +1575,6 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 10/11
@@ -1633,16 +1600,13 @@ tasks:
     - name: compile
     commands:
       - func: "fetch artifacts"
-      - func: "set up virtualenv"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix"
+          working_dir: "wiredtiger/build_posix/test"
           script: |
             set -o errexit
             set -o verbose
 
-            . ./start_venv || exit 1
-            cd ./test
             ${test_env_vars|} ${python_binary|python} ../../test/wtperf/test_conf_dump.py 2>&1
 
   - name: compile-windows-alt
@@ -1681,7 +1645,7 @@ tasks:
             . ./start_venv || exit 1
             cd ..
             python -m pip install scons==3.1.1
-            scons-3.1.1.bat "LIBPATH=c:\\python\\Python37\\libs" ${smp_command|} check
+            scons-3.1.1.bat ${smp_command|} check
 
   - name: fops
     tags: ["pull_request"]
