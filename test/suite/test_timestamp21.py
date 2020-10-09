@@ -82,7 +82,8 @@ class test_timestamp21(wttest.WiredTigerTestCase):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda: session2.begin_transaction(
             'read_timestamp=' + timestamp_str(4) + ',read_before_oldest=true'))
 
-        # Begin a transaction with a read timestamp of 6 and read_before_oldest off
+        # Begin a transaction with a read timestamp of 6 and read_before_oldest off, this will have
+        # the same behaviour as not specifying it.
         with self.expectedStdoutPattern('less than the oldest timestamp'):
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda: session2.begin_transaction(
             'read_timestamp=' + timestamp_str(6) + ',read_before_oldest=false'))
