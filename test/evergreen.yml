@@ -84,6 +84,8 @@ functions:
           fi
           python=python
           echo "python set to $(which $python)"
+          export PYTHONPATH=$(cygpath -w $(pwd)/.libs)
+          (echo "=== FILES ==="; cd ..; find . -type f -print; echo "========")
         else
           echo "No python virtual env needed on this system"
         fi
@@ -99,7 +101,7 @@ functions:
         set -o verbose
         if [ "$OS" != "Windows_NT" ]; then
           sh reconf
-          ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} \
+          ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} ${configure_env_python|PYTHON="python3"} \
             ../configure ${configure_python_setting|} \
             ${posix_configure_flags|--enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL}
         fi
@@ -198,7 +200,7 @@ functions:
         set -o errexit
         set -o verbose
 
-        ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+        ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
     params:
@@ -1607,7 +1609,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../../test/wtperf/test_conf_dump.py 2>&1
+            ${test_env_vars|} ${python_binary|python3} ../../test/wtperf/test_conf_dump.py 2>&1
 
   - name: compile-windows-alt
     tags: ["pull_request", "windows_only"]
@@ -1930,7 +1932,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${python_binary|python} syscall.py --verbose --preserve
+            ${python_binary|python3} syscall.py --verbose --preserve
 
   - name: checkpoint-filetypes-test
     commands:
@@ -2292,7 +2294,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            for i in {1..10}; do ${python_binary|python} split_stress.py; done
+            for i in {1..10}; do ${python_binary|python3} split_stress.py; done
 
   # The task name is ppc-zseries because this task will be used in both buildVariants
   - name: format-stress-ppc-zseries-test
