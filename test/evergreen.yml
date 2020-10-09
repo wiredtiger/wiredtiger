@@ -98,9 +98,10 @@ functions:
         set -o errexit
         set -o verbose
         if [ "$OS" != "Windows_NT" ]; then
+          export PATH=/opt/mongodbtoolchain/v3/bin:$PATH
           . ./start_venv || exit 1
           sh reconf
-          ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} \
+          ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ ADD_CFLAGS="-ggdb -fPIC"} \
             ../configure ${configure_python_setting|} \
             ${posix_configure_flags|--enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL}
         fi
@@ -156,8 +157,9 @@ functions:
           set -o verbose
           sh reconf
           if [ "$OS" != "Windows_NT" ]; then
+            export PATH=/opt/mongodbtoolchain/v3/bin:$PATH
             . ./start_venv || exit 1
-            CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -fsanitize=address" \
+            CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -fsanitize=address" \
               ../configure ${configure_python_setting|} \
               --enable-diagnostic --with-builtins=lz4,snappy,zlib
           fi
@@ -173,8 +175,9 @@ functions:
           set -o verbose
           sh reconf
           if [ "$OS" != "Windows_NT" ]; then
+            export PATH=/opt/mongodbtoolchain/v3/bin:$PATH
             . ./start_venv || exit 1
-            CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC" \
+            CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ ADD_CFLAGS="-ggdb -fPIC" \
               ../configure ${configure_python_setting|} \
               --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
           fi
