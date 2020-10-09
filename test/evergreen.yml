@@ -200,6 +200,9 @@ functions:
         set -o errexit
         set -o verbose
 
+        if [ "Windows_NT" = "$OS" ]; then
+          . ./start_venv || exit 1
+        fi
         ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
@@ -2592,7 +2595,8 @@ buildvariants:
   run_on:
   - windows-64-vs2017-test
   expansions:
-    python_binary: '/cygdrive/c/python/python37/python.exe'
+    #python_binary: '/cygdrive/c/python/python37/python.exe'
+    python_binary: 'python'
   tasks:
     - name: compile
     - name: ".windows_only"
