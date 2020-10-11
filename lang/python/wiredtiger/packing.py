@@ -180,7 +180,7 @@ def pack(fmt, *values):
             if _is_string(val) and f in 'Ss':
                 result += str(val[:l]).encode()
             else:
-                result += val[:l]
+                result += val[:l].encode()
             if f == 'S' and not havesize:
                 result += x00
             elif size > l and havesize:
