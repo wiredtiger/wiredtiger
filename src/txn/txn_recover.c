@@ -460,14 +460,12 @@ static int
 __recovery_set_ckpt_base_write_gen(WT_RECOVERY *r)
 {
     WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     char *sys_config;
 
     sys_config = NULL;
     session = r->session;
-    conn = S2C(session);
 
     /* Search the metadata for checkpoint base write gen information. */
     WT_ERR_NOTFOUND_OK(
@@ -476,7 +474,7 @@ __recovery_set_ckpt_base_write_gen(WT_RECOVERY *r)
         WT_CLEAR(cval);
         WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_BASE_WRITE_GEN, &cval));
         if (cval.len != 0)
-            conn->txn_global.ckpt_base_write_gen = (uint64_t)cval.val;
+            S2C(session)->recovery_ckpt_base_write_gen = (uint64_t)cval.val;
     }
 
 err:

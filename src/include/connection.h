@@ -266,6 +266,9 @@ struct __wt_connection_impl {
 
     WT_TXN_GLOBAL txn_global; /* Global transaction state */
 
+    /* Recovery checkpoint base write gen */
+    uint64_t recovery_ckpt_base_write_gen;
+
     WT_RWLOCK hot_backup_lock; /* Hot backup serialization */
     uint64_t hot_backup_start; /* Clock value of most recent checkpoint needed by hot backup */
     char **hot_backup_list;    /* Hot backup file list */
