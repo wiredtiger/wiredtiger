@@ -20,11 +20,15 @@ def all_c_files():
     file_re = re.compile(r'^\w')
     for line in glob.iglob('../src/*/*.c'):
         yield line
+    for line in glob.iglob('../src/*/*_inline.h'):
+        yield line
     files = list()
     for (dirpath, dirnames, filenames) in os.walk('../test'):
         files += [os.path.join(dirpath, file) for file in filenames]
     for file in files:
         if fnmatch.fnmatch(file, '*.c'):
+            yield file
+        if fnmatch.fnmatch(file, '*_inline.h'):
             yield file
 
 # all_h_files --
