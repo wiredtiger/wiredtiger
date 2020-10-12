@@ -518,11 +518,15 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 
     btree->modified = false; /* Clean */
 
-    btree->syncing = WT_BTREE_SYNC_OFF; /* Not syncing */
-                                        /* Checkpoint generation */
-    btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-    /* Write generation */
+    btree->syncing = WT_BTREE_SYNC_OFF;                           /* Not syncing */
+    btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT); /* Checkpoint generation */
+
+    /*
+     * Initialize to the connection-wide base write generation. Having each session's write
+     * generations disjoint (disregarding imports) helps with debugging.
+     */
     btree->write_gen = WT_MAX(ckpt->write_gen, conn->base_write_gen);
+    btree->base_write_gen = ckpt->write_gen + 1;
 
     return (0);
 }
