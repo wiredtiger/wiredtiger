@@ -477,37 +477,40 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
      * Read the system checkpoint information from the metadata file and save the snapshot related
      * details of the last checkpoint for later query. This gets saved in the connection.
      */
-
-    /* Search the metadata for the system information. */
     WT_ERR_NOTFOUND_OK(
       __wt_metadata_search(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, &sys_config), false);
     if (sys_config != NULL) {
         WT_CLEAR(cval);
-        WT_ASSERT(session,
-          __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval) == 0);
-        if (cval.len != 0)
+        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MIN, &cval) == 0 &&
+          cval.len != 0)
             conn->recovery_ckpt_snap_min = (uint64_t)cval.val;
 
-        WT_ASSERT(session,
-          __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MAX, &cval) == 0);
-        if (cval.len != 0)
+        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_MAX, &cval) == 0 &&
+          cval.len != 0)
             conn->recovery_ckpt_snap_max = (uint64_t)cval.val;
 
-        WT_ASSERT(session,
-          __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_COUNT, &cval) == 0);
-        if (cval.len != 0)
+        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT_COUNT, &cval) == 0 &&
+          cval.len != 0)
             conn->recovery_ckpt_snapshot_count = (uint32_t)cval.val;
 
-        WT_ASSERT(
-          session, __wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT, &cval) == 0);
-        if (cval.len != 0) {
+        if (__wt_config_getones(session, sys_config, WT_SYSTEM_CKPT_SNAPSHOT, &cval) == 0 &&
+          cval.len != 0) {
             __wt_config_subinit(session, &list, &cval);
             WT_ERR(__wt_calloc_def(
               session, conn->recovery_ckpt_snapshot_count, &conn->recovery_ckpt_snapshot));
             while (__wt_config_subget_next(&list, &k) == 0)
                 conn->recovery_ckpt_snapshot[counter++] = (uint64_t)k.val;
         }
-        WT_ASSERT(session, conn->recovery_ckpt_snapshot_count == counter);
+
+        /*
+         * Make sure that checkpoint snapshot does not have any unexpected value.
+         * recovery_ckpt_snapshot array should contain the values between recovery_ckpt_snap_min and
+         * recovery_ckpt_snap_max.
+         */
+        WT_ASSERT(session,
+          conn->recovery_ckpt_snapshot_count == counter &&
+            conn->recovery_ckpt_snapshot[0] == conn->recovery_ckpt_snap_min &&
+            conn->recovery_ckpt_snapshot[counter - 1] < conn->recovery_ckpt_snap_max);
     }
 
 err:

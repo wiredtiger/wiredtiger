@@ -731,7 +731,9 @@ __wt_config_subgets(
 
 /*
  * __wt_config_subget_next --
- *     Get the processed value for a given key from a config string.
+ *     Get the value for a given key from a config string and set the processed value in the given
+ *     key structure i.e, k.val. This is useful for unusual case of dealing with list in config
+ *     string.
  */
 int
 __wt_config_subget_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key)
