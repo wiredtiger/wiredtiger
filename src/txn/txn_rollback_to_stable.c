@@ -1139,6 +1139,30 @@ err:
 }
 
 /*
+ * __set_last_ckpt_base_write_gen --
+ *     Set last checkpoint base write gen from metadata file.
+ */
+static int
+__set_last_ckpt_base_write_gen(WT_SESSION_IMPL *session)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    char *config;
+
+    /* Search the metadata for the last checkpoint base write gen number. */
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, WT_SYSTEM_BASE_WRITE_GEN_URI, &config), false);
+    if (config != NULL) {
+        WT_CLEAR(cval);
+        WT_ERR(__wt_config_getones(session, config, WT_SYSTEM_BASE_WRITE_GEN, &cval));
+        if (cval.len != 0)
+            S2C(session)->last_ckpt_base_write_gen = (uint64_t)cval.val;
+    }
+err:
+    __wt_free(session, config);
+    return (ret);
+}
+
+/*
  * __rollback_to_stable_btree_apply --
  *     Perform rollback to stable to all files listed in the metadata, apart from the metadata and
  *     history store files.
@@ -1169,6 +1193,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
       "performing rollback to stable with stable timestamp: %s and oldest timestamp: %s",
       __wt_timestamp_to_string(rollback_timestamp, ts_string[0]),
       __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[1]));
+
+    WT_RET(__set_last_ckpt_base_write_gen(session));
 
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
     WT_RET(__wt_metadata_cursor(session, &cursor));
