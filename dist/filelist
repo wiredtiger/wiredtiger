@@ -1,9 +1,6 @@
 # filelist --
 #	List of source files for WiredTiger library.
 
-src/async/async_api.c
-src/async/async_op.c
-src/async/async_worker.c
 src/block/block_addr.c
 src/block/block_ckpt.c
 src/block/block_ckpt_scan.c
@@ -34,7 +31,6 @@ src/btree/bt_ovfl.c
 src/btree/bt_page.c
 src/btree/bt_random.c
 src/btree/bt_read.c
-src/btree/bt_rebalance.c
 src/btree/bt_ret.c
 src/btree/bt_slvg.c
 src/btree/bt_split.c
@@ -85,6 +81,7 @@ src/cursor/cur_config.c
 src/cursor/cur_ds.c
 src/cursor/cur_dump.c
 src/cursor/cur_file.c
+src/cursor/cur_hs.c
 src/cursor/cur_index.c
 src/cursor/cur_join.c
 src/cursor/cur_json.c
@@ -97,7 +94,10 @@ src/evict/evict_file.c
 src/evict/evict_lru.c
 src/evict/evict_page.c
 src/evict/evict_stat.c
-src/history/hs.c
+src/history/hs_conn.c
+src/history/hs_cursor.c
+src/history/hs_verify.c
+src/history/hs_rec.c
 src/log/log.c
 src/log/log_auto.c
 src/log/log_slot.c

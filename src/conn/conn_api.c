@@ -664,50 +664,6 @@ __wt_conn_remove_extractor(WT_SESSION_IMPL *session)
 }
 
 /*
- * __conn_async_flush --
- *     WT_CONNECTION.async_flush method.
- */
-static int
-__conn_async_flush(WT_CONNECTION *wt_conn)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL_NOCONF(conn, session, async_flush);
-    WT_ERR(__wt_async_flush(session));
-
-err:
-    API_END_RET_NOTFOUND_MAP(session, ret);
-}
-
-/*
- * __conn_async_new_op --
- *     WT_CONNECTION.async_new_op method.
- */
-static int
-__conn_async_new_op(WT_CONNECTION *wt_conn, const char *uri, const char *config,
-  WT_ASYNC_CALLBACK *callback, WT_ASYNC_OP **asyncopp)
-{
-    WT_ASYNC_OP_IMPL *op;
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL(conn, session, async_new_op, config, cfg);
-    WT_UNUSED(cfg);
-
-    WT_ERR(__wt_async_new_op(session, uri, config, callback, &op));
-
-    *asyncopp = &op->iface;
-
-err:
-    API_END_RET_NOTFOUND_MAP(session, ret);
-}
-
-/*
  * __conn_get_extension_api --
  *     WT_CONNECTION.get_extension_api method.
  */
@@ -1055,20 +1011,13 @@ err:
      */
     session->txn->isolation = WT_ISO_READ_UNCOMMITTED;
 
-    /*
-     * Clear any pending async operations and shut down the async worker threads and system before
-     * closing LSM.
-     */
-    WT_TRET(__wt_async_flush(session));
-    WT_TRET(__wt_async_destroy(session));
-
     WT_TRET(__wt_lsm_manager_destroy(session));
 
     /*
-     * After the async and LSM threads have exited, we won't open more files for the application.
-     * However, the sweep server is still running and it can close file handles at the same time the
-     * final checkpoint is reviewing open data handles (forcing checkpoint to reopen handles). Shut
-     * down the sweep server.
+     * After the LSM threads have exited, we won't open more files for the application. However, the
+     * sweep server is still running and it can close file handles at the same time the final
+     * checkpoint is reviewing open data handles (forcing checkpoint to reopen handles). Shut down
+     * the sweep server.
      */
     WT_TRET(__wt_sweep_destroy(session));
 
@@ -1903,9 +1852,9 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"history_store_activity", WT_VERB_HS_ACTIVITY}, {"lsm", WT_VERB_LSM},
       {"lsm_manager", WT_VERB_LSM_MANAGER}, {"metadata", WT_VERB_METADATA},
       {"mutex", WT_VERB_MUTEX}, {"overflow", WT_VERB_OVERFLOW}, {"read", WT_VERB_READ},
-      {"rebalance", WT_VERB_REBALANCE}, {"reconcile", WT_VERB_RECONCILE},
-      {"recovery", WT_VERB_RECOVERY}, {"recovery_progress", WT_VERB_RECOVERY_PROGRESS},
-      {"rts", WT_VERB_RTS}, {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
+      {"reconcile", WT_VERB_RECONCILE}, {"recovery", WT_VERB_RECOVERY},
+      {"recovery_progress", WT_VERB_RECOVERY_PROGRESS}, {"rts", WT_VERB_RTS},
+      {"salvage", WT_VERB_SALVAGE}, {"shared_cache", WT_VERB_SHARED_CACHE},
       {"split", WT_VERB_SPLIT}, {"temporary", WT_VERB_TEMPORARY},
       {"thread_group", WT_VERB_THREAD_GROUP}, {"timestamp", WT_VERB_TIMESTAMP},
       {"transaction", WT_VERB_TRANSACTION}, {"verify", WT_VERB_VERIFY},
@@ -2228,9 +2177,6 @@ __conn_session_size(WT_SESSION_IMPL *session, const char *cfg[], uint32_t *vp)
     v = WT_EXTRA_INTERNAL_SESSIONS;
 
     /* Then, add in the thread counts applications can configure. */
-    WT_RET(__wt_config_gets(session, cfg, "async.threads", &cval));
-    v += cval.val;
-
     WT_RET(__wt_config_gets(session, cfg, "eviction.threads_max", &cval));
     v += cval.val;
 
@@ -2361,12 +2307,11 @@ int
 wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *config,
   WT_CONNECTION **connectionp)
 {
-    static const WT_CONNECTION stdc = {__conn_async_flush, __conn_async_new_op, __conn_close,
-      __conn_debug_info, __conn_reconfigure, __conn_get_home, __conn_configure_method,
-      __conn_is_new, __conn_open_session, __conn_query_timestamp, __conn_set_timestamp,
-      __conn_rollback_to_stable, __conn_load_extension, __conn_add_data_source, __conn_add_collator,
-      __conn_add_compressor, __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system,
-      __conn_get_extension_api};
+    static const WT_CONNECTION stdc = {__conn_close, __conn_debug_info, __conn_reconfigure,
+      __conn_get_home, __conn_configure_method, __conn_is_new, __conn_open_session,
+      __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
+      __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
+      __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {{"checkpoint", WT_DIRECT_IO_CHECKPOINT},
       {"data", WT_DIRECT_IO_DATA}, {"log", WT_DIRECT_IO_LOG}, {NULL, 0}};
 
@@ -2807,7 +2752,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * If the user wants to verify WiredTiger metadata, verify the history store now that the
      * metadata table may have been salvaged and eviction has been started and recovery run.
      *
-     * FIXME-WT-6263: Temporarily disable history store verification.
+     * FIXME-WT-6682: temporarily disable history store verification.
      */
     if (verify_meta) {
         WT_ERR(__wt_open_internal_session(conn, "verify hs", false, 0, &verify_session));

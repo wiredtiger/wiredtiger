@@ -292,10 +292,11 @@ create_object(WT_CONNECTION *conn)
     max = sizeof(config);
 
     CONFIG_APPEND(p,
-      "key_format=%s,allocation_size=512,%s,internal_page_max=%" PRIu32 ",leaf_page_max=%" PRIu32
+      "key_format=%s,allocation_size=%d,%s,internal_page_max=%" PRIu32 ",leaf_page_max=%" PRIu32
       ",memory_page_max=%" PRIu32,
-      (g.type == ROW) ? "u" : "r", g.c_firstfit ? "block_allocation=first" : "", g.intl_page_max,
-      g.leaf_page_max, MEGABYTE(g.c_memory_page_max));
+      (g.type == ROW) ? "u" : "r", BLOCK_ALLOCATION_SIZE,
+      g.c_firstfit ? "block_allocation=first" : "", g.intl_page_max, g.leaf_page_max,
+      MEGABYTE(g.c_memory_page_max));
 
     /*
      * Configure the maximum key/value sizes, but leave it as the default if we come up with
@@ -466,8 +467,8 @@ wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
     /*
      * If running in-memory, there's only a single, shared WT_CONNECTION handle. Format currently
      * doesn't perform the operations coded to close and then re-open the database on in-memory
-     * databases (for example, salvage or rebalance), so the close gets all references, it doesn't
-     * have to avoid closing the real handle.
+     * databases (for example, salvage), so the close gets all references, it doesn't have to avoid
+     * closing the real handle.
      */
     if (conn == g.wts_conn_inmemory)
         g.wts_conn_inmemory = NULL;

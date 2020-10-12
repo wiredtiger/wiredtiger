@@ -1049,7 +1049,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
          * we can skip it.
          */
         if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
-            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone_rts);
+            WT_STAT_CONN_INCR(session, cursor_next_hs_tombstone_rts);
             continue;
         }
 
@@ -1298,8 +1298,11 @@ int
 __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
 {
     WT_DECL_RET;
+    WT_TXN_GLOBAL *txn_global;
 
     WT_UNUSED(cfg);
+
+    txn_global = &S2C(session)->txn_global;
 
     /*
      * Don't use the connection's default session: we are working on data handles and (a) don't want
@@ -1318,6 +1321,10 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
     ret = __rollback_to_stable(session);
     F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
     WT_RET(ret);
+
+    /* Rollback the global durable timestamp to the stable timestamp. */
+    txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
+    txn_global->durable_timestamp = txn_global->stable_timestamp;
 
     /*
      * If the configuration is not in-memory, forcibly log a checkpoint after rollback to stable to

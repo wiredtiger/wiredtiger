@@ -305,19 +305,6 @@ struct __wt_connection_stats {
     int64_t lsm_work_units_done;
     int64_t lsm_work_units_created;
     int64_t lsm_work_queue_max;
-    int64_t async_cur_queue;
-    int64_t async_max_queue;
-    int64_t async_alloc_race;
-    int64_t async_flush;
-    int64_t async_alloc_view;
-    int64_t async_full;
-    int64_t async_nowork;
-    int64_t async_op_alloc;
-    int64_t async_op_compact;
-    int64_t async_op_insert;
-    int64_t async_op_remove;
-    int64_t async_op_search;
-    int64_t async_op_update;
     int64_t block_preload;
     int64_t block_read;
     int64_t block_write;
@@ -372,6 +359,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_walks_gave_up_no_targets;
     int64_t cache_eviction_walks_gave_up_ratio;
     int64_t cache_eviction_walks_ended;
+    int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
     int64_t cache_eviction_walk_saved_pos;
     int64_t cache_eviction_active_workers;
@@ -504,6 +492,8 @@ struct __wt_connection_stats {
     int64_t cursor_modify_bytes;
     int64_t cursor_modify_bytes_touch;
     int64_t cursor_next;
+    int64_t cursor_next_hs_tombstone;
+    int64_t cursor_next_hs_tombstone_rts;
     int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_skip_lt_100;
     int64_t cursor_restart;
@@ -681,8 +671,6 @@ struct __wt_connection_stats {
     int64_t session_table_drop_success;
     int64_t session_table_import_fail;
     int64_t session_table_import_success;
-    int64_t session_table_rebalance_fail;
-    int64_t session_table_rebalance_success;
     int64_t session_table_rename_fail;
     int64_t session_table_rename_success;
     int64_t session_table_salvage_fail;
@@ -846,6 +834,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_walks_gave_up_no_targets;
     int64_t cache_eviction_walks_gave_up_ratio;
     int64_t cache_eviction_walks_ended;
+    int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
     int64_t cache_eviction_walk_saved_pos;
     int64_t cache_eviction_hazard;

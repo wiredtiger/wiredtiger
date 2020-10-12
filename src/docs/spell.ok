@@ -85,7 +85,6 @@ PMU
 PPC
 PRELOAD
 README
-Rebalance
 RedHat
 RepMgr
 Riak
@@ -128,7 +127,6 @@ apiflags
 ar
 archiver
 arg
-async
 atomicity
 autoconf
 autogen
@@ -206,7 +204,6 @@ desc
 destructor
 destructors
 dev
-devdoc
 dhandle
 dhandle's
 dhandles
@@ -451,7 +448,6 @@ readonly
 realclean
 realloc
 realloc'd
-rebalance
 recno
 recnoN
 recnum

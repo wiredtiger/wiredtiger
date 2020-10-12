@@ -248,13 +248,12 @@ main(int argc, char *argv[])
 
     /*
      * Calculate how long each operations loop should run. Take any timer value and convert it to
-     * seconds, then allocate 15 seconds to do initialization, verification, rebalance and/or
-     * salvage tasks after the operations loop finishes. This is not intended to be exact in any
-     * way, just enough to get us into an acceptable range of run times. The reason for this is
-     * because we want to consume the legitimate run-time, but we also need to do the end-of-run
-     * checking in all cases, even if we run out of time, otherwise it won't get done. So, in
-     * summary pick a reasonable time and then don't check for timer expiration once the main
-     * operations loop completes.
+     * seconds, then allocate 15 seconds to do initialization, verification and/or salvage tasks
+     * after the operations loop finishes. This is not intended to be exact in any way, just enough
+     * to get us into an acceptable range of run times. The reason for this is because we want to
+     * consume the legitimate run-time, but we also need to do the end-of-run checking in all cases,
+     * even if we run out of time, otherwise it won't get done. So, in summary pick a reasonable
+     * time and then don't check for timer expiration once the main operations loop completes.
      */
     ops_seconds = g.c_timer == 0 ? 0 : ((g.c_timer * 60) - 15) / FORMAT_OPERATION_REPS;
 
@@ -269,17 +268,20 @@ main(int argc, char *argv[])
         if (g.reopen) {
             config_final();
             wts_open(g.home, &g.wts_conn, &g.wts_session, true);
+            timestamp_init();
             set_oldest_timestamp();
         } else {
             wts_create(g.home);
             config_final();
             wts_open(g.home, &g.wts_conn, &g.wts_session, true);
+            timestamp_init();
+
             trace_init();
 
             TIMED_MAJOR_OP(wts_load()); /* Load and verify initial records */
-            TIMED_MAJOR_OP(wts_verify(g.wts_conn, "post-bulk verify"));
         }
 
+        TIMED_MAJOR_OP(wts_verify(g.wts_conn, "verify"));
         TIMED_MAJOR_OP(wts_read_scan());
 
         wts_checkpoints();
@@ -299,11 +301,6 @@ main(int argc, char *argv[])
 
         track("shutting down", 0ULL, NULL);
         wts_close(&g.wts_conn, &g.wts_session);
-
-        /*
-         * Rebalance testing.
-         */
-        TIMED_MAJOR_OP(wts_rebalance());
 
         /*
          * Salvage testing.

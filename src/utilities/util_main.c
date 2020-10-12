@@ -16,6 +16,9 @@ bool verbose = false; /* Verbose flag */
 
 static const char *command; /* Command name */
 
+/* Give users a hint in the help output for if they're trying to read MongoDB data files */
+static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=snappy)";
+
 #define READONLY "readonly=true"
 #define REC_ERROR "log=(recover=error)"
 #define REC_LOGOFF "log=(enabled=false)"
@@ -42,13 +45,14 @@ usage(void)
        */
       "list", "list database objects", "load", "load an object", "loadtext",
       "load an object from a text file", "printlog", "display the database log", "read",
-      "read values from an object", "rebalance", "rebalance an object", "rename",
-      "rename an object", "salvage", "salvage a file", "stat", "display statistics for an object",
-      "truncate", "truncate an object, removing all content", "upgrade", "upgrade an object",
-      "verify", "verify an object", "write", "write values to an object", NULL, NULL};
+      "read values from an object", "rename", "rename an object", "salvage", "salvage a file",
+      "stat", "display statistics for an object", "truncate",
+      "truncate an object, removing all content", "upgrade", "upgrade an object", "verify",
+      "verify an object", "write", "write values to an object", NULL, NULL};
 
     fprintf(stderr, "WiredTiger Data Engine (version %d.%d)\n", WIREDTIGER_VERSION_MAJOR,
       WIREDTIGER_VERSION_MINOR);
+    fprintf(stderr, "MongoDB wiredtiger_open configuration: \"%s\"\n", mongodb_config);
     util_usage(NULL, "global_options:", options);
     util_usage(NULL, "commands:", commands);
 }
@@ -218,8 +222,6 @@ main(int argc, char *argv[])
     case 'r':
         if (strcmp(command, "read") == 0)
             func = util_read;
-        else if (strcmp(command, "rebalance") == 0)
-            func = util_rebalance;
         else if (strcmp(command, "rename") == 0)
             func = util_rename;
         break;
