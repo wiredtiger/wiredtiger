@@ -135,14 +135,14 @@ class test_import08(test_import_base):
         # Check that the values are all visible.
         #
         # These values were written in the previous database with HIGH transaction IDs. Since we're
-        # on a fresh connection, our IDs are starting back from 0 so we MUST wipe the IDs otherwise
+        # on a fresh connection, our IDs are starting back from 1 so we MUST wipe the IDs otherwise
         # they won't be visible to us and this test will fail.
         #
         # Since we were checkpointing after each write, the write gen of some of these pages will
         # definitely be higher than 1.
         #
         # If we use the old scheme and compare the page's write gen with the connection-wide base
-        # write gen (which will be 0 since we made a new database), then we won't see some records
+        # write gen (which will be 1 since we made a new database), then we won't see some records
         # and the test will fail.
         #
         # If we use the new scheme and compare with the btree specific base write gen that was
