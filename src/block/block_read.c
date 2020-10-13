@@ -254,10 +254,13 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
 
 #if BLKCACHE_TRACE == 0
     /* Ask the cache to give us the block. If it doesn't have it, read it. */
-    if (block->fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA ||
-	__wt_blkcache_get_or_check(session, block->fh, offset, size, buf->mem) != 0) {
-        WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
-	WT_TRET_ERROR_OK(__wt_blkcache_put(session, block->fh, offset, size, buf->mem, false), -1);
+    if (block->fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
+	WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+    else {
+	if(__wt_blkcache_get_or_check(session, offset, size, checksum, buf->mem) != 0) {
+	    WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+	    WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, size, checksum, buf->mem, false), -1);
+	}
     }
 #else
     if (block->fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
@@ -266,7 +269,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
 	/* Read the block from the file system and cache. Log the latency.
 	 * This is done for learning which blocks are worth caching.
 	 */
-	id.fh = block->fh;
+	id.checksum = checksum;
 	id.offset = offset;
 	id.size = size;
 	hash = __wt_hash_city64(&id, sizeof(id));
@@ -283,7 +286,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
 
 	/* Read from the cache */
 	time_start = __wt_clock(session);
-	ret =  __wt_blkcache_get_or_check(session, block->fh, offset, size, buf->mem);
+	ret =  __wt_blkcache_get_or_check(session, offset, size, checksum, buf->mem);
 	time_stop = __wt_clock(session);
 
 	if (ret == 0) { /* Block found */
@@ -301,8 +304,8 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
 			 WT_CLOCKDIFF_NS(time_stop, time_start));
 
 	    time_start = __wt_clock(session);
-	    WT_TRET_ERROR_OK(__wt_blkcache_put(session, block->fh, offset, size,
-					       buf->mem, false), -1);
+	    WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, size,
+					       checksum, buf->mem, false), -1);
 	    time_stop = __wt_clock(session);
 	    __wt_verbose(session, WT_VERB_BLKCACHE, "put latency: "
                          "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64 ", "

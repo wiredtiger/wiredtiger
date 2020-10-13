@@ -329,7 +329,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
 #endif
 
 #if BLKCACHE_TRACE == 1
-    id.fh = block->fh;
+    id.checksum = checksum;
     id.offset = offset;
     id.size = align_size;
     hash = __wt_hash_city64(&id, sizeof(id));
@@ -359,10 +359,11 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     /* SASHA: make sure we can always write the block that exists in cache, so
      * we don't end up with inconsistent copies.
      */
+    if (block->fh->file_type == WT_FS_OPEN_FILE_TYPE_DATA) {
 #if BLKCACHE_TRACE == 1
     time_start = __wt_clock(session);
 #endif
-    WT_TRET_ERROR_OK(__wt_blkcache_put(session, block->fh, offset, align_size, buf->mem, true), -1);
+    WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, align_size, checksum, buf->mem, true), -1);
 #if BLKCACHE_TRACE == 1
     time_stop = __wt_clock(session);
     __wt_verbose(session, WT_VERB_BLKCACHE, "put latency: "
@@ -371,6 +372,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
 		 (uintmax_t)offset, (uint32_t)align_size, hash,
 		 WT_CLOCKDIFF_NS(time_stop, time_start));
 #endif
+    }
     /*
      * Optionally schedule writes for dirty pages in the system buffer cache, but only if the
      * current session can wait.

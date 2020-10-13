@@ -1811,6 +1811,7 @@ execute_populate(WTPERF *wtperf)
     return (0);
 }
 
+#if 0
 static int
 close_reopen(WTPERF *wtperf)
 {
@@ -1853,6 +1854,7 @@ close_reopen(WTPERF *wtperf)
     }
     return (0);
 }
+#endif
 
 static int
 execute_workload(WTPERF *wtperf)
@@ -2406,9 +2408,10 @@ start_run(WTPERF *wtperf)
          * If we have a workload, close and reopen the connection so that LSM can detect read-only
          * workloads.
          */
+#if 0
         if (close_reopen(wtperf) != 0)
             goto err;
-
+#endif
         /* Didn't create, set insert count. */
         if (opts->create == 0 && opts->random_range == 0 && find_table_count(wtperf) != 0)
             goto err;

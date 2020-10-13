@@ -19,16 +19,17 @@
 #define BLKCACHE_HASHSIZE_MIN 512
 #define BLKCACHE_HASHSIZE_MAX 1024*1024*1024
 
-#define BLKCACHE_TRACE 1
+#define BLKCACHE_TRACE 0
 
 /*
  * WT_BLKCACHE_ID --
- *     File handle, offset and size uniquely identify a block.
+ *    Checksum, offset and size uniquely identify a block.
+ *    These are the same items used to compute the cookie.
  */
 struct __wt_blkcache_id {
-    WT_FH *fh;
-    wt_off_t offset;
-    size_t size;
+    uint64_t checksum;
+    uint64_t offset;
+    uint64_t size;
 };
 
 /*

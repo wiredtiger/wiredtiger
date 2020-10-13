@@ -66,7 +66,7 @@ __wt_blkcache_free(WT_SESSION_IMPL *session, void *ptr)
  */
 int
 __wt_blkcache_get_or_check(
-  WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t size, void *data_ptr)
+    WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32_t checksum, void *data_ptr)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
@@ -89,12 +89,9 @@ __wt_blkcache_get_or_check(
     if (data_ptr != NULL)
         WT_STAT_CONN_INCR(session, block_cache_data_refs);
 
-    if (fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
-	return -1;
-
-    id.fh = fh;
-    id.offset = offset;
-    id.size = size;
+    id.checksum = (uint64_t)checksum;
+    id.offset = (uint64_t)offset;
+    id.size = (uint64_t)size;
     hash = __wt_hash_city64(&id, sizeof(id));
 
     bucket = hash % blkcache->hash_size;
@@ -119,17 +116,20 @@ __wt_blkcache_get_or_check(
 			 WT_CLOCKDIFF_NS(time_stop, time_start));
 #endif
             WT_STAT_CONN_INCR(session, block_cache_hits);
-            /*__wt_verbose(session, WT_VERB_BLKCACHE, "block found in cache: "
-			 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64,
-			 (uintmax_t)offset, (uint32_t)size, hash);*/
+            __wt_verbose(session, WT_VERB_BLKCACHE, "block found in cache: "
+			 "offset=%" PRIuMAX ", size=%" PRIu32 ", "
+			 "checksum=%" PRIu32 ", hash=%" PRIu64,
+			 (uintmax_t)offset, (uint32_t)size, checksum, hash);
             return (0);
         }
     }
 
     /* Block not found */
-/*    __wt_verbose(session, WT_VERB_BLKCACHE, "block not found in cache: "
-		 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64,
-		 (uintmax_t)offset, (uint32_t)size, hash); */
+    __wt_verbose(session, WT_VERB_BLKCACHE, "block not found in cache: "
+		 "offset=%" PRIuMAX ", size=%" PRIu32 ", "
+		 "checksum=%" PRIu32 ", hash=%" PRIu64,
+		 (uintmax_t)offset, (uint32_t)size, checksum, hash);
+
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
     WT_STAT_CONN_INCR(session, block_cache_misses);
     return (-1);
@@ -140,8 +140,8 @@ __wt_blkcache_get_or_check(
  *     Put a block into the cache.
  */
 int
-__wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t size, void *data,
-		  bool write)
+__wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
+		  uint32_t checksum, void *data, bool write)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
@@ -175,9 +175,9 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t s
      */
     WT_RET(__wt_blkcache_alloc(session, size, &data_ptr));
 
-    id.fh = fh;
-    id.offset = offset;
-    id.size = size;
+    id.checksum = (uint64_t)checksum;
+    id.offset = (uint64_t)offset;
+    id.size = (uint64_t)size;
     hash = __wt_hash_city64(&id, sizeof(id));
 
     bucket = hash % blkcache->hash_size;
@@ -220,11 +220,11 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t s
 	WT_STAT_CONN_INCRV(session, block_cache_bytes_write, size);
 	WT_STAT_CONN_INCR(session, block_cache_blocks_write);
     }
-    /*
+
     __wt_verbose(session, WT_VERB_BLKCACHE, "block inserted in cache: "
-		 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64,
-		 (uintmax_t)offset, (uint32_t)size, hash);
-    */
+		 "offset=%" PRIuMAX ", size=%" PRIu32 ", "
+		 "checksum=%" PRIu32 ", hash=%" PRIu64,
+		 (uintmax_t)offset, (uint32_t)size, checksum, hash);
     return (0);
 item_exists:
     if (write) {
@@ -233,8 +233,10 @@ item_exists:
 	WT_STAT_CONN_INCR(session, block_cache_blocks_update);
     }
     __wt_verbose(session, WT_VERB_BLKCACHE, "block exists during put: "
-		 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64,
-		 (uintmax_t)offset, (uint32_t)size, hash);
+		 "offset=%" PRIuMAX ", size=%" PRIu32 ", "
+		 "checksum=%" PRIu32 ", hash=%" PRIu64,
+		 (uintmax_t)offset, (uint32_t)size, checksum, hash);
+
 err:
     __wt_blkcache_free(session, data_ptr);
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
@@ -246,7 +248,7 @@ err:
  *     Remove a block from the cache.
  */
 void
-__wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t size)
+__wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32_t checksum)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
@@ -262,9 +264,9 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         return;
 
-    id.fh = fh;
-    id.offset = offset;
-    id.size = size;
+    id.checksum = (uint64_t)checksum;
+    id.offset = (uint64_t)offset;
+    id.size = (uint64_t)size;
     hash = __wt_hash_city64(&id, sizeof(id));
 
     bucket = hash % blkcache->hash_size;

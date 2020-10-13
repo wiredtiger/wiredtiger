@@ -94,10 +94,10 @@ extern int __wt_backup_open(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri)
   WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_blkcache_get_or_check(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset,
-  size_t size, void *data_ptr) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_blkcache_put(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t size,
-  void *data, bool write) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_blkcache_get_or_check(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
+  uint32_t checksum, void *data_ptr) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
+  uint32_t checksum, void *data, bool write) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_addr_invalid(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr,
   size_t addr_size, bool live) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_addr_string(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
@@ -1615,7 +1615,8 @@ extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((nor
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_async_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_backup_destroy(WT_SESSION_IMPL *session);
-extern void __wt_blkcache_remove(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t size);
+extern void __wt_blkcache_remove(
+  WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32_t checksum);
 extern void __wt_block_cache_destroy(WT_SESSION_IMPL *session);
 extern void __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci);
 extern void __wt_block_configure_first_fit(WT_BLOCK *block, bool on);
