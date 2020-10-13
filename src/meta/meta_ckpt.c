@@ -991,6 +991,11 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
         WT_ERR(__wt_metadata_update(session, WT_SYSTEM_OLDEST_URI, buf->data));
     }
 
+    /* Record the base write gen in metadata as part of checkpoint */
+    WT_ERR(__wt_buf_fmt(
+      session, buf, WT_SYSTEM_BASE_WRITE_GEN "=%" PRIu64, S2C(session)->base_write_gen));
+    WT_ERR(__wt_metadata_update(session, WT_SYSTEM_BASE_WRITE_GEN_URI, buf->data));
+
 err:
     __wt_scr_free(session, &buf);
     return (ret);
