@@ -525,7 +525,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      * Initialize to the connection-wide base write generation. Having each session's write
      * generations disjoint (disregarding imports) helps with debugging.
      */
-    btree->write_gen = btree->base_write_gen = WT_MAX(ckpt->write_gen, conn->base_write_gen);
+    btree->write_gen = btree->base_write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
 
     return (0);
 }
