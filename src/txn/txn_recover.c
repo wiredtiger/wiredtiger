@@ -503,9 +503,9 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
         }
 
         /*
-         * Make sure that checkpoint snapshot does not have any unexpected value.
-         * The recovered snapshot array should contain the values between recovered snapshot min and
-         * recovered snapshot max.
+         * Make sure that checkpoint snapshot does not have any unexpected value. The recovered
+         * snapshot array should contain the values between recovered snapshot min and recovered
+         * snapshot max.
          */
         WT_ASSERT(session,
           conn->recovery_ckpt_snapshot_count == counter &&
