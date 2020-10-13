@@ -31,6 +31,7 @@
 
 import os, shutil
 from test_import01 import test_import_base
+from wtscenario import make_scenarios
 
 class test_import08(test_import_base):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
@@ -46,6 +47,10 @@ class test_import08(test_import_base):
               b'\x01\x02ddd\x03\x04', b'\x01\x02eee\x03\x04', b'\x01\x02fff\x03\x04']
     ts = [10*k for k in range(1, len(keys)+1)]
     create_config = 'allocation_size=512,key_format=u,log=(enabled=true),value_format=u'
+    scenarios = make_scenarios([
+        ('file_metadata', dict(repair=False)),
+        ('repair', dict(repair=True)),
+    ])
 
     def test_import_write_gen(self):
         # Make a bunch of files and fill them with data. This has the side effect of allocating a
@@ -115,8 +120,11 @@ class test_import08(test_import_base):
         self.copy_file(self.original_db_file, '.', newdir)
 
         # Contruct the config string.
-        import_config = 'import=(enabled,repair=false,file_metadata=(' + \
-            original_db_file_config + '))'
+        if self.repair:
+            import_config = 'import=(enabled,repair=true)'
+        else:
+            import_config = 'import=(enabled,repair=false,file_metadata=(' + \
+                original_db_file_config + '))'
 
         # Import the file.
         self.session.create(self.uri, import_config)
