@@ -84,8 +84,9 @@ functions:
           fi
           python=python
           echo "python set to $(which $python)"
-          export PYTHONPATH=$(cygpath -w $(pwd)/.libs)
-          (echo "=== FILES ==="; cd ..; find . -type f -print; echo "========")
+          export PYTHONPATH=$(cygpath -w $(pwd)/.libs):$(cygpath -w $(pwd)/../lang/python/wiredtiger):$(cygpath -w $(pwd)/../lang/python)
+
+          #(echo "=== FILES ==="; cd ..; find . -type f -print; echo "========")
         else
           echo "No python virtual env needed on this system"
         fi
@@ -2597,7 +2598,7 @@ buildvariants:
   expansions:
     #python_binary: '/cygdrive/c/python/python37/python.exe'
     python_binary: 'python'
-    test_env_vars: PYTHONPATH=$(cygpath -w $(pwd)/../lang/python/wiredtiger):$(cygpath -w $(pwd)/../lang/python)
+    #test_env_vars: PYTHONPATH=$(cygpath -w $(pwd)/../lang/python/wiredtiger):$(cygpath -w $(pwd)/../lang/python)
   tasks:
     - name: compile
     - name: ".windows_only"
