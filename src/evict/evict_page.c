@@ -545,8 +545,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_DECL_RET;
     WT_PAGE *page;
     uint32_t flags;
-    bool closing, modified;
-    bool snapshot_acquired;
+    bool closing, modified, snapshot_acquired;
+    bool use_snapshot_for_app_thread, is_eviction_thread;
 
     *inmem_splitp = false;
 
@@ -675,63 +675,75 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
             LF_SET(WT_REC_SCRUB);
     }
 
-    /* Acquire a snapshot if coming through eviction thread route. */
+    /*
+     * Acquire a snapshot if coming through the eviction thread route. Also, if we have entered
+     * eviction through application threads and we have a transaction snapshot, we will use our
+     * existing snapshot to evict pages that are not globally visible based on the last_running
+     * transaction. Avoid using snapshots when application transactions are in the final stages of
+     * commit or rollback as they have already released the snapshot. Otherwise, it becomes harder
+     * in the later part of the code to detect updates that belonged to the last running application
+     * transaction.
+     */
 
     /*
      * TODO: We are deliberately not using a snapshot when checkpoint is active. This will ensure
      * that point-in-time checkpoints have a consistent version of data. Remove this condition once
-     * fuzzy transaction ID based checkpoints work is merged.
+     * fuzzy transaction ID based checkpoints work is merged (WT-6673).
      */
-    if (FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD) && !WT_IS_HS(S2BT(session)) &&
-      !conn->txn_global.checkpoint_running) {
-        /*
-         * We rely on the fact that the eviction threads are created with read committed isolation
-         * by default. If this fact doesn't hold anymore in future, we have to force isolation
-         * level.
-         */
-        WT_ASSERT(session, session->txn->isolation == WT_ISO_READ_COMMITTED);
+    use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
+      !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE &&
+      F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
+    is_eviction_thread = FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD);
 
-        /*
-         * Eviction threads do not need to pin anything in the cache. We have a exclusive lock for
-         * the page being evicted so we are sure that the page will always be there while it is
-         * being processed. Therefore, we use snapshot API that doesn't publish shared IDs to the
-         * outside world.
-         */
-        __wt_txn_bump_snapshot(session);
+    /* Make sure that both conditions above are not true at the same time. */
+    WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
 
-        /*
-         * Make sure once more that there is no checkpoint running. A new checkpoint might have
-         * started between previous check and acquiring snapshot. If there is a checkpoint running,
-         * release the checkpoint and fallback to global visibility checks.
-         */
-        if (conn->txn_global.checkpoint_running) {
-            __wt_txn_release_snapshot(session);
-            LF_SET(WT_REC_VISIBLE_ALL);
-        } else {
+    if (!conn->txn_global.checkpoint_running && !WT_IS_HS(S2BT(session)) &&
+      (use_snapshot_for_app_thread || is_eviction_thread)) {
+        if (is_eviction_thread) {
             /*
-             * If we acquired a snapshot for eviction, force the isolation to ensure the snapshot
-             * isn't released when history store cursors are closed.
+             * Eviction threads do not need to pin anything in the cache. We have a exclusive lock
+             * for the page being evicted so we are sure that the page will always be there while it
+             * is being processed. Therefore, we use snapshot API that doesn't publish shared IDs to
+             * the outside world.
              */
-            ++session->txn->forced_iso;
+            __wt_txn_bump_snapshot(session);
             snapshot_acquired = true;
+
+            /*
+             * Make sure once more that there is no checkpoint running. A new checkpoint might have
+             * started between previous check and acquiring snapshot. If there is a checkpoint
+             * running, release the snapshot and fallback to global visibility checks.
+             */
+            if (conn->txn_global.checkpoint_running) {
+                __wt_txn_release_snapshot(session);
+                snapshot_acquired = false;
+            }
         }
+        if (is_eviction_thread && !snapshot_acquired)
+            LF_SET(WT_REC_VISIBLE_ALL);
+        if (use_snapshot_for_app_thread)
+            LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
     } else if (!WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_VISIBLE_ALL);
 
     WT_ASSERT(session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /*
-     * Reconcile the page.
+     * Reconcile the page. Force read-committed isolation level if we are using snapshots for
+     * eviction workers or application threads.
      */
-    ret = __wt_reconcile(session, ref, NULL, flags);
+    if (LF_ISSET(WT_REC_APP_EVICTION_SNAPSHOT) || snapshot_acquired)
+        WT_WITH_TXN_ISOLATION(
+          session, WT_ISO_READ_COMMITTED, ret = __wt_reconcile(session, ref, NULL, flags));
+    else
+        ret = __wt_reconcile(session, ref, NULL, flags);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
 
-    if (snapshot_acquired) {
-        --session->txn->forced_iso;
+    if (snapshot_acquired)
         __wt_txn_release_snapshot(session);
-    }
 
     WT_RET(ret);
 
