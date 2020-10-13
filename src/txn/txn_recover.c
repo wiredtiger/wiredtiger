@@ -832,8 +832,7 @@ done:
      *    checkpoint happened. Anything updates newer than this timestamp must rollback.
      * 3. The history store file was found in the metadata.
      */
-    if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY) &&
-      conn->txn_global.recovery_timestamp != WT_TS_NONE) {
+    if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY)) {
         /* Start the eviction threads for rollback to stable if not already started. */
         if (!eviction_started) {
             WT_ERR(__wt_evict_create(session));
@@ -860,7 +859,10 @@ done:
          * stable.
          */
         conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
-        conn->txn_global.has_stable_timestamp = true;
+        if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
+            conn->txn_global.has_stable_timestamp = true;
+        else
+            conn->txn_global.has_stable_timestamp = false;
 
         __wt_verbose(session, WT_VERB_RTS,
           "Performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
