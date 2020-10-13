@@ -60,8 +60,9 @@ err:
  * __schema_create_collapse --
  *     Discard any configuration information from a schema entry that is not applicable to an
  *     session.create call. For a table URI that contains no named column groups, fold in the
- *     configuration from the implicit column group and its source. For a named column group URI,
- *     fold in its source.
+ *     configuration from the implicit column group and its source. For a named column group or
+ *     index URI, fold in its source. For a table URI that contains named column groups, we
+ *     return ENOTSUP because there is not implicit source.
  */
 static int
 __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc, const char *key,

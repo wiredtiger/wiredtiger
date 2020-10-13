@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 
 # test_metadata04.py
-#    Check metadata create cursors and finding that we turned off log on the table.
+#    Check metadata create cursors with complex tables.
 class test_metadata04(wttest.WiredTigerTestCase):
     # Turn logging on for the database but we will turn logging off for all tables.
     conn_config = 'log=(enabled)'
@@ -50,7 +50,7 @@ class test_metadata04(wttest.WiredTigerTestCase):
         cur.close()
 
     # Test a complex table with column groups and an index.
-    def test_metadata06_idx(self):
+    def test_metadata04_complex(self):
         self.session.create(self.uri,
                             "log=(enabled=false),key_format=S,value_format=SS," +
                             "columns=(key,s0,s1),colgroups=(c1)")
@@ -72,7 +72,7 @@ class test_metadata04(wttest.WiredTigerTestCase):
         cur.close()
 
     # Test a simple table.
-    def xxxtest_metadata06_table(self):
+    def test_metadata04_table(self):
         self.session.create(self.uri, 'log=(enabled=false),key_format=S,value_format=S,')
         self.check_meta(self.uri)
 
