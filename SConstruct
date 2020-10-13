@@ -349,7 +349,7 @@ if GetOption("lang-python"):
 
     swiginstall = pythonEnv.Install('lang/python/wiredtiger/', swiglib)
 
-    Default(swiginstall, copySwig)
+    Default(swiginstall, copySwig1, copySwig2)
 
 # Javap SWIG wrapper for WiredTiger
 enableJava = GetOption("lang-java")
