@@ -52,7 +52,6 @@ class test_txn24(wttest.WiredTigerTestCase):
         table_params = 'key_format=i,value_format=S'
         default_val = 'ABCD' * 60
         new_val = 'YYYY' * 60
-        final_val = 'ZZZZ' * 60
         n_rows = 480000
 
         self.session.create(uri, table_params)

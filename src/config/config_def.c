@@ -135,8 +135,8 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
     "\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
-    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
     "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
     "\"version\",\"write\"]",
     NULL, 0},
@@ -189,6 +189,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction[] = {
     NULL, 0},
   {"name", "string", NULL, NULL, NULL, 0}, {"operation_timeout_ms", "int", NULL, "min=1", NULL, 0},
   {"priority", "int", NULL, "min=-100,max=100", NULL, 0},
+  {"read_before_oldest", "boolean", NULL, NULL, NULL, 0},
   {"read_timestamp", "string", NULL, NULL, NULL, 0},
   {"roundup_timestamps", "category", NULL, NULL,
     confchk_WT_SESSION_begin_transaction_roundup_timestamps_subconfigs, 2},
@@ -596,8 +597,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
     "\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
-    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
     "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
     "\"version\",\"write\"]",
     NULL, 0},
@@ -672,8 +673,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
     "\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
-    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
     "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
     "\"version\",\"write\"]",
     NULL, 0},
@@ -743,8 +744,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
     "\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
-    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
     "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
     "\"version\",\"write\"]",
     NULL, 0},
@@ -814,8 +815,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     ",\"evictserver\",\"fileops\",\"handleops\",\"log\","
     "\"history_store\",\"history_store_activity\",\"lsm\","
     "\"lsm_manager\",\"metadata\",\"mutex\",\"overflow\",\"read\","
-    "\"rebalance\",\"reconcile\",\"recovery\",\"recovery_progress\","
-    "\"rts\",\"salvage\",\"shared_cache\",\"split\",\"temporary\","
+    "\"reconcile\",\"recovery\",\"recovery_progress\",\"rts\","
+    "\"salvage\",\"shared_cache\",\"split\",\"temporary\","
     "\"thread_group\",\"timestamp\",\"transaction\",\"verify\","
     "\"version\",\"write\"]",
     NULL, 0},
@@ -877,9 +878,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     confchk_WT_SESSION_alter, 8},
   {"WT_SESSION.begin_transaction",
     "ignore_prepare=false,isolation=,name=,operation_timeout_ms=0,"
-    "priority=0,read_timestamp=,roundup_timestamps=(prepared=false,"
-    "read=false),sync=",
-    confchk_WT_SESSION_begin_transaction, 8},
+    "priority=0,read_before_oldest=false,read_timestamp=,"
+    "roundup_timestamps=(prepared=false,read=false),sync=",
+    confchk_WT_SESSION_begin_transaction, 9},
   {"WT_SESSION.checkpoint", "drop=,force=false,name=,target=,use_timestamp=true",
     confchk_WT_SESSION_checkpoint, 5},
   {"WT_SESSION.close", "", NULL, 0},
@@ -914,7 +915,6 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "checkpoint_wait=true,force=false,lock_wait=true,"
     "remove_files=true",
     confchk_WT_SESSION_drop, 4},
-  {"WT_SESSION.import", "", NULL, 0},
   {"WT_SESSION.join",
     "bloom_bit_count=16,bloom_false_positives=false,"
     "bloom_hash_count=8,compare=\"eq\",count=,operation=\"and\","
@@ -933,7 +933,6 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.prepare_transaction", "prepare_timestamp=", confchk_WT_SESSION_prepare_transaction,
     1},
   {"WT_SESSION.query_timestamp", "get=read", confchk_WT_SESSION_query_timestamp, 1},
-  {"WT_SESSION.rebalance", "", NULL, 0},
   {"WT_SESSION.reconfigure",
     "cache_cursors=true,ignore_cache_size=false,"
     "isolation=read-committed",
