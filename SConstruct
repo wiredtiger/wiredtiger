@@ -334,11 +334,18 @@ if GetOption("lang-python"):
                       SHLIBSUFFIX=".pyd",
                       LIBS=[wtlib] + wtlibs)
 
-    copySwig = pythonEnv.Command(
-        'lang/python/wiredtiger/__init__.py',
+    # Shuffle the wiredtiger __init__ into place.
+    copySwig1 = pythonEnv.Command(
+        'lang/python/wiredtiger/swig_wiredtiger.py',
         'lang/python/wiredtiger.py',
         Copy('$TARGET', '$SOURCE'))
-    pythonEnv.Depends(copySwig, swiglib)
+    pythonEnv.Depends(copySwig1, swiglib)
+
+    copySwig2 = pythonEnv.Command(
+        'lang/python/wiredtiger/__init__.py',
+        'lang/python/wiredtiger/init.py',
+        Copy('$TARGET', '$SOURCE'))
+    pythonEnv.Depends(copySwig2, swiglib)
 
     swiginstall = pythonEnv.Install('lang/python/wiredtiger/', swiglib)
 

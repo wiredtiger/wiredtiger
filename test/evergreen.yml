@@ -2597,6 +2597,7 @@ buildvariants:
   expansions:
     #python_binary: '/cygdrive/c/python/python37/python.exe'
     python_binary: 'python'
+    test_env_vars: PYTHONPATH=$(cygpath -w $(pwd)/../lang/python/wiredtiger):$(cygpath -w $(pwd)/../lang/python)
   tasks:
     - name: compile
     - name: ".windows_only"
