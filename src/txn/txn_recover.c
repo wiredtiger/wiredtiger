@@ -330,7 +330,7 @@ __txn_log_recover(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LS
      * stop at that LSN.
      */
     if (r->metadata_only)
-        r->max_rec_lsn = *next_lsnp;
+        WT_ASSIGN_LSN(&r->max_rec_lsn, next_lsnp);
     else if (__wt_log_cmp(lsnp, &r->max_rec_lsn) >= 0)
         return (0);
 
@@ -470,6 +470,7 @@ __recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
 
     sys_config = NULL;
     session = r->session;
+
     conn = S2C(session);
     counter = 0;
 
@@ -519,6 +520,36 @@ err:
 }
 
 /*
+ * __recovery_set_ckpt_base_write_gen --
+ *     Set the base write gen as retrieved from the metadata file.
+ */
+static int
+__recovery_set_ckpt_base_write_gen(WT_RECOVERY *r)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    char *sys_config;
+
+    sys_config = NULL;
+    session = r->session;
+
+    /* Search the metadata for checkpoint base write gen information. */
+    WT_ERR_NOTFOUND_OK(
+      __wt_metadata_search(session, WT_SYSTEM_BASE_WRITE_GEN_URI, &sys_config), false);
+    if (sys_config != NULL) {
+        WT_CLEAR(cval);
+        WT_ERR(__wt_config_getones(session, sys_config, WT_SYSTEM_BASE_WRITE_GEN, &cval));
+        if (cval.len != 0)
+            S2C(session)->last_ckpt_base_write_gen = (uint64_t)cval.val;
+    }
+
+err:
+    __wt_free(session, sys_config);
+    return (ret);
+}
+
+/*
  * __recovery_setup_file --
  *     Set up the recovery slot for a file, track the largest file ID, and update the base write gen
  *     based on the file's configuration.
@@ -557,7 +588,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
     else
         WT_RET_MSG(
           r->session, EINVAL, "Failed to parse checkpoint LSN '%.*s'", (int)cval.len, cval.str);
-    r->files[fileid].ckpt_lsn = lsn;
+    WT_ASSIGN_LSN(&r->files[fileid].ckpt_lsn, &lsn);
 
     __wt_verbose(r->session, WT_VERB_RECOVERY,
       "Recovering %s with id %" PRIu32 " @ (%" PRIu32 ", %" PRIu32 ")", uri, fileid, lsn.l.file,
@@ -565,7 +596,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 
     if ((!WT_IS_MAX_LSN(&lsn) && !WT_IS_INIT_LSN(&lsn)) &&
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
-        r->max_ckpt_lsn = lsn;
+        WT_ASSIGN_LSN(&r->max_ckpt_lsn, &lsn);
 
     /* Update the base write gen based on this file's configuration. */
     return (__wt_metadata_update_base_write_gen(r->session, config));
@@ -731,6 +762,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     conn->txn_global.recovery_timestamp = conn->txn_global.meta_ckpt_timestamp = WT_TS_NONE;
 
     F_SET(conn, WT_CONN_RECOVERING);
+    WT_ERR(__recovery_set_ckpt_base_write_gen(&r));
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     WT_ERR(__recovery_setup_file(&r, WT_METAFILE_URI, config));
     WT_ERR(__wt_metadata_cursor_open(session, NULL, &metac));
@@ -793,7 +825,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
              * Start at the last checkpoint LSN referenced in the metadata. If we see the end of a
              * checkpoint while scanning, we will change the full scan to start from there.
              */
-            r.ckpt_lsn = metafile->ckpt_lsn;
+            WT_ASSIGN_LSN(&r.ckpt_lsn, &metafile->ckpt_lsn);
             ret = __wt_log_scan(
               session, &metafile->ckpt_lsn, WT_LOGSCAN_RECOVER_METADATA, __txn_log_recover, &r);
         }
@@ -861,7 +893,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         /*
          * Create the history store as we might need it while applying log records in recovery.
          */
-        WT_ERR(__wt_hs_create(session, cfg));
+        WT_ERR(__wt_hs_open(session, cfg));
     }
 
     /*

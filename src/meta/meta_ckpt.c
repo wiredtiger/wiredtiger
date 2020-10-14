@@ -495,6 +495,27 @@ int
 __wt_meta_ckptlist_get(
   WT_SESSION_IMPL *session, const char *fname, bool update, WT_CKPT **ckptbasep)
 {
+    WT_DECL_RET;
+    char *config;
+
+    config = NULL;
+
+    WT_ERR(__wt_metadata_search(session, fname, &config));
+    WT_ERR(__wt_meta_ckptlist_get_with_config(session, update, ckptbasep, config));
+
+err:
+    __wt_free(session, config);
+    return (ret);
+}
+
+/*
+ * __wt_meta_ckptlist_get_with_config --
+ *     Provided a metadata config, load all available checkpoint information for a file.
+ */
+int
+__wt_meta_ckptlist_get_with_config(
+  WT_SESSION_IMPL *session, bool update, WT_CKPT **ckptbasep, const char *config)
+{
     WT_CKPT *ckpt, *ckptbase;
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM k, v;
@@ -502,17 +523,12 @@ __wt_meta_ckptlist_get(
     WT_DECL_RET;
     size_t allocated, slot;
     uint64_t most_recent;
-    char *config;
 
     *ckptbasep = NULL;
 
     ckptbase = NULL;
     allocated = slot = 0;
-    config = NULL;
     conn = S2C(session);
-
-    /* Retrieve the metadata information for the file. */
-    WT_RET(__wt_metadata_search(session, fname, &config));
 
     /* Load any existing checkpoints into the array. */
     if ((ret = __wt_config_getones(session, config, "checkpoint", &v)) == 0) {
@@ -571,7 +587,6 @@ __wt_meta_ckptlist_get(
 err:
         __wt_meta_ckptlist_free(session, &ckptbase);
     }
-    __wt_free(session, config);
 
     return (ret);
 }
@@ -625,10 +640,10 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->ta.oldest_start_ts = (uint64_t)a.val;
 
-    ret = __wt_config_subgets(session, v, "oldest_start_txn", &a);
+    ret = __wt_config_subgets(session, v, "newest_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
     if (ret != WT_NOTFOUND && a.len != 0)
-        ckpt->ta.oldest_start_txn = (uint64_t)a.val;
+        ckpt->ta.newest_txn = (uint64_t)a.val;
 
     ret = __wt_config_subgets(session, v, "newest_start_durable_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
@@ -772,12 +787,12 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         /* Use PRId64 formats: WiredTiger's configuration code handles signed 8B values. */
         WT_RET(__wt_buf_catfmt(session, buf,
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
-          ",newest_start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64
-          ",oldest_start_txn=%" PRId64 ",newest_stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64
-          ",newest_stop_txn=%" PRId64 ",prepare=%d,write_gen=%" PRId64 ")",
+          ",newest_start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",newest_txn=%" PRId64
+          ",newest_stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64
+          ",prepare=%d,write_gen=%" PRId64 ")",
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
-          (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.oldest_start_txn,
+          (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.newest_txn,
           (int64_t)ckpt->ta.newest_stop_durable_ts, (int64_t)ckpt->ta.newest_stop_ts,
           (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare, (int64_t)ckpt->write_gen));
     }
@@ -993,6 +1008,11 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
         WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "%s", txn->snapshot[i], "]"));
         WT_ERR(__wt_metadata_update(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, buf->data));
     }
+    
+    /* Record the base write gen in metadata as part of checkpoint */
+    WT_ERR(__wt_buf_fmt(
+      session, buf, WT_SYSTEM_BASE_WRITE_GEN "=%" PRIu64, S2C(session)->base_write_gen));
+    WT_ERR(__wt_metadata_update(session, WT_SYSTEM_BASE_WRITE_GEN_URI, buf->data));
 
 err:
     __wt_scr_free(session, &buf);
