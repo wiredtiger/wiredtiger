@@ -457,20 +457,17 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
  *     Set the checkpoint snapshot details as retrieved from the metadata file.
  */
 static int
-__recovery_set_checkpoint_snapshot(WT_RECOVERY *r)
+__recovery_set_checkpoint_snapshot(WT_SESSION_IMPL *session)
 {
     WT_CONFIG list;
     WT_CONFIG_ITEM cval;
     WT_CONFIG_ITEM k;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
     uint8_t counter;
     char *sys_config;
 
     sys_config = NULL;
-    session = r->session;
-
     conn = S2C(session);
     counter = 0;
 
@@ -763,6 +760,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 
     F_SET(conn, WT_CONN_RECOVERING);
     WT_ERR(__recovery_set_ckpt_base_write_gen(&r));
+    WT_ERR(__recovery_set_checkpoint_snapshot(session));
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     WT_ERR(__recovery_setup_file(&r, WT_METAFILE_URI, config));
     WT_ERR(__wt_metadata_cursor_open(session, NULL, &metac));
@@ -921,7 +919,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 done:
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
     WT_ERR(__recovery_set_oldest_timestamp(&r));
-    WT_ERR(__recovery_set_checkpoint_snapshot(&r));
 
     /*
      * Perform rollback to stable only when the following conditions met.

@@ -950,7 +950,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t oldest_timestamp;
-    uint32_t i;
+    uint32_t snap_count;
     char hex_timestamp[WT_TS_HEX_STRING_SIZE];
 
     txn_global = &S2C(session)->txn_global;
@@ -1002,13 +1002,13 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
                                       "," WT_SYSTEM_CKPT_SNAPSHOT "=[",
           txn->snap_min, txn->snap_max, txn->snapshot_count));
 
-        for (i = 0; i < txn->snapshot_count - 1; ++i)
-            WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "%s", txn->snapshot[i], ","));
+        for (snap_count = 0; snap_count < txn->snapshot_count - 1; ++snap_count)
+            WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "%s", txn->snapshot[snap_count], ","));
 
-        WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "%s", txn->snapshot[i], "]"));
+        WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "%s", txn->snapshot[snap_count], "]"));
         WT_ERR(__wt_metadata_update(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, buf->data));
     }
-    
+
     /* Record the base write gen in metadata as part of checkpoint */
     WT_ERR(__wt_buf_fmt(
       session, buf, WT_SYSTEM_BASE_WRITE_GEN "=%" PRIu64, S2C(session)->base_write_gen));
