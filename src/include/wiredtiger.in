@@ -5476,15 +5476,15 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_STOP_TXN	1343
 /*!
+ * reconciliation: pages written including an aggregated newest
+ * transaction ID
+ */
+#define	WT_STAT_CONN_REC_TIME_AGGR_NEWEST_TXN		1344
+/*!
  * reconciliation: pages written including an aggregated oldest start
  * timestamp
  */
-#define	WT_STAT_CONN_REC_TIME_AGGR_OLDEST_START_TS	1344
-/*!
- * reconciliation: pages written including an aggregated oldest start
- * transaction ID
- */
-#define	WT_STAT_CONN_REC_TIME_AGGR_OLDEST_START_TXN	1345
+#define	WT_STAT_CONN_REC_TIME_AGGR_OLDEST_START_TS	1345
 /*! reconciliation: pages written including an aggregated prepare */
 #define	WT_STAT_CONN_REC_TIME_AGGR_PREPARED		1346
 /*! reconciliation: pages written including at least one prepare state */
@@ -6261,15 +6261,15 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_STOP_TXN	2163
 /*!
+ * reconciliation: pages written including an aggregated newest
+ * transaction ID
+ */
+#define	WT_STAT_DSRC_REC_TIME_AGGR_NEWEST_TXN		2164
+/*!
  * reconciliation: pages written including an aggregated oldest start
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2164
-/*!
- * reconciliation: pages written including an aggregated oldest start
- * transaction ID
- */
-#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TXN	2165
+#define	WT_STAT_DSRC_REC_TIME_AGGR_OLDEST_START_TS	2165
 /*! reconciliation: pages written including an aggregated prepare */
 #define	WT_STAT_DSRC_REC_TIME_AGGR_PREPARED		2166
 /*! reconciliation: pages written including at least one prepare */
