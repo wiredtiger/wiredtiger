@@ -919,7 +919,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 done:
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
     WT_ERR(__recovery_set_oldest_timestamp(&r));
-
     /*
      * Perform rollback to stable only when the following conditions met.
      * 1. The connection is not read-only. A read-only connection expects that there shouldn't be
