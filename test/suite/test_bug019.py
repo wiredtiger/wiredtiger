@@ -57,18 +57,23 @@ class test_bug019(wttest.WiredTigerTestCase):
 
     def populate(self, nentries, count):
         c = self.session.open_cursor(self.uri, None, None)
+        min_entries = nentries // 10
         for i in range(0, nentries):
             # Make the values about 2000 bytes. When called with 5000 records
             # that's about 10MB of data, generating 100 log files used plus more for overhead.
             # Typically the huge traffic causes the preallocation statistic to
             # increase.  We'll quit when it does, as that's our goal here.
+            # We wait for a minimum of 10% of the inserts before quitting because
+            # we want to make sure this function consumes some log files. We
+            # don't know when the internal log server thread will run and update
+            # the statistic and we don't want to short-circuit without enough work.
             # For the initial populate, we'll insert up to 10x as many records,
             # so up to 1000 log files.
             #
             # Make the keys unique for each pass.
             key = str(count) + " I:" + str(i)
             c[key] = "abcde" * 400
-            if i % 50 == 0:
+            if i > min_entries and i % 50 == 0:
                 prealloc = self.get_prealloc_stat()
                 if prealloc > self.max_prealloc:
                     self.pr("Iter {}: Updating max_prealloc from {} to {} after {} inserts".
