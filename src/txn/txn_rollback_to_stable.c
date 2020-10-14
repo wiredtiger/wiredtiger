@@ -1212,8 +1212,6 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         WT_ERR(ret);
 
         if (F_ISSET(S2C(session), WT_CONN_RECOVERING) && txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE) {
-        //if (F_ISSET(S2C(session), WT_CONN_RECOVERING) && txn_global->stable_timestamp == WT_TS_NONE) {
-            //printf ("===== Ravi Skip RTS stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE ===== \n");
             __wt_verbose(session, WT_VERB_RTS,
             "%s","Skip rollback to stable because stable timestamp is 0");
             WT_TRET(__wt_session_release_dhandle(session));
@@ -1259,8 +1257,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    //if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING) && txn_global->stable_timestamp == WT_TS_NONE)
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         WT_ERR(__rollback_to_stable_hs_final_pass(session, rollback_timestamp));
 
 err:
