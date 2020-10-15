@@ -61,8 +61,8 @@ err:
  *     Discard any configuration information from a schema entry that is not applicable to an
  *     session.create call. For a table URI that contains no named column groups, fold in the
  *     configuration from the implicit column group and its source. For a named column group or
- *     index URI, fold in its source. For a table URI that contains named column groups, we
- *     return ENOTSUP because there is not implicit source.
+ *     index URI, fold in its source. For a table URI that contains named column groups, we return
+ *     only the table portion.
  */
 static int
 __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc, const char *key,
@@ -87,8 +87,10 @@ __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc, cons
         WT_RET(__wt_config_getones(session, value, "colgroups", &cgconf));
 
         __wt_config_subinit(session, &cparser, &cgconf);
-        if ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
-            WT_RET_MSG(session, ENOTSUP, "Cannot get creation metadata on complex table");
+        if ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
+            firstcfg = cfg;
+            goto skip;
+        }
         WT_RET_NOTFOUND_OK(ret);
 
         c = mdc->create_cursor;
@@ -115,6 +117,7 @@ __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc, cons
 
     firstcfg = cfg;
     *--firstcfg = WT_CONFIG_BASE(session, WT_SESSION_create);
+skip:
     WT_ERR(__wt_config_collapse(session, firstcfg, value_ret));
 
 err:

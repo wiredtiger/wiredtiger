@@ -35,19 +35,22 @@ class test_metadata04(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled)'
     uri = 'table:metadata04'
 
-    def check_meta(self, uri):
+    def check_meta(self, uri, check_log):
         cur = self.session.open_cursor('metadata:create', None, None)
         cur.set_key(uri)
         cur.search()
         meta = cur.get_value()
+        cur.close()
         self.pr("======== " +  uri)
         self.pr(meta)
+        if not check_log:
+            return
+
         if meta.find('log=(enabled=false') == -1:
             self.pr(uri + " FAIL: " + meta)
         else:
             self.pr(uri + " SUCCESS")
         self.assertTrue(meta.find('log=(enabled=false)') != -1)
-        cur.close()
 
     # Test a complex table with column groups and an index.
     def test_metadata04_complex(self):
@@ -59,22 +62,14 @@ class test_metadata04(wttest.WiredTigerTestCase):
         self.session.create("colgroup:metadata04:c1", "log=(enabled=false),columns=(s0,s1)")
 
         # Check that we can see that logging on the index and colgroup tables is false.
-        self.check_meta("colgroup:metadata04:c1")
-        self.check_meta("index:metadata04:s0")
-        # Currently it is not clear what the create response should be for a complex
-        # table URI should be. Until someone needs it, we're leaving it unsupported.
-        cur = self.session.open_cursor('metadata:create', None, None)
-        cur.set_key(self.uri)
-        self.pr("=== " +  self.uri + " === Expect ENOTSUP")
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: cur.search(),
-            '/Operation not supported/')
-        cur.close()
+        self.check_meta("colgroup:metadata04:c1", True)
+        self.check_meta("index:metadata04:s0", True)
+        self.check_meta(self.uri, False)
 
     # Test a simple table.
     def test_metadata04_table(self):
         self.session.create(self.uri, 'log=(enabled=false),key_format=S,value_format=S,')
-        self.check_meta(self.uri)
+        self.check_meta(self.uri, True)
 
 if __name__ == '__main__':
     wttest.run()
