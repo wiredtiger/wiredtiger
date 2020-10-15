@@ -729,6 +729,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     WT_ASSERT(session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
+    /* Stats to track the number of evictions triggered during checkpoint is in progress. */
+    if (conn->txn_global.checkpoint_running)
+        WT_STAT_CONN_INCR(session, cache_eviction_inparallel_with_checkpoint);
+
     /*
      * Reconcile the page. Force read-committed isolation level if we are using snapshots for
      * eviction workers or application threads.
