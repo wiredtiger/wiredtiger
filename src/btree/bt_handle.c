@@ -522,8 +522,14 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT); /* Checkpoint generation */
 
     /*
-     * Initialize to the connection-wide base write generation. Having each session's write
-     * generations disjoint (disregarding imports) helps with debugging.
+     * In the regular case, we'll be initializing to the connection-wide base write generation since
+     * this is the largest of all btree write generations from the previous run. This has the nice
+     * property of ensuring that the range of write generations used by consecutive runs do not
+     * overlap which aids with debugging.
+     *
+     * In the import case, the btree write generation from the last run may actually be ahead of the
+     * connection-wide base write generation. In that case, we should initialize our write gen just
+     * ahead of our btree specific write generation.
      */
     btree->write_gen = btree->base_write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
 
