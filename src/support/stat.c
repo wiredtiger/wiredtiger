@@ -878,7 +878,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: bytes written from cache",
   "cache: cache overflow score",
   "cache: checkpoint blocked page eviction",
-  "cache: eviction and checkpoint operations running in parallel",
   "cache: eviction calls to get a page",
   "cache: eviction calls to get a page found queue empty",
   "cache: eviction calls to get a page found queue empty after locking",
@@ -973,6 +972,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: page written requiring history store records",
   "cache: pages currently held in the cache",
   "cache: pages evicted by application threads",
+  "cache: pages evicted in parallel with checkpoint",
   "cache: pages queued for eviction",
   "cache: pages queued for eviction post lru sorting",
   "cache: pages queued for urgent eviction",
@@ -1400,7 +1400,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_bytes_write = 0;
     /* not clearing cache_lookaside_score */
     stats->cache_eviction_checkpoint = 0;
-    stats->cache_eviction_inparallel_with_checkpoint = 0;
     stats->cache_eviction_get_ref = 0;
     stats->cache_eviction_get_ref_empty = 0;
     stats->cache_eviction_get_ref_empty2 = 0;
@@ -1490,6 +1489,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write_hs = 0;
     /* not clearing cache_pages_inuse */
     stats->cache_eviction_app = 0;
+    stats->cache_eviction_pages_in_parallel_with_checkpoint = 0;
     stats->cache_eviction_pages_queued = 0;
     stats->cache_eviction_pages_queued_post_lru = 0;
     stats->cache_eviction_pages_queued_urgent = 0;
@@ -1888,8 +1888,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
     to->cache_lookaside_score += WT_STAT_READ(from, cache_lookaside_score);
     to->cache_eviction_checkpoint += WT_STAT_READ(from, cache_eviction_checkpoint);
-    to->cache_eviction_inparallel_with_checkpoint +=
-      WT_STAT_READ(from, cache_eviction_inparallel_with_checkpoint);
     to->cache_eviction_get_ref += WT_STAT_READ(from, cache_eviction_get_ref);
     to->cache_eviction_get_ref_empty += WT_STAT_READ(from, cache_eviction_get_ref_empty);
     to->cache_eviction_get_ref_empty2 += WT_STAT_READ(from, cache_eviction_get_ref_empty2);
@@ -1993,6 +1991,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_write_hs += WT_STAT_READ(from, cache_write_hs);
     to->cache_pages_inuse += WT_STAT_READ(from, cache_pages_inuse);
     to->cache_eviction_app += WT_STAT_READ(from, cache_eviction_app);
+    to->cache_eviction_pages_in_parallel_with_checkpoint +=
+      WT_STAT_READ(from, cache_eviction_pages_in_parallel_with_checkpoint);
     to->cache_eviction_pages_queued += WT_STAT_READ(from, cache_eviction_pages_queued);
     to->cache_eviction_pages_queued_post_lru +=
       WT_STAT_READ(from, cache_eviction_pages_queued_post_lru);

@@ -333,7 +333,6 @@ struct __wt_connection_stats {
     int64_t cache_bytes_write;
     int64_t cache_lookaside_score;
     int64_t cache_eviction_checkpoint;
-    int64_t cache_eviction_inparallel_with_checkpoint;
     int64_t cache_eviction_get_ref;
     int64_t cache_eviction_get_ref_empty;
     int64_t cache_eviction_get_ref_empty2;
@@ -423,6 +422,7 @@ struct __wt_connection_stats {
     int64_t cache_write_hs;
     int64_t cache_pages_inuse;
     int64_t cache_eviction_app;
+    int64_t cache_eviction_pages_in_parallel_with_checkpoint;
     int64_t cache_eviction_pages_queued;
     int64_t cache_eviction_pages_queued_post_lru;
     int64_t cache_eviction_pages_queued_urgent;
