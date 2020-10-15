@@ -22,7 +22,7 @@ cd `git rev-parse --show-toplevel` || exit 1
 export PATH="${PWD}/dist":$PATH
 
 # Ensure that we have the correct version of clang-format.
-clang_format_version="3.8.0"
+clang_format_version>="3.8.0"
 clang-format --version | grep "version $clang_format_version" >/dev/null 2>&1
 if test $? -ne 0; then
 	download_clang_format
