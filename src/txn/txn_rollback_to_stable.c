@@ -1207,7 +1207,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
 
         if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
-          txn_global->stable_timestamp == WT_TS_NONE) {
+          txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE) {
             __wt_verbose(
               session, WT_VERB_RTS, "%s", "Skip rollback to stable because stable timestamp is 0");
             continue;
