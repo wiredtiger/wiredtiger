@@ -140,7 +140,6 @@ class test_schema08(wttest.WiredTigerTestCase, suite_subprocess):
         # Make an initial copy as well as a copy for each LSN we save.
         # Truncate the log to the appropriate offset as we make each copy.
         olddir = "."
-        errfile="errfile.txt"
         for lsn in self.lsns:
             newdir = self.backup_pfx + str(lsn)
             outfile = newdir + '.txt'
