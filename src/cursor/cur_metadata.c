@@ -80,9 +80,9 @@ __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc, cons
     c = NULL;
     if (key != NULL && WT_PREFIX_SKIP(key, "table:")) {
         /*
-         * Check if the table has declared column groups. If it does, return ENOTSUP. One can get
-         * the creation metadata for an index or column group table itself, but it is not defined
-         * what that is for a complex table URI.
+         * Check if the table has declared column groups. If it does, return just the table info.
+         * One can get the creation metadata for an index or column group table itself or for simple
+         * tables.
          */
         WT_RET(__wt_config_getones(session, value, "colgroups", &cgconf));
 

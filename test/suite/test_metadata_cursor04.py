@@ -46,11 +46,12 @@ class test_metadata04(wttest.WiredTigerTestCase):
         if not check_log:
             return
 
-        if meta.find('log=(enabled=false') == -1:
+        log_false = meta.find('log=(enabled=false)')
+        if log_false == -1:
             self.pr(uri + " FAIL: " + meta)
         else:
             self.pr(uri + " SUCCESS")
-        self.assertTrue(meta.find('log=(enabled=false)') != -1)
+        self.assertTrue(log_false != -1)
 
     # Test a complex table with column groups and an index.
     def test_metadata04_complex(self):
