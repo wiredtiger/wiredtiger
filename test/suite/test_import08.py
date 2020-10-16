@@ -29,7 +29,7 @@
 # test_import08.py
 # Check that transaction ids from imported files are ignored regardless of write generation.
 
-import os, shutil
+import os, re, shutil
 from test_import01 import test_import_base
 from wtscenario import make_scenarios
 
@@ -51,6 +51,19 @@ class test_import08(test_import_base):
         ('file_metadata', dict(repair=False)),
         ('repair', dict(repair=True)),
     ])
+
+    def parse_write_gen(self, config):
+        # The search string will look like: 'write_gen=<num>'.
+        # Just reverse the string and take the digits from the back until we hit '='.
+        write_gen = re.search("write_gen=\d+", config)
+        self.assertTrue(write_gen is not None)
+        write_gen_str = str()
+        for c in reversed(write_gen.group(0)):
+            if not c.isdigit():
+                self.assertEqual(c, '=')
+                break
+            write_gen_str = c + write_gen_str
+        return int(write_gen_str)
 
     def test_import_write_gen(self):
         # Make a bunch of files and fill them with data. This has the side effect of allocating a
@@ -131,6 +144,17 @@ class test_import08(test_import_base):
 
         # Verify object.
         self.session.verify(self.uri)
+
+        # Check the write generation of the new table.
+        #
+        # The important thing to check is that it is greater than 1 (the current connection-wide
+        # base write gen).
+        c = self.session.open_cursor('metadata:')
+        original_db_file_config = c[self.uri]
+        c.close()
+        write_gen = self.parse_write_gen(original_db_file_config)
+        self.printVerbose(3, 'IMPORTED WRITE GEN: {}'.format(write_gen))
+        self.assertGreater(write_gen, 1)
 
         # Check that the values are all visible.
         #
