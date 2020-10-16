@@ -1205,18 +1205,19 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             WT_ERR_NOTFOUND_OK(ret, false);
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
+
+        if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+          txn_global->stable_timestamp == WT_TS_NONE) {
+            __wt_verbose(
+              session, WT_VERB_RTS, "%s", "Skip rollback to stable because stable timestamp is 0");
+            continue;
+        }
+
         ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
         /* Ignore performing rollback to stable on files that don't exist. */
         if (ret == ENOENT)
             continue;
         WT_ERR(ret);
-
-        if (F_ISSET(S2C(session), WT_CONN_RECOVERING) && txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE) {
-            __wt_verbose(session, WT_VERB_RTS,
-            "%s","Skip rollback to stable because stable timestamp is 0");
-            WT_TRET(__wt_session_release_dhandle(session));
-            continue;
-        }
 
         /*
          * The rollback operation should be performed on this file based on the following:
