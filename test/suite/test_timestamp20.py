@@ -91,7 +91,7 @@ class test_timestamp20(wttest.WiredTigerTestCase):
     #
     # Corruptions to string types may go undetected since non-ASCII characters won't be included in
     # the conversion to a Python string.
-    def test_timestamp20_modifies(self):
+    def test_timestamp20_modify(self):
         uri = 'table:test_timestamp20'
         self.session.create(uri, 'key_format=S,value_format=S')
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
