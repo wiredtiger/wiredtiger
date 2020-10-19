@@ -129,7 +129,7 @@ class test_timestamp20(wttest.WiredTigerTestCase):
         old_reader_session.begin_transaction('read_timestamp=' + timestamp_str(30))
 
         # Now apply the last modify.
-        # This will be the end of the chain.
+        # This will be the end of the chain of modifies.
         for i in range(1, 10000):
             self.session.begin_transaction()
             cursor.set_key(str(i))
