@@ -1012,15 +1012,19 @@ __hs_delete_key_from_pos(
 {
     WT_CURSOR *insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
+    WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
     WT_HS_TIME_POINT start_time_point, stop_time_point;
     WT_ITEM hs_key;
     WT_UPDATE *upd;
-    wt_timestamp_t hs_start_ts;
-    uint64_t hs_counter;
+    wt_timestamp_t durable_timestamp, hs_start_ts, hs_stop_durable_ts;
+    uint64_t hs_counter, upd_type_full;
     uint32_t hs_btree_id;
     int cmp;
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
+
+    /* Allocate buffer for the history store value. */
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     insert_cursor = NULL;
@@ -1054,6 +1058,9 @@ __hs_delete_key_from_pos(
             WT_ERR(ret);
         }
 
+        WT_ERR(hs_cursor->get_value(
+            hs_cursor, &hs_stop_durable_ts, &durable_timestamp, &upd_type_full, hs_value));
+
         start_time_point.ts = start_time_point.durable_ts = WT_TS_NONE;
         start_time_point.txnid = hs_cbt->upd_value->tw.start_txn;
 
@@ -1063,7 +1070,7 @@ __hs_delete_key_from_pos(
         /* Reinsert entry with zero timestamp. */
         hs_counter ++;
         while ((ret = __hs_insert_record_with_btree_int(session, insert_cursor, btree_id, &hs_key,
-                  WT_UPDATE_STANDARD, &hs_cursor->value, &start_time_point, &stop_time_point,
+                  WT_UPDATE_STANDARD, hs_value, &start_time_point, &stop_time_point,
                   hs_counter)) == WT_RESTART)
             ;
         WT_ERR(ret);
@@ -1088,6 +1095,7 @@ __hs_delete_key_from_pos(
         return (0);
 err:
     __wt_free(session, upd);
+    __wt_scr_free(session, &hs_value);
     if (insert_cursor != NULL)
         insert_cursor->close(insert_cursor);
     return (ret);

@@ -72,6 +72,7 @@ class test_hs17(wttest.WiredTigerTestCase):
 
         # Assert we can see a value
         self.assertEqual(cursor2.search(), 0)
+        session2.breakpoint()
         val1 = cursor2.get_value()
         cursor2.reset()
 
@@ -93,11 +94,12 @@ class test_hs17(wttest.WiredTigerTestCase):
 
         cursor2.set_key(str(0))
         # Given the bug exists this will return WT_NOTFOUND.
-
-        self.assertEqual(cursor2.search(), 0)
         session2.breakpoint()
+        self.assertEqual(cursor2.search(), 0)
         val2 = cursor2.get_value()
         self.assertEqual(val1, val2)
+        session2.breakpoint()
+
         session2.rollback_transaction()
 
         # Starting a new transaction will let us a see a value again.
