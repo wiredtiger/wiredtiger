@@ -48,13 +48,13 @@ rectangle "**WiredTiger Engine**                                                
   rectangle "[[#component-dhandle dhandle/\n Btree]]" as btree
   rectangle " Row\n storage" as row
   rectangle " Column\n storage" as column
-  rectangle "History" as history
+  rectangle "History\n Store" as history
   rectangle "Snapshots" as snapshot
   rectangle "Cache" as cache
   rectangle "Eviction" as evict
 
   together {
-    rectangle "  Block\n management" as block
+    rectangle "  Block\n Manager" as block
     file "__________" as SPACE_log
     rectangle "Logging" as log
     file "___" as SPACE_log2
@@ -88,13 +88,12 @@ btree -down-> column
 meta -up-> cursor
 ' The hidden arrow helps our boxes to line up in a better way.
 meta -[hidden]right-> btree
-history -[hidden]right-> cache
 cursor -[hidden]right-> txn
 txn -down-> snapshot
 row -down-> cache
 column -down-> cache
-row -down-> history
-column -down-> history
+cache -down-> history
+evict -down-> history
 history -up-> cursor
 snapshot -down-> evict
 cache -right-> evict
