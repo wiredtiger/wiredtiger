@@ -1139,7 +1139,7 @@ static int
 __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
 {
     WT_CONFIG ckptconf;
-    WT_CONFIG_ITEM cval, durableval, key;
+    WT_CONFIG_ITEM cval, value, key;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
@@ -1148,7 +1148,9 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
     bool durable_ts_found, prepared_updates;
+    size_t addr_size;
 
+    addr_size = 0;
     txn_global = &S2C(session)->txn_global;
 
     /*
@@ -1183,33 +1185,43 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
         __wt_config_subinit(session, &ckptconf, &cval);
         for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
-            ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &durableval);
+            ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &value);
             if (ret == 0) {
                 newest_start_durable_ts =
-                  WT_MAX(newest_start_durable_ts, (wt_timestamp_t)durableval.val);
+                  WT_MAX(newest_start_durable_ts, (wt_timestamp_t)value.val);
                 durable_ts_found = true;
             }
             WT_ERR_NOTFOUND_OK(ret, false);
-            ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &durableval);
+            ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
             if (ret == 0) {
-                newest_stop_durable_ts =
-                  WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)durableval.val);
+                newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
                 durable_ts_found = true;
             }
             WT_ERR_NOTFOUND_OK(ret, false);
-            ret = __wt_config_subgets(session, &cval, "prepare", &durableval);
+            ret = __wt_config_subgets(session, &cval, "prepare", &value);
             if (ret == 0) {
-                if (durableval.val)
+                if (value.val)
                     prepared_updates = true;
             }
+            WT_ERR_NOTFOUND_OK(ret, false);
+            ret = __wt_config_subgets(session, &cval, "addr", &value);
+            if (ret == 0)
+                addr_size = value.len;
             WT_ERR_NOTFOUND_OK(ret, false);
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
 
-        if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
-          txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE) {
-            __wt_verbose(
-              session, WT_VERB_RTS, "%s", "Skip rollback to stable because stable timestamp is 0");
+        /*
+         * The rollback to stable will be skipped for any of the following.
+         * 1. If the checkpoint address length is 0.
+         * 2. If stable timestamp is not set and the table is having timestamp updates.
+         *
+         */
+        if (addr_size == 0 ||
+          (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+            txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE)) {
+            __wt_verbose(session, WT_VERB_RTS, "%s skip rollback to stable because %s", uri,
+              addr_size == 0 ? " checkpoint address length is 0" : "stable timestamp is 0");
             continue;
         }
 

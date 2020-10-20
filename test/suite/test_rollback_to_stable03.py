@@ -117,11 +117,14 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
         if self.in_memory:
+            # Check that the hs removed, pages visited and updates aborted are 0 without checkpoint.
             self.assertEqual(hs_removed, 0)
+            self.assertEqual(upd_aborted, 0)
+            self.assertEqual(pages_visited, 0)
         else:
             self.assertEqual(hs_removed, nrows)
-        self.assertEqual(upd_aborted, nrows)
-        self.assertGreater(pages_visited, 0)
+            self.assertEqual(upd_aborted, nrows)
+            self.assertGreater(pages_visited, 0)
 
 if __name__ == '__main__':
     wttest.run()

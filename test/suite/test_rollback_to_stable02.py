@@ -105,8 +105,15 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
             self.session.checkpoint()
 
         self.conn.rollback_to_stable()
-        # Check that the new updates are only seen after the update timestamp.
-        self.check(valueb, uri, nrows, 40)
+        if self.in_memory:
+            # Check that the old updates are only seen after the update timestamp
+            # without checkpoint.
+            self.check(valued, uri, nrows, 40)
+        else:
+            # Check that the new updates are only seen after the update timestamp
+            # after checkpoint.
+            self.check(valueb, uri, nrows, 40)
+
         self.check(valueb, uri, nrows, 20)
         self.check(valuea, uri, nrows, 10)
 
@@ -119,11 +126,16 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
         stat_cursor.close()
 
+        if self.in_memory:
+            # Check that the pages visited and updates aborted are 0 without checkpoint.
+            self.assertEqual(pages_visited, 0)
+            self.assertEqual(upd_aborted, 0)
+        else:
+            self.assertGreater(pages_visited, 0)
+            self.assertGreaterEqual(upd_aborted, nrows * 2)
         self.assertEqual(calls, 1)
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
-        self.assertGreater(pages_visited, 0)
-        self.assertGreaterEqual(upd_aborted, nrows * 2)
 
 if __name__ == '__main__':
     wttest.run()

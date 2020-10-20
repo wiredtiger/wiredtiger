@@ -133,7 +133,10 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
 
         # Check that the correct data is seen at and after the stable timestamp.
         self.check(value_modQ, uri, nrows, 30)
-        self.check(value_modQ, uri, nrows, 150)
+        if self.in_memory:
+            self.check(value_modZ, uri, nrows, 150)
+        else:
+            self.check(value_modQ, uri, nrows, 150)
         self.check(value_a, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
@@ -148,13 +151,14 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         self.assertEqual(calls, 1)
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
-        self.assertGreater(pages_visited, 0)
         if self.in_memory:
-            self.assertGreaterEqual(upd_aborted, nrows * 11)
+            self.assertEqual(pages_visited, 0)
+            self.assertGreaterEqual(upd_aborted, 0)
             self.assertGreaterEqual(hs_removed, 0)
         else:
             self.assertGreaterEqual(upd_aborted, 0)
             self.assertGreaterEqual(hs_removed, nrows * 11)
+            self.assertGreater(pages_visited, 0)
 
 if __name__ == '__main__':
     wttest.run()
