@@ -2343,8 +2343,9 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
      *
      * FIXME-WT-6037: This isn't reasonable and needs a better fix.
      */
-    if (!WT_IS_METADATA(S2BT(session)->dhandle) && !F_ISSET(conn, WT_CONN_IN_MEMORY) &&
-      !F_ISSET(session, WT_SESSION_NO_RECONCILE) && session != conn->default_session) {
+    if ((session->dhandle == NULL || !WT_IS_METADATA(S2BT(session)->dhandle)) &&
+      !F_ISSET(conn, WT_CONN_IN_MEMORY) && !F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
+      session != conn->default_session) {
         WT_ERR(__wt_hs_cursor_open(session));
         WT_ERR(__wt_hs_cursor_close(session));
     }
