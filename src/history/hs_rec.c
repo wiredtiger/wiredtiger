@@ -157,12 +157,11 @@ err:
 static int
 __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_HS_TIME_POINT *stop_time_point, bool clear_hs)
+  WT_HS_TIME_POINT *start_time_point, WT_HS_TIME_POINT *stop_time_point, bool clear_hs)
 {
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
-    WT_HS_TIME_POINT start_time_point;
     wt_timestamp_t hs_start_ts;
     uint64_t counter, hs_counter;
     uint32_t hs_btree_id;
@@ -229,13 +228,9 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
               session, cursor, btree, key, upd->start_ts, &counter, srch_key));
     }
 
-    start_time_point.ts = upd->start_ts;
-    start_time_point.durable_ts = upd->durable_ts;
-    start_time_point.txnid = upd->txnid;
-
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_insert_record_with_btree_int(session, cursor, btree->id, key, type, hs_value,
-              &start_time_point, stop_time_point, counter)) == WT_RESTART)
+              start_time_point, stop_time_point, counter)) == WT_RESTART)
         WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
     WT_ERR(ret);
 
@@ -285,15 +280,15 @@ err:
 static int
 __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, const WT_ITEM *key,
   const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_HS_TIME_POINT *stop_time_point, bool clear_hs)
+  WT_HS_TIME_POINT *start_time_point, WT_HS_TIME_POINT *stop_time_point, bool clear_hs)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     WT_WITH_BTREE(session, CUR2BT(cbt),
-      ret = __hs_insert_record_with_btree(
-        session, cursor, btree, key, upd, type, hs_value, stop_time_point, clear_hs));
+      ret = __hs_insert_record_with_btree(session, cursor, btree, key, upd, type, hs_value,
+        start_time_point, stop_time_point, clear_hs));
     return (ret);
 }
 
@@ -354,7 +349,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_SAVE_UPD *list;
     WT_UPDATE *first_globally_visible_upd, *first_non_ts_upd;
     WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
-    WT_HS_TIME_POINT stop_time_point;
+    WT_HS_TIME_POINT start_time_point, stop_time_point;
     wt_off_t hs_size;
     wt_timestamp_t min_insert_ts;
     uint64_t insert_cnt, max_hs_size;
@@ -590,6 +585,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
+            start_time_point.durable_ts = upd->start_ts;
+            start_time_point.ts = upd->start_ts;
+            start_time_point.txnid = upd->txnid;
             tombstone = NULL;
             __wt_modify_vector_peek(&modifies, &prev_upd);
 
@@ -637,19 +635,27 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 continue;
             }
 
-            /* Skip updates that are obsolete. */
-            if (F_ISSET(upd, WT_UPDATE_OBSOLETE))
-                continue;
+            /*
+             * When we see an obsolete update we need to insert it with a zero start and stop
+             * timestamp. This means it'll still exist but only use txnid visibility rules. As such
+             * older readers should still be able to see it.
+             */
+            if (F_ISSET(upd, WT_UPDATE_OBSOLETE)) {
+                start_time_point.ts = start_time_point.durable_ts = WT_TS_NONE;
+                stop_time_point.ts = stop_time_point.durable_ts = WT_TS_NONE;
+            }
 
             /*
              * If the time points are out of order (which can happen if the application performs
              * updates with out-of-order timestamps), so this value can never be seen, don't bother
-             * inserting it.
+             * inserting it. However if it was made obsolete by a mixed mode operation we still want
+             * to insert it, it will be flagged as such.
              *
              * FIXME-WT-6443: We should be able to replace this with an assertion.
              */
-            if (stop_time_point.ts < upd->start_ts ||
-              (stop_time_point.ts == upd->start_ts && stop_time_point.txnid <= upd->txnid)) {
+            if (!F_ISSET(upd, WT_UPDATE_OBSOLETE) &&
+              (stop_time_point.ts < upd->start_ts ||
+                (stop_time_point.ts == upd->start_ts && stop_time_point.txnid <= upd->txnid))) {
                 __wt_verbose(session, WT_VERB_TIMESTAMP,
                   "Warning: fixing out-of-order timestamps %s earlier than previous update %s",
                   __wt_timestamp_to_string(stop_time_point.ts, ts_string[0]),
@@ -680,11 +686,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
                 WT_ERR(__hs_insert_record(session, cursor, btree, key, upd, WT_UPDATE_MODIFY,
-                  modify_value, &stop_time_point, clear_hs));
+                  modify_value, &start_time_point, &stop_time_point, clear_hs));
                 __wt_scr_free(session, &modify_value);
             } else
                 WT_ERR(__hs_insert_record(session, cursor, btree, key, upd, WT_UPDATE_STANDARD,
-                  full_value, &stop_time_point, clear_hs));
+                  full_value, &start_time_point, &stop_time_point, clear_hs));
 
             if (clear_hs)
                 F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
