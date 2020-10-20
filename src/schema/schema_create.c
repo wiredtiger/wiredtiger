@@ -790,14 +790,14 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     if (import && !WT_PREFIX_MATCH(uri, "file:") && !WT_PREFIX_MATCH(uri, "table:"))
         WT_RET_MSG(session, ENOTSUP,
           "%s: import is only supported for 'file' and 'table' data sources", uri);
-    if (import)
-        F_SET(session, WT_SESSION_IMPORT);
 
     /*
      * We track create operations: if we fail in the middle of creating a complex object, we want to
      * back it all out.
      */
     WT_RET(__wt_meta_track_on(session));
+    if (import)
+        F_SET(session, WT_SESSION_IMPORT);
 
     if (WT_PREFIX_MATCH(uri, "colgroup:"))
         ret = __create_colgroup(session, uri, exclusive, config);
