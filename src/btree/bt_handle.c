@@ -531,7 +531,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      * connection-wide base write generation. In that case, we should initialize our write gen just
      * ahead of our btree specific write generation.
      */
-    btree->write_gen = btree->base_write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
+    btree->write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
+    if (ckpt->run_write_gen <= conn->base_write_gen)
+        btree->base_write_gen = btree->write_gen;
+    else
+        btree->base_write_gen = ckpt->run_write_gen;
+    btree->run_write_gen = ckpt->run_write_gen;
 
     return (0);
 }
