@@ -336,7 +336,12 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
  *     Copy one set of saved updates into the database's history store table.
  */
 int
-__wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
+__wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi
+#if HAVE_DIAGNOSTIC
+  ,
+  WT_RECONCILE *r
+#endif
+)
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
@@ -677,11 +682,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * Sometimes the application threads and the checkpoint thread will fall behind the
              * eviction threads, it may choose an invisible update to write to the disk if an failed
              * eviction decided to write that update to the disk before. In this case, no point to
+             * check the visibility for the history store update. Application threads may not have a
+             * snapshot when doing eviction. Ignore this case as well.
              */
             WT_ASSERT(session,
               !__txn_visible_id(session, list->onpage_upd->txnid) ||
+                (!F_ISSET(session, WT_SESSION_INTERNAL) &&
+                  !F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT)) ||
                 __txn_visible_id(session, upd->txnid));
-
+            clear_hs = false;
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update.
