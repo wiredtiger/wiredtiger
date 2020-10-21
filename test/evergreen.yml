@@ -1632,6 +1632,11 @@ tasks:
             . ./start_venv || exit 1
             cd ..
             python -m pip install scons==3.1.1
+            python --version
+            echo python --version > foo.bat
+            echo running foo.bat
+            foo.bat
+            echo running scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" "LIBPATH=c:\\python\\Python37\\libs" wiredtiger.dll libwiredtiger.lib
             scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" "LIBPATH=c:\\python\\Python37\\libs" wiredtiger.dll libwiredtiger.lib
 
   - name: scons-check
