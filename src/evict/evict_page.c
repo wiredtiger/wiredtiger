@@ -53,7 +53,6 @@ int
 __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_BTREE *btree;
-    WT_CURSOR *hs_save;
     WT_DECL_RET;
     uint32_t evict_flags;
     uint8_t previous_state;
@@ -78,9 +77,10 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     evict_flags = LF_ISSET(WT_READ_NO_SPLIT) ? WT_EVICT_CALL_NO_SPLIT : 0;
     FLD_SET(evict_flags, WT_EVICT_CALL_URGENT);
 
-    WT_RET(__wt_evict_busy_set(session, btree, &hs_save));
+    WT_RET(__wt_hs_cursor_cache(session));
+    (void)__wt_atomic_addv32(&btree->evict_busy, 1);
     ret = __wt_evict(session, ref, previous_state, evict_flags);
-    __wt_evict_busy_clr(session, btree, hs_save);
+    (void)__wt_atomic_subv32(&btree->evict_busy, 1);
 
     return (ret);
 }

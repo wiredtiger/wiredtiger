@@ -10,11 +10,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_hs_cursor_open --
- *     Open a new history store table cursor.
+ * __hs_cursor_open_int --
+ *     Open a new history store table cursor, internal function.
  */
-int
-__wt_hs_cursor_open(WT_SESSION_IMPL *session)
+static int
+__hs_cursor_open_int(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -30,8 +30,37 @@ __wt_hs_cursor_open(WT_SESSION_IMPL *session)
     /* History store cursors should always ignore tombstones. */
     F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
 
-    session->hs_cursor = cursor;
+    *cursorp = cursor;
     return (0);
+}
+
+/*
+ * __wt_hs_cursor_cache --
+ *     Cache a new history store table cursor. Open and then close a history store cursor without
+ *     saving it in the session.
+ */
+int
+__wt_hs_cursor_cache(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *cursor;
+
+    conn = S2C(session);
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || session == conn->default_session)
+        return (0);
+    WT_RET(__hs_cursor_open_int(session, &cursor));
+    WT_RET(cursor->close(cursor));
+    return (0);
+}
+
+/*
+ * __wt_hs_cursor_open --
+ *     Open a new history store table cursor wrapper function.
+ */
+int
+__wt_hs_cursor_open(WT_SESSION_IMPL *session)
+{
+    return (__hs_cursor_open_int(session, &session->hs_cursor));
 }
 
 /*
