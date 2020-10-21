@@ -690,7 +690,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi
                 (!F_ISSET(session, WT_SESSION_INTERNAL) &&
                   !F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT)) ||
                 __txn_visible_id(session, upd->txnid));
-            clear_hs = false;
+
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update.
