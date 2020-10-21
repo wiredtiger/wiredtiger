@@ -337,7 +337,7 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
  */
 int
 __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi
-#if HAVE_DIAGNOSTIC
+#ifdef HAVE_DIAGNOSTIC
   ,
   WT_RECONCILE *r
 #endif

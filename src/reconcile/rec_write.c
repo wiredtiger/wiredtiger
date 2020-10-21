@@ -2281,7 +2281,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
             WT_ERR(__wt_hs_insert_updates(session, r->page, multi
-#if HAVE_DIAGNOSTIC
+#ifdef HAVE_DIAGNOSTIC
               ,
               r
 #endif
