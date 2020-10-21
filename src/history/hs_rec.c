@@ -1048,12 +1048,13 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
     WT_ERR(ret);
     WT_ERR_NOTFOUND_OK(
       __wt_hs_cursor_position(session, insert_cursor, btree_id, key, WT_TS_NONE, NULL), true);
-    WT_ERR(insert_cursor->get_key(
-      insert_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_start_counter));
 
     if (ret == WT_NOTFOUND) {
         hs_start_counter = 0;
         ret = 0;
+    } else {
+        WT_ERR(insert_cursor->get_key(
+          insert_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_start_counter));
     }
 
     /* Begin iterating over the range of entries we expect to replace. */
