@@ -123,7 +123,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
         hs_upd = upd_local;
 
     /* Search the page and insert the updates. */
-    WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &cursor->key, true));
+    WT_WITH_PAGE_INDEX(session, ret = __wti_hs_row_search(cbt, &cursor->key, true));
     WT_ERR(ret);
     WT_ERR(__wt_hs_modify(cbt, hs_upd));
 
