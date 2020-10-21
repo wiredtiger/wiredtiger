@@ -105,5 +105,4 @@ fail).
 @snippet ex_event_handler.c Function event_handler
 @snippet ex_event_handler.c Configure event_handler
 
-
 */
