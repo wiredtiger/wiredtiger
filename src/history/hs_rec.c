@@ -675,7 +675,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 upd->prepare_state != WT_PREPARE_LOCKED);
 
             /*
-             * Skip the check if we don't have a snapshot.
+             * Skip the check if we don't have a snapshot. Therefore, the check doesn't ensure that
+             * we never write uncommitted updates to the history store. But this is the best we can
+             * do for now.
              *
              * Sometimes the application threads and the checkpoint thread will fall behind the
              * eviction threads, it may choose an invisible update to write to the disk if a failed
