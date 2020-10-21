@@ -1906,6 +1906,8 @@ static inline int __wt_curtable_get_valuev(WT_CURSOR *cursor, va_list ap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_dsk_cell_data_ref(WT_SESSION_IMPL *session, int page_type, void *unpack_arg,
   WT_ITEM *store) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_evict_busy_set(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR **save)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_extlist_read_pair(const uint8_t **p, wt_off_t *offp, wt_off_t *sizep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_extlist_write_pair(uint8_t **p, wt_off_t off, wt_off_t size)
@@ -2178,6 +2180,7 @@ static inline void __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session);
 static inline void __wt_cursor_dhandle_incr_use(WT_SESSION_IMPL *session);
 static inline void __wt_cursor_disable_bulk(WT_SESSION_IMPL *session);
 static inline void __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp);
+static inline void __wt_evict_busy_clr(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR *save);
 static inline void __wt_op_timer_start(WT_SESSION_IMPL *session);
 static inline void __wt_op_timer_stop(WT_SESSION_IMPL *session);
 static inline void __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref);

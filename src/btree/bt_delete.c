@@ -57,6 +57,7 @@ int
 __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     WT_ADDR_COPY addr;
+    WT_CURSOR *hs_save;
     WT_DECL_RET;
     uint8_t previous_state;
 
@@ -71,9 +72,9 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
             return (0);
         }
 
-        (void)__wt_atomic_addv32(&S2BT(session)->evict_busy, 1);
+        WT_RET(__wt_evict_busy_set(session, S2BT(session), &hs_save));
         ret = __wt_evict(session, ref, previous_state, 0);
-        (void)__wt_atomic_subv32(&S2BT(session)->evict_busy, 1);
+        __wt_evict_busy_clr(session, S2BT(session), hs_save);
         WT_RET_BUSY_OK(ret);
         ret = 0;
     }
