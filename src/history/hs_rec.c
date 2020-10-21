@@ -673,13 +673,18 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             WT_ASSERT(session,
               upd->prepare_state != WT_PREPARE_INPROGRESS &&
                 upd->prepare_state != WT_PREPARE_LOCKED);
+
             /*
+             * Skip the check if we don't have a snapshot.
+             *
              * Sometimes the application threads and the checkpoint thread will fall behind the
-             * eviction threads, it may choose an invisible update to write to the disk if an failed
+             * eviction threads, it may choose an invisible update to write to the disk if a failed
              * eviction decided to write that update to the disk before. In this case, no point to
+             * check the visibility of the history store updates.
              */
             WT_ASSERT(session,
-              !__txn_visible_id(session, list->onpage_upd->txnid) ||
+              !F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
+                !__txn_visible_id(session, list->onpage_upd->txnid) ||
                 __txn_visible_id(session, upd->txnid));
 
             /*
