@@ -679,10 +679,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * we never write uncommitted updates to the history store. But this is the best we can
              * do for now.
              *
-             * Sometimes the application threads and the checkpoint thread will fall behind the
-             * eviction threads, it may choose an invisible update to write to the disk if a failed
-             * eviction decided to write that update to the disk before. In this case, no point to
-             * check the visibility of the history store updates.
+             * Sometimes the application and the checkpoint threads will fall behind the eviction
+             * threads, and they may choose an invisible update if the update was previously
+             * selected by an failed eviction pass. In that case, there is no point in checking the
+             * visibility of such history store updates.
              */
             WT_ASSERT(session,
               !F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
