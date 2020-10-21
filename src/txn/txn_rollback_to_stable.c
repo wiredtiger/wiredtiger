@@ -1225,10 +1225,17 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             continue;
         }
 
+        F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
         ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
-        /* Ignore performing rollback to stable on files that don't exist. */
-        if (ret == ENOENT)
+
+        /*
+         * Ignore performing rollback to stable on files that don't exist and the files that are
+         * corrupted.
+         */
+        if ((ret == ENOENT) || (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION)))
             continue;
+
+        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
         WT_ERR(ret);
 
         /*
