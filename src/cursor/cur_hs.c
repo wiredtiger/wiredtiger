@@ -20,9 +20,6 @@ __hs_cursor_open_int(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
     WT_DECL_RET;
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
-    /* Not allowed to open a cursor if you already have one */
-    WT_ASSERT(session, session->hs_cursor == NULL);
-
     WT_WITHOUT_DHANDLE(
       session, ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &cursor));
     WT_RET(ret);
@@ -60,6 +57,9 @@ __wt_hs_cursor_cache(WT_SESSION_IMPL *session)
 int
 __wt_hs_cursor_open(WT_SESSION_IMPL *session)
 {
+    /* Not allowed to open a cursor if you already have one */
+    WT_ASSERT(session, session->hs_cursor == NULL);
+
     return (__hs_cursor_open_int(session, &session->hs_cursor));
 }
 
