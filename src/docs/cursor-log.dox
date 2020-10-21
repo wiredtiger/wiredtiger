@@ -25,7 +25,7 @@ To open a log cursor on the database:
 @snippet ex_log.c log cursor open
 
 A log cursor's key is a unique log record identifier, plus a
-uint32_t
+\c uint32_t
 operation counter within that log record.  When a log record reflects
 something log record that is not a transaction, such as the start of
 a checkpoint, the operation counter

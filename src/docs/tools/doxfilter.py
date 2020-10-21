@@ -31,13 +31,23 @@
 # WiredTiger reference manual.  It changes comments to Javadoc style
 # (i.e., from "/*!" to "/**"), because the latter are configured to not
 # search for brief descriptions at the beginning of pages.
-# It also processes any page marked with @m_page specially to create
-# multiple per-language versions of the page.
 
 import re, sys
+
+progname = 'doxfilter.py'
+linenum = 0
+filename = '<unknown>'
+
+def err(arg):
+    sys.stderr.write(filename + ':' + str(linenum) + ': ERROR: ' + arg + '\n')
+    sys.exit(1)
 
 def process(source):
     return source.replace(r'/*!', r'/**')
 
 if __name__ == '__main__':
-    sys.stdout.write(process(sys.stdin.read()))
+    for f in sys.argv[1:]:
+        filename = f
+        with open(f, 'r') as infile:
+            sys.stdout.write(process(infile.read()))
+        sys.exit(0)

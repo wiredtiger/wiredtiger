@@ -140,11 +140,11 @@ if test "$wt_cv_enable_strict" = "yes"; then
 	AM_CFLAGS="$AM_CFLAGS $wt_cv_strict_warnings"
 fi
 
-# Python APIs
+# Python API
 if test "$wt_cv_enable_python" = "yes"; then
 	# Only a warning, we need to build release packages without SWIG.
 	AX_PKG_SWIG(2.0.4, [],
-	    [AC_MSG_WARN([SWIG is required to rebuild Python APIs.]) &&
+	    [AC_MSG_WARN([SWIG is required to rebuild Python API.]) &&
               SWIG="SWIG_NOT_FOUND_DURING_CONFIGURE"])
 fi
 
