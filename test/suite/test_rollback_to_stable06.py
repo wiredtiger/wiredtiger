@@ -95,17 +95,11 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
             self.session.checkpoint()
         self.conn.rollback_to_stable()
 
-        if not self.in_memory:
-        # Check that all keys are removed when checkpoint was done.
-            self.check(value_a, uri, 0, 20)
-            self.check(value_b, uri, 0, 30)
-            self.check(value_c, uri, 0, 40)
-            self.check(value_d, uri, 0, 50)
-        else:
-            self.check(value_a, uri, nrows, 20)
-            self.check(value_b, uri, nrows, 30)
-            self.check(value_c, uri, nrows, 40)
-            self.check(value_d, uri, nrows, 50)
+        # Check that all keys are removed.
+        self.check(value_a, uri, 0, 20)
+        self.check(value_b, uri, 0, 30)
+        self.check(value_c, uri, 0, 40)
+        self.check(value_d, uri, 0, 50)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -118,13 +112,12 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
 
         self.assertEqual(calls, 1)
         self.assertEqual(keys_restored, 0)
+        self.assertGreater(pages_visited, 0)
         self.assertGreaterEqual(keys_removed, 0)
         if self.in_memory:
-            self.assertEqual(pages_visited, 0)
-            self.assertEqual(upd_aborted, 0)
+            self.assertEqual(upd_aborted, nrows * 4)
             self.assertEqual(hs_removed, 0)
         else:
-            self.assertGreater(pages_visited, 0)
             self.assertGreaterEqual(upd_aborted, 0)
             self.assertGreaterEqual(hs_removed, nrows * 3)
 

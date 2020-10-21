@@ -1217,9 +1217,9 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * 2. If stable timestamp is not set and the table is having timestamp updates.
          *
          */
-        if (addr_size == 0 ||
-          (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
-            txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE)) {
+        if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+          (addr_size == 0 ||
+            (txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
             __wt_verbose(session, WT_VERB_RTS, "%s skip rollback to stable because %s", uri,
               addr_size == 0 ? " checkpoint address length is 0" : "stable timestamp is 0");
             continue;

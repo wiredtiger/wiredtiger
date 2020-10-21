@@ -168,15 +168,8 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
             self.session.checkpoint()
 
         self.conn.rollback_to_stable()
-
-        # Check that the no keys should be visible when rollback to stable is
-        # called without checkpoint.
-        if self.in_memory:
-            self.check(valuea, uri, 0, 20)
-        else:
-        # Check that the new updates are only seen after the update timestamp
-        # with checkpoont.
-            self.check(valuea, uri, nrows, 20)
+        # Check that the new updates are only seen after the update timestamp.
+        self.check(valuea, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -191,12 +184,11 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         self.assertEqual(hs_removed, 0)
         self.assertEqual(keys_removed, 0)
         if self.in_memory:
-            self.assertEqual(upd_aborted, 0)
-            self.assertEqual(pages_visited, 0)
+            self.assertEqual(upd_aborted, nrows)
         else:
             self.assertEqual(upd_aborted + keys_restored, nrows)
-            self.assertGreater(pages_visited, 0)
         self.assertGreaterEqual(keys_restored, 0)
+        self.assertGreater(pages_visited, 0)
 
 if __name__ == '__main__':
     wttest.run()
