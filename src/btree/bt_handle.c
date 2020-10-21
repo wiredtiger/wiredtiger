@@ -532,12 +532,10 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      * ahead of our btree specific write generation.
      */
     btree->write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
-    if (F_ISSET(session, WT_SESSION_IMPORT) || ckpt->run_write_gen <= conn->base_write_gen)
-        btree->base_write_gen = btree->write_gen;
+    if (!F_ISSET(session, WT_SESSION_IMPORT) && ckpt->run_write_gen > conn->base_write_gen)
+        btree->base_write_gen = btree->run_write_gen = ckpt->run_write_gen;
     else
-        btree->base_write_gen = ckpt->run_write_gen;
-    if (!F_ISSET(session, WT_SESSION_IMPORT))
-        btree->run_write_gen = ckpt->run_write_gen;
+        btree->base_write_gen = btree->write_gen; /* Runtime write gen should be left as 0. */
 
     return (0);
 }
