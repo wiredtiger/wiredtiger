@@ -1231,14 +1231,14 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
         /*
-         * Ignore performing rollback to stable on files that don't exist and the files that are
-         * corrupted.
+         * Ignore performing rollback to stable on files that does not exist or the files where
+         * corruption is detected.
          */
         if ((ret == ENOENT) ||
           (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
             __wt_verbose(session, WT_VERB_RTS,
-              "Ignore performing rollback to stable on %s because %s", uri,
-              ret == ENOENT ? " does not exist" : " is corrupted.");
+              "Ignore performing rollback to stable on %s because the file %s ", uri,
+              ret == ENOENT ? "does not exist" : "is corrupted.");
             continue;
         }
         WT_ERR(ret);
