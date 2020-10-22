@@ -950,12 +950,13 @@ __hs_delete_key_from_pos(
     int cmp;
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
-    /* Allocate buffer for the history store value. */
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
-
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     upd = NULL;
     insert_cursor = NULL;
+
+    /* Allocate buffer for the history store value. */
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
+
     /*
      * Determine the starting value of our counter, i.e. highest counter value of the timestamp
      * range for timestamp 0. We'll be inserting at timestamp 0 and don't want to overwrite a
