@@ -155,8 +155,6 @@ if test "$wt_cv_enable_java" = "yes"; then
 fi
 
 if test "$wt_cv_enable_python" = "yes"; then
-	# If we have Python 2.x, use python3
-	CHECK_MAJOR_VERSION([PYTHON_VERSION], [2], PYTHON=python3, :)
 	AM_PATH_PYTHON([3.0])
 	if test -n "$with_python_prefix" ; then
 		PYTHON_INSTALL_ARG="-d $with_python_prefix"
