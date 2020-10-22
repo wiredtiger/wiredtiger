@@ -2326,25 +2326,8 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
      * cursor, otherwise we can deadlock with a session wanting exclusive access to a handle: that
      * session will have a handle list write lock and will be waiting on eviction to drain, we'll be
      * inside eviction waiting on a handle list read lock to open a history store cursor.
-     *
-     * The test for the no-reconciliation flag is necessary because the session may already be doing
-     * history store operations and if we open/close the existing history store cursor, we can
-     * affect those already-running history store operations by changing the cursor state. When
-     * doing history store operations, we set the no-reconciliation flag, use it as short-hand to
-     * avoid that problem. This doesn't open up the window for the deadlock because setting the
-     * no-reconciliation flag limits eviction to in-memory splits.
-     *
-     * The test for the connection's default session is because there are known problems with using
-     * cached cursors from the default session.
-     *
-     * FIXME-WT-6037: This isn't reasonable and needs a better fix.
      */
-    if ((session->dhandle == NULL || !WT_IS_METADATA(S2BT(session)->dhandle)) &&
-      !F_ISSET(conn, WT_CONN_IN_MEMORY) && !F_ISSET(session, WT_SESSION_NO_RECONCILE) &&
-      session != conn->default_session) {
-        WT_ERR(__wt_hs_cursor_open(session));
-        WT_ERR(__wt_hs_cursor_close(session));
-    }
+    WT_ERR(__wt_hs_cursor_cache(session));
 
     /*
      * It is not safe to proceed if the eviction server threads aren't setup yet.

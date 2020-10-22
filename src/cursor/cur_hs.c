@@ -43,7 +43,9 @@ __wt_hs_cursor_cache(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
 
     conn = S2C(session);
-    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || session == conn->default_session)
+    if (F_ISSET(conn, WT_CONN_IN_MEMORY) || F_ISSET(session, WT_SESSION_NO_RECONCILE) ||
+      (session->dhandle != NULL && WT_IS_METADATA(S2BT(session)->dhandle)) ||
+      session == conn->default_session)
         return (0);
     WT_RET(__hs_cursor_open_int(session, &cursor));
     WT_RET(cursor->close(cursor));
