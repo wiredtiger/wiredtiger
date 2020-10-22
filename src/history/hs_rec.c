@@ -18,8 +18,8 @@ typedef struct {
     uint64_t txnid;
 } WT_HS_TIME_POINT;
 
-static int __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
-  uint32_t btree_id, const WT_ITEM *key, uint64_t txnid);
+static int __hs_delete_key_from_pos(
+  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key);
 static int __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   WT_BTREE *btree, const WT_ITEM *key, wt_timestamp_t ts, uint64_t *hs_counter,
   const WT_ITEM *srch_key);
@@ -157,7 +157,7 @@ err:
 static int
 __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *hs_value,
-  WT_HS_TIME_POINT *start_time_point, WT_HS_TIME_POINT *stop_time_point, bool clear_hs)
+  WT_HS_TIME_POINT *start_time_point, WT_HS_TIME_POINT *stop_time_point)
 {
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(srch_key);
@@ -763,8 +763,8 @@ err:
  *     Internal helper for deleting history store content of a given key from a timestamp.
  */
 static int
-__hs_delete_key_from_ts_int(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key,
-  wt_timestamp_t ts, uint64_t txnid)
+__hs_delete_key_from_ts_int(
+  WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(srch_key);
@@ -812,7 +812,7 @@ __hs_delete_key_from_ts_int(WT_SESSION_IMPL *session, uint32_t btree_id, const W
         goto done;
 
     WT_ASSERT(session, ts == WT_TS_NONE || hs_start_ts != WT_TS_NONE);
-    WT_ERR(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key, txnid));
+    WT_ERR(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key));
 done:
     ret = 0;
 err:
@@ -825,8 +825,8 @@ err:
  *     Delete history store content of a given key from a timestamp.
  */
 int
-__wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key,
-  wt_timestamp_t ts, uint64_t txnid)
+__wt_hs_delete_key_from_ts(
+  WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts)
 {
     WT_DECL_RET;
 
@@ -834,7 +834,7 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, uint32_t btree_id, const WT
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
 
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
-    while ((ret = __hs_delete_key_from_ts_int(session, btree_id, key, ts, txnid)) == WT_RESTART)
+    while ((ret = __hs_delete_key_from_ts_int(session, btree_id, key, ts)) == WT_RESTART)
         WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
 
     return (ret);
@@ -1014,8 +1014,8 @@ err:
  *     positioned at the beginning of the key range.
  */
 static int
-__hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, uint64_t txnid)
+__hs_delete_key_from_pos(
+  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key)
 {
     WT_CURSOR *insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
@@ -1086,7 +1086,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
         start_time_point.txnid = hs_cbt->upd_value->tw.start_txn;
 
         stop_time_point.ts = stop_time_point.durable_ts = WT_TS_NONE;
-        stop_time_point.txnid = txnid;
+        stop_time_point.txnid = hs_cbt->upd_value->tw.stop_txn;
 
         /* Reinsert entry with zero timestamp. */
         hs_start_counter++;
