@@ -955,7 +955,7 @@ __hs_delete_key_from_pos(
 
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     upd = NULL;
-
+    insert_cursor = NULL;
     /*
      * Determine the starting value of our counter, i.e. highest counter value of the timestamp
      * range for timestamp 0. We'll be inserting at timestamp 0 and don't want to overwrite a
