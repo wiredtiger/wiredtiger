@@ -758,6 +758,8 @@ extern int __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_open(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_verify(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_verify_one(WT_SESSION_IMPL *session)
@@ -1552,8 +1554,6 @@ extern int __wt_verify_dsk(WT_SESSION_IMPL *session, const char *tag, WT_ITEM *b
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag,
   const WT_PAGE_HEADER *dsk, size_t size, WT_ADDR *addr, bool empty_page_ok)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wti_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int64_t __wt_log_slot_release(WT_MYSLOT *myslot, int64_t size)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

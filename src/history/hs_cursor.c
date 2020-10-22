@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wti_hs_row_search --
+ * __wt_hs_row_search --
  *     Search the history store for a given key and position the cursor on it.
  */
 int
-__wti_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
+__wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;

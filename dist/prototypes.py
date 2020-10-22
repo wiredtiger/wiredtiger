@@ -7,7 +7,7 @@ from dist import compare_srcfile, format_srcfile, source_files
 # Build function prototypes from a list of files.
 def prototypes(list, name):
     s = open(name, 'r').read()
-    for p in re.findall(r'\n[A-Za-z_].*\n__wt[i]?_[^{]*', s):
+    for p in re.findall(r'\n[A-Za-z_].*\n__wt_[^{]*', s):
         l = p.strip()
 
         # Ignore statics in XXX.c files.
