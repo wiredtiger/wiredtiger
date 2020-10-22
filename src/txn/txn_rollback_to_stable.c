@@ -999,6 +999,7 @@ __rollback_evict_exclusive_apply(WT_SESSION_IMPL *session, int (*dhandle_func)(W
 
 err:
     WT_TRET(__wt_metadata_cursor_close(session));
+
     return (ret);
 }
 
