@@ -1216,12 +1216,12 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * 1. Empty table
          * 2. Table has timestamped updates without a stable timestamp.
          */
-
         if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
           (addr_size == 0 ||
             (txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
-            __wt_verbose(session, WT_VERB_RTS, "%s skip rollback to stable because %s", uri,
-              addr_size == 0 ? " checkpoint address length is 0" : "stable timestamp is 0");
+            __wt_verbose(session, WT_VERB_RTS, "Skip rollback to stable on file %s because %s", uri,
+              addr_size == 0 ? "its checkpoint address length is 0" :
+                               "it has timestamped updates and the stable timestamp is 0");
             continue;
         }
 
@@ -1237,7 +1237,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         if ((ret == ENOENT) ||
           (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
             __wt_verbose(session, WT_VERB_RTS,
-              "Ignore performing rollback to stable on %s because the file %s ", uri,
+              "Ignore performing rollback to stable on %s because the file %s", uri,
               ret == ENOENT ? "does not exist" : "is corrupted.");
             continue;
         }
