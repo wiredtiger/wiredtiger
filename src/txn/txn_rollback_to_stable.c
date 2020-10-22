@@ -1145,13 +1145,13 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts,
       rollback_timestamp;
+    size_t addr_size;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
     bool durable_ts_found, prepared_updates;
-    size_t addr_size;
 
-    addr_size = 0;
     txn_global = &S2C(session)->txn_global;
+    addr_size = 0;
 
     /*
      * Copy the stable timestamp, otherwise we'd need to lock it each time it's accessed. Even
@@ -1212,11 +1212,11 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
 
         /*
-         * The rollback to stable will be skipped for any of the following.
-         * 1. If the checkpoint address length is 0.
-         * 2. If stable timestamp is not set and the table is having timestamp updates.
-         *
+         * The rollback to stable will skip the tables during recovery in the following conditions
+         * 1. Empty table
+         * 2. Table has timestamped updates without a stable timestamp.
          */
+
         if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
           (addr_size == 0 ||
             (txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
@@ -1225,17 +1225,22 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             continue;
         }
 
+        /* Set this flag to return error instead of panic if file is corrupted. */
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
         ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
+        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
         /*
          * Ignore performing rollback to stable on files that don't exist and the files that are
          * corrupted.
          */
-        if ((ret == ENOENT) || (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION)))
+        if ((ret == ENOENT) ||
+          (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
+            __wt_verbose(session, WT_VERB_RTS,
+              "Ignore performing rollback to stable on %s because %s", uri,
+              ret == ENOENT ? " does not exist" : " is corrupted.");
             continue;
-
-        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
+        }
         WT_ERR(ret);
 
         /*

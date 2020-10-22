@@ -77,8 +77,7 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
         ds_2.populate()
 
         # Pin oldest and stable to timestamp 1.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
-            ',stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
 
         valuea = "aaaaa" * 100
         valueb = "bbbbb" * 100
@@ -114,10 +113,10 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
         self.check(valued, uri_2, nrows, 0)
 
         # Pin stable to timestamp 20 if prepare otherwise 10.
-        if self.prepare:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
-        else:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
+        #if self.prepare:
+        #    self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
+        #else:
+        #    self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
 
         # Checkpoint to ensure that all the data is flushed.
         if not self.in_memory:
