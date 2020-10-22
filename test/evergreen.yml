@@ -55,7 +55,7 @@ functions:
         set -o verbose
         if [ "$OS" != "Windows_NT" ]; then
           sh reconf
-          ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} ${configure_env_python|PYTHON="python3"} \
+          ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} PYTHON="python3" \
             ../configure ${configure_python_setting|} \
             ${posix_configure_flags|--enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL}
         fi
@@ -70,8 +70,9 @@ functions:
         if [ "Windows_NT" == "$OS" ]; then
           export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
 
+          python --version
           python -m pip install scons==3.1.1
-          scons-3.1.1.bat ${win_configure_flags|"LIBPATH=c:\\python\\Python37\\libs" --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic} ${smp_command|}
+          scons-3.1.1.bat "LIBPATH=c:\\python\\Python39\\libs" --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic ${smp_command|}
         else
           cd build_posix
           ${make_command|make} ${smp_command|} 2>&1
@@ -1583,14 +1584,9 @@ tasks:
             set -o verbose
 
             export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
-            python -m pip install scons==3.1.1
             python --version
-            echo python --version > foo.bat
-            chmod +x foo.bat
-            echo running foo.bat
-            ./foo.bat
-            echo running scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" "LIBPATH=c:\\python\\Python37\\libs" wiredtiger.dll libwiredtiger.lib
-            scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" "LIBPATH=c:\\python\\Python37\\libs" wiredtiger.dll libwiredtiger.lib
+            python -m pip install scons==3.1.1
+            scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" "LIBPATH=c:\\python\\Python39\\libs" wiredtiger.dll libwiredtiger.lib
 
   - name: scons-check
     tags: ["pull_request", "windows_only"]
@@ -1606,6 +1602,7 @@ tasks:
             set -o verbose
 
             export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
+            python --version
             python -m pip install scons==3.1.1
             scons-3.1.1.bat ${smp_command|} check
 
@@ -2553,7 +2550,6 @@ buildvariants:
   - windows-64-vs2017-test
   expansions:
     python_binary: 'python'
-    #test_env_vars: PYTHONPATH=$(cygpath -w $(pwd)/../lang/python/wiredtiger):$(cygpath -w $(pwd)/../lang/python)
   tasks:
     - name: compile
     - name: ".windows_only"
