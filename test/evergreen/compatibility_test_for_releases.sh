@@ -13,7 +13,7 @@ bflag()
 {
         # Return if the branch's format command takes the -B flag for backward compatibility.
         test "$1" = "develop" && echo "-B "
-        test "$1" = "mongodb-4.6" && echo "-B "
+        test "$1" = "mongodb-5.0" && echo "-B "
         test "$1" = "mongodb-4.4" && echo "-B "
         return 0
 }
@@ -75,7 +75,6 @@ run_format()
         args+="leak_memory=1 "                  # Faster runs
         args+="logging=1 "                      # Test log compatibility
         args+="logging_compression=snappy "     # We only built with snappy, force the choice
-        args+="rebalance=0 "                    # Faster runs
         args+="rows=1000000 "
         args+="salvage=0 "                      # Faster runs
         args+="timer=4 "
@@ -162,7 +161,7 @@ wt_standalone=false
 #
 # The 2 arrays should be adjusted over time when newer branches are created,
 # or older branches are EOL.
-newer_release_branches=(develop mongodb-4.6 mongodb-4.4 mongodb-4.2)
+newer_release_branches=(develop mongodb-5.0 mongodb-4.4 mongodb-4.2)
 older_release_branches=(mongodb-4.2 mongodb-4.0 mongodb-3.6)
 
 declare -A scopes

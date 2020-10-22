@@ -149,20 +149,13 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
         else {
             WT_ERR(__wt_btree_tree_open(session, root_addr, root_addr_size));
 
-            /*
-             * Rebalance uses the cache, but only wants the root page, nothing else.
-             */
-            if (!F_ISSET(btree, WT_BTREE_REBALANCE)) {
-                /* Warm the cache, if possible. */
-                WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
-                WT_ERR(ret);
+            /* Warm the cache, if possible. */
+            WT_WITH_PAGE_INDEX(session, ret = __btree_preload(session));
+            WT_ERR(ret);
 
-                /*
-                 * Get the last record number in a column-store file.
-                 */
-                if (btree->type != BTREE_ROW)
-                    WT_ERR(__btree_get_last_recno(session));
-            }
+            /* Get the last record number in a column-store file. */
+            if (btree->type != BTREE_ROW)
+                WT_ERR(__btree_get_last_recno(session));
         }
     }
 
@@ -178,9 +171,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
      * configuration when finished so that handle close behaves correctly.
      */
     if (btree->original ||
-      F_ISSET(btree,
-        WT_BTREE_IN_MEMORY | WT_BTREE_REBALANCE | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE |
-          WT_BTREE_VERIFY)) {
+      F_ISSET(btree, WT_BTREE_IN_MEMORY | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
         WT_ERR(__wt_evict_file_exclusive_on(session));
         btree->evict_disabled_open = true;
     }
@@ -527,11 +518,20 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 
     btree->modified = false; /* Clean */
 
-    btree->syncing = WT_BTREE_SYNC_OFF; /* Not syncing */
-                                        /* Checkpoint generation */
-    btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-    /* Write generation */
-    btree->write_gen = WT_MAX(ckpt->write_gen, conn->base_write_gen);
+    btree->syncing = WT_BTREE_SYNC_OFF;                           /* Not syncing */
+    btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT); /* Checkpoint generation */
+
+    /*
+     * In the regular case, we'll be initializing to the connection-wide base write generation since
+     * this is the largest of all btree write generations from the previous run. This has the nice
+     * property of ensuring that the range of write generations used by consecutive runs do not
+     * overlap which aids with debugging.
+     *
+     * In the import case, the btree write generation from the last run may actually be ahead of the
+     * connection-wide base write generation. In that case, we should initialize our write gen just
+     * ahead of our btree specific write generation.
+     */
+    btree->write_gen = btree->base_write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
 
     return (0);
 }

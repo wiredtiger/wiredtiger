@@ -359,6 +359,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_walks_gave_up_no_targets;
     int64_t cache_eviction_walks_gave_up_ratio;
     int64_t cache_eviction_walks_ended;
+    int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
     int64_t cache_eviction_walk_saved_pos;
     int64_t cache_eviction_active_workers;
@@ -421,6 +422,7 @@ struct __wt_connection_stats {
     int64_t cache_write_hs;
     int64_t cache_pages_inuse;
     int64_t cache_eviction_app;
+    int64_t cache_eviction_pages_in_parallel_with_checkpoint;
     int64_t cache_eviction_pages_queued;
     int64_t cache_eviction_pages_queued_post_lru;
     int64_t cache_eviction_pages_queued_urgent;
@@ -638,8 +640,8 @@ struct __wt_connection_stats {
     int64_t rec_time_aggr_newest_stop_durable_ts;
     int64_t rec_time_aggr_newest_stop_ts;
     int64_t rec_time_aggr_newest_stop_txn;
+    int64_t rec_time_aggr_newest_txn;
     int64_t rec_time_aggr_oldest_start_ts;
-    int64_t rec_time_aggr_oldest_start_txn;
     int64_t rec_time_aggr_prepared;
     int64_t rec_time_window_pages_prepared;
     int64_t rec_time_window_pages_durable_start_ts;
@@ -668,10 +670,6 @@ struct __wt_connection_stats {
     int64_t session_table_create_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
-    int64_t session_table_import_fail;
-    int64_t session_table_import_success;
-    int64_t session_table_rebalance_fail;
-    int64_t session_table_rebalance_success;
     int64_t session_table_rename_fail;
     int64_t session_table_rename_success;
     int64_t session_table_salvage_fail;
@@ -835,6 +833,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_walks_gave_up_no_targets;
     int64_t cache_eviction_walks_gave_up_ratio;
     int64_t cache_eviction_walks_ended;
+    int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
     int64_t cache_eviction_walk_saved_pos;
     int64_t cache_eviction_hazard;
@@ -939,8 +938,8 @@ struct __wt_dsrc_stats {
     int64_t rec_time_aggr_newest_stop_durable_ts;
     int64_t rec_time_aggr_newest_stop_ts;
     int64_t rec_time_aggr_newest_stop_txn;
+    int64_t rec_time_aggr_newest_txn;
     int64_t rec_time_aggr_oldest_start_ts;
-    int64_t rec_time_aggr_oldest_start_txn;
     int64_t rec_time_aggr_prepared;
     int64_t rec_time_window_pages_prepared;
     int64_t rec_time_window_pages_durable_start_ts;
