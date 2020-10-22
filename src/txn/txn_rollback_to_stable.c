@@ -992,6 +992,8 @@ __rollback_evict_exclusive_apply(WT_SESSION_IMPL *session, int (*dhandle_func)(W
 
         /* Apply function to dhandle. */
         WT_ERR((*dhandle_func)(session));
+
+        WT_ERR(__wt_session_release_dhandle(session));
     }
     if (ret == WT_NOTFOUND)
         ret = 0;
