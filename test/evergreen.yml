@@ -158,7 +158,7 @@ functions:
 
         if [ "Windows_NT" = "$OS" ]; then
           export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
-          export "PYTHONPATH=$(pwd)/../lang/python/wiredtiger):$(cygpath -w $(pwd)/../lang/python)"
+          export "PYTHONPATH="c:\\python\\Python39\\libs":$(pwd)/../lang/python/wiredtiger):$(cygpath -w $(pwd)/../lang/python)"
         fi
         ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
