@@ -326,7 +326,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     uint8_t *p;
     int nentries;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
-    bool enable_reverse_modify, hs_inserted, squashed, ts_updates_in_hs;
+    bool enable_reverse_modify, hs_inserted, seen_global_update, squashed, ts_updates_in_hs;
     btree = S2BT(session);
     cursor = session->hs_cursor;
     prev_upd = NULL;
@@ -385,7 +385,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         }
 
         first_globally_visible_upd = first_non_ts_upd = NULL;
-        ts_updates_in_hs = false;
+        seen_global_update = ts_updates_in_hs = false;
         enable_reverse_modify = true;
         min_insert_ts = WT_TS_MAX;
 
@@ -553,6 +553,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             __wt_modify_vector_peek(&modifies, &prev_upd);
 
             /*
+             * If we have a globally visible update in our chain make sure we record that we've seen
+             * it and should insert all updates beyond it.
+             */
+            if (first_globally_visible_upd != NULL && upd == first_globally_visible_upd)
+                seen_global_update = true;
+
+            /*
              * For any uncommitted prepared updates written to disk, the stop timestamp of the last
              * update moved into the history store should be with max visibility to protect its
              * removal by checkpoint garbage collection until the data store update is committed.
@@ -602,6 +609,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * older readers should still be able to see it.
              */
             if (F_ISSET(upd, WT_UPDATE_OBSOLETE)) {
+                /*
+                 * In the scenario where our updates are behind a globally visible update, it is
+                 * impossible for them to be read by any reader and as such they don't need to go
+                 * into the history store.
+                 */
+                if (first_globally_visible_upd != NULL && !seen_global_update)
+                    continue;
                 start_time_point.ts = start_time_point.durable_ts = WT_TS_NONE;
                 stop_time_point.ts = stop_time_point.durable_ts = WT_TS_NONE;
             }
