@@ -48,7 +48,7 @@ func_ok()
 	    -e '/int __page_write_gen_wrapped_check$/d' \
 	    -e '/int __posix_terminate$/d' \
 	    -e '/int __rec_destroy_session$/d' \
-            -e '/int __rollback_evict_file_exclusive_off_wrapper$/d' \
+	    -e '/int __rollback_evict_file_exclusive_off_wrapper$/d' \
 	    -e '/int __time_aggregate_validate_parent$/d' \
 	    -e '/int __time_aggregate_validate_parent_stable$/d' \
 	    -e '/int __time_value_validate_parent$/d' \
