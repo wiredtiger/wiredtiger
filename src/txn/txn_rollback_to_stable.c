@@ -968,7 +968,6 @@ static int
 __rollback_evict_exclusive_apply(WT_SESSION_IMPL *session, int (*dhandle_func)(WT_SESSION_IMPL *))
 {
     WT_CURSOR *metadata_cursor;
-    WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     const char *uri;
 
