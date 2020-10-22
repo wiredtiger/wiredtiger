@@ -961,11 +961,11 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 }
 
 /*
- * __rollback_to_stable_eviction_off --
- *     Foobar.
+ * __rollback_evict_exclusive_apply --
+ *     Apply an eviction helper to all dhandles.
  */
 static int
-__rollback_to_stable_eviction_off(WT_SESSION_IMPL *session)
+__rollback_evict_exclusive_apply(WT_SESSION_IMPL *session, int (*dhandle_func)(WT_SESSION_IMPL *))
 {
     WT_CURSOR *metadata_cursor;
     WT_DATA_HANDLE *dhandle;
@@ -991,8 +991,8 @@ __rollback_to_stable_eviction_off(WT_SESSION_IMPL *session)
             continue;
         WT_ERR(ret);
 
-        /* Block eviction for that dhandle. */
-        WT_ERR(__wt_evict_file_exclusive_on(session));
+        /* Apply function to dhandle. */
+        WT_ERR((*dhandle_func)(session));
     }
     if (ret == WT_NOTFOUND)
         ret = 0;
@@ -1003,45 +1003,39 @@ err:
 }
 
 /*
- * __rollback_to_stable_eviction_on --
- *     Foobar.
+ * __rollback_evict_exclusive_on --
+ *     Get exclusive eviction access to any files that may conflict with rollback to stable. This is
+ *     necessary to run before rollback to stable since evictions that involve history store
+ *     operations will open transactions that will keep ids pinned and interfere.
  */
 static int
-__rollback_to_stable_eviction_on(WT_SESSION_IMPL *session)
+__rollback_evict_exclusive_on(WT_SESSION_IMPL *session)
 {
-    WT_CURSOR *metadata_cursor;
-    WT_DATA_HANDLE *dhandle;
-    WT_DECL_RET;
-    const char *uri;
+    return (__rollback_evict_exclusive_apply(session, __wt_evict_file_exclusive_on));
+}
 
-    WT_RET(__wt_metadata_cursor(session, &metadata_cursor));
+/*
+ * __rollback_evict_file_exclusive_off_wrapper --
+ *     A wrapper around the "exclusive off" helper so that we can use it in a similar way to the
+ *     "on" helper.
+ */
+static int
+__rollback_evict_file_exclusive_off_wrapper(WT_SESSION_IMPL *session)
+{
+    __wt_evict_file_exclusive_off(session);
+    return (0);
+}
 
-    while ((ret = metadata_cursor->next(metadata_cursor)) == 0) {
-        WT_ERR(metadata_cursor->get_key(metadata_cursor, &uri));
-
-        /* Evictions of the metadata or history store files won't cause history store operations. */
-        if (WT_STREQ(uri, WT_METAFILE_URI) || WT_STREQ(uri, WT_HS_URI))
-            continue;
-
-        if (!WT_PREFIX_MATCH(uri, "file:"))
-            continue;
-
-        /* Open the dhandle if it's not already open. */
-        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
-
-        if (ret == ENOENT)
-            continue;
-        WT_ERR(ret);
-
-        /* Block eviction for that dhandle. */
-        __wt_evict_file_exclusive_off(session);
-    }
-    if (ret == WT_NOTFOUND)
-        ret = 0;
-
-err:
-    WT_TRET(__wt_metadata_cursor_close(session));
-    return (ret);
+/*
+ * __rollback_evict_exclusive_off --
+ *     Release exclusive eviction access to any files that may conflict with rollback to stable.
+ *     This is necessary to run before rollback to stable since evictions that involve history store
+ *     operations will open transactions that will keep ids pinned and interfere.
+ */
+static int
+__rollback_evict_exclusive_off(WT_SESSION_IMPL *session)
+{
+    return (__rollback_evict_exclusive_apply(session, __rollback_evict_file_exclusive_off_wrapper));
 }
 
 /*
@@ -1366,7 +1360,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
      * History store operations create transactions so we need to block eviction everywhere before
      * beginning a rollback to stable.
      */
-    WT_ERR(__rollback_to_stable_eviction_off(session));
+    WT_ERR(__rollback_evict_exclusive_on(session));
 
     WT_ERR(__rollback_to_stable_check(session));
 
@@ -1378,7 +1372,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
     WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_btree_apply(session));
 
 err:
-    WT_TRET(__rollback_to_stable_eviction_on(session));
+    WT_TRET(__rollback_evict_exclusive_off(session));
 
     return (ret);
 }
