@@ -1004,9 +1004,8 @@ err:
 
 /*
  * __rollback_evict_exclusive_on --
- *     Get exclusive eviction access to any files that may conflict with rollback to stable. This is
- *     necessary to run before rollback to stable since evictions that involve history store
- *     operations will open transactions that will keep ids pinned and interfere.
+ *     Get exclusive eviction access to any files that may conflict with rollback to stable's
+ *     preliminary check for active transactions.
  */
 static int
 __rollback_evict_exclusive_on(WT_SESSION_IMPL *session)
@@ -1028,7 +1027,8 @@ __rollback_evict_file_exclusive_off_wrapper(WT_SESSION_IMPL *session)
 
 /*
  * __rollback_evict_exclusive_off --
- *     Release exclusive eviction access to any files that may conflict with rollback to stable.
+ *     Release exclusive eviction access to any files that may conflict with rollback to stable's
+ *     preliminary check for active transactions.
  */
 static int
 __rollback_evict_exclusive_off(WT_SESSION_IMPL *session)
