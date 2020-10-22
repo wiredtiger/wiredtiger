@@ -46,11 +46,11 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
             self, uri, 0, key_format='i', value_format='S', config='log=(enabled=false)')
         ds.populate()
 
-        for i in range(1, 10000):
+        for i in range(1, 1000):
             value = str(i) * 100
             self.large_updates(uri, value, ds, nrows, i * 10)
 
             # Let's hope this happens while eviction is doing work.
-            if i % 10 == 0:
+            if i % 100 == 0:
                 self.conn.set_timestamp('stable_timestamp=' + timestamp_str((i - 1) * 10))
                 self.conn.rollback_to_stable()

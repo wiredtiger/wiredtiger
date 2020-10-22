@@ -961,6 +961,90 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 }
 
 /*
+ * __rollback_to_stable_eviction_off --
+ *     Foobar.
+ */
+static int
+__rollback_to_stable_eviction_off(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *metadata_cursor;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    const char *uri;
+
+    WT_RET(__wt_metadata_cursor(session, &metadata_cursor));
+
+    while ((ret = metadata_cursor->next(metadata_cursor)) == 0) {
+        WT_ERR(metadata_cursor->get_key(metadata_cursor, &uri));
+
+        /* Evictions of the metadata or history store files won't cause history store operations. */
+        if (WT_STREQ(uri, WT_METAFILE_URI) || WT_STREQ(uri, WT_HS_URI))
+            continue;
+
+        if (!WT_PREFIX_MATCH(uri, "file:"))
+            continue;
+
+        /* Open the dhandle if it's not already open. */
+        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
+
+        if (ret == ENOENT)
+            continue;
+        WT_ERR(ret);
+
+        /* Block eviction for that dhandle. */
+        WT_ERR(__wt_evict_file_exclusive_on(session));
+    }
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+
+err:
+    WT_TRET(__wt_metadata_cursor_close(session));
+    return (ret);
+}
+
+/*
+ * __rollback_to_stable_eviction_on --
+ *     Foobar.
+ */
+static int
+__rollback_to_stable_eviction_on(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *metadata_cursor;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    const char *uri;
+
+    WT_RET(__wt_metadata_cursor(session, &metadata_cursor));
+
+    while ((ret = metadata_cursor->next(metadata_cursor)) == 0) {
+        WT_ERR(metadata_cursor->get_key(metadata_cursor, &uri));
+
+        /* Evictions of the metadata or history store files won't cause history store operations. */
+        if (WT_STREQ(uri, WT_METAFILE_URI) || WT_STREQ(uri, WT_HS_URI))
+            continue;
+
+        if (!WT_PREFIX_MATCH(uri, "file:"))
+            continue;
+
+        /* Open the dhandle if it's not already open. */
+        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
+
+        if (ret == ENOENT)
+            continue;
+        WT_ERR(ret);
+
+        /* Block eviction for that dhandle. */
+        __wt_evict_file_exclusive_off(session);
+    }
+    if (ret == WT_NOTFOUND)
+        ret = 0;
+
+err:
+    WT_TRET(__wt_metadata_cursor_close(session));
+    return (ret);
+}
+
+/*
  * __rollback_to_stable_check --
  *     Ensure the rollback request is reasonable.
  */
@@ -1278,7 +1362,13 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    WT_RET(__rollback_to_stable_check(session));
+    /*
+     * History store operations create transactions so we need to block eviction everywhere before
+     * beginning a rollback to stable.
+     */
+    WT_ERR(__rollback_to_stable_eviction_off(session));
+
+    WT_ERR(__rollback_to_stable_check(session));
 
     /*
      * Allocate a non-durable btree bitstring. We increment the global value before using it, so the
@@ -1286,6 +1376,9 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
      */
     conn->stable_rollback_maxfile = conn->next_file_id + 1;
     WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_btree_apply(session));
+
+err:
+    WT_TRET(__rollback_to_stable_eviction_on(session));
 
     return (ret);
 }
