@@ -72,7 +72,7 @@ functions:
 
           python --version
           python -m pip install scons==3.1.1
-          scons-3.1.1.bat --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic ${smp_command|}
+          scons-3.1.1.bat "LIBPATH=c:\\python\\Python39\\libs" --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic ${smp_command|}
         else
           cd build_posix
           ${make_command|make} ${smp_command|} 2>&1
