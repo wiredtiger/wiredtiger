@@ -546,7 +546,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
-            start_time_point.durable_ts = upd->start_ts;
+            start_time_point.durable_ts = upd->durable_ts;
             start_time_point.ts = upd->start_ts;
             start_time_point.txnid = upd->txnid;
             tombstone = NULL;
