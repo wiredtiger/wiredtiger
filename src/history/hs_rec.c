@@ -681,7 +681,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              *
              * Sometimes the application and the checkpoint threads will fall behind the eviction
              * threads, and they may choose an invisible update if the update was previously
-             * selected by an failed eviction pass. In that case, there is no point in checking the
+             * selected by a failed eviction pass. In that case, there is no point in checking the
              * visibility of such history store updates.
              */
             WT_ASSERT(session,
