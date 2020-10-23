@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -46,9 +46,7 @@ __schema_source_config(
     WT_ERR(__wt_buf_fmt(session, buf, "%.*s", (int)cval.len, cval.str));
     srch->set_key(srch, buf->data);
     if ((ret = srch->search(srch)) != 0)
-        WT_ERR_MSG(session, ret,
-          "metadata information for source configuration"
-          " \"%s\" not found",
+        WT_ERR_MSG(session, ret, "metadata information for source configuration \"%s\" not found",
           (const char *)buf->data);
     WT_ERR(srch->get_value(srch, &v));
     WT_ERR(__wt_strdup(session, v, result));
@@ -62,8 +60,9 @@ err:
  * __schema_create_collapse --
  *     Discard any configuration information from a schema entry that is not applicable to an
  *     session.create call. For a table URI that contains no named column groups, fold in the
- *     configuration from the implicit column group and its source. For a named column group URI,
- *     fold in its source.
+ *     configuration from the implicit column group and its source. For a named column group or
+ *     index URI, fold in its source. For a table URI that contains named column groups, we return
+ *     only the table portion.
  */
 static int
 __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc, const char *key,
@@ -81,14 +80,17 @@ __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc, cons
     c = NULL;
     if (key != NULL && WT_PREFIX_SKIP(key, "table:")) {
         /*
-         * Check if the table has declared column groups. If it does, don't attempt to open the
-         * automatically created column group for simple tables.
+         * Check if the table has declared column groups. If it does, return just the table info.
+         * One can get the creation metadata for an index or column group table itself or for simple
+         * tables.
          */
         WT_RET(__wt_config_getones(session, value, "colgroups", &cgconf));
 
         __wt_config_subinit(session, &cparser, &cgconf);
-        if ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
+        if ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
+            firstcfg = cfg;
             goto skip;
+        }
         WT_RET_NOTFOUND_OK(ret);
 
         c = mdc->create_cursor;
@@ -100,13 +102,12 @@ __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc, cons
         c->set_key(c, buf->data);
         if ((ret = c->search(c)) != 0)
             WT_ERR_MSG(session, ret,
-              "metadata information for source configuration"
-              " \"%s\" not found",
+              "metadata information for source configuration \"%s\" not found",
               (const char *)buf->data);
         WT_ERR(c->get_value(c, &v));
         WT_ERR(__wt_strdup(session, v, --cfg));
         WT_ERR(__schema_source_config(session, c, v, --cfg));
-    } else if (key != NULL && WT_PREFIX_SKIP(key, "colgroup:")) {
+    } else if (key != NULL && (WT_PREFIX_SKIP(key, "colgroup:") || WT_PREFIX_SKIP(key, "index:"))) {
         if (strchr(key, ':') != NULL) {
             c = mdc->create_cursor;
             WT_ERR(__wt_strdup(session, value, --cfg));
@@ -114,9 +115,9 @@ __schema_create_collapse(WT_SESSION_IMPL *session, WT_CURSOR_METADATA *mdc, cons
         }
     }
 
-skip:
     firstcfg = cfg;
     *--firstcfg = WT_CONFIG_BASE(session, WT_SESSION_create);
+skip:
     WT_ERR(__wt_config_collapse(session, firstcfg, value_ret));
 
 err:
@@ -167,9 +168,10 @@ err:
  * Check if a key matches the metadata. The public value is "metadata:", but also check for the
  * internal version of the URI.
  */
-#define WT_KEY_IS_METADATA(key)                                                            \
-    ((key)->size > 0 && (WT_STRING_MATCH(WT_METADATA_URI, (key)->data, (key)->size - 1) || \
-                          WT_STRING_MATCH(WT_METAFILE_URI, (key)->data, (key)->size - 1)))
+#define WT_KEY_IS_METADATA(key)                                          \
+    ((key)->size > 0 &&                                                  \
+      (WT_STRING_MATCH(WT_METADATA_URI, (key)->data, (key)->size - 1) || \
+        WT_STRING_MATCH(WT_METAFILE_URI, (key)->data, (key)->size - 1)))
 
 /*
  * __curmetadata_metadata_search --
@@ -222,7 +224,7 @@ __curmetadata_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     a_file_cursor = a_mdc->file_cursor;
     b_file_cursor = b_mdc->file_cursor;
 
-    CURSOR_API_CALL(a, session, compare, ((WT_CURSOR_BTREE *)a_file_cursor)->btree);
+    CURSOR_API_CALL(a, session, compare, CUR2BT(a_file_cursor));
 
     if (b->compare != __curmetadata_compare)
         WT_ERR_MSG(session, EINVAL, "Can only compare cursors of the same type");
@@ -258,19 +260,17 @@ __curmetadata_next(WT_CURSOR *cursor)
 
     mdc = (WT_CURSOR_METADATA *)cursor;
     file_cursor = mdc->file_cursor;
-    CURSOR_API_CALL(cursor, session, next, ((WT_CURSOR_BTREE *)file_cursor)->btree);
+    CURSOR_API_CALL(cursor, session, next, CUR2BT(file_cursor));
 
     if (!F_ISSET(mdc, WT_MDC_POSITIONED))
         WT_ERR(__curmetadata_metadata_search(session, cursor));
     else {
         /*
-         * When applications open metadata cursors, they expect to see
-         * all schema-level operations reflected in the results.  Query
-         * at read-uncommitted to avoid confusion caused by the current
-         * transaction state.
+         * When applications open metadata cursors, they expect to see all schema-level operations
+         * reflected in the results. Query at read-uncommitted to avoid confusion caused by the
+         * current transaction state.
          *
-         * Don't exit from the scan if we find an incomplete entry:
-         * just skip over it.
+         * Don't exit from the scan if we find an incomplete entry: just skip over it.
          */
         for (;;) {
             WT_WITH_TXN_ISOLATION(
@@ -280,7 +280,7 @@ __curmetadata_next(WT_CURSOR *cursor)
               session, WT_ISO_READ_UNCOMMITTED, ret = __curmetadata_setkv(mdc, file_cursor));
             if (ret == 0)
                 break;
-            WT_ERR_NOTFOUND_OK(ret);
+            WT_ERR_NOTFOUND_OK(ret, false);
         }
     }
 
@@ -306,7 +306,7 @@ __curmetadata_prev(WT_CURSOR *cursor)
 
     mdc = (WT_CURSOR_METADATA *)cursor;
     file_cursor = mdc->file_cursor;
-    CURSOR_API_CALL(cursor, session, prev, ((WT_CURSOR_BTREE *)file_cursor)->btree);
+    CURSOR_API_CALL(cursor, session, prev, CUR2BT(file_cursor));
 
     if (F_ISSET(mdc, WT_MDC_ONMETADATA)) {
         ret = WT_NOTFOUND;
@@ -328,7 +328,7 @@ __curmetadata_prev(WT_CURSOR *cursor)
           session, WT_ISO_READ_UNCOMMITTED, ret = __curmetadata_setkv(mdc, file_cursor));
         if (ret == 0)
             break;
-        WT_ERR_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret, false);
     }
 
 err:
@@ -353,8 +353,7 @@ __curmetadata_reset(WT_CURSOR *cursor)
 
     mdc = (WT_CURSOR_METADATA *)cursor;
     file_cursor = mdc->file_cursor;
-    CURSOR_API_CALL_PREPARE_ALLOWED(
-      cursor, session, reset, ((WT_CURSOR_BTREE *)file_cursor)->btree);
+    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, CUR2BT(file_cursor));
 
     if (F_ISSET(mdc, WT_MDC_POSITIONED) && !F_ISSET(mdc, WT_MDC_ONMETADATA))
         ret = file_cursor->reset(file_cursor);
@@ -379,7 +378,7 @@ __curmetadata_search(WT_CURSOR *cursor)
 
     mdc = (WT_CURSOR_METADATA *)cursor;
     file_cursor = mdc->file_cursor;
-    CURSOR_API_CALL(cursor, session, search, ((WT_CURSOR_BTREE *)file_cursor)->btree);
+    CURSOR_API_CALL(cursor, session, search, CUR2BT(file_cursor));
 
     WT_MD_CURSOR_NEEDKEY(cursor);
 
@@ -416,7 +415,7 @@ __curmetadata_search_near(WT_CURSOR *cursor, int *exact)
 
     mdc = (WT_CURSOR_METADATA *)cursor;
     file_cursor = mdc->file_cursor;
-    CURSOR_API_CALL(cursor, session, search_near, ((WT_CURSOR_BTREE *)file_cursor)->btree);
+    CURSOR_API_CALL(cursor, session, search_near, CUR2BT(file_cursor));
 
     WT_MD_CURSOR_NEEDKEY(cursor);
 
@@ -454,7 +453,7 @@ __curmetadata_insert(WT_CURSOR *cursor)
 
     mdc = (WT_CURSOR_METADATA *)cursor;
     file_cursor = mdc->file_cursor;
-    CURSOR_API_CALL(cursor, session, insert, ((WT_CURSOR_BTREE *)file_cursor)->btree);
+    CURSOR_API_CALL(cursor, session, insert, CUR2BT(file_cursor));
 
     WT_MD_CURSOR_NEEDKEY(cursor);
     WT_MD_CURSOR_NEEDVALUE(cursor);
@@ -482,7 +481,7 @@ __curmetadata_update(WT_CURSOR *cursor)
 
     mdc = (WT_CURSOR_METADATA *)cursor;
     file_cursor = mdc->file_cursor;
-    CURSOR_API_CALL(cursor, session, update, ((WT_CURSOR_BTREE *)file_cursor)->btree);
+    CURSOR_API_CALL(cursor, session, update, CUR2BT(file_cursor));
 
     WT_MD_CURSOR_NEEDKEY(cursor);
     WT_MD_CURSOR_NEEDVALUE(cursor);
@@ -510,7 +509,7 @@ __curmetadata_remove(WT_CURSOR *cursor)
 
     mdc = (WT_CURSOR_METADATA *)cursor;
     file_cursor = mdc->file_cursor;
-    CURSOR_API_CALL(cursor, session, remove, ((WT_CURSOR_BTREE *)file_cursor)->btree);
+    CURSOR_API_CALL(cursor, session, remove, CUR2BT(file_cursor));
 
     WT_MD_CURSOR_NEEDKEY(cursor);
 
@@ -537,8 +536,7 @@ __curmetadata_close(WT_CURSOR *cursor)
 
     mdc = (WT_CURSOR_METADATA *)cursor;
     c = mdc->file_cursor;
-    CURSOR_API_CALL_PREPARE_ALLOWED(
-      cursor, session, close, c == NULL ? NULL : ((WT_CURSOR_BTREE *)c)->btree);
+    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, c == NULL ? NULL : CUR2BT(c));
 err:
 
     if (c != NULL)

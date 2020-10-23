@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -29,11 +29,7 @@
 
 from __future__ import print_function
 import math, struct, sys
-try:
-    from wiredtiger.packutil import _chr, _ord, x00_entry, xff_entry
-except ImportError:
-    # When WiredTiger is installed as a package, python2 needs this
-    from .packutil import _chr, _ord, x00_entry, xff_entry
+from wiredtiger.packutil import _chr, _ord, x00_entry, xff_entry
 
 # Variable-length integer packing
 # need: up to 64 bits, both signed and unsigned

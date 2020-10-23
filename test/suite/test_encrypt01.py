@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -61,13 +61,20 @@ class test_encrypt01(wttest.WiredTigerTestCase):
         ('none-snappy', dict(log_compress=None, block_compress='snappy')),
         ('snappy-lz4', dict(log_compress='snappy', block_compress='lz4')),
     ]
-    scenarios = make_scenarios(types, encrypt, compress)
+    loadExt = [
+        ('earlyLoadTrue', dict(earlyLoad=True)),
+        ('earlyLoadFalse', dict(earlyLoad=False)),
+    ]
+
+    scenarios = make_scenarios(types, encrypt, compress, loadExt)
 
     nrecords = 5000
     bigvalue = "abcdefghij" * 1001    # len(bigvalue) = 10010
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
+        if self.earlyLoad == True:
+            extlist.early_load_ext = True
         extlist.extension('encryptors', self.sys_encrypt)
         extlist.extension('encryptors', self.file_encrypt)
         extlist.extension('compressors', self.block_compress)

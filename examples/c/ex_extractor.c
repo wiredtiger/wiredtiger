@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -73,11 +73,9 @@ my_extract(WT_EXTRACTOR *extractor, WT_SESSION *session, const WT_ITEM *key, con
      */
     for (year = term_start; year <= term_end; ++year) {
         /*
-         * Note that the extract callback is called for all operations
-         * that update the table, not just inserts.  The user sets the
-         * key and uses the cursor->insert() method to return the index
-         * key(s).  WiredTiger will perform the required operation
-         * (such as a remove()).
+         * Note that the extract callback is called for all operations that update the table, not
+         * just inserts. The user sets the key and uses the cursor->insert() method to return the
+         * index key(s). WiredTiger will perform the required operation (such as a remove()).
          */
         fprintf(
           stderr, "EXTRACTOR: index op for year %" PRIu16 ": %s %s\n", year, first_name, last_name);
@@ -185,8 +183,7 @@ setup_table(WT_SESSION *session)
 
     /* Create the primary table. It has a key of the unique ID. */
     error_check(session->create(session, "table:presidents",
-      "key_format=I,value_format=SSHH,"
-      "columns=(ID,last_name,first_name,term_begin,term_end)"));
+      "key_format=I,value_format=SSHH,columns=(ID,last_name,first_name,term_begin,term_end)"));
 
     /*
      * Create the index that is generated with an extractor. The index will generate an entry in the

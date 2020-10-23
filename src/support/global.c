@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -35,9 +35,7 @@ __endian_check(void)
     e = "little-endian";
 #endif
     fprintf(stderr,
-      "This is a %s build of the WiredTiger data engine, incompatible "
-      "with this system\n",
-      e);
+      "This is a %s build of the WiredTiger data engine, incompatible with this system\n", e);
     return (EINVAL);
 }
 

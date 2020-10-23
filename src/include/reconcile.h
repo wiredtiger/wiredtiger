@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -20,79 +20,73 @@ struct __wt_reconcile {
     uint32_t flags; /* Caller's configuration */
 
     /*
-     * Track start/stop checkpoint generations to decide if lookaside table records are correct.
+     * Track start/stop checkpoint generations to decide if history store table records are correct.
      */
     uint64_t orig_btree_checkpoint_gen;
     uint64_t orig_txn_checkpoint_gen;
 
-    /*
-     * Track the oldest running transaction and whether to skew lookaside to the newest update.
-     */
-    bool las_skew_newest;
+    /* Track the oldest running transaction. */
     uint64_t last_running;
+
+    /* Track the oldest running id. This one doesn't consider checkpoint. */
+    uint64_t rec_start_oldest_id;
+
+    /* Track the pinned timestamp at the time reconciliation started. */
+    wt_timestamp_t rec_start_pinned_ts;
 
     /* Track the page's min/maximum transactions. */
     uint64_t max_txn;
-    wt_timestamp_t max_timestamp;
-
-    /* Lookaside boundary tracking. */
-    uint64_t unstable_txn;
-    wt_timestamp_t unstable_durable_timestamp;
-    wt_timestamp_t unstable_timestamp;
+    wt_timestamp_t max_ts;
+    wt_timestamp_t min_skipped_ts;
 
     u_int updates_seen;     /* Count of updates seen. */
     u_int updates_unstable; /* Count of updates not visible_all. */
 
-    bool update_uncommitted; /* An update was uncommitted. */
-    bool update_used;        /* An update could be used. */
-
-    /* All the updates are with prepare in-progress state. */
-    bool all_upd_prepare_in_prog;
+    /*
+     * When we do not find any update to be written for the whole page, we would like to mark
+     * eviction failed in the case of update-restore. There is no progress made by eviction in such
+     * a case, the page size stays the same and considering it a success could force the page
+     * through eviction repeatedly.
+     */
+    bool update_used;
 
     /*
-     * When we can't mark the page clean (for example, checkpoint found some uncommitted updates),
-     * there's a leave-dirty flag.
+     * When we can't mark the page clean after reconciliation (for example, checkpoint or eviction
+     * found some uncommitted updates), there's a leave-dirty flag.
      */
     bool leave_dirty;
 
     /*
-     * Track if reconciliation has seen any overflow items.  If a leaf page
-     * with no overflow items is written, the parent page's address cell is
-     * set to the leaf-no-overflow type.  This means we can delete the leaf
-     * page without reading it because we don't have to discard any overflow
+     * Track if reconciliation has seen any overflow items. If a leaf page with no overflow items is
+     * written, the parent page's address cell is set to the leaf-no-overflow type. This means we
+     * can delete the leaf page without reading it because we don't have to discard any overflow
      * items it might reference.
      *
-     * The test test is per-page reconciliation, that is, once we see an
-     * overflow item on the page, all subsequent leaf pages written for the
-     * page will not be leaf-no-overflow type, regardless of whether or not
-     * they contain overflow items.  In other words, leaf-no-overflow is not
-     * guaranteed to be set on every page that doesn't contain an overflow
-     * item, only that if it is set, the page contains no overflow items.
-     * XXX
-     * This was originally done because raw compression couldn't do better,
-     * now that raw compression has been removed, we should do better.
+     * The test test is per-page reconciliation, that is, once we see an overflow item on the page,
+     * all subsequent leaf pages written for the page will not be leaf-no-overflow type, regardless
+     * of whether or not they contain overflow items. In other words, leaf-no-overflow is not
+     * guaranteed to be set on every page that doesn't contain an overflow item, only that if it is
+     * set, the page contains no overflow items. XXX This was originally done because raw
+     * compression couldn't do better, now that raw compression has been removed, we should do
+     * better.
      */
     bool ovfl_items;
 
     /*
-     * Track if reconciliation of a row-store leaf page has seen empty (zero
-     * length) values.  We don't write out anything for empty values, so if
-     * there are empty values on a page, we have to make two passes over the
-     * page when it's read to figure out how many keys it has, expensive in
-     * the common case of no empty values and (entries / 2) keys.  Likewise,
-     * a page with only empty values is another common data set, and keys on
-     * that page will be equal to the number of entries.  In both cases, set
-     * a flag in the page's on-disk header.
+     * Track if reconciliation of a row-store leaf page has seen empty (zero length) values. We
+     * don't write out anything for empty values, so if there are empty values on a page, we have to
+     * make two passes over the page when it's read to figure out how many keys it has, expensive in
+     * the common case of no empty values and (entries / 2) keys. Likewise, a page with only empty
+     * values is another common data set, and keys on that page will be equal to the number of
+     * entries. In both cases, set a flag in the page's on-disk header.
      *
-     * The test is per-page reconciliation as described above for the
-     * overflow-item test.
+     * The test is per-page reconciliation as described above for the overflow-item test.
      */
     bool all_empty_value, any_empty_value;
 
     /*
-     * Reconciliation gets tricky if we have to split a page, which happens
-     * when the disk image we create exceeds the page type's maximum disk
-     * image size.
+     * Reconciliation gets tricky if we have to split a page, which happens when the disk image we
+     * create exceeds the page type's maximum disk image size.
      *
      * First, the target size of the page we're building.
      */
@@ -106,55 +100,44 @@ struct __wt_reconcile {
     uint32_t min_split_size; /* Minimum split page size */
 
     /*
-     * We maintain two split chunks in the memory during reconciliation to
-     * be written out as pages. As we get to the end of the data, if the
-     * last one turns out to be smaller than the minimum split size, we go
-     * back into the penultimate chunk and split at this minimum split size
-     * boundary. This moves some data from the penultimate chunk to the last
-     * chunk, hence increasing the size of the last page written without
-     * decreasing the penultimate page size beyond the minimum split size.
-     * For this reason, we maintain an expected split percentage boundary
-     * and a minimum split percentage boundary.
+     * We maintain two split chunks in the memory during reconciliation to be written out as pages.
+     * As we get to the end of the data, if the last one turns out to be smaller than the minimum
+     * split size, we go back into the penultimate chunk and split at this minimum split size
+     * boundary. This moves some data from the penultimate chunk to the last chunk, hence increasing
+     * the size of the last page written without decreasing the penultimate page size beyond the
+     * minimum split size. For this reason, we maintain an expected split percentage boundary and a
+     * minimum split percentage boundary.
      *
-     * Chunks are referenced by current and previous pointers. In case of a
-     * split, previous references the first chunk and current switches to
-     * the second chunk. If reconciliation generates more split chunks, the
-     * the previous chunk is written to the disk and current and previous
-     * swap.
+     * Chunks are referenced by current and previous pointers. In case of a split, previous
+     * references the first chunk and current switches to the second chunk. If reconciliation
+     * generates more split chunks, the previous chunk is written to the disk and current and
+     * previous swap.
      */
     struct __wt_rec_chunk {
         /*
-         * The recno and entries fields are the starting record number
-         * of the split chunk (for column-store splits), and the number
-         * of entries in the split chunk.
+         * The recno and entries fields are the starting record number of the split chunk (for
+         * column-store splits), and the number of entries in the split chunk.
          *
-         * The key for a row-store page; no column-store key is needed
-         * because the page's recno, stored in the recno field, is the
-         * column-store key.
+         * The key for a row-store page; no column-store key is needed because the page's recno,
+         * stored in the recno field, is the column-store key.
          */
         uint32_t entries;
         uint64_t recno;
         WT_ITEM key;
-        wt_timestamp_t newest_durable_ts;
-        wt_timestamp_t oldest_start_ts;
-        uint64_t oldest_start_txn;
-        wt_timestamp_t newest_stop_ts;
-        uint64_t newest_stop_txn;
+        WT_TIME_AGGREGATE ta;
 
         /* Saved minimum split-size boundary information. */
         uint32_t min_entries;
         uint64_t min_recno;
         WT_ITEM min_key;
-        wt_timestamp_t min_newest_durable_ts;
-        wt_timestamp_t min_oldest_start_ts;
-        uint64_t min_oldest_start_txn;
-        wt_timestamp_t min_newest_stop_ts;
-        uint64_t min_newest_stop_txn;
+        WT_TIME_AGGREGATE ta_min;
 
         size_t min_offset; /* byte offset */
 
         WT_ITEM image; /* disk-image */
     } chunkA, chunkB, *cur_ptr, *prev_ptr;
+
+    size_t disk_img_buf_size; /* Base size needed for a chunk memory image */
 
     /*
      * We track current information about the current record number, the number of entries copied
@@ -162,17 +145,40 @@ struct __wt_reconcile {
      * current min/max of the timestamps. Those values are packaged here rather than passing
      * pointers to stack locations around the code.
      */
-    uint64_t recno;      /* Current record number */
-    uint32_t entries;    /* Current number of entries */
-    uint8_t *first_free; /* Current first free byte */
-    size_t space_avail;  /* Remaining space in this chunk */
-    /* Remaining space in this chunk to put a minimum size boundary */
-    size_t min_space_avail;
+    uint64_t recno;         /* Current record number */
+    uint32_t entries;       /* Current number of entries */
+    uint8_t *first_free;    /* Current first free byte */
+    size_t space_avail;     /* Remaining space in this chunk */
+    size_t min_space_avail; /* Remaining space in this chunk to put a minimum size boundary */
 
     /*
-     * Saved update list, supporting the WT_REC_UPDATE_RESTORE and WT_REC_LOOKASIDE configurations.
-     * While reviewing updates for each page, we save WT_UPDATE lists here, and then move them to
-     * per-block areas as the blocks are defined.
+     * Counters tracking how much time information is included in reconciliation for each page that
+     * is written to disk. The number of entries on a page is limited to a 32 bit number so these
+     * counters can be too.
+     */
+    uint32_t count_durable_start_ts;
+    uint32_t count_start_ts;
+    uint32_t count_start_txn;
+    uint32_t count_durable_stop_ts;
+    uint32_t count_stop_ts;
+    uint32_t count_stop_txn;
+    uint32_t count_prepare;
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
+#define WT_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
+#define WT_REC_TIME_NEWEST_STOP_TS 0x04u
+#define WT_REC_TIME_NEWEST_STOP_TXN 0x08u
+#define WT_REC_TIME_NEWEST_TXN 0x10u
+#define WT_REC_TIME_OLDEST_START_TS 0x20u
+#define WT_REC_TIME_PREPARE 0x40u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint16_t ts_usage_flags;
+
+    /*
+     * Saved update list, supporting WT_REC_HS configurations. While reviewing updates for each
+     * page, we save WT_UPDATE lists here, and then move them to per-block areas as the blocks are
+     * defined.
      */
     WT_SAVE_UPD *supd; /* Saved updates */
     uint32_t supd_next;
@@ -245,10 +251,10 @@ struct __wt_reconcile {
 
     WT_SALVAGE_COOKIE *salvage; /* If it's a salvage operation */
 
-    bool cache_write_lookaside; /* Used the lookaside table */
-    bool cache_write_restore;   /* Used update/restoration */
+    bool cache_write_hs;      /* Used the history store table */
+    bool cache_write_restore; /* Used update/restoration */
 
-    uint32_t tested_ref_state; /* Debugging information */
+    uint8_t tested_ref_state; /* Debugging information */
 
     /*
      * XXX In the case of a modified update, we may need a copy of the current value as a set of
@@ -256,19 +262,22 @@ struct __wt_reconcile {
      * violation and fragile, we need a better solution.
      */
     WT_CURSOR_BTREE update_modify_cbt;
+
+    /*
+     * Variables to track reconciliation calls for pages containing cells with time window values
+     * and prepared transactions.
+     */
+    bool rec_page_cell_with_ts;
+    bool rec_page_cell_with_txn_id;
+    bool rec_page_cell_with_prepared_txn;
 };
 
 typedef struct {
     WT_UPDATE *upd; /* Update to write (or NULL) */
 
-    wt_timestamp_t durable_ts; /* Transaction IDs, timestamps */
-    wt_timestamp_t start_ts;
-    uint64_t start_txn;
-    wt_timestamp_t stop_ts;
-    uint64_t stop_txn;
+    WT_TIME_WINDOW tw;
 
-    bool upd_saved; /* Updates saved to list */
-
+    bool upd_saved; /* An element on the row's update chain was saved */
 } WT_UPDATE_SELECT;
 
 /*

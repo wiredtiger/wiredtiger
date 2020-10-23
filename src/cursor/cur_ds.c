@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -87,15 +87,13 @@ __curds_cursor_resolve(WT_CURSOR *cursor, int ret)
     source = ((WT_CURSOR_DATA_SOURCE *)cursor)->source;
 
     /*
-     * Update the cursor's key, value and flags.  (We use the _INT flags in
-     * the same way as file objects: there's some chance the underlying data
-     * source is passing us a reference to data only pinned per operation,
-     * might as well be safe.)
+     * Update the cursor's key, value and flags. (We use the _INT flags in the same way as file
+     * objects: there's some chance the underlying data source is passing us a reference to data
+     * only pinned per operation, might as well be safe.)
      *
-     * There's also a requirement the underlying data-source never returns
-     * with the cursor/source key referencing application memory: it'd be
-     * great to do a copy as necessary here so the data-source doesn't have
-     * to worry about copying the key, but we don't have enough information
+     * There's also a requirement the underlying data-source never returns with the cursor/source
+     * key referencing application memory: it'd be great to do a copy as necessary here so the
+     * data-source doesn't have to worry about copying the key, but we don't have enough information
      * to know if a cursor is pointing at application or data-source memory.
      */
     if (ret == 0) {
@@ -532,11 +530,12 @@ __wt_curds_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, con
     ret = __wt_config_getones(session, metaconf, "collator", &cval);
     if (ret == 0 && cval.len != 0) {
         WT_CLEAR(metadata);
-        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, metaconf, "app_metadata", &metadata));
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_getones(session, metaconf, "app_metadata", &metadata), false);
         WT_ERR(__wt_collator_config(
           session, uri, &cval, &metadata, &data_source->collator, &data_source->collator_owned));
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     WT_ERR(
       dsrc->open_cursor(dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg, &data_source->source));

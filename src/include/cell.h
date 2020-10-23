@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -49,10 +49,10 @@
  * Bits 1 and 2 are reserved for "short" key and value cells (that is, a cell
  * carrying data less than 64B, where we can store the data length in the cell
  * descriptor byte):
- *	0x00	Not a short key/data cell
- *	0x01	Short key cell
- *	0x10	Short key cell, with a following prefix-compression byte
- *	0x11	Short value cell
+ *	0b00	Not a short key/data cell
+ *	0b01	Short key cell
+ *	0b10	Short key cell, with a following prefix-compression byte
+ *	0b11	Short value cell
  * In the "short" variants, the other 6 bits of the descriptor byte are the
  * data length.
  *
@@ -61,8 +61,9 @@
  *
  * Bit 4 marks a value with an additional descriptor byte. If this flag is set,
  * the next byte after the initial cell byte is an additional description byte.
- * The bottom 4 bits describe a validity window of timestamp/transaction IDs.
- * The top 4 bits are currently unused.
+ * The bottom bit in this additional byte indicates that the cell is part of a
+ * prepared, and not yet committed transaction. The next 6 bits describe a validity
+ * and durability window of timestamp/transaction IDs.  The top bit is currently unused.
  *
  * Bits 5-8 are cell "types".
  */
@@ -77,24 +78,24 @@
 #define WT_CELL_64V 0x04         /* Associated value */
 #define WT_CELL_SECOND_DESC 0x08 /* Second descriptor byte */
 
-#define WT_CELL_TS_DURABLE 0x01 /* Newest-durable timestamp */
-#define WT_CELL_TS_START 0x02   /* Oldest-start timestamp */
-#define WT_CELL_TS_STOP 0x04    /* Newest-stop timestamp */
-#define WT_CELL_TXN_START 0x08  /* Oldest-start txn ID */
-#define WT_CELL_TXN_STOP 0x10   /* Newest-stop txn ID */
+#define WT_CELL_PREPARE 0x01          /* Part of prepared transaction */
+#define WT_CELL_TS_DURABLE_START 0x02 /* Start durable timestamp */
+#define WT_CELL_TS_DURABLE_STOP 0x04  /* Stop durable timestamp */
+#define WT_CELL_TS_START 0x08         /* Oldest-start timestamp */
+#define WT_CELL_TS_STOP 0x10          /* Newest-stop timestamp */
+#define WT_CELL_TXN_START 0x20        /* Oldest-start txn ID */
+#define WT_CELL_TXN_STOP 0x40         /* Newest-stop txn ID */
 
 /*
- * WT_CELL_ADDR_INT is an internal block location, WT_CELL_ADDR_LEAF is a leaf
- * block location, and WT_CELL_ADDR_LEAF_NO is a leaf block location where the
- * page has no overflow items.  (The goal is to speed up truncation as we don't
- * have to read pages without overflow items in order to delete them.  Note,
- * WT_CELL_ADDR_LEAF_NO is not guaranteed to be set on every page without
- * overflow items, the only guarantee is that if set, the page has no overflow
- * items.)
+ * WT_CELL_ADDR_INT is an internal block location, WT_CELL_ADDR_LEAF is a leaf block location, and
+ * WT_CELL_ADDR_LEAF_NO is a leaf block location where the page has no overflow items. (The goal is
+ * to speed up truncation as we don't have to read pages without overflow items in order to delete
+ * them. Note, WT_CELL_ADDR_LEAF_NO is not guaranteed to be set on every page without overflow
+ * items, the only guarantee is that if set, the page has no overflow items.)
  *
- * WT_CELL_VALUE_COPY is a reference to a previous cell on the page, supporting
- * value dictionaries: if the two values are the same, we only store them once
- * and have any second and subsequent uses reference the original.
+ * WT_CELL_VALUE_COPY is a reference to a previous cell on the page, supporting value dictionaries:
+ * if the two values are the same, we only store them once and have any second and subsequent uses
+ * reference the original.
  */
 #define WT_CELL_ADDR_DEL (0)            /* Address: deleted */
 #define WT_CELL_ADDR_INT (1 << 4)       /* Address: internal  */
@@ -127,11 +128,11 @@
  */
 struct __wt_cell {
     /*
-     * Maximum of 62 bytes:
+     * Maximum of 71 bytes:
      *  1: cell descriptor byte
      *  1: prefix compression count
      *  1: secondary descriptor byte
-     * 27: 3 timestamps		(uint64_t encoding, max 9 bytes)
+     * 36: 4 timestamps		(uint64_t encoding, max 9 bytes)
      * 18: 2 transaction IDs	(uint64_t encoding, max 9 bytes)
      *  9: associated 64-bit value	(uint64_t encoding, max 9 bytes)
      *  5: data length		(uint32_t encoding, max 5 bytes)
@@ -140,44 +141,66 @@ struct __wt_cell {
      * count and 64V value overlap, and the validity window, 64V value
      * and data length are all optional in some cases.
      */
-    uint8_t __chunk[1 + 1 + 1 + 6 * WT_INTPACK64_MAXSIZE + WT_INTPACK32_MAXSIZE];
+    uint8_t __chunk[1 + 1 + 1 + 7 * WT_INTPACK64_MAXSIZE + WT_INTPACK32_MAXSIZE];
+};
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_CELL_UNPACK_OVERFLOW 0x1u            /* cell is an overflow */
+#define WT_CELL_UNPACK_TIME_WINDOW_CLEARED 0x2u /* time window cleared because of restart */
+                                                /* AUTOMATIC FLAG VALUE GENERATION STOP */
+
+/*
+ * We have two "unpacked cell" structures: one holding holds unpacked cells from internal nodes
+ * (address pages), and one holding unpacked cells from leaf nodes (key/value pages). They share a
+ * common set of initial fields: in a few places where a function has to handle both types of
+ * unpacked cells, the unpacked cell structures are cast to an "unpack-common" structure that can
+ * only reference shared fields.
+ */
+#define WT_CELL_COMMON_FIELDS                                                                   \
+    WT_CELL *cell; /* Cell's disk image address */                                              \
+                                                                                                \
+    uint64_t v; /* RLE count or recno */                                                        \
+                                                                                                \
+    /*                                                                                          \
+     * The size and __len fields are reasonably type size_t; don't change the type, performance \
+     * drops significantly if they're type size_t.                                              \
+     */                                                                                         \
+    const void *data; /* Data */                                                                \
+    uint32_t size;    /* Data size */                                                           \
+                                                                                                \
+    uint32_t __len; /* Cell + data length (usually) */                                          \
+                                                                                                \
+    uint8_t prefix; /* Cell prefix length */                                                    \
+                                                                                                \
+    uint8_t raw;  /* Raw cell type (include "shorts") */                                        \
+    uint8_t type; /* Cell type */                                                               \
+                                                                                                \
+    uint8_t flags
+
+/*
+ * WT_CELL_UNPACK_COMMON --
+ *     Unpacked address cell, the common fields.
+ */
+struct __wt_cell_unpack_common {
+    WT_CELL_COMMON_FIELDS;
 };
 
 /*
- * WT_CELL_UNPACK --
- *	Unpacked cell.
+ * WT_CELL_UNPACK_ADDR --
+ *     Unpacked address cell.
  */
-struct __wt_cell_unpack {
-    WT_CELL *cell; /* Cell's disk image address */
+struct __wt_cell_unpack_addr {
+    WT_CELL_COMMON_FIELDS;
 
-    uint64_t v; /* RLE count or recno */
+    WT_TIME_AGGREGATE ta; /* Address validity window */
+};
 
-    wt_timestamp_t start_ts; /* Value validity window */
-    uint64_t start_txn;
-    wt_timestamp_t stop_ts;
-    uint64_t stop_txn;
+/*
+ * WT_CELL_UNPACK_KV --
+ *     Unpacked value cell.
+ */
+struct __wt_cell_unpack_kv {
+    WT_CELL_COMMON_FIELDS;
 
-    /* Address validity window */
-    wt_timestamp_t newest_durable_ts;
-    wt_timestamp_t oldest_start_ts;
-    uint64_t oldest_start_txn;
-    wt_timestamp_t newest_stop_ts;
-    uint64_t newest_stop_txn;
-
-    /*
-     * !!!
-     * The size and __len fields are reasonably type size_t; don't change
-     * the type, performance drops significantly if they're type size_t.
-     */
-    const void *data; /* Data */
-    uint32_t size;    /* Data size */
-
-    uint32_t __len; /* Cell + data length (usually) */
-
-    uint8_t prefix; /* Cell prefix length */
-
-    uint8_t raw;  /* Raw cell type (include "shorts") */
-    uint8_t type; /* Cell type */
-
-    uint8_t ovfl; /* boolean: cell is an overflow */
+    WT_TIME_WINDOW tw; /* Value validity window */
 };

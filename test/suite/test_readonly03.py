@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -44,7 +44,7 @@ class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
     conn_params_rd = 'readonly=true,operation_tracking=(enabled=false),'
 
     session_ops = [ 'alter', 'create', 'compact', 'drop', 'log_flush',
-        'log_printf', 'rebalance', 'rename', 'salvage', 'truncate', 'upgrade', ]
+        'log_printf', 'rename', 'salvage', 'truncate', 'upgrade', ]
     cursor_ops = [ 'insert', 'remove', 'update', ]
 
     def setUpConnectionOpen(self, dir):
@@ -105,9 +105,6 @@ class test_readonly03(wttest.WiredTigerTestCase, suite_subprocess):
             elif op == 'log_printf':
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.session.log_printf("test"), msg)
-            elif op == 'rebalance':
-                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                    lambda: self.session.rebalance(self.uri, None), msg)
             elif op == 'rename':
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.session.rename(self.uri, self.uri2, None), msg)

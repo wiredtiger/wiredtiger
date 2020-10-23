@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -92,11 +92,10 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
                 cur_logs = fnmatch.filter(os.listdir(homedir), "*gerLog*")
                 scur = set(cur_logs)
                 sorig = set(orig_logs)
-                # There should never be overlap with the log files that
-                # were there originally.  Mostly this checks that after
-                # opening with logging disabled and then re-enabled, we
-                # don't see log file 1.
-                self.assertEqual(scur.isdisjoint(sorig), True)
+                # There can be overlap with the log files that were
+                # there originally. Because some pages are rolled back
+                # as part of RTS.
+                self.assertEqual(scur.isdisjoint(sorig), False)
                 if loop > 1:
                     # We should be creating the same log files each time.
                     for l in cur_logs:

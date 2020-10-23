@@ -13,14 +13,13 @@ API
 APIs
 ARG
 ARGS
+ASAN
 ASM
-ASYNC
 Addr
 Ailamaki
 Alakuijala
 Alexandrescu's
 Alloc
-Async
 AsyncOp
 Athanassoulis
 Athlon
@@ -43,6 +42,8 @@ Barack
 BerkeleyDB
 Bitfield
 Bitwise
+BlqR
+BqRt
 Brueckner
 Bsearch
 Btree
@@ -88,6 +89,7 @@ CreateFileMappingW
 CreateFileW
 Crummey
 CustomersPhone
+DAX
 DECL
 DECR
 DESC
@@ -174,6 +176,7 @@ HHHHLL
 HHHLL
 HILQr
 HOTBACKUP
+HSdump
 Hendrik
 HyperLevelDB
 ID's
@@ -216,7 +219,6 @@ LLLLLLL
 LOGREC
 LOGSCAN
 LOOKASIDE
-LRSVv
 LRU
 LSB
 LSM
@@ -229,7 +231,8 @@ LZO
 LeafGreen
 LevelDB
 Levyx
-LmT
+LmRrSVv
+LmsT
 LoadLoad
 LockFile
 Lookaside
@@ -257,6 +260,7 @@ Memrata
 Metadata
 Mewhort
 Mitzenmacher
+Mmap
 MongoDB
 MoveFileExW
 Multi
@@ -266,6 +270,7 @@ Mutex
 MySecret
 NEEDKEY
 NEEDVALUE
+NNN
 NOLINT
 NOLINTNEXTLINE
 NOLL
@@ -293,6 +298,7 @@ Obama
 Opcode
 Outfmt
 PARAM
+PFX
 POSIX
 PPC
 PREDEFINE
@@ -312,6 +318,7 @@ PowerPC
 Pre
 Preload
 Prepend
+Prev
 Qsort
 RCS
 RDNOLOCK
@@ -327,13 +334,13 @@ RLEs
 RMW
 RNG
 RPC
+RTS
 RUNDIR
 RWLOCK
 RXB
 Radu
 ReadFile
 Readonly
-Rebalance
 RedHat
 Redistributions
 Refactor
@@ -349,6 +356,7 @@ SSHH
 SSq
 STAILQ
 STEC
+STR
 STRUCT
 Scalability
 Scalable
@@ -361,6 +369,7 @@ Sevii
 SiH
 Skiplist
 SleepConditionVariableCS
+SmallVector
 Solaris
 Spinlock
 Spinlocks
@@ -375,6 +384,7 @@ TCMalloc
 TESTUTIL
 TIMESTAMP
 TIMESTAMPS
+TMP
 TODO
 TORTIOUS
 TSO
@@ -439,6 +449,7 @@ WiredTiger
 WiredTiger's
 WiredTigerCheckpoint
 WiredTigerException
+WiredTigerHS
 WiredTigerInit
 WiredTigerLAS
 WiredTigerLog
@@ -485,14 +496,13 @@ asm
 aspell
 assertfmt
 async
-asyncopp
-asyncops
 atomicity
 autocommit
 autoconf
 automake
 bInheritHandle
 backoff
+backport
 bal
 basecfg
 basho
@@ -508,6 +518,7 @@ bitpos
 bitstring
 bitwise
 blk
+blkmod
 bm
 bnd
 bool
@@ -549,6 +560,8 @@ cb
 ccc
 ccr
 cd
+ce
+ceh
 centric
 cfg
 cfko
@@ -686,12 +699,14 @@ dll
 dlopen
 dlsym
 dmalloc
+dmb
 dmsg
 doxgen
 doxygen
 drealloc
 ds
 dsb
+dsbs
 dsk
 dsrc
 dst
@@ -790,6 +805,7 @@ func
 funcid
 fvisibility
 fwrite
+gc
 gcc
 gdb
 ge
@@ -822,6 +838,7 @@ hhh
 highjack
 hilq
 hotbackup
+hs
 hselasky
 html
 huffman
@@ -880,6 +897,9 @@ isalpha
 iscntrl
 isdigit
 isgraph
+ish
+ishld
+ishst
 islocked
 islower
 ispo
@@ -895,12 +915,13 @@ iteratively
 iters
 jjj
 jnr
-jrx
+jprx
 json
 kb
 kbits
 keycmp
 keyid
+keylen
 keyv
 kv
 kvraw
@@ -928,15 +949,19 @@ libwiredtiger
 linkers
 llll
 llu
+llvm
 loadtext
 localTime
 localkey
 localtime
 localvalue
 logf
+logfile
 logmgr
+logmsg
 lognum
 logop
+logpath
 logread
 logrec
 logsize
@@ -945,8 +970,6 @@ lookaside
 lookup
 lookups
 lossy
-lqr
-lqrt
 lr
 lrt
 lru
@@ -957,12 +980,15 @@ lsnappy
 lt
 lu
 lwsync
+lx
 lz
 lzo
 mT
 madvise
+majmin
 majorp
 malloc
+mappable
 marshall
 marshalled
 maxCLevel
@@ -1004,11 +1030,13 @@ multithreaded
 munmap
 mutex
 mutexes
+mx
 mytable
 mytxn
 namespace
 namespaces
 nbits
+nbsp
 nchunks
 nclr
 nd
@@ -1107,6 +1135,7 @@ prepended
 prepending
 presize
 presync
+prev
 prevlsn
 primary's
 printf
@@ -1125,7 +1154,9 @@ pv
 pvA
 pwrite
 py
+qRrT
 qdown
+qqq
 qrrSS
 qsort
 quartile
@@ -1144,9 +1175,9 @@ rduppo
 readlock
 readonly
 readunlock
+readv
 realloc
 rebalance
-rebalanced
 rebalancing
 recno
 recnos
@@ -1161,6 +1192,7 @@ regionp
 reinitialization
 relocked
 repl
+resizable
 resize
 resizing
 ret
@@ -1175,6 +1207,7 @@ rotN
 rotn
 rp
 rpc
+rts
 ru
 run's
 runtime
@@ -1182,6 +1215,7 @@ rwlock
 sH
 sHQ
 sT
+sanitizer
 sanitizers
 scalability
 sched
@@ -1196,6 +1230,8 @@ setstr
 setv
 setvbuf
 sfence
+shareability
+signalled
 sii
 sizeof
 sizep
@@ -1217,6 +1253,7 @@ srch
 ssize
 startup
 statlog
+stb
 stderr
 stdin
 stdout
@@ -1239,6 +1276,7 @@ struct
 structs
 su
 subdirectory
+subget
 subgetraw
 subgets
 subinit
@@ -1259,6 +1297,8 @@ syscall
 sysinfo
 sz
 t's
+tK
+tM
 tV
 tablename
 tcbench
@@ -1272,6 +1312,8 @@ timedwait
 timestamp
 timestamped
 timestamps
+tinfo
+tlb
 tmp
 todo
 tokenizer
@@ -1292,6 +1334,7 @@ trylock
 tsc
 tupdate
 tvalue
+tw
 txn
 txnc
 txnid
@@ -1320,6 +1363,8 @@ unistd
 unlink
 unlinked
 unmap
+unmapped
+unmapping
 unmarshall
 unmarshalled
 unmerged

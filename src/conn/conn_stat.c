@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -73,9 +73,7 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     conn = S2C(session);
     stats = conn->stats;
 
-    __wt_async_stats_update(session);
     __wt_cache_stats_update(session);
-    __wt_las_stats_update(session);
     __wt_txn_stats_update(session);
 
     WT_STAT_SET(session, stats, file_open, conn->open_file_count);
@@ -101,19 +99,17 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
     char **sources;
 
     /*
-     * A note on reconfiguration: the standard "is this configuration string
-     * allowed" checks should fail if reconfiguration has invalid strings,
-     * for example, "log=(enabled)", or "statistics_log=(path=XXX)", because
-     * the connection reconfiguration method doesn't allow those strings.
-     * Additionally, the base configuration values during reconfiguration
-     * are the currently configured values (so we don't revert to default
-     * values when repeatedly reconfiguring), and configuration processing
-     * of a currently set value should not change the currently set value.
+     * A note on reconfiguration: the standard "is this configuration string allowed" checks should
+     * fail if reconfiguration has invalid strings, for example, "log=(enabled)", or
+     * "statistics_log=(path=XXX)", because the connection reconfiguration method doesn't allow
+     * those strings. Additionally, the base configuration values during reconfiguration are the
+     * currently configured values (so we don't revert to default values when repeatedly
+     * reconfiguring), and configuration processing of a currently set value should not change the
+     * currently set value.
      *
-     * In this code path, a previous statistics log server reconfiguration
-     * may have stopped the server (and we're about to restart it). Because
-     * stopping the server discarded the configured information stored in
-     * the connection structure, we have to re-evaluate all configuration
+     * In this code path, a previous statistics log server reconfiguration may have stopped the
+     * server (and we're about to restart it). Because stopping the server discarded the configured
+     * information stored in the connection structure, we have to re-evaluate all configuration
      * values, reconfiguration can't skip any of them.
      */
 
@@ -138,15 +134,13 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
         FLD_SET(conn->stat_flags, WT_STAT_ON_CLOSE);
 
     /*
-     * We don't allow the log path to be reconfigured for security reasons.
-     * (Applications passing input strings directly to reconfigure would
-     * expose themselves to a potential security problem, the utility of
-     * reconfiguring a statistics log path isn't worth the security risk.)
+     * We don't allow the log path to be reconfigured for security reasons. (Applications passing
+     * input strings directly to reconfigure would expose themselves to a potential security
+     * problem, the utility of reconfiguring a statistics log path isn't worth the security risk.)
      *
-     * See above for the details, but during reconfiguration we're loading
-     * the path value from the saved configuration information, and it's
-     * required during reconfiguration because we potentially stopped and
-     * are restarting, the server.
+     * See above for the details, but during reconfiguration we're loading the path value from the
+     * saved configuration information, and it's required during reconfiguration because we
+     * potentially stopped and are restarting, the server.
      */
     WT_RET(__wt_config_gets(session, cfg, "statistics_log.path", &cval));
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
@@ -157,7 +151,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
     __wt_config_subinit(session, &objectconf, &cval);
     for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt)
         ;
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
     if (cnt != 0) {
         WT_ERR(__wt_calloc_def(session, cnt + 1, &sources));
         __wt_config_subinit(session, &objectconf, &cval);
@@ -169,12 +163,11 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
              */
             if (!WT_PREFIX_MATCH(k.str, "file:") && !WT_PREFIX_MATCH(k.str, "lsm:"))
                 WT_ERR_MSG(session, EINVAL,
-                  "statistics_log sources configuration only "
-                  "supports objects of type \"file\" or "
+                  "statistics_log sources configuration only supports objects of type \"file\" or "
                   "\"lsm\"");
             WT_ERR(__wt_strndup(session, k.str, k.len, &sources[cnt]));
         }
-        WT_ERR_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret, false);
 
         conn->stat_sources = sources;
         sources = NULL;
@@ -336,8 +329,8 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
     /*
      * Open the statistics cursor and dump the statistics.
      *
-     * If we don't find an underlying object, silently ignore it, the object
-     * may exist only intermittently.
+     * If we don't find an underlying object, silently ignore it, the object may exist only
+     * intermittently.
      */
     if ((ret = __wt_curstat_open(session, uri, NULL, cfg, &cursor)) != 0) {
         if (ret == EBUSY || ret == ENOENT || ret == WT_NOTFOUND)
@@ -367,7 +360,7 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
             WT_ERR(__wt_fprintf(
               session, conn->stat_fs, "%s %" PRId64 " %s %s\n", conn->stat_stamp, val, name, desc));
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
     if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON))
         WT_ERR(__wt_fprintf(session, conn->stat_fs, "}}"));
 
@@ -420,18 +413,13 @@ __statlog_lsm_apply(WT_SESSION_IMPL *session)
     cnt = locked = 0;
 
     /*
-     * Walk the list of LSM trees, checking for a match on the set of
-     * sources.
+     * Walk the list of LSM trees, checking for a match on the set of sources.
      *
-     * XXX
-     * We can't hold the schema lock for the traversal because the LSM
-     * statistics code acquires the tree lock, and the LSM cursor code
-     * acquires the tree lock and then acquires the schema lock, it's a
-     * classic deadlock.  This is temporary code so I'm not going to do
-     * anything fancy.
-     * It is OK to not keep holding the schema lock after populating
-     * the list of matching LSM trees, since the __wt_lsm_tree_get call
-     * will bump a reference count, so the tree won't go away.
+     * XXX We can't hold the schema lock for the traversal because the LSM statistics code acquires
+     * the tree lock, and the LSM cursor code acquires the tree lock and then acquires the schema
+     * lock, it's a classic deadlock. This is temporary code so I'm not going to do anything fancy.
+     * It is OK to not keep holding the schema lock after populating the list of matching LSM trees,
+     * since the __wt_lsm_tree_get call will bump a reference count, so the tree won't go away.
      */
     __wt_spin_lock(session, &S2C(session)->schema_lock);
     locked = true;
@@ -512,12 +500,9 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
         WT_RET(__wt_conn_btree_apply(session, NULL, __statlog_apply, NULL, NULL));
 
     /*
-     * Walk the list of open LSM trees, dumping any that match the
-     * the list of object sources.
+     * Walk the list of open LSM trees, dumping any that match the list of object sources.
      *
-     * XXX
-     * This code should be removed when LSM objects are converted to
-     * data handles.
+     * XXX This code should be removed when LSM objects are converted to data handles.
      */
     if (conn->stat_sources != NULL)
         WT_RET(__statlog_lsm_apply(session));
@@ -584,11 +569,11 @@ __statlog_server(void *arg)
     WT_CLEAR(tmp);
 
     /*
-     * We need a temporary place to build a path and an entry prefix.
-     * The length of the path plus 128 should be more than enough.
+     * We need a temporary place to build a path and an entry prefix. The length of the path plus
+     * 128 should be more than enough.
      *
-     * We also need a place to store the current path, because that's
-     * how we know when to close/re-open the file.
+     * We also need a place to store the current path, because that's how we know when to
+     * close/re-open the file.
      */
     WT_ERR(__wt_buf_init(session, &path, strlen(conn->stat_path) + 128));
     WT_ERR(__wt_buf_setstr(session, &path, ""));
@@ -609,7 +594,7 @@ __statlog_server(void *arg)
 
     if (0) {
 err:
-        WT_PANIC_MSG(session, ret, "statistics log server error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "statistics log server error"));
     }
     __wt_buf_free(session, &path);
     __wt_buf_free(session, &tmp);
@@ -640,12 +625,11 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
     /*
      * Start the thread.
      *
-     * Statistics logging creates a thread per database, rather than using
-     * a single thread to do logging for all of the databases. If we ever
-     * see lots of databases at a time, doing statistics logging, and we
-     * want to reduce the number of threads, there's no reason we have to
-     * have more than one thread, I just didn't feel like writing the code
-     * to figure out the scheduling.
+     * Statistics logging creates a thread per database, rather than using a single thread to do
+     * logging for all of the databases. If we ever see lots of databases at a time, doing
+     * statistics logging, and we want to reduce the number of threads, there's no reason we have to
+     * have more than one thread, I just didn't feel like writing the code to figure out the
+     * scheduling.
      */
     WT_RET(__wt_thread_create(session, &conn->stat_tid, __statlog_server, session));
     conn->stat_tid_set = true;
@@ -666,17 +650,15 @@ __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
 
     /*
-     * Stop any server that is already running. This means that each time
-     * reconfigure is called we'll bounce the server even if there are no
-     * configuration changes. This makes our life easier as the underlying
-     * configuration routine doesn't have to worry about freeing objects
-     * in the connection structure (it's guaranteed to always start with a
-     * blank slate), and we don't have to worry about races where a running
-     * server is reading configuration information that we're updating, and
-     * it's not expected that reconfiguration will happen a lot.
+     * Stop any server that is already running. This means that each time reconfigure is called
+     * we'll bounce the server even if there are no configuration changes. This makes our life
+     * easier as the underlying configuration routine doesn't have to worry about freeing objects in
+     * the connection structure (it's guaranteed to always start with a blank slate), and we don't
+     * have to worry about races where a running server is reading configuration information that
+     * we're updating, and it's not expected that reconfiguration will happen a lot.
      *
-     * If there's no server running, discard any configuration information
-     * so we don't leak memory during reconfiguration.
+     * If there's no server running, discard any configuration information so we don't leak memory
+     * during reconfiguration.
      */
     if (conn->stat_session == NULL)
         WT_RET(__stat_config_discard(session));
@@ -699,7 +681,6 @@ __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
 
     conn = S2C(session);
 
@@ -721,8 +702,7 @@ __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 
     /* Close the server thread's session. */
     if (conn->stat_session != NULL) {
-        wt_session = &conn->stat_session->iface;
-        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_TRET(__wt_session_close_internal(conn->stat_session));
         conn->stat_session = NULL;
     }
 

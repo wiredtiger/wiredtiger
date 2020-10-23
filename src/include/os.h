@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -11,7 +11,7 @@
         /*                                                             \
          * A call returning 0 indicates success; any call where        \
          * 0 is not the only successful return must provide an         \
-         * expression evaluating to 0 in all successful	cases.         \
+         * expression evaluating to 0 in all successful cases.         \
          *                                                             \
          * XXX                                                         \
          * Casting the call's return to int is because CentOS 7.3.1611 \
@@ -71,12 +71,12 @@
 #define WT_CLOCKDIFF_MS(end, begin) (WT_CLOCKDIFF_NS(end, begin) / WT_MILLION)
 #define WT_CLOCKDIFF_SEC(end, begin) (WT_CLOCKDIFF_NS(end, begin) / WT_BILLION)
 
-#define WT_TIMECMP(t1, t2)                                                                         \
-    ((t1).tv_sec < (t2).tv_sec ? -1 : (t1).tv_sec == (t2).tv_sec ?                                 \
-                                 (t1).tv_nsec < (t2).tv_nsec ? -1 : (t1).tv_nsec == (t2).tv_nsec ? \
-                                                               0 :                                 \
-                                                               1 :                                 \
-                                 1)
+#define WT_TIMECMP(t1, t2)                                                        \
+    ((t1).tv_sec < (t2).tv_sec ?                                                  \
+        -1 :                                                                      \
+        (t1).tv_sec == (t2).tv_sec ?                                              \
+        (t1).tv_nsec < (t2).tv_nsec ? -1 : (t1).tv_nsec == (t2).tv_nsec ? 0 : 1 : \
+        1)
 
 /*
  * Macros to ensure a file handle is inserted or removed from both the main and the hashed queue,
@@ -139,6 +139,14 @@ struct __wt_file_handle_posix {
     int fd; /* POSIX file handle */
 
     bool direct_io; /* O_DIRECT configured */
+
+    /* The memory buffer and variables if we use mmap for I/O */
+    uint8_t *mmap_buf;
+    bool mmap_file_mappable;
+    int mmap_prot;
+    volatile uint32_t mmap_resizing;
+    wt_off_t mmap_size;
+    volatile uint32_t mmap_usecount;
 };
 #endif
 

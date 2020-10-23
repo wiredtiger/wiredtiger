@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -44,7 +44,6 @@ static void connection_ops(WT_CONNECTION *conn);
 static int cursor_ops(WT_SESSION *session);
 static void cursor_search_near(WT_CURSOR *cursor);
 static void cursor_statistics(WT_SESSION *session);
-static void named_snapshot_ops(WT_SESSION *session);
 static void pack_ops(WT_SESSION *session);
 static void session_ops(WT_SESSION *session);
 static void transaction_ops(WT_SESSION *session);
@@ -554,23 +553,6 @@ cursor_statistics(WT_SESSION *session)
 }
 
 static void
-named_snapshot_ops(WT_SESSION *session)
-{
-    /*! [Snapshot examples] */
-    /* Create a named snapshot */
-    error_check(session->snapshot(session, "name=June01"));
-
-    /* Open a transaction at a given snapshot */
-    error_check(session->begin_transaction(session, "snapshot=June01"));
-
-    /* Drop all named snapshots */
-    error_check(session->snapshot(session, "drop=(all)"));
-    /*! [Snapshot examples] */
-
-    error_check(session->rollback_transaction(session, NULL));
-}
-
-static void
 session_ops_create(WT_SESSION *session)
 {
     /*! [Create a table] */
@@ -585,26 +567,23 @@ session_ops_create(WT_SESSION *session)
 
     /*! [Create a table with columns] */
     /*
-     * Create a table with columns: keys are record numbers, values are
-     * (string, signed 32-bit integer, unsigned 16-bit integer).
+     * Create a table with columns: keys are record numbers, values are (string, signed 32-bit
+     * integer, unsigned 16-bit integer).
      */
     error_check(session->create(session, "table:mytable",
-      "key_format=r,value_format=SiH,"
-      "columns=(id,department,salary,year-started)"));
+      "key_format=r,value_format=SiH,columns=(id,department,salary,year-started)"));
     /*! [Create a table with columns] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /*! [Create a table and configure the page size] */
     error_check(session->create(session, "table:mytable",
-      "key_format=S,value_format=S,"
-      "internal_page_max=16KB,leaf_page_max=1MB,leaf_value_max=64KB"));
+      "key_format=S,value_format=S,internal_page_max=16KB,leaf_page_max=1MB,leaf_value_max=64KB"));
     /*! [Create a table and configure the page size] */
     error_check(session->drop(session, "table:mytable", NULL));
 
     /*! [Create a table and configure a large leaf value max] */
     error_check(session->create(session, "table:mytable",
-      "key_format=S,value_format=S,"
-      "leaf_page_max=16KB,leaf_value_max=256KB"));
+      "key_format=S,value_format=S,leaf_page_max=16KB,leaf_value_max=256KB"));
     /*! [Create a table and configure a large leaf value max] */
     error_check(session->drop(session, "table:mytable", NULL));
 
@@ -705,17 +684,13 @@ session_ops(WT_SESSION *session)
 
         /*! [Compact a table] */
         error_check(session->compact(session, "table:mytable", NULL));
-/*! [Compact a table] */
+        /*! [Compact a table] */
 
 #ifdef MIGHT_NOT_RUN
         /*! [Import a file] */
         error_check(session->import(session, "file:import", NULL));
 /*! [Import a file] */
 #endif
-
-        /*! [Rebalance a table] */
-        error_check(session->rebalance(session, "table:mytable", NULL));
-        /*! [Rebalance a table] */
 
         error_check(
           session->create(session, "table:old", "key_format=r,value_format=S,cache_resident=true"));
@@ -791,7 +766,6 @@ session_ops(WT_SESSION *session)
         checkpoint_ops(session);
         error_check(cursor_ops(session));
         cursor_statistics(session);
-        named_snapshot_ops(session);
         pack_ops(session);
         transaction_ops(session);
 
@@ -912,7 +886,7 @@ transaction_ops(WT_SESSION *session_arg)
 
         error_check(session->commit_transaction(session, NULL));
 
-        error_check(conn->query_timestamp(conn, timestamp_buf, "get=all_committed"));
+        error_check(conn->query_timestamp(conn, timestamp_buf, "get=all_durable"));
         /*! [query timestamp] */
     }
 
@@ -928,6 +902,8 @@ transaction_ops(WT_SESSION *session_arg)
     error_check(conn->set_timestamp(conn, "stable_timestamp=2a"));
     /*! [set stable timestamp] */
 
+    /* WT_CONNECTION.rollback_to_stable requires a timestamped checkpoint. */
+    error_check(session->checkpoint(session, NULL));
     /*! [rollback to stable] */
     error_check(conn->rollback_to_stable(conn, NULL));
     /*! [rollback to stable] */
@@ -1045,12 +1021,12 @@ connection_ops(WT_CONNECTION *conn)
 
     /*! [Configure method configuration] */
     /*
-     * Applications opening a cursor for the data-source object "my_data"
-     * have an additional configuration option "entries", which is an
-     * integer type, defaults to 5, and must be an integer between 1 and 10.
+     * Applications opening a cursor for the data-source object "my_data" have an additional
+     * configuration option "entries", which is an integer type, defaults to 5, and must be an
+     * integer between 1 and 10.
      *
-     * The method being configured is specified using a concatenation of the
-     * handle name, a period and the method name.
+     * The method being configured is specified using a concatenation of the handle name, a period
+     * and the method name.
      */
     error_check(conn->configure_method(
       conn, "WT_SESSION.open_cursor", "my_data:", "entries=5", "int", "min=1,max=10"));
@@ -1100,6 +1076,7 @@ backup(WT_SESSION *session)
 {
     char buf[1024];
 
+    WT_CURSOR *dup_cursor;
     /*! [backup]*/
     WT_CURSOR *cursor;
     const char *filename;
@@ -1123,10 +1100,24 @@ backup(WT_SESSION *session)
     error_check(cursor->close(cursor));
     /*! [backup]*/
 
+    /*! [backup log duplicate]*/
+    /* Open the backup data source. */
+    error_check(session->open_cursor(session, "backup:", NULL, NULL, &cursor));
+    /* Open a duplicate cursor for additional log files. */
+    error_check(session->open_cursor(session, NULL, cursor, "target=(\"log:\")", &dup_cursor));
+    /*! [backup log duplicate]*/
+
     /*! [incremental backup]*/
-    /* Open the backup data source for incremental backup. */
+    /* Open the backup data source for log-based incremental backup. */
     error_check(session->open_cursor(session, "backup:", NULL, "target=(\"log:\")", &cursor));
     /*! [incremental backup]*/
+    error_check(cursor->close(cursor));
+
+    /*! [incremental block backup]*/
+    /* Open the backup data source for block-based incremental backup. */
+    error_check(session->open_cursor(
+      session, "backup:", NULL, "incremental=(enabled,src_id=ID0,this_id=ID1)", &cursor));
+    /*! [incremental block backup]*/
     error_check(cursor->close(cursor));
 
     /*! [backup of a checkpoint]*/
@@ -1147,9 +1138,9 @@ main(int argc, char *argv[])
     /*! [Open a connection] */
 
     connection_ops(conn);
-/*
- * The connection has been closed.
- */
+    /*
+     * The connection has been closed.
+     */
 
 #ifdef MIGHT_NOT_RUN
     /*
@@ -1157,51 +1148,39 @@ main(int argc, char *argv[])
      * open to fail. The documentation requires the code snippets, use #ifdef's to avoid running it.
      */
     /*! [Configure lz4 extension] */
-    error_check(wiredtiger_open(home, NULL,
-      "create,"
-      "extensions=[/usr/local/lib/libwiredtiger_lz4.so]",
-      &conn));
+    error_check(wiredtiger_open(
+      home, NULL, "create,extensions=[/usr/local/lib/libwiredtiger_lz4.so]", &conn));
     /*! [Configure lz4 extension] */
     error_check(conn->close(conn, NULL));
 
     /*! [Configure snappy extension] */
-    error_check(wiredtiger_open(home, NULL,
-      "create,"
-      "extensions=[/usr/local/lib/libwiredtiger_snappy.so]",
-      &conn));
+    error_check(wiredtiger_open(
+      home, NULL, "create,extensions=[/usr/local/lib/libwiredtiger_snappy.so]", &conn));
     /*! [Configure snappy extension] */
     error_check(conn->close(conn, NULL));
 
     /*! [Configure zlib extension] */
-    error_check(wiredtiger_open(home, NULL,
-      "create,"
-      "extensions=[/usr/local/lib/libwiredtiger_zlib.so]",
-      &conn));
+    error_check(wiredtiger_open(
+      home, NULL, "create,extensions=[/usr/local/lib/libwiredtiger_zlib.so]", &conn));
     /*! [Configure zlib extension] */
     error_check(conn->close(conn, NULL));
 
     /*! [Configure zlib extension with compression level] */
     error_check(wiredtiger_open(home, NULL,
-      "create,"
-      "extensions=[/usr/local/lib/"
-      "libwiredtiger_zlib.so=[config=[compression_level=3]]]",
+      "create,extensions=[/usr/local/lib/libwiredtiger_zlib.so=[config=[compression_level=3]]]",
       &conn));
     /*! [Configure zlib extension with compression level] */
     error_check(conn->close(conn, NULL));
 
     /*! [Configure zstd extension] */
-    error_check(wiredtiger_open(home, NULL,
-      "create,"
-      "extensions=[/usr/local/lib/libwiredtiger_zstd.so]",
-      &conn));
+    error_check(wiredtiger_open(
+      home, NULL, "create,extensions=[/usr/local/lib/libwiredtiger_zstd.so]", &conn));
     /*! [Configure zstd extension] */
     error_check(conn->close(conn, NULL));
 
     /*! [Configure zstd extension with compression level] */
     error_check(wiredtiger_open(home, NULL,
-      "create,"
-      "extensions=[/usr/local/lib/"
-      "libwiredtiger_zstd.so=[config=[compression_level=9]]]",
+      "create,extensions=[/usr/local/lib/libwiredtiger_zstd.so=[config=[compression_level=9]]]",
       &conn));
     /*! [Configure zstd extension with compression level] */
     error_check(conn->close(conn, NULL));
@@ -1259,9 +1238,7 @@ main(int argc, char *argv[])
      */
     /*! [Statistics logging with a table] */
     error_check(wiredtiger_open(home, NULL,
-      "create, statistics_log=("
-      "sources=(\"table:table1\",\"table:table2\"), wait=5)",
-      &conn));
+      "create, statistics_log=(sources=(\"table:table1\",\"table:table2\"), wait=5)", &conn));
     /*! [Statistics logging with a table] */
     error_check(conn->close(conn, NULL));
 

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -67,7 +67,6 @@ write_and_read_new(WT_SESSION *session)
     printf("Write log_printf record and verify.\n");
     testutil_check(session->log_printf(session, "Test Log Record"));
     testutil_check(session->log_flush(session, "sync=on"));
-    testutil_check(session->open_cursor(session, "log:", NULL, NULL, &logc));
     testutil_check(session->open_cursor(session, "log:", NULL, NULL, &logc));
     saw_msg = false;
     while (logc->next(logc) == 0) {
@@ -154,13 +153,11 @@ fill_db(void)
     save_lsn.l.file = 0;
 
     /*
-     * Write data into the table until we move to log file 2.
-     * We do the calculation below so that we don't have to walk the
-     * log for every record.
+     * Write data into the table until we move to log file 2. We do the calculation below so that we
+     * don't have to walk the log for every record.
      *
-     * Calculate about how many records should fit in the log file.
-     * Subtract a bunch for metadata and file creation records.
-     * Then subtract out a few more records to be conservative.
+     * Calculate about how many records should fit in the log file. Subtract a bunch for metadata
+     * and file creation records. Then subtract out a few more records to be conservative.
      */
     units = (K_SIZE + V_SIZE) / 128 + 1;
     min_key = 90000 / (units * 128) - 15;

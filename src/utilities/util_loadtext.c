@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -10,7 +10,16 @@
 
 static int insert(WT_CURSOR *, const char *, bool);
 static int text(WT_SESSION *, const char *);
-static int usage(void);
+
+static int
+usage(void)
+{
+    static const char *options[] = {
+      "-f", "read from the specified file (by default rows are read from stdin)", NULL, NULL};
+
+    util_usage("loadtext [-f input-file] uri", "options:", options);
+    return (1);
+}
 
 int
 util_loadtext(WT_SESSION *session, int argc, char *argv[])
@@ -68,14 +77,13 @@ text(WT_SESSION *session, const char *uri)
     /*
      * We're about to load strings, make sure the formats match.
      *
-     * Row-store tables have key/value pairs, column-store tables only have
-     * values.
+     * Row-store tables have key/value pairs, column-store tables only have values.
      */
     if (!WT_STREQ(cursor->value_format, "S") ||
       (!WT_STREQ(cursor->key_format, "S") && !WT_STREQ(cursor->key_format, "r")))
         return (util_err(session, EINVAL,
-          "the loadtext command can only load objects configured "
-          "for record number or string keys, and string values"));
+          "the loadtext command can only load objects configured for record number or string keys, "
+          "and string values"));
     readkey = !WT_STREQ(cursor->key_format, "r");
 
     /* Insert the records */
@@ -151,14 +159,4 @@ insert(WT_CURSOR *cursor, const char *name, bool readkey)
         printf("\r\t%s: %" PRIu64 "\n", name, insert_count);
 
     return (0);
-}
-
-static int
-usage(void)
-{
-    (void)fprintf(stderr,
-      "usage: %s %s "
-      "loadtext [-f input-file] uri\n",
-      progname, usage_prefix);
-    return (1);
 }

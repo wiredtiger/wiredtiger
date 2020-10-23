@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -37,7 +37,7 @@
       !F_ISSET(dhandle, WT_DHANDLE_DROPPED))
 
 /* The metadata cursor's data handle. */
-#define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->btree->dhandle)
+#define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->dhandle)
 
 #define WT_DHANDLE_ACQUIRE(dhandle) (void)__wt_atomic_add32(&(dhandle)->session_ref, 1)
 
@@ -69,6 +69,7 @@ struct __wt_data_handle {
     uint64_t name_hash;     /* Hash of name */
     const char *checkpoint; /* Checkpoint name (or NULL) */
     const char **cfg;       /* Configuration information */
+    const char *meta_base;  /* Base metadata configuration */
 
     /*
      * Sessions holding a connection's data handle will have a non-zero reference count; sessions

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -116,9 +116,8 @@ zstd_compress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, size
         *compression_failed = 0;
 
         /*
-         * On decompression, Zstd requires an exact compressed byte
-         * count (the current value of zstd_ret). WiredTiger does not
-         * preserve that value, so save zstd_ret at the beginning of
+         * On decompression, Zstd requires an exact compressed byte count (the current value of
+         * zstd_ret). WiredTiger does not preserve that value, so save zstd_ret at the beginning of
          * the destination buffer.
          *
          * Store the value in little-endian format.
@@ -158,9 +157,8 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, si
     zstd_len = zstd_bswap64(zstd_len);
 #endif
     if (zstd_len + ZSTD_PREFIX > src_len) {
-        (void)wt_api->err_printf(wt_api, session,
-          "WT_COMPRESSOR.decompress: stored size exceeds source "
-          "size");
+        (void)wt_api->err_printf(
+          wt_api, session, "WT_COMPRESSOR.decompress: stored size exceeds source size");
         return (WT_ERROR);
     }
 

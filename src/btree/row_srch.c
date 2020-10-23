@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -30,10 +30,9 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
     if ((ins = WT_SKIP_LAST(ins_head)) == NULL)
         return (0);
     /*
-     * Since the head of the skip list doesn't get mutated within this
-     * function, the compiler may move this assignment above within the
-     * loop below if it needs to (and may read a different value on each
-     * loop due to other threads mutating the skip list).
+     * Since the head of the skip list doesn't get mutated within this function, the compiler may
+     * move this assignment above within the loop below if it needs to (and may read a different
+     * value on each loop due to other threads mutating the skip list).
      *
      * Place a read barrier here to avoid this issue.
      */
@@ -54,9 +53,9 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT
          * serialized insert function.
          */
         for (i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
-            cbt->ins_stack[i] = (i == 0) ? &ins->next[0] : (ins_head->tail[i] != NULL) ?
-                                           &ins_head->tail[i]->next[i] :
-                                           &ins_head->head[i];
+            cbt->ins_stack[i] = (i == 0) ?
+              &ins->next[0] :
+              (ins_head->tail[i] != NULL) ? &ins_head->tail[i]->next[i] : &ins_head->head[i];
             cbt->next_stack[i] = NULL;
         }
         cbt->compare = -cmp;
@@ -171,11 +170,10 @@ __check_leaf_key_range(
         return (0);
 
     /*
-     * Check if the search key is smaller than the parent's starting key for
-     * this page.
+     * Check if the search key is smaller than the parent's starting key for this page.
      *
-     * We can't compare against slot 0 on a row-store internal page because
-     * reconciliation doesn't build it, it may not be a valid key.
+     * We can't compare against slot 0 on a row-store internal page because reconciliation doesn't
+     * build it, it may not be a valid key.
      */
     if (indx != 0) {
         __wt_ref_key(leaf->home, leaf, &item->data, &item->size);
@@ -208,8 +206,8 @@ __check_leaf_key_range(
  *     Search a row-store tree for a specific key.
  */
 int
-__wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CURSOR_BTREE *cbt,
-  bool insert, bool restore)
+__wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *leaf, bool leaf_safe,
+  bool *leaf_foundp)
 {
     WT_BTREE *btree;
     WT_COLLATOR *collator;
@@ -220,15 +218,23 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CU
     WT_PAGE_INDEX *pindex, *parent_pindex;
     WT_REF *current, *descent;
     WT_ROW *rip;
+    WT_SESSION_IMPL *session;
     size_t match, skiphigh, skiplow;
     uint32_t base, indx, limit, read_flags;
     int cmp, depth;
     bool append_check, descend_right, done;
 
+    session = CUR2S(cbt);
     btree = S2BT(session);
     collator = btree->collator;
     item = cbt->tmp;
     current = NULL;
+
+    /*
+     * Assert the session and cursor have the right relationship (not search specific, but search is
+     * a convenient place to check given any operation on a cursor will likely search a page).
+     */
+    WT_ASSERT(session, session->dhandle == cbt->dhandle);
 
     __cursor_pos_clear(cbt);
 
@@ -236,17 +242,16 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CU
      * In some cases we expect we're comparing more than a few keys with matching prefixes, so it's
      * faster to avoid the memory fetches by skipping over those prefixes. That's done by tracking
      * the length of the prefix match for the lowest and highest keys we compare as we descend the
-     * tree.
+     * tree. The high boundary is reset on each new page, the lower boundary is maintained.
      */
-    skiphigh = skiplow = 0;
+    skiplow = 0;
 
     /*
-     * If a cursor repeatedly appends to the tree, compare the search key
-     * against the last key on each internal page during insert before
-     * doing the full binary search.
+     * If a cursor repeatedly appends to the tree, compare the search key against the last key on
+     * each internal page during insert before doing the full binary search.
      *
-     * Track if the descent is to the right-side of the tree, used to set
-     * the cursor's append history.
+     * Track if the descent is to the right-side of the tree, used to set the cursor's append
+     * history.
      */
     append_check = insert && cbt->append_tree;
     descend_right = true;
@@ -254,21 +259,16 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CU
     /*
      * We may be searching only a single leaf page, not the full tree. In the normal case where we
      * are searching a tree, check the page's parent keys before doing the full search, it's faster
-     * when the cursor is being re-positioned. Skip this if the page is being re-instantiated in
-     * memory.
+     * when the cursor is being re-positioned. Skip that check if we know the page is the right one
+     * (for example, when re-instantiating a page in memory, in that case we know the target must be
+     * on the current page).
      */
     if (leaf != NULL) {
-        if (!restore) {
+        if (!leaf_safe) {
             WT_RET(__check_leaf_key_range(session, srch_key, leaf, cbt));
-            if (cbt->compare != 0) {
-                /*
-                 * !!!
-                 * WT_CURSOR.search_near uses the slot value to
-                 * decide if there was an on-page match.
-                 */
-                cbt->slot = 0;
+            *leaf_foundp = cbt->compare == 0;
+            if (!*leaf_foundp)
                 return (0);
-            }
         }
 
         current = leaf;
@@ -281,7 +281,7 @@ restart:
          * Discard the currently held page and restart the search from the root.
          */
         WT_RET(__wt_page_release(session, current, 0));
-        skiphigh = skiplow = 0;
+        skiplow = 0;
     }
 
     /* Search the internal pages of the tree. */
@@ -297,17 +297,14 @@ restart:
         /*
          * Fast-path appends.
          *
-         * The 0th key on an internal page is a problem for a couple of
-         * reasons.  First, we have to force the 0th key to sort less
-         * than any application key, so internal pages don't have to be
-         * updated if the application stores a new, "smallest" key in
-         * the tree.  Second, reconciliation is aware of this and will
-         * store a byte of garbage in the 0th key, so the comparison of
-         * an application key and a 0th key is meaningless (but doing
-         * the comparison could still incorrectly modify our tracking
-         * of the leading bytes in each key that we can skip during the
-         * comparison). For these reasons, special-case the 0th key, and
-         * never pass it to a collator.
+         * The 0th key on an internal page is a problem for a couple of reasons. First, we have to
+         * force the 0th key to sort less than any application key, so internal pages don't have to
+         * be updated if the application stores a new, "smallest" key in the tree. Second,
+         * reconciliation is aware of this and will store a byte of garbage in the 0th key, so the
+         * comparison of an application key and a 0th key is meaningless (but doing the comparison
+         * could still incorrectly modify our tracking of the leading bytes in each key that we can
+         * skip during the comparison). For these reasons, special-case the 0th key, and never pass
+         * it to a collator.
          */
         if (append_check) {
             descent = pindex->index[pindex->entries - 1];
@@ -324,14 +321,12 @@ restart:
         }
 
         /*
-         * Binary search of an internal page. There are three versions
-         * (keys with no application-specified collation order, in long
-         * and short versions, and keys with an application-specified
-         * collation order), because doing the tests and error handling
-         * inside the loop costs about 5%.
+         * Binary search of an internal page. There are three versions (keys with no
+         * application-specified collation order, in long and short versions, and keys with an
+         * application-specified collation order), because doing the tests and error handling inside
+         * the loop costs about 5%.
          *
-         * Reference the comment above about the 0th key: we continue to
-         * special-case it.
+         * Reference the comment above about the 0th key: we continue to special-case it.
          */
         base = 1;
         limit = pindex->entries - 1;
@@ -357,8 +352,7 @@ restart:
              * parent, the child page's key space will have been truncated, and the values from the
              * parent's search may be wrong for the child. We only need to reset the high count
              * because the split-page algorithm truncates the end of the internal page's key space,
-             * the low count is still correct. We also don't need to clear either count when
-             * transitioning to a leaf page, a leaf page's key space can't change in flight.
+             * the low count is still correct.
              */
             skiphigh = 0;
 
@@ -420,16 +414,13 @@ descend:
         WT_DIAGNOSTIC_YIELD;
 
         /*
-         * Swap the current page for the child page. If the page splits
-         * while we're retrieving it, restart the search at the root.
-         * We cannot restart in the "current" page; for example, if a
-         * thread is appending to the tree, the page it's waiting for
-         * did an insert-split into the parent, then the parent split
-         * into its parent, the name space we are searching for may have
-         * moved above the current page in the tree.
+         * Swap the current page for the child page. If the page splits while we're retrieving it,
+         * restart the search at the root. We cannot restart in the "current" page; for example, if
+         * a thread is appending to the tree, the page it's waiting for did an insert-split into the
+         * parent, then the parent split into its parent, the name space we are searching for may
+         * have moved above the current page in the tree.
          *
-         * On other error, simply return, the swap call ensures we're
-         * holding nothing on failure.
+         * On other error, simply return, the swap call ensures we're holding nothing on failure.
          */
         read_flags = WT_READ_RESTART_OK;
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
@@ -458,21 +449,17 @@ leaf_only:
     current = NULL;
 
     /*
-     * In the case of a right-side tree descent during an insert, do a fast
-     * check for an append to the page, try to catch cursors appending data
-     * into the tree.
+     * In the case of a right-side tree descent during an insert, do a fast check for an append to
+     * the page, try to catch cursors appending data into the tree.
      *
-     * It's tempting to make this test more rigorous: if a cursor inserts
-     * randomly into a two-level tree (a root referencing a single child
-     * that's empty except for an insert list), the right-side descent flag
-     * will be set and this comparison wasted.  The problem resolves itself
-     * as the tree grows larger: either we're no longer doing right-side
-     * descent, or we'll avoid additional comparisons in internal pages,
-     * making up for the wasted comparison here.  Similarly, the cursor's
-     * history is set any time it's an insert and a right-side descent,
-     * both to avoid a complicated/expensive test, and, in the case of
-     * multiple threads appending to the tree, we want to mark them all as
-     * appending, even if this test doesn't work.
+     * It's tempting to make this test more rigorous: if a cursor inserts randomly into a two-level
+     * tree (a root referencing a single child that's empty except for an insert list), the
+     * right-side descent flag will be set and this comparison wasted. The problem resolves itself
+     * as the tree grows larger: either we're no longer doing right-side descent, or we'll avoid
+     * additional comparisons in internal pages, making up for the wasted comparison here.
+     * Similarly, the cursor's history is set any time it's an insert and a right-side descent, both
+     * to avoid a complicated/expensive test, and, in the case of multiple threads appending to the
+     * tree, we want to mark them all as appending, even if this test doesn't work.
      */
     if (insert && descend_right) {
         cbt->append_tree = 1;
@@ -513,7 +500,17 @@ leaf_only:
             } else if (cmp == 0)
                 goto leaf_match;
         }
-    else if (collator == NULL)
+    else if (collator == NULL) {
+        /*
+         * Reset the skipped prefix counts; we'd normally expect the parent's skipped prefix values
+         * to be larger than the child's values and so we'd only increase them as we walk down the
+         * tree (in other words, if we can skip N bytes on the parent, we can skip at least N bytes
+         * on the child). However, leaf pages at the end of the tree can be extended, causing the
+         * parent's search to be wrong for the child. We only need to reset the high count, the page
+         * can only be extended so the low count is still correct.
+         */
+        skiphigh = 0;
+
         for (; limit != 0; limit >>= 1) {
             indx = base + (limit >> 1);
             rip = page->pg_row + indx;
@@ -530,7 +527,7 @@ leaf_only:
             else
                 goto leaf_match;
         }
-    else
+    } else
         for (; limit != 0; limit >>= 1) {
             indx = base + (limit >> 1);
             rip = page->pg_row + indx;
@@ -549,7 +546,7 @@ leaf_only:
      * read-mostly workload. Check that case and get out fast.
      */
     if (0) {
-    leaf_match:
+leaf_match:
         cbt->compare = 0;
         cbt->slot = WT_ROW_SLOT(page, rip);
         return (0);
@@ -558,20 +555,17 @@ leaf_only:
     /*
      * We didn't find an exact match in the WT_ROW array.
      *
-     * Base is the smallest index greater than key and may be the 0th index
-     * or the (last + 1) index.  Set the slot to be the largest index less
-     * than the key if that's possible (if base is the 0th index it means
-     * the application is inserting a key before any key found on the page).
+     * Base is the smallest index greater than key and may be the 0th index or the (last + 1) index.
+     * Set the slot to be the largest index less than the key if that's possible (if base is the 0th
+     * index it means the application is inserting a key before any key found on the page).
      *
-     * It's still possible there is an exact match, but it's on an insert
-     * list.  Figure out which insert chain to search and then set up the
-     * return information assuming we'll find nothing in the insert list
-     * (we'll correct as needed inside the search routine, depending on
-     * what we find).
+     * It's still possible there is an exact match, but it's on an insert list. Figure out which
+     * insert chain to search and then set up the return information assuming we'll find nothing in
+     * the insert list (we'll correct as needed inside the search routine, depending on what we
+     * find).
      *
-     * If inserting a key smaller than any key found in the WT_ROW array,
-     * use the extra slot of the insert array, otherwise the insert array
-     * maps one-to-one to the WT_ROW array.
+     * If inserting a key smaller than any key found in the WT_ROW array, use the extra slot of the
+     * insert array, otherwise the insert array maps one-to-one to the WT_ROW array.
      */
     if (base == 0) {
         cbt->compare = 1;

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -185,18 +185,22 @@ struct __wt_table {
  */
 #define WT_WITH_SCHEMA_LOCK(session, op)                                                      \
     do {                                                                                      \
-        WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA) ||                      \
-            !F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |     \
-                               WT_SESSION_LOCKED_TABLE));                                     \
+        WT_ASSERT(session,                                                                    \
+          F_ISSET(session, WT_SESSION_LOCKED_SCHEMA) ||                                       \
+            !F_ISSET(session,                                                                 \
+              WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |                     \
+                WT_SESSION_LOCKED_TABLE));                                                    \
         WT_WITH_LOCK_WAIT(session, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op); \
     } while (0)
-#define WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, op)                                      \
-    do {                                                                                  \
-        WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA) ||                  \
-            !F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK | \
-                               WT_SESSION_LOCKED_TABLE));                                 \
-        WT_WITH_LOCK_NOWAIT(                                                              \
-          session, ret, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op);        \
+#define WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, op)                               \
+    do {                                                                           \
+        WT_ASSERT(session,                                                         \
+          F_ISSET(session, WT_SESSION_LOCKED_SCHEMA) ||                            \
+            !F_ISSET(session,                                                      \
+              WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_NO_SCHEMA_LOCK |          \
+                WT_SESSION_LOCKED_TABLE));                                         \
+        WT_WITH_LOCK_NOWAIT(                                                       \
+          session, ret, &S2C(session)->schema_lock, WT_SESSION_LOCKED_SCHEMA, op); \
     } while (0)
 
 /*
@@ -240,7 +244,8 @@ struct __wt_table {
     } while (0)
 #define WT_WITH_TABLE_WRITE_LOCK_NOWAIT(session, ret, op)                                     \
     do {                                                                                      \
-        WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE_WRITE) ||                 \
+        WT_ASSERT(session,                                                                    \
+          F_ISSET(session, WT_SESSION_LOCKED_TABLE_WRITE) ||                                  \
             !F_ISSET(session, WT_SESSION_LOCKED_TABLE_READ | WT_SESSION_LOCKED_HANDLE_LIST)); \
         if (F_ISSET(session, WT_SESSION_LOCKED_TABLE_WRITE)) {                                \
             op;                                                                               \
@@ -264,7 +269,7 @@ struct __wt_table {
         if ((skipp) != (bool *)NULL)                            \
             *(bool *)(skipp) = true;                            \
         if (F_ISSET(session, WT_SESSION_LOCKED_HOTBACKUP)) {    \
-            if (!__conn->hot_backup) {                          \
+            if (__conn->hot_backup_start == 0) {                \
                 if ((skipp) != (bool *)NULL)                    \
                     *(bool *)(skipp) = false;                   \
                 op;                                             \
@@ -272,7 +277,7 @@ struct __wt_table {
         } else {                                                \
             __wt_readlock(session, &__conn->hot_backup_lock);   \
             F_SET(session, WT_SESSION_LOCKED_HOTBACKUP_READ);   \
-            if (!__conn->hot_backup) {                          \
+            if (__conn->hot_backup_start == 0) {                \
                 if ((skipp) != (bool *)NULL)                    \
                     *(bool *)(skipp) = false;                   \
                 op;                                             \

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -727,4 +727,18 @@ __wt_config_subgets(
     WT_CONFIG_ITEM key_item = {key, strlen(key), 0, WT_CONFIG_ITEM_STRING};
 
     return (__wt_config_subgetraw(session, cfg, &key_item, value));
+}
+
+/*
+ * __wt_config_subget_next --
+ *     Get the value for a given key from a config string and set the processed value in the given
+ *     key structure. This is useful for unusual case of dealing with list in config string.
+ */
+int
+__wt_config_subget_next(WT_CONFIG *conf, WT_CONFIG_ITEM *key)
+{
+    WT_CONFIG_ITEM value;
+    WT_RET(__config_next(conf, key, &value));
+    __config_process_value(key);
+    return (0);
 }

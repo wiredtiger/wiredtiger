@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -9,40 +9,29 @@
 #include "wt_internal.h"
 
 /*
- * It wasn't possible to open standalone files in historic WiredTiger databases,
- * you're done if you lose the file's associated metadata. That was a mistake
- * and this code is the workaround. What we need to crack a file is database
- * metadata plus a list of active checkpoints as of the file's clean shutdown
- * (normally stored in the database metadata). The last write done in a block
- * manager's checkpoint is the avail list. If current metadata and checkpoint
- * information is included in that write, we're close. We can open the file,
- * read the blocks, scan until we find the avail list, and read the metadata
- * and checkpoint information from there.
- *	Two problems remain: first, the checkpoint information isn't correct
- * until we write the avail list and the checkpoint information has to include
- * the avail list address plus the final file size after the write. Fortunately,
- * when scanning the file for the avail lists, we're figuring out exactly the
- * information needed to fix up the checkpoint information we wrote, that is,
- * the avail list's offset, size and checksum triplet. As for the final file
- * size, we allocate all space in the file before we calculate block checksums,
- * so we can do that space allocation, then fill in the final file size before
- * calculating the checksum and writing the actual block.
- *	The second problem is we have to be able to find the avail lists that
- * include checkpoint information (ignoring previous files created by previous
- * releases, and, of course, making upgrade/downgrade work seamlessly). Extent
- * lists are written to their own pages, and we could version this change using
- * the page header version. Extent lists have WT_PAGE_BLOCK_MANAGER page types,
- * we could version this change using the upcoming WT_PAGE_VERSION_TS upgrade.
- * However, that requires waiting a release (we would have to first release a
- * version that ignores those new page header versions so downgrade works), and
- * we're not planning a release that writes WT_PAGE_VERSION_TS page headers for
- * awhile. Happily, historic WiredTiger releases have a bug. Extent lists
- * consist of a set of offset/size pairs, with magic offset/size pairs at the
- * beginning and end of the list. Historic releases only verified the offset of
- * the special pair at the end of the list, ignoring the size. To detect avail
- * lists that include appended metadata and checkpoint information, this change
- * adds a version to the extent list: if size is WT_BLOCK_EXTLIST_VERSION_CKPT,
- * then metadata/checkpoint information follows.
+ * It wasn't possible to open standalone files in historic WiredTiger databases, you're done if you
+ * lose the file's associated metadata. That was a mistake and this code is the workaround. What we
+ * need to crack a file is database metadata plus a list of active checkpoints as of the file's
+ * clean shutdown (normally stored in the database metadata). The last write done in a block
+ * manager's checkpoint is the avail list. If current metadata and checkpoint information is
+ * included in that write, we're close. We can open the file, read the blocks, scan until we find
+ * the avail list, and read the metadata and checkpoint information from there.
+ *	Two problems remain: first, the checkpoint information isn't correct until we write the
+ * avail list and the checkpoint information has to include the avail list address plus the final
+ * file size after the write. Fortunately, when scanning the file for the avail lists, we're
+ * figuring out exactly the information needed to fix up the checkpoint information we wrote, that
+ * is, the avail list's offset, size and checksum triplet. As for the final file size, we allocate
+ * all space in the file before we calculate block checksums, so we can do that space allocation,
+ * then fill in the final file size before calculating the checksum and writing the actual block.
+ *  The second problem is we have to be able to find the avail lists that include checkpoint
+ * information (ignoring previous files created by previous releases, and, of course, making
+ * upgrade/downgrade work seamlessly). Extent lists are written to their own pages, and we could
+ * version this change using the page header version. Happily, historic WiredTiger releases have a
+ * bug. Extent lists consist of a set of offset/size pairs, with magic offset/size pairs at the
+ * beginning and end of the list. Historic releases only verified the offset of the special pair at
+ * the end of the list, ignoring the size. To detect avail lists that include appended metadata and
+ * checkpoint information, this change adds a version to the extent list: if size is
+ * WT_BLOCK_EXTLIST_VERSION_CKPT, then metadata/checkpoint information follows.
  */
 
 /*
@@ -239,16 +228,14 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **met
     WT_RET(__wt_buf_init(session, checkpoint, WT_BLOCK_CHECKPOINT_BUFFER));
 
     /*
-     * Initialize a pair of structures that track the best and current
-     * checkpoints found so far. This is a little trickier than normal
-     * because we don't want to start saving a checkpoint only to find
-     * out it's not one we can use. I doubt that can happen and it
-     * suggests corruption, but half-a-checkpoint isn't a good place to
-     * be. Only swap to a new "best" checkpoint if we read the whole
-     * thing successfully.
+     * Initialize a pair of structures that track the best and current checkpoints found so far.
+     * This is a little trickier than normal because we don't want to start saving a checkpoint only
+     * to find out it's not one we can use. I doubt that can happen and it suggests corruption, but
+     * half-a-checkpoint isn't a good place to be. Only swap to a new "best" checkpoint if we read
+     * the whole thing successfully.
      *
-     * Don't re-order these lines: it's done this way so the WT_ITEMs
-     * are always initialized and error handling works.
+     * Don't re-order these lines: it's done this way so the WT_ITEMs are always initialized and
+     * error handling works.
      */
     memset((best = &_best), 0, sizeof(_best));
     memset((current = &_current), 0, sizeof(_current));

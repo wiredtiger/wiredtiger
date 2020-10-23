@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -111,7 +111,7 @@ int
 __wt_meta_track_on(WT_SESSION_IMPL *session)
 {
     if (session->meta_track_nest++ == 0) {
-        if (!F_ISSET(&session->txn, WT_TXN_RUNNING)) {
+        if (!F_ISSET(session->txn, WT_TXN_RUNNING)) {
 #ifdef WT_ENABLE_SCHEMA_TXN
             WT_RET(__wt_txn_begin(session, NULL));
             __wt_errx(session, "TRACK: Using internal schema txn");
@@ -282,11 +282,11 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
          * If this operation is part of a running transaction, that should be included in the
          * checkpoint.
          */
-        ckpt_session->txn.id = session->txn.id;
+        ckpt_session->txn->id = session->txn->id;
         WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_METADATA));
         WT_WITH_DHANDLE(ckpt_session, WT_SESSION_META_DHANDLE(session),
           WT_WITH_METADATA_LOCK(ckpt_session, ret = __wt_checkpoint(ckpt_session, NULL)));
-        ckpt_session->txn.id = WT_TXN_NONE;
+        ckpt_session->txn->id = WT_TXN_NONE;
         if (ret == 0)
             WT_WITH_DHANDLE(
               session, WT_SESSION_META_DHANDLE(session), ret = __wt_checkpoint_sync(session, NULL));
@@ -316,7 +316,7 @@ err:
          * We should have committed above unless we're unrolling, there was an error or the
          * operation was a noop.
          */
-        WT_ASSERT(session, unroll || saved_ret != 0 || session->txn.mod_count == 0);
+        WT_ASSERT(session, unroll || saved_ret != 0 || session->txn->mod_count == 0);
 #ifdef WT_ENABLE_SCHEMA_TXN
         __wt_err(session, saved_ret, "TRACK: Abort internal schema txn");
         WT_TRET(__wt_txn_rollback(session, NULL));
@@ -331,7 +331,7 @@ err:
         __wt_cond_signal(session, S2C(session)->sweep_cond);
 
     if (ret != 0)
-        WT_PANIC_RET(session, ret, "failed to apply or unroll all tracked operations");
+        WT_RET_PANIC(session, ret, "failed to apply or unroll all tracked operations");
     return (saved_ret == 0 ? 0 : saved_ret);
 }
 
@@ -521,7 +521,7 @@ __wt_meta_track_init(WT_SESSION_IMPL *session)
          * Sessions default to read-committed isolation, we rely on that for the correctness of
          * metadata checkpoints.
          */
-        WT_ASSERT(session, conn->meta_ckpt_session->txn.isolation == WT_ISO_READ_COMMITTED);
+        WT_ASSERT(session, conn->meta_ckpt_session->txn->isolation == WT_ISO_READ_COMMITTED);
     }
 
     return (0);
@@ -536,14 +536,12 @@ __wt_meta_track_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
 
     conn = S2C(session);
 
     /* Close the session used for metadata checkpoints. */
     if (conn->meta_ckpt_session != NULL) {
-        wt_session = &conn->meta_ckpt_session->iface;
-        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_TRET(__wt_session_close_internal(conn->meta_ckpt_session));
         conn->meta_ckpt_session = NULL;
     }
 

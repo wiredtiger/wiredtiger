@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -171,8 +171,7 @@ main(int argc, char *argv[])
     error_check(conn->open_session(conn, NULL, NULL, &session));
 
     error_check(session->create(session, "table:world",
-      "key_format=r,value_format=5sii,"
-      "columns=(id,country,population,area)"));
+      "key_format=r,value_format=5sii,columns=(id,country,population,area)"));
 
     /*! [open cursor #1] */
     error_check(session->open_cursor(session, "table:world", NULL, NULL, &cursor));

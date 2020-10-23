@@ -11,7 +11,7 @@ l=`sed \
     -e '/^[a-z]/!d' \
     -e 's/[	 ].*$//' \
     -e 's,^,../,' filelist`
-l="$l `echo ../src/include/*.i ../src/include/os.h`"
+l="$l `echo ../src/include/*_inline.h ../src/include/os.h`"
 
 (
 # Get the list of statistics fields.
@@ -22,6 +22,7 @@ search=`sed \
 
 # There are some fields that are used, but we can't detect it.
 cat << UNUSED_STAT_FIELDS
+btree_clean_checkpoint_timer
 lock_checkpoint_count
 lock_checkpoint_wait_application
 lock_checkpoint_wait_internal

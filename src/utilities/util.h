@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -38,14 +38,12 @@ int util_dump(WT_SESSION *, int, char *[]);
 int util_err(WT_SESSION *, int, const char *, ...)
   WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 3, 4)));
 int util_flush(WT_SESSION *, const char *);
-int util_import(WT_SESSION *, int, char *[]);
 int util_list(WT_SESSION *, int, char *[]);
 int util_load(WT_SESSION *, int, char *[]);
 int util_loadtext(WT_SESSION *, int, char *[]);
 int util_printlog(WT_SESSION *, int, char *[]);
 int util_read(WT_SESSION *, int, char *[]);
 int util_read_line(WT_SESSION *, ULINE *, bool, bool *);
-int util_rebalance(WT_SESSION *, int, char *[]);
 int util_rename(WT_SESSION *, int, char *[]);
 int util_salvage(WT_SESSION *, int, char *[]);
 int util_stat(WT_SESSION *, int, char *[]);
@@ -53,5 +51,6 @@ int util_str2num(WT_SESSION *, const char *, bool, uint64_t *);
 int util_truncate(WT_SESSION *, int, char *[]);
 int util_upgrade(WT_SESSION *, int, char *[]);
 char *util_uri(WT_SESSION *, const char *, const char *);
+void util_usage(const char *, const char *, const char *[]);
 int util_verify(WT_SESSION *, int, char *[]);
 int util_write(WT_SESSION *, int, char *[]);

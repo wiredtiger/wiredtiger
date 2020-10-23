@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -257,10 +257,8 @@ zlib_init_config(WT_CONNECTION *connection, WT_CONFIG_ARG *config, int *zlib_lev
          */
         zlib_level = (int)v.val;
         if (zlib_level < 0 || zlib_level > 9) {
-            (void)wt_api->err_printf(wt_api, NULL,
-              "zlib_init_config: "
-              "unsupported compression level %d",
-              zlib_level);
+            (void)wt_api->err_printf(
+              wt_api, NULL, "zlib_init_config: unsupported compression level %d", zlib_level);
             return (EINVAL);
         }
         *zlib_levelp = zlib_level;

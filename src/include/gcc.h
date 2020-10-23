@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -106,6 +106,7 @@
         return (WT_ATOMIC_CAS(vp, &old, new));                         \
     }
 WT_ATOMIC_CAS_FUNC(8, uint8_t *vp, uint8_t old, uint8_t new)
+WT_ATOMIC_CAS_FUNC(v8, volatile uint8_t *vp, uint8_t old, volatile uint8_t new)
 WT_ATOMIC_CAS_FUNC(16, uint16_t *vp, uint16_t old, uint16_t new)
 WT_ATOMIC_CAS_FUNC(32, uint32_t *vp, uint32_t old, uint32_t new)
 WT_ATOMIC_CAS_FUNC(v32, volatile uint32_t *vp, uint32_t old, volatile uint32_t new)
@@ -141,6 +142,7 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *new)
         return (__atomic_sub_fetch(vp, v, __ATOMIC_SEQ_CST));    \
     }
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t *vp, uint8_t v)
+WT_ATOMIC_FUNC(v8, uint8_t, volatile uint8_t *vp, volatile uint8_t v)
 WT_ATOMIC_FUNC(16, uint16_t, uint16_t *vp, uint16_t v)
 WT_ATOMIC_FUNC(32, uint32_t, uint32_t *vp, uint32_t v)
 WT_ATOMIC_FUNC(v32, uint32_t, volatile uint32_t *vp, volatile uint32_t v)
@@ -180,6 +182,21 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 #define WT_READ_BARRIER() WT_FULL_BARRIER()
 #define WT_WRITE_BARRIER() WT_FULL_BARRIER()
 
+#elif defined(__mips64el__) || defined(__mips__) || defined(__mips64__) || defined(__mips64)
+#define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
+#define WT_FULL_BARRIER()                                                                  \
+    do {                                                                                   \
+        __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
+    } while (0)
+#define WT_READ_BARRIER()                                                                  \
+    do {                                                                                   \
+        __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
+    } while (0)
+#define WT_WRITE_BARRIER()                                                                 \
+    do {                                                                                   \
+        __asm__ volatile("sync; ld $0, %0" ::"m"(*(long *)0xffffffff80000000) : "memory"); \
+    } while (0)
+
 #elif defined(__PPC64__) || defined(PPC64)
 /* ori 0,0,0 is the PPC64 noop instruction */
 #define WT_PAUSE() __asm__ volatile("ori 0,0,0" ::: "memory")
@@ -201,17 +218,28 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 
 #elif defined(__aarch64__)
 #define WT_PAUSE() __asm__ volatile("yield" ::: "memory")
-#define WT_FULL_BARRIER()                        \
-    do {                                         \
-        __asm__ volatile("dsb sy" ::: "memory"); \
+
+/*
+ * dmb are chosen here because they are sufficient to guarantee the ordering described above. We
+ * don't want to use dsbs because they provide a much stronger guarantee of completion which isn't
+ * required. Additionally, dsbs synchronize other system activities such as tlb and cache
+ * maintenance instructions which is not required in this case.
+ *
+ * A shareability domain of inner-shareable is selected because all the entities participating in
+ * the ordering requirements are CPUs and ordering with respect to other devices or memory-types
+ * isn't required.
+ */
+#define WT_FULL_BARRIER()                         \
+    do {                                          \
+        __asm__ volatile("dmb ish" ::: "memory"); \
     } while (0)
-#define WT_READ_BARRIER()                        \
-    do {                                         \
-        __asm__ volatile("dsb ld" ::: "memory"); \
+#define WT_READ_BARRIER()                           \
+    do {                                            \
+        __asm__ volatile("dsb ishld" ::: "memory"); \
     } while (0)
-#define WT_WRITE_BARRIER()                       \
-    do {                                         \
-        __asm__ volatile("dsb st" ::: "memory"); \
+#define WT_WRITE_BARRIER()                          \
+    do {                                            \
+        __asm__ volatile("dsb ishst" ::: "memory"); \
     } while (0)
 
 #elif defined(__s390x__)

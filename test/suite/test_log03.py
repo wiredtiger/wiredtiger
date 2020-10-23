@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -91,9 +91,10 @@ class test_log03(wttest.WiredTigerTestCase):
         baseline = self.with_log_sync(12, 0)
         #self.tty('baseline: ' + str(baseline))
 
-        for dirty_pct,increase in [50, 8], [33, 16], [25, 24], [20, 32]:
+        incr = 5
+        for dirty_pct,increase in [50, incr], [33, incr*2], [25, incr*3], [20, incr*4]:
             result = self.with_log_sync(12, dirty_pct)
-            #self.tty('tried: ' + str(dirty_pct) + ', got: ' + str(result))
+            #self.tty('tried: ' + str(dirty_pct) + ', got: ' + str(result) + ', expected: ' + str(baseline + increase))
             self.assertGreater(result, baseline + increase)
 
 if __name__ == '__main__':

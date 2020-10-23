@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -36,16 +36,15 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
     /*
      * Create the underlying file and open a handle.
      *
-     * Since WiredTiger schema operations are (currently) non-transactional,
-     * it's possible to see a partially-created file left from a previous
-     * create. Further, there's nothing to prevent users from creating files
-     * in our space. Move any existing files out of the way and complain.
+     * Since WiredTiger schema operations are (currently) non-transactional, it's possible to see a
+     * partially-created file left from a previous create. Further, there's nothing to prevent users
+     * from creating files in our space. Move any existing files out of the way and complain.
      */
     for (;;) {
         if ((ret = __wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA,
                WT_FS_OPEN_CREATE | WT_FS_OPEN_DURABLE | WT_FS_OPEN_EXCLUSIVE, &fh)) == 0)
             break;
-        WT_ERR_TEST(ret != EEXIST, ret);
+        WT_ERR_TEST(ret != EEXIST, ret, false);
 
         if (tmp == NULL)
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
@@ -94,7 +93,7 @@ __block_destroy(WT_SESSION_IMPL *session, WT_BLOCK *block)
     uint64_t bucket;
 
     conn = S2C(session);
-    bucket = block->name_hash % WT_HASH_ARRAY_SIZE;
+    bucket = block->name_hash & (conn->hash_size - 1);
     WT_CONN_BLOCK_REMOVE(conn, block, bucket);
 
     __wt_free(session, block->name);
@@ -148,7 +147,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
 
     conn = S2C(session);
     hash = __wt_hash_city64(filename, strlen(filename));
-    bucket = hash % WT_HASH_ARRAY_SIZE;
+    bucket = hash & (conn->hash_size - 1);
     __wt_spin_lock(session, &conn->block_lock);
     TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
         if (strcmp(filename, block->name) == 0) {
@@ -162,9 +161,9 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
     /*
      * Basic structure allocation, initialization.
      *
-     * Note: set the block's name-hash value before any work that can fail
-     * because cleanup calls the block destroy code which uses that hash
-     * value to remove the block from the underlying linked lists.
+     * Note: set the block's name-hash value before any work that can fail because cleanup calls the
+     * block destroy code which uses that hash value to remove the block from the underlying linked
+     * lists.
      */
     WT_ERR(__wt_calloc_one(session, &block));
     block->ref = 1;
@@ -215,8 +214,8 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
     /*
      * Read the description information from the first block.
      *
-     * Salvage is a special case: if we're forcing the salvage, we don't
-     * look at anything, including the description information.
+     * Salvage is a special case: if we're forcing the salvage, we don't look at anything, including
+     * the description information.
      */
     if (!forced_salvage)
         WT_ERR(__desc_read(session, allocsize, block));
@@ -317,6 +316,35 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
     if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
         return (0);
 
+    /*
+     * If a data file is smaller than the allocation size, we're not going to be able to read the
+     * descriptor block.
+     *
+     * If we're performing rollback to stable as part of recovery, we should treat this as if the
+     * file has been deleted; that is, to log an error but continue on.
+     *
+     * In the general case, we should return a generic error and signal that we've detected data
+     * corruption.
+     *
+     * FIXME-WT-5832: MongoDB relies heavily on the error codes reported when opening cursors (which
+     * hits this logic if the relevant data handle isn't already open). However this code gets run
+     * in rollback to stable as part of recovery where we want to skip any corrupted data files
+     * temporarily to allow MongoDB to initiate salvage. This is why we've been forced into this
+     * situation. We should address this as part of WT-5832 and clarify what error codes we expect
+     * to be returning across the API boundary.
+     */
+    if (block->size < allocsize) {
+        if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+            ret = ENOENT;
+        else {
+            ret = WT_ERROR;
+            F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
+        }
+        WT_RET_MSG(session, ret,
+          "File %s is smaller than allocation size; file size=%" PRId64 ", alloc size=%" PRIu32,
+          block->name, block->size, allocsize);
+    }
+
     /* Use a scratch buffer to get correct alignment for direct I/O. */
     WT_RET(__wt_scr_alloc(session, allocsize, &buf));
 
@@ -346,15 +374,29 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
      * without some reason to believe they are WiredTiger files. The user may have entered the wrong
      * file name, and is now frantically pounding their interrupt key.
      */
-    if (desc->magic != WT_BLOCK_MAGIC || !checksum_matched)
-        WT_ERR_MSG(session, WT_ERROR, "%s does not appear to be a WiredTiger file", block->name);
+    if (desc->magic != WT_BLOCK_MAGIC || !checksum_matched) {
+        if (strcmp(block->name, WT_METAFILE) == 0 || strcmp(block->name, WT_HS_FILE) == 0)
+            WT_ERR_MSG(session, WT_TRY_SALVAGE, "%s is corrupted", block->name);
+        /*
+         * If we're doing an import, we can't expect to be able to verify checksums since we don't
+         * know the allocation size being used. This isn't an error so we should just return success
+         * and let import get whatever information it needs.
+         */
+        if (F_ISSET(session, WT_SESSION_IMPORT_REPAIR))
+            goto err;
+
+        if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+            ret = ENOENT;
+        else
+            WT_ERR_MSG(
+              session, WT_ERROR, "%s does not appear to be a WiredTiger file", block->name);
+    }
 
     if (desc->majorv > WT_BLOCK_MAJOR_VERSION ||
       (desc->majorv == WT_BLOCK_MAJOR_VERSION && desc->minorv > WT_BLOCK_MINOR_VERSION))
         WT_ERR_MSG(session, WT_ERROR,
-          "unsupported WiredTiger file version: this build only "
-          "supports major/minor versions up to %d/%d, and the file "
-          "is version %" PRIu16 "/%" PRIu16,
+          "unsupported WiredTiger file version: this build only supports major/minor versions up "
+          "to %d/%d, and the file is version %" PRIu16 "/%" PRIu16,
           WT_BLOCK_MAJOR_VERSION, WT_BLOCK_MINOR_VERSION, desc->majorv, desc->minorv);
 
     __wt_verbose(session, WT_VERB_BLOCK, "%s: magic %" PRIu32 ", major/minor: %" PRIu32 "/%" PRIu32,

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -47,17 +47,15 @@
 #define FAIL_FS_ENV_READ_ALLOW "WT_FAIL_FS_READ_ALLOW"
 
 /*
- * A "fail file system", that is, a file system extension that fails when we
- * want it to.  This is only used in test frameworks, this fact allows us to
- * simplify some error paths. This code is not portable to Windows, as it has
- * direct knowledge of file descriptors, environment variables and stack
- * traces.
+ * A "fail file system", that is, a file system extension that fails when we want it to. This is
+ * only used in test frameworks, this fact allows us to simplify some error paths. This code is not
+ * portable to Windows, as it has direct knowledge of file descriptors, environment variables and
+ * stack traces.
  *
- * When the filesystem extension is configured, parameters can set how many
- * reads or writes can be allowed before failure. If this is not fine-grained
- * enough, an 'environment' configuration parameter can be specified. If that
- * is used, then on every file system read or write, environment variables are
- * checked that control when reading or writing should fail.
+ * When the filesystem extension is configured, parameters can set how many reads or writes can be
+ * allowed before failure. If this is not fine-grained enough, an 'environment' configuration
+ * parameter can be specified. If that is used, then on every file system read or write, environment
+ * variables are checked that control when reading or writing should fail.
  */
 typedef struct {
     WT_FILE_SYSTEM iface;
@@ -765,9 +763,8 @@ wiredtiger_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
             continue;
 
         (void)wtext->err_printf(wtext, NULL,
-          "WT_CONFIG_PARSER.next: unexpected configuration "
-          "information: %.*s=%.*s: %s",
-          (int)k.len, k.str, (int)v.len, v.str, wtext->strerror(wtext, NULL, ret));
+          "WT_CONFIG_PARSER.next: unexpected configuration information: %.*s=%.*s: %s", (int)k.len,
+          k.str, (int)v.len, v.str, wtext->strerror(wtext, NULL, ret));
         goto err;
     }
     if (ret != WT_NOTFOUND) {

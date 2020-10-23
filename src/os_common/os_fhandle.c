@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -58,7 +58,7 @@ __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
     found = false;
 
     hash = __wt_hash_city64(name, strlen(name));
-    bucket = hash % WT_HASH_ARRAY_SIZE;
+    bucket = hash & (conn->hash_size - 1);
 
     __wt_spin_lock(session, &conn->fh_lock);
 
@@ -92,7 +92,7 @@ __handle_search(WT_SESSION_IMPL *session, const char *name, WT_FH *newfh, WT_FH 
     found = false;
 
     hash = __wt_hash_city64(name, strlen(name));
-    bucket = hash % WT_HASH_ARRAY_SIZE;
+    bucket = hash & (conn->hash_size - 1);
 
     __wt_spin_lock(session, &conn->fh_lock);
 
@@ -235,8 +235,7 @@ __wt_open(WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE file_
     fh->file_type = file_type;
 
     /*
-     * If this is a read-only connection, open all files read-only except
-     * the lock file.
+     * If this is a read-only connection, open all files read-only except the lock file.
      *
      * The only file created in read-only mode is the lock file.
      */
@@ -294,7 +293,7 @@ __handle_close(WT_SESSION_IMPL *session, WT_FH *fh, bool locked)
     }
 
     /* Remove from the list. */
-    bucket = fh->name_hash % WT_HASH_ARRAY_SIZE;
+    bucket = fh->name_hash & (conn->hash_size - 1);
     WT_FILE_HANDLE_REMOVE(conn, fh, bucket);
     (void)__wt_atomic_sub32(&conn->open_file_count, 1);
 
@@ -331,8 +330,7 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
     __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-close", fh->name);
 
     /*
-     * If the reference count hasn't gone to 0, or if it's an in-memory
-     * object, we're done.
+     * If the reference count hasn't gone to 0, or if it's an in-memory object, we're done.
      *
      * Assert the reference count is correct, but don't let it wrap.
      */

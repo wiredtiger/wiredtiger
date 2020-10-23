@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -38,8 +38,9 @@ handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const ch
     (void)(handler);
 
     /* Skip the error messages we're expecting to see. */
-    if (ignore_errors > 0 && (strstr(message, "requires key be set") != NULL ||
-                               strstr(message, "requires value be set") != NULL)) {
+    if (ignore_errors > 0 &&
+      (strstr(message, "requires key be set") != NULL ||
+        strstr(message, "requires value be set") != NULL)) {
         --ignore_errors;
         return (0);
     }
@@ -50,42 +51,89 @@ handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const ch
 
 static WT_EVENT_HANDLER event_handler = {handle_error, NULL, NULL, NULL};
 
+#define SET_KEY                                   \
+    do {                                          \
+        if (recno)                                \
+            cursor->set_key(cursor, (uint64_t)1); \
+        else {                                    \
+            strcpy(keybuf, KEY);                  \
+            cursor->set_key(cursor, keybuf);      \
+        }                                         \
+    } while (0)
+#define SET_VALUE                                 \
+    do {                                          \
+        strcpy(valuebuf, VALUE);                  \
+        if (vstring)                              \
+            cursor->set_value(cursor, valuebuf);  \
+        else {                                    \
+            vu.size = strlen(vu.data = valuebuf); \
+            cursor->set_value(cursor, &vu);       \
+        }                                         \
+    } while (0)
+
 static void
 cursor_scope_ops(WT_SESSION *session, const char *uri)
 {
     struct {
         const char *op;
-        enum { INSERT, MODIFY, SEARCH, SEARCH_NEAR, REMOVE, REMOVE_POS, RESERVE, UPDATE } func;
-        const char *config;
-    } * op, ops[] = {/*
-                      * The ops order is specific: insert has to happen first so
-                      * other operations are possible, and remove has to be last.
-                      */
-              {
-                "insert", INSERT, NULL,
-              },
-              {
-                "search", SEARCH, NULL,
-              },
-              {
-                "search", SEARCH_NEAR, NULL,
-              },
-              {
-                "reserve", RESERVE, NULL,
-              },
-              {
-                "insert", MODIFY, NULL,
-              },
-              {
-                "update", UPDATE, NULL,
-              },
-              {
-                "remove", REMOVE, NULL,
-              },
-              {
-                "remove", REMOVE_POS, NULL,
-              },
-              {NULL, INSERT, NULL}};
+        enum {
+            INSERT_GET_KEY,
+            INSERT_GET_VALUE,
+            MODIFY,
+            SEARCH,
+            SEARCH_NEAR,
+            REMOVE_GET_KEY,
+            REMOVE_GET_VALUE,
+            REMOVE_POS,
+            RESERVE,
+            UPDATE
+        } func;
+    } * op,
+      ops[] = {/*
+                * The ops order is specific: insert has to happen first so
+                * other operations are possible, and remove has to be last.
+                */
+        {
+          "insert",
+          INSERT_GET_KEY,
+        },
+        {
+          "insert",
+          INSERT_GET_VALUE,
+        },
+        {
+          "search",
+          SEARCH,
+        },
+        {
+          "search",
+          SEARCH_NEAR,
+        },
+        {
+          "reserve",
+          RESERVE,
+        },
+        {
+          "insert",
+          MODIFY,
+        },
+        {
+          "update",
+          UPDATE,
+        },
+        {
+          "remove",
+          REMOVE_GET_KEY,
+        },
+        {
+          "remove",
+          REMOVE_GET_VALUE,
+        },
+        {
+          "remove",
+          REMOVE_POS,
+        },
+        {NULL, INSERT_GET_KEY}};
     WT_CURSOR *cursor;
 #define MODIFY_ENTRIES 2
     WT_MODIFY entries[MODIFY_ENTRIES];
@@ -94,58 +142,53 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
     const char *key, *vs;
     char keybuf[100], valuebuf[100];
     int exact;
-    bool recno, vstring;
-
-    /*
-     * Modify and reserve require a transaction, modify requires snapshot isolation.
-     */
-    testutil_check(session->begin_transaction(session, "isolation=snapshot"));
+    bool recno, rollback, vstring;
 
     cursor = NULL;
     for (op = ops; op->op != NULL; op++) {
-        key = vs = NULL;
-        memset(&vu, 0, sizeof(vu));
-
-        /* Open a cursor. */
-        if (cursor != NULL)
-            testutil_check(cursor->close(cursor));
-        testutil_check(session->open_cursor(session, uri, NULL, op->config, &cursor));
-
-        /* Operations change based on the key/value formats. */
+        /* Open a cursor, track key/value formats. */
+        testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
         recno = strcmp(cursor->key_format, "r") == 0;
         vstring = strcmp(cursor->value_format, "S") == 0;
 
-        /* Modify is only possible with "item" values. */
-        if (vstring && op->func == MODIFY)
-            continue;
+        /* Remove any leftover key/value pair, start fresh. */
+        SET_KEY;
+        testutil_check(cursor->remove(cursor));
+
+        /* If not an insert operation, make sure there's a key/value pair to operate on. */
+        if (op->func != INSERT_GET_KEY && op->func != INSERT_GET_VALUE) {
+            SET_KEY;
+            SET_VALUE;
+            testutil_check(cursor->insert(cursor));
+        }
+        /* Discard that cursor, we'll open one inside the transaction. */
+        testutil_check(cursor->close(cursor));
+
+        /* Modify and reserve require a transaction, modify requires snapshot isolation. */
+        testutil_check(session->begin_transaction(session, "isolation=snapshot"));
+        rollback = false;
+
+        /* Open a cursor, track key/value formats. */
+        testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+        recno = strcmp(cursor->key_format, "r") == 0;
+        vstring = strcmp(cursor->value_format, "S") == 0;
 
         /*
          * Set up application buffers so we can detect overwrites or failure to copy application
          * information into library memory.
          */
-        if (recno)
-            cursor->set_key(cursor, (uint64_t)1);
-        else {
-            strcpy(keybuf, KEY);
-            cursor->set_key(cursor, keybuf);
-        }
-        strcpy(valuebuf, VALUE);
-        if (vstring)
-            cursor->set_value(cursor, valuebuf);
-        else {
-            vu.size = strlen(vu.data = valuebuf);
-            cursor->set_value(cursor, &vu);
-        }
+        SET_KEY;
+        SET_VALUE;
 
         /*
-         * The application must keep key and value memory valid until
-         * the next operation that positions the cursor, modifies the
-         * data, or resets or closes the cursor.
+         * The application must keep key and value memory valid until the next operation that
+         * positions the cursor, modifies the data, or resets or closes the cursor.
          *
          * Modifying either the key or value buffers is not permitted.
          */
         switch (op->func) {
-        case INSERT:
+        case INSERT_GET_KEY:
+        case INSERT_GET_VALUE:
             testutil_check(cursor->insert(cursor));
             break;
         case MODIFY:
@@ -174,7 +217,8 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
              */
             testutil_check(cursor->search(cursor));
         /* FALLTHROUGH */
-        case REMOVE:
+        case REMOVE_GET_KEY:
+        case REMOVE_GET_VALUE:
             testutil_check(cursor->remove(cursor));
             break;
         case RESERVE:
@@ -195,20 +239,36 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
         /*
          * Check that get_key/get_value behave as expected after the operation.
          */
+        key = vs = NULL;
+        keyr = 37;
+        memset(&vu, 0, sizeof(vu));
         switch (op->func) {
-        case INSERT:
-        case REMOVE:
+        case INSERT_GET_KEY:
+        case REMOVE_GET_KEY:
             /*
-             * Insert and remove configured with a search key do
-             * not position the cursor and have no key or value.
+             * Insert and remove configured with a search key do not position the cursor and have no
+             * key or value.
              *
-             * There should be two error messages, ignore them.
+             * There should be two error messages, ignore them, and errors require rollback.
              */
-            ignore_errors = 2;
+            ignore_errors = 1;
+            rollback = true;
             if (recno)
                 testutil_assert(cursor->get_key(cursor, &keyr) != 0);
             else
                 testutil_assert(cursor->get_key(cursor, &key) != 0);
+            testutil_assert(ignore_errors == 0);
+            break;
+        case INSERT_GET_VALUE:
+        case REMOVE_GET_VALUE:
+            /*
+             * Insert and remove configured with a search key do not position the cursor and have no
+             * key or value.
+             *
+             * There should be two error messages, ignore them, and errors require rollback.
+             */
+            ignore_errors = 1;
+            rollback = true;
             if (vstring)
                 testutil_assert(cursor->get_value(cursor, &vs) != 0);
             else
@@ -217,10 +277,9 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
             break;
         case REMOVE_POS:
             /*
-             * Remove configured with a cursor position has a key,
-             * but no value.
+             * Remove configured with a cursor position has a key, but no value.
              *
-             * There should be one error message, ignore it.
+             * There should be one error message, ignore it, and errors require rollback.
              */
             if (recno) {
                 testutil_assert(cursor->get_key(cursor, &keyr) == 0);
@@ -231,6 +290,7 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
                 testutil_assert(strcmp(key, KEY) == 0);
             }
             ignore_errors = 1;
+            rollback = true;
             if (vstring)
                 testutil_assert(cursor->get_value(cursor, &vs) != 0);
             else
@@ -243,11 +303,10 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
         case SEARCH_NEAR:
         case UPDATE:
             /*
-             * Modify, reserve, search, search-near and update all
-             * position the cursor and have both a key and value.
+             * Modify, reserve, search, search-near and update all position the cursor and have both
+             * a key and value.
              *
-             * Any key/value should not reference application
-             * memory.
+             * Any key/value should not reference application memory.
              */
             if (recno) {
                 testutil_assert(cursor->get_key(cursor, &keyr) == 0);
@@ -270,25 +329,11 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
             break;
         }
 
-        /*
-         * We have more than one remove operation, add the key back in.
-         */
-        if (op->func == REMOVE || op->func == REMOVE_POS) {
-            if (recno)
-                cursor->set_key(cursor, (uint64_t)1);
-            else {
-                strcpy(keybuf, KEY);
-                cursor->set_key(cursor, keybuf);
-            }
-            strcpy(valuebuf, VALUE);
-            if (vstring)
-                cursor->set_value(cursor, valuebuf);
-            else {
-                vu.size = strlen(vu.data = valuebuf);
-                cursor->set_value(cursor, &vu);
-            }
-            testutil_check(cursor->insert(cursor));
-        }
+        if (rollback)
+            testutil_check(session->rollback_transaction(session, NULL));
+        else
+            testutil_check(session->commit_transaction(session, NULL));
+        testutil_check(cursor->close(cursor));
     }
 }
 

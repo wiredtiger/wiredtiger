@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -22,12 +22,11 @@ struct __wt_thread {
  * groups.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_THREAD_ACTIVE 0x01u     /* thread is active or paused */
-#define WT_THREAD_CAN_WAIT 0x02u   /* WT_SESSION_CAN_WAIT */
-#define WT_THREAD_LOOKASIDE 0x04u  /* open lookaside cursor */
-#define WT_THREAD_PANIC_FAIL 0x08u /* panic if the thread fails */
-#define WT_THREAD_RUN 0x10u        /* thread is running */
-                                   /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_THREAD_ACTIVE 0x1u     /* Thread is active or paused */
+#define WT_THREAD_CAN_WAIT 0x2u   /* WT_SESSION_CAN_WAIT */
+#define WT_THREAD_PANIC_FAIL 0x4u /* Panic if the thread fails */
+#define WT_THREAD_RUN 0x8u        /* Thread is running */
+                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 
     /*

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -69,7 +69,8 @@ def copy_for_crash_restart(olddir, newdir):
 
 class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     base_config = 'log=(archive=false,enabled,file_max=100K),' + \
-                  'transaction_sync=(enabled,method=none)'
+                  'transaction_sync=(enabled,method=none),cache_size=1GB,' + \
+                  'debug_mode=(corruption_abort=false),'
     conn_config = base_config
     corruption_type = [
         ('removal', dict(kind='removal', f=lambda fname:
@@ -286,31 +287,24 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         self.corrupt_log(newdir)
         #self.show_logs(newdir, 'after corruption')
         salvage_config = self.base_config + ',salvage=true'
-        errfile = 'list.err'
-        outfile = 'list.out'
         expect_fail = self.expect_recovery_failure()
 
-        # In cases of corruption, we cannot always call wiredtiger_open
-        # directly, because there may be a panic, and abort() is called
-        # in diagnostic mode which terminates the Python interpreter.
-        #
-        # Running any wt command externally to Python allows
-        # us to observe the failure or success safely.
-        # Use -R to force recover=on, which is the default for
-        # wiredtiger_open, (wt utilities normally have recover=error)
-        self.runWt(['-h', newdir, '-C', self.base_config, '-R', 'list'],
-            errfilename=errfile, outfilename=outfile, failure=expect_fail,
-            closeconn=False)
-
         if expect_fail:
-            self.check_file_contains_one_of(errfile,
-                ['/log file.*corrupted/',
-                'WT_TRY_SALVAGE: database corruption detected'])
+            with self.expectedStdoutPattern('Failed wiredtiger_open'):
+                errmsg = '/WT_TRY_SALVAGE: database corruption detected/'
+                if self.kind == 'removal':
+                    errmsg = '/No such file or directory/'
+                if self.kind == 'truncate':
+                    errmsg = '/failed to read 128 bytes at offset 0/'
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda: self.reopen_conn(newdir, self.base_config), errmsg)
         else:
-            self.check_empty_file(errfile)
             if self.expect_warning_corruption():
-                self.check_file_contains(outfile, '/log file .* corrupted/')
-            self.check_file_contains(outfile, self.uri)
+                with self.expectedStdoutPattern('log file .* corrupted'):
+                    self.reopen_conn(newdir, self.base_config)
+            else:
+                self.reopen_conn(newdir, self.base_config)
+            self.close_conn()
 
         found_records = self.recovered_records()
         expect = [x for x in range(0, found_records)]
@@ -348,14 +342,15 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         expect.extend([self.nrecords, self.nrecords + 1])
         copy_for_crash_restart(newdir, newdir2)
         self.checks(expect)
-        self.reopen_conn(newdir)
+        self.reopen_conn(newdir, self.conn_config)
         self.checks(expect)
         self.reopen_conn(newdir2, self.conn_config)
         self.checks(expect)
 
 class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     base_config = 'log=(archive=false,enabled,file_max=100K),' + \
-                  'transaction_sync=(enabled,method=none)'
+                  'transaction_sync=(enabled,method=none),cache_size=1GB,' + \
+                  'debug_mode=(corruption_abort=false),'
     conn_config = base_config
 
     # The type of corruption to be applied
@@ -385,7 +380,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         ('WiredTiger.basecfg', dict(filename='WiredTiger.basecfg')),
         ('WiredTiger.turtle', dict(filename='WiredTiger.turtle')),
         ('WiredTiger.wt', dict(filename='WiredTiger.wt')),
-        ('WiredTigerLAS.wt', dict(filename='WiredTigerLAS.wt')),
+        ('WiredTigerHS.wt', dict(filename='WiredTigerHS.wt')),
     ]
 
     # In many cases, wiredtiger_open without any salvage options will
@@ -393,34 +388,31 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     openable = [
         "removal:WiredTiger.basecfg",
         "removal:WiredTiger.turtle",
-        "removal:WiredTigerLAS.wt",
+        "removal:WiredTiger",
         "truncate:WiredTiger",
         "truncate:WiredTiger.basecfg",
-        "truncate:WiredTigerLAS.wt",
         "truncate-middle:WiredTiger",
         "truncate-middle:WiredTiger.basecfg",
         "truncate-middle:WiredTiger.turtle",
         "truncate-middle:WiredTiger.wt",
-        "truncate-middle:WiredTigerLAS.wt",
+        "truncate-middle:WiredTigerHS.wt",
         "zero:WiredTiger",
         "zero:WiredTiger.basecfg",
-        "zero:WiredTigerLAS.wt",
         "zero-end:WiredTiger",
         "zero-end:WiredTiger.basecfg",
         "zero-end:WiredTiger.turtle",
         "zero-end:WiredTiger.wt",
-        "zero-end:WiredTigerLAS.wt",
+        "zero-end:WiredTigerHS.wt",
         "garbage-begin:WiredTiger",
-        "garbage-begin:WiredTigerLAS.wt",
         "garbage-middle:WiredTiger",
         "garbage-middle:WiredTiger.basecfg",
         "garbage-middle:WiredTiger.turtle",
         "garbage-middle:WiredTiger.wt",
-        "garbage-middle:WiredTigerLAS.wt",
+        "garbage-middle:WiredTigerHS.wt",
         "garbage-end:WiredTiger",
         "garbage-end:WiredTiger.turtle",
         "garbage-end:WiredTiger.wt",
-        "garbage-end:WiredTigerLAS.wt",
+        "garbage-end:WiredTigerHS.wt",
     ]
 
     # The cases for which salvage will not work, represented in the
@@ -429,9 +421,12 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         "removal:WiredTiger.turtle",
         "removal:WiredTiger.wt",
         "truncate:WiredTiger.wt",
+        "truncate:WiredTigerHS.wt",
         "zero:WiredTiger.wt",
+        "zero:WiredTigerHS.wt",
         "garbage-begin:WiredTiger.basecfg",
         "garbage-begin:WiredTiger.wt",
+        "garbage-begin:WiredTigerHS.wt",
         "garbage-end:WiredTiger.basecfg",
     ]
 
@@ -477,9 +472,37 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         key = self.kind + ':' + self.filename
         return key not in self.not_salvageable
 
+    def run_wt_and_check(self, dir, expect_fail):
+        if expect_fail:
+            errmsg = '/WT_TRY_SALVAGE: database corruption detected/'
+            if self.filename == 'WiredTigerHS.wt':
+                if self.kind == 'removal':
+                    errmsg = '/hs_exists/'
+                elif self.kind == 'truncate':
+                    errmsg = '/file size=0, alloc size=4096/'
+            if self.filename == 'WiredTiger.basecfg':
+                if self.kind == 'garbage-begin' or self.kind == 'garbage-end':
+                    errmsg = '/Bad!Bad!Bad!/'
+            if self.filename == 'WiredTiger.wt':
+                if self.kind == 'truncate':
+                    errmsg = '/is smaller than allocation size; file size=0, alloc size=4096/'
+                if self.kind == 'removal':
+                    errmsg = '/No such file or directory/'
+            with self.expectedStdoutPattern('Failed wiredtiger_open'):
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda: self.reopen_conn(dir, self.conn_config), errmsg)
+        else:
+            # On non-windows platforms, we capture the renaming of WiredTiger.wt file.
+            if os.name != 'nt' and self.filename == 'WiredTiger.turtle' and self.kind == 'removal':
+                with self.expectedStderrPattern('File exists'):
+                    self.reopen_conn(dir, self.conn_config)
+                    self.captureout.checkAdditionalPattern(self,
+                        'unexpected file WiredTiger.wt found, renamed to WiredTiger.wt.1')
+            else:
+                self.reopen_conn(dir, self.conn_config)
+            self.close_conn()
+
     def test_corrupt_meta(self):
-        errfile = 'list.err'
-        outfile = 'list.out'
         newdir = "RESTART"
         newdir2 = "RESTART2"
         expect = list(range(0, self.nrecords))
@@ -504,27 +527,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         self.corrupt_meta(newdir)
         copy_for_crash_restart(newdir, newdir2)
 
-        # In cases of corruption, we cannot always call wiredtiger_open
-        # directly, because there may be a panic, and abort() is called
-        # in diagnostic mode which terminates the Python interpreter.
-        #
-        # Running any wt command externally to Python allows
-        # us to observe the failure or success safely.
-        # Use -R to force recover=on, which is the default for
-        # wiredtiger_open, (wt utilities normally have recover=error)
-
-        expect_fail = not self.is_openable()
-        self.runWt(['-h', newdir, '-C', self.base_config, '-R', 'list'],
-            errfilename=errfile, outfilename=outfile, failure=expect_fail,
-            closeconn=False)
-
-        if expect_fail:
-            self.check_file_contains_one_of(errfile,
-                ['/unknown configuration key/',
-                '/handle-open:/',
-                '/turtle file read error: WT_NOTFOUND: item not found/',
-                'WT_ERROR: non-specific WiredTiger error',
-                'WT_TRY_SALVAGE: database corruption detected'])
+        self.run_wt_and_check(newdir, not self.is_openable())
 
         for salvagedir in [ newdir, newdir2 ]:
             # Removing the 'WiredTiger.turtle' file has weird behavior:
@@ -534,8 +537,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
             #  But, immediately after the corruption, if we run
             #  wiredtiger_open with salvage, it will fail.
             # This anomoly should be fixed or explained.
-            if salvagedir == newdir and self.kind == 'removal' and \
-               self.filename == 'WiredTiger.turtle':
+            if self.kind == 'removal' and self.filename == 'WiredTiger.turtle':
                 continue
 
             if self.is_salvageable():

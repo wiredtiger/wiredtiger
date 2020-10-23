@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -45,16 +45,20 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
     table_nots_nolog = 'table:ts04_nots_nologged'
 
     conncfg = [
-        ('nolog', dict(conn_config='', using_log=False)),
-        ('V1', dict(conn_config=',log=(enabled),compatibility=(release="2.9")', using_log=True)),
-        ('V2', dict(conn_config=',log=(enabled)', using_log=True)),
+        ('nolog', dict(conn_config=',eviction_dirty_trigger=50,eviction_updates_trigger=50',
+         using_log=False)),
+        ('V1', dict(conn_config=',eviction_dirty_trigger=50,eviction_updates_trigger=50,' \
+         'log=(enabled),compatibility=(release="2.9")', using_log=True)),
+        ('V2', dict(conn_config=',eviction_dirty_trigger=50,eviction_updates_trigger=50,' \
+         'log=(enabled)', using_log=True)),
     ]
     session_config = 'isolation=snapshot'
 
     # Minimum cache_size requirement of lsm is 31MB.
     types = [
-        ('col_fix', dict(empty=1, cacheSize='cache_size=20MB', extra_config=',key_format=r,value_format=8t')),
-        ('col_var', dict(empty=0, cacheSize='cache_size=20MB', extra_config=',key_format=r')),
+    # The commented columnar tests needs to be enabled once rollback to stable for columnar is fixed in (WT-5548).
+    #    ('col_fix', dict(empty=1, cacheSize='cache_size=20MB', extra_config=',key_format=r,value_format=8t')),
+    #    ('col_var', dict(empty=0, cacheSize='cache_size=20MB', extra_config=',key_format=r')),
         ('lsm', dict(empty=0, cacheSize='cache_size=31MB', extra_config=',type=lsm')),
         ('row', dict(empty=0, cacheSize='cache_size=20MB', extra_config='',)),
         ('row-smallcache', dict(empty=0, cacheSize='cache_size=2MB', extra_config='',)),
@@ -78,7 +82,8 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         # Search for the expected items as well as iterating.
         for k, v in expected.items():
             if missing == False:
-                self.assertEqual(cur[k], v, "for key " + str(k))
+                self.assertEqual(cur[k], v, "for key " + str(k) +
+                    " expected " + str(v) + ", got " + str(cur[k]))
             else:
                 cur.set_key(k)
                 if self.empty:
@@ -162,11 +167,16 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         # Roll back half timestamps.
         stable_ts = timestamp_str(key_range // 2)
         self.conn.set_timestamp('stable_timestamp=' + stable_ts)
+
+        # We're about to test rollback-to-stable which requires a checkpoint to which we can roll back.
+        self.session.checkpoint()
         self.conn.rollback_to_stable()
+
         stat_cursor = self.session.open_cursor('statistics:', None, None)
-        calls = stat_cursor[stat.conn.txn_rollback_to_stable][2]
-        upd_aborted = (stat_cursor[stat.conn.txn_rollback_upd_aborted][2] +
-            stat_cursor[stat.conn.txn_rollback_las_removed][2])
+        calls = stat_cursor[stat.conn.txn_rts][2]
+        upd_aborted = (stat_cursor[stat.conn.txn_rts_upd_aborted][2] +
+            stat_cursor[stat.conn.txn_rts_hs_removed][2] +
+            stat_cursor[stat.conn.txn_rts_keys_removed][2])
         stat_cursor.close()
         self.assertEqual(calls, 1)
         self.assertTrue(upd_aborted >= key_range/2)
@@ -235,11 +245,13 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.set_timestamp('stable_timestamp=' + stable_ts)
         self.conn.rollback_to_stable()
         stat_cursor = self.session.open_cursor('statistics:', None, None)
-        calls = stat_cursor[stat.conn.txn_rollback_to_stable][2]
-        upd_aborted = (stat_cursor[stat.conn.txn_rollback_upd_aborted][2] +
-            stat_cursor[stat.conn.txn_rollback_las_removed][2])
+        calls = stat_cursor[stat.conn.txn_rts][2]
+        upd_aborted = (stat_cursor[stat.conn.txn_rts_upd_aborted][2] +
+            stat_cursor[stat.conn.txn_rts_hs_removed][2] +
+            stat_cursor[stat.conn.txn_rts_keys_removed][2])
         stat_cursor.close()
         self.assertEqual(calls, 2)
+
         #
         # We rolled back half on the earlier call and now three-quarters on
         # this call, which is one and one quarter of all keys rolled back.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -41,6 +41,7 @@ class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'log=(enabled)'
     basename = 'bug018.'
     baseuri = 'file:' + basename
+    flist = []
     uri1 = baseuri + '01.wt'
     uri2 = baseuri + '02.wt'
 
@@ -50,12 +51,34 @@ class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
             self.skipTest('Linux-specific test skipped on ' + os.name)
         super(test_bug018, self).setUp()
 
+    def close_files(self):
+        for f in self.flist:
+            f.close()
+
+    def open_files(self):
+        numfiles = 6
+        dir = self.conn.get_home()
+        for i in range(1, numfiles):
+            fname = dir + '/file.' + str(i)
+            self.flist.append(open(fname, 'w'))
+
     def create_table(self, uri):
         self.session.create(uri, 'key_format=S,value_format=S')
         return self.session.open_cursor(uri)
 
     def subprocess_bug018(self):
         '''Test closing multiple tables'''
+        # The first thing we do is open several files. We will close them later. The reason is
+        # that sometimes, without that, this test would fail to report an error as expected. We
+        # hypothesize, but could not prove (nor reproduce under strace), that after closing the
+        # file descriptor that an internal thread would open a file, perhaps a pre-allocated log
+        # file, and then would open the file descriptor we just closed. So on close, instead of
+        # getting an error, we would actually write to the wrong file.
+        #
+        # So we'll open some files now, and then close them before closing the one of interest to
+        # the test so that any stray internal file opens will use the file descriptor of one of
+        # the earlier files we just closed.
+        self.open_files()
         c1 = self.create_table(self.uri1)
         c2 = self.create_table(self.uri2)
 
@@ -64,6 +87,7 @@ class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
         c2['key'] = 'value'
         self.session.commit_transaction()
 
+        self.close_files()
         # Simulate a write failure by closing the file descriptor for the second
         # table out from underneath WiredTiger.  We do this right before
         # closing the connection so that the write error happens during close
@@ -106,14 +130,14 @@ class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
 
         # It's possible the second table can't even be opened.
         # That can happen only if the root page was not pushed out.
-        # So if we get an error, make sure we're getting the right
-        # error message.
-
-        self.captureerr.check(self)     # check error messages until now
+        # We can't depend on the text of a particular error message to be
+        # emitted, so we'll just ignore the error.
+        self.captureerr.check(self)     # check there is no error output so far
         try:
             results2 = list(self.session.open_cursor(self.uri2))
         except:
-            self.captureerr.checkAdditionalPattern(self, 'unable to read root page')
+            # Make sure there's some error, but we don't care what.
+            self.captureerr.checkAdditionalPattern(self, '.')
             results2 = []
         self.assertEqual(results1, results2)
 

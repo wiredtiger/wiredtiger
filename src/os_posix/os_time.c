@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -14,6 +14,7 @@
  */
 void
 __wt_epoch_raw(WT_SESSION_IMPL *session, struct timespec *tsp)
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_DECL_RET;
 
@@ -29,7 +30,7 @@ __wt_epoch_raw(WT_SESSION_IMPL *session, struct timespec *tsp)
     WT_SYSCALL_RETRY(clock_gettime(CLOCK_REALTIME, tsp), ret);
     if (ret == 0)
         return;
-    WT_PANIC_MSG(session, ret, "clock_gettime");
+    WT_IGNORE_RET(__wt_panic(session, ret, "clock_gettime"));
 #elif defined(HAVE_GETTIMEOFDAY)
     {
         struct timeval v;
@@ -40,7 +41,7 @@ __wt_epoch_raw(WT_SESSION_IMPL *session, struct timespec *tsp)
             tsp->tv_nsec = v.tv_usec * WT_THOUSAND;
             return;
         }
-        WT_PANIC_MSG(session, ret, "gettimeofday");
+        WT_IGNORE_RET(__wt_panic(session, ret, "gettimeofday"));
     }
 #else
     NO TIME - OF - DAY IMPLEMENTATION : see src / os_posix / os_time.c

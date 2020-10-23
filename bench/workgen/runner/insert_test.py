@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -55,7 +55,7 @@ def expectException(expr):
         raise Exception("missing expected exception")
 
 context = Context()
-conn = wiredtiger_open("WT_TEST", "create,cache_size=1G")
+conn = context.wiredtiger_open("create,cache_size=1G")
 s = conn.open_session()
 tname0 = tablename(0)
 tname1 = tablename(1)

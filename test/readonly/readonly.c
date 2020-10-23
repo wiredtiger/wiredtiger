@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -253,9 +253,8 @@ main(int argc, char *argv[])
         testutil_die(status, "system: %s", cmd);
 
     testutil_check(__wt_snprintf(cmd, sizeof(cmd),
-      "cp -rp %s/* %s; rm -f %s/WiredTiger.lock; "
-      "chmod 0555 %s; chmod -R 0444 %s/*",
-      home, home_rd2, home_rd2, home_rd2, home_rd2));
+      "cp -rp %s/* %s; rm -f %s/WiredTiger.lock; chmod 0555 %s; chmod -R 0444 %s/*", home, home_rd2,
+      home_rd2, home_rd2, home_rd2));
     if ((status = system(cmd)) < 0)
         testutil_die(status, "system: %s", cmd);
 
@@ -291,11 +290,10 @@ main(int argc, char *argv[])
         testutil_die(ret, "wiredtiger_open readonly nolock");
 
     /*
-     * Create a child to also open a connection handle to the databases.
-     * We cannot use fork here because using fork the child inherits the
-     * same memory image.  Therefore the WT process structure is set in
-     * the child even though it should not be.  So use 'system' to spawn
-     * an entirely new process.
+     * Create a child to also open a connection handle to the databases. We cannot use fork here
+     * because using fork the child inherits the same memory image. Therefore the WT process
+     * structure is set in the child even though it should not be. So use 'system' to spawn an
+     * entirely new process.
      *
      * The child will exit with success if its test passes.
      */

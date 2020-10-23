@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -103,8 +103,7 @@ wiredtiger_config_validate(
      */
     if (session != NULL && event_handler != NULL)
         WT_RET_MSG(session, EINVAL,
-          "wiredtiger_config_validate event handler ignored when "
-          "a session also specified");
+          "wiredtiger_config_validate event handler ignored when a session also specified");
 
     /*
      * If we're not given a session, but we do have an event handler, build a fake
@@ -160,8 +159,7 @@ __conn_foc_add(WT_SESSION_IMPL *session, const void *p)
     conn = S2C(session);
 
     /*
-     * Callers of this function are expected to be holding the connection's
-     * api_lock.
+     * Callers of this function are expected to be holding the connection's api_lock.
      *
      * All callers of this function currently ignore errors.
      */
@@ -232,9 +230,8 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
         WT_RET_MSG(session, EINVAL, "no configuration type specified");
     if (strcmp(type, "boolean") != 0 && strcmp(type, "int") != 0 && strcmp(type, "list") != 0 &&
       strcmp(type, "string") != 0)
-        WT_RET_MSG(session, EINVAL,
-          "type must be one of \"boolean\", \"int\", \"list\" or "
-          "\"string\"");
+        WT_RET_MSG(
+          session, EINVAL, "type must be one of \"boolean\", \"int\", \"list\" or \"string\"");
 
     /*
      * Translate the method name to our configuration names, then find a match.
@@ -255,8 +252,7 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
     /*
      * Allocate new configuration entry and fill it in.
      *
-     * The new base value is the previous base value, a separator and the
-     * new configuration string.
+     * The new base value is the previous base value, a separator and the new configuration string.
      */
     WT_ERR(__wt_calloc_one(session, &entry));
     entry->method = (*epp)->method;

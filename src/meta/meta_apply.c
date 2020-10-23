@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -41,15 +41,13 @@ __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
             continue;
 
         /*
-         * We need to pull the handle into the session handle cache
-         * and make sure it's referenced to stop other internal code
-         * dropping the handle (e.g in LSM when cleaning up obsolete
-         * chunks).  Holding the schema lock isn't enough.
+         * We need to pull the handle into the session handle cache and make sure it's referenced to
+         * stop other internal code dropping the handle (e.g in LSM when cleaning up obsolete
+         * chunks). Holding the schema lock isn't enough.
          *
-         * Handles that are busy are skipped without the whole
-         * operation failing.  This deals among other cases with
-         * checkpoint encountering handles that are locked (e.g., for
-         * bulk loads or verify operations).
+         * Handles that are busy are skipped without the whole operation failing. This deals among
+         * other cases with checkpoint encountering handles that are locked (e.g., for bulk loads or
+         * verify operations).
          */
         if ((t_ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0)) != 0) {
             WT_TRET_BUSY_OK(t_ret);

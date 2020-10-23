@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -39,13 +39,13 @@
 #endif
 
 #define CRC32CX(crc, value) \
-    __asm__("crc32cx %w[c], %w[c], %x[v]" : [c] "+r"(*&crc) : [v] "r"(+value))
+    __asm__("crc32cx %w[c], %w[c], %x[v]" : [ c ] "+r"(*&crc) : [ v ] "r"(+value))
 #define CRC32CW(crc, value) \
-    __asm__("crc32cw %w[c], %w[c], %w[v]" : [c] "+r"(*&crc) : [v] "r"(+value))
+    __asm__("crc32cw %w[c], %w[c], %w[v]" : [ c ] "+r"(*&crc) : [ v ] "r"(+value))
 #define CRC32CH(crc, value) \
-    __asm__("crc32ch %w[c], %w[c], %w[v]" : [c] "+r"(*&crc) : [v] "r"(+value))
+    __asm__("crc32ch %w[c], %w[c], %w[v]" : [ c ] "+r"(*&crc) : [ v ] "r"(+value))
 #define CRC32CB(crc, value) \
-    __asm__("crc32cb %w[c], %w[c], %w[v]" : [c] "+r"(*&crc) : [v] "r"(+value))
+    __asm__("crc32cb %w[c], %w[c], %w[v]" : [ c ] "+r"(*&crc) : [ v ] "r"(+value))
 
 /*
  * __wt_checksum_hw --

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -11,7 +11,18 @@
 static int list_get_allocsize(WT_SESSION *, const char *, size_t *);
 static int list_print(WT_SESSION *, const char *, bool, bool);
 static int list_print_checkpoint(WT_SESSION *, const char *);
-static int usage(void);
+
+static int
+usage(void)
+{
+    static const char *options[] = {"-c",
+      "display checkpoints in human-readable format (by default checkpoints are not displayed)",
+      "-v", "display the complete schema table (by default only a subset is displayed)", NULL,
+      NULL};
+
+    util_usage("list [-cv] [uri]", "options:", options);
+    return (1);
+}
 
 int
 util_list(WT_SESSION *session, int argc, char *argv[])
@@ -124,9 +135,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
         if ((ret = cursor->get_key(cursor, &key)) != 0)
             return (util_cerr(cursor, "get_key", ret));
 
-        /*
-         * If a name is specified, only show objects that match.
-         */
+        /* If a name is specified, only show objects that match. */
         if (uri != NULL) {
             if (!WT_PREFIX_MATCH(key, uri))
                 continue;
@@ -135,15 +144,13 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 
         /*
          * !!!
-         * We don't normally say anything about the WiredTiger metadata
-         * and lookaside tables, they're not application/user "objects"
-         * in the database.  I'm making an exception for the checkpoint
-         * and verbose options. However, skip over the metadata system
-         * information for anything except the verbose option.
+         * Don't report anything about the WiredTiger metadata and history store since they are not
+         * user created objects unless the verbose or checkpoint options are passed in. However,
+         * skip over the metadata system information for anything except the verbose option.
          */
         if (!vflag && WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX))
             continue;
-        if (cflag || vflag || (strcmp(key, WT_METADATA_URI) != 0 && strcmp(key, WT_LAS_URI) != 0))
+        if (cflag || vflag || (strcmp(key, WT_METADATA_URI) != 0 && strcmp(key, WT_HS_URI) != 0))
             printf("%s\n", key);
 
         if (!cflag && !vflag)
@@ -279,14 +286,4 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 
     __wt_metadata_free_ckptlist(session, ckptbase);
     return (0);
-}
-
-static int
-usage(void)
-{
-    (void)fprintf(stderr,
-      "usage: %s %s "
-      "list [-cv] [uri]\n",
-      progname, usage_prefix);
-    return (1);
 }

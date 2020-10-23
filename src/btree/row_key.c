@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -120,7 +120,7 @@ __wt_row_leaf_key_copy(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_
 
 /*
  * __wt_row_leaf_key_work --
- *     Return a reference to, a row-store leaf-page key, optionally instantiate the key into the
+ *     Return a reference to a row-store leaf-page key, optionally instantiate the key into the
  *     in-memory page.
  */
 int
@@ -130,7 +130,7 @@ __wt_row_leaf_key_work(
     enum { FORWARD, BACKWARD } direction;
     WT_BTREE *btree;
     WT_CELL *cell;
-    WT_CELL_UNPACK *unpack, _unpack;
+    WT_CELL_UNPACK_KV *unpack, _unpack;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_IKEY *ikey;
@@ -162,7 +162,7 @@ __wt_row_leaf_key_work(
     direction = BACKWARD;
     for (slot_offset = 0;;) {
         if (0) {
-        switch_and_jump:
+switch_and_jump:
             /* Switching to a forward roll. */
             WT_ASSERT(session, direction == BACKWARD);
             direction = FORWARD;
@@ -184,15 +184,12 @@ __wt_row_leaf_key_work(
             keyb->size = size;
 
             /*
-             * If this is the key we originally wanted, we don't
-             * care if we're rolling forward or backward, or if
-             * it's an overflow key or not, it's what we wanted.
-             * This shouldn't normally happen, the fast-path code
-             * that front-ends this function will have figured it
-             * out before we were called.
+             * If this is the key we originally wanted, we don't care if we're rolling forward or
+             * backward, or if it's an overflow key or not, it's what we wanted. This shouldn't
+             * normally happen, the fast-path code that front-ends this function will have figured
+             * it out before we were called.
              *
-             * The key doesn't need to be instantiated, skip past
-             * that test.
+             * The key doesn't need to be instantiated, skip past that test.
              */
             if (slot_offset == 0)
                 goto done;
@@ -211,13 +208,11 @@ __wt_row_leaf_key_work(
         /* 2: the test for an instantiated off-page key. */
         if (ikey != NULL) {
             /*
-             * If this is the key we originally wanted, we don't
-             * care if we're rolling forward or backward, or if
-             * it's an overflow key or not, it's what we wanted.
-             * Take a copy and wrap up.
+             * If this is the key we originally wanted, we don't care if we're rolling forward or
+             * backward, or if it's an overflow key or not, it's what we wanted. Take a copy and
+             * wrap up.
              *
-             * The key doesn't need to be instantiated, skip past
-             * that test.
+             * The key doesn't need to be instantiated, skip past that test.
              */
             if (slot_offset == 0) {
                 keyb->data = p;
@@ -258,30 +253,26 @@ __wt_row_leaf_key_work(
         /*
          * It must be an on-page cell, unpack it.
          */
-        __wt_cell_unpack(session, page, cell, unpack);
+        __wt_cell_unpack_kv(session, page->dsk, cell, unpack);
 
         /* 3: the test for an on-page reference to an overflow key. */
         if (unpack->type == WT_CELL_KEY_OVFL) {
             /*
-             * If this is the key we wanted from the start, we don't
-             * care if it's an overflow key, get a copy and wrap up.
+             * If this is the key we wanted from the start, we don't care if it's an overflow key,
+             * get a copy and wrap up.
              *
-             * Avoid racing with reconciliation deleting overflow
-             * keys.  Deleted overflow keys must be instantiated
-             * first, acquire the overflow lock and check.  Read
-             * the key if we still need to do so, but holding the
-             * overflow lock.  Note we are not using the version of
-             * the cell-data-ref calls that acquire the overflow
-             * lock and do a look-aside into the tracking cache:
-             * this is an overflow key, not a value, meaning it's
-             * instantiated before being deleted, not copied into
-             * the tracking cache.
+             * Avoid racing with reconciliation deleting overflow keys. Deleted overflow keys must
+             * be instantiated first, acquire the overflow lock and check. Read the key if we still
+             * need to do so, but holding the overflow lock. Note we are not using the version of
+             * the cell-data-ref calls that acquire the overflow lock and do a look-aside into the
+             * tracking cache: this is an overflow key, not a value, meaning it's instantiated
+             * before being deleted, not copied into the tracking cache.
              */
             if (slot_offset == 0) {
                 __wt_readlock(session, &btree->ovfl_lock);
                 copy = WT_ROW_KEY_COPY(rip);
                 if (!__wt_row_leaf_key_info(page, copy, NULL, &cell, &keyb->data, &keyb->size)) {
-                    __wt_cell_unpack(session, page, cell, unpack);
+                    __wt_cell_unpack_kv(session, page->dsk, cell, unpack);
                     ret = __wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, keyb);
                 }
                 __wt_readunlock(session, &btree->ovfl_lock);
@@ -306,13 +297,6 @@ __wt_row_leaf_key_work(
          * prefix compressed.
          */
         if (unpack->prefix == 0) {
-            /*
-             * The only reason to be here is a Huffman encoded key, a non-encoded key with no prefix
-             * compression should have been directly referenced, and we should not have needed to
-             * unpack its cell.
-             */
-            WT_ASSERT(session, btree->huffman_key != NULL);
-
             /*
              * If this is the key we originally wanted, we don't
              * care if we're rolling forward or backward, it's
@@ -344,16 +328,13 @@ __wt_row_leaf_key_work(
          */
         if (direction == BACKWARD) {
             /*
-             * If there's a set of keys with identical prefixes, we
-             * don't want to instantiate each one, the prefixes are
-             * all the same.
+             * If there's a set of keys with identical prefixes, we don't want to instantiate each
+             * one, the prefixes are all the same.
              *
-             * As we roll backward through the page, track the last
-             * time the prefix decreased in size, so we can start
-             * with that key during our roll-forward.  For a page
-             * populated with a single key prefix, we'll be able to
-             * instantiate the key we want as soon as we find a key
-             * without a prefix.
+             * As we roll backward through the page, track the last time the prefix decreased in
+             * size, so we can start with that key during our roll-forward. For a page populated
+             * with a single key prefix, we'll be able to instantiate the key we want as soon as we
+             * find a key without a prefix.
              */
             if (slot_offset == 0)
                 last_prefix = unpack->prefix;
@@ -380,13 +361,11 @@ __wt_row_leaf_key_work(
             }
 
             /*
-             * Grow the buffer as necessary as well as ensure data
-             * has been copied into local buffer space, then append
-             * the suffix to the prefix already in the buffer.
+             * Grow the buffer as necessary as well as ensure data has been copied into local buffer
+             * space, then append the suffix to the prefix already in the buffer.
              *
-             * Don't grow the buffer unnecessarily or copy data we
-             * don't need, truncate the item's data length to the
-             * prefix bytes.
+             * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's
+             * data length to the prefix bytes.
              */
             keyb->size = unpack->prefix;
             WT_ERR(__wt_buf_grow(session, keyb, keyb->size + size));

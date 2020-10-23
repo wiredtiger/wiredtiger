@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -128,9 +128,8 @@ snappy_compression(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src,
         *compression_failed = 0;
 
         /*
-         * On decompression, snappy requires an exact compressed byte
-         * count (the current value of snaplen). WiredTiger does not
-         * preserve that value, so save snaplen at the beginning of
+         * On decompression, snappy requires an exact compressed byte count (the current value of
+         * snaplen). WiredTiger does not preserve that value, so save snaplen at the beginning of
          * the destination buffer.
          *
          * Store the value in little-endian format.
@@ -169,9 +168,8 @@ snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *sr
     snaplen = snappy_bswap64(snaplen);
 #endif
     if (snaplen + SNAPPY_PREFIX > src_len) {
-        (void)wt_api->err_printf(wt_api, session,
-          "WT_COMPRESSOR.decompress: stored size exceeds source "
-          "size");
+        (void)wt_api->err_printf(
+          wt_api, session, "WT_COMPRESSOR.decompress: stored size exceeds source size");
         return (WT_ERROR);
     }
 

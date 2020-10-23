@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -15,8 +15,8 @@ static int __col_insert_alloc(WT_SESSION_IMPL *, uint64_t, u_int, WT_INSERT **, 
  *     Column-store delete, insert, and update.
  */
 int
-__wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
-  const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
+__wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_UPDATE *upd_arg,
+  u_int modify_type, bool exclusive)
 {
     static const WT_ITEM col_fix_remove = {"", 1, NULL, 0, 0};
     WT_BTREE *btree;
@@ -25,26 +25,44 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
     WT_INSERT_HEAD *ins_head, **ins_headp;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
+    WT_SESSION_IMPL *session;
     WT_UPDATE *old_upd, *upd;
     size_t ins_size, upd_size;
     u_int i, skipdepth;
     bool append, logged;
 
-    btree = cbt->btree;
+    btree = CUR2BT(cbt);
     ins = NULL;
     page = cbt->ref->page;
+    session = CUR2S(cbt);
     upd = upd_arg;
     append = logged = false;
 
+    /*
+     * We should have one of the following:
+     * - A full update list to instantiate.
+     * - An update to append to the existing update list.
+     * - A key/value pair to create an update with and append to the update list.
+     * - A key with no value to create a reserved or tombstone update to append to the update list.
+     *
+     * A "full update list" is distinguished from "an update" by checking whether it has a "next"
+     * update.
+     */
+    WT_ASSERT(session,
+      ((modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) && value == NULL &&
+        upd_arg == NULL) ||
+        (!(modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) &&
+          ((value == NULL && upd_arg != NULL) || (value != NULL && upd_arg == NULL))));
+
+    /* If we don't yet have a modify structure, we'll need one. */
+    WT_RET(__wt_page_modify_init(session, page));
+    mod = page->modify;
+
     if (upd_arg == NULL) {
-        if (modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) {
-            /*
-             * Fixed-size column-store doesn't have on-page deleted values, it's a nul byte.
-             */
-            if (modify_type == WT_UPDATE_TOMBSTONE && btree->type == BTREE_COL_FIX) {
-                modify_type = WT_UPDATE_STANDARD;
-                value = &col_fix_remove;
-            }
+        /* Fixed-size column-store doesn't have on-page deleted values, it's a nul byte. */
+        if (modify_type == WT_UPDATE_TOMBSTONE && btree->type == BTREE_COL_FIX) {
+            modify_type = WT_UPDATE_STANDARD;
+            value = &col_fix_remove;
         }
 
         /*
@@ -56,39 +74,27 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
         WT_ASSERT(session, recno != WT_RECNO_OOB || cbt->compare != 0);
         if (cbt->compare != 0 &&
           (recno == WT_RECNO_OOB ||
-              recno > (btree->type == BTREE_COL_VAR ? __col_var_last_recno(cbt->ref) :
-                                                      __col_fix_last_recno(cbt->ref)))) {
+            recno > (btree->type == BTREE_COL_VAR ? __col_var_last_recno(cbt->ref) :
+                                                    __col_fix_last_recno(cbt->ref)))) {
             append = true;
             cbt->ins = NULL;
             cbt->ins_head = NULL;
         }
     }
 
-    /* We're going to modify the page, we should have loaded history. */
-    WT_ASSERT(session, cbt->ref->state != WT_REF_LIMBO);
-
-    /* If we don't yet have a modify structure, we'll need one. */
-    WT_RET(__wt_page_modify_init(session, page));
-    mod = page->modify;
-
     /*
-     * If modifying a record not previously modified, but which is in the
-     * same update slot as a previously modified record, cursor.ins will
-     * not be set because there's no list of update records for this recno,
-     * but cursor.ins_head will be set to point to the correct update slot.
-     * Acquire the necessary insert information, then create a new update
-     * entry and link it into the existing list. We get here if a page has
-     * a single cell representing multiple records (the records have the
-     * same value), and then a record in the cell is updated or removed,
-     * creating the update list for the cell, and then a cursor iterates
-     * into that same cell to update/remove a different record. We find the
-     * correct slot in the update array, but we don't find an update list
-     * (because it doesn't exist), and don't have the information we need
-     * to do the insert. Normally, we wouldn't care (we could fail and do
-     * a search for the record which would configure everything for the
-     * insert), but range truncation does this pattern for every record in
-     * the cell, and the performance is terrible. For that reason, catch it
-     * here.
+     * If modifying a record not previously modified, but which is in the same update slot as a
+     * previously modified record, cursor.ins will not be set because there's no list of update
+     * records for this recno, but cursor.ins_head will be set to point to the correct update slot.
+     * Acquire the necessary insert information, then create a new update entry and link it into the
+     * existing list. We get here if a page has a single cell representing multiple records (the
+     * records have the same value), and then a record in the cell is updated or removed, creating
+     * the update list for the cell, and then a cursor iterates into that same cell to update/remove
+     * a different record. We find the correct slot in the update array, but we don't find an update
+     * list (because it doesn't exist), and don't have the information we need to do the insert.
+     * Normally, we wouldn't care (we could fail and do a search for the record which would
+     * configure everything for the insert), but range truncation does this pattern for every record
+     * in the cell, and the performance is terrible. For that reason, catch it here.
      */
     if (cbt->ins == NULL && cbt->ins_head != NULL) {
         cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno);
@@ -109,30 +115,29 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
     /*
      * Delete, insert or update a column-store entry.
      *
-     * If modifying a previously modified record, cursor.ins will be set to
-     * point to the correct update list. Create a new update entry and link
-     * it into the existing list.
+     * If modifying a previously modified record, cursor.ins will be set to point to the correct
+     * update list. Create a new update entry and link it into the existing list.
      *
-     * Else, allocate an insert array as necessary, build an insert/update
-     * structure pair, and link it into place.
+     * Else, allocate an insert array as necessary, build an insert/update structure pair, and link
+     * it into place.
      */
     if (cbt->compare == 0 && cbt->ins != NULL) {
-        /*
-         * If we are restoring updates that couldn't be evicted, the key must not exist on the new
-         * page.
-         */
-        WT_ASSERT(session, upd_arg == NULL);
+        old_upd = cbt->ins->upd;
+        if (upd_arg == NULL) {
+            /* Make sure the update can proceed. */
+            WT_ERR(__wt_txn_update_check(session, cbt, old_upd));
 
-        /* Make sure the update can proceed. */
-        WT_ERR(__wt_txn_update_check(session, old_upd = cbt->ins->upd));
-
-        /* Allocate a WT_UPDATE structure and transaction ID. */
-        WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
-        WT_ERR(__wt_txn_modify(session, upd));
-        logged = true;
+            /* Allocate a WT_UPDATE structure and transaction ID. */
+            WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
+            WT_ERR(__wt_txn_modify(session, upd));
+            logged = true;
+        } else {
+            upd = upd_arg;
+            upd_size = WT_UPDATE_MEMSIZE(upd);
+        }
 
         /* Avoid a data copy in WT_CURSOR.update. */
-        cbt->modify_update = upd;
+        __wt_upd_value_assign(cbt->modify_update, upd);
 
         /*
          * Point the new WT_UPDATE item to the next element in the list. If we get it right, the
@@ -141,7 +146,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
         upd->next = old_upd;
 
         /* Serialize the update. */
-        WT_ERR(__wt_update_serial(session, page, &cbt->ins->upd, &upd, upd_size, false));
+        WT_ERR(__wt_update_serial(session, cbt, page, &cbt->ins->upd, &upd, upd_size, false));
     } else {
         /* Allocate the append/update list reference as necessary. */
         if (append) {
@@ -174,33 +179,32 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
          * Check for insert split and checkpoint races in column-store: it's easy (as opposed to in
          * row-store) and a difficult bug to otherwise diagnose.
          */
-        WT_ASSERT(session, mod->mod_col_split_recno == WT_RECNO_OOB ||
+        WT_ASSERT(session,
+          mod->mod_col_split_recno == WT_RECNO_OOB ||
             (recno != WT_RECNO_OOB && mod->mod_col_split_recno > recno));
 
         if (upd_arg == NULL) {
-            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
+            WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;
 
             /* Avoid a data copy in WT_CURSOR.update. */
-            cbt->modify_update = upd;
+            __wt_upd_value_assign(cbt->modify_update, upd);
         } else
             upd_size = __wt_update_list_memsize(upd);
         ins->upd = upd;
         ins_size += upd_size;
 
         /*
-         * If there was no insert list during the search, or there was
-         * no search because the record number has not been allocated
-         * yet, the cursor's information cannot be correct, search
+         * If there was no insert list during the search, or there was no search because the record
+         * number has not been allocated yet, the cursor's information cannot be correct, search
          * couldn't have initialized it.
          *
-         * Otherwise, point the new WT_INSERT item's skiplist to the
-         * next elements in the insert list (which we will check are
-         * still valid inside the serialization function).
+         * Otherwise, point the new WT_INSERT item's skiplist to the next elements in the insert
+         * list (which we will check are still valid inside the serialization function).
          *
-         * The serial mutex acts as our memory barrier to flush these
-         * writes before inserting them into the list.
+         * The serial mutex acts as our memory barrier to flush these writes before inserting them
+         * into the list.
          */
         if (cbt->ins_stack[0] == NULL || recno == WT_RECNO_OOB)
             for (i = 0; i < skipdepth; i++) {

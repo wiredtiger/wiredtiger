@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -38,15 +38,13 @@ except ImportError:
     import unittest
 
 from contextlib import contextmanager
-import glob, os, re, shutil, sys, time, traceback
+import errno, glob, os, re, shutil, sys, time, traceback
 import wiredtiger, wtscenario
 
 def shortenWithEllipsis(s, maxlen):
     if len(s) > maxlen:
         s = s[0:maxlen-3] + '...'
     return s
-
-_python3 = (sys.version_info >= (3, 0, 0))
 
 class CapturedFd(object):
     """
@@ -89,25 +87,31 @@ class CapturedFd(object):
         self.file.close()
         self.file = None
 
+    def hasUnexpectedOutput(self, testcase):
+        """
+        Check to see that there is no unexpected output in the captured output
+        file.
+        """
+        if WiredTigerTestCase._ignoreStdout:
+            return
+        if self.file != None:
+            self.file.flush()
+        return self.expectpos < os.path.getsize(self.filename)
+
     def check(self, testcase):
         """
         Check to see that there is no unexpected output in the captured output
         file.  If there is, raise it as a test failure.
         This is generally called after 'release' is called.
         """
-        if WiredTigerTestCase._ignoreStdout:
-            return
-        if self.file != None:
-            self.file.flush()
-        filesize = os.path.getsize(self.filename)
-        if filesize > self.expectpos:
+        if self.hasUnexpectedOutput(testcase):
             contents = self.readFileFrom(self.filename, self.expectpos, 10000)
             WiredTigerTestCase.prout('ERROR: ' + self.filename +
                                      ' unexpected ' + self.desc +
                                      ', contains:\n"' + contents + '"')
             testcase.fail('unexpected ' + self.desc + ', contains: "' +
                       contents + '"')
-        self.expectpos = filesize
+        self.expectpos = os.path.getsize(self.filename)
 
     def checkAdditional(self, testcase, expect):
         """
@@ -131,7 +135,7 @@ class CapturedFd(object):
         """
         if self.file != None:
             self.file.flush()
-        gotstr = self.readFileFrom(self.filename, self.expectpos, 1000)
+        gotstr = self.readFileFrom(self.filename, self.expectpos, 1500)
         if re.search(pat, gotstr) == None:
             testcase.fail('in ' + self.desc +
                           ', expected pattern "' + pat + '", but got "' +
@@ -160,7 +164,7 @@ class TestSuiteConnection(object):
 class ExtensionList(list):
     skipIfMissing = False
     def extension(self, dirname, name, extarg=None):
-        if name != None and name != 'none':
+        if name and name != 'none':
             ext = '' if extarg == None else '=' + extarg
             self.append(dirname + '/' + name + ext)
 
@@ -227,6 +231,7 @@ class WiredTigerTestCase(unittest.TestCase):
         if hasattr(self, 'scenarios'):
             assert(len(self.scenarios) == len(dict(self.scenarios)))
         unittest.TestCase.__init__(self, *args, **kwargs)
+        self.skipped = False
         if not self._globalSetup:
             WiredTigerTestCase.globalSetup()
 
@@ -253,6 +258,10 @@ class WiredTigerTestCase(unittest.TestCase):
     def buildDirectory(self):
         return self._builddir
 
+    def skipTest(self, reason):
+        self.skipped = True
+        super(WiredTigerTestCase, self).skipTest(reason)
+
     # Return the wiredtiger_open extension argument for
     # any needed shared library.
     def extensionsConfig(self):
@@ -263,8 +272,11 @@ class WiredTigerTestCase(unittest.TestCase):
         result = ''
         extfiles = {}
         skipIfMissing = False
+        earlyLoading = ''
         if hasattr(exts, 'skip_if_missing'):
             skipIfMissing = exts.skip_if_missing
+        if hasattr(exts, 'early_load_ext') and exts.early_load_ext == True:
+            earlyLoading = '=(early_load=true)'
         for ext in exts:
             extconf = ''
             if '=' in ext:
@@ -302,7 +314,7 @@ class WiredTigerTestCase(unittest.TestCase):
             else:
                 extfiles[ext] = complete
         if len(extfiles) != 0:
-            result = ',extensions=[' + ','.join(list(extfiles.values())) + ']'
+            result = ',extensions=[' + ','.join(list(extfiles.values())) + earlyLoading + ']'
         return result
 
     # Can be overridden, but first consider setting self.conn_config
@@ -411,6 +423,8 @@ class WiredTigerTestCase(unittest.TestCase):
         # This approach works for all our support Python versions and
         # is suggested by one of the answers in:
         # https://stackoverflow.com/questions/4414234/getting-pythons-unittest-results-in-a-teardown-method
+        # In addition, check to make sure exc_info is "clean", because
+        # the ConcurrencyTestSuite in Python2 indicates failures using that.
         if hasattr(self, '_outcome'):  # Python 3.4+
             result = self.defaultTestResult()  # these 2 methods have no side effects
             self._feedErrorsToResult(result, self._outcome.errors)
@@ -418,7 +432,9 @@ class WiredTigerTestCase(unittest.TestCase):
             result = getattr(self, '_outcomeForDoCleanups', self._resultForDoCleanups)
         error = self.list2reason(result, 'errors')
         failure = self.list2reason(result, 'failures')
-        passed = not error and not failure
+        exc_failure = (sys.exc_info() != (None, None, None))
+
+        passed = not error and not failure and not exc_failure
 
         self.pr('finishing')
 
@@ -437,10 +453,8 @@ class WiredTigerTestCase(unittest.TestCase):
 
         try:
             self.fdTearDown()
-            # Only check for unexpected output if the test passed
-            if passed:
-                self.captureout.check(self)
-                self.captureerr.check(self)
+            self.captureout.check(self)
+            self.captureerr.check(self)
         finally:
             # always get back to original directory
             os.chdir(self.origcwd)
@@ -453,9 +467,10 @@ class WiredTigerTestCase(unittest.TestCase):
             for f in files:
                 os.chmod(os.path.join(root, f), 0o666)
         self.pr('passed=' + str(passed))
+        self.pr('skipped=' + str(self.skipped))
 
         # Clean up unless there's a failure
-        if passed and not WiredTigerTestCase._preserveFiles:
+        if (passed and (not WiredTigerTestCase._preserveFiles)) or self.skipped:
             shutil.rmtree(self.testdir, ignore_errors=True)
         else:
             self.pr('preserving directory ' + self.testdir)
@@ -463,7 +478,7 @@ class WiredTigerTestCase(unittest.TestCase):
         elapsed = time.time() - self.starttime
         if elapsed > 0.001 and WiredTigerTestCase._verbose >= 2:
             print("%s: %.2f seconds" % (str(self), elapsed))
-        if not passed:
+        if (not passed) and (not self.skipped):
             print("ERROR in " + str(self))
             self.pr('FAIL')
             self.pr('preserving directory ' + self.testdir)
@@ -507,6 +522,14 @@ class WiredTigerTestCase(unittest.TestCase):
         self.captureerr.check(self)
         yield
         self.captureerr.checkAdditionalPattern(self, pat)
+
+    def ignoreStdoutPatternIfExists(self, pat):
+        if self.captureout.hasUnexpectedOutput(self):
+            self.captureout.checkAdditionalPattern(self, pat)
+
+    def ignoreStderrPatternIfExists(self, pat):
+        if self.captureerr.hasUnexpectedOutput(self):
+            self.captureerr.checkAdditionalPattern(self, pat)
 
     def assertRaisesWithMessage(self, exceptionType, expr, message):
         """
@@ -564,12 +587,13 @@ class WiredTigerTestCase(unittest.TestCase):
     def raisesBusy(self, expr):
         """
         Execute the expression, returning true if a 'Resource busy' exception
-        is raised, returning false if no exception is raised. Some systems
-        report 'Device or resource busy', allow either.
+        is raised, returning false if no exception is raised. The actual exception
+        message can be different across platforms and therefore we rely on os
+        libraries to give use the correct exception message.
         Any other exception raises a test suite failure.
         """
         return self.assertRaisesException(wiredtiger.WiredTigerError, \
-            expr, exceptionString='/[Rr]esource busy/', optional=True)
+            expr, os.strerror(errno.EBUSY), optional=True)
 
     def assertTimestampsEqual(self, ts1, ts2):
         """
@@ -671,25 +695,7 @@ class WiredTigerTestCase(unittest.TestCase):
         """
         return a recno key
         """
-        if _python3:
-            return i
-        else:
-            return long(i)
-
-    def ord_byte(self, b):
-        """
-        return the 'ord' of a single byte.
-        In Python2 a set of bytes is represented as a string, and a single
-        byte is a string of length one.  In Python3, bytes are an array of
-        ints, so no explicit ord() call is needed.
-        """
-        if _python3:
-            return b
-        else:
-            return ord(b)
-
-    def is_python3(self):
-        return _python3
+        return i
 
     # print directly to tty, useful for debugging
     def tty(self, message):

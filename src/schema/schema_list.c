@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -29,9 +29,7 @@ __wt_schema_get_table_uri(
     if (!ok_incomplete && !table->cg_complete) {
         WT_ERR(__wt_session_release_dhandle(session));
         ret = __wt_set_return(session, EINVAL);
-        WT_ERR_MSG(session, ret,
-          "'%s' cannot be used "
-          "until all column groups are created",
+        WT_ERR_MSG(session, ret, "'%s' cannot be used until all column groups are created",
           table->iface.name);
     }
     *tablep = table;

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -36,9 +36,8 @@ __wt_direct_io_size_check(
         align = (int64_t)conn->buffer_alignment;
         if (align != 0 && (cval.val < align || cval.val % align != 0))
             WT_RET_MSG(session, EINVAL,
-              "when direct I/O is configured, the %s size must "
-              "be at least as large as the buffer alignment as "
-              "well as a multiple of the buffer alignment",
+              "when direct I/O is configured, the %s size must be at least as large as the buffer "
+              "alignment as well as a multiple of the buffer alignment",
               config_name);
     }
     *allocsizep = (uint32_t)cval.val;
@@ -46,22 +45,77 @@ __wt_direct_io_size_check(
 }
 
 /*
+ * __check_imported_ts --
+ *     Check the aggregated timestamps for each checkpoint in a file that we've imported. We're not
+ *     allowed to import files with timestamps ahead of our oldest timestamp since a subsequent
+ *     rollback to stable could result in data loss and historical reads could yield unexpected
+ *     values. Therefore, this function should return non-zero to callers to signify that this is
+ *     the case.
+ */
+static int
+__check_imported_ts(WT_SESSION_IMPL *session, const char *uri, const char *config)
+{
+    WT_CKPT *ckptbase, *ckpt;
+    WT_DECL_RET;
+    WT_TXN_GLOBAL *txn_global;
+
+    ckptbase = NULL;
+    txn_global = &S2C(session)->txn_global;
+
+    WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get_with_config(session, false, &ckptbase, config), true);
+    if (ret == WT_NOTFOUND)
+        WT_ERR_MSG(session, EINVAL,
+          "%s: import could not find any checkpoint information in supplied metadata", uri);
+
+    /* Now iterate over each checkpoint and compare the aggregate timestamps with our oldest. */
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (ckpt->ta.newest_start_durable_ts > txn_global->oldest_timestamp)
+            WT_ERR_MSG(session, EINVAL,
+              "%s: import found aggregated newest start durable timestamp newer than the current "
+              "oldest timestamp, newest_start_durable_ts=%" PRIu64 ", oldest_ts=%" PRIu64,
+              uri, ckpt->ta.newest_start_durable_ts, txn_global->oldest_timestamp);
+
+        /*
+         * No need to check "newest stop" here as "newest stop durable" serves that purpose. When a
+         * file has at least one record without a stop timestamp, "newest stop" will be set to max
+         * whereas "newest stop durable" refers to the newest non-max timestamp which is more useful
+         * to us in terms of comparing with oldest.
+         */
+        if (ckpt->ta.newest_stop_durable_ts > txn_global->oldest_timestamp) {
+            WT_ASSERT(session, ckpt->ta.newest_stop_durable_ts != WT_TS_MAX);
+            WT_ERR_MSG(session, EINVAL,
+              "%s: import found aggregated newest stop durable timestamp newer than the current "
+              "oldest timestamp, newest_stop_durable_ts=%" PRIu64 ", oldest_ts=%" PRIu64,
+              uri, ckpt->ta.newest_stop_durable_ts, txn_global->oldest_timestamp);
+        }
+    }
+
+err:
+    if (ckptbase != NULL)
+        __wt_meta_ckptlist_free(session, &ckptbase);
+    return (ret);
+}
+
+/*
  * __create_file --
  *     Create a new 'file:' object.
  */
 static int
-__create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
+__create_file(
+  WT_SESSION_IMPL *session, const char *uri, bool exclusive, bool import, const char *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_DECL_ITEM(val);
     WT_DECL_RET;
     const char *filename, **p,
-      *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL};
-    char *fileconf;
+      *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL};
+    char *fileconf, *filemeta;
     uint32_t allocsize;
-    bool is_metadata;
+    bool exists, import_repair, is_metadata;
 
-    fileconf = NULL;
+    fileconf = filemeta = NULL;
 
+    import_repair = false;
     is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
 
     filename = uri;
@@ -69,42 +123,122 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
 
     /* Check if the file already exists. */
     if (!is_metadata && (ret = __wt_metadata_search(session, uri, &fileconf)) != WT_NOTFOUND) {
-        if (exclusive)
+        /*
+         * Regardless of the 'exclusive' flag, we should raise an error if we try to import an
+         * existing URI rather than just silently returning.
+         */
+        if (exclusive || import)
             WT_TRET(EEXIST);
         goto err;
+    }
+
+    exists = false;
+    /*
+     * At this moment the uri doesn't exist in the metadata. In scenarios like, the database folder
+     * is copied without a checkpoint into another location and trying to recover from it leads to
+     * that history store file exists on disk but not as part of metadata. As we recreate the
+     * history store file on every restart to ensure that history store file is present. Make sure
+     * to remove the already exist history store file in the directory.
+     */
+    if (strcmp(uri, WT_HS_URI) == 0) {
+        WT_IGNORE_RET(__wt_fs_exist(session, filename, &exists));
+        if (exists)
+            WT_IGNORE_RET(__wt_fs_remove(session, filename, true));
     }
 
     /* Sanity check the allocation size. */
     WT_ERR(__wt_direct_io_size_check(session, filecfg, "allocation_size", &allocsize));
 
-    /* Create the file. */
-    WT_ERR(__wt_block_manager_create(session, filename, allocsize));
-    if (WT_META_TRACKING(session))
-        WT_ERR(__wt_meta_track_fileop(session, NULL, uri));
+    /*
+     * If we are importing an existing object rather than creating a new one, there are two possible
+     * scenarios. Either (1) the file configuration string from the source database metadata is
+     * specified in the input config string, or (2) the import.repair option is set and we need to
+     * reconstruct the configuration metadata from the file.
+     */
+    if (import) {
+        /* First verify that the data to import exists on disk. */
+        WT_IGNORE_RET(__wt_fs_exist(session, filename, &exists));
+        if (!exists)
+            WT_ERR_MSG(session, ENOENT, "%s", uri);
+
+        import_repair =
+          __wt_config_getones(session, config, "import.repair", &cval) == 0 && cval.val != 0;
+        if (!import_repair) {
+            if (__wt_config_getones(session, config, "import.file_metadata", &cval) == 0 &&
+              cval.len != 0) {
+                /*
+                 * The string may be enclosed by delimiters (e.g. braces, quotes, parentheses) to
+                 * avoid configuration string characters acting as separators. Discard the first and
+                 * last characters in this case.
+                 */
+                if (cval.type == WT_CONFIG_ITEM_STRUCT) {
+                    cval.str++;
+                    cval.len -= 2;
+                }
+                WT_ERR(__wt_strndup(session, cval.str, cval.len, &filemeta));
+                filecfg[2] = filemeta;
+            } else {
+                /*
+                 * If there is no file metadata provided, the user should be specifying a "repair".
+                 * To prevent mistakes with API usage, we should return an error here rather than
+                 * inferring a repair.
+                 */
+                WT_ERR_MSG(session, EINVAL,
+                  "%s: import requires that 'file_metadata' is specified or the 'repair' option is "
+                  "provided",
+                  uri);
+            }
+        }
+    } else {
+        /* Create the file. */
+        WT_ERR(__wt_block_manager_create(session, filename, allocsize));
+
+        /*
+         * Track the creation of this file.
+         *
+         * If something down the line fails, we're going to need to roll this back. Specifically do
+         * NOT track the op in the import case since we do not want to wipe a data file just because
+         * we fail to import it.
+         */
+        if (WT_META_TRACKING(session))
+            WT_ERR(__wt_meta_track_fileop(session, NULL, uri));
+    }
 
     /*
      * If creating an ordinary file, append the file ID and current version numbers to the passed-in
      * configuration and insert the resulting configuration into the metadata.
      */
     if (!is_metadata) {
-        WT_ERR(__wt_scr_alloc(session, 0, &val));
-        WT_ERR(__wt_buf_fmt(session, val, "id=%" PRIu32 ",version=(major=%d,minor=%d)",
-          ++S2C(session)->next_file_id, WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
-        for (p = filecfg; *p != NULL; ++p)
-            ;
-        *p = val->data;
-        WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
-        WT_ERR(__wt_metadata_insert(session, uri, fileconf));
+        if (!import_repair) {
+            WT_ERR(__wt_scr_alloc(session, 0, &val));
+            WT_ERR(__wt_buf_fmt(session, val, "id=%" PRIu32 ",version=(major=%d,minor=%d)",
+              ++S2C(session)->next_file_id, WT_BTREE_MAJOR_VERSION_MAX,
+              WT_BTREE_MINOR_VERSION_MAX));
+            for (p = filecfg; *p != NULL; ++p)
+                ;
+            *p = val->data;
+            WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
+            WT_ERR(__wt_metadata_insert(session, uri, fileconf));
+        } else {
+            /* Read the data file's descriptor block and try to recreate the associated metadata. */
+            WT_ERR(__wt_import_repair(session, uri, &fileconf));
+        }
+
+        /*
+         * Ensure that the timestamps in the imported data file are not in the future relative to
+         * our oldest timestamp.
+         */
+        if (import)
+            WT_ERR(__check_imported_ts(session, filename, fileconf));
     }
 
     /*
-     * Open the file to check that it was setup correctly. We don't need to
-     * pass the configuration, we just wrote the collapsed configuration
-     * into the metadata file, and it's going to be read/used by underlying
-     * functions.
+     * Open the file to check that it was setup correctly. We don't need to pass the configuration,
+     * we just wrote the collapsed configuration into the metadata file, and it's going to be
+     * read/used by underlying functions.
      *
-     * Keep the handle exclusive until it is released at the end of the
-     * call, otherwise we could race with a drop.
+     * Keep the handle exclusive until it is released at the end of the call, otherwise we could
+     * race with a drop.
      */
     WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
     if (WT_META_TRACKING(session))
@@ -115,6 +249,7 @@ __create_file(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const c
 err:
     __wt_scr_free(session, &val);
     __wt_free(session, fileconf);
+    __wt_free(session, filemeta);
     return (ret);
 }
 
@@ -209,7 +344,7 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
             WT_ERR(EEXIST);
         exists = true;
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Find the first NULL entry in the cfg stack. */
     for (cfgp = &cfg[1]; *cfgp; cfgp++)
@@ -321,7 +456,7 @@ __fill_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
     while ((ret = tcur->next(tcur)) == 0)
         WT_ERR(__wt_apply_single_idx(session, idx, icur, (WT_CURSOR_TABLE *)tcur, icur->insert));
 
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 err:
     if (icur)
         WT_TRET(icur->close(icur));
@@ -365,24 +500,19 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "index:");
     idxname = strchr(tablename, ':');
     if (idxname == NULL)
-        WT_RET_MSG(session, EINVAL,
-          "Invalid index name, "
-          "should be <table name>:<index name>: %s",
-          name);
+        WT_RET_MSG(
+          session, EINVAL, "Invalid index name, should be <table name>:<index name>: %s", name);
 
     /*
-     * Note: it would be better to keep the table exclusive here, while
-     * changing its indexes.  We don't because some operation we perform
-     * below reacquire the table handle (such as opening a cursor on the
-     * table in order to fill the index).  If we keep the handle exclusive
-     * here, those operations wanting ordinary access will conflict,
-     * leading to errors.  At the same time, we don't want to allow
-     * table cursors that have already been fully opened to remain open
-     * across this call.
+     * Note: it would be better to keep the table exclusive here, while changing its indexes. We
+     * don't because some operation we perform below reacquire the table handle (such as opening a
+     * cursor on the table in order to fill the index). If we keep the handle exclusive here, those
+     * operations wanting ordinary access will conflict, leading to errors. At the same time, we
+     * don't want to allow table cursors that have already been fully opened to remain open across
+     * this call.
      *
-     * Temporarily getting the table exclusively serves the purpose
-     * of ensuring that cursors on the table that are already open
-     * must at least be closed before this call proceeds.
+     * Temporarily getting the table exclusively serves the purpose of ensuring that cursors on the
+     * table that are already open must at least be closed before this call proceeds.
      */
     tlen = (size_t)(idxname++ - tablename);
     if ((ret = __wt_schema_get_table(
@@ -403,7 +533,7 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
             WT_ERR(EEXIST);
         exists = true;
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     if (__wt_config_getones(session, config, "source", &cval) == 0) {
         WT_ERR(__wt_buf_fmt(session, &namebuf, "%.*s", (int)cval.len, cval.str));
@@ -437,12 +567,12 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
         __wt_config_subinit(session, &kcols, &icols);
         while ((ret = __wt_config_next(&kcols, &ckey, &cval)) == 0)
             ++npublic_cols;
-        WT_ERR_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret, false);
     } else {
         WT_ERR(__pack_initn(session, &pack, kval.str, kval.len));
         while ((ret = __pack_next(&pack, &pv)) == 0)
             ++npublic_cols;
-        WT_ERR_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret, false);
     }
 
     /*
@@ -460,13 +590,12 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
         if (__wt_config_subgetraw(session, &icols, &ckey, &cval) == 0) {
             if (have_extractor)
                 WT_ERR_MSG(session, EINVAL,
-                  "an index with a custom extractor may not "
-                  "include primary key columns");
+                  "an index with a custom extractor may not include primary key columns");
             continue;
         }
         WT_ERR(__wt_buf_catfmt(session, &extra_cols, "%.*s,", (int)ckey.len, ckey.str));
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Index values are empty: all columns are packed into the index key. */
     WT_ERR(__wt_buf_fmt(session, &fmt, "value_format=,key_format="));
@@ -485,9 +614,8 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     /* Check for a record number index key, which makes no sense. */
     WT_ERR(__wt_config_getones(session, fmt.data, "key_format", &cval));
     if (cval.len == 1 && cval.str[0] == 'r')
-        WT_ERR_MSG(session, EINVAL,
-          "column-store index may not use the record number as its "
-          "index key");
+        WT_ERR_MSG(
+          session, EINVAL, "column-store index may not use the record number as its index key");
 
     WT_ERR(__wt_buf_catfmt(session, &fmt, ",index_key_columns=%u", npublic_cols));
 
@@ -528,17 +656,19 @@ err:
  *     Create a table.
  */
 static int
-__create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
+__create_table(
+  WT_SESSION_IMPL *session, const char *uri, bool exclusive, bool import, const char *config)
 {
     WT_CONFIG conf;
-    WT_CONFIG_ITEM cgkey, cgval, cval;
+    WT_CONFIG_ITEM cgkey, cgval, ckey, cval;
     WT_DECL_RET;
     WT_TABLE *table;
     size_t cgsize;
-    int ncolgroups;
+    int ncolgroups, nkeys;
     char *tableconf, *cgname;
     const char *cfg[4] = {WT_CONFIG_BASE(session, table_meta), config, NULL, NULL};
     const char *tablename;
+    bool import_repair;
 
     cgname = NULL;
     table = NULL;
@@ -551,16 +681,40 @@ __create_table(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const 
 
     /* Check if the table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &tableconf)) != WT_NOTFOUND) {
-        if (exclusive)
+        /*
+         * Regardless of the 'exclusive' flag, we should raise an error if we try to import an
+         * existing URI rather than just silently returning.
+         */
+        if (exclusive || import)
             WT_TRET(EEXIST);
         goto err;
+    }
+
+    if (import) {
+        import_repair =
+          __wt_config_getones(session, config, "import.repair", &cval) == 0 && cval.val != 0;
+        /*
+         * If this is an import but not a repair, check that the exported table metadata is provided
+         * in the config.
+         */
+        if (!import_repair) {
+            __wt_config_init(session, &conf, config);
+            for (nkeys = 0; (ret = __wt_config_next(&conf, &ckey, &cval)) == 0; nkeys++)
+                ;
+            if (nkeys == 1)
+                WT_ERR_MSG(session, EINVAL,
+                  "%s: import requires that the table configuration is specified or the "
+                  "'repair' option is provided",
+                  uri);
+            WT_ERR_NOTFOUND_OK(ret, false);
+        }
     }
 
     WT_ERR(__wt_config_gets(session, cfg, "colgroups", &cval));
     __wt_config_subinit(session, &conf, &cval);
     for (ncolgroups = 0; (ret = __wt_config_next(&conf, &cgkey, &cgval)) == 0; ncolgroups++)
         ;
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     WT_ERR(__wt_config_collapse(session, cfg, &tableconf));
     WT_ERR(__wt_metadata_insert(session, uri, tableconf));
@@ -615,9 +769,7 @@ __create_data_source(
      */
     if (__wt_config_getones_none(session, config, "collator", &cval) != WT_NOTFOUND &&
       cval.len != 0)
-        WT_RET_MSG(session, EINVAL,
-          "WT_DATA_SOURCE objects do not support WT_COLLATOR "
-          "ordering");
+        WT_RET_MSG(session, EINVAL, "WT_DATA_SOURCE objects do not support WT_COLLATOR ordering");
 
     return (dsrc->create(dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg));
 }
@@ -632,9 +784,14 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     WT_CONFIG_ITEM cval;
     WT_DATA_SOURCE *dsrc;
     WT_DECL_RET;
-    bool exclusive;
+    bool exclusive, import;
 
     exclusive = __wt_config_getones(session, config, "exclusive", &cval) == 0 && cval.val != 0;
+    import = __wt_config_getones(session, config, "import.enabled", &cval) == 0 && cval.val != 0;
+
+    if (import && !WT_PREFIX_MATCH(uri, "file:") && !WT_PREFIX_MATCH(uri, "table:"))
+        WT_RET_MSG(session, ENOTSUP,
+          "%s: import is only supported for 'file' and 'table' data sources", uri);
 
     /*
      * We track create operations: if we fail in the middle of creating a complex object, we want to
@@ -645,13 +802,13 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
     if (WT_PREFIX_MATCH(uri, "colgroup:"))
         ret = __create_colgroup(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "file:"))
-        ret = __create_file(session, uri, exclusive, config);
+        ret = __create_file(session, uri, exclusive, import, config);
     else if (WT_PREFIX_MATCH(uri, "lsm:"))
         ret = __wt_lsm_tree_create(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "index:"))
         ret = __create_index(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "table:"))
-        ret = __create_table(session, uri, exclusive, config);
+        ret = __create_table(session, uri, exclusive, import, config);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
         ret = dsrc->create == NULL ? __wt_object_unsupported(session, uri) :
                                      __create_data_source(session, uri, config, dsrc);

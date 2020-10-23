@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -13,15 +13,17 @@
  *     Change the cursor to reference an internal return key.
  */
 static inline int
-__key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+__key_return(WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
     WT_ITEM *tmp;
     WT_PAGE *page;
     WT_ROW *rip;
+    WT_SESSION_IMPL *session;
 
     page = cbt->ref->page;
     cursor = &cbt->iface;
+    session = CUR2S(cbt);
 
     if (page->type == WT_PAGE_ROW_LEAF) {
         rip = &page->pg_row[cbt->slot];
@@ -68,168 +70,135 @@ __key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __value_return --
- *     Change the cursor to reference an internal original-page return value.
+ * __read_col_time_window --
+ *     Retrieve the time window from a column store cell.
  */
-static inline int
-__value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+static void
+__read_col_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, WT_TIME_WINDOW *tw)
+{
+    WT_CELL_UNPACK_KV unpack;
+
+    __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
+    WT_TIME_WINDOW_COPY(tw, &unpack.tw);
+}
+
+/*
+ * __wt_read_row_time_window --
+ *     Retrieve the time window from a row.
+ */
+void
+__wt_read_row_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_TIME_WINDOW *tw)
+{
+    WT_CELL_UNPACK_KV unpack;
+
+    WT_TIME_WINDOW_INIT(tw);
+    /*
+     * If a value is simple and is globally visible at the time of reading a page into cache, we set
+     * the start time point as globally visible.
+     */
+    if (__wt_row_leaf_value_exists(rip))
+        return;
+
+    __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
+    WT_TIME_WINDOW_COPY(tw, &unpack.tw);
+}
+
+/*
+ * __wt_read_cell_time_window --
+ *     Read the time window from the cell.
+ */
+void
+__wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_TIME_WINDOW *tw)
+{
+    WT_PAGE *page;
+    WT_SESSION_IMPL *session;
+
+    session = CUR2S(cbt);
+    page = ref->page;
+
+    WT_ASSERT(session, tw != NULL);
+
+    /* Take the value from the original page cell. */
+    if (page->type == WT_PAGE_ROW_LEAF) {
+        __wt_read_row_time_window(session, page, &page->pg_row[cbt->slot], tw);
+    } else if (page->type == WT_PAGE_COL_VAR) {
+        __read_col_time_window(session, page, WT_COL_PTR(page, &page->pg_var[cbt->slot]), tw);
+    } else {
+        /* WT_PAGE_COL_FIX: return the default time window. */
+        WT_TIME_WINDOW_INIT(tw);
+    }
+}
+
+/*
+ * __wt_value_return_buf --
+ *     Change a buffer to reference an internal original-page return value.
+ */
+int
+__wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_WINDOW *tw)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_KV unpack;
     WT_CURSOR *cursor;
     WT_PAGE *page;
     WT_ROW *rip;
+    WT_SESSION_IMPL *session;
     uint8_t v;
 
+    session = CUR2S(cbt);
     btree = S2BT(session);
 
-    page = cbt->ref->page;
+    page = ref->page;
     cursor = &cbt->iface;
 
     if (page->type == WT_PAGE_ROW_LEAF) {
         rip = &page->pg_row[cbt->slot];
 
-        /* Simple values have their location encoded in the WT_ROW. */
-        if (__wt_row_leaf_value(page, rip, &cursor->value))
+        /*
+         * If a value is simple and is globally visible at the time of reading a page into cache, we
+         * encode its location into the WT_ROW.
+         */
+        if (__wt_row_leaf_value(page, rip, buf)) {
+            if (tw != NULL)
+                WT_TIME_WINDOW_INIT(tw);
             return (0);
+        }
 
         /* Take the value from the original page cell. */
         __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
-        return (__wt_page_cell_data_ref(session, page, &unpack, &cursor->value));
+        if (tw != NULL)
+            WT_TIME_WINDOW_COPY(tw, &unpack.tw);
+        return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
     if (page->type == WT_PAGE_COL_VAR) {
         /* Take the value from the original page cell. */
         cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
-        __wt_cell_unpack(session, page, cell, &unpack);
-        return (__wt_page_cell_data_ref(session, page, &unpack, &cursor->value));
+        __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
+        if (tw != NULL)
+            WT_TIME_WINDOW_COPY(tw, &unpack.tw);
+        return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
-    /* WT_PAGE_COL_FIX: Take the value from the original page. */
-    v = __bit_getv_recno(cbt->ref, cursor->recno, btree->bitcnt);
-    return (__wt_buf_set(session, &cursor->value, &v, 1));
+    /*
+     * WT_PAGE_COL_FIX: Take the value from the original page.
+     *
+     * FIXME-WT-6126: Should also check visibility here
+     */
+    if (tw != NULL)
+        WT_TIME_WINDOW_INIT(tw);
+    v = __bit_getv_recno(ref, cursor->recno, btree->bitcnt);
+    return (__wt_buf_set(session, buf, &v, 1));
 }
 
 /*
- * When threads race modifying a record, we can end up with more than the usual maximum number of
- * modifications in an update list. We'd prefer not to allocate memory in a return path, so add a
- * few additional slots to the array we use to build up a list of modify records to apply.
+ * __value_return --
+ *     Change the cursor to reference an internal original-page return value.
  */
-#define WT_MODIFY_ARRAY_SIZE (WT_MAX_MODIFY_UPDATE + 10)
-
-/*
- * __wt_value_return_upd --
- *     Change the cursor to reference an internal update structure return value.
- */
-int
-__wt_value_return_upd(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool ignore_visibility)
+static inline int
+__value_return(WT_CURSOR_BTREE *cbt)
 {
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    WT_UPDATE **listp, *list[WT_MODIFY_ARRAY_SIZE];
-    size_t allocated_bytes;
-    u_int i;
-    bool skipped_birthmark;
-
-    cursor = &cbt->iface;
-    allocated_bytes = 0;
-
-    /*
-     * We're passed a "standard" or "modified"  update that's visible to us.
-     * Our caller should have already checked for deleted items (we're too
-     * far down the call stack to return not-found).
-     *
-     * Fast path if it's a standard item, assert our caller's behavior.
-     */
-    if (upd->type == WT_UPDATE_STANDARD) {
-        cursor->value.data = upd->data;
-        cursor->value.size = upd->size;
-        return (0);
-    }
-    WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
-
-    /*
-     * Find a complete update that's visible to us, tracking modifications that are visible to us.
-     */
-    for (i = 0, listp = list, skipped_birthmark = false; upd != NULL; upd = upd->next) {
-        if (upd->txnid == WT_TXN_ABORTED)
-            continue;
-
-        if (!ignore_visibility && !__wt_txn_upd_visible(session, upd)) {
-            if (upd->type == WT_UPDATE_BIRTHMARK)
-                skipped_birthmark = true;
-            continue;
-        }
-
-        if (upd->type == WT_UPDATE_BIRTHMARK) {
-            upd = NULL;
-            break;
-        }
-
-        if (WT_UPDATE_DATA_VALUE(upd))
-            break;
-
-        if (upd->type == WT_UPDATE_MODIFY) {
-            /*
-             * Update lists are expected to be short, but it's not guaranteed. There's sufficient
-             * room on the stack to avoid memory allocation in normal cases, but we have to handle
-             * the edge cases too.
-             */
-            if (i >= WT_MODIFY_ARRAY_SIZE) {
-                if (i == WT_MODIFY_ARRAY_SIZE)
-                    listp = NULL;
-                WT_ERR(__wt_realloc_def(session, &allocated_bytes, i + 1, &listp));
-                if (i == WT_MODIFY_ARRAY_SIZE)
-                    memcpy(listp, list, sizeof(list));
-            }
-            listp[i++] = upd;
-
-            /*
-             * Once a modify is found, all previously committed modifications should be applied
-             * regardless of visibility.
-             */
-            ignore_visibility = true;
-        }
-    }
-
-    /*
-     * If there's no visible update and we skipped a birthmark, the base item is an empty item (in
-     * other words, birthmarks we can't read act as tombstones). If there's no visible update and we
-     * didn't skip a birthmark, the base item is the on-page item, which must be globally visible.
-     * If there's a visible update and it's a tombstone, the base item is an empty item. If there's
-     * a visible update and it's not a tombstone, the base item is the on-page item.
-     */
-    if (upd == NULL) {
-        if (skipped_birthmark)
-            WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
-        else {
-            /*
-             * Callers of this function set the cursor slot to an impossible value to check we don't
-             * try and return on-page values when the update list should have been sufficient (which
-             * happens, for example, if an update list was truncated, deleting some standard update
-             * required by a previous modify update). Assert the case.
-             */
-            WT_ASSERT(session, cbt->slot != UINT32_MAX);
-
-            WT_ERR(__value_return(session, cbt));
-        }
-    } else if (upd->type == WT_UPDATE_TOMBSTONE)
-        WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
-    else
-        WT_ERR(__wt_buf_set(session, &cursor->value, upd->data, upd->size));
-
-    /*
-     * Once we have a base item, roll forward through any visible modify updates.
-     */
-    while (i > 0)
-        WT_ERR(__wt_modify_apply(cursor, listp[--i]->data));
-
-err:
-    if (allocated_bytes != 0)
-        __wt_free(session, listp);
-    return (ret);
+    return (__wt_value_return_buf(cbt, cbt->ref, &cbt->iface.value, NULL));
 }
 
 /*
@@ -237,7 +206,7 @@ err:
  *     Change the cursor to reference an internal return key.
  */
 int
-__wt_key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+__wt_key_return(WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
 
@@ -253,7 +222,7 @@ __wt_key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
      */
     F_CLR(cursor, WT_CURSTD_KEY_EXT);
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
-        WT_RET(__key_return(session, cbt));
+        WT_RET(__key_return(cbt));
         F_SET(cursor, WT_CURSTD_KEY_INT);
     }
     return (0);
@@ -261,20 +230,39 @@ __wt_key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
 /*
  * __wt_value_return --
- *     Change the cursor to reference an internal return value.
+ *     Change the cursor to reference an update return value.
  */
 int
-__wt_value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
 {
     WT_CURSOR *cursor;
+    WT_SESSION_IMPL *session;
 
     cursor = &cbt->iface;
+    session = CUR2S(cbt);
 
     F_CLR(cursor, WT_CURSTD_VALUE_EXT);
-    if (upd == NULL)
-        WT_RET(__value_return(session, cbt));
-    else
-        WT_RET(__wt_value_return_upd(session, cbt, upd, false));
+    if (upd_value->type == WT_UPDATE_INVALID) {
+        /*
+         * FIXME-WT-6127: This is a holdover from the pre-durable history read logic where we used
+         * to fallback to the on-page value if we didn't find a visible update elsewhere. This is
+         * still required for fixed length column store as we have issues with this table type in
+         * durable history which we're planning to address in PM-1814.
+         */
+        WT_ASSERT(session, CUR2BT(cbt)->type == BTREE_COL_FIX);
+        WT_RET(__value_return(cbt));
+    } else {
+        /*
+         * We're passed a "standard" update that's visible to us. Our caller should have already
+         * checked for deleted items (we're too far down the call stack to return not-found) and any
+         * modify updates should be have been reconstructed into a full standard update.
+         *
+         * We are here to return a value to the caller. Make sure we don't skip the buf.
+         */
+        WT_ASSERT(session, upd_value->type == WT_UPDATE_STANDARD && !upd_value->skip_buf);
+        cursor->value.data = upd_value->buf.data;
+        cursor->value.size = upd_value->buf.size;
+    }
     F_SET(cursor, WT_CURSTD_VALUE_INT);
     return (0);
 }

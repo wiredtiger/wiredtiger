@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -112,10 +112,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         """
         Return a single byte from a file opened in binary mode.
         """
-        c = fp.read(1)
-        if self.is_python3():
-            c = c[0]   # In python3, the read returns bytes (an array).
-        return c
+        return fp.read(1)[0]
 
     def damage_inner(self, tablename, unique):
         """

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -60,12 +60,11 @@ compact(void *arg)
             break;
 
         /*
-         * Compact can return EBUSY if concurrent with alter or if there
-         * is eviction pressure, or we collide with checkpoints.
+         * Compact can return EBUSY if concurrent with alter or if there is eviction pressure, or we
+         * collide with checkpoints.
          *
-         * Compact returns ETIMEDOUT if the compaction doesn't finish in
-         * in some number of seconds. We don't configure a timeout and
-         * occasionally exceed the default of 1200 seconds.
+         * Compact returns ETIMEDOUT if the compaction doesn't finish in in some number of seconds.
+         * We don't configure a timeout and occasionally exceed the default of 1200 seconds.
          */
         ret = session->compact(session, g.uri, NULL);
         if (ret != 0 && ret != EBUSY && ret != ETIMEDOUT && ret != WT_ROLLBACK)

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -49,6 +49,10 @@ main(int argc, char *argv[])
     uint64_t current_value;
     int i;
 
+    /* Bypass this test for valgrind */
+    if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
+        return (EXIT_SUCCESS);
+
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
     opts->nthreads = 20;
@@ -58,15 +62,10 @@ main(int argc, char *argv[])
     testutil_make_work_dir(opts->home);
 
     testutil_check(wiredtiger_open(opts->home, NULL,
-      "create,"
-      "cache_size=2G,"
-      "eviction=(threads_max=5),"
-      "statistics=(fast)",
-      &opts->conn));
+      "create,cache_size=2G,eviction=(threads_max=5),statistics=(fast)", &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-    testutil_check(session->create(session, opts->uri,
-      "key_format=Q,value_format=Q,"
-      "leaf_page_max=32k,"));
+    testutil_check(
+      session->create(session, opts->uri, "key_format=Q,value_format=Q,leaf_page_max=32k,"));
 
     /* Create the single record. */
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &c));

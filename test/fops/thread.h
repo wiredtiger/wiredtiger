@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -48,6 +48,5 @@ void obj_create(void);
 void obj_create_unique(int);
 void obj_cursor(void);
 void obj_drop(int);
-void obj_rebalance(void);
 void obj_upgrade(void);
 void obj_verify(void);

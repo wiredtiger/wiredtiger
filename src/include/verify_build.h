@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -65,7 +65,7 @@ __wt_verify_build(void)
     WT_STATIC_ASSERT(       \
       sizeof(s) > WT_CACHE_LINE_ALIGNMENT || sizeof(s) % WT_CACHE_LINE_ALIGNMENT == 0)
     WT_PADDING_CHECK(WT_LOGSLOT);
-    WT_PADDING_CHECK(WT_TXN_STATE);
+    WT_PADDING_CHECK(WT_TXN_SHARED);
 
     /*
      * The btree code encodes key/value pairs in size_t's, and requires at least 8B size_t's.
@@ -73,11 +73,10 @@ __wt_verify_build(void)
     WT_STATIC_ASSERT(sizeof(size_t) >= 8);
 
     /*
-     * We require a wt_off_t fit into an 8B chunk because 8B is the largest
-     * integral value we can encode into an address cookie.
+     * We require a wt_off_t fit into an 8B chunk because 8B is the largest integral value we can
+     * encode into an address cookie.
      *
-     * WiredTiger has never been tested on a system with 4B file offsets,
-     * disallow them for now.
+     * WiredTiger has never been tested on a system with 4B file offsets, disallow them for now.
      */
     WT_STATIC_ASSERT(sizeof(wt_off_t) == 8);
 

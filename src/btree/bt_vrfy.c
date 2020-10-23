@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -13,31 +13,38 @@
  * prettier.
  */
 typedef struct {
-    uint64_t record_total; /* Total record count */
+    uint64_t records_so_far; /* Records seen so far */
 
     WT_ITEM *max_key;  /* Largest key */
     WT_ITEM *max_addr; /* Largest key page */
 
+#define WT_VERIFY_PROGRESS_INTERVAL 100
     uint64_t fcnt; /* Progress counter */
 
+    /* Configuration options passed in. */
+    wt_timestamp_t stable_timestamp; /* Stable timestamp to verify against if desired */
 #define WT_VRFY_DUMP(vs) \
     ((vs)->dump_address || (vs)->dump_blocks || (vs)->dump_layout || (vs)->dump_pages)
     bool dump_address; /* Configure: dump special */
     bool dump_blocks;
     bool dump_layout;
     bool dump_pages;
-    /* Page layout information */
+
+    /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100];
 
     WT_ITEM *tmp1, *tmp2, *tmp3, *tmp4; /* Temporary buffers */
 } WT_VSTUFF;
 
 static void __verify_checkpoint_reset(WT_VSTUFF *);
-static int __verify_page_cell(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
+static int __verify_page_content_int(
+  WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
+static int __verify_page_content_leaf(
+  WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 static int __verify_row_int_key_order(
   WT_SESSION_IMPL *, WT_PAGE *, WT_REF *, uint32_t, WT_VSTUFF *);
 static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *);
-static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK *, WT_VSTUFF *);
+static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 
 /*
  * __verify_config --
@@ -47,6 +54,9 @@ static int
 __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 {
     WT_CONFIG_ITEM cval;
+    WT_TXN_GLOBAL *txn_global;
+
+    txn_global = &S2C(session)->txn_global;
 
     WT_RET(__wt_config_gets(session, cfg, "dump_address", &cval));
     vs->dump_address = cval.val != 0;
@@ -60,10 +70,20 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
     WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
     vs->dump_pages = cval.val != 0;
 
+    WT_RET(__wt_config_gets(session, cfg, "stable_timestamp", &cval));
+    vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
+    if (cval.val != 0) {
+        if (!txn_global->has_stable_timestamp)
+            WT_RET_MSG(session, ENOTSUP,
+              "cannot verify against the stable timestamp if it has not been set");
+        vs->stable_timestamp = txn_global->stable_timestamp;
+    }
+
 #if !defined(HAVE_DIAGNOSTIC)
     if (vs->dump_blocks || vs->dump_pages)
         WT_RET_MSG(session, ENOTSUP, "the WiredTiger library was not built in diagnostic mode");
 #endif
+
     return (0);
 }
 
@@ -103,11 +123,11 @@ __verify_config_offsets(WT_SESSION_IMPL *session, const char *cfg[], bool *quitp
 }
 
 /*
- * __verify_layout --
+ * __dump_layout --
  *     Dump the tree shape.
  */
 static int
-__verify_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
+__dump_layout(WT_SESSION_IMPL *session, WT_VSTUFF *vs)
 {
     size_t i;
     uint64_t total;
@@ -141,7 +161,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_BM *bm;
     WT_BTREE *btree;
-    WT_CELL_UNPACK addr_unpack;
+    WT_CELL_UNPACK_ADDR addr_unpack;
     WT_CKPT *ckptbase, *ckpt;
     WT_DECL_RET;
     WT_VSTUFF *vs, _vstuff;
@@ -150,17 +170,33 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     const char *name;
     bool bm_start, quit;
 
+#if 0
+    /* FIXME-WT-6682: temporarily disable history store verification. */
+    bool skip_hs;
+#endif
+
     btree = S2BT(session);
     bm = btree->bm;
     ckptbase = NULL;
     name = session->dhandle->name;
     bm_start = false;
 
+#if 0
+    /*
+     * FIXME-WT-6682: temporarily disable history store verification.
+     *
+     * Skip the history store explicit call if we're performing a metadata verification. The
+     * metadata file is verified before we verify the history store, and it makes no sense to verify
+     * the history store against itself.
+     */
+    skip_hs = strcmp(name, WT_METAFILE_URI) == 0 || strcmp(name, WT_HS_URI) == 0;
+#endif
+
     WT_CLEAR(_vstuff);
     vs = &_vstuff;
     WT_ERR(__wt_scr_alloc(session, 0, &vs->max_key));
     WT_ERR(__wt_scr_alloc(session, 0, &vs->max_addr));
-    WT_ERR(__wt_scr_alloc(session, 0, &vs->tmp1));
+    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &vs->tmp1));
     WT_ERR(__wt_scr_alloc(session, 0, &vs->tmp2));
     WT_ERR(__wt_scr_alloc(session, 0, &vs->tmp3));
     WT_ERR(__wt_scr_alloc(session, 0, &vs->tmp4));
@@ -177,12 +213,11 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * Get a list of the checkpoints for this file. Empty objects have no checkpoints, in which case
      * there's no work to do.
      */
-    ret = __wt_meta_ckptlist_get(session, name, false, &ckptbase);
+    WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get(session, name, false, &ckptbase), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
     }
-    WT_ERR(ret);
 
     /* Inform the underlying block manager we're verifying. */
     WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
@@ -223,16 +258,40 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * Create a fake, unpacked parent cell for the tree based on the checkpoint information.
              */
             memset(&addr_unpack, 0, sizeof(addr_unpack));
-            addr_unpack.newest_durable_ts = ckpt->newest_durable_ts;
-            addr_unpack.oldest_start_ts = ckpt->oldest_start_ts;
-            addr_unpack.oldest_start_txn = ckpt->oldest_start_txn;
-            addr_unpack.newest_stop_ts = ckpt->newest_stop_ts;
-            addr_unpack.newest_stop_txn = ckpt->newest_stop_txn;
+            WT_TIME_AGGREGATE_COPY(&addr_unpack.ta, &ckpt->ta);
+            if (ckpt->write_gen <= btree->base_write_gen) {
+                addr_unpack.ta.newest_txn = WT_TXN_NONE;
+                addr_unpack.ta.newest_stop_txn = WT_TXN_MAX;
+            }
+            if (ckpt->ta.prepare)
+                addr_unpack.ta.prepare = 1;
             addr_unpack.raw = WT_CELL_ADDR_INT;
 
             /* Verify the tree. */
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
+
+#if 0
+            /*
+             * FIXME-WT-6682: temporarily disable history store verification.
+             *
+             * The checkpoints are in time-order, so the last one in the list is the most recent. If
+             * this is the most recent checkpoint, verify the history store against it.
+             *
+             * FIXME-WT-6263: Temporarily disable history store verification.
+             */
+            if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
+                /* Open a history store cursor. */
+                WT_ERR(__wt_hs_cursor_open(session));
+                WT_TRET(__wt_history_store_verify_one(session));
+                WT_TRET(__wt_hs_cursor_close(session));
+                /*
+                 * We cannot error out here. If we got an error verifying the history store, we need
+                 * to follow through with reacquiring the exclusive call below. We'll error out
+                 * after that and unloading this checkpoint.
+                 */
+            }
+#endif
 
             /*
              * We have an exclusive lock on the handle, but we're swapping root pages in-and-out of
@@ -259,7 +318,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
         /* Display the tree shape. */
         if (vs->dump_layout)
-            WT_ERR(__verify_layout(session, vs));
+            WT_ERR(__dump_layout(session, vs));
     }
 
 done:
@@ -296,10 +355,37 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
     vs->max_addr->size = 0;
 
     /* Record total is per checkpoint, reset the record count. */
-    vs->record_total = 0;
+    vs->records_so_far = 0;
 
     /* Tree depth. */
     vs->depth = 1;
+}
+
+/*
+ * __verify_addr_string --
+ *     Figure out a page's "address" and load a buffer with a printable, nul-terminated
+ *     representation of that address.
+ */
+static const char *
+__verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
+{
+    WT_ADDR_COPY addr;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    char time_string[WT_TIME_STRING_SIZE];
+
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+
+    if (__wt_ref_addr_copy(session, ref, &addr)) {
+        WT_ERR(
+          __wt_buf_fmt(session, buf, "%s %s", __wt_addr_string(session, addr.addr, addr.size, tmp),
+            __wt_time_aggregate_to_string(&addr.ta, time_string)));
+    } else
+        WT_ERR(__wt_buf_fmt(session, buf, "%s -/-,-/-", __wt_addr_string(session, NULL, 0, tmp)));
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (buf->data);
 }
 
 /*
@@ -307,36 +393,15 @@ __verify_checkpoint_reset(WT_VSTUFF *vs)
  *     Check an address block's timestamps.
  */
 static int
-__verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, WT_VSTUFF *vs)
+__verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *unpack, WT_VSTUFF *vs)
 {
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    WT_DECL_RET;
 
-    if (unpack->newest_stop_ts == WT_TS_NONE)
-        WT_RET_MSG(session, WT_ERROR,
-          "internal page reference at %s has a newest stop "
-          "timestamp of 0",
-          __wt_page_addr_string(session, ref, vs->tmp1));
-    if (unpack->oldest_start_ts > unpack->newest_stop_ts)
-        WT_RET_MSG(session, WT_ERROR,
-          "internal page reference at %s has an oldest start "
-          "timestamp %s newer than its newest stop timestamp %s",
-          __wt_page_addr_string(session, ref, vs->tmp1),
-          __wt_timestamp_to_string(unpack->oldest_start_ts, ts_string[0]),
-          __wt_timestamp_to_string(unpack->newest_stop_ts, ts_string[1]));
-    if (unpack->newest_stop_txn == WT_TXN_NONE)
-        WT_RET_MSG(session, WT_ERROR,
-          "internal page reference at %s has a newest stop "
-          "transaction of 0",
-          __wt_page_addr_string(session, ref, vs->tmp1));
-    if (unpack->oldest_start_txn > unpack->newest_stop_txn)
-        WT_RET_MSG(session, WT_ERROR,
-          "internal page reference at %s has an oldest start "
-          "transaction (%" PRIu64
-          ") newer than its newest stop "
-          "transaction (%" PRIu64 ")",
-          __wt_page_addr_string(session, ref, vs->tmp1), unpack->oldest_start_txn,
-          unpack->newest_stop_txn);
-    return (0);
+    if ((ret = __wt_time_aggregate_validate(session, &unpack->ta, NULL, false)) == 0)
+        return (0);
+
+    WT_RET_MSG(session, ret, "internal page reference at %s failed timestamp validation",
+      __verify_addr_string(session, ref, vs->tmp1));
 }
 
 /*
@@ -346,61 +411,52 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
  *     Our job is to check logical relationships in the page and in the tree.
  */
 static int
-__verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack, WT_VSTUFF *vs)
+__verify_tree(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *addr_unpack, WT_VSTUFF *vs)
 {
     WT_BM *bm;
-    WT_CELL *cell;
-    WT_CELL_UNPACK *unpack, _unpack;
-    WT_COL *cip;
+    WT_CELL_UNPACK_ADDR *unpack, _unpack;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *child_ref;
-    uint64_t recno;
-    uint32_t entry, i;
+    uint32_t entry;
 
     bm = S2BT(session)->bm;
+    unpack = &_unpack;
     page = ref->page;
 
-    unpack = &_unpack;
-
-    __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __wt_page_addr_string(session, ref, vs->tmp1),
+    __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
       __wt_page_type_string(page->type));
 
-    /* Optionally dump the address. */
+    /* Optionally dump address information. */
     if (vs->dump_address)
-        WT_RET(__wt_msg(session, "%s %s", __wt_page_addr_string(session, ref, vs->tmp1),
+        WT_RET(__wt_msg(session, "%s %s", __verify_addr_string(session, ref, vs->tmp1),
           __wt_page_type_string(page->type)));
 
     /* Track the shape of the tree. */
-    if (WT_PAGE_IS_INTERNAL(page))
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         ++vs->depth_internal[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];
     else
         ++vs->depth_leaf[WT_MIN(vs->depth, WT_ELEMENTS(vs->depth_internal) - 1)];
 
-/*
- * The page's physical structure was verified when it was read into
- * memory by the read server thread, and then the in-memory version
- * of the page was built. Now we make sure the page and tree are
- * logically consistent.
- *
- * !!!
- * The problem: (1) the read server has to build the in-memory version
- * of the page because the read server is the thread that flags when
- * any thread can access the page in the tree; (2) we can't build the
- * in-memory version of the page until the physical structure is known
- * to be OK, so the read server has to verify at least the physical
- * structure of the page; (3) doing complete page verification requires
- * reading additional pages (for example, overflow keys imply reading
- * overflow pages in order to test the key's order in the page); (4)
- * the read server cannot read additional pages because it will hang
- * waiting on itself.  For this reason, we split page verification
- * into a physical verification, which allows the in-memory version
- * of the page to be built, and then a subsequent logical verification
- * which happens here.
- *
- * Report progress occasionally.
- */
-#define WT_VERIFY_PROGRESS_INTERVAL 100
+    /*
+     * The page's physical structure was verified when it was read into memory by the read server
+     * thread, and then the in-memory version of the page was built. Now we make sure the page and
+     * tree are logically consistent.
+     *
+     * !!!
+     * The problem: (1) the read server has to build the in-memory version of the page because the
+     * read server is the thread that flags when any thread can access the page in the tree; (2) we
+     * can't build the in-memory version of the page until the physical structure is known to be OK,
+     * so the read server has to verify at least the physical structure of the page; (3) doing
+     * complete page verification requires reading additional pages (for example, overflow keys
+     * imply reading overflow pages in order to test the key's order in the page); (4) the read
+     * server cannot read additional pages because it will hang waiting on itself. For this reason,
+     * we split page verification into a physical verification, which allows the in-memory version
+     * of the page to be built, and then a subsequent logical verification which happens here.
+     *
+     * Report progress occasionally.
+     */
     if (++vs->fcnt % WT_VERIFY_PROGRESS_INTERVAL == 0)
         WT_RET(__wt_progress(session, NULL, vs->fcnt));
 
@@ -412,36 +468,16 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
         WT_RET(__wt_debug_page(session, NULL, ref, NULL));
 #endif
 
-    /*
-     * Column-store key order checks: check the page's record number and then update the total
-     * record count.
-     */
+    /* Column-store key order checks: check the page's record number. */
     switch (page->type) {
     case WT_PAGE_COL_FIX:
     case WT_PAGE_COL_INT:
-        recno = ref->ref_recno;
-        goto recno_chk;
     case WT_PAGE_COL_VAR:
-        recno = ref->ref_recno;
-    recno_chk:
-        if (recno != vs->record_total + 1)
-            WT_RET_MSG(session, WT_ERROR, "page at %s has a starting record of %" PRIu64
-                                          " when the expected starting record is %" PRIu64,
-              __wt_page_addr_string(session, ref, vs->tmp1), recno, vs->record_total + 1);
-        break;
-    }
-    switch (page->type) {
-    case WT_PAGE_COL_FIX:
-        vs->record_total += page->entries;
-        break;
-    case WT_PAGE_COL_VAR:
-        recno = 0;
-        WT_COL_FOREACH (page, cip, i) {
-            cell = WT_COL_PTR(page, cip);
-            __wt_cell_unpack(session, page, cell, unpack);
-            recno += __wt_cell_rle(unpack);
-        }
-        vs->record_total += recno;
+        if (ref->ref_recno != vs->records_so_far + 1)
+            WT_RET_MSG(session, WT_ERROR,
+              "page at %s has a starting record of %" PRIu64
+              " when the expected starting record is %" PRIu64,
+              __verify_addr_string(session, ref, vs->tmp1), ref->ref_recno, vs->records_so_far + 1);
         break;
     }
 
@@ -452,6 +488,21 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
     switch (page->type) {
     case WT_PAGE_ROW_LEAF:
         WT_RET(__verify_row_leaf_key_order(session, ref, vs));
+        break;
+    }
+
+    /* Check page content, additionally updating the variable-length column-store record count. */
+    switch (page->type) {
+    case WT_PAGE_COL_FIX:
+        vs->records_so_far += page->entries;
+        break;
+    case WT_PAGE_COL_INT:
+    case WT_PAGE_ROW_INT:
+        WT_RET(__verify_page_content_int(session, ref, addr_unpack, vs));
+        break;
+    case WT_PAGE_COL_VAR:
+    case WT_PAGE_ROW_LEAF:
+        WT_RET(__verify_page_content_leaf(session, ref, addr_unpack, vs));
         break;
     }
 
@@ -473,25 +524,11 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
         if (addr_unpack->raw != WT_CELL_ADDR_INT)
-        celltype_err:
-        WT_RET_MSG(session, WT_ERROR,
-          "page at %s, of type %s, is referenced in "
-          "its parent by a cell of type %s",
-          __wt_page_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
-          __wt_cell_type_string(addr_unpack->raw));
-        break;
-    }
-
-    /*
-     * Check overflow pages and timestamps. Done in one function as both checks require walking the
-     * page cells and we don't want to do it twice.
-     */
-    switch (page->type) {
-    case WT_PAGE_COL_INT:
-    case WT_PAGE_COL_VAR:
-    case WT_PAGE_ROW_INT:
-    case WT_PAGE_ROW_LEAF:
-        WT_RET(__verify_page_cell(session, ref, addr_unpack, vs));
+celltype_err:
+            WT_RET_MSG(session, WT_ERROR,
+              "page at %s, of type %s, is referenced in its parent by a cell of type %s",
+              __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(page->type),
+              __wt_cell_type_string(addr_unpack->raw));
         break;
     }
 
@@ -506,18 +543,17 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
              * than the total records reviewed to this point.
              */
             ++entry;
-            if (child_ref->ref_recno != vs->record_total + 1) {
-                WT_RET_MSG(session, WT_ERROR, "the starting record number in entry %" PRIu32
-                                              " of the column internal page at "
-                                              "%s is %" PRIu64
-                                              " and the expected "
-                                              "starting record number is %" PRIu64,
-                  entry, __wt_page_addr_string(session, child_ref, vs->tmp1), child_ref->ref_recno,
-                  vs->record_total + 1);
+            if (child_ref->ref_recno != vs->records_so_far + 1) {
+                WT_RET_MSG(session, WT_ERROR,
+                  "the starting record number in entry %" PRIu32
+                  " of the column internal page at %s is %" PRIu64
+                  " and the expected starting record number is %" PRIu64,
+                  entry, __verify_addr_string(session, child_ref, vs->tmp1), child_ref->ref_recno,
+                  vs->records_so_far + 1);
             }
 
             /* Unpack the address block and check timestamps */
-            __wt_cell_unpack(session, child_ref->home, child_ref->addr, unpack);
+            __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
             /* Verify the subtree. */
@@ -537,19 +573,17 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
         entry = 0;
         WT_INTL_FOREACH_BEGIN (session, page, child_ref) {
             /*
-             * It's a depth-first traversal: this entry's starting
-             * key should be larger than the largest key previously
-             * reviewed.
+             * It's a depth-first traversal: this entry's starting key should be larger than the
+             * largest key previously reviewed.
              *
-             * The 0th key of any internal page is magic, and we
-             * can't test against it.
+             * The 0th key of any internal page is magic, and we can't test against it.
              */
             ++entry;
             if (entry != 1)
                 WT_RET(__verify_row_int_key_order(session, page, child_ref, entry, vs));
 
             /* Unpack the address block and check timestamps */
-            __wt_cell_unpack(session, child_ref->home, child_ref->addr, unpack);
+            __wt_cell_unpack_addr(session, child_ref->home->dsk, child_ref->addr, unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
             /* Verify the subtree. */
@@ -592,17 +626,17 @@ __verify_row_int_key_order(
     /* Compare the key against the largest key we've seen so far. */
     WT_RET(__wt_compare(session, btree->collator, &item, vs->max_key, &cmp));
     if (cmp <= 0)
-        WT_RET_MSG(session, WT_ERROR, "the internal key in entry %" PRIu32
-                                      " on the page at %s "
-                                      "sorts before the last key appearing on page %s, earlier "
-                                      "in the tree: %s, %s",
-          entry, __wt_page_addr_string(session, ref, vs->tmp1), (char *)vs->max_addr->data,
+        WT_RET_MSG(session, WT_ERROR,
+          "the internal key in entry %" PRIu32
+          " on the page at %s sorts before the last key appearing on page %s, earlier in the tree: "
+          "%s, %s",
+          entry, __verify_addr_string(session, ref, vs->tmp1), (char *)vs->max_addr->data,
           __wt_buf_set_printable(session, item.data, item.size, vs->tmp2),
           __wt_buf_set_printable(session, vs->max_key->data, vs->max_key->size, vs->tmp3));
 
     /* Update the largest key we've seen to the key just checked. */
     WT_RET(__wt_buf_set(session, vs->max_key, item.data, item.size));
-    WT_IGNORE_RET_PTR(__wt_page_addr_string(session, ref, vs->max_addr));
+    WT_IGNORE_RET_PTR(__verify_addr_string(session, ref, vs->max_addr));
 
     return (0);
 }
@@ -638,27 +672,24 @@ __verify_row_leaf_key_order(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs
         /*
          * Compare the key against the largest key we've seen so far.
          *
-         * If we're comparing against a key taken from an internal page,
-         * we can compare equal (which is an expected path, the internal
-         * page key is often a copy of the leaf page's first key).  But,
-         * in the case of the 0th slot on an internal page, the last key
-         * we've seen was a key from a previous leaf page, and it's not
-         * OK to compare equally in that case.
+         * If we're comparing against a key taken from an internal page, we can compare equal (which
+         * is an expected path, the internal page key is often a copy of the leaf page's first key).
+         * But, in the case of the 0th slot on an internal page, the last key we've seen was a key
+         * from a previous leaf page, and it's not OK to compare equally in that case.
          */
         WT_RET(__wt_compare(session, btree->collator, vs->tmp1, (WT_ITEM *)vs->max_key, &cmp));
         if (cmp < 0)
             WT_RET_MSG(session, WT_ERROR,
-              "the first key on the page at %s sorts equal to "
-              "or less than the last key appearing on the page "
-              "at %s, earlier in the tree: %s, %s",
-              __wt_page_addr_string(session, ref, vs->tmp2), (char *)vs->max_addr->data,
+              "the first key on the page at %s sorts equal to or less than the last key appearing "
+              "on the page at %s, earlier in the tree: %s, %s",
+              __verify_addr_string(session, ref, vs->tmp2), (char *)vs->max_addr->data,
               __wt_buf_set_printable(session, vs->tmp1->data, vs->tmp1->size, vs->tmp3),
               __wt_buf_set_printable(session, vs->max_key->data, vs->max_key->size, vs->tmp4));
     }
 
     /* Update the largest key we've seen to the last key on this page. */
     WT_RET(__wt_row_leaf_key_copy(session, page, page->pg_row + (page->entries - 1), vs->max_key));
-    WT_IGNORE_RET_PTR(__wt_page_addr_string(session, ref, vs->max_addr));
+    WT_IGNORE_RET_PTR(__verify_addr_string(session, ref, vs->max_addr));
 
     return (0);
 }
@@ -692,208 +723,294 @@ __verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
 }
 
 /*
- * __verify_ts_addr_cmp --
- *     Do a cell timestamp check against the parent.
+ * __verify_ts_stable_cmp --
+ *     Verify that a pair of start and stop timestamps are valid against the global stable
+ *     timestamp. Takes in either a key for history store timestamps or a ref and cell number.
  */
 static int
-__verify_ts_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num, const char *ts1_name,
-  wt_timestamp_t ts1, const char *ts2_name, wt_timestamp_t ts2, bool gt, WT_VSTUFF *vs)
-{
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
-    const char *ts1_bp, *ts2_bp;
-
-    if (gt && ts1 >= ts2)
-        return (0);
-    if (!gt && ts1 <= ts2)
-        return (0);
-
-    switch (ts1) {
-    case WT_TS_MAX:
-        ts1_bp = "WT_TS_MAX";
-        break;
-    case WT_TS_NONE:
-        ts1_bp = "WT_TS_NONE";
-        break;
-    default:
-        ts1_bp = __wt_timestamp_to_string(ts1, ts_string[0]);
-        break;
-    }
-    switch (ts2) {
-    case WT_TS_MAX:
-        ts2_bp = "WT_TS_MAX";
-        break;
-    case WT_TS_NONE:
-        ts2_bp = "WT_TS_NONE";
-        break;
-    default:
-        ts2_bp = __wt_timestamp_to_string(ts2, ts_string[1]);
-        break;
-    }
-    WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                  " on page at %s failed verification with %s "
-                                  "timestamp of %s, %s the parent's %s timestamp of %s",
-      cell_num, __wt_page_addr_string(session, ref, vs->tmp1), ts1_name, ts1_bp,
-      gt ? "less than" : "greater than", ts2_name, ts2_bp);
-}
-
-/*
- * __verify_txn_addr_cmp --
- *     Do a cell transaction check against the parent.
- */
-static int
-__verify_txn_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
-  const char *txn1_name, uint64_t txn1, const char *txn2_name, uint64_t txn2, bool gt,
-  WT_VSTUFF *vs)
-{
-    if (gt && txn1 >= txn2)
-        return (0);
-    if (!gt && txn1 <= txn2)
-        return (0);
-
-    WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                  " on page at %s failed verification with %s "
-                                  "transaction of %" PRIu64
-                                  ", %s the parent's %s transaction of "
-                                  "%" PRIu64,
-      cell_num, __wt_page_addr_string(session, ref, vs->tmp1), txn1_name, txn1,
-      gt ? "less than" : "greater than", txn2_name, txn2);
-}
-
-/*
- * __verify_page_cell --
- *     Verify the cells on the page.
- */
-static int
-__verify_page_cell(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack, WT_VSTUFF *vs)
+__verify_ts_stable_cmp(WT_SESSION_IMPL *session, WT_ITEM *key, WT_REF *ref, uint32_t cell_num,
+  wt_timestamp_t start_ts, wt_timestamp_t stop_ts, WT_VSTUFF *vs)
 {
     WT_BTREE *btree;
-    WT_CELL_UNPACK unpack;
     WT_DECL_RET;
-    const WT_PAGE_HEADER *dsk;
-    uint32_t cell_num;
+    char tp_string[2][WT_TS_INT_STRING_SIZE];
+    bool start;
+
+    btree = S2BT(session);
+    start = true;
+
+    if (start_ts != WT_TS_NONE && start_ts > vs->stable_timestamp)
+        goto msg;
+
+    if (stop_ts != WT_TS_MAX && stop_ts > vs->stable_timestamp) {
+        start = false;
+        goto msg;
+    }
+
+    return (ret);
+
+msg:
+    WT_ASSERT(session, ref != NULL || key != NULL);
+    if (ref != NULL)
+        WT_RET(__wt_buf_fmt(session, vs->tmp1, "cell %" PRIu32 " on page at %s", cell_num,
+          __verify_addr_string(session, ref, vs->tmp2)));
+    else if (key != NULL)
+        WT_RET(__wt_buf_fmt(session, vs->tmp1, "Value in history store for key {%s}",
+          __wt_key_string(session, key->data, key->size, btree->key_format, vs->tmp2)));
+
+    WT_RET_MSG(session, WT_ERROR,
+      "%s has failed verification with a %s timestamp of %s greater than the stable_timestamp of "
+      "%s",
+      (char *)vs->tmp1->data, start ? "start" : "stop",
+      __wt_timestamp_to_string(start ? start_ts : stop_ts, tp_string[0]),
+      __wt_timestamp_to_string(vs->stable_timestamp, tp_string[1]));
+}
+
+/*
+ * __verify_key_hs --
+ *     Verify a key against the history store. The unpack denotes the data store's timestamp range
+ *     information and is used for verifying timestamp range overlaps.
+ */
+static int
+__verify_key_hs(
+  WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_start_ts, WT_VSTUFF *vs)
+{
+#ifdef WT_VERIFY_VALIDATE_HISTORY_STORE
+    WT_BTREE *btree;
+    WT_CURSOR *hs_cursor;
+    WT_DECL_RET;
+    wt_timestamp_t older_start_ts, older_stop_ts;
+    uint64_t hs_counter;
+    uint32_t hs_btree_id;
+    int cmp, exact;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool found_ovfl;
+
+    btree = S2BT(session);
+    hs_btree_id = btree->id;
+
+    /*
+     * Set the data store timestamp and transactions to initiate timestamp range verification. Since
+     * transaction-ids are wiped out on start, we could possibly have a start txn-id of WT_TXN_NONE,
+     * in which case we initialize our newest with the max txn-id.
+     */
+    older_stop_ts = 0;
+
+    /*
+     * Open a history store cursor positioned at the end of the data store key (the newest record)
+     * and iterate backwards until we reach a different key or btree.
+     */
+    hs_cursor = session->hs_cursor;
+    hs_cursor->set_key(hs_cursor, hs_btree_id, tmp1, WT_TS_MAX, WT_TXN_MAX);
+    ret = hs_cursor->search_near(hs_cursor, &exact);
+
+    /* If we jumped to the next key, go back to the previous key. */
+    if (ret == 0 && exact > 0)
+        ret = hs_cursor->prev(hs_cursor);
+
+    for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
+        WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, vs->tmp2, &older_start_ts, &hs_counter));
+
+        if (hs_btree_id != btree->id)
+            break;
+
+        WT_RET(__wt_compare(session, NULL, tmp1, vs->tmp2, &cmp));
+        if (cmp != 0)
+            break;
+
+        /* Verify the newer record's start is later than the older record's stop. */
+        if (newer_start_ts < older_stop_ts) {
+            WT_RET_MSG(session, WT_ERROR,
+              "key %s has a overlap of timestamp ranges between history store stop timestamp %s "
+              "being newer than a more recent timestamp range having start timestamp %s",
+              __wt_buf_set_printable(session, tmp1->data, tmp1->size, vs->tmp2),
+              __verify_timestamp_to_pretty_string(older_stop_ts, ts_string[0]),
+              __verify_timestamp_to_pretty_string(newer_start_ts, ts_string[1]));
+        }
+
+        if (vs->stable_timestamp != WT_TS_NONE)
+            WT_RET(
+              __verify_ts_stable_cmp(session, tmp1, NULL, 0, older_start_ts, older_stop_ts, vs));
+
+        /*
+         * Since we are iterating from newer to older, the current older record becomes the newer
+         * for the next round of verification.
+         */
+        newer_start_ts = older_start_ts;
+    }
+
+    return (ret == WT_NOTFOUND ? 0 : ret);
+#else
+    WT_UNUSED(session);
+    WT_UNUSED(tmp1);
+    WT_UNUSED(newer_start_ts);
+    WT_UNUSED(vs);
+    return (0);
+#endif
+}
+
+/*
+ * __verify_page_content_int --
+ *     Verify an internal page's content.
+ */
+static int
+__verify_page_content_int(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent, WT_VSTUFF *vs)
+{
+    WT_CELL_UNPACK_ADDR unpack;
+    WT_DECL_RET;
+    WT_PAGE *page;
+    const WT_PAGE_HEADER *dsk;
+    WT_TIME_AGGREGATE *ta;
+    uint32_t cell_num;
+
+    page = ref->page;
+    ta = &unpack.ta;
 
     /*
      * If a tree is empty (just created), it won't have a disk image; if there is no disk image,
      * we're done.
      */
-    if ((dsk = ref->page->dsk) == NULL)
+    if ((dsk = page->dsk) == NULL)
         return (0);
 
-    btree = S2BT(session);
-    found_ovfl = false;
-
-    /* Walk the page, tracking timestamps and verifying overflow pages. */
+    /* Walk the page, verifying overflow pages and validating timestamps. */
     cell_num = 0;
-    WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack) {
+    WT_CELL_FOREACH_ADDR (session, dsk, unpack) {
         ++cell_num;
+
+        if (!__wt_cell_type_check(unpack.type, dsk->type))
+            WT_RET_MSG(session, WT_ERROR,
+              "illegal cell and page type combination: cell %" PRIu32
+              " on page at %s is a %s cell on a %s page",
+              cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
+              __wt_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
+
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
-        case WT_CELL_VALUE_OVFL:
-            found_ovfl = true;
             if ((ret = __verify_overflow(session, unpack.data, unpack.size, vs)) != 0)
-                WT_RET_MSG(session, ret, "cell %" PRIu32
-                                         " on page at %s references "
-                                         "an overflow item at %s that failed "
-                                         "verification",
-                  cell_num - 1, __wt_page_addr_string(session, ref, vs->tmp1),
+                WT_RET_MSG(session, ret,
+                  "cell %" PRIu32
+                  " on page at %s references an overflow item at %s that failed verification",
+                  cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
                   __wt_addr_string(session, unpack.data, unpack.size, vs->tmp2));
             break;
         }
 
-        /*
-         * Timestamps aren't necessarily an exact match, but should be within the boundaries of the
-         * parent reference.
-         */
         switch (unpack.type) {
         case WT_CELL_ADDR_DEL:
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
-            if (unpack.newest_stop_ts == WT_TS_NONE)
-                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                              " on page at %s has a "
-                                              "newest stop timestamp of 0",
-                  cell_num - 1, __wt_page_addr_string(session, ref, vs->tmp1));
-            if (unpack.newest_stop_txn == WT_TXN_NONE)
-                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                              " on page at %s has a "
-                                              "newest stop transaction of 0",
-                  cell_num - 1, __wt_page_addr_string(session, ref, vs->tmp1));
-            if (unpack.oldest_start_ts > unpack.newest_stop_ts)
-                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                              " on page at %s has an "
-                                              "oldest start timestamp %s newer than "
-                                              "its newest stop timestamp %s",
-                  cell_num - 1, __wt_page_addr_string(session, ref, vs->tmp1),
-                  __wt_timestamp_to_string(unpack.oldest_start_ts, ts_string[0]),
-                  __wt_timestamp_to_string(unpack.newest_stop_ts, ts_string[1]));
-            if (unpack.oldest_start_txn > unpack.newest_stop_txn) {
-                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                              " on page at %s has an "
-                                              "oldest start transaction (%" PRIu64
-                                              ") "
-                                              "newer than its newest stop transaction "
-                                              "(%" PRIu64 ")",
-                  cell_num - 1, __wt_page_addr_string(session, ref, vs->tmp1),
-                  unpack.oldest_start_txn, unpack.newest_stop_txn);
-            }
+            if ((ret = __wt_time_aggregate_validate(session, ta, &parent->ta, false)) != 0)
+                WT_RET_MSG(session, ret,
+                  "cell %" PRIu32 " on page at %s failed timestamp validation", cell_num - 1,
+                  __verify_addr_string(session, ref, vs->tmp1));
 
-            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "newest durable",
-              unpack.newest_durable_ts, "newest durable", addr_unpack->newest_durable_ts, false,
-              vs));
-            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "oldest start",
-              unpack.oldest_start_ts, "oldest start", addr_unpack->oldest_start_ts, true, vs));
-            WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "oldest start",
-              unpack.oldest_start_txn, "oldest start", addr_unpack->oldest_start_txn, true, vs));
-            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "newest stop",
-              unpack.newest_stop_ts, "newest stop", addr_unpack->newest_stop_ts, false, vs));
-            WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "newest stop",
-              unpack.newest_stop_txn, "newest stop", addr_unpack->newest_stop_txn, false, vs));
+            if (vs->stable_timestamp != WT_TS_NONE)
+                WT_RET(__verify_ts_stable_cmp(
+                  session, NULL, ref, cell_num - 1, ta->oldest_start_ts, ta->newest_stop_ts, vs));
             break;
+        }
+    }
+    WT_CELL_FOREACH_END;
+
+    return (0);
+}
+
+/*
+ * __verify_page_content_leaf --
+ *     Verify the page's content.
+ */
+static int
+__verify_page_content_leaf(
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent, WT_VSTUFF *vs)
+{
+    WT_CELL_UNPACK_KV unpack;
+    WT_DECL_RET;
+    WT_PAGE *page;
+    const WT_PAGE_HEADER *dsk;
+    WT_ROW *rip;
+    WT_TIME_WINDOW *tw;
+    uint64_t recno, rle;
+    uint32_t cell_num;
+    uint8_t *p;
+    bool found_ovfl;
+
+    page = ref->page;
+    rip = page->pg_row;
+    tw = &unpack.tw;
+    recno = ref->ref_recno;
+    found_ovfl = false;
+
+    /*
+     * If a tree is empty (just created), it won't have a disk image; if there is no disk image,
+     * we're done.
+     */
+    if ((dsk = page->dsk) == NULL)
+        return (0);
+
+    /* Walk the page, tracking timestamps and verifying overflow pages. */
+    cell_num = 0;
+    WT_CELL_FOREACH_KV (session, dsk, unpack) {
+        ++cell_num;
+
+        if (!__wt_cell_type_check(unpack.type, dsk->type))
+            WT_RET_MSG(session, WT_ERROR,
+              "illegal cell and page type combination: cell %" PRIu32
+              " on page at %s is a %s cell on a %s page",
+              cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
+              __wt_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
+
+        switch (unpack.type) {
+        case WT_CELL_KEY_OVFL:
+        case WT_CELL_VALUE_OVFL:
+            found_ovfl = true;
+            if ((ret = __verify_overflow(session, unpack.data, unpack.size, vs)) != 0)
+                WT_RET_MSG(session, ret,
+                  "cell %" PRIu32
+                  " on page at %s references an overflow item at %s that failed verification",
+                  cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
+                  __wt_addr_string(session, unpack.data, unpack.size, vs->tmp2));
+            break;
+        }
+
+        switch (unpack.type) {
         case WT_CELL_DEL:
         case WT_CELL_VALUE:
         case WT_CELL_VALUE_COPY:
         case WT_CELL_VALUE_OVFL:
         case WT_CELL_VALUE_SHORT:
-            if (unpack.stop_ts == WT_TS_NONE)
-                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                              " on page at %s has a stop "
-                                              "timestamp of 0",
-                  cell_num - 1, __wt_page_addr_string(session, ref, vs->tmp1));
-            if (unpack.start_ts > unpack.stop_ts)
-                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                              " on page at %s has a "
-                                              "start timestamp %s newer than its stop "
-                                              "timestamp %s",
-                  cell_num - 1, __wt_page_addr_string(session, ref, vs->tmp1),
-                  __wt_timestamp_to_string(unpack.start_ts, ts_string[0]),
-                  __wt_timestamp_to_string(unpack.stop_ts, ts_string[1]));
-            if (unpack.stop_txn == WT_TXN_NONE)
-                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                              " on page at %s has a stop "
-                                              "transaction of 0",
-                  cell_num - 1, __wt_page_addr_string(session, ref, vs->tmp1));
-            if (unpack.start_txn > unpack.stop_txn)
-                WT_RET_MSG(session, WT_ERROR, "cell %" PRIu32
-                                              " on page at %s has a "
-                                              "start transaction %" PRIu64
-                                              "newer than "
-                                              "its stop transaction %" PRIu64,
-                  cell_num - 1, __wt_page_addr_string(session, ref, vs->tmp1), unpack.start_txn,
-                  unpack.stop_txn);
+            if ((ret = __wt_time_value_validate(session, tw, &parent->ta, false)) != 0)
+                WT_RET_MSG(session, ret,
+                  "cell %" PRIu32 " on page at %s failed timestamp validation", cell_num - 1,
+                  __verify_addr_string(session, ref, vs->tmp1));
 
-            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_ts,
-              "oldest start", addr_unpack->oldest_start_ts, true, vs));
-            WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_txn,
-              "oldest start", addr_unpack->oldest_start_txn, true, vs));
-            WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_ts,
-              "newest stop", addr_unpack->newest_stop_ts, false, vs));
-            WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_txn,
-              "newest stop", addr_unpack->newest_stop_txn, false, vs));
+            if (vs->stable_timestamp != WT_TS_NONE)
+                WT_RET(__verify_ts_stable_cmp(
+                  session, NULL, ref, cell_num - 1, tw->start_ts, tw->stop_ts, vs));
             break;
+        }
+
+        /*
+         * Verify key-associated history-store entries, optionally dump historical time windows and
+         * values in debug mode.
+         */
+        if (page->type == WT_PAGE_ROW_LEAF) {
+            if (unpack.type != WT_CELL_VALUE && unpack.type != WT_CELL_VALUE_COPY &&
+              unpack.type != WT_CELL_VALUE_OVFL && unpack.type != WT_CELL_VALUE_SHORT)
+                continue;
+
+            WT_RET(__wt_row_leaf_key(session, page, rip++, vs->tmp1, false));
+            WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+        } else if (page->type == WT_PAGE_COL_VAR) {
+            rle = __wt_cell_rle(&unpack);
+            p = vs->tmp1->mem;
+            WT_RET(__wt_vpack_uint(&p, 0, recno));
+            vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
+            WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
+
+            recno += rle;
+            vs->records_so_far += rle;
         }
     }
     WT_CELL_FOREACH_END;
@@ -903,12 +1020,12 @@ __verify_page_cell(
      * object if a leaf address cell references a page without overflow keys. Reconciliation doesn't
      * guarantee every leaf page without overflow items will be a leaf-no-overflow type.
      */
-    if (found_ovfl && addr_unpack->raw == WT_CELL_ADDR_LEAF_NO)
+    if (found_ovfl && parent->raw == WT_CELL_ADDR_LEAF_NO)
         WT_RET_MSG(session, WT_ERROR,
-          "page at %s, of type %s and referenced in its parent by a "
-          "cell of type %s, contains overflow items",
-          __wt_page_addr_string(session, ref, vs->tmp1), __wt_page_type_string(ref->page->type),
-          __wt_cell_type_string(addr_unpack->raw));
+          "page at %s, of type %s and referenced in its parent by a cell of type %s, contains "
+          "overflow items",
+          __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(ref->page->type),
+          __wt_cell_type_string(parent->raw));
 
     return (0);
 }

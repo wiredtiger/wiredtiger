@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -28,15 +28,14 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     memset(&key, 0, sizeof(key));
 
     /*
-     * We used to take the row-store logging key from the page referenced by
-     * the cursor, then switched to taking it from the cursor itself. Check
-     * they are the same.
+     * We used to take the row-store logging key from the page referenced by the cursor, then
+     * switched to taking it from the cursor itself. Check they are the same.
      *
-     * If the cursor references a WT_INSERT item, take the key from there,
-     * else take the key from the original page.
+     * If the cursor references a WT_INSERT item, take the key from there, else take the key from
+     * the original page.
      */
     if (cbt->ins == NULL) {
-        session = (WT_SESSION_IMPL *)cbt->iface.session;
+        session = CUR2S(cbt);
         page = cbt->ref->page;
         WT_ASSERT(session, cbt->slot < page->entries);
         rip = &page->pg_row[cbt->slot];
@@ -46,7 +45,7 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
         key.size = WT_INSERT_KEY_SIZE(cbt->ins);
     }
 
-    WT_ASSERT(session, __wt_compare(session, cbt->btree->collator, &key, &cursor->key, &cmp) == 0);
+    WT_ASSERT(session, __wt_compare(session, CUR2BT(cbt)->collator, &key, &cursor->key, &cmp) == 0);
     WT_ASSERT(session, cmp == 0);
 
     __wt_buf_free(session, &key);
@@ -75,13 +74,22 @@ __txn_op_log(
      * Log the row- or column-store insert, modify, remove or update. Our caller doesn't log reserve
      * operations, we shouldn't see them here.
      */
-    if (cbt->btree->type == BTREE_ROW) {
+    if (CUR2BT(cbt)->type == BTREE_ROW) {
 #ifdef HAVE_DIAGNOSTIC
         __txn_op_log_row_key_check(session, cbt);
 #endif
         switch (upd->type) {
         case WT_UPDATE_MODIFY:
-            WT_RET(__wt_logop_row_modify_pack(session, logrec, fileid, &cursor->key, &value));
+            /*
+             * Write full updates to the log for size-changing modify operations: they aren't
+             * idempotent and recovery cannot guarantee that they will be applied exactly once. We
+             * rely on the cursor value already having the modify applied.
+             */
+            if (__wt_modify_idempotent(upd->data))
+                WT_RET(__wt_logop_row_modify_pack(session, logrec, fileid, &cursor->key, &value));
+            else
+                WT_RET(
+                  __wt_logop_row_put_pack(session, logrec, fileid, &cursor->key, &cursor->value));
             break;
         case WT_UPDATE_STANDARD:
             WT_RET(__wt_logop_row_put_pack(session, logrec, fileid, &cursor->key, &value));
@@ -98,7 +106,10 @@ __txn_op_log(
 
         switch (upd->type) {
         case WT_UPDATE_MODIFY:
-            WT_RET(__wt_logop_col_modify_pack(session, logrec, fileid, recno, &value));
+            if (__wt_modify_idempotent(upd->data))
+                WT_RET(__wt_logop_col_modify_pack(session, logrec, fileid, recno, &value));
+            else
+                WT_RET(__wt_logop_col_put_pack(session, logrec, fileid, recno, &cursor->value));
             break;
         case WT_UPDATE_STANDARD:
             WT_RET(__wt_logop_col_put_pack(session, logrec, fileid, recno, &value));
@@ -195,7 +206,7 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
     uint32_t rectype;
     const char *fmt;
 
-    txn = &session->txn;
+    txn = session->txn;
     rectype = WT_LOGREC_COMMIT;
     fmt = WT_UNCHECKED_STRING(Iq);
 
@@ -244,7 +255,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     uint32_t fileid;
 
     conn = S2C(session);
-    txn = &session->txn;
+    txn = session->txn;
 
     if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
       F_ISSET(session, WT_SESSION_NO_LOGGING) ||
@@ -303,7 +314,7 @@ __wt_txn_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN *txn;
 
     WT_UNUSED(cfg);
-    txn = &session->txn;
+    txn = session->txn;
     /*
      * If there are no log records there is nothing to do.
      */
@@ -383,10 +394,12 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_ITEM *logrec;
     WT_TXN *txn;
-    wt_timestamp_t commit, durable, first, prepare, read;
+    WT_TXN_SHARED *txn_shared;
+    wt_timestamp_t commit, durable, first_commit, prepare, read;
 
     conn = S2C(session);
-    txn = &session->txn;
+    txn = session->txn;
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
       F_ISSET(session, WT_SESSION_NO_LOGGING) ||
@@ -406,21 +419,21 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
 
     WT_RET(__txn_logrec_init(session));
     logrec = txn->logrec;
-    commit = durable = first = prepare = read = WT_TS_NONE;
+    commit = durable = first_commit = prepare = read = WT_TS_NONE;
     if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
         commit = txn->commit_timestamp;
-        first = txn->first_commit_timestamp;
+        first_commit = txn->first_commit_timestamp;
     }
     if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
         durable = txn->durable_timestamp;
     if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
         prepare = txn->prepare_timestamp;
-    if (F_ISSET(txn, WT_TXN_HAS_TS_READ))
-        read = txn->read_timestamp;
+    if (F_ISSET(txn, WT_TXN_SHARED_TS_READ))
+        read = txn_shared->read_timestamp;
 
     __wt_epoch(session, &t);
     return (__wt_logop_txn_timestamp_pack(session, logrec, (uint64_t)t.tv_sec, (uint64_t)t.tv_nsec,
-      commit, durable, first, prepare, read));
+      commit, durable, first_commit, prepare, read));
 }
 
 /*
@@ -444,7 +457,7 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
-    txn = &session->txn;
+    txn = session->txn;
     ckpt_lsn = &txn->ckpt_lsn;
 
     /*
@@ -539,8 +552,9 @@ __wt_txn_checkpoint_log(WT_SESSION_IMPL *session, bool full, uint32_t flags, WT_
          * connection close, only during a full checkpoint. A clean close may not update any
          * metadata LSN and we do not want to archive in that case.
          */
-        if (!conn->hot_backup && (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY) ||
-                                   FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE)) &&
+        if (conn->hot_backup_start == 0 &&
+          (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY) ||
+            FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE)) &&
           txn->full_ckpt)
             __wt_log_ckpt(session, ckpt_lsn);
 
@@ -646,6 +660,17 @@ __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *
     /* First, peek at the log record type. */
     WT_RET(__wt_logrec_read(session, &p, end, &rectype));
 
+    /*
+     * When printing just the message records, display the message by itself without the usual log
+     * header information.
+     */
+    if (F_ISSET(args, WT_TXN_PRINTLOG_MSG)) {
+        if (rectype != WT_LOGREC_MESSAGE)
+            return (0);
+        WT_RET(__wt_struct_unpack(session, p, WT_PTRDIFF(end, p), WT_UNCHECKED_STRING(S), &msg));
+        return (__wt_fprintf(session, args->fs, "%s\n", msg));
+    }
+
     if (!firstrecord)
         WT_RET(__wt_fprintf(session, args->fs, ",\n"));
 
@@ -720,11 +745,13 @@ __wt_txn_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags)
         WT_RET(
           __wt_fopen(session, ofile, WT_FS_OPEN_CREATE | WT_FS_OPEN_FIXED, WT_STREAM_WRITE, &fs));
 
-    WT_ERR(__wt_fprintf(session, fs, "[\n"));
+    if (!LF_ISSET(WT_TXN_PRINTLOG_MSG))
+        WT_ERR(__wt_fprintf(session, fs, "[\n"));
     args.fs = fs;
     args.flags = flags;
     WT_ERR(__wt_log_scan(session, NULL, WT_LOGSCAN_FIRST, __txn_printlog, &args));
-    ret = __wt_fprintf(session, fs, "\n]\n");
+    if (!LF_ISSET(WT_TXN_PRINTLOG_MSG))
+        ret = __wt_fprintf(session, fs, "\n]\n");
 
 err:
     if (ofile != NULL)

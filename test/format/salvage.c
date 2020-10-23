@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -29,24 +29,6 @@
 #include "format.h"
 
 /*
- * salvage --
- *     A single salvage.
- */
-static void
-salvage(void)
-{
-    WT_CONNECTION *conn;
-    WT_SESSION *session;
-
-    conn = g.wts_conn;
-    track("salvage", 0ULL, NULL);
-
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(session->salvage(session, g.uri, "force=true"));
-    testutil_check(session->close(session, NULL));
-}
-
-/*
  * corrupt --
  *     Corrupt the file in a random way.
  */
@@ -58,36 +40,26 @@ corrupt(void)
     wt_off_t offset;
     size_t len, nw;
     int fd, ret;
-    char buf[8 * 1024], copycmd[2 * 1024];
+    char copycmd[2 * 1024], path[1024];
+    const char *smash;
 
     /*
-     * If it's a single Btree file (not LSM), open the file, and corrupt
-     * roughly 2% of the file at a random spot, including the beginning
-     * of the file and overlapping the end.
+     * If it's a single Btree file (not LSM), open the file, and corrupt roughly 2% of the file at a
+     * random spot, including the beginning of the file and overlapping the end.
      *
-     * It's a little tricky: if the data source is a file, we're looking
-     * for "wt", if the data source is a table, we're looking for "wt.wt".
+     * It's a little tricky: if the data source is a file, we're looking for "wt", if the data
+     * source is a table, we're looking for "wt.wt".
      */
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", g.home, WT_NAME));
-    if ((fd = open(buf, O_RDWR)) != -1) {
-#ifdef _WIN32
+    testutil_check(__wt_snprintf(path, sizeof(path), "%s/%s", g.home, WT_NAME));
+    if ((fd = open(path, O_RDWR)) != -1) {
         testutil_check(__wt_snprintf(copycmd, sizeof(copycmd),
-          "copy %s\\%s %s\\slvg.copy\\%s.corrupted", g.home, WT_NAME, g.home, WT_NAME));
-#else
-        testutil_check(__wt_snprintf(copycmd, sizeof(copycmd), "cp %s/%s %s/slvg.copy/%s.corrupted",
-          g.home, WT_NAME, g.home, WT_NAME));
-#endif
+          "cp %s/%s %s/SALVAGE.copy/%s.corrupted", g.home, WT_NAME, g.home, WT_NAME));
         goto found;
     }
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s.wt", g.home, WT_NAME));
-    if ((fd = open(buf, O_RDWR)) != -1) {
-#ifdef _WIN32
+    testutil_check(__wt_snprintf(path, sizeof(path), "%s/%s.wt", g.home, WT_NAME));
+    if ((fd = open(path, O_RDWR)) != -1) {
         testutil_check(__wt_snprintf(copycmd, sizeof(copycmd),
-          "copy %s\\%s.wt %s\\slvg.copy\\%s.wt.corrupted", g.home, WT_NAME, g.home, WT_NAME));
-#else
-        testutil_check(__wt_snprintf(copycmd, sizeof(copycmd),
-          "cp %s/%s.wt %s/slvg.copy/%s.wt.corrupted", g.home, WT_NAME, g.home, WT_NAME));
-#endif
+          "cp %s/%s.wt %s/SALVAGE.copy/%s.wt.corrupted", g.home, WT_NAME, g.home, WT_NAME));
         goto found;
     }
     return (0);
@@ -98,9 +70,9 @@ found:
 
     offset = mmrand(NULL, 0, (u_int)sb.st_size);
     len = (size_t)(20 + (sb.st_size / 100) * 2);
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/slvg.corrupt", g.home));
-    if ((fp = fopen(buf, "w")) == NULL)
-        testutil_die(errno, "salvage-corrupt: open: %s", buf);
+    testutil_check(__wt_snprintf(path, sizeof(path), "%s/SALVAGE.corrupt", g.home));
+    if ((fp = fopen(path, "w")) == NULL)
+        testutil_die(errno, "salvage-corrupt: open: %s", path);
     (void)fprintf(fp, "salvage-corrupt: offset %" PRIuMAX ", length %" WT_SIZET_FMT "\n",
       (uintmax_t)offset, len);
     fclose_and_clear(&fp);
@@ -108,10 +80,10 @@ found:
     if (lseek(fd, offset, SEEK_SET) == -1)
         testutil_die(errno, "salvage-corrupt: lseek");
 
-    memset(buf, 'z', sizeof(buf));
+    smash = "!!! memory corrupted by format to test salvage ";
     for (; len > 0; len -= nw) {
-        nw = (size_t)(len > sizeof(buf) ? sizeof(buf) : len);
-        if (write(fd, buf, nw) == -1)
+        nw = (size_t)(len > strlen(smash) ? strlen(smash) : len);
+        if (write(fd, smash, nw) == -1)
             testutil_die(errno, "salvage-corrupt: write");
     }
 
@@ -128,34 +100,53 @@ found:
 }
 
 /*
+ * Salvage command, save the interesting files so we can replay the salvage command as necessary.
+ *
+ * Redirect the "cd" command to /dev/null so chatty cd implementations don't add the new working
+ * directory to our output.
+ */
+#define SALVAGE_COPY_CMD                            \
+    "cd %s > /dev/null && "                         \
+    "rm -rf SALVAGE.copy && mkdir SALVAGE.copy && " \
+    "cp WiredTiger* wt* SALVAGE.copy/"
+
+/*
  * wts_salvage --
  *     Salvage testing.
  */
 void
 wts_salvage(void)
 {
+    WT_CONNECTION *conn;
     WT_DECL_RET;
+    WT_SESSION *session;
+    size_t len;
+    char *cmd;
 
     if (g.c_salvage == 0)
         return;
 
-    /*
-     * Save a copy of the interesting files so we can replay the salvage step as necessary.
-     */
-    if ((ret = system(g.home_salvage_copy)) != 0)
-        testutil_die(ret, "salvage copy step failed");
+    track("salvage", 0ULL, NULL);
+
+    /* Save a copy of the interesting files so we can replay the salvage step as necessary. */
+    len = strlen(g.home) + strlen(SALVAGE_COPY_CMD) + 1;
+    cmd = dmalloc(len);
+    testutil_check(__wt_snprintf(cmd, len, SALVAGE_COPY_CMD, g.home));
+    if ((ret = system(cmd)) != 0)
+        testutil_die(ret, "salvage copy (\"%s\"), failed", cmd);
+    free(cmd);
 
     /* Salvage, then verify. */
-    wts_open(g.home, true, &g.wts_conn);
-    salvage();
-    wts_verify("post-salvage verify");
-    wts_close();
+    wts_open(g.home, &conn, &session, true);
+    testutil_check(session->salvage(session, g.uri, "force=true"));
+    wts_verify(conn, "post-salvage verify");
+    wts_close(&conn, &session);
 
     /* Corrupt the file randomly, salvage, then verify. */
     if (corrupt()) {
-        wts_open(g.home, true, &g.wts_conn);
-        salvage();
-        wts_verify("post-corrupt-salvage verify");
-        wts_close();
+        wts_open(g.home, &conn, &session, false);
+        testutil_check(session->salvage(session, g.uri, "force=true"));
+        wts_verify(conn, "post-corrupt-salvage verify");
+        wts_close(&conn, &session);
     }
 }

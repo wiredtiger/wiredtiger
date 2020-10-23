@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -171,7 +171,7 @@ __wt_buf_set_printable_format(
             WT_ERR(__wt_illegal_value(session, pv.type));
         }
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
     __wt_scr_free(session, &tmp);
@@ -241,11 +241,10 @@ __wt_scr_alloc_func(WT_SESSION_IMPL *session, size_t size, WT_ITEM **scratchp
     *scratchp = NULL;
 
     /*
-     * Each WT_SESSION_IMPL has an array of scratch buffers available for
-     * use by any function.  We use WT_ITEM structures for scratch memory
-     * because we already have functions that do variable-length allocation
-     * on a WT_ITEM.  Scratch buffers are allocated only by a single thread
-     * of control, so no locking is necessary.
+     * Each WT_SESSION_IMPL has an array of scratch buffers available for use by any function. We
+     * use WT_ITEM structures for scratch memory because we already have functions that do
+     * variable-length allocation on a WT_ITEM. Scratch buffers are allocated only by a single
+     * thread of control, so no locking is necessary.
      *
      * Walk the array, looking for a buffer we can use.
      */
@@ -334,9 +333,7 @@ __wt_scr_discard(WT_SESSION_IMPL *session)
             continue;
         if (F_ISSET(*bufp, WT_ITEM_INUSE))
 #ifdef HAVE_DIAGNOSTIC
-            __wt_errx(session,
-              "scratch buffer allocated and never discarded"
-              ": %s: %d",
+            __wt_errx(session, "scratch buffer allocated and never discarded: %s: %d",
               session->scratch_track[bufp - session->scratch].func,
               session->scratch_track[bufp - session->scratch].line);
 #else

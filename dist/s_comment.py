@@ -63,14 +63,20 @@ for line in sys.stdin:
             indent_ws = ' ' * indentation
             sys.stdout.write('{}/*\n'.format(indent_ws))
             current_line = indent_ws + ' *'
-            for word in words:
+            for i in range(len(words)):
+                word = words[i]
                 if word == '--' and function_desc:
                     sys.stdout.write(current_line + ' ' + word + '\n')
                     current_line = indent_ws + ' *' + ' ' * 4
                     continue
                 if word == '\n':
-                    sys.stdout.write(current_line + '\n')
-                    sys.stdout.write(indent_ws + ' *' + '\n')
+                    # If we already have partially built a line, write it out.
+                    if current_line != indent_ws + ' *':
+                        sys.stdout.write(current_line + '\n')
+                    # If there are more words in this comment after this
+                    # newline, add another line break.
+                    if i < (len(words) - 1):
+                        sys.stdout.write(indent_ws + ' *' + '\n')
                     current_line = indent_ws + ' *'
                     continue
                 if len(current_line) + len(word) >= line_length:
@@ -89,16 +95,21 @@ for line in sys.stdin:
         function_desc = False
     elif multiline:
         comment += line
+        # We want to preserve newlines for block comments that have multiple paragraphs.
+        if sline == '*':
+            words.append('\n')
+            continue
         # Function names begin with either a lowercase char or an underscore.
         if (len(sline) >= 3 and sline.startswith('*') and sline[1] == ' ' and
             (sline[2].islower() or sline[2] == '_') and sline.endswith('--')):
             function_desc = True
-        # We're only reformatting block comments where each line begins with a
-        # space and an alphabetic character after the asterisk. The only
-        # exceptions are function descriptions.
+        # We're only reformatting block comments where each line begins with a space and an
+        # alphabetic character after the asterisk, or a parenthetical. The only exceptions
+        # are function descriptions.
         block = block and \
-                (len(sline) >= 3 and sline.startswith('*') and
-                 sline[1] == ' ' and sline[2].isalpha()) or function_desc
+            len(sline) >= 3 and sline.startswith('*') and sline[1] == ' ' and \
+            (sline[2].isalpha() or (len(sline) >= 5 and \
+            (sline[2] == '(' and sline[3].isalpha() and sline[4] != ')'))) or function_desc
         # Trim asterisks at the beginning of each line in a multiline comment.
         if sline.startswith('*'):
             sline = sline[1:]

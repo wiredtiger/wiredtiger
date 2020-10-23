@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -22,8 +22,8 @@ __curlog_logrec(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LSN 
     WT_UNUSED(firstrecord);
 
     /* Set up the LSNs and take a copy of the log record for the cursor. */
-    *cl->cur_lsn = *lsnp;
-    *cl->next_lsn = *next_lsnp;
+    WT_ASSIGN_LSN(cl->cur_lsn, lsnp);
+    WT_ASSIGN_LSN(cl->next_lsn, next_lsnp);
     WT_RET(__wt_buf_set(session, cl->logrec, logrec->data, logrec->size));
 
     /*

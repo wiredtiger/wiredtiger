@@ -3,7 +3,7 @@
 WiredTiger includes a command line utility, \c wt.
 
 @section util_global_synopsis SYNOPSIS
-<code>wt [-LRVv] [-C config] [-E secretkey ] [-h directory] command [command-specific arguments]</code>
+<code>wt [-BLRrVv] [-C config] [-E secretkey ] [-h directory] command [command-specific arguments]</code>
 
 @section util_global_description DESCRIPTION
 The \c wt tool is a command-line utility that provides access to
@@ -12,6 +12,8 @@ various pieces of the WiredTiger functionality.
 @section util_global_options OPTIONS
 There are several global options:
 
+@par <code>-B</code>
+Maintain release 3.3 log file compatibility.
 @par <code>-C config</code>
 Specify configuration strings for the ::wiredtiger_open function.
 @par <code>-E secretkey</code>
@@ -20,8 +22,12 @@ Specify an encryption secret key for the ::wiredtiger_open function.
 Specify a database home directory.
 @par <code>-L</code>
 Forcibly turn off logging subsystem for debugging purposes.
+@par <code>-m</code>
+Verify the WiredTiger metadata as part of opening the database.
 @par <code>-R</code>
 Run recovery if the underlying database is configured to do so.
+@par <code>-r</code>
+Access the database via a readonly connection
 @par <code>-V</code>
 Display WiredTiger version and exit.
 @par <code>-v</code>
@@ -34,7 +40,11 @@ The \c wt tool supports several commands.  If configured in the underlying
 database, some commands will run recovery when opening the database.  If
 the user wants to force recovery on any command, use the \c -R option.
 In general, commands that modify the database or tables will run recovery
-by default and commands that only read data will not run recovery.
+by default and commands that only read data will not run recovery. It is
+recommended when attempting to diagnose a corrupt database, that the -r
+flag be used. This flag will open the connection read-only and prevent
+utility commands from writing prevent utility commands from writing to
+any of the existing database objects.
 
 <hr>
 @section util_alter wt alter
@@ -120,6 +130,21 @@ The following are command-specific options for the \c create command:
 Include a configuration string to be passed to WT_SESSION::create.
 
 <hr>
+@section util_downgrade wt downgrade
+Downgrade a database.
+
+The \c downgrade command downgrades the database to the specified compatibility version.
+
+@subsection util_downgrade_synopsis Synopsis
+<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] downgrade -V version</code>
+
+@subsection util_downgrade_options Options
+The following are command-specific options for the \c downgrade command:
+
+@par <code>-V version</code>
+The \c -V option is required, and specifies the version to which the database is downgraded.
+
+<hr>
 @section util_drop wt drop
 Drop a table.
 
@@ -142,14 +167,14 @@ which can be re-loaded into a new table using the \c load command.
 See @subpage dump_formats for details of the dump file formats.
 
 @subsection util_dump_synopsis Synopsis
-<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] dump [-jrx] [-c checkpoint] [-f output] uri</code>
+<code>wt [-RrVv] [-C config] [-E secretkey ] [-h directory] dump [-jprx] [-c checkpoint] [-f output] [-t timestamp] uri</code>
 
 @subsection util_dump_options Options
 The following are command-specific options for the \c dump command:
 
 @par <code>-c</code>
 By default, the \c dump command opens the most recent version of the data
-source; the \c -c option changes the \c dump command to open the named
+source; the \c -c option changes the \c dump command to dump as of the named
 checkpoint.
 
 @par <code>-f</code>
@@ -160,8 +185,17 @@ the \c -f option re-directs the output to the specified file.
 Dump in JSON (<a href="http://www.json.org">JavaScript Object Notation</a>)
 format.
 
+@par <code>-p</code>
+Dump in human-readable format (pretty-print). The \c -p flag is incompatible
+with the \c load command.
+
 @par <code>-r</code>
 Dump in reverse order, from largest key to smallest.
+
+@par <code>-t</code>
+By default, the \c dump command opens the most recent version of the data
+source; the \c -c option changes the \c dump command to dump as of the specified
+timestamp.
 
 @par <code>-x</code>
 Dump all characters in a hexadecimal encoding (the default is to leave
@@ -176,7 +210,7 @@ database.  If a URI is specified as an argument, only information about
 that data source is printed.
 
 @subsection util_list_synopsis Synopsis
-<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] list [-cv] [uri]</code>
+<code>wt [-RrVv] [-C config] [-E secretkey ] [-h directory] list [-cv] [uri]</code>
 
 @subsection util_list_options Options
 The following are command-specific options for the \c list command:
@@ -198,9 +232,10 @@ a table, creating the table if it does not yet exist.  The data should
 be the format produced by the \c dump command; see @ref dump_formats for
 details.
 
-By default, if the table already exists, data in the table will be
-overwritten by the new data (use the \c -n option to make an attempt to
-overwrite existing data return an error).
+By default, if the table already exists, key/value pairs in the table
+will be overwritten by new data with matching keys (use the \c -n option
+to make an attempt to overwrite existing data return an error).  Existing
+keys will not be removed.
 
 @subsection util_load_synopsis Synopsis
 <code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] load [-ajn] [-f input] [-r name] [uri configuration ...]</code>
@@ -273,7 +308,9 @@ In the case of inserting values into a column-store table, each value
 is appended to the table; in the case of inserting values into a
 row-store table, lines are handled in pairs, where the first line is the
 key and the second line is the value.  If the row-store table already
-exists, data in the table will be overwritten by the new data.
+exists, key/value pairs in the table will be overwritten by new data
+with matching keys.  For either column-store or row-store tables, existing
+keys will not be removed.
 
 @subsection util_loadtext_synopsis Synopsis
 <code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] loadtext [-f input] uri</code>
@@ -292,7 +329,7 @@ Display the database log.
 The \c printlog command outputs the database log.
 
 @subsection util_printlog_synopsis Synopsis
-<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] printlog [-x] [-f output]</code>
+<code>wt [-RrVv] [-C config] [-E secretkey ] [-h directory] printlog [-mx] [-f output]</code>
 
 @subsection util_printlog_options Options
 The following are command-specific options for the \c printlog command:
@@ -300,6 +337,9 @@ The following are command-specific options for the \c printlog command:
 @par <code>-f</code>
 By default, the \c printlog command output is written to the standard
 output; the \c -f option re-directs the output to the specified file.
+
+@par <code>-m</code>
+Print only message-type log records.
 
 @par <code>-x</code>
 Keys and value items in the log are printed in hex format in addition
@@ -316,7 +356,7 @@ with string or record number keys and string values.
 The \c read command exits non-zero if a specified record is not found.
 
 @subsection util_read_synopsis Synopsis
-<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] read uri key ...</code>
+<code>wt [-RrVv] [-C config] [-E secretkey ] [-h directory] read uri key ...</code>
 
 @subsection util_read_options Options
 The \c read command has no command-specific options.
@@ -404,10 +444,18 @@ The \c verify command verifies the specified table, exiting success if
 the data source is correct, and failure if the data source is corrupted.
 
 @subsection util_verify_synopsis Synopsis
-<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] verify uri</code>
+<code>wt [-RrVv] [-C config] [-E secretkey ] [-h directory] verify [-s] [-d dump_address | dump_blocks | dump_layout | dump_offsets=#,# | dump_pages ] [uri]</code>
 
 @subsection util_verify_options Options
-The \c verify command has no command-specific options.
+The following are command-specific options for the \c verify command:
+
+<code>-d [config]</code>
+This option allows you to specify values which you want to be displayed
+when verification is run. See the WT_SESSION::verify configuration options.
+
+<code>-s</code>
+This option allows you to verify against the stable timestamp, valid only after a
+rollback-to-stable operation. See the WT_SESSION::verify configuration options.
 
 <hr>
 @section util_write wt write

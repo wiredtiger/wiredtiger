@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -28,6 +28,9 @@
 
 #include "test_util.h"
 
+#ifdef HAVE_SETRLIMIT
+#include <sys/resource.h>
+#endif
 #include <signal.h>
 
 #define EXTPATH "../../ext/" /* Extensions path */
@@ -48,82 +51,99 @@
 #undef MEGABYTE
 #define MEGABYTE(v) ((v)*WT_MEGABYTE)
 
-#define WT_NAME "wt" /* Object name */
+#define BACKUP_INFO_FILE "BACKUP_INFO"         /* Format's backup information for restart */
+#define BACKUP_INFO_FILE_TMP "BACKUP_INFO.TMP" /* Format's backup information for restart */
+#define WT_NAME "wt"                           /* Object name */
 
 #define DATASOURCE(v) (strcmp(v, g.c_data_source) == 0 ? 1 : 0)
-#define SINGLETHREADED (g.c_threads == 1)
 
 #define FORMAT_OPERATION_REPS 3 /* 3 thread operations sets */
 
 #define MAX_MODIFY_ENTRIES 5 /* maximum change vectors */
 
+/*
+ * Abstract lock that lets us use either pthread reader-writer locks or WiredTiger's own (likely
+ * faster) implementation.
+ */
 typedef struct {
-    char *home;              /* Home directory */
-    char *home_backup;       /* Hot-backup directory */
-    char *home_backup_init;  /* Initialize backup command */
-    char *home_config;       /* Run CONFIG file path */
-    char *home_init;         /* Initialize home command */
-    char *home_log;          /* Operation log file path */
-    char *home_pagedump;     /* Page dump filename */
-    char *home_rand;         /* RNG log file path */
-    char *home_salvage_copy; /* Salvage copy command */
-    char *home_stats;        /* Statistics file path */
+    union {
+        WT_RWLOCK wt;
+        pthread_rwlock_t pthread;
+    } l;
+    enum { LOCK_NONE = 0, LOCK_WT, LOCK_PTHREAD } lock_type;
+} RWLOCK;
 
-    char wiredtiger_open_config[8 * 1024]; /* Database open config */
+#define LOCK_INITIALIZED(lock) ((lock)->lock_type != LOCK_NONE)
+
+typedef struct {
+    char tidbuf[128]; /* thread ID in printable form */
 
     WT_CONNECTION *wts_conn;
-    WT_EXTENSION_API *wt_api;
+    WT_CONNECTION *wts_conn_inmemory;
+    WT_SESSION *wts_session;
 
-    bool rand_log_stop; /* Logging turned off */
-    FILE *randfp;       /* Random number log */
+    char *uri; /* Object name */
+
+    bool backward_compatible; /* Backward compatibility testing */
+    bool reopen;              /* Reopen an existing database */
+    bool workers_finished;    /* Operations completed */
+
+    char *home;          /* Home directory */
+    char *home_config;   /* Run CONFIG file path */
+    char *home_hsdump;   /* HS dump filename */
+    char *home_init;     /* Initialize home command */
+    char *home_key;      /* Key file filename */
+    char *home_log;      /* Operation log file path */
+    char *home_pagedump; /* Page dump filename */
+    char *home_rand;     /* RNG log file path */
+    char *home_stats;    /* Statistics file path */
+
+    char *config_open; /* Command-line configuration */
 
     uint32_t run_cnt; /* Run counter */
 
-    bool logging; /* log operations  */
-    FILE *logfp;  /* log file */
+    bool trace;                /* trace operations  */
+    bool trace_all;            /* trace all operations  */
+    bool trace_local;          /* write trace to the primary database */
+    WT_CONNECTION *trace_conn; /* optional tracing database */
+    WT_SESSION *trace_session;
 
-    bool replay;           /* Replaying a run. */
-    bool workers_finished; /* Operations completed */
-
-    pthread_rwlock_t backup_lock; /* Backup running */
+    RWLOCK backup_lock; /* Backup running */
+    uint64_t backup_id; /* Block incremental id */
 
     WT_RAND_STATE rnd; /* Global RNG state */
 
-    /*
-     * Prepare will return an error if the prepare timestamp is less than
-     * any active read timestamp. Lock across allocating prepare and read
-     * timestamps.
-     *
-     * We get the last committed timestamp periodically in order to update
-     * the oldest timestamp, that requires locking out transactional ops
-     * that set a timestamp.
-     */
-    pthread_rwlock_t ts_lock;
+    uint32_t rts_no_check; /* track unsuccessful RTS checking */
 
-    uint64_t timestamp; /* Counter for timestamps */
+    /*
+     * Prepare will return an error if the prepare timestamp is less than any active read timestamp.
+     * Lock across allocating prepare and read timestamps.
+     *
+     * We get the last committed timestamp periodically in order to update the oldest timestamp,
+     * that requires locking out transactional ops that set a timestamp.
+     */
+    RWLOCK ts_lock;
+
+    uint64_t timestamp;        /* Counter for timestamps */
+    uint64_t oldest_timestamp; /* Last timestamp used for oldest */
+    uint64_t stable_timestamp; /* Last timestamp used for stable */
 
     uint64_t truncate_cnt; /* Counter for truncation */
 
     /*
-     * We have a list of records that are appended, but not yet "resolved", that is, we haven't yet
-     * incremented the g.rows value to reflect the new records.
+     * Single-thread failure. Always use pthread lock rather than WT lock in case WT library is
+     * misbehaving.
      */
-    uint64_t *append;             /* Appended records */
-    size_t append_max;            /* Maximum unresolved records */
-    size_t append_cnt;            /* Current unresolved records */
-    pthread_rwlock_t append_lock; /* Single-thread resolution */
-
-    pthread_rwlock_t death_lock; /* Single-thread failure */
-
-    char *uri; /* Object name */
-
-    char *config_open; /* Command-line configuration */
+    pthread_rwlock_t death_lock;
+    WT_CURSOR *page_dump_cursor; /* Snapshot isolation read failed, modifies failure handling. */
 
     uint32_t c_abort; /* Config values */
     uint32_t c_alter;
     uint32_t c_assert_commit_timestamp;
     uint32_t c_assert_read_timestamp;
     uint32_t c_auto_throttle;
+    char *c_backup_incremental;
+    uint32_t c_backup_incr_granularity;
     uint32_t c_backups;
     uint32_t c_bitcnt;
     uint32_t c_bloom;
@@ -149,6 +169,7 @@ typedef struct {
     uint32_t c_evict_max;
     char *c_file_type;
     uint32_t c_firstfit;
+    uint32_t c_hs_cursor;
     uint32_t c_huffman_key;
     uint32_t c_huffman_value;
     uint32_t c_in_memory;
@@ -167,19 +188,20 @@ typedef struct {
     char *c_logging_compression;
     uint32_t c_logging_file_max;
     uint32_t c_logging_prealloc;
-    uint32_t c_long_running_txn;
     uint32_t c_lsm_worker_threads;
+    uint32_t c_major_timeout;
     uint32_t c_memory_page_max;
     uint32_t c_merge_max;
     uint32_t c_mmap;
+    uint32_t c_mmap_all;
     uint32_t c_modify_pct;
     uint32_t c_ops;
     uint32_t c_prefix_compression;
     uint32_t c_prefix_compression_min;
     uint32_t c_prepare;
     uint32_t c_quiet;
+    uint32_t c_random_cursor;
     uint32_t c_read_pct;
-    uint32_t c_rebalance;
     uint32_t c_repeat_data_pct;
     uint32_t c_reverse;
     uint32_t c_rows;
@@ -192,7 +214,9 @@ typedef struct {
     uint32_t c_timer;
     uint32_t c_timing_stress_aggressive_sweep;
     uint32_t c_timing_stress_checkpoint;
-    uint32_t c_timing_stress_lookaside_sweep;
+    uint32_t c_timing_stress_hs_checkpoint_delay;
+    uint32_t c_timing_stress_hs_sweep;
+    uint32_t c_timing_stress_checkpoint_prepare;
     uint32_t c_timing_stress_split_1;
     uint32_t c_timing_stress_split_2;
     uint32_t c_timing_stress_split_3;
@@ -203,16 +227,24 @@ typedef struct {
     uint32_t c_timing_stress_split_8;
     uint32_t c_truncate;
     uint32_t c_txn_freq;
+    uint32_t c_txn_rollback_to_stable;
     uint32_t c_txn_timestamps;
     uint32_t c_value_max;
     uint32_t c_value_min;
     uint32_t c_verify;
+    uint32_t c_verify_failure_dump;
     uint32_t c_write_pct;
+    uint32_t c_wt_mutex;
 
 #define FIX 1
 #define ROW 2
 #define VAR 3
     u_int type; /* File type's flag value */
+
+#define INCREMENTAL_BLOCK 1
+#define INCREMENTAL_LOG 2
+#define INCREMENTAL_OFF 3
+    u_int c_backup_incr_flag; /* Incremental backup flag value */
 
 #define CHECKPOINT_OFF 1
 #define CHECKPOINT_ON 2
@@ -236,24 +268,26 @@ typedef struct {
 #define ENCRYPT_ROTN_7 2
     u_int c_encryption_flag; /* Encryption flag value */
 
+#define ISOLATION_NOT_SET 0
 #define ISOLATION_RANDOM 1
 #define ISOLATION_READ_UNCOMMITTED 2
 #define ISOLATION_READ_COMMITTED 3
 #define ISOLATION_SNAPSHOT 4
     u_int c_isolation_flag; /* Isolation flag value */
 
+/* The page must be a multiple of the allocation size, and 512 always works. */
+#define BLOCK_ALLOCATION_SIZE 512
     uint32_t intl_page_max; /* Maximum page sizes */
     uint32_t leaf_page_max;
 
-    uint64_t key_cnt; /* Keys loaded so far */
-    uint64_t rows;    /* Total rows */
+    uint64_t rows; /* Total rows */
 
     uint32_t key_rand_len[1031]; /* Key lengths */
 } GLOBAL;
 extern GLOBAL g;
 
 /* Worker thread operations. */
-typedef enum { INSERT, MODIFY, READ, REMOVE, TRUNCATE, UPDATE } thread_op;
+typedef enum { INSERT = 1, MODIFY, READ, REMOVE, TRUNCATE, UPDATE } thread_op;
 
 /* Worker read operations. */
 typedef enum { NEXT, PREV, SEARCH, SEARCH_NEAR } read_operation;
@@ -279,8 +313,16 @@ typedef struct {
 } SNAP_OPS;
 
 typedef struct {
-    int id;          /* simple thread ID */
-    wt_thread_t tid; /* thread ID */
+    SNAP_OPS *snap_state_current;
+    SNAP_OPS *snap_state_end;
+    SNAP_OPS *snap_state_first;
+    SNAP_OPS *snap_state_list;
+} SNAP_STATE;
+
+typedef struct {
+    int id;           /* simple thread ID */
+    wt_thread_t tid;  /* thread ID */
+    char tidbuf[128]; /* thread ID in printable form */
 
     WT_RAND_STATE rnd; /* thread RNG state */
 
@@ -299,6 +341,8 @@ typedef struct {
     WT_SESSION *session; /* WiredTiger session */
     WT_CURSOR *cursor;   /* WiredTiger cursor */
 
+    WT_SESSION *trace; /* WiredTiger operations tracing session */
+
     uint64_t keyno;     /* key */
     WT_ITEM *key, _key; /* key, value */
     WT_ITEM *value, _value;
@@ -311,9 +355,19 @@ typedef struct {
     uint64_t opid;         /* Operation ID */
     uint64_t read_ts;      /* read timestamp */
     uint64_t commit_ts;    /* commit timestamp */
-    SNAP_OPS *snap, *snap_first, snap_list[512];
+    uint64_t stable_ts;    /* stable timestamp */
+    SNAP_STATE snap_states[2];
+    SNAP_STATE *s; /* points to one of the snap_states */
 
-    WT_ITEM *tbuf, _tbuf; /* temporary buffer */
+#define snap_current s->snap_state_current
+#define snap_end s->snap_state_end
+#define snap_first s->snap_state_first
+#define snap_list s->snap_state_list
+
+    uint64_t insert_list[256]; /* column-store inserted records */
+    u_int insert_list_cnt;
+
+    WT_ITEM vprint; /* Temporary buffer for printable values */
 
 #define TINFO_RUNNING 1  /* Running */
 #define TINFO_COMPLETE 2 /* Finished */
@@ -322,55 +376,71 @@ typedef struct {
 } TINFO;
 extern TINFO **tinfo_list;
 
-#define logop(wt_session, fmt, ...)                                                       \
-    do {                                                                                  \
-        if (g.logging)                                                                    \
-            testutil_check(g.wt_api->msg_printf(g.wt_api, wt_session, fmt, __VA_ARGS__)); \
-    } while (0)
+#define SNAP_LIST_SIZE 512
 
 WT_THREAD_RET alter(void *);
 WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
+WT_THREAD_RET hs_cursor(void *);
+WT_THREAD_RET random_kv(void *);
+WT_THREAD_RET timestamp(void *);
+
 void config_clear(void);
+void config_compat(const char **);
 void config_error(void);
 void config_file(const char *);
+void config_final(void);
 void config_print(bool);
-void config_setup(void);
+void config_run(void);
 void config_single(const char *, bool);
 void fclose_and_clear(FILE **);
-void key_gen(WT_ITEM *, uint64_t);
+bool fp_readv(FILE *, char *, uint32_t *);
+void key_gen_common(WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
-void key_gen_insert(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void key_gen_teardown(WT_ITEM *);
 void key_init(void);
-WT_THREAD_RET lrt(void *);
+void lock_destroy(WT_SESSION *, RWLOCK *);
+void lock_init(WT_SESSION *, RWLOCK *);
+void operations(u_int, bool);
 void path_setup(const char *);
-int read_row_worker(WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
-uint32_t rng(WT_RAND_STATE *);
-void snap_init(TINFO *, uint64_t, bool);
+void set_alarm(u_int);
+void set_core_off(void);
+void set_oldest_timestamp(void);
+void snap_init(TINFO *);
+void snap_teardown(TINFO *);
+void snap_op_init(TINFO *, uint64_t, bool);
+void snap_repeat_rollback(WT_CURSOR *, TINFO **, size_t);
 void snap_repeat_single(WT_CURSOR *, TINFO *);
 int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
-WT_THREAD_RET timestamp(void *);
+void timestamp_init(void);
+void timestamp_once(bool, bool);
+void timestamp_teardown(void);
+int trace_config(const char *);
+void trace_init(void);
+void trace_ops_init(TINFO *);
+void trace_teardown(void);
 void track(const char *, uint64_t, TINFO *);
 void val_gen(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void val_gen_init(WT_ITEM *);
 void val_gen_teardown(WT_ITEM *);
 void val_init(void);
-void val_teardown(void);
-void wts_close(void);
+void wts_checkpoints(void);
+void wts_close(WT_CONNECTION **, WT_SESSION **);
+void wts_create(const char *);
 void wts_dump(const char *, bool);
-void wts_init(void);
 void wts_load(void);
-void wts_open(const char *, bool, WT_CONNECTION **);
-void wts_ops(bool);
+void wts_open(const char *, WT_CONNECTION **, WT_SESSION **, bool);
 void wts_read_scan(void);
-void wts_rebalance(void);
 void wts_reopen(void);
 void wts_salvage(void);
 void wts_stats(void);
-void wts_verify(const char *);
+void wts_verify(WT_CONNECTION *, const char *);
+
+#if !defined(CUR2S)
+#define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
+#endif
 
 #include "format.i"

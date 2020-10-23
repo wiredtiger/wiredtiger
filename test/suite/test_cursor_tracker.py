@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -188,7 +188,7 @@ class TestCursorTracker(wttest.WiredTigerTestCase):
             if high < 0:
                 high = 0
             diff = high - low
-            nextra = (self.ord_byte(md5[4]) % (diff + 1)) + low
+            nextra = (md5[4] % (diff + 1)) + low
             extra = sha224.hexdigest()
             while len(extra) < nextra:
                 extra = extra + extra

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -30,29 +30,32 @@
 /*
  * JIRA ticket reference: WT-2853
  *
- * Test case description: create two threads: one is populating/updating
- * records in a table with a few indices, the other is reading from table and
- * indices.  The test is adapted from one that uses cursor joins, this test
- * does not, but simulates some of the access patterns.
+ * Test case description: create two threads: one is populating/updating records in a table with a
+ * few indices, the other is reading from table and indices. The test is adapted from one that uses
+ * cursor joins, this test does not, but simulates some of the access patterns.
  *
- * Failure mode: after a second or two of progress by both threads, they both
- * appear to slow dramatically, almost locking up.  After some time (I've
- * observed from a half minute to a few minutes), the lock up ends and both
- * threads seem to be inserting and reading at a normal fast pace.  That
- * continues until the test ends (~30 seconds).
+ * Failure mode: after a second or two of progress by both threads, they both appear to slow
+ * dramatically, almost locking up. After some time (I've observed from a half minute to a few
+ * minutes), the lock up ends and both threads seem to be inserting and reading at a normal fast
+ * pace. That continues until the test ends (~30 seconds).
  */
 
 static void *thread_insert(void *);
 static void *thread_get(void *);
 
 #define BLOOM false
-#define MAX_GAP 7
+#define GAP_DISPLAY 3 /* Threshold for seconds of gap to be displayed */
+#define GAP_ERROR 7   /* Threshold for seconds of gap to be treated as error */
 #define N_RECORDS 10000
 #define N_INSERT 1000000
 #define N_INSERT_THREAD 1
 #define N_GET_THREAD 1
 #define S64 "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789::"
 #define S1024 (S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64 S64)
+
+#if GAP_ERROR < GAP_DISPLAY
+#error "GAP_ERROR must be >= GAP_DISPLAY"
+#endif
 
 typedef struct {
     char posturi[256];
@@ -113,9 +116,8 @@ main(int argc, char *argv[])
      * Note: id is repeated as id2. This makes it easier to identify the primary key in dumps of the
      * index files.
      */
-    testutil_check(session->create(session, opts->uri,
-      "key_format=i,value_format=iiSii,"
-      "columns=(id,post,bal,extra,flag,id2)"));
+    testutil_check(session->create(
+      session, opts->uri, "key_format=i,value_format=iiSii,columns=(id,post,bal,extra,flag,id2)"));
 
     tablename = strchr(opts->uri, ':');
     testutil_assert(tablename != NULL);
@@ -185,11 +187,9 @@ main(int argc, char *argv[])
      */
     if (nfail != 0)
         fprintf(stderr,
-          "ERROR: %d failures when a single commit"
-          " took more than %d seconds.\n"
-          "This may indicate a real problem or a"
-          " particularly slow machine.\n",
-          nfail, MAX_GAP);
+          "ERROR: %d failures when a single commit took more than %d seconds.\n"
+          "This may indicate a real problem or a particularly slow machine.\n",
+          nfail, GAP_ERROR);
     testutil_assert(nfail == 0);
     testutil_progress(opts, "cleanup starting");
     testutil_cleanup(opts);
@@ -247,14 +247,16 @@ thread_insert(void *arg)
             else
                 fprintf(stderr, ".");
             __wt_seconds((WT_SESSION_IMPL *)session, &curtime);
-            if ((elapsed = curtime - prevtime) > MAX_GAP) {
+            elapsed = curtime - prevtime;
+            if (elapsed > GAP_DISPLAY) {
                 testutil_progress(opts, "insert time gap");
                 fprintf(stderr,
                   "\n"
                   "GAP: %" PRIu64 " secs after %d inserts\n",
                   elapsed, i);
-                threadargs->nfail++;
             }
+            if (elapsed > GAP_ERROR)
+                threadargs->nfail++;
             prevtime = curtime;
         }
     }
@@ -312,14 +314,16 @@ thread_get(void *arg)
         testutil_check(session->rollback_transaction(session, NULL));
 
         __wt_seconds((WT_SESSION_IMPL *)session, &curtime);
-        if ((elapsed = curtime - prevtime) > MAX_GAP) {
+        elapsed = curtime - prevtime;
+        if (elapsed > GAP_DISPLAY) {
             testutil_progress(opts, "get time gap");
             fprintf(stderr,
               "\n"
               "GAP: %" PRIu64 " secs after %d gets\n",
               elapsed, threadargs->njoins);
-            threadargs->nfail++;
         }
+        if (elapsed > GAP_ERROR)
+            threadargs->nfail++;
         prevtime = curtime;
     }
     testutil_progress(opts, "get end");

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -232,7 +232,7 @@ struct ParetoOptions {
     ~ParetoOptions();
 
     void describe(std::ostream &os) const {
-	os << "parameter " << param;
+	os << "Pareto: parameter " << param;
 	if (range_low != 0.0 || range_high != 1.0) {
 	    os << "range [" << range_low << "-" << range_high << "]";
 	}
@@ -266,7 +266,12 @@ struct Key {
     ~Key() {}
 
     void describe(std::ostream &os) const {
-	os << "Key: type " << _keytype << ", size " << _size; }
+	os << "Key: type " << _keytype << ", size " << _size;
+        if (_pareto.param != ParetoOptions::DEFAULT.param) {
+            os << ", ";
+            _pareto.describe(os);
+        }
+    }
 };
 
 struct Value {
@@ -292,7 +297,7 @@ struct Operation {
     Key _key;
     Value _value;
     std::string _config;
-    Transaction *_transaction;
+    Transaction *transaction;
     std::vector<Operation> *_group;
     int _repeatgroup;
     double _timed;
@@ -330,6 +335,7 @@ struct Operation {
 //
 struct ThreadOptions {
     std::string name;
+    std::string session_config;
     double throttle;
     double throttle_burst;
     bool synchronized;
@@ -342,6 +348,7 @@ struct ThreadOptions {
 	os << "throttle " << throttle;
 	os << ", throttle_burst " << throttle_burst;
 	os << ", synchronized " << synchronized;
+	os << ", session_config " << session_config;
     }
 
     std::string help() const { return _options.help(); }
@@ -386,19 +393,36 @@ struct Thread {
 
 struct Transaction {
     bool _rollback;
+    bool use_commit_timestamp;
+    bool use_prepare_timestamp;
     std::string _begin_config;
     std::string _commit_config;
+    double read_timestamp_lag;
 
-    Transaction(const char *_config = NULL) : _rollback(false),
-       _begin_config(_config == NULL ? "" : _config), _commit_config() {}
+    Transaction() : _rollback(false), use_commit_timestamp(false),
+      use_prepare_timestamp(false), _begin_config(""), _commit_config(), read_timestamp_lag(0.0)
+    {}
+
+    Transaction(const Transaction &other) : _rollback(other._rollback),
+      use_commit_timestamp(other.use_commit_timestamp),
+      use_prepare_timestamp(other.use_prepare_timestamp),
+      _begin_config(other._begin_config), _commit_config(other._commit_config),
+      read_timestamp_lag(other.read_timestamp_lag)
+    {}
 
     void describe(std::ostream &os) const {
 	os << "Transaction: ";
 	if (_rollback)
 	    os << "(rollback) ";
+	if (use_commit_timestamp)
+	    os << "(use_commit_timestamp) ";
+	if (use_prepare_timestamp)
+	    os << "(use_prepare_timestamp) ";
 	os << "begin_config: " << _begin_config;
 	if (!_commit_config.empty())
 	    os << ", commit_config: " << _commit_config;
+	if (read_timestamp_lag != 0.0)
+	    os << ", read_timestamp_lag: " << read_timestamp_lag;
     }
 };
 
@@ -414,6 +438,9 @@ struct WorkloadOptions {
     int sample_rate;
     std::string sample_file;
     int warmup;
+    double oldest_timestamp_lag;
+    double stable_timestamp_lag;
+    double timestamp_advance;
 
     WorkloadOptions();
     WorkloadOptions(const WorkloadOptions &other);

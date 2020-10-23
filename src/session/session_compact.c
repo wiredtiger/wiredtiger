@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -273,7 +273,7 @@ __compact_worker(WT_SESSION_IMPL *session)
 
             session->compact_state = WT_COMPACT_RUNNING;
             WT_WITH_DHANDLE(session, session->op_handle[i], ret = __wt_compact(session));
-
+            WT_ERR_ERROR_OK(ret, EBUSY, true);
             /*
              * If successful and we did work, schedule another pass. If successful and we did no
              * work, skip this file in the future.
@@ -287,24 +287,19 @@ __compact_worker(WT_SESSION_IMPL *session)
             }
 
             /*
-             * If compaction failed because checkpoint was running,
-             * continue with the next handle. We might continue to
-             * race with checkpoint on each handle, but that's OK,
-             * we'll step through all the handles, and then we'll
-             * block until a checkpoint completes.
+             * If compaction failed because checkpoint was running, continue with the next handle.
+             * We might continue to race with checkpoint on each handle, but that's OK, we'll step
+             * through all the handles, and then we'll block until a checkpoint completes.
              *
              * Just quit if eviction is the problem.
              */
             if (ret == EBUSY) {
                 if (__wt_cache_stuck(session)) {
-                    WT_ERR_MSG(session, EBUSY,
-                      "compaction halted by eviction "
-                      "pressure");
+                    WT_ERR_MSG(session, EBUSY, "compaction halted by eviction pressure");
                 }
                 ret = 0;
                 another_pass = true;
             }
-            WT_ERR(ret);
         }
         if (!another_pass)
             break;
@@ -391,8 +386,9 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
      * table, so acquire the table lock in write mode.
      */
     WT_WITH_SCHEMA_LOCK(session,
-      WT_WITH_TABLE_WRITE_LOCK(session, ret = __wt_schema_worker(session, uri,
-                                          __compact_handle_append, __compact_uri_analyze, cfg, 0)));
+      WT_WITH_TABLE_WRITE_LOCK(session,
+        ret = __wt_schema_worker(
+          session, uri, __compact_handle_append, __compact_uri_analyze, cfg, 0)));
     WT_ERR(ret);
 
     if (session->compact->lsm_count != 0)

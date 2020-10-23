@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -39,11 +39,41 @@
     while (0)
 
 /*
+ * __wt_modify_idempotent --
+ *     Check if a modify operation is idempotent.
+ */
+bool
+__wt_modify_idempotent(const void *modify)
+{
+    WT_MODIFY mod;
+    size_t tmp;
+    const size_t *p;
+    int nentries;
+
+    /* Get the number of modify entries. */
+    p = modify;
+    memcpy(&tmp, p++, sizeof(size_t));
+    nentries = (int)tmp;
+
+    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0) {
+        /*
+         * If the number of bytes being replaced doesn't match the number of bytes being written,
+         * we're resizing and the operation isn't idempotent.
+         */
+        if (mod.size != mod.data.size)
+            return (false);
+    }
+    WT_MODIFY_FOREACH_END;
+
+    return (true);
+}
+
+/*
  * __wt_modify_pack --
  *     Pack a modify structure into a buffer.
  */
 int
-__wt_modify_pack(WT_CURSOR *cursor, WT_ITEM **modifyp, WT_MODIFY *entries, int nentries)
+__wt_modify_pack(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries, WT_ITEM **modifyp)
 {
     WT_ITEM *modify;
     WT_SESSION_IMPL *session;
@@ -51,7 +81,8 @@ __wt_modify_pack(WT_CURSOR *cursor, WT_ITEM **modifyp, WT_MODIFY *entries, int n
     uint8_t *data;
     int i;
 
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
+    *modifyp = NULL;
 
     /*
      * Build the in-memory modify value. It's the entries count, followed by the modify structure
@@ -111,17 +142,15 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
     size = modify->size;
 
     /*
-     * Grow the buffer to the maximum size we'll need. This is pessimistic
-     * because it ignores replacement bytes, but it's a simpler calculation.
+     * Grow the buffer to the maximum size we'll need. This is pessimistic because it ignores
+     * replacement bytes, but it's a simpler calculation.
      *
-     * Grow the buffer first. This function is often called using a cursor
-     * buffer referencing on-page memory and it's easy to overwrite a page.
-     * A side-effect of growing the buffer is to ensure the buffer's value
-     * is in buffer-local memory.
+     * Grow the buffer first. This function is often called using a cursor buffer referencing
+     * on-page memory and it's easy to overwrite a page. A side-effect of growing the buffer is to
+     * ensure the buffer's value is in buffer-local memory.
      *
-     * Because the buffer may reference an overflow item, the data may not
-     * start at the start of the buffer's memory and we have to correct for
-     * that.
+     * Because the buffer may reference an overflow item, the data may not start at the start of the
+     * buffer's memory and we have to correct for that.
      */
     item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
     WT_RET(__wt_buf_grow(
@@ -169,10 +198,12 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
     } else { /* Shrink or grow */
         /* Move trailing data forward/backward to its new location. */
         from = (const uint8_t *)value->data + (offset + size);
-        WT_ASSERT(session, WT_DATA_IN_ITEM(value) &&
+        WT_ASSERT(session,
+          WT_DATA_IN_ITEM(value) &&
             from + (value->size - (offset + size)) <= (uint8_t *)value->mem + value->memsize);
         to = (uint8_t *)value->data + (offset + data_size);
-        WT_ASSERT(session, WT_DATA_IN_ITEM(value) &&
+        WT_ASSERT(session,
+          WT_DATA_IN_ITEM(value) &&
             to + (value->size - (offset + size)) <= (uint8_t *)value->mem + value->memsize);
         memmove(to, from, value->size - (offset + size));
 
@@ -217,20 +248,16 @@ __modify_fast_path(WT_ITEM *value, const size_t *p, int nentries, int *nappliedp
     WT_CLEAR(prev); /* [-Werror=maybe-uninitialized] */
 
     /*
-     * If the modifications are sorted and don't overlap in the old or new
-     * values, we can do a fast application of all the modifications
-     * modifications in a single pass.
+     * If the modifications are sorted and don't overlap in the old or new values, we can do a fast
+     * application of all the modifications modifications in a single pass.
      *
-     * The requirement for ordering is unfortunate, but modifications are
-     * performed in order, and applications specify byte offsets based on
-     * that. In other words, byte offsets are cumulative, modifications
-     * that shrink or grow the data affect subsequent modification's byte
-     * offsets.
+     * The requirement for ordering is unfortunate, but modifications are performed in order, and
+     * applications specify byte offsets based on that. In other words, byte offsets are cumulative,
+     * modifications that shrink or grow the data affect subsequent modification's byte offsets.
      */
     fastpath = first = true;
     *nappliedp = 0;
-    WT_MODIFY_FOREACH_BEGIN(current, p, nentries, 0)
-    {
+    WT_MODIFY_FOREACH_BEGIN (current, p, nentries, 0) {
         datasz += current.data.size;
 
         if (fastpath && current.data.size == current.size &&
@@ -300,8 +327,7 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const size_t
 
     from = (const uint8_t *)value->data + value->size;
     to = (uint8_t *)value->data + destsz;
-    WT_MODIFY_FOREACH_REVERSE(current, p, nentries, napplied, datasz)
-    {
+    WT_MODIFY_FOREACH_REVERSE (current, p, nentries, napplied, datasz) {
         /* Move the current unmodified block into place if necessary. */
         sz = WT_PTRDIFF(to, value->data) - (current.offset + current.data.size);
         from -= sz;
@@ -322,23 +348,18 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const size_t
 }
 
 /*
- * __wt_modify_apply --
- *     Apply a single set of WT_MODIFY changes to a buffer.
+ * __wt_modify_apply_item --
+ *     Apply a single set of WT_MODIFY changes to a WT_ITEM buffer.
  */
 int
-__wt_modify_apply(WT_CURSOR *cursor, const void *modify)
+__wt_modify_apply_item(
+  WT_SESSION_IMPL *session, const char *value_format, WT_ITEM *value, const void *modify)
 {
-    WT_ITEM *value;
     WT_MODIFY mod;
-    WT_SESSION_IMPL *session;
     size_t datasz, destsz, item_offset, tmp;
     const size_t *p;
     int napplied, nentries;
     bool overlap, sformat;
-
-    session = (WT_SESSION_IMPL *)cursor->session;
-    sformat = cursor->value_format[0] == 'S';
-    value = &cursor->value;
 
     /*
      * Get the number of modify entries and set a second pointer to reference the replacement data.
@@ -348,14 +369,19 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
     nentries = (int)tmp;
 
     /*
-     * Grow the buffer first. This function is often called using a cursor
-     * buffer referencing on-page memory and it's easy to overwrite a page.
-     * A side-effect of growing the buffer is to ensure the buffer's value
-     * is in buffer-local memory.
+     * Modifies can only be applied on a single value field. Make sure we are not applying modifies
+     * to schema with multiple value fields.
+     */
+    WT_ASSERT(session, value_format[1] == '\0');
+    sformat = value_format[0] == 'S';
+
+    /*
+     * Grow the buffer first. This function is often called using a cursor buffer referencing
+     * on-page memory and it's easy to overwrite a page. A side-effect of growing the buffer is to
+     * ensure the buffer's value is in buffer-local memory.
      *
-     * Because the buffer may reference an overflow item, the data may not
-     * start at the start of the buffer's memory and we have to correct for
-     * that.
+     * Because the buffer may reference an overflow item, the data may not start at the start of the
+     * buffer's memory and we have to correct for that.
      */
     item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
     WT_RET(__wt_buf_grow(session, value, item_offset + value->size));
@@ -381,8 +407,7 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
         goto done;
     }
 
-    WT_MODIFY_FOREACH_BEGIN(mod, p, nentries, napplied)
-    {
+    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, napplied) {
         WT_RET(__modify_apply_one(session, value, &mod, sformat));
     }
     WT_MODIFY_FOREACH_END;
@@ -405,10 +430,183 @@ __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_DECL_ITEM(modify);
     WT_DECL_RET;
 
-    WT_ERR(__wt_modify_pack(cursor, &modify, entries, nentries));
-    WT_ERR(__wt_modify_apply(cursor, modify->data));
+    WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
+    WT_ERR(
+      __wt_modify_apply_item(CUR2S(cursor), cursor->value_format, &cursor->value, modify->data));
 
 err:
-    __wt_scr_free((WT_SESSION_IMPL *)cursor->session, &modify);
+    __wt_scr_free(CUR2S(cursor), &modify);
+    return (ret);
+}
+
+/*
+ * __wt_modify_vector_init --
+ *     Initialize a modify vector.
+ */
+void
+__wt_modify_vector_init(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies)
+{
+    WT_CLEAR(*modifies);
+    modifies->session = session;
+    modifies->listp = modifies->list;
+}
+
+/*
+ * __wt_modify_vector_push --
+ *     Push a modify update pointer to a modify vector. If we exceed the allowed stack space in the
+ *     vector, we'll be doing malloc here.
+ */
+int
+__wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd)
+{
+    WT_DECL_RET;
+    bool migrate_from_stack;
+
+    migrate_from_stack = false;
+
+    if (modifies->size >= WT_MODIFY_VECTOR_STACK_SIZE) {
+        if (modifies->allocated_bytes == 0 && modifies->size == WT_MODIFY_VECTOR_STACK_SIZE) {
+            migrate_from_stack = true;
+            modifies->listp = NULL;
+        }
+        WT_ERR(__wt_realloc_def(
+          modifies->session, &modifies->allocated_bytes, modifies->size + 1, &modifies->listp));
+        if (migrate_from_stack)
+            memcpy(modifies->listp, modifies->list, sizeof(modifies->list));
+    }
+    modifies->listp[modifies->size++] = upd;
+    return (0);
+
+err:
+    /*
+     * This only happens when we're migrating from the stack to the heap but failed to allocate. In
+     * that case, point back to the stack allocated memory and set the allocation to zero to
+     * indicate that we don't have heap memory to free.
+     *
+     * If we're already on the heap, we have nothing to do. The realloc call above won't touch the
+     * list pointer unless allocation is successful and we won't have incremented the size yet.
+     */
+    if (modifies->listp == NULL) {
+        WT_ASSERT(modifies->session, modifies->size == WT_MODIFY_VECTOR_STACK_SIZE);
+        modifies->listp = modifies->list;
+        modifies->allocated_bytes = 0;
+    }
+    return (ret);
+}
+
+/*
+ * __wt_modify_vector_pop --
+ *     Pop an update pointer off a modify vector.
+ */
+void
+__wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
+{
+    WT_ASSERT(modifies->session, modifies->size > 0);
+
+    *updp = modifies->listp[--modifies->size];
+}
+
+/*
+ * __wt_modify_vector_peek --
+ *     Peek an update pointer off a modify vector.
+ */
+void
+__wt_modify_vector_peek(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
+{
+    WT_ASSERT(modifies->session, modifies->size > 0);
+
+    *updp = modifies->listp[modifies->size - 1];
+}
+
+/*
+ * __wt_modify_vector_clear --
+ *     Clear a modify vector.
+ */
+void
+__wt_modify_vector_clear(WT_MODIFY_VECTOR *modifies)
+{
+    modifies->size = 0;
+}
+
+/*
+ * __wt_modify_vector_free --
+ *     Free any resources associated with a modify vector. If we exceeded the allowed stack space on
+ *     the vector and had to fallback to dynamic allocations, we'll be doing a free here.
+ */
+void
+__wt_modify_vector_free(WT_MODIFY_VECTOR *modifies)
+{
+    if (modifies->allocated_bytes != 0)
+        __wt_free(modifies->session, modifies->listp);
+    __wt_modify_vector_init(modifies->session, modifies);
+}
+
+/*
+ * __wt_modify_reconstruct_from_upd_list --
+ *     Takes an in-memory modify and populates an update value with the reconstructed full value.
+ */
+int
+__wt_modify_reconstruct_from_upd_list(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE_VALUE *upd_value)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_MODIFY_VECTOR modifies;
+    WT_TIME_WINDOW tw;
+
+    WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
+
+    cursor = &cbt->iface;
+
+    /* While we have a pointer to our original modify, grab this information. */
+    upd_value->tw.durable_start_ts = upd->durable_ts;
+    upd_value->tw.start_txn = upd->txnid;
+
+    /* Construct full update */
+    __wt_modify_vector_init(session, &modifies);
+    /* Find a complete update. */
+    for (; upd != NULL; upd = upd->next) {
+        if (upd->txnid == WT_TXN_ABORTED)
+            continue;
+
+        if (WT_UPDATE_DATA_VALUE(upd))
+            break;
+
+        if (upd->type == WT_UPDATE_MODIFY)
+            WT_ERR(__wt_modify_vector_push(&modifies, upd));
+    }
+    /*
+     * If there's no full update, the base item is the on-page item. If the update is a tombstone,
+     * the base item is an empty item.
+     */
+    if (upd == NULL) {
+        /*
+         * Callers of this function set the cursor slot to an impossible value to check we don't try
+         * and return on-page values when the update list should have been sufficient (which
+         * happens, for example, if an update list was truncated, deleting the standard update
+         * required by a previous modify update). Assert the case.
+         */
+        WT_ASSERT(session, cbt->slot != UINT32_MAX);
+
+        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw));
+        /*
+         * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
+         * the stop time point should be unset.
+         */
+        WT_ASSERT(session,
+          tw.stop_txn == WT_TXN_MAX && tw.stop_ts == WT_TS_MAX && tw.durable_stop_ts == WT_TS_NONE);
+    } else {
+        /* The base update must not be a tombstone. */
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
+        WT_ERR(__wt_buf_set(session, &upd_value->buf, upd->data, upd->size));
+    }
+    /* Once we have a base item, roll forward through any visible modify updates. */
+    while (modifies.size > 0) {
+        __wt_modify_vector_pop(&modifies, &upd);
+        WT_ERR(__wt_modify_apply_item(session, cursor->value_format, &upd_value->buf, upd->data));
+    }
+    upd_value->type = WT_UPDATE_STANDARD;
+err:
+    __wt_modify_vector_free(&modifies);
     return (ret);
 }

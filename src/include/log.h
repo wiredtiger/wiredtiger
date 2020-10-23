@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -50,8 +50,11 @@ union __wt_lsn {
 #define WT_LOG_ALIGN 128
 
 /*
- * Atomically set the two components of the LSN.
+ * Atomically set the LSN. There are two forms. We need WT_ASSIGN_LSN because some compilers (at
+ * least clang address sanitizer) does not do atomic 64-bit structure assignment so we need to
+ * explicitly assign the 64-bit field. And WT_SET_LSN atomically sets the LSN given a file/offset.
  */
+#define WT_ASSIGN_LSN(dstl, srcl) (dstl)->file_offset = (srcl)->file_offset
 #define WT_SET_LSN(l, f, o) (l)->file_offset = (((uint64_t)(f) << 32) + (o))
 
 #define WT_INIT_LSN(l) WT_SET_LSN((l), 1, 0)
@@ -110,16 +113,17 @@ union __wt_lsn {
  * Possible values for the consolidation array slot states:
  *
  * WT_LOG_SLOT_CLOSE - slot is in use but closed to new joins.
+ *
  * WT_LOG_SLOT_FREE - slot is available for allocation.
+ *
  * WT_LOG_SLOT_WRITTEN - slot is written and should be processed by worker.
  *
- * The slot state must be volatile: threads loop checking the state and can't
- * cache the first value they see.
+ * The slot state must be volatile: threads loop checking the state and can't cache the first value
+ * they see.
  *
- * The slot state is divided into two 32 bit sizes.  One half is the
- * amount joined and the other is the amount released.  Since we use
- * a few special states, reserve the top few bits for state.  That makes
- * the maximum size less than 32 bits for both joined and released.
+ * The slot state is divided into two 32 bit sizes. One half is the amount joined and the other is
+ * the amount released. Since we use a few special states, reserve the top few bits for state. That
+ * makes the maximum size less than 32 bits for both joined and released.
  */
 /*
  * XXX The log slot bits are signed and should be rewritten as unsigned. For now, give the logging
@@ -169,9 +173,10 @@ union __wt_lsn {
 /* Slot is in use */
 #define WT_LOG_SLOT_ACTIVE(state) (WT_LOG_SLOT_JOINED(state) != WT_LOG_SLOT_JOIN_MASK)
 /* Slot is in use, but closed to new joins */
-#define WT_LOG_SLOT_CLOSED(state)                                                              \
-    (WT_LOG_SLOT_ACTIVE(state) && (FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_CLOSE) && \
-                                    !FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_RESERVED)))
+#define WT_LOG_SLOT_CLOSED(state)                                  \
+    (WT_LOG_SLOT_ACTIVE(state) &&                                  \
+      (FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_CLOSE) && \
+        !FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_RESERVED)))
 /* Slot is in use, all data copied into buffer */
 #define WT_LOG_SLOT_INPROGRESS(state) (WT_LOG_SLOT_RELEASED(state) != WT_LOG_SLOT_JOINED(state))
 #define WT_LOG_SLOT_DONE(state) (WT_LOG_SLOT_CLOSED(state) && !WT_LOG_SLOT_INPROGRESS(state))
@@ -279,13 +284,11 @@ struct __wt_log {
     WT_CONDVAR *log_write_cond;
 
 /*
- * Consolidation array information
- * Our testing shows that the more consolidation we generate the
- * better the performance we see which equates to an active slot
- * slot count of one.
+ * Consolidation array information Our testing shows that the more consolidation we generate the
+ * better the performance we see which equates to an active slot slot count of one.
  *
- * Note: this can't be an array, we impose cache-line alignment and
- * gcc doesn't support that for arrays.
+ * Note: this can't be an array, we impose cache-line alignment and gcc doesn't support that for
+ * arrays.
  */
 #define WT_SLOT_POOL 128
     WT_LOGSLOT *active_slot;            /* Active slot */
@@ -309,12 +312,10 @@ struct __wt_log_record {
     uint32_t checksum; /* 04-07: Checksum of the record */
 
 /*
- * No automatic generation: flag values cannot change, they're written
- * to disk.
+ * No automatic generation: flag values cannot change, they're written to disk.
  *
- * Unused bits in the flags, as well as the 'unused' padding,
- * are expected to be zeroed; we check that to help detect file
- * corruption.
+ * Unused bits in the flags, as well as the 'unused' padding, are expected to be zeroed; we check
+ * that to help detect file corruption.
  */
 #define WT_LOG_RECORD_COMPRESSED 0x01u /* Compressed except hdr */
 #define WT_LOG_RECORD_ENCRYPTED 0x02u  /* Encrypted except hdr */
@@ -352,10 +353,10 @@ struct __wt_log_desc {
                         /*
                          * NOTE: We bumped the log version from 2 to 3 to make it convenient for
                          * MongoDB to detect users accidentally running old binaries on a newer
-                         * release. There are no actual log file format changes with version 2 and
-                         * 3.
+                         * release. There are no actual log file format changes in versions 2
+                         * through 5.
                          */
-#define WT_LOG_VERSION 3
+#define WT_LOG_VERSION 5
     uint16_t version;  /* 04-05: Log version */
     uint16_t unused;   /* 06-07: Unused */
     uint64_t log_size; /* 08-15: Log file size */
@@ -372,6 +373,10 @@ struct __wt_log_desc {
 #define WT_LOG_V2_MINOR 0
 #define WT_LOG_V3_MAJOR 3
 #define WT_LOG_V3_MINOR 1
+#define WT_LOG_V4_MAJOR 3
+#define WT_LOG_V4_MINOR 3
+#define WT_LOG_V5_MAJOR 10
+#define WT_LOG_V5_MINOR 0
 
 /*
  * __wt_log_desc_byteswap --
@@ -396,6 +401,7 @@ struct __wt_txn_printlog_args {
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_TXN_PRINTLOG_HEX 0x1u /* Add hex output */
+#define WT_TXN_PRINTLOG_MSG 0x2u /* Messages only */
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };

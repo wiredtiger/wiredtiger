@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -54,10 +54,7 @@ typedef enum __wt_cache_op {
     WT_SYNC_WRITE_LEAVES
 } WT_CACHE_OP;
 
-#define WT_LAS_FILE_MIN (100 * WT_MEGABYTE)
-#define WT_LAS_NUM_SESSIONS 5
-#define WT_LAS_SWEEP_ENTRIES (20 * WT_THOUSAND)
-#define WT_LAS_SWEEP_SEC 2
+#define WT_HS_FILE_MIN (100 * WT_MEGABYTE)
 
 /*
  * WiredTiger cache structure.
@@ -69,21 +66,24 @@ struct __wt_cache {
      * the values don't have to be exact, they can't be garbage, we track what comes in and what
      * goes out and calculate the difference as needed.
      */
+
     uint64_t bytes_dirty_intl; /* Bytes/pages currently dirty */
-    uint64_t pages_dirty_intl;
     uint64_t bytes_dirty_leaf;
     uint64_t bytes_dirty_total;
-    uint64_t pages_dirty_leaf;
-    uint64_t bytes_evict; /* Bytes/pages discarded by eviction */
-    uint64_t pages_evicted;
-    uint64_t bytes_image; /* Bytes of disk images */
-    uint64_t bytes_inmem; /* Bytes/pages in memory */
-    uint64_t pages_inmem;
-    uint64_t bytes_internal; /* Bytes of internal pages */
-    uint64_t bytes_read;     /* Bytes read into memory */
+    uint64_t bytes_evict;      /* Bytes/pages discarded by eviction */
+    uint64_t bytes_hs;         /* History store bytes inmem */
+    uint64_t bytes_image_intl; /* Bytes of disk images (internal) */
+    uint64_t bytes_image_leaf; /* Bytes of disk images (leaf) */
+    uint64_t bytes_inmem;      /* Bytes/pages in memory */
+    uint64_t bytes_internal;   /* Bytes of internal pages */
+    uint64_t bytes_read;       /* Bytes read into memory */
+    uint64_t bytes_updates;    /* Bytes of updates to pages */
     uint64_t bytes_written;
 
-    uint64_t bytes_lookaside; /* Lookaside bytes inmem */
+    uint64_t pages_dirty_intl;
+    uint64_t pages_dirty_leaf;
+    uint64_t pages_evicted;
+    uint64_t pages_inmem;
 
     volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;     /* Tracked eviction progress */
@@ -112,10 +112,12 @@ struct __wt_cache {
      * Eviction threshold percentages use double type to allow for specifying percentages less than
      * one.
      */
-    double eviction_dirty_target;  /* Percent to allow dirty */
-    double eviction_dirty_trigger; /* Percent to trigger dirty eviction */
-    double eviction_trigger;       /* Percent to trigger eviction */
-    double eviction_target;        /* Percent to end eviction */
+    double eviction_dirty_target;    /* Percent to allow dirty */
+    double eviction_dirty_trigger;   /* Percent to trigger dirty eviction */
+    double eviction_trigger;         /* Percent to trigger eviction */
+    double eviction_target;          /* Percent to end eviction */
+    double eviction_updates_target;  /* Percent to allow for updates */
+    double eviction_updates_trigger; /* Percent of updates to trigger eviction */
 
     double eviction_checkpoint_target; /* Percent to reduce dirty
                                         to during checkpoint scrubs */
@@ -173,9 +175,9 @@ struct __wt_cache {
     uint32_t evict_aggressive_score;
 
     /*
-     * Score of how often LRU queues are empty on refill. This score varies
-     * between 0 (if the queue hasn't been empty for a long time) and 100
-     * (if the queue has been empty the last 10 times we filled up.
+     * Score of how often LRU queues are empty on refill. This score varies between 0 (if the queue
+     * hasn't been empty for a long time) and 100 (if the queue has been empty the last 10 times we
+     * filled up.
      */
     uint32_t evict_empty_score;
 
@@ -184,41 +186,16 @@ struct __wt_cache {
      * varies between 0, if reconciliation always sees updates that are globally visible and hence
      * can be discarded, to 100 if no updates are globally visible.
      */
-    int32_t evict_lookaside_score;
+    int32_t evict_hs_score;
+
+    uint32_t hs_fileid; /* History store table file ID */
 
     /*
-     * Shared lookaside lock, session and cursor, used by threads accessing the lookaside table
-     * (other than eviction server and worker threads and the sweep thread, all of which have their
-     * own lookaside cursors).
-     */
-    WT_SPINLOCK las_lock;
-    WT_SESSION_IMPL *las_session[WT_LAS_NUM_SESSIONS];
-    bool las_session_inuse[WT_LAS_NUM_SESSIONS];
-
-    uint32_t las_fileid;       /* Lookaside table file ID */
-    uint64_t las_insert_count; /* Count of inserts to lookaside */
-    uint64_t las_remove_count; /* Count of removes from lookaside */
-    uint64_t las_pageid;       /* Lookaside table page ID counter */
-
-    bool las_reader; /* Indicate an LAS reader to sweep */
-    WT_RWLOCK las_sweepwalk_lock;
-    WT_SPINLOCK las_sweep_lock;
-    WT_ITEM las_sweep_key;         /* Track sweep position. */
-    uint32_t las_sweep_dropmin;    /* Minimum btree ID in current set. */
-    uint8_t *las_sweep_dropmap;    /* Bitmap of dropped btree IDs. */
-    uint32_t las_sweep_dropmax;    /* Maximum btree ID in current set. */
-    uint64_t las_sweep_max_pageid; /* Maximum page ID for sweep. */
-
-    uint32_t *las_dropped;    /* List of dropped btree IDs. */
-    size_t las_dropped_next;  /* Next index into drop list. */
-    size_t las_dropped_alloc; /* Allocated size of drop list. */
-
-    /*
-     * The "lookaside_activity" verbose messages are throttled to once per checkpoint. To accomplish
+     * The "history_activity" verbose messages are throttled to once per checkpoint. To accomplish
      * this we track the checkpoint generation for the most recent read and write verbose messages.
      */
-    uint64_t las_verb_gen_read;
-    uint64_t las_verb_gen_write;
+    uint64_t hs_verb_gen_read;
+    uint64_t hs_verb_gen_write;
 
     /*
      * Cache pool information.
@@ -244,17 +221,20 @@ struct __wt_cache {
     uint32_t pool_flags;           /* Cache pool flags */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CACHE_EVICT_CLEAN 0x001u      /* Evict clean pages */
-#define WT_CACHE_EVICT_CLEAN_HARD 0x002u /* Clean % blocking app threads */
-#define WT_CACHE_EVICT_DEBUG_MODE 0x004u /* Aggressive debugging mode */
-#define WT_CACHE_EVICT_DIRTY 0x008u      /* Evict dirty pages */
-#define WT_CACHE_EVICT_DIRTY_HARD 0x010u /* Dirty % blocking app threads */
-#define WT_CACHE_EVICT_LOOKASIDE 0x020u  /* Try lookaside eviction */
-#define WT_CACHE_EVICT_NOKEEP 0x040u     /* Don't add read pages to cache */
-#define WT_CACHE_EVICT_SCRUB 0x080u      /* Scrub dirty pages */
-#define WT_CACHE_EVICT_URGENT 0x100u     /* Pages are in the urgent queue */
+#define WT_CACHE_EVICT_CLEAN 0x001u        /* Evict clean pages */
+#define WT_CACHE_EVICT_CLEAN_HARD 0x002u   /* Clean % blocking app threads */
+#define WT_CACHE_EVICT_DEBUG_MODE 0x004u   /* Aggressive debugging mode */
+#define WT_CACHE_EVICT_DIRTY 0x008u        /* Evict dirty pages */
+#define WT_CACHE_EVICT_DIRTY_HARD 0x010u   /* Dirty % blocking app threads */
+#define WT_CACHE_EVICT_NOKEEP 0x020u       /* Don't add read pages to cache */
+#define WT_CACHE_EVICT_SCRUB 0x040u        /* Scrub dirty pages */
+#define WT_CACHE_EVICT_UPDATES 0x080u      /* Evict pages with updates */
+#define WT_CACHE_EVICT_UPDATES_HARD 0x100u /* Update % blocking app threads */
+#define WT_CACHE_EVICT_URGENT 0x200u       /* Pages are in the urgent queue */
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
-#define WT_CACHE_EVICT_ALL (WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_DIRTY)
+#define WT_CACHE_EVICT_ALL (WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_UPDATES)
+#define WT_CACHE_EVICT_HARD \
+    (WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD | WT_CACHE_EVICT_UPDATES_HARD)
     uint32_t flags;
 };
 
@@ -287,6 +267,12 @@ struct __wt_cache_pool {
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 };
+
+/*
+ * Optimize comparisons against the history store URI, flag handles that reference the history store
+ * file.
+ */
+#define WT_IS_HS(btree) F_ISSET(btree, WT_BTREE_HS)
 
 /* Flags used with __wt_evict */
 /* AUTOMATIC FLAG VALUE GENERATION START */

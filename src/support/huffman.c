@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -87,8 +87,7 @@ typedef struct __wt_huffman_obj {
 /*
  * Queue element data structure.
  *
- * Consists of a pointer to a huffman tree node, and a pointer to the next
- * element in the queue.
+ * Consists of a pointer to a huffman tree node, and a pointer to the next element in the queue.
  */
 typedef struct node_queue_elem {
     WT_FREQTREE_NODE *node;
@@ -98,8 +97,8 @@ typedef struct node_queue_elem {
 /*
  * Queue of huffman tree nodes.
  *
- * Contains a pointer to the beginning and the end of the queue, which is
- * implemented as a linked list.
+ * Contains a pointer to the beginning and the end of the queue, which is implemented as a linked
+ * list.
  */
 typedef struct node_queue {
     NODE_QUEUE_ELEM *first;
@@ -211,7 +210,7 @@ set_codes(WT_FREQTREE_NODE *node, WT_HUFFMAN_CODE *codes, uint16_t pattern, uint
          */
         if (len < MAX_CODE_LENGTH &&
           ((half = (uint16_t)(1 << (remaining - 1))) < node->left->weight ||
-              half < node->right->weight)) {
+            half < node->right->weight)) {
             pattern = (uint16_t)(pattern << remaining);
             len = MAX_CODE_LENGTH;
         }
@@ -311,15 +310,12 @@ __wt_huffman_open(
     WT_RET(__wt_calloc_one(session, &huffman));
 
     /*
-     * The frequency table is 4B pairs of symbol and frequency.  The symbol
-     * is either 1 or 2 bytes and the frequency ranges from 1 to UINT32_MAX
-     * (a frequency of 0 means the value is never expected to appear in the
-     * input).  Validate the symbols are within range.
+     * The frequency table is 4B pairs of symbol and frequency. The symbol is either 1 or 2 bytes
+     * and the frequency ranges from 1 to UINT32_MAX (a frequency of 0 means the value is never
+     * expected to appear in the input). Validate the symbols are within range.
      */
     if (numbytes != 1 && numbytes != 2)
-        WT_ERR_MSG(session, EINVAL,
-          "illegal number of symbol bytes specified for a huffman "
-          "table");
+        WT_ERR_MSG(session, EINVAL, "illegal number of symbol bytes specified for a huffman table");
 
     if (symcnt == 0)
         WT_ERR_MSG(session, EINVAL, "illegal number of symbols specified for a huffman table");
@@ -333,14 +329,12 @@ __wt_huffman_open(
     __wt_qsort(sym, symcnt, sizeof(INDEXED_SYMBOL), indexed_symbol_compare);
     for (i = 0; i < symcnt; ++i) {
         if (i > 0 && sym[i].symbol == sym[i - 1].symbol)
-            WT_ERR_MSG(session, EINVAL, "duplicate symbol %" PRIu32 " (%#" PRIx32
-                                        ") "
-                                        "specified in a huffman table",
+            WT_ERR_MSG(session, EINVAL,
+              "duplicate symbol %" PRIu32 " (%#" PRIx32 ") specified in a huffman table",
               sym[i].symbol, sym[i].symbol);
         if (sym[i].symbol > huffman->numSymbols)
-            WT_ERR_MSG(session, EINVAL, "out-of-range symbol %" PRIu32 " (%#" PRIx32
-                                        ") "
-                                        "specified in a huffman table",
+            WT_ERR_MSG(session, EINVAL,
+              "out-of-range symbol %" PRIu32 " (%#" PRIx32 ") specified in a huffman table",
               sym[i].symbol, sym[i].symbol);
     }
 
@@ -381,9 +375,8 @@ __wt_huffman_open(
     /*
      * Adding the leaves to the queue.
      *
-     * Discard symbols with a frequency of 0; this assumes these symbols
-     * never occur in the source stream, and the purpose is to reduce the
-     * huffman tree's size.
+     * Discard symbols with a frequency of 0; this assumes these symbols never occur in the source
+     * stream, and the purpose is to reduce the huffman tree's size.
      */
     for (i = 0; i < symcnt; ++i)
         if (indexed_freqs[i].frequency > 0) {
@@ -475,9 +468,7 @@ __wt_huffman_open(
               indexed_freqs[i].frequency, huffman->codes[symbol].length);
         }
         printf(
-          "weighted length of all codes (the smaller the better): "
-          "%" PRIu32 "\n",
-          weighted_length);
+          "weighted length of all codes (the smaller the better): %" PRIu32 "\n", weighted_length);
     }
 #endif
 
@@ -536,10 +527,8 @@ __wt_print_huffman_code(void *huffman_arg, uint16_t symbol)
             printf("symbol %" PRIu16 " not defined -- 0 frequency\n", symbol);
         else
             /* should print code as binary */
-            printf("%" PRIu16
-                   " -> code pattern "
-                   "%" PRIx16 ", length %" PRIu8 "\n",
-              symbol, code.pattern, code.length);
+            printf("%" PRIu16 " -> code pattern %" PRIx16 ", length %" PRIu8 "\n", symbol,
+              code.pattern, code.length);
     }
 }
 #endif

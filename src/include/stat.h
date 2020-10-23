@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -9,74 +9,67 @@
 /*
  * Statistics counters:
  *
- * We use an array of statistics structures; threads write different structures
- * to avoid writing the same cache line and incurring cache coherency overheads,
- * which can dramatically slow fast and otherwise read-mostly workloads.
+ * We use an array of statistics structures; threads write different structures to avoid writing the
+ * same cache line and incurring cache coherency overheads, which can dramatically slow fast and
+ * otherwise read-mostly workloads.
  *
- * With an 8B statistics value and 64B cache-line alignment, 8 values share the
- * same cache line. There are collisions when different threads choose the same
- * statistics structure and update values that live on the cache line. There is
- * likely some locality however: a thread updating the cursor search statistic
- * is likely to update other cursor statistics with a chance of hitting already
- * cached values.
+ * With an 8B statistics value and 64B cache-line alignment, 8 values share the same cache line.
+ * There are collisions when different threads choose the same statistics structure and update
+ * values that live on the cache line. There is likely some locality however: a thread updating the
+ * cursor search statistic is likely to update other cursor statistics with a chance of hitting
+ * already cached values.
  *
- * The actual statistic value must be signed, because one thread might increment
- * the value in its structure, and then another thread might decrement the same
- * value in another structure (where the value was initially zero), so the value
- * in the second thread's slot will go negative.
+ * The actual statistic value must be signed, because one thread might increment the value in its
+ * structure, and then another thread might decrement the same value in another structure (where the
+ * value was initially zero), so the value in the second thread's slot will go negative.
  *
- * When reading a statistics value, the array values are summed and returned to
- * the caller. The summation is performed without locking, so the value read
- * may be inconsistent (and might be negative, if increments/decrements race
- * with the reader).
+ * When reading a statistics value, the array values are summed and returned to the caller. The
+ * summation is performed without locking, so the value read may be inconsistent (and might be
+ * negative, if increments/decrements race with the reader).
  *
- * Choosing how many structures isn't easy: obviously, a smaller number creates
- * more conflicts while a larger number uses more memory.
+ * Choosing how many structures isn't easy: obviously, a smaller number creates more conflicts while
+ * a larger number uses more memory.
  *
- * Ideally, if the application running on the system is CPU-intensive, and using
- * all CPUs on the system, we want to use the same number of slots as there are
- * CPUs (because their L1 caches are the units of coherency). However, in
- * practice we cannot easily determine how many CPUs are actually available to
- * the application.
+ * Ideally, if the application running on the system is CPU-intensive, and using all CPUs on the
+ * system, we want to use the same number of slots as there are CPUs (because their L1 caches are
+ * the units of coherency). However, in practice we cannot easily determine how many CPUs are
+ * actually available to the application.
  *
- * Our next best option is to use the number of threads in the application as a
- * heuristic for the number of CPUs (presumably, the application architect has
- * figured out how many CPUs are available). However, inside WiredTiger we don't
- * know when the application creates its threads.
+ * Our next best option is to use the number of threads in the application as a heuristic for the
+ * number of CPUs (presumably, the application architect has figured out how many CPUs are
+ * available). However, inside WiredTiger we don't know when the application creates its threads.
  *
- * For now, we use a fixed number of slots. Ideally, we would approximate the
- * largest number of cores we expect on any machine where WiredTiger might be
- * run, however, we don't want to waste that much memory on smaller machines.
- * As of 2015, machines with more than 24 CPUs are relatively rare.
+ * For now, we use a fixed number of slots. Ideally, we would approximate the largest number of
+ * cores we expect on any machine where WiredTiger might be run, however, we don't want to waste
+ * that much memory on smaller machines. As of 2015, machines with more than 24 CPUs are relatively
+ * rare.
  *
- * Default hash table size; use a prime number of buckets rather than assuming
- * a good hash (Reference Sedgewick, Algorithms in C, "Hash Functions").
+ * Default hash table size; use a prime number of buckets rather than assuming a good hash
+ * (Reference Sedgewick, Algorithms in C, "Hash Functions").
  */
 #define WT_COUNTER_SLOTS 23
 
 /*
  * WT_STATS_SLOT_ID is the thread's slot ID for the array of structures.
  *
- * Ideally, we want a slot per CPU, and we want each thread to index the slot
- * corresponding to the CPU it runs on. Unfortunately, getting the ID of the
- * current CPU is difficult: some operating systems provide a system call to
- * acquire a CPU ID, but not all (regardless, making a system call to increment
- * a statistics value is far too expensive).
+ * Ideally, we want a slot per CPU, and we want each thread to index the slot corresponding to the
+ * CPU it runs on. Unfortunately, getting the ID of the current CPU is difficult: some operating
+ * systems provide a system call to acquire a CPU ID, but not all (regardless, making a system call
+ * to increment a statistics value is far too expensive).
  *
- * Our second-best option is to use the thread ID. Unfortunately, there is no
- * portable way to obtain a unique thread ID that's a small-enough number to
- * be used as an array index (portable thread IDs are usually a pointer or an
- * opaque chunk, not a simple integer).
+ * Our second-best option is to use the thread ID. Unfortunately, there is no portable way to obtain
+ * a unique thread ID that's a small-enough number to be used as an array index (portable thread IDs
+ * are usually a pointer or an opaque chunk, not a simple integer).
  *
- * Our solution is to use the session ID; there is normally a session per thread
- * and the session ID is a small, monotonically increasing number.
+ * Our solution is to use the session ID; there is normally a session per thread and the session ID
+ * is a small, monotonically increasing number.
  */
 #define WT_STATS_SLOT_ID(session) (((session)->id) % WT_COUNTER_SLOTS)
 
 /*
- * Statistic structures are arrays of int64_t's. We have functions to read/write
- * those structures regardless of the specific statistic structure we're working
- * with, by translating statistics structure field names to structure offsets.
+ * Statistic structures are arrays of int64_t's. We have functions to read/write those structures
+ * regardless of the specific statistic structure we're working with, by translating statistics
+ * structure field names to structure offsets.
  *
  * Translate a statistic's value name to an offset in the array.
  */
@@ -109,20 +102,17 @@ __wt_stats_aggregate(void *stats_arg, int slot)
         aggr_v += stats[i][slot];
 
     /*
-     * This can race. However, any implementation with a single value can
-     * race as well, different threads could set the same counter value
-     * simultaneously. While we are making races more likely, we are not
-     * fundamentally weakening the isolation semantics found in updating a
-     * single value.
+     * This can race. However, any implementation with a single value can race as well, different
+     * threads could set the same counter value simultaneously. While we are making races more
+     * likely, we are not fundamentally weakening the isolation semantics found in updating a single
+     * value.
      *
-     * Additionally, the aggregation can go negative (imagine a thread
-     * incrementing a value after aggregation has passed its slot and a
-     * second thread decrementing a value before aggregation has reached
-     * its slot).
+     * Additionally, the aggregation can go negative (imagine a thread incrementing a value after
+     * aggregation has passed its slot and a second thread decrementing a value before aggregation
+     * has reached its slot).
      *
-     * For historic API compatibility, the external type is a uint64_t;
-     * limit our return to positive values, negative numbers would just
-     * look really, really large.
+     * For historic API compatibility, the external type is a uint64_t; limit our return to positive
+     * values, negative numbers would just look really, really large.
      */
     if (aggr_v < 0)
         aggr_v = 0;
@@ -223,12 +213,11 @@ __wt_stats_clear(void *stats_arg, int slot)
 #define WT_STAT_CONN_SET(session, fld, value) WT_STAT_SET(session, S2C(session)->stats, fld, value)
 
 /*
- * Update data-source handle statistics if statistics gathering is enabled
- * and the data-source handle is set.
+ * Update data-source handle statistics if statistics gathering is enabled and the data-source
+ * handle is set.
  *
- * XXX
- * We shouldn't have to check if the data-source handle is NULL, but it's
- * necessary until everything is converted to using data-source handles.
+ * XXX We shouldn't have to check if the data-source handle is NULL, but it's necessary until
+ * everything is converted to using data-source handles.
  */
 #define WT_STAT_DATA_DECRV(session, fld, value)                                   \
     do {                                                                          \
@@ -316,46 +305,33 @@ struct __wt_connection_stats {
     int64_t lsm_work_units_done;
     int64_t lsm_work_units_created;
     int64_t lsm_work_queue_max;
-    int64_t async_cur_queue;
-    int64_t async_max_queue;
-    int64_t async_alloc_race;
-    int64_t async_flush;
-    int64_t async_alloc_view;
-    int64_t async_full;
-    int64_t async_nowork;
-    int64_t async_op_alloc;
-    int64_t async_op_compact;
-    int64_t async_op_insert;
-    int64_t async_op_remove;
-    int64_t async_op_search;
-    int64_t async_op_update;
     int64_t block_preload;
     int64_t block_read;
     int64_t block_write;
     int64_t block_byte_read;
+    int64_t block_byte_read_mmap;
+    int64_t block_byte_read_syscall;
     int64_t block_byte_write;
     int64_t block_byte_write_checkpoint;
+    int64_t block_byte_write_mmap;
+    int64_t block_byte_write_syscall;
     int64_t block_map_read;
     int64_t block_byte_map_read;
+    int64_t block_remap_file_resize;
+    int64_t block_remap_file_write;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;
     int64_t cache_write_app_time;
+    int64_t cache_bytes_updates;
     int64_t cache_bytes_image;
-    int64_t cache_bytes_lookaside;
+    int64_t cache_bytes_hs;
     int64_t cache_bytes_inuse;
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_other;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
-    int64_t cache_lookaside_cursor_wait_application;
-    int64_t cache_lookaside_cursor_wait_internal;
     int64_t cache_lookaside_score;
-    int64_t cache_lookaside_entries;
-    int64_t cache_lookaside_insert;
-    int64_t cache_lookaside_ondisk_max;
-    int64_t cache_lookaside_ondisk;
-    int64_t cache_lookaside_remove;
     int64_t cache_eviction_checkpoint;
     int64_t cache_eviction_get_ref;
     int64_t cache_eviction_get_ref_empty;
@@ -369,19 +345,21 @@ struct __wt_connection_stats {
     int64_t cache_eviction_server_slept;
     int64_t cache_eviction_slow;
     int64_t cache_eviction_walk_leaf_notfound;
-    int64_t cache_eviction_walk_internal_wait;
-    int64_t cache_eviction_walk_internal_yield;
     int64_t cache_eviction_state;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
     int64_t cache_eviction_target_page_ge128;
     int64_t cache_eviction_target_page_lt64;
     int64_t cache_eviction_target_page_lt128;
+    int64_t cache_eviction_target_strategy_both_clean_and_dirty;
+    int64_t cache_eviction_target_strategy_clean;
+    int64_t cache_eviction_target_strategy_dirty;
     int64_t cache_eviction_walks_abandoned;
     int64_t cache_eviction_walks_stopped;
     int64_t cache_eviction_walks_gave_up_no_targets;
     int64_t cache_eviction_walks_gave_up_ratio;
     int64_t cache_eviction_walks_ended;
+    int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
     int64_t cache_eviction_walk_saved_pos;
     int64_t cache_eviction_active_workers;
@@ -392,6 +370,9 @@ struct __wt_connection_stats {
     int64_t cache_eviction_walks_active;
     int64_t cache_eviction_walks_started;
     int64_t cache_eviction_force_retune;
+    int64_t cache_eviction_force_hs_fail;
+    int64_t cache_eviction_force_hs;
+    int64_t cache_eviction_force_hs_success;
     int64_t cache_eviction_force_clean;
     int64_t cache_eviction_force_clean_time;
     int64_t cache_eviction_force_dirty;
@@ -400,13 +381,35 @@ struct __wt_connection_stats {
     int64_t cache_eviction_force;
     int64_t cache_eviction_force_fail;
     int64_t cache_eviction_force_fail_time;
+    int64_t cache_eviction_force_rollback;
     int64_t cache_eviction_hazard;
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
     int64_t cache_hazard_max;
+    int64_t cache_hs_score;
+    int64_t cache_hs_insert;
+    int64_t cache_hs_insert_restart;
+    int64_t cache_hs_ondisk_max;
+    int64_t cache_hs_ondisk;
+    int64_t cache_hs_order_lose_durable_timestamp;
+    int64_t cache_hs_order_fixup_move;
+    int64_t cache_hs_order_fixup_insert;
+    int64_t cache_hs_read;
+    int64_t cache_hs_read_miss;
+    int64_t cache_hs_read_squash;
+    int64_t cache_hs_key_truncate_rts_unstable;
+    int64_t cache_hs_key_truncate_rts;
+    int64_t cache_hs_key_truncate_mix_ts_restart;
+    int64_t cache_hs_key_truncate;
+    int64_t cache_hs_key_truncate_onpage_removal;
+    int64_t cache_hs_key_truncate_mix_ts;
+    int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
     int64_t cache_inmem_split;
     int64_t cache_eviction_internal;
+    int64_t cache_eviction_internal_pages_queued;
+    int64_t cache_eviction_internal_pages_seen;
+    int64_t cache_eviction_internal_pages_already_queued;
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
     int64_t cache_bytes_max;
@@ -416,9 +419,10 @@ struct __wt_connection_stats {
     int64_t cache_timed_out_ops;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
-    int64_t cache_write_lookaside;
+    int64_t cache_write_hs;
     int64_t cache_pages_inuse;
     int64_t cache_eviction_app;
+    int64_t cache_eviction_pages_in_parallel_with_checkpoint;
     int64_t cache_eviction_pages_queued;
     int64_t cache_eviction_pages_queued_post_lru;
     int64_t cache_eviction_pages_queued_urgent;
@@ -426,14 +430,13 @@ struct __wt_connection_stats {
     int64_t cache_read;
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
-    int64_t cache_read_lookaside;
-    int64_t cache_read_lookaside_checkpoint;
-    int64_t cache_read_lookaside_skipped;
-    int64_t cache_read_lookaside_delay;
-    int64_t cache_read_lookaside_delay_checkpoint;
     int64_t cache_pages_requested;
     int64_t cache_eviction_pages_seen;
+    int64_t cache_eviction_pages_already_queued;
     int64_t cache_eviction_fail;
+    int64_t cache_eviction_fail_parent_has_overflow_items;
+    int64_t cache_eviction_fail_active_children_on_an_internal_page;
+    int64_t cache_eviction_fail_in_reconciliation;
     int64_t cache_eviction_walk;
     int64_t cache_write;
     int64_t cache_write_restore;
@@ -457,10 +460,17 @@ struct __wt_connection_stats {
     int64_t capacity_time_evict;
     int64_t capacity_time_log;
     int64_t capacity_time_read;
+    int64_t cc_pages_evict;
+    int64_t cc_pages_removed;
+    int64_t cc_pages_walk_skipped;
+    int64_t cc_pages_visited;
     int64_t cond_auto_wait_reset;
     int64_t cond_auto_wait;
+    int64_t cond_auto_wait_skipped;
     int64_t time_travel;
     int64_t file_open;
+    int64_t buckets_dh;
+    int64_t buckets;
     int64_t memory_allocation;
     int64_t memory_free;
     int64_t memory_grow;
@@ -470,6 +480,9 @@ struct __wt_connection_stats {
     int64_t fsync_io;
     int64_t read_io;
     int64_t write_io;
+    int64_t cursor_next_skip_total;
+    int64_t cursor_prev_skip_total;
+    int64_t cursor_skip_hs_cur_position;
     int64_t cursor_cached_count;
     int64_t cursor_insert_bulk;
     int64_t cursor_cache;
@@ -480,13 +493,22 @@ struct __wt_connection_stats {
     int64_t cursor_modify_bytes;
     int64_t cursor_modify_bytes_touch;
     int64_t cursor_next;
+    int64_t cursor_next_hs_tombstone;
+    int64_t cursor_next_hs_tombstone_rts;
+    int64_t cursor_next_skip_ge_100;
+    int64_t cursor_next_skip_lt_100;
     int64_t cursor_restart;
     int64_t cursor_prev;
+    int64_t cursor_prev_hs_tombstone;
+    int64_t cursor_prev_hs_tombstone_rts;
+    int64_t cursor_prev_skip_ge_100;
+    int64_t cursor_prev_skip_lt_100;
     int64_t cursor_remove;
     int64_t cursor_remove_bytes;
     int64_t cursor_reserve;
     int64_t cursor_reset;
     int64_t cursor_search;
+    int64_t cursor_search_hs;
     int64_t cursor_search_near;
     int64_t cursor_sweep_buckets;
     int64_t cursor_sweep_closed;
@@ -604,10 +626,37 @@ struct __wt_connection_stats {
     int64_t perf_hist_opwrite_latency_lt1000;
     int64_t perf_hist_opwrite_latency_lt10000;
     int64_t perf_hist_opwrite_latency_gt10000;
+    int64_t rec_time_window_bytes_ts;
+    int64_t rec_time_window_bytes_txn;
     int64_t rec_page_delete_fast;
+    int64_t rec_maximum_seconds;
     int64_t rec_pages;
     int64_t rec_pages_eviction;
+    int64_t rec_pages_with_prepare;
+    int64_t rec_pages_with_ts;
+    int64_t rec_pages_with_txn;
     int64_t rec_page_delete;
+    int64_t rec_time_aggr_newest_start_durable_ts;
+    int64_t rec_time_aggr_newest_stop_durable_ts;
+    int64_t rec_time_aggr_newest_stop_ts;
+    int64_t rec_time_aggr_newest_stop_txn;
+    int64_t rec_time_aggr_newest_txn;
+    int64_t rec_time_aggr_oldest_start_ts;
+    int64_t rec_time_aggr_prepared;
+    int64_t rec_time_window_pages_prepared;
+    int64_t rec_time_window_pages_durable_start_ts;
+    int64_t rec_time_window_pages_start_ts;
+    int64_t rec_time_window_pages_start_txn;
+    int64_t rec_time_window_pages_durable_stop_ts;
+    int64_t rec_time_window_pages_stop_ts;
+    int64_t rec_time_window_pages_stop_txn;
+    int64_t rec_time_window_prepared;
+    int64_t rec_time_window_durable_start_ts;
+    int64_t rec_time_window_start_ts;
+    int64_t rec_time_window_start_txn;
+    int64_t rec_time_window_durable_stop_ts;
+    int64_t rec_time_window_stop_ts;
+    int64_t rec_time_window_stop_txn;
     int64_t rec_split_stashed_bytes;
     int64_t rec_split_stashed_objects;
     int64_t session_open;
@@ -621,10 +670,6 @@ struct __wt_connection_stats {
     int64_t session_table_create_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
-    int64_t session_table_import_fail;
-    int64_t session_table_import_success;
-    int64_t session_table_rebalance_fail;
-    int64_t session_table_rebalance_success;
     int64_t session_table_rename_fail;
     int64_t session_table_rename_success;
     int64_t session_table_salvage_fail;
@@ -652,28 +697,32 @@ struct __wt_connection_stats {
     int64_t page_del_rollback_blocked;
     int64_t child_modify_blocked_page;
     int64_t txn_prepared_updates_count;
-    int64_t txn_prepared_updates_lookaside_inserts;
-    int64_t txn_prepared_updates_resolved;
     int64_t txn_durable_queue_walked;
     int64_t txn_durable_queue_empty;
     int64_t txn_durable_queue_head;
     int64_t txn_durable_queue_inserts;
     int64_t txn_durable_queue_len;
-    int64_t txn_snapshots_created;
-    int64_t txn_snapshots_dropped;
     int64_t txn_prepare;
     int64_t txn_prepare_commit;
     int64_t txn_prepare_active;
     int64_t txn_prepare_rollback;
     int64_t txn_query_ts;
+    int64_t txn_read_race_prepare_update;
     int64_t txn_read_queue_walked;
     int64_t txn_read_queue_empty;
     int64_t txn_read_queue_head;
     int64_t txn_read_queue_inserts;
     int64_t txn_read_queue_len;
-    int64_t txn_rollback_to_stable;
-    int64_t txn_rollback_upd_aborted;
-    int64_t txn_rollback_las_removed;
+    int64_t txn_rts;
+    int64_t txn_rts_hs_stop_older_than_newer_start;
+    int64_t txn_rts_keys_removed;
+    int64_t txn_rts_keys_restored;
+    int64_t txn_rts_pages_visited;
+    int64_t txn_rts_hs_restore_tombstones;
+    int64_t txn_rts_sweep_hs_keys;
+    int64_t txn_rts_tree_walk_skip_pages;
+    int64_t txn_rts_upd_aborted;
+    int64_t txn_rts_hs_removed;
     int64_t txn_set_ts;
     int64_t txn_set_ts_durable;
     int64_t txn_set_ts_durable_upd;
@@ -684,9 +733,21 @@ struct __wt_connection_stats {
     int64_t txn_begin;
     int64_t txn_checkpoint_running;
     int64_t txn_checkpoint_generation;
+    int64_t txn_hs_ckpt_duration;
     int64_t txn_checkpoint_time_max;
     int64_t txn_checkpoint_time_min;
+    int64_t txn_checkpoint_handle_duration;
+    int64_t txn_checkpoint_handle_duration_apply;
+    int64_t txn_checkpoint_handle_duration_skip;
+    int64_t txn_checkpoint_handle_applied;
+    int64_t txn_checkpoint_handle_skipped;
+    int64_t txn_checkpoint_handle_walked;
     int64_t txn_checkpoint_time_recent;
+    int64_t txn_checkpoint_prep_running;
+    int64_t txn_checkpoint_prep_max;
+    int64_t txn_checkpoint_prep_min;
+    int64_t txn_checkpoint_prep_recent;
+    int64_t txn_checkpoint_prep_total;
     int64_t txn_checkpoint_scrub_target;
     int64_t txn_checkpoint_scrub_time;
     int64_t txn_checkpoint_time_total;
@@ -697,7 +758,6 @@ struct __wt_connection_stats {
     int64_t txn_checkpoint_fsync_post_duration;
     int64_t txn_pinned_range;
     int64_t txn_pinned_checkpoint_range;
-    int64_t txn_pinned_snapshot_range;
     int64_t txn_pinned_timestamp;
     int64_t txn_pinned_timestamp_checkpoint;
     int64_t txn_pinned_timestamp_reader;
@@ -737,6 +797,7 @@ struct __wt_dsrc_stats {
     int64_t block_size;
     int64_t block_minor;
     int64_t btree_checkpoint_generation;
+    int64_t btree_clean_checkpoint_timer;
     int64_t btree_column_fix;
     int64_t btree_column_internal;
     int64_t btree_column_rle;
@@ -772,9 +833,11 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_walks_gave_up_no_targets;
     int64_t cache_eviction_walks_gave_up_ratio;
     int64_t cache_eviction_walks_ended;
+    int64_t cache_eviction_walk_restart;
     int64_t cache_eviction_walk_from_root;
     int64_t cache_eviction_walk_saved_pos;
     int64_t cache_eviction_hazard;
+    int64_t cache_hs_read;
     int64_t cache_inmem_splittable;
     int64_t cache_inmem_split;
     int64_t cache_eviction_internal;
@@ -783,11 +846,10 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_dirty;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;
-    int64_t cache_write_lookaside;
+    int64_t cache_write_hs;
     int64_t cache_read;
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
-    int64_t cache_read_lookaside;
     int64_t cache_pages_requested;
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
@@ -815,16 +877,27 @@ struct __wt_dsrc_stats {
     int64_t cache_state_refs_skipped;
     int64_t cache_state_root_size;
     int64_t cache_state_pages;
+    int64_t cc_pages_evict;
+    int64_t cc_pages_removed;
+    int64_t cc_pages_walk_skipped;
+    int64_t cc_pages_visited;
     int64_t compress_precomp_intl_max_page_size;
     int64_t compress_precomp_leaf_max_page_size;
     int64_t compress_read;
     int64_t compress_write;
     int64_t compress_write_fail;
     int64_t compress_write_too_small;
+    int64_t cursor_next_skip_total;
+    int64_t cursor_prev_skip_total;
+    int64_t cursor_skip_hs_cur_position;
     int64_t cursor_insert_bulk;
     int64_t cursor_reopen;
     int64_t cursor_cache;
     int64_t cursor_create;
+    int64_t cursor_next_skip_ge_100;
+    int64_t cursor_next_skip_lt_100;
+    int64_t cursor_prev_skip_ge_100;
+    int64_t cursor_prev_skip_lt_100;
     int64_t cursor_insert;
     int64_t cursor_insert_bytes;
     int64_t cursor_modify;
@@ -839,11 +912,14 @@ struct __wt_dsrc_stats {
     int64_t cursor_reserve;
     int64_t cursor_reset;
     int64_t cursor_search;
+    int64_t cursor_search_hs;
     int64_t cursor_search_near;
     int64_t cursor_truncate;
     int64_t cursor_update;
     int64_t cursor_update_bytes;
     int64_t cursor_update_bytes_changed;
+    int64_t rec_time_window_bytes_ts;
+    int64_t rec_time_window_bytes_txn;
     int64_t rec_dictionary;
     int64_t rec_page_delete_fast;
     int64_t rec_suffix_compression;
@@ -858,7 +934,29 @@ struct __wt_dsrc_stats {
     int64_t rec_pages;
     int64_t rec_pages_eviction;
     int64_t rec_page_delete;
+    int64_t rec_time_aggr_newest_start_durable_ts;
+    int64_t rec_time_aggr_newest_stop_durable_ts;
+    int64_t rec_time_aggr_newest_stop_ts;
+    int64_t rec_time_aggr_newest_stop_txn;
+    int64_t rec_time_aggr_newest_txn;
+    int64_t rec_time_aggr_oldest_start_ts;
+    int64_t rec_time_aggr_prepared;
+    int64_t rec_time_window_pages_prepared;
+    int64_t rec_time_window_pages_durable_start_ts;
+    int64_t rec_time_window_pages_start_ts;
+    int64_t rec_time_window_pages_start_txn;
+    int64_t rec_time_window_pages_durable_stop_ts;
+    int64_t rec_time_window_pages_stop_ts;
+    int64_t rec_time_window_pages_stop_txn;
+    int64_t rec_time_window_prepared;
+    int64_t rec_time_window_durable_start_ts;
+    int64_t rec_time_window_start_ts;
+    int64_t rec_time_window_start_txn;
+    int64_t rec_time_window_durable_stop_ts;
+    int64_t rec_time_window_stop_ts;
+    int64_t rec_time_window_stop_txn;
     int64_t session_compact;
+    int64_t txn_read_race_prepare_update;
     int64_t txn_update_conflict;
 };
 

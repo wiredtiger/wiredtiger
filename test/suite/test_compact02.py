@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -149,11 +149,11 @@ class test_compact02(wttest.WiredTigerTestCase):
         # Compact can collide with eviction, if that happens we retry. Wait for
         # a long time, the check for EBUSY means we're not retrying on any real
         # errors.
-        for i in range(1, 60):
+        for i in range(1, 100):
             if not self.raisesBusy(
               lambda: self.session.compact(self.uri, None)):
                 break
-            time.sleep(5)
+            time.sleep(6)
 
         # 6. Get stats on compacted table.
         sz = self.getSize()

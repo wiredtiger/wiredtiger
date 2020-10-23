@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -164,7 +164,7 @@ __lsm_meta_read_v1(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, const char *
     if (cv.len != 0 && !WT_STRING_MATCH("none", cv.str, cv.len)) {
         /* Extract the application-supplied metadata (if any). */
         WT_CLEAR(metadata);
-        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, lsmconf, "app_metadata", &metadata));
+        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, lsmconf, "app_metadata", &metadata), false);
         WT_ERR(__wt_collator_config(
           session, lsm_tree->name, &cv, &metadata, &lsm_tree->collator, &lsm_tree->collator_owned));
         WT_ERR(__wt_strndup(session, cv.str, cv.len, &lsm_tree->collator_name));
@@ -175,7 +175,7 @@ __lsm_meta_read_v1(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, const char *
     if ((ret = __wt_config_getones(session, lsmconf, "lsm.merge_custom.start_generation", &cv)) ==
       0)
         lsm_tree->custom_generation = (uint32_t)cv.val;
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
     if (lsm_tree->custom_generation != 0) {
         WT_ERR(__wt_config_getones(session, lsmconf, "lsm.merge_custom.prefix", &cv));
         WT_ERR(__wt_strndup(session, cv.str, cv.len, &lsm_tree->custom_prefix));
@@ -199,8 +199,8 @@ __lsm_meta_read_v1(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, const char *
     if (FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_OFF) &&
       FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_OLDEST))
         WT_ERR_MSG(session, EINVAL,
-          "Bloom filters can only be created on newest and oldest "
-          "chunks if bloom filters are enabled");
+          "Bloom filters can only be created on newest and oldest chunks if bloom filters are "
+          "enabled");
 
     WT_ERR(__wt_config_getones(session, lsmconf, "lsm.bloom_bit_count", &cv));
     lsm_tree->bloom_bit_count = (uint32_t)cv.val;
@@ -228,8 +228,8 @@ __lsm_meta_read_v1(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, const char *
 
     if (lsm_tree->chunk_size > lsm_tree->chunk_max)
         WT_ERR_MSG(session, EINVAL,
-          "Chunk size (chunk_size) must be smaller than or equal to "
-          "the maximum chunk size (chunk_max)");
+          "Chunk size (chunk_size) must be smaller than or equal to the maximum chunk size "
+          "(chunk_max)");
 
     WT_ERR(__wt_config_getones(session, lsmconf, "lsm.merge_max", &cv));
     lsm_tree->merge_max = (uint32_t)cv.val;
@@ -267,7 +267,7 @@ __lsm_meta_read_v1(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, const char *
               session, lsm_tree, chunk->id, chunk->generation, &chunk->uri));
         }
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
     lsm_tree->nchunks = nchunks;
 
     WT_ERR(__wt_config_getones(session, lsmconf, "old_chunks", &cv));
@@ -284,15 +284,14 @@ __lsm_meta_read_v1(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, const char *
         WT_ERR(__wt_strndup(session, lk.str, lk.len, &chunk->uri));
         F_SET(chunk, WT_LSM_CHUNK_ONDISK);
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
     lsm_tree->nold_chunks = nchunks;
 
     /*
      * Set up the config for each chunk.
      *
-     * Make the memory_page_max double the chunk size, so application
-     * threads don't immediately try to force evict the chunk when the
-     * worker thread clears the NO_EVICTION flag.
+     * Make the memory_page_max double the chunk size, so application threads don't immediately try
+     * to force evict the chunk when the worker thread clears the NO_EVICTION flag.
      */
     file_cfg[1] = lsmconf;
     WT_ERR(__wt_scr_alloc(session, 0, &buf));

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -63,10 +63,12 @@ test_value(int64_t val)
     }
     /* Ensure that decoding used the correct amount of buffer */
     if (cp != p) {
-        fprintf(stderr, "Unpack consumed wrong size for %" PRId64 ", expected %" WT_SIZET_FMT
-                        ", got %" WT_SIZET_FMT "\n",
-          sinput, used_len, cp > p ? used_len + (size_t)(cp - p) : /* More than buf used */
-            used_len - (size_t)(p - cp));                          /* Less than buf used */
+        fprintf(stderr,
+          "Unpack consumed wrong size for %" PRId64 ", expected %" WT_SIZET_FMT
+          ", got %" WT_SIZET_FMT "\n",
+          sinput, used_len,
+          cp > p ? used_len + (size_t)(cp - p) : /* More than buf used */
+            used_len - (size_t)(p - cp));        /* Less than buf used */
         abort();
     }
 
@@ -86,8 +88,9 @@ test_value(int64_t val)
     }
     /* Ensure that decoding used the correct amount of buffer */
     if (cp != p) {
-        fprintf(stderr, "Unpack consumed wrong size for %" PRId64 ", expected %" WT_SIZET_FMT
-                        ", got %" WT_SIZET_FMT "\n",
+        fprintf(stderr,
+          "Unpack consumed wrong size for %" PRId64 ", expected %" WT_SIZET_FMT
+          ", got %" WT_SIZET_FMT "\n",
           sinput, used_len, cp > p ? used_len + (size_t)(cp - p) : used_len - (size_t)(p - cp));
         abort();
     }
@@ -110,8 +113,8 @@ main(void)
     int64_t i;
 
     /*
-     * Test all values in a range, to ensure pack/unpack of small numbers
-     * (which most actively use different numbers of bits) works.
+     * Test all values in a range, to ensure pack/unpack of small numbers (which most actively use
+     * different numbers of bits) works.
      */
     test_spread(0, 100000, 100000);
     test_spread(INT16_MAX, 1025, 1025);

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -31,41 +31,34 @@
 #include <sys/wait.h>
 
 /*
- * JIRA ticket reference: WT-2909
- * Test case description:
+ * JIRA ticket reference: WT-2909 Test case description:
  *
- * This test attempts to check the integrity of checkpoints by injecting
- * failures (by means of a custom file system) and then trying to recover. To
- * insulate the top level program from various crashes that may occur when
- * injecting failures, the "populate" code runs in another process, and is
- * expected to sometimes fail. Then the top level program runs recovery (with
- * the normal file system) and checks the results. Any failure at the top level
- * indicates a checkpoint integrity problem.
+ * This test attempts to check the integrity of checkpoints by injecting failures (by means of a
+ * custom file system) and then trying to recover. To insulate the top level program from various
+ * crashes that may occur when injecting failures, the "populate" code runs in another process, and
+ * is expected to sometimes fail. Then the top level program runs recovery (with the normal file
+ * system) and checks the results. Any failure at the top level indicates a checkpoint integrity
+ * problem.
  *
- * Each subtest uses the same kind of schema and data, the only variance is
- * when the faults are injected. At the moment, this test only injects during
- * checkpoints, and only injects write failures. It varies in the number of
- * successful writes that occur before an injected failure (during a checkpoint
- * operation), this can be indicated with "-o N".  When N is not specified, the
- * test attempts to find the optimal range of N for testing. Clearly when N is
- * large, then the checkpoint may be successfully written, and the data
- * represented by the checkpoint will be fully present. When N is small,
- * nothing of interest is written and no data is present. To find the sweet
- * spot where interesting failures occur, the test does a binary search to find
- * the approximate N that divides the "small" and "large" cases. This is not
- * strictly deterministic, a given N may give different results on different
- * runs. But approximate optimal N can be determined, allowing a series of
- * additional tests clustered around this N.
+ * Each subtest uses the same kind of schema and data, the only variance is when the faults are
+ * injected. At the moment, this test only injects during checkpoints, and only injects write
+ * failures. It varies in the number of successful writes that occur before an injected failure
+ * (during a checkpoint operation), this can be indicated with "-o N". When N is not specified, the
+ * test attempts to find the optimal range of N for testing. Clearly when N is large, then the
+ * checkpoint may be successfully written, and the data represented by the checkpoint will be fully
+ * present. When N is small, nothing of interest is written and no data is present. To find the
+ * sweet spot where interesting failures occur, the test does a binary search to find the
+ * approximate N that divides the "small" and "large" cases. This is not strictly deterministic, a
+ * given N may give different results on different runs. But approximate optimal N can be
+ * determined, allowing a series of additional tests clustered around this N.
  *
- * The data is stored in two tables, one having indices. Both tables have
- * the same keys and are updated with the same key in a single transaction.
+ * The data is stored in two tables, one having indices. Both tables have the same keys and are
+ * updated with the same key in a single transaction.
  *
- * Failure mode:
- * If one table is out of step with the other, that is detected as a failure at
- * the top level.  If an index is missing values (or has extra values), that is
- * likewise a failure at the top level. If the tables or the home directory
- * cannot be opened, that is a top level error. The tables must be present
- * as an initial checkpoint is done without any injected fault.
+ * Failure mode: If one table is out of step with the other, that is detected as a failure at the
+ * top level. If an index is missing values (or has extra values), that is likewise a failure at the
+ * top level. If the tables or the home directory cannot be opened, that is a top level error. The
+ * tables must be present as an initial checkpoint is done without any injected fault.
  */
 
 /*
@@ -349,9 +342,7 @@ run_check_subtest_range(TEST_OPTS *opts, const char *debugger, bool close_test)
     bool got_failure, got_success;
 
     if (opts->verbose)
-        printf(
-          "Determining best range of operations until failure, "
-          "with close_test %s.\n",
+        printf("Determining best range of operations until failure, with close_test %s.\n",
           (close_test ? "enabled" : "disabled"));
 
     run_check_subtest(opts, debugger, 1, close_test, &cutoff);
@@ -393,9 +384,7 @@ run_check_subtest_range(TEST_OPTS *opts, const char *debugger, bool close_test)
     if (!got_failure || !got_success) {
         fprintf(stderr,
           "Warning: did not find a reliable test range.\n"
-          "midpoint=%" PRIu64
-          ", close_test=%d, got_failure=%d, "
-          "got_success=%d\n",
+          "midpoint=%" PRIu64 ", close_test=%d, got_failure=%d, got_success=%d\n",
           mid, (int)close_test, (int)got_failure, (int)got_success);
         return (EAGAIN);
     }
@@ -518,17 +507,14 @@ subtest_main(int argc, char *argv[], bool close_test)
     if ((p = getenv("top_builddir")) == NULL)
         p = "../../build_posix";
     testutil_check(__wt_snprintf(config, sizeof(config),
-      "create,cache_size=250M,log=(enabled),"
-      "transaction_sync=(enabled,method=none),"
-      "extensions=(%s/%s="
-      "(early_load,config={environment=true,verbose=true}))",
+      "create,cache_size=250M,log=(enabled),transaction_sync=(enabled,method=none),extensions=(%s/"
+      "%s=(early_load,config={environment=true,verbose=true}))",
       p, WT_FAIL_FS_LIB));
     testutil_check(wiredtiger_open(opts->home, &event_handler, config, &opts->conn));
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-    testutil_check(session->create(session, "table:subtest",
-      "key_format=i,value_format=iiiS,"
-      "columns=(id,v0,v1,v2,big)"));
+    testutil_check(session->create(
+      session, "table:subtest", "key_format=i,value_format=iiiS,columns=(id,v0,v1,v2,big)"));
 
     testutil_check(session->create(session, "table:subtest2", "key_format=i,value_format=i"));
 

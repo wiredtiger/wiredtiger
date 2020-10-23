@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -106,7 +106,8 @@ __realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t byt
      */
     p = *(void **)retp;
     bytes_allocated = (bytes_allocated_ret == NULL) ? 0 : *bytes_allocated_ret;
-    WT_ASSERT(session, (p == NULL && bytes_allocated == 0) ||
+    WT_ASSERT(session,
+      (p == NULL && bytes_allocated == 0) ||
         (p != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
     WT_ASSERT(session, bytes_to_allocate != 0);
     WT_ASSERT(session, bytes_allocated < bytes_to_allocate);
@@ -184,7 +185,8 @@ __wt_realloc_aligned(
          */
         p = *(void **)retp;
         bytes_allocated = (bytes_allocated_ret == NULL) ? 0 : *bytes_allocated_ret;
-        WT_ASSERT(session, (p == NULL && bytes_allocated == 0) ||
+        WT_ASSERT(session,
+          (p == NULL && bytes_allocated == 0) ||
             (p != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
         WT_ASSERT(session, bytes_to_allocate != 0);
         WT_ASSERT(session, bytes_allocated < bytes_to_allocate);
@@ -217,11 +219,10 @@ __wt_realloc_aligned(
     }
 #endif
     /*
-     * If there is no posix_memalign function, or no alignment configured,
-     * fall back to realloc.
+     * If there is no posix_memalign function, or no alignment configured, fall back to realloc.
      *
-     * Windows note: Visual C CRT memalign does not match POSIX behavior
-     * and would also double each allocation so it is bad for memory use.
+     * Windows note: Visual C CRT memalign does not match POSIX behavior and would also double each
+     * allocation so it is bad for memory use.
      */
     return (__realloc_func(session, bytes_allocated_ret, bytes_to_allocate, false, retp));
 }

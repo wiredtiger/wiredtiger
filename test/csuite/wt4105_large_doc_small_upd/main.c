@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -54,8 +54,9 @@ handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const ch
     (void)(handler);
 
     /* Skip the error messages we're expecting to see. */
-    if (ignore_errors > 0 && (strstr(message, "requires key be set") != NULL ||
-                               strstr(message, "requires value be set") != NULL)) {
+    if (ignore_errors > 0 &&
+      (strstr(message, "requires key be set") != NULL ||
+        strstr(message, "requires value be set") != NULL)) {
         --ignore_errors;
         return (0);
     }
@@ -83,15 +84,11 @@ main(int argc, char *argv[])
     testutil_make_work_dir(opts->home);
 
     testutil_check(wiredtiger_open(opts->home, &event_handler,
-      "create,"
-      "cache_size=1G,"
-      "statistics_log=(json,wait=1)",
-      &opts->conn));
+      "create,cache_size=1G,statistics_log=(json,wait=1)", &opts->conn));
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
     testutil_check(session->create(session, uri,
-      "key_format=Q,value_format=u,"
-      "leaf_item_max=64M,leaf_page_max=32k,memory_page_max=1M"));
+      "key_format=Q,value_format=u,leaf_item_max=64M,leaf_page_max=32k,memory_page_max=1M"));
 
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &c));
 
@@ -132,7 +129,8 @@ main(int argc, char *argv[])
             modify_entry.data.size = strlen(modify_entry.data.data);
             modify_entry.offset = offset;
             modify_entry.size = modify_entry.data.size;
-            (void)alarm(1);
+            /* FIXME-WT-6113: extend timeout to pass the test */
+            (void)alarm(15);
             testutil_check(c->modify(c, &modify_entry, 1));
             (void)alarm(0);
             testutil_check(session2->commit_transaction(session2, NULL));

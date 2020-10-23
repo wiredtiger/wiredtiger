@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -39,7 +39,7 @@ class test_cursor16(wttest.WiredTigerTestCase):
     uri_count = 100
     session_count = 100
 
-    conn_config = 'cache_cursors=true,statistics=(fast)'
+    conn_config = 'cache_cursors=true,statistics=(fast),in_memory=true'
 
     # Returns the number of cursors cached
     def cached_stats(self):

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -35,7 +35,7 @@ __wt_curjoin_joined(WT_CURSOR *cursor) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
 
     WT_RET_MSG(session, ENOTSUP, "cursor is being used in a join");
 }
@@ -201,7 +201,8 @@ err:
 /*
  * __curjoin_iter_bump --
  *     Called to advance the iterator to the next endpoint, which may in turn advance to the next
- *     entry.
+ *     entry. We cannot skip a call to this at the end of an iteration because we'll need to advance
+ *     the position to the end.
  */
 static int
 __curjoin_iter_bump(WT_CURSOR_JOIN_ITER *iter)
@@ -482,8 +483,14 @@ __curjoin_entry_in_range(
         }
 
         if (!passed) {
-            if (iter != NULL && (iter->is_equal || F_ISSET(end, WT_CURJOIN_END_LT)))
+            if (iter != NULL && (iter->is_equal || F_ISSET(end, WT_CURJOIN_END_LT))) {
+                /*
+                 * Even though this cursor is done, we still need to bump (advance it), to mark the
+                 * iteration as complete.
+                 */
+                WT_RET(__curjoin_iter_bump(iter));
                 return (WT_NOTFOUND);
+            }
             if (!disjunction)
                 return (WT_NOTFOUND);
             iter = NULL;
@@ -582,7 +589,7 @@ __curjoin_entry_member(
 
     if (entry->subjoin == NULL && iter != NULL &&
       (iter->end_pos + iter->end_skip >= entry->ends_next ||
-          (iter->end_skip > 0 && F_ISSET(entry, WT_CURJOIN_ENTRY_DISJUNCTION))))
+        (iter->end_skip > 0 && F_ISSET(entry, WT_CURJOIN_ENTRY_DISJUNCTION))))
         return (0); /* no checks to make */
 
     entry->stats.membership_check++;
@@ -590,14 +597,12 @@ __curjoin_entry_member(
 
     if (entry->bloom != NULL) {
         /*
-         * If the item is not in the Bloom filter, we return
-         * immediately, otherwise, we still may need to check the
-         * long way, since it may be a false positive.
+         * If the item is not in the Bloom filter, we return immediately, otherwise, we still may
+         * need to check the long way, since it may be a false positive.
          *
-         * If we don't own the Bloom filter, we must be sharing one
-         * in a previous entry. So the shared filter has already
-         * been checked and passed, we don't need to check it again.
-         * We'll still need to check the long way.
+         * If we don't own the Bloom filter, we must be sharing one in a previous entry. So the
+         * shared filter has already been checked and passed, we don't need to check it again. We'll
+         * still need to check the long way.
          */
         if (F_ISSET(entry, WT_CURJOIN_ENTRY_OWN_BLOOM))
             WT_ERR(__wt_bloom_inmem_get(entry->bloom, key));
@@ -680,15 +685,15 @@ __curjoin_get_key(WT_CURSOR *cursor, ...)
 
     cjoin = (WT_CURSOR_JOIN *)cursor;
 
-    va_start(ap, cursor);
     JOINABLE_CURSOR_API_CALL(cursor, session, get_key, NULL);
 
     if (!F_ISSET(cjoin, WT_CURJOIN_INITIALIZED) || !cjoin->iter->positioned)
         WT_ERR_MSG(session, EINVAL, "join cursor must be advanced with next()");
-    WT_ERR(__wt_cursor_get_keyv(cursor, cursor->flags, ap));
+    va_start(ap, cursor);
+    ret = __wt_cursor_get_keyv(cursor, cursor->flags, ap);
+    va_end(ap);
 
 err:
-    va_end(ap);
     API_END_RET(session, ret);
 }
 
@@ -706,16 +711,16 @@ __curjoin_get_value(WT_CURSOR *cursor, ...)
 
     cjoin = (WT_CURSOR_JOIN *)cursor;
 
-    va_start(ap, cursor);
     JOINABLE_CURSOR_API_CALL(cursor, session, get_value, NULL);
 
     if (!F_ISSET(cjoin, WT_CURJOIN_INITIALIZED) || !cjoin->iter->positioned)
         WT_ERR_MSG(session, EINVAL, "join cursor must be advanced with next()");
 
-    WT_ERR(__wt_curtable_get_valuev(cjoin->main, ap));
+    va_start(ap, cursor);
+    ret = __wt_curtable_get_valuev(cjoin->main, ap);
+    va_end(ap);
 
 err:
-    va_end(ap);
     API_END_RET(session, ret);
 }
 
@@ -772,7 +777,7 @@ __curjoin_init_bloom(
                 goto done;
             WT_ERR(ret);
         } else
-            WT_PANIC_ERR(session, EINVAL, "fatal error in join cursor position state");
+            WT_ERR_PANIC(session, EINVAL, "fatal error in join cursor position state");
     }
     collator = (entry->index == NULL) ? NULL : entry->index->collator;
     while (ret == 0) {
@@ -849,7 +854,7 @@ advance:
             break;
     }
 done:
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
     if (c != NULL)
@@ -879,9 +884,7 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, bool iterab
 
     mainbuf = NULL;
     if (cjoin->entries_next == 0)
-        WT_RET_MSG(session, EINVAL,
-          "join cursor has not yet been joined with any other "
-          "cursors");
+        WT_RET_MSG(session, EINVAL, "join cursor has not yet been joined with any other cursors");
 
     /* Get a consistent view of our subordinate cursors if appropriate. */
     __wt_txn_cursor_op(session);
@@ -928,10 +931,9 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, bool iterab
          * doing any needed check during the iteration.
          */
         if (!iterable && F_ISSET(je, WT_CURJOIN_ENTRY_BLOOM)) {
-            if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
+            if (session->txn->isolation == WT_ISO_READ_UNCOMMITTED)
                 WT_ERR_MSG(session, EINVAL,
-                  "join cursors with Bloom filters cannot be "
-                  "used with read-uncommitted isolation");
+                  "join cursors with Bloom filters cannot be used with read-uncommitted isolation");
             if (je->bloom == NULL) {
                 /*
                  * Look for compatible filters to be shared, pick compatible numbers for bit counts
@@ -1033,8 +1035,7 @@ __curjoin_next(WT_CURSOR *cursor)
             break;
     }
     iter->positioned = (ret == 0);
-    if (ret != 0 && ret != WT_NOTFOUND)
-        WT_ERR(ret);
+    WT_ERR_NOTFOUND_OK(ret, true);
 
     if (ret == 0) {
         /*
@@ -1349,19 +1350,15 @@ __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, WT_INDEX *idx
     } else {
         /* Merge the join into an existing entry for this index */
         if (count != 0 && entry->count != 0 && entry->count != count)
-            WT_RET_MSG(session, EINVAL, "count=%" PRIu64
-                                        " does not match "
-                                        "previous count=%" PRIu64 " for this index",
-              count, entry->count);
-        if (LF_MASK(WT_CURJOIN_ENTRY_BLOOM) != F_MASK(entry, WT_CURJOIN_ENTRY_BLOOM))
             WT_RET_MSG(session, EINVAL,
-              "join has incompatible strategy "
-              "values for the same index");
+              "count=%" PRIu64 " does not match previous count=%" PRIu64 " for this index", count,
+              entry->count);
+        if (LF_MASK(WT_CURJOIN_ENTRY_BLOOM) != F_MASK(entry, WT_CURJOIN_ENTRY_BLOOM))
+            WT_RET_MSG(session, EINVAL, "join has incompatible strategy values for the same index");
         if (LF_MASK(WT_CURJOIN_ENTRY_FALSE_POSITIVES) !=
           F_MASK(entry, WT_CURJOIN_ENTRY_FALSE_POSITIVES))
             WT_RET_MSG(session, EINVAL,
-              "join has incompatible bloom_false_positives "
-              "values for the same index");
+              "join has incompatible bloom_false_positives values for the same index");
 
         /*
          * Check against other comparisons (we call them endpoints)
@@ -1387,20 +1384,19 @@ __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin, WT_INDEX *idx
                   ((range & WT_CURJOIN_END_GT) != 0 || range_eq)) ||
               (F_ISSET(end, WT_CURJOIN_END_LT) && ((range & WT_CURJOIN_END_LT) != 0 || range_eq)) ||
               (endrange == WT_CURJOIN_END_EQ &&
-                  (range & (WT_CURJOIN_END_LT | WT_CURJOIN_END_GT)) != 0))
+                (range & (WT_CURJOIN_END_LT | WT_CURJOIN_END_GT)) != 0))
                 WT_RET_MSG(session, EINVAL, "join has overlapping ranges");
             if (range == WT_CURJOIN_END_EQ && endrange == WT_CURJOIN_END_EQ &&
               !F_ISSET(entry, WT_CURJOIN_ENTRY_DISJUNCTION))
-                WT_RET_MSG(session, EINVAL,
-                  "compare=eq can only be combined "
-                  "using operation=or");
+                WT_RET_MSG(session, EINVAL, "compare=eq can only be combined using operation=or");
 
             /*
              * Sort "gt"/"ge" to the front, followed by any number of "eq", and finally "lt"/"le".
              */
-            if (!hasins && ((range & WT_CURJOIN_END_GT) != 0 ||
-                             (range == WT_CURJOIN_END_EQ && endrange != WT_CURJOIN_END_EQ &&
-                               !F_ISSET(end, WT_CURJOIN_END_GT)))) {
+            if (!hasins &&
+              ((range & WT_CURJOIN_END_GT) != 0 ||
+                (range == WT_CURJOIN_END_EQ && endrange != WT_CURJOIN_END_EQ &&
+                  !F_ISSET(end, WT_CURJOIN_END_GT)))) {
                 ins = i;
                 hasins = true;
             }

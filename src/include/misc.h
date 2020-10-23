@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -53,6 +53,10 @@
 #define WT_PETABYTE ((uint64_t)1125899906842624)
 #define WT_EXABYTE ((uint64_t)1152921504606846976)
 
+/* Strings used for indicating failed string buffer construction. */
+#define WT_ERR_STRING "[Error]"
+#define WT_NO_ADDR_STRING "[NoAddr]"
+
 /*
  * Sizes that cannot be larger than 2**32 are stored in uint32_t fields in common structures to save
  * space. To minimize conversions from size_t to uint32_t through the code, we use the following
@@ -92,12 +96,6 @@
 #define WT_ENCRYPT_LEN_SIZE sizeof(uint32_t)
 
 /*
- * Default hash table size; we don't need a prime number of buckets because we always use a good
- * hash function.
- */
-#define WT_HASH_ARRAY_SIZE 512
-
-/*
  * __wt_calloc_def, __wt_calloc_one --
  *     Most calloc calls don't need separate count or sizeof arguments.
  */
@@ -110,11 +108,15 @@
  *     Common case allocate-and-grow function. Starts by allocating the requested number of items
  *     (at least 10), then doubles each time the list needs to grow.
  */
-#define __wt_realloc_def(session, sizep, number, addr) \
-    (((number) * sizeof(**(addr)) <= *(sizep)) ?       \
-        0 :                                            \
-        __wt_realloc(                                  \
-          session, sizep, WT_MAX(*(sizep)*2, WT_MAX(10, (number)) * sizeof(**(addr))), addr))
+#define __wt_realloc_def(session, sizep, number, addr)                          \
+    (((number) * sizeof(**(addr)) <= *(sizep)) ?                                \
+        0 :                                                                     \
+        __wt_realloc(session, sizep,                                            \
+          (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_REALLOC_EXACT)) ? \
+            (number) * sizeof(**(addr)) :                                       \
+            WT_MAX(*(sizep)*2, WT_MAX(10, (number)) * sizeof(**(addr))),        \
+          addr))
+
 /*
  * Our internal free function clears the underlying address atomically so there is a smaller chance
  * of racing threads seeing intermediate results while a structure is being free'd. (That would be a
@@ -128,15 +130,18 @@
         if (*(void **)__p != NULL)       \
             __wt_free_int(session, __p); \
     } while (0)
+
+/* Overwrite whether or not this is a diagnostic build. */
+#define __wt_explicit_overwrite(p, size) memset(p, WT_DEBUG_BYTE, size)
 #ifdef HAVE_DIAGNOSTIC
-#define __wt_overwrite_and_free(session, p)     \
-    do {                                        \
-        memset(p, WT_DEBUG_BYTE, sizeof(*(p))); \
-        __wt_free(session, p);                  \
+#define __wt_overwrite_and_free(session, p)       \
+    do {                                          \
+        __wt_explicit_overwrite(p, sizeof(*(p))); \
+        __wt_free(session, p);                    \
     } while (0)
 #define __wt_overwrite_and_free_len(session, p, len) \
     do {                                             \
-        memset(p, WT_DEBUG_BYTE, len);               \
+        __wt_explicit_overwrite(p, len);             \
         __wt_free(session, p);                       \
     } while (0)
 #else
@@ -147,13 +152,13 @@
 /*
  * Flag set, clear and test.
  *
- * They come in 3 flavors: F_XXX (handles a field named "flags" in the structure
- * referenced by its argument), LF_XXX (handles a local variable named "flags"),
- * and FLD_XXX (handles any variable, anywhere).
+ * They come in 3 flavors: F_XXX (handles a field named "flags" in the structure referenced by its
+ * argument), LF_XXX (handles a local variable named "flags"), and FLD_XXX (handles any variable,
+ * anywhere).
  *
- * Flags are unsigned 32-bit values -- we cast to keep the compiler quiet (the
- * hex constant might be a negative integer), and to ensure the hex constant is
- * the correct size before applying the bitwise not operator.
+ * Flags are unsigned 32-bit values -- we cast to keep the compiler quiet (the hex constant might be
+ * a negative integer), and to ensure the hex constant is the correct size before applying the
+ * bitwise not operator.
  */
 #define FLD_CLR(field, mask) ((void)((field) &= ~(mask)))
 #define FLD_MASK(field, mask) ((field) & (mask))
@@ -173,8 +178,8 @@
 /*
  * Insertion sort, for sorting small sets of values.
  *
- * The "compare_lt" argument is a function or macro that returns true when
- * its first argument is less than its second argument.
+ * The "compare_lt" argument is a function or macro that returns true when its first argument is
+ * less than its second argument.
  */
 #define WT_INSERTION_SORT(arrayp, n, value_type, compare_lt)                           \
     do {                                                                               \
@@ -224,9 +229,6 @@
             }                                                          \
         }                                                              \
     } while (0)
-
-/* Verbose messages. */
-#define WT_VERBOSE_ISSET(session, f) (FLD_ISSET(S2C(session)->verbose, f))
 
 #define WT_CLEAR(s) memset(&(s), 0, sizeof(s))
 
@@ -284,12 +286,15 @@
  * acquired.
  */
 #ifdef HAVE_DIAGNOSTIC
+#define __wt_hazard_set(session, walk, busyp) \
+    __wt_hazard_set_func(session, walk, busyp, __func__, __LINE__)
 #define __wt_scr_alloc(session, size, scratchp) \
     __wt_scr_alloc_func(session, size, scratchp, __func__, __LINE__)
 #define __wt_page_in(session, ref, flags) __wt_page_in_func(session, ref, flags, __func__, __LINE__)
 #define __wt_page_swap(session, held, want, flags) \
     __wt_page_swap_func(session, held, want, flags, __func__, __LINE__)
 #else
+#define __wt_hazard_set(session, walk, busyp) __wt_hazard_set_func(session, walk, busyp)
 #define __wt_scr_alloc(session, size, scratchp) __wt_scr_alloc_func(session, size, scratchp)
 #define __wt_page_in(session, ref, flags) __wt_page_in_func(session, ref, flags)
 #define __wt_page_swap(session, held, want, flags) __wt_page_swap_func(session, held, want, flags)

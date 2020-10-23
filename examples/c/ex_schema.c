@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -72,10 +72,8 @@ main(int argc, char *argv[])
      * string, uint16_t, uint64_t). See ::wiredtiger_struct_pack for details of the format strings.
      */
     error_check(session->create(session, "table:poptable",
-      "key_format=r,"
-      "value_format=5sHQ,"
-      "columns=(id,country,year,population),"
-      "colgroups=(main,population)"));
+      "key_format=r,value_format=5sHQ,columns=(id,country,year,population),colgroups=(main,"
+      "population)"));
 
     /*
      * Create two column groups: a primary column group with the country code, year and population

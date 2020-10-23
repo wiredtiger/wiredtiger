@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -65,7 +65,7 @@ main(int argc, char *argv[])
     g.sweep_stress = g.use_timestamps = false;
     runs = 1;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "C:c:Dh:k:l:n:r:sT:t:W:x")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "C:c:Dh:k:l:n:pr:sT:t:W:x")) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
@@ -90,6 +90,9 @@ main(int argc, char *argv[])
             break;
         case 'n': /* operations */
             g.nops = (u_int)atoi(__wt_optarg);
+            break;
+        case 'p': /* prepare */
+            g.prepare = true;
             break;
         case 'r': /* runs */
             runs = atoi(__wt_optarg);
@@ -200,18 +203,15 @@ wt_connect(const char *config_open)
      */
     if (g.sweep_stress)
         testutil_check(__wt_snprintf(config, sizeof(config),
-          "create,cache_cursors=false,statistics=(fast),"
-          "statistics_log=(json,wait=1),error_prefix=\"%s\","
-          "file_manager=(close_handle_minimum=1,close_idle_time=1,"
-          "close_scan_interval=1),log=(enabled),cache_size=1GB,"
-          "timing_stress_for_test=(aggressive_sweep)%s%s%s",
+          "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),error_prefix="
+          "\"%s\",file_manager=(close_handle_minimum=1,close_idle_time=1,close_scan_interval=1),"
+          "log=(enabled),cache_size=1GB,timing_stress_for_test=(aggressive_sweep)%s%s%s",
           progname, g.debug_mode ? DEBUG_MODE_CFG : "", config_open == NULL ? "" : ",",
           config_open == NULL ? "" : config_open));
     else
         testutil_check(__wt_snprintf(config, sizeof(config),
-          "create,cache_cursors=false,statistics=(fast),"
-          "statistics_log=(json,wait=1),error_prefix=\"%s\""
-          "%s%s%s",
+          "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),error_prefix="
+          "\"%s\"%s%s%s",
           progname, g.debug_mode ? DEBUG_MODE_CFG : "", config_open == NULL ? "" : ",",
           config_open == NULL ? "" : config_open));
 
@@ -249,7 +249,8 @@ cleanup(bool remove_dir)
 {
     g.running = 0;
     g.ntables_created = 0;
-    g.ts = 0;
+    g.ts_oldest = 0;
+    g.ts_stable = 0;
 
     if (remove_dir)
         testutil_make_work_dir(g.home);
@@ -335,10 +336,8 @@ static int
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s "
-      "[-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys]\n\t"
-      "[-l log] [-n ops] [-r runs] [-T table-config] [-t f|r|v]\n\t"
-      "[-W workers]\n",
+      "usage: %s [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys]\n\t[-l log] [-n ops] "
+      "[-r runs] [-T table-config] [-t f|r|v]\n\t[-W workers]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-C specify wiredtiger_open configuration arguments\n"
@@ -347,9 +346,11 @@ usage(void)
       "\t-k set number of keys to load\n"
       "\t-l specify a log file\n"
       "\t-n set number of operations each thread does\n"
+      "\t-p use prepare\n"
       "\t-r set number of runs (0 for continuous)\n"
       "\t-T specify a table configuration\n"
       "\t-t set a file type ( col | mix | row | lsm )\n"
-      "\t-W set number of worker threads\n");
+      "\t-W set number of worker threads\n"
+      "\t-x use timestamps\n");
     return (EXIT_FAILURE);
 }

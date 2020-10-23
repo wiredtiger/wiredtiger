@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -289,13 +289,12 @@ __wt_lsm_tree_setup_chunk(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, WT_LS
     WT_RET(__wt_lsm_tree_chunk_name(session, lsm_tree, chunk->id, chunk->generation, &chunk->uri));
 
     /*
-     * If the underlying file exists, drop the chunk first - there may be
-     * some content hanging over from an aborted merge or checkpoint.
+     * If the underlying file exists, drop the chunk first - there may be some content hanging over
+     * from an aborted merge or checkpoint.
      *
-     * Don't do this for the very first chunk: we are called during
-     * WT_SESSION::create, and doing a drop inside there does interesting
-     * things with handle locks and metadata tracking.  It can never have
-     * been the result of an interrupted merge, anyway.
+     * Don't do this for the very first chunk: we are called during WT_SESSION::create, and doing a
+     * drop inside there does interesting things with handle locks and metadata tracking. It can
+     * never have been the result of an interrupted merge, anyway.
      */
     if (chunk->id > 1)
         WT_RET(__lsm_tree_cleanup_old(session, chunk->uri));
@@ -440,9 +439,9 @@ __lsm_tree_open_check(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 
     required = WT_LSM_TREE_MINIMUM_SIZE(lsm_tree->chunk_size, lsm_tree->merge_max, maxleafpage);
     if (conn->cache_size < required)
-        WT_RET_MSG(session, EINVAL, "LSM cache size %" PRIu64 " (%" PRIu64
-                                    "MB) too small, "
-                                    "must be at least %" PRIu64 " (%" PRIu64 "MB)",
+        WT_RET_MSG(session, EINVAL,
+          "LSM cache size %" PRIu64 " (%" PRIu64 "MB) too small, must be at least %" PRIu64
+          " (%" PRIu64 "MB)",
           conn->cache_size, conn->cache_size / WT_MEGABYTE, required,
           (required + (WT_MEGABYTE - 1)) / WT_MEGABYTE);
     return (0);
@@ -660,8 +659,7 @@ __wt_lsm_tree_throttle(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, bool dec
     /*
      * Merge throttling, based on the number of on-disk, level 0 chunks.
      *
-     * Don't throttle if the tree has less than a single level's number
-     * of chunks.
+     * Don't throttle if the tree has less than a single level's number of chunks.
      */
     if (F_ISSET(lsm_tree, WT_LSM_TREE_MERGES)) {
         if (lsm_tree->nchunks < lsm_tree->merge_max)
@@ -783,7 +781,7 @@ err:
      * progress. Error out of WiredTiger.
      */
     if (ret != 0)
-        WT_PANIC_RET(session, ret, "Failed doing LSM switch");
+        WT_RET_PANIC(session, ret, "Failed doing LSM switch");
     else if (!first_switch)
         WT_RET(__wt_lsm_manager_push_entry(session, WT_LSM_WORK_FLUSH, 0, lsm_tree));
     return (ret);
@@ -1085,8 +1083,9 @@ __wt_lsm_compact(WT_SESSION_IMPL *session, const char *name, bool *skipp)
      * There is no work to do if there is only a single chunk in the tree and it has a bloom filter
      * or is configured to never have a bloom filter.
      */
-    if (lsm_tree->nchunks == 1 && (!FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_OLDEST) ||
-                                    F_ISSET(lsm_tree->chunk[0], WT_LSM_CHUNK_BLOOM))) {
+    if (lsm_tree->nchunks == 1 &&
+      (!FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_OLDEST) ||
+        F_ISSET(lsm_tree->chunk[0], WT_LSM_CHUNK_BLOOM))) {
         __wt_lsm_tree_release(session, lsm_tree);
         return (0);
     }
@@ -1176,9 +1175,8 @@ __wt_lsm_compact(WT_SESSION_IMPL *session, const char *name, bool *skipp)
         if (flushing) {
             WT_ASSERT(session, chunk != NULL);
             if (F_ISSET(chunk, WT_LSM_CHUNK_ONDISK)) {
-                __wt_verbose(session, WT_VERB_LSM, "Compact flush done %s chunk %" PRIu32
-                                                   ". "
-                                                   "Start compacting progress %" PRIu64,
+                __wt_verbose(session, WT_VERB_LSM,
+                  "Compact flush done %s chunk %" PRIu32 ". Start compacting progress %" PRIu64,
                   name, chunk->id, lsm_tree->merge_progressing);
                 (void)__wt_atomic_sub32(&chunk->refcnt, 1);
                 flushing = ref = false;

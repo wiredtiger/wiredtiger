@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -11,13 +11,12 @@
 /*
  * Walking backwards through skip lists.
  *
- * The skip list stack is an array of pointers set up by a search.  It points
- * to the position a node should go in the skip list.  In other words, the skip
- * list search stack always points *after* the search item (that is, into the
- * search item's next array).
+ * The skip list stack is an array of pointers set up by a search. It points to the position a node
+ * should go in the skip list. In other words, the skip list search stack always points *after* the
+ * search item (that is, into the search item's next array).
  *
- * Helper macros to go from a stack pointer at level i, pointing into a next
- * array, back to the insert node containing that next array.
+ * Helper macros to go from a stack pointer at level i, pointing into a next array, back to the
+ * insert node containing that next array.
  */
 #undef PREV_ITEM
 #define PREV_ITEM(ins_head, insp, i)                      \
@@ -41,7 +40,7 @@ __cursor_skip_prev(WT_CURSOR_BTREE *cbt)
     uint64_t recno;
     int i;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
 restart:
     /*
@@ -49,7 +48,7 @@ restart:
      */
     recno = WT_INSERT_RECNO(cbt->ins);
     while ((current = cbt->ins) != PREV_INS(cbt, 0)) {
-        if (cbt->btree->type == BTREE_ROW) {
+        if (CUR2BT(cbt)->type == BTREE_ROW) {
             key.data = WT_INSERT_KEY(current);
             key.size = WT_INSERT_KEY_SIZE(current);
             WT_RET(__wt_search_insert(session, cbt, cbt->ins_head, &key));
@@ -73,13 +72,11 @@ restart:
             break;
 
     /*
-     * Find a starting point for the new search.  That is either at the
-     * non-moving node if we found a valid node, or the beginning of the
-     * next list down that is not the current node.
+     * Find a starting point for the new search. That is either at the non-moving node if we found a
+     * valid node, or the beginning of the next list down that is not the current node.
      *
-     * Since it is the beginning of a list, and we know the current node is
-     * has a skip depth at least this high, any node we find must sort
-     * before the current node.
+     * Since it is the beginning of a list, and we know the current node is has a skip depth at
+     * least this high, any node we find must sort before the current node.
      */
     if (ins == NULL || ins == current)
         for (; i >= 0; i--) {
@@ -126,9 +123,8 @@ static inline int
 __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -200,14 +196,15 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->v = 0;
         cbt->iface.value.data = &cbt->v;
     } else {
-        upd = NULL;
-    restart_read:
-        WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
-        if (upd == NULL) {
+restart_read:
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, NULL));
+        if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
-        } else
-            cbt->iface.value.data = upd->data;
+        } else if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
+            cbt->iface.value.data = cbt->upd_value->buf.data;
+        else
+            WT_RET(__wt_value_return(cbt, cbt->upd_value));
     }
     cbt->iface.value.size = 1;
     return (0);
@@ -223,9 +220,8 @@ __cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_BTREE *btree;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     page = cbt->ref->page;
     btree = S2BT(session);
 
@@ -253,15 +249,21 @@ new_page:
     cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
     if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
         cbt->ins = NULL;
-    upd = NULL;
+    /*
+     * FIXME-WT-6127: Now we only do transaction read if we have an update chain and it doesn't work
+     * in durable history. Review this when we have a plan for fixed-length column store.
+     */
+    __wt_upd_value_clear(cbt->upd_value);
     if (cbt->ins != NULL)
-    restart_read:
-    WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
-    if (upd == NULL) {
+restart_read:
+        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins->upd, NULL));
+    if (cbt->upd_value->type == WT_UPDATE_INVALID) {
         cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
         cbt->iface.value.data = &cbt->v;
-    } else
-        cbt->iface.value.data = upd->data;
+    } else if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
+        cbt->iface.value.data = cbt->upd_value->buf.data;
+    else
+        WT_RET(__wt_value_return(cbt, cbt->upd_value));
     cbt->iface.value.size = 1;
     return (0);
 }
@@ -271,12 +273,12 @@ new_page:
  *     Return the previous variable-length entry on the append list.
  */
 static inline int
-__cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
+__cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
 {
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
+    *skippedp = 0;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -289,21 +291,25 @@ __cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 
     for (;;) {
         WT_RET(__cursor_skip_prev(cbt));
-    new_page:
+new_page:
         if (cbt->ins == NULL)
             return (WT_NOTFOUND);
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
-    restart_read:
-        WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
-        if (upd == NULL)
-            continue;
-        if (upd->type == WT_UPDATE_TOMBSTONE) {
-            if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
-                ++cbt->page_deleted_count;
+restart_read:
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, NULL));
+        if (cbt->upd_value->type == WT_UPDATE_INVALID) {
+            ++*skippedp;
             continue;
         }
-        return (__wt_value_return(session, cbt, upd));
+        if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
+            if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
+              __wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                ++cbt->page_deleted_count;
+            ++*skippedp;
+            continue;
+        }
+        return (__wt_value_return(cbt, cbt->upd_value));
     }
     /* NOTREACHED */
 }
@@ -313,21 +319,21 @@ __cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
  *     Move to the previous, variable-length column-store item.
  */
 static inline int
-__cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
+__cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
 {
     WT_CELL *cell;
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_KV unpack;
     WT_COL *cip;
     WT_INSERT *ins;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
     uint64_t rle_start;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     page = cbt->ref->page;
 
     rle_start = 0; /* -Werror=maybe-uninitialized */
+    *skippedp = 0;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -351,11 +357,11 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     for (;;) {
         __cursor_set_recno(cbt, cbt->recno - 1);
 
-    new_page:
+new_page:
         if (cbt->recno < cbt->ref->ref_recno)
             return (WT_NOTFOUND);
 
-    restart_read:
+restart_read:
         /* Find the matching WT_COL slot. */
         if ((cip = __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
             return (WT_NOTFOUND);
@@ -364,40 +370,41 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         /* Check any insert list for a matching record. */
         cbt->ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
         cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
-        upd = NULL;
+        __wt_upd_value_clear(cbt->upd_value);
         if (cbt->ins != NULL)
-            WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
-        if (upd != NULL) {
-            if (upd->type == WT_UPDATE_TOMBSTONE) {
-                if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
+            WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, NULL));
+        if (cbt->upd_value->type != WT_UPDATE_INVALID) {
+            if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
+                if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
+                  __wt_txn_upd_value_visible_all(session, cbt->upd_value))
                     ++cbt->page_deleted_count;
+                ++*skippedp;
                 continue;
             }
-            return (__wt_value_return(session, cbt, upd));
+            return (__wt_value_return(cbt, cbt->upd_value));
         }
 
         /*
-         * If we're at the same slot as the last reference and there's
-         * no matching insert list item, re-use the return information
-         * (so encoded items with large repeat counts aren't repeatedly
-         * decoded).  Otherwise, unpack the cell and build the return
-         * information.
+         * If we're at the same slot as the last reference and there's no matching insert list item,
+         * re-use the return information (so encoded items with large repeat counts aren't
+         * repeatedly decoded). Otherwise, unpack the cell and build the return information.
          */
         if (cbt->cip_saved != cip) {
             cell = WT_COL_PTR(page, cip);
-            __wt_cell_unpack(session, page, cell, &unpack);
+            __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
             if (unpack.type == WT_CELL_DEL) {
-                if (__wt_cell_rle(&unpack) == 1)
+                if (__wt_cell_rle(&unpack) == 1) {
+                    ++*skippedp;
                     continue;
+                }
+
                 /*
-                 * There can be huge gaps in the variable-length
-                 * column-store name space appearing as deleted
-                 * records. If more than one deleted record, do
-                 * the work of finding the next record to return
-                 * instead of looping through the records.
+                 * There can be huge gaps in the variable-length column-store name space appearing
+                 * as deleted records. If more than one deleted record, do the work of finding the
+                 * next record to return instead of looping through the records.
                  *
-                 * First, find the largest record in the update
-                 * list that's smaller than the current record.
+                 * First, find the largest record in the update list that's smaller than the current
+                 * record.
                  */
                 ins = __col_insert_search_lt(cbt->ins_head, cbt->recno);
 
@@ -413,11 +420,17 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 
                 /* Adjust for the outer loop decrement. */
                 ++cbt->recno;
+                ++*skippedp;
                 continue;
             }
-            WT_RET(__wt_page_cell_data_ref(session, page, &unpack, cbt->tmp));
 
-            cbt->cip_saved = cip;
+            WT_RET(__wt_bt_col_var_cursor_walk_txn_read(session, cbt, page, &unpack, cip));
+            if (cbt->upd_value->type == WT_UPDATE_INVALID ||
+              cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
+                ++*skippedp;
+                continue;
+            }
+            return (0);
         }
         cbt->iface.value.data = cbt->tmp->data;
         cbt->iface.value.size = cbt->tmp->size;
@@ -431,18 +444,20 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
  *     Move to the previous row-store item.
  */
 static inline int
-__cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
+__cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
 {
+    WT_CELL_UNPACK_KV kpack;
     WT_INSERT *ins;
     WT_ITEM *key;
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
+    bool kpack_used;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     page = cbt->ref->page;
     key = &cbt->iface.key;
+    *skippedp = 0;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart) {
@@ -454,13 +469,11 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     cbt->iter_retry = WT_CBT_RETRY_NOTSET;
 
     /*
-     * For row-store pages, we need a single item that tells us the part
-     * of the page we're walking (otherwise switching from next to prev
-     * and vice-versa is just too complicated), so we map the WT_ROW and
-     * WT_INSERT_HEAD insert array slots into a single name space: slot 1
-     * is the "smallest key insert list", slot 2 is WT_ROW[0], slot 3 is
-     * WT_INSERT_HEAD[0], and so on.  This means WT_INSERT lists are
-     * odd-numbered slots, and WT_ROW array slots are even-numbered slots.
+     * For row-store pages, we need a single item that tells us the part of the page we're walking
+     * (otherwise switching from next to prev and vice-versa is just too complicated), so we map the
+     * WT_ROW and WT_INSERT_HEAD insert array slots into a single name space: slot 1 is the
+     * "smallest key insert list", slot 2 is WT_ROW[0], slot 3 is WT_INSERT_HEAD[0], and so on. This
+     * means WT_INSERT lists are odd-numbered slots, and WT_ROW array slots are even-numbered slots.
      *
      * Initialize for each new page.
      */
@@ -495,21 +508,25 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         if (cbt->ins != NULL)
             WT_RET(__cursor_skip_prev(cbt));
 
-    new_insert:
+new_insert:
         cbt->iter_retry = WT_CBT_RETRY_INSERT;
-    restart_read_insert:
+restart_read_insert:
         if ((ins = cbt->ins) != NULL) {
-            WT_RET(__wt_txn_read(session, ins->upd, &upd));
-            if (upd == NULL)
-                continue;
-            if (upd->type == WT_UPDATE_TOMBSTONE) {
-                if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
-                    ++cbt->page_deleted_count;
-                continue;
-            }
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
-            return (__wt_value_return(session, cbt, upd));
+            WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd, NULL));
+            if (cbt->upd_value->type == WT_UPDATE_INVALID) {
+                ++*skippedp;
+                continue;
+            }
+            if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
+                if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
+                  __wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                    ++cbt->page_deleted_count;
+                ++*skippedp;
+                continue;
+            }
+            return (__wt_value_return(cbt, cbt->upd_value));
         }
 
         /* Check for the beginning of the page. */
@@ -533,15 +550,23 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 
         cbt->iter_retry = WT_CBT_RETRY_PAGE;
         cbt->slot = cbt->row_iteration_slot / 2 - 1;
-    restart_read_page:
+restart_read_page:
         rip = &page->pg_row[cbt->slot];
-        WT_RET(__wt_txn_read(session, WT_ROW_UPDATE(page, rip), &upd));
-        if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
-            if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
-                ++cbt->page_deleted_count;
+        WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
+        WT_RET(__wt_txn_read(
+          session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip), NULL));
+        if (cbt->upd_value->type == WT_UPDATE_INVALID) {
+            ++*skippedp;
             continue;
         }
-        return (__cursor_row_slot_return(cbt, rip, upd));
+        if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
+            if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
+              __wt_txn_upd_value_visible_all(session, cbt->upd_value))
+                ++cbt->page_deleted_count;
+            ++*skippedp;
+            continue;
+        }
+        return (__wt_value_return(cbt, cbt->upd_value));
     }
     /* NOTREACHED */
 }
@@ -557,11 +582,13 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     WT_DECL_RET;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
+    size_t total_skipped, skipped;
     uint32_t flags;
     bool newpage, restart;
 
     cursor = &cbt->iface;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
+    total_skipped = 0;
 
     WT_STAT_CONN_INCR(session, cursor_prev);
     WT_STAT_DATA_INCR(session, cursor_prev);
@@ -604,7 +631,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
                 ret = __cursor_fix_append_prev(cbt, newpage, restart);
                 break;
             case WT_PAGE_COL_VAR:
-                ret = __cursor_var_append_prev(cbt, newpage, restart);
+                ret = __cursor_var_append_prev(cbt, newpage, restart, &skipped);
+                total_skipped += skipped;
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, page->type));
@@ -622,10 +650,12 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
                 ret = __cursor_fix_prev(cbt, newpage, restart);
                 break;
             case WT_PAGE_COL_VAR:
-                ret = __cursor_var_prev(cbt, newpage, restart);
+                ret = __cursor_var_prev(cbt, newpage, restart, &skipped);
+                total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
-                ret = __cursor_row_prev(cbt, newpage, restart);
+                ret = __cursor_row_prev(cbt, newpage, restart, &skipped);
+                total_skipped += skipped;
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, page->type));
@@ -639,10 +669,16 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
          * and only saw deleted records, try to evict the page when we release it. Otherwise
          * repeatedly deleting from the beginning of a tree can have quadratic performance. Take
          * care not to force eviction of pages that are genuinely empty, in new trees.
+         *
+         * A visible stop timestamp could have been treated as a tombstone and accounted in the
+         * deleted count. Such a page might not have any new updates and be clean, but could benefit
+         * from reconciliation getting rid of the obsolete content. Hence mark the page dirty to
+         * force it through reconciliation.
          */
-        if (page != NULL && (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
-                              (newpage && cbt->page_deleted_count > 0))) {
-            __wt_page_evict_soon(session, cbt->ref);
+        if (page != NULL &&
+          (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
+            (newpage && cbt->page_deleted_count > 0))) {
+            WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
             WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
         }
         cbt->page_deleted_count = 0;
@@ -650,26 +686,33 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
         WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
-        WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND);
+        WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
     }
 
 err:
+    if (total_skipped < 100) {
+        WT_STAT_CONN_INCR(session, cursor_prev_skip_lt_100);
+        WT_STAT_DATA_INCR(session, cursor_prev_skip_lt_100);
+    } else {
+        WT_STAT_CONN_INCR(session, cursor_prev_skip_ge_100);
+        WT_STAT_DATA_INCR(session, cursor_prev_skip_ge_100);
+    }
+
+    WT_STAT_CONN_INCRV(session, cursor_prev_skip_total, total_skipped);
+    WT_STAT_DATA_INCRV(session, cursor_prev_skip_total, total_skipped);
+
     switch (ret) {
     case 0:
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 #ifdef HAVE_DIAGNOSTIC
         /*
-         * Skip key order check, if next is called after a prev returned
-         * a prepare conflict error, i.e cursor has changed direction
-         * at a prepared update, hence current key returned could be
-         * same as earlier returned key.
+         * Skip key order check, if next is called after a prev returned a prepare conflict error,
+         * i.e cursor has changed direction at a prepared update, hence current key returned could
+         * be same as earlier returned key.
          *
-         * eg: Initial data set : (2,3,...10)
-         * insert key 1 in a prepare transaction.
-         * loop on prev will return 10,...3,2 and subsequent call to
-         * prev will return a prepare conflict. Now if we call next
-         * key 2 will be returned which will be same as earlier
-         * returned key.
+         * eg: Initial data set : (2,3,...10) insert key 1 in a prepare transaction. loop on prev
+         * will return 10,...3,2 and subsequent call to prev will return a prepare conflict. Now if
+         * we call next key 2 will be returned which will be same as earlier returned key.
          */
         if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT))
             ret = __wt_cursor_key_order_check(session, cbt, false);

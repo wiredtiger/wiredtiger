@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -19,12 +19,34 @@ __curindex_get_value(WT_CURSOR *cursor, ...)
     WT_SESSION_IMPL *session;
     va_list ap;
 
-    va_start(ap, cursor);
     JOINABLE_CURSOR_API_CALL(cursor, session, get_value, NULL);
-    WT_ERR(__wt_curindex_get_valuev(cursor, ap));
+
+    va_start(ap, cursor);
+    ret = __wt_curindex_get_valuev(cursor, ap);
+    va_end(ap);
 
 err:
-    va_end(ap);
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curindex_set_valuev --
+ *     WT_CURSOR->set_value implementation for index cursors.
+ */
+static int
+__curindex_set_valuev(WT_CURSOR *cursor, va_list ap)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    WT_UNUSED(ap);
+
+    JOINABLE_CURSOR_API_CALL(cursor, session, set_value, NULL);
+    WT_ERR_MSG(session, ENOTSUP, "WT_CURSOR.set_value not supported for index cursors");
+
+err:
+    cursor->saved_err = ret;
+    F_CLR(cursor, WT_CURSTD_VALUE_SET);
     API_END_RET(session, ret);
 }
 
@@ -35,16 +57,11 @@ err:
 static void
 __curindex_set_value(WT_CURSOR *cursor, ...)
 {
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
+    va_list ap;
 
-    JOINABLE_CURSOR_API_CALL(cursor, session, set_value, NULL);
-    WT_ERR_MSG(session, ENOTSUP, "WT_CURSOR.set_value not supported for index cursors");
-
-err:
-    cursor->saved_err = ret;
-    F_CLR(cursor, WT_CURSTD_VALUE_SET);
-    API_END(session, ret);
+    va_start(ap, cursor);
+    WT_IGNORE_RET(__curindex_set_valuev(cursor, ap));
+    va_end(ap);
 }
 
 /*
@@ -86,7 +103,7 @@ __curindex_move(WT_CURSOR_INDEX *cindex)
     WT_SESSION_IMPL *session;
     u_int i;
 
-    session = (WT_SESSION_IMPL *)cindex->iface.session;
+    session = CUR2S(cindex);
     first = NULL;
 
     /* Point the public cursor to the key in the child. */
@@ -209,11 +226,9 @@ __curindex_search(WT_CURSOR *cursor)
     JOINABLE_CURSOR_API_CALL(cursor, session, search, NULL);
 
     /*
-     * We are searching using the application-specified key, which
-     * (usually) doesn't contain the primary key, so it is just a prefix of
-     * any matching index key.  Do a search_near, step to the next entry if
-     * we land on one that is too small, then check that the prefix
-     * matches.
+     * We are searching using the application-specified key, which (usually) doesn't contain the
+     * primary key, so it is just a prefix of any matching index key. Do a search_near, step to the
+     * next entry if we land on one that is too small, then check that the prefix matches.
      */
     __wt_cursor_set_raw_key(child, &cursor->key);
     WT_ERR(child->search_near(child, &cmp));
@@ -222,15 +237,14 @@ __curindex_search(WT_CURSOR *cursor)
         WT_ERR(child->next(child));
 
     /*
-     * We expect partial matches, and want the smallest record with a key
-     * greater than or equal to the search key.
+     * We expect partial matches, and want the smallest record with a key greater than or equal to
+     * the search key.
      *
-     * If the key we find is shorter than the search key, it can't possibly
-     * match.
+     * If the key we find is shorter than the search key, it can't possibly match.
      *
-     * The only way for the key to be exactly equal is if there is an index
-     * on the primary key, because otherwise the primary key columns will
-     * be appended to the index key, but we don't disallow that (odd) case.
+     * The only way for the key to be exactly equal is if there is an index on the primary key,
+     * because otherwise the primary key columns will be appended to the index key, but we don't
+     * disallow that (odd) case.
      */
     found_key = child->key;
     if (found_key.size < cursor->key.size)
@@ -281,15 +295,12 @@ __curindex_search_near(WT_CURSOR *cursor, int *exact)
     JOINABLE_CURSOR_API_CALL(cursor, session, search, NULL);
 
     /*
-     * We are searching using the application-specified key, which
-     * (usually) doesn't contain the primary key, so it is just a prefix of
-     * any matching index key.  That said, if there is an exact match, we
-     * want to find the first matching index entry and set exact equal to
-     * zero.
+     * We are searching using the application-specified key, which (usually) doesn't contain the
+     * primary key, so it is just a prefix of any matching index key. That said, if there is an
+     * exact match, we want to find the first matching index entry and set exact equal to zero.
      *
-     * Do a search_near, and if we find an entry that is too small, step to
-     * the next one.  In the unlikely event of a search past the end of the
-     * tree, go back to the last key.
+     * Do a search_near, and if we find an entry that is too small, step to the next one. In the
+     * unlikely event of a search past the end of the tree, go back to the last key.
      */
     __wt_cursor_set_raw_key(child, &cursor->key);
     WT_ERR(child->search_near(child, &cmp));
@@ -301,14 +312,14 @@ __curindex_search_near(WT_CURSOR *cursor, int *exact)
     }
 
     /*
-     * We expect partial matches, and want the smallest record with a key
-     * greater than or equal to the search key.
+     * We expect partial matches, and want the smallest record with a key greater than or equal to
+     * the search key.
      *
-     * If the found key starts with the search key, we indicate a match by
-     * setting exact equal to zero.
+     * If the found key starts with the search key, we indicate a match by setting exact equal to
+     * zero.
      *
-     * The compare function expects application-supplied keys to come first
-     * so we flip the sign of the result to match what callers expect.
+     * The compare function expects application-supplied keys to come first so we flip the sign of
+     * the result to match what callers expect.
      */
     found_key = child->key;
     if (found_key.size > cursor->key.size) {
@@ -498,8 +509,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
      */
     if (WT_CURSOR_RECNO(cursor))
         WT_ERR_MSG(session, WT_ERROR,
-          "Column store indexes based on a record number primary "
-          "key are not supported");
+          "Column store indexes based on a record number primary key are not supported");
 
     /* Handle projections. */
     if (columns != NULL) {

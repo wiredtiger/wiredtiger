@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -52,23 +52,21 @@ typedef struct {
 } LZ4_COMPRESSOR;
 
 /*
- * LZ4 decompression requires the exact compressed byte count returned by the
- * LZ4_compress_default and LZ4_compress_destSize functions. WiredTiger doesn't
- * track that value, store it in the destination buffer.
+ * LZ4 decompression requires the exact compressed byte count returned by the LZ4_compress_default
+ * and LZ4_compress_destSize functions. WiredTiger doesn't track that value, store it in the
+ * destination buffer.
  *
- * Additionally, LZ4_compress_destSize may compress into the middle of a record,
- * and after decompression we return the length to the last record successfully
- * decompressed, not the number of bytes decompressed; store that value in the
- * destination buffer as well.
+ * Additionally, LZ4_compress_destSize may compress into the middle of a record, and after
+ * decompression we return the length to the last record successfully decompressed, not the number
+ * of bytes decompressed; store that value in the destination buffer as well.
  *
- * (Since raw compression has been removed from WiredTiger, the lz4 compression
- * code no longer calls LZ4_compress_destSize. Some support remains to support
- * existing compressed objects.)
+ * (Since raw compression has been removed from WiredTiger, the lz4 compression code no longer calls
+ * LZ4_compress_destSize. Some support remains to support existing compressed objects.)
  *
  * Use fixed-size, 4B values (WiredTiger never writes buffers larger than 4GB).
  *
- * The unused field is available for a mode flag if one is needed in the future,
- * we guarantee it's 0.
+ * The unused field is available for a mode flag if one is needed in the future, we guarantee it's
+ * 0.
  */
 typedef struct {
     uint32_t compressed_len;   /* True compressed length */
@@ -183,27 +181,24 @@ lz4_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, siz
     lz4_prefix_swap(&prefix);
 #endif
     if (prefix.compressed_len + sizeof(LZ4_PREFIX) > src_len) {
-        (void)wt_api->err_printf(wt_api, session,
-          "WT_COMPRESSOR.decompress: stored size exceeds source "
-          "size");
+        (void)wt_api->err_printf(
+          wt_api, session, "WT_COMPRESSOR.decompress: stored size exceeds source size");
         return (WT_ERROR);
     }
 
     /*
-     * Decompress, starting after the prefix bytes. Use safe decompression:
-     * we rely on decompression to detect corruption.
+     * Decompress, starting after the prefix bytes. Use safe decompression: we rely on decompression
+     * to detect corruption.
      *
-     * Two code paths, one with and one without a bounce buffer. When doing
-     * raw compression, we compress to a target size irrespective of row
-     * boundaries, and return to our caller a "useful" compression length
-     * based on the last complete row that was compressed. Our caller stores
-     * that length, not the length of bytes actually compressed by LZ4. In
-     * other words, our caller doesn't know how many bytes will result from
-     * decompression, likely hasn't provided us a large enough buffer, and
-     * we have to allocate a scratch buffer.
+     * Two code paths, one with and one without a bounce buffer. When doing raw compression, we
+     * compress to a target size irrespective of row boundaries, and return to our caller a "useful"
+     * compression length based on the last complete row that was compressed. Our caller stores that
+     * length, not the length of bytes actually compressed by LZ4. In other words, our caller
+     * doesn't know how many bytes will result from decompression, likely hasn't provided us a large
+     * enough buffer, and we have to allocate a scratch buffer.
      *
-     * Even though raw compression has been removed from WiredTiger, this
-     * code remains for backward compatibility with existing objects.
+     * Even though raw compression has been removed from WiredTiger, this code remains for backward
+     * compatibility with existing objects.
      */
     if (dst_len < prefix.uncompressed_len) {
         if ((dst_tmp = wt_api->scr_alloc(wt_api, session, (size_t)prefix.uncompressed_len)) == NULL)

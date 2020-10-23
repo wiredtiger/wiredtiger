@@ -1,35 +1,38 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
 
+/* Get the session from any cursor. */
+#define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
+
 /*
  * Initialize a static WT_CURSOR structure.
  */
-#define WT_CURSOR_STATIC_INIT(n, get_key, get_value, set_key, set_value, compare, equals, next, \
-                              prev, reset, search, search_near, insert, modify, update, remove, \
-                              reserve, reconfigure, cache, reopen, close)                       \
-    static const WT_CURSOR n = {                                                                \
-      NULL, /* session */                                                                       \
-      NULL, /* uri */                                                                           \
-      NULL, /* key_format */                                                                    \
-      NULL, /* value_format */                                                                  \
-      get_key, get_value, set_key, set_value, compare, equals, next, prev, reset, search,       \
-      search_near, insert, modify, update, remove, reserve, close, reconfigure, cache, reopen,  \
-      0,                     /* uri_hash */                                                     \
-      {NULL, NULL},          /* TAILQ_ENTRY q */                                                \
-      0,                     /* recno key */                                                    \
-      {0},                   /* recno raw buffer */                                             \
-      NULL,                  /* json_private */                                                 \
-      NULL,                  /* lang_private */                                                 \
-      {NULL, 0, NULL, 0, 0}, /* WT_ITEM key */                                                  \
-      {NULL, 0, NULL, 0, 0}, /* WT_ITEM value */                                                \
-      0,                     /* int saved_err */                                                \
-      NULL,                  /* internal_uri */                                                 \
-      0                      /* uint32_t flags */                                               \
+#define WT_CURSOR_STATIC_INIT(n, get_key, get_value, set_key, set_value, compare, equals, next,  \
+  prev, reset, search, search_near, insert, modify, update, remove, reserve, reconfigure, cache, \
+  reopen, close)                                                                                 \
+    static const WT_CURSOR n = {                                                                 \
+      NULL, /* session */                                                                        \
+      NULL, /* uri */                                                                            \
+      NULL, /* key_format */                                                                     \
+      NULL, /* value_format */                                                                   \
+      get_key, get_value, set_key, set_value, compare, equals, next, prev, reset, search,        \
+      search_near, insert, modify, update, remove, reserve, close, reconfigure, cache, reopen,   \
+      0,                     /* uri_hash */                                                      \
+      {NULL, NULL},          /* TAILQ_ENTRY q */                                                 \
+      0,                     /* recno key */                                                     \
+      {0},                   /* recno raw buffer */                                              \
+      NULL,                  /* json_private */                                                  \
+      NULL,                  /* lang_private */                                                  \
+      {NULL, 0, NULL, 0, 0}, /* WT_ITEM key */                                                   \
+      {NULL, 0, NULL, 0, 0}, /* WT_ITEM value */                                                 \
+      0,                     /* int saved_err */                                                 \
+      NULL,                  /* internal_uri */                                                  \
+      0                      /* uint32_t flags */                                                \
     }
 
 struct __wt_cursor_backup {
@@ -37,28 +40,49 @@ struct __wt_cursor_backup {
 
     size_t next;     /* Cursor position */
     WT_FSTREAM *bfs; /* Backup file stream */
-    uint32_t maxid;  /* Maximum log file ID seen */
+
+#define WT_CURSOR_BACKUP_ID(cursor) (((WT_CURSOR_BACKUP *)(cursor))->maxid)
+    uint32_t maxid; /* Maximum log file ID seen */
 
     char **list; /* List of files to be copied. */
     size_t list_allocated;
     size_t list_next;
 
+    /* File offset-based incremental backup. */
+    WT_BLKINCR *incr_src; /* Incremental backup source */
+    char *incr_file;      /* File name */
+
+    WT_CURSOR *incr_cursor; /* File cursor */
+
+    WT_ITEM bitstring;    /* List of modified blocks */
+    uint64_t nbits;       /* Number of bits in bitstring */
+    uint64_t offset;      /* Zero bit offset in bitstring */
+    uint64_t bit_offset;  /* Current offset */
+    uint64_t granularity; /* Length, transfer size */
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CURBACKUP_DUP 0x1u    /* Duplicated backup cursor */
-#define WT_CURBACKUP_LOCKER 0x2u /* Hot-backup started */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint8_t flags;
+#define WT_CURBACKUP_CKPT_FAKE 0x001u   /* Object has fake checkpoint */
+#define WT_CURBACKUP_DUP 0x002u         /* Duplicated backup cursor */
+#define WT_CURBACKUP_FORCE_FULL 0x004u  /* Force full file copy for this cursor */
+#define WT_CURBACKUP_FORCE_STOP 0x008u  /* Force stop incremental backup */
+#define WT_CURBACKUP_HAS_CB_INFO 0x010u /* Object has checkpoint backup info */
+#define WT_CURBACKUP_INCR 0x020u        /* Incremental backup cursor */
+#define WT_CURBACKUP_INCR_INIT 0x040u   /* Cursor traversal initialized */
+#define WT_CURBACKUP_LOCKER 0x080u      /* Hot-backup started */
+#define WT_CURBACKUP_RENAME 0x100u      /* Object had a rename */
+                                        /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t flags;
 };
-#define WT_CURSOR_BACKUP_ID(cursor) (((WT_CURSOR_BACKUP *)(cursor))->maxid)
+
+/* Get the WT_BTREE from any WT_CURSOR/WT_CURSOR_BTREE. */
+#define CUR2BT(c)                                \
+    (((WT_CURSOR_BTREE *)(c))->dhandle == NULL ? \
+        NULL :                                   \
+        (WT_BTREE *)((WT_CURSOR_BTREE *)(c))->dhandle->handle)
 
 struct __wt_cursor_btree {
     WT_CURSOR iface;
 
-    /*
-     * The btree field is safe to use when the cursor is open. When the cursor is cached, the btree
-     * may be closed, so it is only safe initially to look at the underlying data handle.
-     */
-    WT_BTREE *btree;         /* Enclosing btree */
     WT_DATA_HANDLE *dhandle; /* Data handle for the btree */
 
     /*
@@ -145,13 +169,15 @@ struct __wt_cursor_btree {
     WT_ROW *rip_saved; /* Last-returned key reference */
 
     /*
-     * A temporary buffer for caching RLE values for column-store files (if
-     * RLE is non-zero, then we don't unpack the value every time we move
-     * to the next cursor position, we re-use the unpacked value we stored
-     * here the first time we hit the value).
+     * A temporary buffer, used in a few different ways:
      *
-     * A temporary buffer for building on-page keys when searching row-store
-     * files.
+     * 1) For caching RLE values for column-store files (if RLE is non-zero, then we don't unpack
+     * the value every time we move to the next cursor position, we re-use the unpacked value we
+     * stored here the first time we hit the value).
+     *
+     * 2) For building on-page keys when searching row-store files.
+     *
+     * 3) For tracking random return values to avoid repetition.
      */
     WT_ITEM *tmp, _tmp;
 
@@ -159,7 +185,10 @@ struct __wt_cursor_btree {
      * The update structure allocated by the row- and column-store modify functions, used to avoid a
      * data copy in the WT_CURSOR.update call.
      */
-    WT_UPDATE *modify_update;
+    WT_UPDATE_VALUE *modify_update, _modify_update;
+
+    /* An intermediate structure to hold the update value to be assigned to the cursor buffer. */
+    WT_UPDATE_VALUE *upd_value, _upd_value;
 
     /*
      * Fixed-length column-store items are a single byte, and it's simpler and cheaper to allocate
@@ -188,11 +217,12 @@ struct __wt_cursor_btree {
 #define WT_CBT_ITERATE_PREV 0x008u       /* Prev iteration configuration */
 #define WT_CBT_ITERATE_RETRY_NEXT 0x010u /* Prepare conflict by next. */
 #define WT_CBT_ITERATE_RETRY_PREV 0x020u /* Prepare conflict by prev. */
-#define WT_CBT_NO_TXN 0x040u             /* Non-txn cursor (e.g. a checkpoint) */
-#define WT_CBT_READ_ONCE 0x080u          /* Page in with WT_READ_WONT_NEED */
-#define WT_CBT_SEARCH_SMALLEST 0x100u    /* Row-store: small-key insert list */
-#define WT_CBT_VAR_ONPAGE_MATCH 0x200u   /* Var-store: on-page recno match */
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_CBT_NO_TRACKING 0x040u        /* Non tracking cursor. */
+#define WT_CBT_NO_TXN 0x080u             /* Non-txn cursor (e.g. a checkpoint) */
+#define WT_CBT_READ_ONCE 0x100u          /* Page in with WT_READ_WONT_NEED */
+#define WT_CBT_SEARCH_SMALLEST 0x200u    /* Row-store: small-key insert list */
+#define WT_CBT_VAR_ONPAGE_MATCH 0x400u   /* Var-store: on-page recno match */
+    /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 #define WT_CBT_POSITION_MASK /* Flags associated with position */                      \
     (WT_CBT_ITERATE_APPEND | WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV |               \
@@ -263,26 +293,22 @@ struct __wt_cursor_index {
 };
 
 /*
- * A join iterator structure is used to generate candidate primary keys. It
- * is the responsibility of the caller of the iterator to filter these
- * primary key against the other conditions of the join before returning
- * them the caller of WT_CURSOR::next.
+ * A join iterator structure is used to generate candidate primary keys. It is the responsibility of
+ * the caller of the iterator to filter these primary key against the other conditions of the join
+ * before returning them the caller of WT_CURSOR::next.
  *
- * For a conjunction join (the default), entry_count will be 1, meaning that
- * the iterator only consumes the first entry (WT_CURSOR_JOIN_ENTRY).  That
- * is, it successively returns primary keys from a cursor for the first
- * index that was joined.  When the values returned by that cursor are
- * exhausted, the iterator has completed.  For a disjunction join,
- * exhausting a cursor just means that the iterator advances to the next
- * entry. If the next entry represents an index, a new cursor is opened and
- * primary keys from that index are then successively returned.
+ * For a conjunction join (the default), entry_count will be 1, meaning that the iterator only
+ * consumes the first entry (WT_CURSOR_JOIN_ENTRY). That is, it successively returns primary keys
+ * from a cursor for the first index that was joined. When the values returned by that cursor are
+ * exhausted, the iterator has completed. For a disjunction join, exhausting a cursor just means
+ * that the iterator advances to the next entry. If the next entry represents an index, a new cursor
+ * is opened and primary keys from that index are then successively returned.
  *
- * When positioned on an entry that represents a nested join, a new child
- * iterator is created that will be bound to the nested WT_CURSOR_JOIN.
- * That iterator is then used to generate candidate primary keys.  When its
- * iteration is completed, that iterator is destroyed and the parent
- * iterator advances to the next entry.  Thus, depending on how deeply joins
- * are nested, a similarly deep stack of iterators is created.
+ * When positioned on an entry that represents a nested join, a new child iterator is created that
+ * will be bound to the nested WT_CURSOR_JOIN. That iterator is then used to generate candidate
+ * primary keys. When its iteration is completed, that iterator is destroyed and the parent iterator
+ * advances to the next entry. Thus, depending on how deeply joins are nested, a similarly deep
+ * stack of iterators is created.
  */
 struct __wt_cursor_join_iter {
     WT_SESSION_IMPL *session;
@@ -480,4 +506,5 @@ struct __wt_cursor_table {
 
 #define WT_CURSOR_RECNO(cursor) WT_STREQ((cursor)->key_format, "r")
 
-#define WT_CURSOR_RAW_OK (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRINT | WT_CURSTD_RAW)
+#define WT_CURSOR_RAW_OK \
+    (WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY | WT_CURSTD_DUMP_PRINT | WT_CURSTD_RAW)

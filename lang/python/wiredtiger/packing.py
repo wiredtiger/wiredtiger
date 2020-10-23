@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -49,15 +49,9 @@ Format  Python  Notes
   u     str     raw byte array
 """
 
-try:
-    from wiredtiger.packutil import _chr, _is_string, _ord, _string_result, \
-        empty_pack, x00
-    from wiredtiger.intpacking import pack_int, unpack_int
-except ImportError:
-    # When WiredTiger is installed as a package, python2 needs this
-    from .packutil import _chr, _is_string, _ord, _string_result, \
-        empty_pack, x00
-    from intpacking import pack_int, unpack_int
+from wiredtiger.packutil import _chr, _is_string, _ord, _string_result, \
+    empty_pack, x00
+from wiredtiger.intpacking import pack_int, unpack_int
 
 def __get_type(fmt):
     if not fmt:

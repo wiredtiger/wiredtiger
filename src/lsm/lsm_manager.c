@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -261,7 +261,6 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_LSM_MANAGER *manager;
     WT_LSM_WORK_UNIT *current;
-    WT_SESSION *wt_session;
     uint64_t removed;
     uint32_t i;
 
@@ -303,10 +302,8 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
         }
 
         /* Close all LSM worker sessions. */
-        for (i = 0; i < WT_LSM_MAX_WORKERS; i++) {
-            wt_session = &manager->lsm_worker_cookies[i].session->iface;
-            WT_TRET(wt_session->close(wt_session, NULL));
-        }
+        for (i = 0; i < WT_LSM_MAX_WORKERS; i++)
+            WT_TRET(__wt_session_close_internal(manager->lsm_worker_cookies[i].session));
     }
     WT_STAT_CONN_INCRV(session, lsm_work_units_discarded, removed);
 
@@ -391,17 +388,15 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
             else if ((!lsm_tree->modified && lsm_tree->nchunks > 1) ||
               (lsm_tree->queue_ref == 0 && lsm_tree->nchunks > 1) ||
               (lsm_tree->merge_aggressiveness > WT_LSM_AGGRESSIVE_THRESHOLD &&
-                       !F_ISSET(lsm_tree, WT_LSM_TREE_COMPACTING)) ||
+                !F_ISSET(lsm_tree, WT_LSM_TREE_COMPACTING)) ||
               idlems > fillms) {
                 WT_ERR(__wt_lsm_manager_push_entry(session, WT_LSM_WORK_SWITCH, 0, lsm_tree));
                 WT_ERR(__wt_lsm_manager_push_entry(session, WT_LSM_WORK_DROP, 0, lsm_tree));
                 WT_ERR(__wt_lsm_manager_push_entry(session, WT_LSM_WORK_FLUSH, 0, lsm_tree));
                 WT_ERR(__wt_lsm_manager_push_entry(session, WT_LSM_WORK_BLOOM, 0, lsm_tree));
                 __wt_verbose(session, WT_VERB_LSM_MANAGER,
-                  "MGR %s: queue %" PRIu32
-                  " mod %d "
-                  "nchunks %" PRIu32 " flags %#" PRIx32 " aggressive %" PRIu32 " idlems %" PRIu64
-                  " fillms %" PRIu64,
+                  "MGR %s: queue %" PRIu32 " mod %d nchunks %" PRIu32 " flags %#" PRIx32
+                  " aggressive %" PRIu32 " idlems %" PRIu64 " fillms %" PRIu64,
                   lsm_tree->name, lsm_tree->queue_ref, lsm_tree->modified, lsm_tree->nchunks,
                   lsm_tree->flags, lsm_tree->merge_aggressiveness, idlems, fillms);
                 WT_ERR(__wt_lsm_manager_push_entry(session, WT_LSM_WORK_MERGE, 0, lsm_tree));
@@ -442,7 +437,7 @@ __lsm_worker_manager(void *arg)
 
     if (ret != 0) {
 err:
-        WT_PANIC_MSG(session, ret, "LSM worker manager thread error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "LSM worker manager thread error"));
     }
 
     /* Connection close waits on us to shutdown, let it know we're done. */
@@ -592,13 +587,11 @@ __wt_lsm_manager_push_entry(
     }
 
     /*
-     * Don't allow any work units unless a tree is active, this avoids
-     * races on shutdown between clearing out queues and pushing new
-     * work units.
+     * Don't allow any work units unless a tree is active, this avoids races on shutdown between
+     * clearing out queues and pushing new work units.
      *
-     * Increment the queue reference before checking the flag since
-     * on close, the flag is cleared and then the queue reference count
-     * is checked.
+     * Increment the queue reference before checking the flag since on close, the flag is cleared
+     * and then the queue reference count is checked.
      */
     (void)__wt_atomic_add32(&lsm_tree->queue_ref, 1);
     if (!lsm_tree->active) {

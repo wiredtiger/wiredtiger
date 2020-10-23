@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -210,11 +210,11 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
          * readers can keep queuing up in front of writers and
          * throughput is unstable.
          *
-         * If the maximum number of readers are already queued, wait
-         * until we can get a valid ticket.
+         * If the maximum allowed number of readers are already queued or there is a
+         * potential overflow, wait until we can get a valid ticket.
          */
         writers_active = old.u.s.next - old.u.s.current;
-        if (old.u.s.readers_queued > writers_active) {
+        if (old.u.s.readers_queued == UINT8_MAX || old.u.s.readers_queued > writers_active) {
 stall:
             __wt_cond_wait(session, l->cond_readers, 10 * WT_THOUSAND, NULL);
             continue;
@@ -228,7 +228,7 @@ stall:
         if (new.u.s.readers_queued++ == 0)
             new.u.s.reader = new.u.s.next;
         ticket = new.u.s.reader;
-
+        WT_ASSERT(session, new.u.s.readers_queued != 0);
         if (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v))
             break;
     }
@@ -402,10 +402,9 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
     /*
      * Wait for our group to start and any readers to drain.
      *
-     * We take care here to do an atomic read of the full 64-bit lock
-     * value.  Otherwise, reads are not guaranteed to be ordered and we
-     * could see no readers active from a different batch and decide that
-     * we have the lock.
+     * We take care here to do an atomic read of the full 64-bit lock value. Otherwise, reads are
+     * not guaranteed to be ordered and we could see no readers active from a different batch and
+     * decide that we have the lock.
      */
     for (pause_cnt = 0, old.u.v = l->u.v; ticket != old.u.s.current || old.u.s.readers_active != 0;
          pause_cnt++, old.u.v = l->u.v) {
@@ -460,9 +459,8 @@ __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
         /*
          * Allow the next batch to start.
          *
-         * If there are readers in the next group, swap queued readers
-         * to active: this could race with new readlock requests, so we
-         * have to spin.
+         * If there are readers in the next group, swap queued readers to active: this could race
+         * with new readlock requests, so we have to spin.
          */
         new.u.v = old.u.v;
         if (++new.u.s.current == new.u.s.reader) {

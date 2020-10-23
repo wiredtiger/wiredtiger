@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -327,17 +327,14 @@ __wt_block_verify_addr(
     WT_RET(__verify_filefrag_add(session, block, NULL, offset, size, false));
 
     /*
-     * It's tempting to try and flag a page as "verified" when we read it.
-     * That doesn't work because we may visit a page multiple times when
-     * verifying a single checkpoint (for example, when verifying the
-     * physical image of a row-store leaf page with overflow keys, the
-     * overflow keys are read when checking for key sort issues, and read
-     * again when more general overflow item checking is done).  This
-     * function is called by the btree verification code, once per logical
-     * visit in a checkpoint, so we can detect if a page is referenced
-     * multiple times within a single checkpoint.  This doesn't apply to
-     * the per-file list, because it is expected for the same btree blocks
-     * to appear in multiple checkpoints.
+     * It's tempting to try and flag a page as "verified" when we read it. That doesn't work because
+     * we may visit a page multiple times when verifying a single checkpoint (for example, when
+     * verifying the physical image of a row-store leaf page with overflow keys, the overflow keys
+     * are read when checking for key sort issues, and read again when more general overflow item
+     * checking is done). This function is called by the btree verification code, once per logical
+     * visit in a checkpoint, so we can detect if a page is referenced multiple times within a
+     * single checkpoint. This doesn't apply to the per-file list, because it is expected for the
+     * same btree blocks to appear in multiple checkpoints.
      *
      * Add the block to the per-checkpoint list.
      */
@@ -364,9 +361,8 @@ __verify_filefrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *typ
 
     /* Check each chunk against the total file size. */
     if (offset + size > block->size)
-        WT_RET_MSG(session, WT_ERROR, "fragment %" PRIuMAX "-%" PRIuMAX
-                                      " references "
-                                      "non-existent file blocks",
+        WT_RET_MSG(session, WT_ERROR,
+          "fragment %" PRIuMAX "-%" PRIuMAX " references non-existent file blocks",
           (uintmax_t)offset, (uintmax_t)(offset + size));
 
     frag = (uint64_t)WT_wt_off_TO_FRAG(block, offset);
@@ -376,10 +372,8 @@ __verify_filefrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *typ
     if (nodup)
         for (f = frag, i = 0; i < frags; ++f, ++i)
             if (__bit_test(block->fragfile, f))
-                WT_RET_MSG(session, WT_ERROR, "file fragment at %" PRIuMAX
-                                              " referenced "
-                                              "multiple times",
-                  (uintmax_t)offset);
+                WT_RET_MSG(session, WT_ERROR,
+                  "file fragment at %" PRIuMAX " referenced multiple times", (uintmax_t)offset);
 
     /* Add fragments to the file's fragment list. */
     __bit_nset(block->fragfile, frag, frag + (frags - 1));
@@ -401,14 +395,12 @@ __verify_filefrag_chk(WT_SESSION_IMPL *session, WT_BLOCK *block)
         return (0);
 
     /*
-     * It's OK if we have not verified blocks at the end of the file: that
-     * happens if the file is truncated during a checkpoint or load or was
-     * extended after writing a checkpoint.  We should never see unverified
-     * blocks anywhere else, though.
+     * It's OK if we have not verified blocks at the end of the file: that happens if the file is
+     * truncated during a checkpoint or load or was extended after writing a checkpoint. We should
+     * never see unverified blocks anywhere else, though.
      *
-     * I'm deliberately testing for a last fragment of 0, it makes no sense
-     * there would be no fragments verified, complain if the first fragment
-     * in the file wasn't verified.
+     * I'm deliberately testing for a last fragment of 0, it makes no sense there would be no
+     * fragments verified, complain if the first fragment in the file wasn't verified.
      */
     for (last = block->frags - 1; last != 0; --last) {
         if (__bit_test(block->fragfile, last))
@@ -463,9 +455,8 @@ __verify_ckptfrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset
      * outside of the checkpoint's stored size.
      */
     if (offset + size > block->verify_size)
-        WT_RET_MSG(session, WT_ERROR, "fragment %" PRIuMAX "-%" PRIuMAX
-                                      " references "
-                                      "file blocks outside the checkpoint",
+        WT_RET_MSG(session, WT_ERROR,
+          "fragment %" PRIuMAX "-%" PRIuMAX " references file blocks outside the checkpoint",
           (uintmax_t)offset, (uintmax_t)(offset + size));
 
     frag = (uint64_t)WT_wt_off_TO_FRAG(block, offset);
@@ -474,11 +465,10 @@ __verify_ckptfrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset
     /* It is illegal to reference a particular chunk more than once. */
     for (f = frag, i = 0; i < frags; ++f, ++i)
         if (!__bit_test(block->fragckpt, f))
-            WT_RET_MSG(session, WT_ERROR, "fragment at %" PRIuMAX
-                                          " referenced multiple "
-                                          "times in a single checkpoint or found in the "
-                                          "checkpoint but not listed in the checkpoint's "
-                                          "allocation list",
+            WT_RET_MSG(session, WT_ERROR,
+              "fragment at %" PRIuMAX
+              " referenced multiple times in a single checkpoint or found in the checkpoint but "
+              "not listed in the checkpoint's allocation list",
               (uintmax_t)offset);
 
     /* Remove fragments from the checkpoint's allocation list. */

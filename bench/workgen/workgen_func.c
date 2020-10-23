@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -47,6 +47,12 @@ uint64_t
 workgen_atomic_add64(uint64_t *vp, uint64_t v)
 {
     return (__wt_atomic_add64(vp, v));
+}
+
+void
+workgen_clock(uint64_t *clockp)
+{
+    *clockp = __wt_clock(NULL);
 }
 
 void

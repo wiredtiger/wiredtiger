@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,7 +32,7 @@ from wiredtiger import *
 from workgen import *
 
 context = Context()
-conn = wiredtiger_open("WT_TEST", "create,cache_size=500MB")
+conn = context.wiredtiger_open("create,cache_size=500MB")
 s = conn.open_session()
 tname = "file:test.wt"
 s.create(tname, 'key_format=S,value_format=S')

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -77,9 +77,7 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
              */
             WT_RET(__wt_txn_activity_check(session, &txn_active));
             if (txn_active)
-                WT_RET_MSG(session, ENOTSUP,
-                  "system must be quiescent"
-                  " for upgrade or downgrade");
+                WT_RET_MSG(session, ENOTSUP, "system must be quiescent for upgrade or downgrade");
         }
         F_SET(conn, WT_CONN_COMPATIBILITY);
     }
@@ -132,10 +130,11 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      */
     if (reconfig && conn->req_max_major != WT_CONN_COMPAT_NONE &&
       (conn->req_max_major < rel_major ||
-          (conn->req_max_major == rel_major && conn->req_max_minor < rel_minor)))
-        WT_RET_MSG(session, ENOTSUP, WT_COMPAT_MSG_PREFIX
-          "required max of %" PRIu16 ".%" PRIu16
-          "cannot be smaller than requested compatibility release %" PRIu16 ".%" PRIu16,
+        (conn->req_max_major == rel_major && conn->req_max_minor < rel_minor)))
+        WT_RET_MSG(session, ENOTSUP,
+          WT_COMPAT_MSG_PREFIX "required max of %" PRIu16 ".%" PRIu16
+                               "cannot be smaller than requested compatibility release %" PRIu16
+                               ".%" PRIu16,
           conn->req_max_major, conn->req_max_minor, rel_major, rel_minor);
 
     /*
@@ -144,10 +143,11 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      */
     if (reconfig && conn->req_min_major != WT_CONN_COMPAT_NONE &&
       (conn->req_min_major > rel_major ||
-          (conn->req_min_major == rel_major && conn->req_min_minor > rel_minor)))
-        WT_RET_MSG(session, ENOTSUP, WT_COMPAT_MSG_PREFIX
-          "required min of %" PRIu16 ".%" PRIu16
-          "cannot be larger than requested compatibility release %" PRIu16 ".%" PRIu16,
+        (conn->req_min_major == rel_major && conn->req_min_minor > rel_minor)))
+        WT_RET_MSG(session, ENOTSUP,
+          WT_COMPAT_MSG_PREFIX "required min of %" PRIu16 ".%" PRIu16
+                               "cannot be larger than requested compatibility release %" PRIu16
+                               ".%" PRIu16,
           conn->req_min_major, conn->req_min_minor, rel_major, rel_minor);
 
     conn->compat_major = rel_major;
@@ -174,7 +174,8 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
      * from an earlier run.
      */
     rel_major = rel_minor = WT_CONN_COMPAT_NONE;
-    if ((ret = __wt_metadata_search(session, WT_METADATA_COMPAT, &value)) == 0) {
+    WT_ERR_NOTFOUND_OK(__wt_metadata_search(session, WT_METADATA_COMPAT, &value), true);
+    if (ret == 0) {
         WT_ERR(__wt_config_getones(session, value, "major", &cval));
         rel_major = (uint16_t)cval.val;
         WT_ERR(__wt_config_getones(session, value, "minor", &cval));
@@ -193,15 +194,12 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
               min_major, min_minor, rel_major, rel_minor);
     } else if (ret == WT_NOTFOUND)
         ret = 0;
-    else
-        WT_ERR(ret);
 
 done:
     conn->req_max_major = max_major;
     conn->req_max_minor = max_minor;
     conn->req_min_major = min_major;
     conn->req_min_minor = min_minor;
-
 err:
     __wt_free(session, value);
 
@@ -238,9 +236,8 @@ __wt_conn_optrack_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconf
     }
     if (F_ISSET(conn, WT_CONN_READONLY))
         /* Operation tracking isn't supported in read-only mode */
-        WT_RET_MSG(session, EINVAL,
-          "Operation tracking is incompatible with read only "
-          "configuration");
+        WT_RET_MSG(
+          session, EINVAL, "Operation tracking is incompatible with read only configuration");
     if (F_ISSET(conn, WT_CONN_OPTRACK))
         /* Already enabled, nothing else to do */
         return (0);
@@ -340,9 +337,8 @@ __wt_conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET_NOTFOUND_OK(ret);
 
     if (set > 1)
-        WT_RET_MSG(session, EINVAL,
-          "Only one of all, fast, none configuration values should "
-          "be specified");
+        WT_RET_MSG(
+          session, EINVAL, "Only one of all, fast, none configuration values should be specified");
 
     /*
      * Now that we've parsed general statistics categories, process sub-categories.
@@ -367,8 +363,7 @@ __wt_conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
         if (!LF_ISSET(WT_STAT_TYPE_ALL | WT_STAT_TYPE_CACHE_WALK | WT_STAT_TYPE_FAST |
               WT_STAT_TYPE_TREE_WALK))
             WT_RET_MSG(session, EINVAL,
-              "the value \"clear\" can only be specified if "
-              "statistics are enabled");
+              "the value \"clear\" can only be specified if statistics are enabled");
         LF_SET(WT_STAT_CLEAR);
     }
     WT_RET_NOTFOUND_OK(ret);
@@ -397,41 +392,37 @@ __wt_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
     F_SET(conn, WT_CONN_RECONFIGURING);
 
     /*
-     * The configuration argument has been checked for validity, update the
-     * previous connection configuration.
+     * The configuration argument has been checked for validity, update the previous connection
+     * configuration.
      *
-     * DO NOT merge the configuration before the reconfigure calls.  Some
-     * of the underlying reconfiguration functions do explicit checks with
-     * the second element of the configuration array, knowing the defaults
-     * are in slot #1 and the application's modifications are in slot #2.
+     * DO NOT merge the configuration before the reconfigure calls. Some of the underlying
+     * reconfiguration functions do explicit checks with the second element of the configuration
+     * array, knowing the defaults are in slot #1 and the application's modifications are in slot
+     * #2.
      *
-     * Replace the base configuration set up by CONNECTION_API_CALL with
-     * the current connection configuration, otherwise reconfiguration
-     * functions will find the base value instead of previously configured
-     * value.
+     * Replace the base configuration set up by CONNECTION_API_CALL with the current connection
+     * configuration, otherwise reconfiguration functions will find the base value instead of
+     * previously configured value.
      */
     cfg[0] = conn->cfg;
 
     /*
      * Reconfigure the system.
      *
-     * The compatibility version check is special: upgrade / downgrade
-     * cannot be done with transactions active, and checkpoints must not
-     * span a version change.  Hold the checkpoint lock to avoid conflicts
-     * with WiredTiger's checkpoint thread, and rely on the documentation
-     * specifying that no new operations can start until the upgrade /
-     * downgrade completes.
+     * The compatibility version check is special: upgrade / downgrade cannot be done with
+     * transactions active, and checkpoints must not span a version change. Hold the checkpoint lock
+     * to avoid conflicts with WiredTiger's checkpoint thread, and rely on the documentation
+     * specifying that no new operations can start until the upgrade / downgrade completes.
      */
     WT_WITH_CHECKPOINT_LOCK(session, ret = __wt_conn_compat_config(session, cfg, true));
     WT_ERR(ret);
     WT_ERR(__wt_conn_optrack_setup(session, cfg, true));
     WT_ERR(__wt_conn_statistics_config(session, cfg));
-    WT_ERR(__wt_async_reconfig(session, cfg));
     WT_ERR(__wt_cache_config(session, true, cfg));
     WT_ERR(__wt_capacity_server_create(session, cfg));
     WT_ERR(__wt_checkpoint_server_create(session, cfg));
     WT_ERR(__wt_debug_mode_config(session, cfg));
-    WT_ERR(__wt_las_config(session, cfg));
+    WT_ERR(__wt_hs_config(session, cfg));
     WT_ERR(__wt_logmgr_reconfig(session, cfg));
     WT_ERR(__wt_lsm_manager_reconfig(session, cfg));
     WT_ERR(__wt_statlog_create(session, cfg));

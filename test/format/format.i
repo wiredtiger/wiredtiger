@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -34,30 +34,70 @@ static inline int
 read_op(WT_CURSOR *cursor, read_operation op, int *exactp)
 {
     WT_DECL_RET;
+    uint64_t start, now;
 
     /*
      * Read operations wait out prepare-conflicts. (As part of the snapshot isolation checks, we
      * repeat reads that succeeded before, they should be repeatable.)
      */
+    __wt_seconds(NULL, &start);
     switch (op) {
     case NEXT:
-        while ((ret = cursor->next(cursor)) == WT_PREPARE_CONFLICT)
+        while ((ret = cursor->next(cursor)) == WT_PREPARE_CONFLICT) {
             __wt_yield();
+
+            /* Ignore clock reset. */
+            __wt_seconds(NULL, &now);
+            testutil_assertfmt(now < start || now - start < 60,
+              "%s: timed out with prepare-conflict", "WT_CURSOR.next");
+        }
         break;
     case PREV:
-        while ((ret = cursor->prev(cursor)) == WT_PREPARE_CONFLICT)
+        while ((ret = cursor->prev(cursor)) == WT_PREPARE_CONFLICT) {
             __wt_yield();
+
+            /* Ignore clock reset. */
+            __wt_seconds(NULL, &now);
+            testutil_assertfmt(now < start || now - start < 60,
+              "%s: timed out with prepare-conflict", "WT_CURSOR.prev");
+        }
         break;
     case SEARCH:
-        while ((ret = cursor->search(cursor)) == WT_PREPARE_CONFLICT)
+        while ((ret = cursor->search(cursor)) == WT_PREPARE_CONFLICT) {
             __wt_yield();
+
+            /* Ignore clock reset. */
+            __wt_seconds(NULL, &now);
+            testutil_assertfmt(now < start || now - start < 60,
+              "%s: timed out with prepare-conflict", "WT_CURSOR.search");
+        }
         break;
     case SEARCH_NEAR:
-        while ((ret = cursor->search_near(cursor, exactp)) == WT_PREPARE_CONFLICT)
+        while ((ret = cursor->search_near(cursor, exactp)) == WT_PREPARE_CONFLICT) {
             __wt_yield();
+
+            /* Ignore clock reset. */
+            __wt_seconds(NULL, &now);
+            testutil_assertfmt(now < start || now - start < 60,
+              "%s: timed out with prepare-conflict", "WT_CURSOR.search_near");
+        }
         break;
     }
     return (ret);
+}
+
+/*
+ * rng --
+ *     Return a random number.
+ */
+static inline uint32_t
+rng(WT_RAND_STATE *rnd)
+{
+    /* Threaded operations have their own RNG information, otherwise we use the default. */
+    if (rnd == NULL)
+        rnd = &g.rnd;
+
+    return (__wt_random(rnd));
 }
 
 /*
@@ -120,3 +160,110 @@ wiredtiger_begin_transaction(WT_SESSION *session, const char *config)
         __wt_yield();
     testutil_check(ret);
 }
+
+/*
+ * key_gen --
+ *     Generate a key for lookup.
+ */
+static inline void
+key_gen(WT_ITEM *key, uint64_t keyno)
+{
+    key_gen_common(key, keyno, "00");
+}
+
+/*
+ * key_gen_insert --
+ *     Generate a key for insertion.
+ */
+static inline void
+key_gen_insert(WT_RAND_STATE *rnd, WT_ITEM *key, uint64_t keyno)
+{
+    static const char *const suffix[15] = {
+      "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15"};
+
+    key_gen_common(key, keyno, suffix[mmrand(rnd, 0, 14)]);
+}
+
+/*
+ * lock_try_writelock
+ *     Try to get exclusive lock.  Fail immediately if not available.
+ */
+static inline int
+lock_try_writelock(WT_SESSION *session, RWLOCK *lock)
+{
+    testutil_assert(LOCK_INITIALIZED(lock));
+
+    if (lock->lock_type == LOCK_WT) {
+        return (__wt_try_writelock((WT_SESSION_IMPL *)session, &lock->l.wt));
+    } else {
+        return (pthread_rwlock_trywrlock(&lock->l.pthread));
+    }
+}
+
+/*
+ * lock_writelock --
+ *     Wait to get exclusive lock.
+ */
+static inline void
+lock_writelock(WT_SESSION *session, RWLOCK *lock)
+{
+    testutil_assert(LOCK_INITIALIZED(lock));
+
+    if (lock->lock_type == LOCK_WT) {
+        __wt_writelock((WT_SESSION_IMPL *)session, &lock->l.wt);
+    } else {
+        testutil_check(pthread_rwlock_wrlock(&lock->l.pthread));
+    }
+}
+
+/*
+ * lock_writeunlock --
+ *     Release an exclusive lock.
+ */
+static inline void
+lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
+{
+    testutil_assert(LOCK_INITIALIZED(lock));
+
+    if (lock->lock_type == LOCK_WT) {
+        __wt_writeunlock((WT_SESSION_IMPL *)session, &lock->l.wt);
+    } else {
+        testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
+    }
+}
+
+#define trace_msg(fmt, ...)                                                                        \
+    do {                                                                                           \
+        if (g.trace) {                                                                             \
+            struct timespec __ts;                                                                  \
+            WT_SESSION *__s = g.trace_session;                                                     \
+            __wt_epoch((WT_SESSION_IMPL *)__s, &__ts);                                             \
+            testutil_check(                                                                        \
+              __s->log_printf(__s, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt, (uintmax_t)__ts.tv_sec, \
+                (uintmax_t)__ts.tv_nsec / WT_THOUSAND, g.tidbuf, __VA_ARGS__));                    \
+        }                                                                                          \
+    } while (0)
+#define trace_op(tinfo, fmt, ...)                                                                  \
+    do {                                                                                           \
+        if (g.trace) {                                                                             \
+            struct timespec __ts;                                                                  \
+            WT_SESSION *__s = (tinfo)->trace;                                                      \
+            __wt_epoch((WT_SESSION_IMPL *)__s, &__ts);                                             \
+            testutil_check(                                                                        \
+              __s->log_printf(__s, "[%" PRIuMAX ":%" PRIuMAX "][%s] " fmt, (uintmax_t)__ts.tv_sec, \
+                (uintmax_t)__ts.tv_nsec / WT_THOUSAND, tinfo->tidbuf, __VA_ARGS__));               \
+        }                                                                                          \
+    } while (0)
+
+/*
+ * trace_bytes --
+ *     Return a byte string formatted for display.
+ */
+static inline const char *
+trace_bytes(TINFO *tinfo, const uint8_t *data, size_t size)
+{
+    testutil_check(
+      __wt_raw_to_esc_hex((WT_SESSION_IMPL *)tinfo->session, data, size, &tinfo->vprint));
+    return (tinfo->vprint.mem);
+}
+#define trace_item(tinfo, buf) trace_bytes(tinfo, (buf)->data, (buf)->size)

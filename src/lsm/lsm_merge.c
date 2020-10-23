@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -113,10 +113,8 @@ __lsm_merge_aggressive_update(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 
     if (new_aggressive > lsm_tree->merge_aggressiveness) {
         __wt_verbose(session, WT_VERB_LSM,
-          "LSM merge %s got aggressive "
-          "(old %" PRIu32 " new %" PRIu32
-          "), "
-          "merge_min %u, %" PRIu64 " / %" PRIu64,
+          "LSM merge %s got aggressive (old %" PRIu32 " new %" PRIu32 "), merge_min %u, %" PRIu64
+          " / %" PRIu64,
           lsm_tree->name, lsm_tree->merge_aggressiveness, new_aggressive, lsm_tree->merge_min,
           msec_since_last_merge, lsm_tree->chunk_fill_ms);
         lsm_tree->merge_aggressiveness = new_aggressive;
@@ -199,18 +197,15 @@ __lsm_merge_span(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id, u_in
         return (WT_NOTFOUND);
 
 /*
- * Look for the most efficient merge we can do.  We define efficiency
- * as collapsing as many levels as possible while processing the
- * smallest number of rows.
+ * Look for the most efficient merge we can do. We define efficiency as collapsing as many levels as
+ * possible while processing the smallest number of rows.
  *
- * We make a distinction between "major" and "minor" merges.  The
- * difference is whether the oldest chunk is involved: if it is, we can
- * discard tombstones, because there can be no older record to marked
- * deleted.
+ * We make a distinction between "major" and "minor" merges. The difference is whether the oldest
+ * chunk is involved: if it is, we can discard tombstones, because there can be no older record to
+ * marked deleted.
  *
- * Respect the configured limit on the number of chunks to merge: start
- * with the most recent set of chunks and work backwards until going
- * further becomes significantly less efficient.
+ * Respect the configured limit on the number of chunks to merge: start with the most recent set of
+ * chunks and work backwards until going further becomes significantly less efficient.
  */
 retry_find:
     oldest_gen = youngest_gen = lsm_tree->chunk[end_chunk]->generation;
@@ -246,8 +241,9 @@ retry_find:
          * small chunks in the middle.
          */
         if ((chunk_size += chunk->size) > lsm_tree->chunk_max)
-            if (nchunks < merge_min || (chunk->generation > youngest->generation &&
-                                         chunk_size - youngest->size > lsm_tree->chunk_max))
+            if (nchunks < merge_min ||
+              (chunk->generation > youngest->generation &&
+                chunk_size - youngest->size > lsm_tree->chunk_max))
                 break;
 
         /* Track chunk generations seen while looking for a merge */
@@ -270,7 +266,7 @@ retry_find:
          */
         if (chunk_size > lsm_tree->chunk_max ||
           (nchunks == merge_max && start_chunk > 0 &&
-              chunk->generation == lsm_tree->chunk[start_chunk - 1]->generation)) {
+            chunk->generation == lsm_tree->chunk[start_chunk - 1]->generation)) {
             /*
              * Try again with smaller range. Unfortunately all the intermediate state will be reset.
              * Since there's no easy way to restore youngest_gen and oldest_gen.
@@ -377,13 +373,13 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
      * in the conditional. Avoid the loop in the normal path.
      */
     if (WT_VERBOSE_ISSET(session, WT_VERB_LSM)) {
-        __wt_verbose(session, WT_VERB_LSM, "Merging %s chunks %u-%u into %u (%" PRIu64
-                                           " records)"
-                                           ", generation %" PRIu32,
+        __wt_verbose(session, WT_VERB_LSM,
+          "Merging %s chunks %u-%u into %u (%" PRIu64 " records), generation %" PRIu32,
           lsm_tree->name, start_chunk, end_chunk, dest_id, record_count, generation);
         for (verb = start_chunk; verb < end_chunk + 1; verb++)
-            __wt_verbose(session, WT_VERB_LSM, "Merging %s: Chunk[%u] id %" PRIu32 ", gen: %" PRIu32
-                                               ", size: %" PRIu64 ", records: %" PRIu64,
+            __wt_verbose(session, WT_VERB_LSM,
+              "Merging %s: Chunk[%u] id %" PRIu32 ", gen: %" PRIu32 ", size: %" PRIu64
+              ", records: %" PRIu64,
               lsm_tree->name, verb, lsm_tree->chunk[verb]->id, lsm_tree->chunk[verb]->generation,
               lsm_tree->chunk[verb]->size, lsm_tree->chunk[verb]->count);
     }
@@ -453,7 +449,7 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
         if (create_bloom)
             __wt_bloom_insert(bloom, &key);
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     WT_STAT_CONN_INCRV(session, lsm_rows_merged, insert_count % LSM_MERGE_CHECK_INTERVAL);
     ++lsm_tree->merge_progressing;
@@ -513,7 +509,7 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
     ++lsm_tree->merge_progressing;
     (void)__wt_atomic_sub32(&lsm_tree->merge_syncing, 1);
     in_sync = false;
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     WT_ERR(__wt_lsm_tree_set_chunk_size(session, lsm_tree, chunk));
     __wt_lsm_tree_writelock(session, lsm_tree);
@@ -539,15 +535,15 @@ __wt_lsm_merge(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree, u_int id)
     F_SET(chunk, WT_LSM_CHUNK_ONDISK);
 
     /*
-     * We have no current way of continuing if the metadata update fails,
-     * so we will panic in that case.  Put some effort into cleaning up
-     * after ourselves here - so things have a chance of shutting down.
+     * We have no current way of continuing if the metadata update fails, so we will panic in that
+     * case. Put some effort into cleaning up after ourselves here - so things have a chance of
+     * shutting down.
      *
-     * Any errors that happened after the tree was locked are
-     * fatal - we can't guarantee the state of the tree.
+     * Any errors that happened after the tree was locked are fatal - we can't guarantee the state
+     * of the tree.
      */
     if ((ret = __wt_lsm_meta_write(session, lsm_tree, NULL)) != 0)
-        WT_PANIC_ERR(session, ret, "Failed finalizing LSM merge");
+        WT_ERR_PANIC(session, ret, "Failed finalizing LSM merge");
 
     lsm_tree->dsk_gen++;
 

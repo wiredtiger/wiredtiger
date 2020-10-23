@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -55,7 +55,7 @@ typedef struct {
     char *home;                    /* Home directory */
     const char *checkpoint_name;   /* Checkpoint name */
     WT_CONNECTION *conn;           /* WiredTiger connection */
-    bool debug_mode;               /* Lookaside stress test */
+    bool debug_mode;               /* History store stress test */
     u_int nkeys;                   /* Keys to load */
     u_int nops;                    /* Operations per thread */
     FILE *logfp;                   /* Message log file. */
@@ -65,8 +65,10 @@ typedef struct {
     volatile int running;          /* Whether to stop */
     int status;                    /* Exit status */
     bool sweep_stress;             /* Sweep stress test */
-    u_int ts;                      /* Current timestamp */
+    u_int ts_oldest;               /* Current oldest timestamp */
+    u_int ts_stable;               /* Current stable timestamp */
     bool use_timestamps;           /* Use txn timestamps */
+    bool prepare;                  /* Use prepare transactions */
     COOKIE *cookies;               /* Per-thread info */
     WT_RWLOCK clock_lock;          /* Clock synchronization */
     wt_thread_t checkpoint_thread; /* Checkpoint thread */

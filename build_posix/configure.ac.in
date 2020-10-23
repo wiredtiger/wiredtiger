@@ -15,8 +15,8 @@ AM_INIT_AUTOMAKE([1.11.6 foreign parallel-tests subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([no])])
 
 # If CFLAGS/CXXFLAGS were not set on entry, default to "-O3 -g"
-: ${CFLAGS=-O3 -g}
-: ${CXXFLAGS=-O3 -g}
+: ${CFLAGS=-O3 -g ${ADD_CFLAGS}}
+: ${CXXFLAGS=-O3 -g ${ADD_CFLAGS}}
 
 AC_PROG_CC(cc gcc)
 AC_PROG_CXX(c++ g++)
@@ -56,7 +56,7 @@ AS_CASE([$host_cpu],
 	[wt_cv_powerpc="no"])
 AM_CONDITIONAL([POWERPC_HOST], [test "$wt_cv_powerpc" = "yes"])
 AS_CASE([$host_cpu],
-	[amd*|i[[3456]]86*|pentium|x86*], [wt_cv_x86="yes"], [wt_cv_x86="no"])
+	[amd*|i[[3456]]86*|pentium|x86*|mips64el*], [wt_cv_x86="yes"], [wt_cv_x86="no"])
 AM_CONDITIONAL([X86_HOST], [test "$wt_cv_x86" = "yes"])
 AS_CASE([$host_cpu],
 	[s390x*], [wt_cv_zseries="yes"],
@@ -66,6 +66,10 @@ AS_CASE([$host_cpu],
 	[aarch64*], [wt_cv_arm64="yes"],
 	[wt_cv_arm64="no"])
 AM_CONDITIONAL([ARM64_HOST], [test "$wt_cv_arm64" = "yes"])
+AS_CASE([$host_cpu],
+       [mips64el*], [wt_cv_mips64el="yes"],
+       [wt_cv_mips64el="no"])
+AM_CONDITIONAL([MIPS64EL_HOST], [test "$wt_cv_mips64el" = "yes"])
 AS_CASE([$host_os], [*solaris*], [wt_cv_solaris="yes"], [wt_cv_solaris="no"])
 
 # This is a workaround as part of WT-2459. Currently, clang (v3.7) does not
@@ -98,6 +102,12 @@ if test "$GCC" = "yes"; then
 	# instructions.
 	if test "$wt_cv_arm64" = "yes"; then
 		AM_CFLAGS="$AM_CFLAGS -march=armv8-a+crc"
+		# moutline-atomics preserves backwards compatibility with Arm v8.0
+		# systems but also supports using Arm v8.1 atomics. The latter can
+		# massively improve performance on larger Arm systems. The flag was
+		# back ported to gcc8, 9 and is the default in gcc10+. See if  the
+		# compiler supports the flag.
+		AX_CHECK_COMPILE_FLAG([-moutline-atomics], [AM_CFLAGS="$AM_CFLAGS -moutline-atomics"])
 	fi
 else
 	# The Solaris native compiler gets the additional -mt flag.
@@ -130,28 +140,16 @@ if test "$wt_cv_enable_strict" = "yes"; then
 	AM_CFLAGS="$AM_CFLAGS $wt_cv_strict_warnings"
 fi
 
-# Java and Python APIs
-if test "$wt_cv_enable_java" = "yes" -o "$wt_cv_enable_python" = "yes"; then
+# Python API
+if test "$wt_cv_enable_python" = "yes"; then
 	# Only a warning, we need to build release packages without SWIG.
 	AX_PKG_SWIG(2.0.4, [],
-	    [AC_MSG_WARN([SWIG is required to rebuild Java or Python APIs.]) &&
+	    [AC_MSG_WARN([SWIG is required to rebuild Python API.]) &&
               SWIG="SWIG_NOT_FOUND_DURING_CONFIGURE"])
 fi
 
-if test "$wt_cv_enable_java" = "yes"; then
-	JAVAC=${JAVAC-javac}
-	AX_PROG_JAVAC
-	AX_PROG_JAR
-	AX_JNI_INCLUDE_DIR
-	AX_CHECK_JUNIT
-	for JNI_INCLUDE_DIR in $JNI_INCLUDE_DIRS ; do
-		JNI_CPPFLAGS="$JNI_CPPFLAGS -I$JNI_INCLUDE_DIR"
-	done
-	AC_SUBST(JNI_CPPFLAGS)
-fi
-
 if test "$wt_cv_enable_python" = "yes"; then
-	AM_PATH_PYTHON([2.6])
+	AM_PATH_PYTHON([3.0])
 	if test -n "$with_python_prefix" ; then
 		PYTHON_INSTALL_ARG="-d $with_python_prefix"
 	fi
@@ -168,8 +166,8 @@ AC_CHECK_LIB(dl, dlopen)
 AC_CHECK_LIB(rt, sched_yield)
 
 AC_CHECK_FUNCS([\
-	clock_gettime fallocate ftruncate gettimeofday posix_fadvise\
-	posix_fallocate posix_madvise strtouq sync_file_range timer_create])
+	clock_gettime fallocate ftruncate gettimeofday posix_fadvise posix_fallocate\
+	posix_madvise setrlimit strtouq sync_file_range timer_create])
 
 # OS X wrongly reports that it has fdatasync
 AS_CASE([$host_os], [darwin*], [], [AC_CHECK_FUNCS([fdatasync])])

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -65,16 +65,18 @@ typedef struct {
     int64_t update;    /* Update ratio */
     uint64_t throttle; /* Maximum operations/second */
                        /* Number of operations per transaction. Zero for autocommit */
-    int64_t ops_per_txn;
-    int64_t pause;            /* Time between scans */
-    int64_t read_range;       /* Range of reads */
-    int32_t table_index;      /* Table to focus ops on */
-    int64_t truncate;         /* Truncate ratio */
-    uint64_t truncate_pct;    /* Truncate Percent */
-    uint64_t truncate_count;  /* Truncate Count */
-    int64_t modify_delta;     /* Value size change on modify */
-    int64_t update_delta;     /* Value size change on update */
+
+    int64_t modify_delta;   /* Value size change on modify */
+    bool modify_distribute; /* Distribute the change of modifications across the whole new record */
     bool modify_force_update; /* Do force update instead of modify */
+    int64_t ops_per_txn;
+    int64_t pause;           /* Time between scans */
+    int64_t read_range;      /* Range of reads */
+    int32_t table_index;     /* Table to focus ops on */
+    int64_t truncate;        /* Truncate ratio */
+    uint64_t truncate_pct;   /* Truncate Percent */
+    uint64_t truncate_count; /* Truncate Count */
+    int64_t update_delta;    /* Value size change on update */
 
 #define WORKER_INSERT 1     /* Insert */
 #define WORKER_INSERT_RMW 2 /* Insert with read-modify-write */
@@ -125,9 +127,6 @@ struct __wtperf {         /* Per-database structure */
     WT_CONNECTION *conn; /* Database connection */
 
     FILE *logf; /* Logging handle */
-
-    char *async_config; /* Config string for async */
-    bool use_asyncops;  /* Use async operations */
 
     const char *compress_ext;   /* Compression extension for conn */
     const char *compress_table; /* Compression arg to table create */

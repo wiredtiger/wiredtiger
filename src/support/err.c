@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -228,14 +228,13 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
 
     if (error != 0) {
         /*
-         * When the engine calls __wt_err on error, it often outputs an
-         * error message including the string associated with the error
-         * it's returning.  We could change the calls to call __wt_errx,
-         * but it's simpler to not append an error string if all we are
-         * doing is duplicating an existing error string.
+         * When the engine calls __wt_err on error, it often outputs an error message including the
+         * string associated with the error it's returning. We could change the calls to call
+         * __wt_errx, but it's simpler to not append an error string if all we are doing is
+         * duplicating an existing error string.
          *
-         * Use strcmp to compare: both strings are nul-terminated, and
-         * we don't want to run past the end of the buffer.
+         * Use strcmp to compare: both strings are nul-terminated, and we don't want to run past the
+         * end of the buffer.
          */
         err = __wt_strerror(session, error, NULL, 0);
         len = strlen(err);
@@ -244,18 +243,15 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
     }
 
     /*
-     * If a handler fails, return the error status: if we're in the process
-     * of handling an error, any return value we provide will be ignored by
-     * our caller, our caller presumably already has an error value it will
-     * be returning.
+     * If a handler fails, return the error status: if we're in the process of handling an error,
+     * any return value we provide will be ignored by our caller, our caller presumably already has
+     * an error value it will be returning.
      *
-     * If an application-specified or default informational message handler
-     * fails, complain using the application-specified or default error
-     * handler.
+     * If an application-specified or default informational message handler fails, complain using
+     * the application-specified or default error handler.
      *
-     * If an application-specified error message handler fails, complain
-     * using the default error handler.  If the default error handler fails,
-     * fallback to stderr.
+     * If an application-specified error message handler fails, complain using the default error
+     * handler. If the default error handler fails, fallback to stderr.
      */
     wt_session = (WT_SESSION *)session;
     handler = session->event_handler;
@@ -275,9 +271,8 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
      * code, it's a recursive call.
      */
     if (ret == 0 && remain == 0)
-        __wt_err(session, ENOMEM,
-          "error or message truncated: internal WiredTiger buffer "
-          "too small");
+        __wt_err(
+          session, ENOMEM, "error or message truncated: internal WiredTiger buffer too small");
 
     if (ret != 0) {
 err:
@@ -333,6 +328,80 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, const char 
     va_start(ap, fmt);
     WT_IGNORE_RET(__eventv(session, false, 0, func, line, fmt, ap));
     va_end(ap);
+}
+
+/*
+ * __wt_panic_func --
+ *     A standard error message when we panic.
+ */
+int
+__wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line, const char *fmt,
+  ...) WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 5, 6)))
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    WT_CONNECTION_IMPL *conn;
+    va_list ap;
+
+    conn = S2C(session);
+
+    /*
+     * Ignore error returns from underlying event handlers, we already have an error value to
+     * return.
+     */
+    va_start(ap, fmt);
+    WT_IGNORE_RET(__eventv(session, false, error, func, line, fmt, ap));
+    va_end(ap);
+
+    /*
+     * !!!
+     * This function MUST handle a NULL WT_SESSION_IMPL handle.
+     *
+     * If the connection has already panicked, just return the error.
+     */
+    if (session != NULL && F_ISSET(conn, WT_CONN_PANIC))
+        return (WT_PANIC);
+
+    /*
+     * Call the error callback function before setting the connection's panic flag, so applications
+     * can trace the failing thread before being flooded with panic returns from API calls. Using
+     * the variable-arguments list from the current call even thought the format doesn't need it as
+     * I'm not confident of underlying support for a NULL.
+     */
+    va_start(ap, fmt);
+    WT_IGNORE_RET(
+      __eventv(session, false, WT_PANIC, func, line, "the process must exit and restart", ap));
+    va_end(ap);
+
+#if defined(HAVE_DIAGNOSTIC)
+    /*
+     * In the diagnostic builds, we want to drop core in case of panics that are not due to data
+     * corruption. A core could be useful in debugging.
+     *
+     * In the case of corruption, we want to be able to test the application's capability to salvage
+     * by returning an error code. But we do not want to lose the ability to drop core if required.
+     * Hence in the diagnostic mode, the application can set the debug flag to choose between
+     * dropping a core and returning an error.
+     */
+    if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) ||
+      FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT))
+        __wt_abort(session);
+#endif
+    /*
+     * !!!
+     * This function MUST handle a NULL WT_SESSION_IMPL handle.
+     *
+     * Panic the connection;
+     */
+    if (session != NULL)
+        F_SET(conn, WT_CONN_PANIC);
+
+    /*
+     * !!!
+     * Chaos reigns within.
+     * Reflect, repent, and reboot.
+     * Order shall return.
+     */
+    return (WT_PANIC);
 }
 
 /*
@@ -468,67 +537,6 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
                handler, wt_session, s == NULL ? session->name : s, v)) != 0)
             __handler_failure(session, ret, "progress", false);
     return (0);
-}
-
-/*
- * __wt_panic --
- *     A standard error message when we panic.
- */
-int
-__wt_panic(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((cold))
-  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
-{
-    /*
-     * !!!
-     * This function MUST handle a NULL WT_SESSION_IMPL handle.
-     *
-     * If the connection has already panicked, just return the error.
-     */
-    if (session != NULL && F_ISSET(S2C(session), WT_CONN_PANIC))
-        return (WT_PANIC);
-
-    /*
-     * Call the error callback function before setting the connection's panic flag, so applications
-     * can trace the failing thread before being flooded with panic returns from API calls.
-     */
-    __wt_err(session, WT_PANIC, "the process must exit and restart");
-
-/*
- * Confusing #ifdef structure because gcc/clang knows the abort call won't return, and Visual Studio
- * doesn't.
- */
-#if defined(HAVE_DIAGNOSTIC)
-    __wt_abort(session); /* Drop core if testing. */
-                         /* NOTREACHED */
-#endif
-#if !defined(HAVE_DIAGNOSTIC) || defined(_WIN32)
-    /*
-     * !!!
-     * This function MUST handle a NULL WT_SESSION_IMPL handle.
-     *
-     * Panic the connection;
-     */
-    if (session != NULL)
-        F_SET(S2C(session), WT_CONN_PANIC);
-
-    /*
-     * Chaos reigns within. Reflect, repent, and reboot. Order shall return.
-     */
-    return (WT_PANIC);
-#endif
-}
-
-/*
- * __wt_illegal_value_func --
- *     A standard error message when we detect an illegal value.
- */
-int
-__wt_illegal_value_func(WT_SESSION_IMPL *session, uintmax_t v, const char *func, int line)
-  WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
-{
-    __wt_err_func(session, EINVAL, func, line, "%s: 0x%" PRIxMAX,
-      "encountered an illegal file format or internal value", v);
-    return (__wt_panic(session));
 }
 
 /*

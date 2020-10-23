@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -78,6 +78,7 @@ __wt_ext_map_windows_error(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, uin
     return (__wt_map_windows_error(windows_error));
 #else
     WT_UNUSED(windows_error);
-    return (WT_PANIC);
+    WT_RET_PANIC(
+      (WT_SESSION_IMPL *)wt_session, WT_PANIC, "unexpected attempt to map Windows error");
 #endif
 }

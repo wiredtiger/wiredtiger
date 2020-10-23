@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -74,8 +74,50 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
         WT_RET(WT_SESSION_CHECK_PANIC(tmp_session));
         WT_RET(__wt_log_truncate_files(tmp_session, NULL, true));
     }
-    WT_RET(tmp_session->iface.close(&tmp_session->iface, NULL));
+    WT_RET(__wt_session_close_internal(tmp_session));
     return (0);
+}
+
+/*
+ * __logmgr_set_majmin --
+ *     Set the required major or minor of the given field. Wrapper for setting the required minimum
+ *     and maximum fields in the connection.
+ */
+static void
+__logmgr_set_majmin(uint16_t req_major, uint16_t req_minor, uint16_t *log_req)
+{
+    /*
+     * Set up the maximum and minimum log version required if needed.
+     */
+    if (req_major != WT_CONN_COMPAT_NONE) {
+        if (req_major == WT_LOG_V5_MAJOR)
+            *log_req = WT_LOG_VERSION;
+        else if (req_major == WT_LOG_V4_MAJOR)
+            if (req_minor == WT_LOG_V4_MINOR)
+                *log_req = 4;
+            else if (req_minor > WT_LOG_V2_MINOR)
+                *log_req = 3;
+            else
+                *log_req = 2;
+        else
+            *log_req = 1;
+    }
+}
+
+/*
+ * __wt_logmgr_compat_version --
+ *     Set up the compatibility versions in the log manager. This is split out because it is called
+ *     much earlier than log subsystem creation on startup so that we can verify the system state in
+ *     files before modifying files.
+ */
+void
+__wt_logmgr_compat_version(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    __logmgr_set_majmin(conn->req_max_major, conn->req_max_minor, &conn->log_req_max);
+    __logmgr_set_majmin(conn->req_min_major, conn->req_min_minor, &conn->log_req_min);
 }
 
 /*
@@ -97,50 +139,32 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
         return (0);
 
     /*
-     * Set the log file format versions based on compatibility versions
-     * set in the connection.  We must set this before we call log_open
-     * to open or create a log file.
+     * Set the log file format versions based on compatibility versions set in the connection. We
+     * must set this before we call log_open to open or create a log file.
      *
-     * Note: downgrade in this context means the new version is not the
-     * latest possible version. It does not mean the direction of change
-     * from the release we may be running currently.
+     * Note: downgrade in this context means the new version is not the latest possible version. It
+     * does not mean the direction of change from the release we may be running currently.
      */
-    if (conn->compat_major < WT_LOG_V2_MAJOR) {
+    if (conn->compat_major == WT_LOG_V5_MAJOR) {
+        new_version = WT_LOG_VERSION;
+        first_record = WT_LOG_END_HEADER + log->allocsize;
+        downgrade = false;
+    } else if (conn->compat_major == WT_LOG_V4_MAJOR) {
+        if (conn->compat_minor == WT_LOG_V4_MINOR)
+            new_version = 4;
+        else if (conn->compat_minor > WT_LOG_V2_MINOR)
+            new_version = 3;
+        else
+            new_version = 2;
+        first_record = WT_LOG_END_HEADER + log->allocsize;
+        downgrade = true;
+    } else {
         new_version = 1;
         first_record = WT_LOG_END_HEADER;
         downgrade = true;
-    } else {
-        /*
-         * Assume current version unless the minor compatibility setting is the earlier version.
-         */
-        first_record = WT_LOG_END_HEADER + log->allocsize;
-        new_version = WT_LOG_VERSION;
-        downgrade = false;
-        if (conn->compat_minor == WT_LOG_V2_MINOR) {
-            new_version = 2;
-            downgrade = true;
-        }
     }
 
-    /*
-     * Set up the maximum and minimum log version required if needed.
-     */
-    if (conn->req_max_major != WT_CONN_COMPAT_NONE) {
-        if (conn->req_max_major < WT_LOG_V2_MAJOR)
-            conn->log_req_max = 1;
-        else if (conn->req_max_minor == WT_LOG_V2_MINOR)
-            conn->log_req_max = 2;
-        else
-            conn->log_req_max = WT_LOG_VERSION;
-    }
-    if (conn->req_min_major != WT_CONN_COMPAT_NONE) {
-        if (conn->req_min_major < WT_LOG_V2_MAJOR)
-            conn->log_req_min = 1;
-        else if (conn->req_min_minor == WT_LOG_V2_MINOR)
-            conn->log_req_min = 2;
-        else
-            conn->log_req_min = WT_LOG_VERSION;
-    }
+    __wt_logmgr_compat_version(session);
 
     /*
      * If the version is the same, there is nothing to do.
@@ -148,15 +172,12 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
     if (log->log_version == new_version)
         return (0);
     /*
-     * If we are reconfiguring and at a new version we need to force
-     * the log file to advance so that we write out a log file at the
-     * correct version.  When we are downgrading we must force a checkpoint
-     * and finally archive, even if disabled, so that all new version log
-     * files are gone.
+     * If we are reconfiguring and at a new version we need to force the log file to advance so that
+     * we write out a log file at the correct version. When we are downgrading we must force a
+     * checkpoint and finally archive, even if disabled, so that all new version log files are gone.
      *
-     * All of the version changes must be handled with locks on reconfigure
-     * because other threads may be changing log files, using pre-allocated
-     * files.
+     * All of the version changes must be handled with locks on reconfigure because other threads
+     * may be changing log files, using pre-allocated files.
      */
     /*
      * Set the version. If it is a live change the logging subsystem will do other work as well to
@@ -169,33 +190,31 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 }
 
 /*
- * __logmgr_config --
+ * __wt_logmgr_config --
  *     Parse and setup the logging server options.
  */
-static int
-__logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool reconfig)
+int
+__wt_logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     bool enabled;
 
     /*
-     * A note on reconfiguration: the standard "is this configuration string
-     * allowed" checks should fail if reconfiguration has invalid strings,
-     * for example, "log=(enabled)", or "statistics_log=(path=XXX)", because
-     * the connection reconfiguration method doesn't allow those strings.
-     * Additionally, the base configuration values during reconfiguration
-     * are the currently configured values (so we don't revert to default
-     * values when repeatedly reconfiguring), and configuration processing
-     * of a currently set value should not change the currently set value.
+     * A note on reconfiguration: the standard "is this configuration string allowed" checks should
+     * fail if reconfiguration has invalid strings, for example, "log=(enabled)", or
+     * "statistics_log=(path=XXX)", because the connection reconfiguration method doesn't allow
+     * those strings. Additionally, the base configuration values during reconfiguration are the
+     * currently configured values (so we don't revert to default values when repeatedly
+     * reconfiguring), and configuration processing of a currently set value should not change the
+     * currently set value.
      *
-     * In this code path, log server reconfiguration does not stop/restart
-     * the log server, so there's no point in re-evaluating configuration
-     * strings that cannot be reconfigured, risking bugs in configuration
-     * setup, and depending on evaluation of currently set values to always
-     * result in the currently set value. Skip tests for any configuration
-     * strings which don't make sense during reconfiguration, but don't
-     * worry about error reporting because it should never happen.
+     * In this code path, log server reconfiguration does not stop/restart the log server, so
+     * there's no point in re-evaluating configuration strings that cannot be reconfigured, risking
+     * bugs in configuration setup, and depending on evaluation of currently set values to always
+     * result in the currently set value. Skip tests for any configuration strings which don't make
+     * sense during reconfiguration, but don't worry about error reporting because it should never
+     * happen.
      */
 
     conn = S2C(session);
@@ -204,35 +223,35 @@ __logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     enabled = cval.val != 0;
 
     /*
-     * If we're reconfiguring, enabled must match the already
-     * existing setting.
+     * If we're reconfiguring, enabled must match the already existing setting.
      *
-     * If it is off and the user it turning it on, or it is on
-     * and the user is turning it off, return an error.
+     * If it is off and the user it turning it on, or it is on and the user is turning it off,
+     * return an error.
      *
      * See above: should never happen.
      */
-    if (reconfig && ((enabled && !FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) ||
-                      (!enabled && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))))
-        WT_RET_MSG(session, EINVAL,
-          "log manager reconfigure: enabled mismatch with existing "
-          "setting");
+    if (reconfig &&
+      ((enabled && !FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) ||
+        (!enabled && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))))
+        WT_RET_MSG(
+          session, EINVAL, "log manager reconfigure: enabled mismatch with existing setting");
 
     /* Logging is incompatible with in-memory */
     if (enabled) {
         WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
         if (cval.val != 0)
-            WT_RET_MSG(session, EINVAL,
-              "In-memory configuration incompatible with "
-              "log=(enabled=true)");
+            WT_RET_MSG(
+              session, EINVAL, "In-memory configuration incompatible with log=(enabled=true)");
     }
 
-    *runp = enabled;
+    if (enabled)
+        FLD_SET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED);
+    else
+        FLD_CLR(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED);
 
     /*
-     * Setup a log path and compression even if logging is disabled in case
-     * we are going to print a log.  Only do this on creation.  Once a
-     * compressor or log path are set they cannot be changed.
+     * Setup a log path and compression even if logging is disabled in case we are going to print a
+     * log. Only do this on creation. Once a compressor or log path are set they cannot be changed.
      *
      * See above: should never happen.
      */
@@ -241,12 +260,13 @@ __logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
         WT_RET(__wt_config_gets_none(session, cfg, "log.compressor", &cval));
         WT_RET(__wt_compressor_config(session, &cval, &conn->log_compressor));
 
+        conn->log_path = NULL;
         WT_RET(__wt_config_gets(session, cfg, "log.path", &cval));
         WT_RET(__wt_strndup(session, cval.str, cval.len, &conn->log_path));
     }
 
     /* We are done if logging isn't enabled. */
-    if (!*runp)
+    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
         return (0);
 
     WT_RET(__wt_config_gets(session, cfg, "log.archive", &cval));
@@ -254,9 +274,9 @@ __logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
         FLD_SET(conn->log_flags, WT_CONN_LOG_ARCHIVE);
 
     /*
-     * The file size cannot be reconfigured. The amount of memory allocated
-     * to the log slots may be based on the log file size at creation and we
-     * don't want to re-allocate that memory while running.
+     * The file size cannot be reconfigured. The amount of memory allocated to the log slots may be
+     * based on the log file size at creation and we don't want to re-allocate that memory while
+     * running.
      *
      * See above: should never happen.
      */
@@ -286,8 +306,8 @@ __logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
         conn->log_prealloc = 1;
 
     /*
-     * Note it's meaningless to reconfigure this value during runtime, it
-     * only matters on create before recovery runs.
+     * Note it's meaningless to reconfigure this value during runtime, it only matters on create
+     * before recovery runs.
      *
      * See above: should never happen.
      */
@@ -300,9 +320,8 @@ __logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     WT_RET(__wt_config_gets(session, cfg, "log.zero_fill", &cval));
     if (cval.val != 0) {
         if (F_ISSET(conn, WT_CONN_READONLY))
-            WT_RET_MSG(session, EINVAL,
-              "Read-only configuration incompatible with "
-              "zero-filling log files");
+            WT_RET_MSG(
+              session, EINVAL, "Read-only configuration incompatible with zero-filling log files");
         FLD_SET(conn->log_flags, WT_CONN_LOG_ZERO_FILL);
     }
 
@@ -319,9 +338,7 @@ __logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
 int
 __wt_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 {
-    bool dummy;
-
-    WT_RET(__logmgr_config(session, cfg, &dummy, true));
+    WT_RET(__wt_logmgr_config(session, cfg, true));
     return (__logmgr_version(session, true));
 }
 
@@ -355,7 +372,7 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_LOG *log;
-    uint32_t min_lognum;
+    uint32_t dbg_val, min_lognum;
     u_int logcount;
     char **logfiles;
 
@@ -369,18 +386,30 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
      * backup or the checkpoint LSN. Otherwise we want the minimum of the last log file written to
      * disk and the checkpoint LSN.
      */
-    if (backup_file != 0)
-        min_lognum = WT_MIN(log->ckpt_lsn.l.file, backup_file);
-    else {
+    min_lognum = backup_file == 0 ? WT_MIN(log->ckpt_lsn.l.file, log->sync_lsn.l.file) :
+                                    WT_MIN(log->ckpt_lsn.l.file, backup_file);
+
+    /* Adjust the number of log files to retain based on debugging options. */
+    WT_ORDERED_READ(dbg_val, conn->debug_ckpt_cnt);
+    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CKPT_RETAIN) && dbg_val != 0)
+        min_lognum = WT_MIN(conn->debug_ckpt[dbg_val - 1].l.file, min_lognum);
+    WT_ORDERED_READ(dbg_val, conn->debug_log_cnt);
+    if (dbg_val != 0) {
         /*
-         * Figure out the minimum log file to archive. Use the LSN in the debugging array if
-         * necessary.
+         * If we're performing checkpoints, apply the retain value as a minimum, increasing the
+         * number the log files we keep. If not performing checkpoints, it's an absolute number of
+         * log files to keep. This means we can potentially remove log files required for recovery
+         * if the number of log files exceeds the configured value and the system has yet to be
+         * checkpointed.
+         *
+         * Check for N+1, that is, we retain N full log files, and one partial.
          */
-        if (conn->debug_ckpt_cnt == 0)
-            min_lognum = WT_MIN(log->ckpt_lsn.l.file, log->sync_lsn.l.file);
+        if ((dbg_val + 1) >= log->fileid)
+            return (0);
+        if (WT_IS_INIT_LSN(&log->ckpt_lsn))
+            min_lognum = log->fileid - (dbg_val + 1);
         else
-            min_lognum =
-              WT_MIN(conn->debug_ckpt[conn->debug_ckpt_cnt - 1].l.file, log->sync_lsn.l.file);
+            min_lognum = WT_MIN(log->fileid - (dbg_val + 1), min_lognum);
     }
     __wt_verbose(session, WT_VERB_LOG, "log_archive: archive to log number %" PRIu32, min_lognum);
 
@@ -409,7 +438,7 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 
     if (0)
 err:
-    __wt_err(session, ret, "log archive server error");
+        __wt_err(session, ret, "log archive server error");
     WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
     return (ret);
 }
@@ -473,7 +502,7 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
 
     if (0)
 err:
-    __wt_err(session, ret, "log pre-alloc server error");
+        __wt_err(session, ret, "log pre-alloc server error");
     WT_TRET(__wt_fs_directory_list_free(session, &recfiles, reccount));
     return (ret);
 }
@@ -555,7 +584,7 @@ __log_file_server(void *arg)
                  * to be set again. Copy the LSN before clearing the file handle. Use a barrier to
                  * make sure the compiler does not reorder the following two statements.
                  */
-                close_end_lsn = log->log_close_lsn;
+                WT_ASSIGN_LSN(&close_end_lsn, &log->log_close_lsn);
                 WT_FULL_BARRIER();
                 log->log_close_fh = NULL;
                 /*
@@ -572,10 +601,10 @@ __log_file_server(void *arg)
                  * file system may not support truncate: both are OK, it's just more work during
                  * cursor traversal.
                  */
-                if (!conn->hot_backup && conn->log_cursors == 0) {
+                if (conn->hot_backup_start == 0 && conn->log_cursors == 0) {
                     WT_WITH_HOTBACKUP_READ_LOCK(session,
-                      WT_ERR_ERROR_OK(__wt_ftruncate(session, close_fh, close_end_lsn.l.offset),
-                                                  ENOTSUP),
+                      WT_ERR_ERROR_OK(
+                        __wt_ftruncate(session, close_fh, close_end_lsn.l.offset), ENOTSUP, false),
                       NULL);
                 }
                 WT_SET_LSN(&close_end_lsn, close_end_lsn.l.file + 1, 0);
@@ -583,7 +612,7 @@ __log_file_server(void *arg)
                 locked = true;
                 WT_ERR(__wt_close(session, &close_fh));
                 WT_ASSERT(session, __wt_log_cmp(&close_end_lsn, &log->sync_lsn) >= 0);
-                log->sync_lsn = close_end_lsn;
+                WT_ASSIGN_LSN(&log->sync_lsn, &close_end_lsn);
                 __wt_cond_signal(session, log->log_sync_cond);
                 locked = false;
                 __wt_spin_unlock(session, &log->log_sync_lock);
@@ -596,15 +625,13 @@ __log_file_server(void *arg)
             /*
              * Save the latest write LSN which is the minimum we will have written to disk.
              */
-            min_lsn = log->write_lsn;
+            WT_ASSIGN_LSN(&min_lsn, &log->write_lsn);
             /*
-             * We have to wait until the LSN we asked for is
-             * written.  If it isn't signal the wrlsn thread
-             * to get it written.
+             * We have to wait until the LSN we asked for is written. If it isn't signal the wrlsn
+             * thread to get it written.
              *
-             * We also have to wait for the written LSN and the
-             * sync LSN to be in the same file so that we know we
-             * have synchronized all earlier log files.
+             * We also have to wait for the written LSN and the sync LSN to be in the same file so
+             * that we know we have synchronized all earlier log files.
              */
             if (__wt_log_cmp(&log->bg_sync_lsn, &min_lsn) <= 0) {
                 /*
@@ -623,7 +650,7 @@ __log_file_server(void *arg)
                  */
                 if (__wt_log_cmp(&log->sync_lsn, &min_lsn) <= 0) {
                     WT_ASSERT(session, min_lsn.l.file == log->sync_lsn.l.file);
-                    log->sync_lsn = min_lsn;
+                    WT_ASSIGN_LSN(&log->sync_lsn, &min_lsn);
                     __wt_cond_signal(session, log->log_sync_cond);
                 }
                 locked = false;
@@ -646,7 +673,7 @@ __log_file_server(void *arg)
 
     if (0) {
 err:
-        WT_PANIC_MSG(session, ret, "log close server error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "log close server error"));
     }
     WT_STAT_CONN_INCRV(session, log_server_sync_blocked, yield_count);
     if (locked)
@@ -706,7 +733,7 @@ restart:
         if (slot->slot_state != WT_LOG_SLOT_WRITTEN)
             continue;
         written[written_i].slot_index = save_i;
-        written[written_i++].lsn = slot->slot_release_lsn;
+        WT_ASSIGN_LSN(&written[written_i++].lsn, &slot->slot_release_lsn);
     }
     /*
      * If we found any written slots process them. We sort them based on the release LSN, and then
@@ -746,7 +773,7 @@ restart:
                  * If we get here we have a slot to coalesce and free.
                  */
                 coalescing->slot_last_offset = slot->slot_last_offset;
-                coalescing->slot_end_lsn = slot->slot_end_lsn;
+                WT_ASSIGN_LSN(&coalescing->slot_end_lsn, &slot->slot_end_lsn);
                 WT_STAT_CONN_INCR(session, log_slot_coalesced);
                 /*
                  * Copy the flag for later closing.
@@ -759,7 +786,7 @@ restart:
                  * slots. A synchronous write may update write_lsn so save the last one we saw to
                  * check when coalescing slots.
                  */
-                save_lsn = log->write_lsn;
+                WT_ASSIGN_LSN(&save_lsn, &log->write_lsn);
                 if (__wt_log_cmp(&log->write_lsn, &written[i].lsn) != 0) {
                     coalescing = slot;
                     continue;
@@ -775,8 +802,8 @@ restart:
                  */
                 if (slot->slot_start_lsn.l.offset != slot->slot_last_offset)
                     slot->slot_start_lsn.l.offset = (uint32_t)slot->slot_last_offset;
-                log->write_start_lsn = slot->slot_start_lsn;
-                log->write_lsn = slot->slot_end_lsn;
+                WT_ASSIGN_LSN(&log->write_start_lsn, &slot->slot_start_lsn);
+                WT_ASSIGN_LSN(&log->write_lsn, &slot->slot_end_lsn);
                 __wt_cond_signal(session, log->log_write_cond);
                 WT_STAT_CONN_INCR(session, log_write_lsn);
                 /*
@@ -841,7 +868,7 @@ __log_wrlsn_server(void *arg)
     __wt_log_wrlsn(session, NULL);
     if (0) {
 err:
-        WT_PANIC_MSG(session, ret, "log wrlsn server error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "log wrlsn server error"));
     }
     return (WT_THREAD_RET_VALUE);
 }
@@ -888,7 +915,7 @@ __log_server(void *arg)
          * buffer may need to wait for the write_lsn to advance in the case of a synchronous buffer.
          * We end up with a hang.
          */
-        WT_ERR_BUSY_OK(__wt_log_force_write(session, 0, &did_work));
+        WT_ERR_ERROR_OK(__wt_log_force_write(session, 0, &did_work), EBUSY, false);
 
         /*
          * We don't want to archive or pre-allocate files as often as we want to force out log
@@ -918,8 +945,7 @@ __log_server(void *arg)
                     WT_ERR(ret);
                 } else
                     __wt_verbose(session, WT_VERB_LOG, "%s",
-                      "log_archive: Blocked due to open "
-                      "log cursor holding archive lock");
+                      "log_archive: Blocked due to open log cursor holding archive lock");
             }
             time_start = __wt_clock(session);
         }
@@ -932,7 +958,7 @@ __log_server(void *arg)
 
     if (0) {
 err:
-        WT_PANIC_MSG(session, ret, "log server error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "log server error"));
     }
     return (WT_THREAD_RET_VALUE);
 }
@@ -942,19 +968,18 @@ err:
  *     Initialize the log subsystem (before running recovery).
  */
 int
-__wt_logmgr_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_logmgr_create(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_LOG *log;
-    bool run;
 
     conn = S2C(session);
 
-    /* Handle configuration. */
-    WT_RET(__logmgr_config(session, cfg, &run, false));
-
-    /* If logging is not configured, we're done. */
-    if (!run)
+    /*
+     * Logging configuration is parsed early on for compatibility checking. It is separated from
+     * turning on the subsystem. We only need to proceed here if logging is enabled.
+     */
+    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_CONFIG_ENABLED))
         return (0);
 
     FLD_SET(conn->log_flags, WT_CONN_LOG_ENABLED);
@@ -1076,7 +1101,6 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
 
     conn = S2C(session);
 
@@ -1101,8 +1125,7 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
         conn->log_file_tid_set = false;
     }
     if (conn->log_file_session != NULL) {
-        wt_session = &conn->log_file_session->iface;
-        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_TRET(__wt_session_close_internal(conn->log_file_session));
         conn->log_file_session = NULL;
     }
     if (conn->log_wrlsn_tid_set) {
@@ -1111,8 +1134,7 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
         conn->log_wrlsn_tid_set = false;
     }
     if (conn->log_wrlsn_session != NULL) {
-        wt_session = &conn->log_wrlsn_session->iface;
-        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_TRET(__wt_session_close_internal(conn->log_wrlsn_session));
         conn->log_wrlsn_session = NULL;
     }
 
@@ -1121,8 +1143,7 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 
     /* Close the server thread's session. */
     if (conn->log_session != NULL) {
-        wt_session = &conn->log_session->iface;
-        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_TRET(__wt_session_close_internal(conn->log_session));
         conn->log_session = NULL;
     }
 

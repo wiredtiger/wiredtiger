@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -151,9 +151,8 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool sometimes_r
      * Note: id is repeated as id2. This makes it easier to identify the primary key in dumps of the
      * index files.
      */
-    testutil_check(session->create(session, opts->uri,
-      "key_format=i,value_format=iiSii,"
-      "columns=(id,post,bal,extra,flag,id2)"));
+    testutil_check(session->create(
+      session, opts->uri, "key_format=i,value_format=iiSii,columns=(id,post,bal,extra,flag,id2)"));
 
     testutil_check(session->create(session, sharedopts->posturi, "columns=(post)"));
     testutil_check(session->create(session, sharedopts->baluri, "columns=(bal)"));
@@ -203,9 +202,8 @@ test_join(TEST_OPTS *opts, SHARED_OPTS *sharedopts, bool bloom, bool sometimes_r
     }
     for (i = 0; i < N_INSERT_THREAD; ++i)
         fprintf(stderr,
-          "  insert thread %d did "
-          "%d inserts, %d removes, %d notfound, %d rollbacks\n",
-          i, insert_args[i].inserts, insert_args[i].removes, insert_args[i].notfounds,
+          "  insert thread %d did %d inserts, %d removes, %d notfound, %d rollbacks\n", i,
+          insert_args[i].inserts, insert_args[i].removes, insert_args[i].notfounds,
           insert_args[i].rollbacks);
 
     testutil_check(session->drop(session, sharedopts->posturi, NULL));
@@ -242,8 +240,13 @@ thread_insert(void *arg)
          */
         key = (int)(__wt_random(&rnd) % N_RECORDS);
         maincur->set_key(maincur, key);
+/* FIXME-WT-6180: disable lower isolation levels. */
+#if 0
         if (sharedopts->remove)
             testutil_check(session->begin_transaction(session, "isolation=snapshot"));
+#else
+        testutil_check(session->begin_transaction(session, "isolation=snapshot"));
+#endif
         if (sharedopts->remove && __wt_random(&rnd) % 5 == 0 && maincur->search(maincur) == 0) {
             /*
              * Another thread can be removing at the same time.
@@ -278,8 +281,20 @@ thread_insert(void *arg)
             else if (ret == WT_ROLLBACK)
                 threadargs->rollbacks++;
         }
-        if (sharedopts->remove)
+/* FIXME-WT-6180: disable lower isolation levels. */
+#if 0
+        if (sharedopts->remove) {
+            if (ret == WT_ROLLBACK)
+                testutil_check(session->rollback_transaction(session, NULL));
+            else
+                testutil_check(session->commit_transaction(session, NULL));
+        }
+#else
+        if (ret == WT_ROLLBACK)
+            testutil_check(session->rollback_transaction(session, NULL));
+        else
             testutil_check(session->commit_transaction(session, NULL));
+#endif
         if (i % 1000 == 0 && i != 0) {
             if (i % 10000 == 0)
                 fprintf(stderr, "*");
@@ -346,9 +361,7 @@ thread_join(void *arg)
              */
             testutil_check(joincur->get_key(joincur, &key));
             testutil_check(joincur->get_value(joincur, &post, &bal, &extra, &flag, &key2));
-            fprintf(stderr,
-              "FAIL: iteration %d: "
-              "key=%d/%d, postal_code=%d, balance=%d, flag=%d\n",
+            fprintf(stderr, "FAIL: iteration %d: key=%d/%d, postal_code=%d, balance=%d, flag=%d\n",
               threadargs->joins, key, key2, post, bal, flag);
             /* Save the results. */
             testutil_check(opts->conn->close(opts->conn, NULL));

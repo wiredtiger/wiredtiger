@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -8,7 +8,16 @@
 
 #include "util.h"
 
-static int usage(void);
+static int
+usage(void)
+{
+    static const char *options[] = {"-F",
+      "force salvage (by default salvage will refuse to salvage tables that fail basic tests)",
+      NULL, NULL};
+
+    util_usage("salvage [-F] uri", "options:", options);
+    return (1);
+}
 
 int
 util_salvage(WT_SESSION *session, int argc, char *argv[])
@@ -50,14 +59,4 @@ util_salvage(WT_SESSION *session, int argc, char *argv[])
 
     free(uri);
     return (ret);
-}
-
-static int
-usage(void)
-{
-    (void)fprintf(stderr,
-      "usage: %s %s "
-      "salvage [-F] uri\n",
-      progname, usage_prefix);
-    return (1);
 }

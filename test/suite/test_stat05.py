@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-2020 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -45,12 +45,12 @@ class test_stat_cursor_config(wttest.WiredTigerTestCase):
             conn_config = 'in_memory,statistics=(fast)')),
         ('table-lsm', dict(uri='table:' + pfx, dataset=SimpleDataSet,
             cfg='lsm=(chunk_size=1MB,merge_min=2)',
-            conn_config = 'statistics=(fast),eviction_dirty_target=99,eviction_dirty_trigger=99')),
+            conn_config = 'statistics=(fast)')),
         ('complex', dict(uri='table:' + pfx, dataset=ComplexDataSet, cfg='')),
         ('complex-lsm',
             dict(uri='table:' + pfx, dataset=ComplexLSMDataSet,
             cfg='lsm=(chunk_size=1MB,merge_min=2)',
-            conn_config = 'statistics=(fast),eviction_dirty_target=99,eviction_dirty_trigger=99')),
+            conn_config = 'statistics=(fast)')),
     ]
 
     scenarios = make_scenarios(uri)

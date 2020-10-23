@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-2020 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -168,9 +168,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
         return (errno);
 
     /*
-     * Allocate a local encryptor structure, with a WT_ENCRYPTOR structure
-     * as the first field, allowing us to treat references to either type of
-     * structure as a reference to the other type.
+     * Allocate a local encryptor structure, with a WT_ENCRYPTOR structure as the first field,
+     * allowing us to treat references to either type of structure as a reference to the other type.
      *
      * Heap memory (not static), because it can support multiple databases.
      */
