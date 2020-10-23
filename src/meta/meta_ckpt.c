@@ -699,7 +699,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 
     /*
      * If runtime write generation isn't supplied, this means that we're doing an upgrade and that
-     * we're opening the tree for the first time. We should just leave it as 0 so it is recognised
+     * we're opening the tree for the first time. We should just leave it as 0 so it is recognized
      * as part of a previous run.
      */
     ret = __wt_config_subgets(session, v, "run_write_gen", &a);

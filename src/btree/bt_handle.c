@@ -534,7 +534,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      *
      * The runtime write generation is important since it's going to determine what we're going to
      * use as the base write generation (and thus what pages to wipe transaction ids from). The idea
-     * is that we want to initialise it once the first time we open the btree during a run and then
+     * is that we want to initialize it once the first time we open the btree during a run and then
      * for every subsequent open, we want to reuse it. This so that we're still able to read
      * transaction ids from the previous time a btree was open in the same run.
      *
@@ -542,7 +542,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      * updates aren't having their transaction ids wiped after reopening the dhandle. The runtime
      * write generation is relevant here since it should remain static across the entire run.
      */
-    btree->write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
+    btree->write_gen = WT_MAX(ckpt->write_gen, conn->base_write_gen) + 1;
     WT_ASSERT(session, ckpt->write_gen >= ckpt->run_write_gen);
 
     /* If this is the first time opening the tree this run. */
