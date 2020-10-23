@@ -955,10 +955,9 @@ __hs_reinsert_key_from_pos(
 {
     WT_CURSOR *insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
-    WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
     WT_HS_TIME_POINT start_time_point, stop_time_point;
-    WT_ITEM hs_key;
+    WT_ITEM hs_key, hs_value;
     WT_UPDATE *upd;
     wt_timestamp_t durable_timestamp, hs_start_ts, hs_stop_durable_ts;
     uint64_t hs_counter, hs_insert_counter, hs_upd_type;
@@ -967,11 +966,10 @@ __hs_reinsert_key_from_pos(
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
+    WT_CLEAR(hs_key);
+    WT_CLEAR(hs_value);
     upd = NULL;
     insert_cursor = NULL;
-
-    /* Allocate buffer for the history store value. */
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     /*
      * Determine the starting value of our counter, i.e. highest counter value of the timestamp
@@ -1023,7 +1021,7 @@ __hs_reinsert_key_from_pos(
         }
 
         WT_ERR(hs_cursor->get_value(
-          hs_cursor, &hs_stop_durable_ts, &durable_timestamp, &hs_upd_type, hs_value));
+          hs_cursor, &hs_stop_durable_ts, &durable_timestamp, &hs_upd_type, &hs_value));
 
         start_time_point.ts = start_time_point.durable_ts = WT_TS_NONE;
         start_time_point.txnid = hs_cbt->upd_value->tw.start_txn;
@@ -1033,7 +1031,7 @@ __hs_reinsert_key_from_pos(
 
         /* Reinsert entry with zero timestamp. */
         while ((ret = __hs_insert_record_with_btree_int(session, insert_cursor, btree_id, &hs_key,
-                  (uint8_t)hs_upd_type, hs_value, &start_time_point, &stop_time_point,
+                  (uint8_t)hs_upd_type, &hs_value, &start_time_point, &stop_time_point,
                   hs_insert_counter)) == WT_RESTART)
             ;
         hs_insert_counter++;
@@ -1068,7 +1066,6 @@ __hs_reinsert_key_from_pos(
         ret = 0;
 err:
     __wt_free(session, upd);
-    __wt_scr_free(session, &hs_value);
     if (insert_cursor != NULL)
         insert_cursor->close(insert_cursor);
     return (ret);
