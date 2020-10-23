@@ -455,8 +455,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             /* Track the first update that is globally visible. */
             if (first_globally_visible_upd == NULL && __wt_txn_upd_visible_all(session, upd))
                 first_globally_visible_upd = upd;
-            else if (first_globally_visible_upd != NULL)
-                F_SET(upd, WT_UPDATE_OBSOLETE);
 
             /*
              * Always insert full update to the history store if we write a prepared update to the
@@ -478,11 +476,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             if (first_non_ts_upd == NULL && upd->start_ts == WT_TS_NONE)
                 first_non_ts_upd = upd;
             else if (first_non_ts_upd != NULL && upd->start_ts != WT_TS_NONE) {
-                /*
-                 * Don't insert updates with timestamps after updates without timestamps to the
-                 * history store.
-                 */
-                F_SET(upd, WT_UPDATE_OBSOLETE);
+                F_SET(upd, WT_UPDATE_BEHIND_MIXED_MODE);
                 if (F_ISSET(upd, WT_UPDATE_HS))
                     ts_updates_in_hs = true;
             }
@@ -604,18 +598,19 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             }
 
             /*
-             * When we see an obsolete update we need to insert it with a zero start and stop
-             * timestamp. This means it'll still exist but only use txnid visibility rules. As such
-             * older readers should still be able to see it.
+             * In the scenario where our updates are behind a globally visible update, it is
+             * impossible for them to be read by any reader and as such they don't need to go into
+             * the history store.
              */
-            if (F_ISSET(upd, WT_UPDATE_OBSOLETE)) {
-                /*
-                 * In the scenario where our updates are behind a globally visible update, it is
-                 * impossible for them to be read by any reader and as such they don't need to go
-                 * into the history store.
-                 */
-                if (first_globally_visible_upd != NULL && !seen_global_update)
-                    continue;
+            if (first_globally_visible_upd != NULL && !seen_global_update)
+                continue;
+
+            /*
+             * When we see an update older than a mixed mode update we need to insert it with a zero
+             * start and stop timestamp. This means it'll still exist but only use txnid visibility
+             * rules. As such older readers should still be able to see it.
+             */
+            if (F_ISSET(upd, WT_UPDATE_BEHIND_MIXED_MODE)) {
                 start_time_point.ts = start_time_point.durable_ts = WT_TS_NONE;
                 stop_time_point.ts = stop_time_point.durable_ts = WT_TS_NONE;
             }
@@ -628,7 +623,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              *
              * FIXME-WT-6443: We should be able to replace this with an assertion.
              */
-            if (!F_ISSET(upd, WT_UPDATE_OBSOLETE) &&
+            if (!F_ISSET(upd, WT_UPDATE_BEHIND_MIXED_MODE) &&
               (stop_time_point.ts < upd->start_ts ||
                 (stop_time_point.ts == upd->start_ts && stop_time_point.txnid <= upd->txnid))) {
                 __wt_verbose(session, WT_VERB_TIMESTAMP,
