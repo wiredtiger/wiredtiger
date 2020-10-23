@@ -174,3 +174,112 @@ class test_hs17(wttest.WiredTigerTestCase):
         # Given the bug exists this will return WT_NOTFOUND.
         self.assertEqual(cursor2.search(), 0)
         self.assertEqual(value0, cursor2.get_value())
+
+    # Test older readers for each of the updates moved to the history store.
+    def test_multiple_older_readers(self):
+        uri = 'table:test_multiple_older_readers'
+        self.session.create(uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(uri)
+
+        # The ID of the session corresponds the value it should see.
+        session0 = self.setUpSessionOpen(self.conn)
+        cursor0 = session0.open_cursor(uri)
+        session1 = self.setUpSessionOpen(self.conn)
+        cursor1 = session1.open_cursor(uri)
+        session2 = self.setUpSessionOpen(self.conn)
+        cursor2 = session2.open_cursor(uri)
+        session4 = self.setUpSessionOpen(self.conn)
+        cursor4 = session4.open_cursor(uri)
+
+        value0 = 'f' * 500
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+        value3 = 'c' * 500
+        value4 = 'd' * 500
+        value5 = 'e' * 500
+
+        # Insert an update at timestamp 3
+        self.session.begin_transaction()
+        cursor[str(0)] = value0
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
+        # Start a transaction that will see update 0.
+        session0.begin_transaction()
+        cursor0.set_key(str(0))
+        self.assertEqual(cursor0.search(), 0)
+        self.assertEqual(cursor0.get_value(), value0)
+        cursor0.reset()
+
+        # Insert an update at timestamp 5
+        self.session.begin_transaction()
+        cursor[str(0)] = value1
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
+
+        # Start a transaction that will see update 1.
+        session1.begin_transaction()
+        cursor1.set_key(str(0))
+        self.assertEqual(cursor1.search(), 0)
+        self.assertEqual(cursor1.get_value(), value1)
+        cursor1.reset()
+
+        # Insert another update at timestamp 10
+        self.session.begin_transaction()
+        cursor[str(0)] = value2
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+
+        # Start a transaction that will see update 2.
+        session2.begin_transaction()
+        cursor2.set_key(str(0))
+        self.assertEqual(cursor2.search(), 0)
+        self.assertEqual(cursor2.get_value(), value2)
+        cursor2.reset()
+
+        # Insert a bunch of other contents to trigger eviction
+        for i in range(1000, 10000):
+            self.session.begin_transaction()
+            cursor[str(i)] = value3
+            self.session.commit_transaction()
+
+        # Commit an update without a timestamp on our original key
+        self.session.begin_transaction()
+        cursor[str(0)] = value4
+        self.session.commit_transaction()
+
+        # Start a transaction that will see update 4.
+        session4.begin_transaction()
+        cursor4.set_key(str(0))
+        self.assertEqual(cursor4.search(), 0)
+        self.assertEqual(cursor4.get_value(), value4)
+        cursor4.reset()
+
+        # Commit an update with timestamp 15
+        self.session.begin_transaction()
+        cursor[str(0)] = value5
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
+
+        # Insert a bunch of other contents to trigger eviction
+        for i in range(10001, 20000):
+            self.session.begin_transaction()
+            cursor[str(i)] = value3
+            self.session.commit_transaction()
+
+        # Validate all values are visible and correct.
+        cursor0.set_key(str(0))
+        self.assertEqual(cursor0.search(), 0)
+        self.assertEqual(cursor0.get_value(), value0)
+        cursor0.reset()
+
+        cursor1.set_key(str(0))
+        self.assertEqual(cursor1.search(), 0)
+        self.assertEqual(cursor1.get_value(), value1)
+        cursor1.reset()
+
+        cursor2.set_key(str(0))
+        self.assertEqual(cursor2.search(), 0)
+        self.assertEqual(cursor2.get_value(), value2)
+        cursor2.reset()
+
+        cursor4.set_key(str(0))
+        self.assertEqual(cursor4.search(), 0)
+        self.assertEqual(cursor4.get_value(), value4)
+        cursor4.reset()
