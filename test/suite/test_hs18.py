@@ -33,7 +33,7 @@ def timestamp_str(t):
 
 # test_hs18.py
 # Test various older reader scenarios
-class test_hs17(wttest.WiredTigerTestCase):
+class test_hs18(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB,eviction=(threads_max=1)'
     session_config = 'isolation=snapshot'
 
