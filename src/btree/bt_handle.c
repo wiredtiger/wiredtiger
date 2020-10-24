@@ -551,6 +551,17 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     else
         btree->base_write_gen = btree->run_write_gen = ckpt->run_write_gen;
 
+    /*
+     * We've just overwritten the runtime write generation based off the fact that know that we're
+     * importing and therefore, the checkpoint data's runtime write generation is meaningless. We
+     * need to ensure that the underlying dhandle doesn't get discarded without being included in a
+     * subsequent checkpoint including the new overwritten runtime write generation. Otherwise,
+     * we'll reopen, won't know that we're in the import case and will incorrectly use the old
+     * system's runtime write generation.
+     */
+    if (F_ISSET(session, WT_SESSION_IMPORT))
+        btree->modified = true;
+
     return (0);
 }
 
