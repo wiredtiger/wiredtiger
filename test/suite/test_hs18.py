@@ -33,11 +33,10 @@ def timestamp_str(t):
 
 # test_hs18.py
 # Test various older reader scenarios
-class test_hs17(wttest.WiredTigerTestCase):
+class test_hs18(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB,eviction=(threads_max=1)'
     session_config = 'isolation=snapshot'
 
-    @unittest.skip("Currently hangs")
     def test_hs18(self):
         uri = 'table:test_hs18'
         self.session.create(uri, 'key_format=S,value_format=S')
@@ -96,6 +95,9 @@ class test_hs17(wttest.WiredTigerTestCase):
         self.assertEqual(cursor2.search(), 0)
         val2 = cursor2.get_value()
         self.assertEqual(val1, val2)
+
+        # Let go of the page since we want to evict.
+        cursor2.reset()
 
         # Insert a bunch of other contents to trigger eviction
         for i in range(10001, 11000):
