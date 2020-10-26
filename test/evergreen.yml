@@ -182,6 +182,17 @@ functions:
         for i in $(seq ${times|1}); do
           ${test_env_vars|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
         done
+  "test hang analyzer script":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/test/format"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${format_test_setting|}
+
+        ${test_env_vars|} ./format.sh ${smp_command|} -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 20 2>&1
+
   "many dbs test":
     command: shell.exec
     params:
@@ -283,6 +294,15 @@ functions:
       script: |
         rm -rf "wiredtiger"
         rm -rf "wiredtiger.tgz"
+
+  "timeout function":
+    command: shell.exec
+    working_dir: "wiredtiger/build_posix"
+    params:
+      script: |
+        echo " Timeout function called \n"
+        echo " Print Pids of test format binaries\n "
+        pidof ./t
 
   "dump stderr/stdout":
     command: shell.exec
@@ -425,6 +445,8 @@ post:
       postfix: -${execution}
   - func: "dump stderr/stdout"
   - func: "cleanup"
+timeout:
+  - func: "timeout function"
 
 tasks:
   # Base compile task on posix flavours
@@ -2302,6 +2324,13 @@ tasks:
             ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-6.0/bin/llvm-symbolizer
           format_test_script_args: -S
           times: 16
+  - name: test-hang-analyzer-format
+    # Set the timeout for 10 minutes.
+    exec_timeout_secs: 600
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "test hang analyzer script"
 
   - <<: *format-stress-test
     name: format-stress-test-1
@@ -2415,6 +2444,7 @@ buildvariants:
     - name: long-test
     - name: static-wt-build-test
     - name: format-failure-configs-test
+    - name: test-hang-analyzer-format
 
 - name: ubuntu1804-compilers
   display_name: "! Ubuntu 18.04 Compilers"
