@@ -7,7 +7,7 @@ A prototype hang analyzer for Evergreen integration to help investigate test tim
 2. Script will iterate through a list of interesting processes,
     and run the tools from step 1. The list of processes can be provided as an option.
 
-Supports Linux only.
+Supports Linux and Windows.
 """
 
 import csv
