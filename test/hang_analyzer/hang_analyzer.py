@@ -390,17 +390,10 @@ def main():  # pylint: disable=too-many-branches,too-many-locals,too-many-statem
 
     max_dump_size_bytes = int(options.max_core_dumps_size) * 1024 * 1024
 
-    # Dump python processes by signalling them. The resmoke.py process will generate
-    # the report.json, when signalled, so we do this before attaching to other processes.
-    for (pid, process_name) in [(p, pn) for (p, pn) in processes if pn.startswith("python")]:
-        root_logger.info("Sending signal SIGUSR1 to python process %s with PID %d", process_name, pid)
-        signal_process(root_logger, pid, signal.SIGUSR1)
-
     trapped_exceptions = []
 
-    # Dump all processes, except python.
-    for (pid,
-         process_name) in [(p, pn) for (p, pn) in processes if not re.match("^(python)", pn)]:
+    # Dump all processes.
+    for (pid, process_name) in processes:
         process_logger = get_process_logger(options.debugger_output, pid, process_name)
         try:
             dbg.dump_info(root_logger, process_logger, pid, process_name, options.dump_core
@@ -408,6 +401,12 @@ def main():  # pylint: disable=too-many-branches,too-many-locals,too-many-statem
         except Exception as err:  # pylint: disable=broad-except
             root_logger.info("Error encountered when invoking debugger %s", err)
             trapped_exceptions.append(traceback.format_exc())
+
+    # Dump python processes by signalling them. The resmoke.py process will generate
+    # the report.json, when signalled, so we do this before attaching to other processes.
+    for (pid, process_name) in [(p, pn) for (p, pn) in processes if pn.startswith("python")]:
+        root_logger.info("Sending signal SIGUSR1 to python process %s with PID %d", process_name, pid)
+        signal_process(root_logger, pid, signal.SIGUSR1)
 
     root_logger.info("Done analyzing all processes for hangs")
 
