@@ -353,10 +353,10 @@ def main():  # pylint: disable=too-many-branches,too-many-locals,too-many-statem
         process_ids = [int(pid) for pid in options.process_ids.split(',')]
 
     if options.process_exact_names is not None:
-        exact_processes = options.process_names.split(',')
+        exact_processes = options.process_exact_names.split(',')
 
     if options.process_contains_names is not None:
-        contain_processes = options.process_names.split(',')
+        contain_processes = options.process_contains_names.split(',')
 
     [ps, dbg] = get_hang_analyzers()
 
