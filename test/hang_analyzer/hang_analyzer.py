@@ -444,7 +444,7 @@ def get_hang_analyzers():
     if sys.platform.startswith("linux"):
         dbg = GDBDumper()
         ps = LinuxProcessList()
-    else _IS_WINDOWS or sys.platform == "cygwin":
+    elif _IS_WINDOWS or sys.platform == "cygwin":
         dbg = WindowsDumper()
         ps = WindowsProcessList()
     elif sys.platform == "darwin":
