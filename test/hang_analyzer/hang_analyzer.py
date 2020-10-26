@@ -254,6 +254,101 @@ class WindowsProcessList(object):
 
         return [[int(row[1]), row[0]] for row in csv_reader if row[1] != "PID"]
 
+# LLDB dumper is for MacOS X
+class LLDBDumper(object):
+    """LLDBDumper class."""
+
+    @staticmethod
+    def __find_debugger(debugger):
+        """Find the installed debugger."""
+        return find_program(debugger, ['/usr/bin'])
+
+    def dump_info(  # pylint: disable=too-many-arguments
+            self, root_logger, logger, pid, process_name, take_dump):
+        """Dump info."""
+        debugger = "lldb"
+        dbg = self.__find_debugger(debugger)
+
+        if dbg is None:
+            root_logger.warning("Debugger %s not found, skipping dumping of %d", debugger, pid)
+            return
+
+        root_logger.info("Debugger %s, analyzing %s process with PID %d", dbg, process_name, pid)
+
+        lldb_version = callo([dbg, "--version"], logger)
+
+        logger.info(lldb_version)
+
+        # Do we have the XCode or LLVM version of lldb?
+        # Old versions of lldb do not work well when taking commands via a file
+        # XCode (7.2): lldb-340.4.119
+        # LLVM - lldb version 3.7.0 ( revision )
+
+        if 'version' not in lldb_version:
+            # We have XCode's lldb
+            lldb_version = lldb_version[lldb_version.index("lldb-"):]
+            lldb_version = lldb_version.replace('lldb-', '')
+            lldb_major_version = int(lldb_version[:lldb_version.index('.')])
+            if lldb_major_version < 340:
+                logger.warning("Debugger lldb is too old, please upgrade to XCode 7.2")
+                return
+
+        dump_command = ""
+        if take_dump:
+            # Dump to file, dump_<process name>.<pid>.core
+            dump_file = "dump_%s.%d.%s" % (process_name, pid, self.get_dump_ext())
+            dump_command = "process save-core %s" % dump_file
+            root_logger.info("Dumping core to %s", dump_file)
+
+        cmds = [
+            "attach -p %d" % pid,
+            "target modules list",
+            "thread backtrace all",
+            dump_command,
+            "settings set interpreter.prompt-on-quit false",
+            "quit",
+        ]
+
+        tf = tempfile.NamedTemporaryFile()
+
+        for cmd in cmds:
+            tf.write(cmd + "\n")
+
+        tf.flush()
+
+        # Works on in MacOS 10.9 & later
+        #call([dbg] +  list( itertools.chain.from_iterable([['-o', b] for b in cmds])), logger)
+        call(['cat', tf.name], logger)
+        call([dbg, '--source', tf.name], logger)
+
+        root_logger.info("Done analyzing %s process with PID %d", process_name, pid)
+
+    @staticmethod
+    def get_dump_ext():
+        """Return the dump file extension."""
+        return "core"
+
+class DarwinProcessList(object):
+    """DarwinProcessList class."""
+
+    @staticmethod
+    def __find_ps():
+        """Find ps."""
+        return find_program('ps', ['/bin'])
+
+    def dump_processes(self, logger):
+        """Get list of [Pid, Process Name]."""
+        ps = self.__find_ps()
+
+        logger.info("Getting list of processes using %s", ps)
+
+        ret = callo([ps, "-axco", "pid,comm"], logger)
+
+        buff = TextIOWrapper(BytesIO(ret))
+        csv_reader = csv.reader(buff, delimiter=' ', quoting=csv.QUOTE_NONE, skipinitialspace=True)
+
+        return [[int(row[0]), row[1]] for row in csv_reader if row[0] != "PID"]
+
 # GDB dumper is for Linux
 class GDBDumper(object):
     """GDBDumper class."""
@@ -352,6 +447,9 @@ def get_hang_analyzers():
     else _IS_WINDOWS or sys.platform == "cygwin":
         dbg = WindowsDumper()
         ps = WindowsProcessList()
+    elif sys.platform == "darwin":
+        dbg = LLDBDumper()
+        ps = DarwinProcessList()
 
     return [ps, dbg]
 
