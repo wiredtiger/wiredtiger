@@ -33,7 +33,7 @@ test/csuite
 test/cursor_order
 test/fops
 test/format
-test/fuzz HAVE_CXX
+test/fuzz
 test/huge
 test/import
 test/manydbs
