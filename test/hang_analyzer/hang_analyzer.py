@@ -318,7 +318,7 @@ def main():  # pylint: disable=too-many-branches,too-many-locals,too-many-statem
     except AttributeError:
         root_logger.warning("Cannot determine Unix Current Login, not supported on Windows")
 
-    contain_processes = ["ex_", "intpack-test", "python", "test"]
+    contain_processes = ["ex_", "intpack-test", "python", "test_"]
     exact_processes = ["cursor_order", "packing-test", "t"]
     process_ids = []
 
