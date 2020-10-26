@@ -534,8 +534,15 @@ def main():  # pylint: disable=too-many-branches,too-many-locals,too-many-statem
     # Dump python processes by signalling them. The resmoke.py process will generate
     # the report.json, when signalled, so we do this before attaching to other processes.
     for (pid, process_name) in [(p, pn) for (p, pn) in processes if pn.startswith("python")]:
-        root_logger.info("Sending signal SIGUSR1 to python process %s with PID %d", process_name, pid)
-        signal_process(root_logger, pid, signal.SIGUSR1)
+        # On Windows, we set up an event object to wait on a signal. For Cygwin, we register
+        # a signal handler to wait for the signal since it supports POSIX signals.
+        if _IS_WINDOWS:
+            root_logger.info("Calling SetEvent to signal python process %s with PID %d",
+                             process_name, pid)
+            signal_event_object(root_logger, pid)
+        else:
+            root_logger.info("Sending signal SIGUSR1 to python process %s with PID %d", process_name, pid)
+            signal_process(root_logger, pid, signal.SIGUSR1)
 
     root_logger.info("Done analyzing all processes for hangs")
 
