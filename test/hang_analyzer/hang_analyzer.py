@@ -27,6 +27,11 @@ import time
 from distutils import spawn  # pylint: disable=no-name-in-module
 from io import BytesIO, TextIOWrapper
 from optparse import OptionParser
+_IS_WINDOWS = (sys.platform == "win32")
+
+if _IS_WINDOWS:
+    import win32event
+    import win32api
 
 """
 Helper class to read output of a subprocess.
@@ -162,6 +167,93 @@ def get_process_logger(debugger_output, pid, process_name):
 
     return process_logger
 
+class WindowsDumper(object):
+    """WindowsDumper class."""
+
+    @staticmethod
+    def __find_debugger(logger, debugger):
+        """Find the installed debugger."""
+        # We are looking for c:\Program Files (x86)\Windows Kits\8.1\Debuggers\x64
+        cdb = spawn.find_executable(debugger)
+        if cdb is not None:
+            return cdb
+        from win32com.shell import shell, shellcon
+
+        # Cygwin via sshd does not expose the normal environment variables
+        # Use the shell api to get the variable instead
+        root_dir = shell.SHGetFolderPath(0, shellcon.CSIDL_PROGRAM_FILESX86, None, 0)
+
+        for idx in range(0, 2):
+            dbg_path = os.path.join(root_dir, "Windows Kits", "8." + str(idx), "Debuggers", "x64")
+            logger.info("Checking for debugger in %s", dbg_path)
+            if os.path.exists(dbg_path):
+                return os.path.join(dbg_path, debugger)
+
+        return None
+
+    def dump_info(  # pylint: disable=too-many-arguments
+            self, root_logger, logger, pid, process_name, take_dump):
+        """Dump useful information to the console."""
+        debugger = "cdb.exe"
+        dbg = self.__find_debugger(root_logger, debugger)
+
+        if dbg is None:
+            root_logger.warning("Debugger %s not found, skipping dumping of %d", debugger, pid)
+            return
+
+        root_logger.info("Debugger %s, analyzing %s process with PID %d", dbg, process_name, pid)
+
+        dump_command = ""
+        if take_dump:
+            # Dump to file, dump_<process name>.<pid>.mdmp
+            dump_file = "dump_%s.%d.%s" % (os.path.splitext(process_name)[0], pid,
+                                           self.get_dump_ext())
+            dump_command = ".dump /ma %s" % dump_file
+            root_logger.info("Dumping core to %s", dump_file)
+
+        cmds = [
+            ".symfix",  # Fixup symbol path
+            ".symopt +0x10",  # Enable line loading (off by default in CDB, on by default in WinDBG)
+            ".reload",  # Reload symbols
+            "!peb",  # Dump current exe, & environment variables
+            "lm",  # Dump loaded modules
+            dump_command,
+            "!uniqstack -pn",  # Dump All unique Threads with function arguments
+            "!cs -l",  # Dump all locked critical sections
+            ".detach",  # Detach
+            "q"  # Quit
+        ]
+
+        call([dbg, '-c', ";".join(cmds), '-p', str(pid)], logger)
+
+        root_logger.info("Done analyzing %s process with PID %d", process_name, pid)
+
+    @staticmethod
+    def get_dump_ext():
+        """Return the dump file extension."""
+        return "mdmp"
+
+class WindowsProcessList(object):
+    """WindowsProcessList class."""
+
+    @staticmethod
+    def __find_ps():
+        """Find tasklist."""
+        return os.path.join(os.environ["WINDIR"], "system32", "tasklist.exe")
+
+    def dump_processes(self, logger):
+        """Get list of [Pid, Process Name]."""
+        ps = self.__find_ps()
+
+        logger.info("Getting list of processes using %s", ps)
+
+        ret = callo([ps, "/FO", "CSV"], logger)
+
+        buff = TextIOWrapper(BytesIO(ret))
+        csv_reader = csv.reader(buff)
+
+        return [[int(row[1]), row[0]] for row in csv_reader if row[1] != "PID"]
+
 # GDB dumper is for Linux
 class GDBDumper(object):
     """GDBDumper class."""
@@ -252,7 +344,16 @@ class LinuxProcessList(object):
 def get_hang_analyzers():
     """Return hang analyzers."""
 
-    return [LinuxProcessList(), GDBDumper()]
+    dbg = None
+    ps = None
+    if sys.platform.startswith("linux"):
+        dbg = GDBDumper()
+        ps = LinuxProcessList()
+    else _IS_WINDOWS or sys.platform == "cygwin":
+        dbg = WindowsDumper()
+        ps = WindowsProcessList()
+
+    return [ps, dbg]
 
 def check_dump_quota(quota, ext):
     """Check if sum of the files with ext is within the specified quota in megabytes."""
@@ -264,6 +365,30 @@ def check_dump_quota(quota, ext):
         size_sum += os.path.getsize(file_name)
 
     return size_sum <= quota
+
+def signal_event_object(logger, pid):
+    """Signal the Windows event object."""
+
+    # Use unique event_name created.
+    event_name = "Global\\Mongo_Python_" + str(pid)
+
+    try:
+        desired_access = win32event.EVENT_MODIFY_STATE
+        inherit_handle = False
+        task_timeout_handle = win32event.OpenEvent(desired_access, inherit_handle, event_name)
+    except win32event.error as err:
+        logger.info("Exception from win32event.OpenEvent with error: %s", err)
+        return
+
+    try:
+        win32event.SetEvent(task_timeout_handle)
+    except win32event.error as err:
+        logger.info("Exception from win32event.SetEvent with error: %s", err)
+    finally:
+        win32api.CloseHandle(task_timeout_handle)
+
+    logger.info("Waiting for process to report")
+    time.sleep(5)
 
 def signal_process(logger, pid, signalnum):
     """Signal process with signal, N/A on Windows."""
@@ -302,8 +427,12 @@ def main():  # pylint: disable=too-many-branches,too-many-locals,too-many-statem
     root_logger.info("OS: %s", platform.platform())
 
     try:
-        distro = platform.linux_distribution()
-        root_logger.info("Linux Distribution: %s", distro)
+        if _IS_WINDOWS or sys.platform == "cygwin":
+            distro = platform.win32_ver()
+            root_logger.info("Windows Distribution: %s", distro)
+        else:
+            distro = platform.linux_distribution()
+            root_logger.info("Linux Distribution: %s", distro)
 
     except AttributeError:
         root_logger.warning("Cannot determine Linux distro since Python is too old")
