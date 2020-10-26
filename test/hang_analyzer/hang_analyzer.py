@@ -464,43 +464,6 @@ def check_dump_quota(quota, ext):
 
     return size_sum <= quota
 
-def signal_event_object(logger, pid):
-    """Signal the Windows event object."""
-
-    # Use unique event_name created.
-    event_name = "Global\\Mongo_Python_" + str(pid)
-
-    try:
-        desired_access = win32event.EVENT_MODIFY_STATE
-        inherit_handle = False
-        task_timeout_handle = win32event.OpenEvent(desired_access, inherit_handle, event_name)
-    except win32event.error as err:
-        logger.info("Exception from win32event.OpenEvent with error: %s", err)
-        return
-
-    try:
-        win32event.SetEvent(task_timeout_handle)
-    except win32event.error as err:
-        logger.info("Exception from win32event.SetEvent with error: %s", err)
-    finally:
-        win32api.CloseHandle(task_timeout_handle)
-
-    logger.info("Waiting for process to report")
-    time.sleep(5)
-
-def signal_process(logger, pid, signalnum):
-    """Signal process with signal, N/A on Windows."""
-    try:
-        os.kill(pid, signalnum)
-
-        logger.info("Waiting for process to report")
-        time.sleep(5)
-    except OSError as err:
-        logger.error("Hit OS error trying to signal process: %s", err)
-
-    except AttributeError:
-        logger.error("Cannot send signal to a process on Windows")
-
 def pname_match(exact_match, pname, processes):
     """Return True if the pname matches in processes."""
     pname = os.path.splitext(pname)[0]
@@ -628,19 +591,6 @@ def main():  # pylint: disable=too-many-branches,too-many-locals,too-many-statem
         except Exception as err:  # pylint: disable=broad-except
             root_logger.info("Error encountered when invoking debugger %s", err)
             trapped_exceptions.append(traceback.format_exc())
-
-    # Dump python processes by signalling them. The resmoke.py process will generate
-    # the report.json, when signalled, so we do this before attaching to other processes.
-    for (pid, process_name) in [(p, pn) for (p, pn) in processes if pn.startswith("python")]:
-        # On Windows, we set up an event object to wait on a signal. For Cygwin, we register
-        # a signal handler to wait for the signal since it supports POSIX signals.
-        if _IS_WINDOWS:
-            root_logger.info("Calling SetEvent to signal python process %s with PID %d",
-                             process_name, pid)
-            signal_event_object(root_logger, pid)
-        else:
-            root_logger.info("Sending signal SIGUSR1 to python process %s with PID %d", process_name, pid)
-            signal_process(root_logger, pid, signal.SIGUSR1)
 
     root_logger.info("Done analyzing all processes for hangs")
 
