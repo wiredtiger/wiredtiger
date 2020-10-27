@@ -309,7 +309,7 @@ class LLDBDumper(object):
             "quit",
         ]
 
-        tf = tempfile.NamedTemporaryFile(mode="w+")
+        tf = tempfile.NamedTemporaryFile(mode='w', encoding='utf-8')
 
         for cmd in cmds:
             tf.write(cmd + "\n")
