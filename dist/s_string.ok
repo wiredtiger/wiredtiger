@@ -216,6 +216,8 @@ LAS
 LF
 LLLLLL
 LLLLLLL
+LLVM
+LLVMFuzzerTestOneInput
 LOGREC
 LOGSCAN
 LOOKASIDE
@@ -231,6 +233,7 @@ LZO
 LeafGreen
 LevelDB
 Levyx
+LibFuzzer
 LmRrSVv
 LmsT
 LoadLoad
