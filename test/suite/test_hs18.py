@@ -37,6 +37,14 @@ class test_hs18(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB,eviction=(threads_max=1)'
     session_config = 'isolation=snapshot'
 
+    def start_txn(self, sessions, cursors, values, i):
+        # Start a transaction that will see update 0.
+        sessions[i].begin_transaction()
+        cursors[i].set_key(str(0))
+        self.assertEqual(cursors[i].search(), 0)
+        self.assertEqual(cursors[i].get_value(), values[i])
+        cursors[i].reset()
+
     def test_hs18(self):
         uri = 'table:test_hs18'
         self.session.create(uri, 'key_format=S,value_format=S')
@@ -184,104 +192,185 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
 
         # The ID of the session corresponds the value it should see.
-        session0 = self.setUpSessionOpen(self.conn)
-        cursor0 = session0.open_cursor(uri)
-        session1 = self.setUpSessionOpen(self.conn)
-        cursor1 = session1.open_cursor(uri)
-        session2 = self.setUpSessionOpen(self.conn)
-        cursor2 = session2.open_cursor(uri)
-        session4 = self.setUpSessionOpen(self.conn)
-        cursor4 = session4.open_cursor(uri)
+        sessions = []
+        cursors = []
+        values = []
+        for i in range(0, 5):
+            sessions.append(self.setUpSessionOpen(self.conn))
+            cursors.append(sessions[i].open_cursor(uri))
+            values.append(str(i) * 10)
 
-        value0 = 'f' * 500
-        value1 = 'a' * 500
-        value2 = 'b' * 500
-        value3 = 'c' * 500
-        value4 = 'd' * 500
-        value5 = 'e' * 500
+        value_junk = 'aaaaa' * 100
 
         # Insert an update at timestamp 3
         self.session.begin_transaction()
-        cursor[str(0)] = value0
+        cursor[str(0)] = values[0]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Start a transaction that will see update 0.
-        session0.begin_transaction()
-        cursor0.set_key(str(0))
-        self.assertEqual(cursor0.search(), 0)
-        self.assertEqual(cursor0.get_value(), value0)
-        cursor0.reset()
+        self.start_txn(sessions, cursors, values, 0)
 
         # Insert an update at timestamp 5
         self.session.begin_transaction()
-        cursor[str(0)] = value1
+        cursor[str(0)] = values[1]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Start a transaction that will see update 1.
-        session1.begin_transaction()
-        cursor1.set_key(str(0))
-        self.assertEqual(cursor1.search(), 0)
-        self.assertEqual(cursor1.get_value(), value1)
-        cursor1.reset()
+        self.start_txn(sessions, cursors, values, 1)
 
         # Insert another update at timestamp 10
         self.session.begin_transaction()
-        cursor[str(0)] = value2
+        cursor[str(0)] = values[2]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
         # Start a transaction that will see update 2.
-        session2.begin_transaction()
-        cursor2.set_key(str(0))
-        self.assertEqual(cursor2.search(), 0)
-        self.assertEqual(cursor2.get_value(), value2)
-        cursor2.reset()
+        self.start_txn(sessions, cursors, values, 2)
 
         # Insert a bunch of other contents to trigger eviction
         for i in range(1000, 10000):
             self.session.begin_transaction()
-            cursor[str(i)] = value3
+            cursor[str(i)] = value_junk
             self.session.commit_transaction()
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
-        cursor[str(0)] = value4
+        cursor[str(0)] = values[3]
         self.session.commit_transaction()
 
-        # Start a transaction that will see update 4.
-        session4.begin_transaction()
-        cursor4.set_key(str(0))
-        self.assertEqual(cursor4.search(), 0)
-        self.assertEqual(cursor4.get_value(), value4)
-        cursor4.reset()
+        # Start a transaction that will see update 3.
+        self.start_txn(sessions, cursors, values, 3)
 
         # Commit an update with timestamp 15
         self.session.begin_transaction()
-        cursor[str(0)] = value5
+        cursor[str(0)] = values[4]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
 
         # Insert a bunch of other contents to trigger eviction
         for i in range(10001, 20000):
             self.session.begin_transaction()
-            cursor[str(i)] = value3
+            cursor[str(i)] = value_junk
             self.session.commit_transaction()
 
         # Validate all values are visible and correct.
-        cursor0.set_key(str(0))
-        self.assertEqual(cursor0.search(), 0)
-        self.assertEqual(cursor0.get_value(), value0)
-        cursor0.reset()
+        for i in range(0, 3):
+            cursors[i].set_key(str(0))
+            self.assertEqual(cursors[i].search(), 0)
+            self.assertEqual(cursors[i].get_value(), values[i])
+            cursors[i].reset()
 
-        cursor1.set_key(str(0))
-        self.assertEqual(cursor1.search(), 0)
-        self.assertEqual(cursor1.get_value(), value1)
-        cursor1.reset()
+    def test_multiple_older_readers_with_multiple_mixed_mode(self):
+        uri = 'table:test_multiple_older_readers'
+        self.session.create(uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(uri)
 
-        cursor2.set_key(str(0))
-        self.assertEqual(cursor2.search(), 0)
-        self.assertEqual(cursor2.get_value(), value2)
-        cursor2.reset()
+        # The ID of the session corresponds the value it should see.
+        sessions = []
+        cursors = []
+        values = []
+        for i in range(0, 9):
+            sessions.append(self.setUpSessionOpen(self.conn))
+            cursors.append(sessions[i].open_cursor(uri))
+            values.append(str(i) * 10)
 
-        cursor4.set_key(str(0))
-        self.assertEqual(cursor4.search(), 0)
-        self.assertEqual(cursor4.get_value(), value4)
-        cursor4.reset()
+        value_junk = 'aaaaa' * 100
+
+        # Insert an update at timestamp 3
+        self.session.begin_transaction()
+        cursor[str(0)] = values[0]
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
+        # Start a transaction that will see update 0.
+        self.start_txn(sessions, cursors, values, 0)
+
+        # Insert an update at timestamp 5
+        self.session.begin_transaction()
+        cursor[str(0)] = values[1]
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
+
+        # Start a transaction that will see update 1.
+        self.start_txn(sessions, cursors, values, 1)
+
+        # Insert another update at timestamp 10
+        self.session.begin_transaction()
+        cursor[str(0)] = values[2]
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+
+        # Start a transaction that will see update 2.
+        self.start_txn(sessions, cursors, values, 2)
+
+        # Insert a bunch of other contents to trigger eviction
+        for i in range(1000, 10000):
+            self.session.begin_transaction()
+            cursor[str(i)] = value_junk
+            self.session.commit_transaction()
+
+        # Commit an update without a timestamp on our original key
+        self.session.begin_transaction()
+        cursor[str(0)] = values[3]
+        self.session.commit_transaction()
+
+        # Start a transaction that will see update 4.
+        self.start_txn(sessions, cursors, values, 3)
+
+        # Commit an update with timestamp 5
+        self.session.begin_transaction()
+        cursor[str(0)] = values[4]
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
+
+        # Start a transaction that will see update 5.
+        self.start_txn(sessions, cursors, values, 4)
+
+        # Commit an update with timestamp 10
+        self.session.begin_transaction()
+        cursor[str(0)] = values[5]
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+
+        # Start a transaction that will see update 6.
+        self.start_txn(sessions, cursors, values, 5)
+
+        # Commit an update with timestamp 15
+        self.session.begin_transaction()
+        cursor[str(0)] = values[6]
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
+
+        # Start a transaction that will see update 7.
+        self.start_txn(sessions, cursors, values, 6)
+
+        # Insert a bunch of other contents to trigger eviction
+        for i in range(10001, 20000):
+            self.session.begin_transaction()
+            cursor[str(i)] = value_junk
+            self.session.commit_transaction()
+
+        # Validate all values are visible and correct.
+        for i in range(0, 6):
+            cursors[i].set_key(str(0))
+            self.assertEqual(cursors[i].search(), 0)
+            self.assertEqual(cursors[i].get_value(), values[i])
+            cursors[i].reset()
+
+        # Commit an update without a timestamp on our original key
+        self.session.begin_transaction()
+        cursor[str(0)] = values[7]
+        self.session.commit_transaction()
+
+        # Start a transaction that will see update 8.
+        self.start_txn(sessions, cursors, values, 7)
+
+        # Commit an update with timestamp 5
+        self.session.begin_transaction()
+        cursor[str(0)] = values[8]
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
+
+        # Insert a bunch of other contents to trigger eviction
+        for i in range(10001, 20000):
+            self.session.begin_transaction()
+            cursor[str(i)] = values[3]
+            self.session.commit_transaction()
+
+        # Validate all values are visible and correct.
+        for i in range(0, 7):
+            cursors[i].set_key(str(0))
+            self.assertEqual(cursors[i].search(), 0)
+            self.assertEqual(cursors[i].get_value(), values[i])
+            cursors[i].reset()
