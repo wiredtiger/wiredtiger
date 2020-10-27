@@ -956,6 +956,37 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
     upd = NULL;
     insert_cursor = NULL;
 
+    if (reinsert) {
+        /*
+         * Determine the starting value of our counter, i.e. highest counter value of the timestamp
+         * range for timestamp 0. We'll be inserting at timestamp 0 and don't want to overwrite a
+         * currently existing counter.
+         *
+         * The cursor will also be positioned at the start of the range that we wish to start
+         * inserting.
+         */
+        WT_WITHOUT_DHANDLE(session,
+          ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &insert_cursor));
+
+        F_SET(insert_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+        WT_ERR(ret);
+        WT_ERR_NOTFOUND_OK(
+          __wt_hs_cursor_position(session, insert_cursor, btree_id, key, WT_TS_NONE, NULL), true);
+
+        if (ret == WT_NOTFOUND) {
+            hs_insert_counter = 0;
+            ret = 0;
+        } else {
+            WT_ERR(insert_cursor->get_key(
+              insert_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_insert_counter));
+            /*
+             * Increment the hs counter that we'll be using to insert with to avoid overwriting the
+             * record we just found.
+             */
+            hs_insert_counter++;
+        }
+    }
+
     /* Begin iterating over the range of entries we expect to replace. */
     for (; ret == 0; ret = __wt_hs_cursor_next(session, hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
@@ -987,37 +1018,6 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
 
         if (reinsert) {
-            if (insert_cursor == NULL) {
-                /*
-                 * Determine the starting value of our counter, i.e. highest counter value of the
-                 * timestamp range for timestamp 0. We'll be inserting at timestamp 0 and don't want
-                 * to overwrite a currently existing counter.
-                 *
-                 * The cursor will also be positioned at the start of the range that we wish to
-                 * start inserting.
-                 */
-                WT_WITHOUT_DHANDLE(session,
-                  ret =
-                    __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &insert_cursor));
-                WT_ERR(ret);
-                F_SET(insert_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
-                WT_ERR_NOTFOUND_OK(
-                  __wt_hs_cursor_position(session, insert_cursor, btree_id, key, WT_TS_NONE, NULL),
-                  true);
-
-                if (ret == WT_NOTFOUND) {
-                    hs_insert_counter = 0;
-                    ret = 0;
-                } else {
-                    WT_ERR(insert_cursor->get_key(
-                      insert_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_insert_counter));
-                    /*
-                     * Increment the hs counter that we'll be using to insert with to avoid
-                     * overwriting the record we just found.
-                     */
-                    hs_insert_counter++;
-                }
-            }
             WT_ERR(hs_cursor->get_value(
               hs_cursor, &hs_stop_durable_ts, &durable_timestamp, &hs_upd_type, &hs_value));
 
