@@ -107,6 +107,11 @@ fuzzutil_sliced_input_init(
     if (slices == NULL || sizes == NULL)
         goto err;
 
+    /*
+     * Store pointers and sizes for each slice of the input. This code is implementing the idea
+     * described at:
+     * https://github.com/google/fuzzing/blob/master/docs/split-inputs.md#magic-separator.
+     */
     while ((pos = memmem(begin, end - begin, separator, sizeof(separator))) != NULL) {
         if (i >= required_slices)
             goto err;

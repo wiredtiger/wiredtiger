@@ -27,39 +27,47 @@
  */
 #include "fuzz_util.h"
 
-#include <assert.h>
-
 /*
  * LLVMFuzzerTestOneInput --
- *    A fuzzing target for configuration parsing.
+ *    A fuzzing target for modifies.
  */
 int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
-    FUZZ_SLICED_INPUT input;
-    WT_CONFIG_ITEM cval;
-    char *config, *key;
+    WT_CURSOR *cursor;
+    WT_DECL_ITEM(packed_modify);
+    WT_ITEM buf;
+    WT_MODIFY modify;
+    size_t buf_size;
+    const uint8_t *modify_ptr;
 
-    WT_CLEAR(input);
-    config = key = NULL;
+    if (size < 10)
+        return 0;
 
     fuzzutil_setup();
-    if (!fuzzutil_sliced_input_init(data, size, &input, 2))
-        return (0);
 
-    assert(input.num_slices == 2);
-    key = fuzzutil_slice_to_cstring(input.slices[0], input.sizes[0]);
-    if (key == NULL)
-        testutil_die(ENOMEM, "Failed to allocate key");
-    config = fuzzutil_slice_to_cstring(input.slices[1], input.sizes[1]);
-    if (config == NULL)
-        testutil_die(ENOMEM, "Failed to allocate config");
+    WT_CLEAR(cursor);
+    WT_CLEAR(buf);
+    WT_CLEAR(modify);
 
-    (void)__wt_config_getones((WT_SESSION_IMPL *)fuzz_state.session, config, key, &cval);
-    (void)cval;
+    /* Choose some portion of the buffer for the underlying value. */
+    buf.data = &data[0];
+    buf.size = data[0] % size;
 
-    fuzzutil_sliced_input_free(&input);
-    free(config);
-    free(key);
+    /* The modify data takes the rest. */
+    modify.data.data = &data[buf.size];
+    modify.data.size = modify.size = size - buf.size;
+    modify.offset = data[buf.size] % size;
+
+    /* We're doing this in order to get a cursor since we need one to call the modify helper. */
+    testutil_check(
+      fuzz_state.session->open_cursor(fuzz_state.session, "metadata:", NULL, NULL, &cursor));
+    testutil_check(__wt_modify_pack(cursor, &modify, 1, &packed_modify));
+    testutil_check(__wt_modify_apply_item(
+      (WT_SESSION_IMPL *)fuzz_state.session, "u", &buf, packed_modify->data));
+
+    testutil_check(cursor->close(cursor));
+    __wt_scr_free((WT_SESSION_IMPL *)fuzz_state.session, &packed_modify);
+    __wt_buf_free((WT_SESSION_IMPL *)fuzz_state.session, &buf);
     return (0);
 }
