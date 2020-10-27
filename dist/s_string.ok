@@ -626,6 +626,7 @@ create's
 createCStream
 crypto
 cryptobad
+cstring
 csuite
 csv
 ctime
@@ -806,6 +807,9 @@ fsyncs
 ftruncate
 func
 funcid
+fuzz
+fuzzer
+fuzzutil
 fvisibility
 fwrite
 gc
@@ -1450,6 +1454,7 @@ wtperf's
 wts
 wtstats
 xF
+xdeadbeef
 xff
 xxxx
 xxxxx

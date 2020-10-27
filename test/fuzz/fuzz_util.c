@@ -6,21 +6,29 @@
 
 FUZZ_GLOBAL_STATE fuzz_state = {.conn = NULL, .session = NULL};
 
+/*
+ * fuzzutil_generate_home_name --
+ *     Create a unique home directory per thread that LibFuzzer creates.
+ */
 static void
-__fuzz_generate_home_name(char *buf)
+fuzzutil_generate_home_name(char *buf)
 {
     pthread_t thandle;
 
+    /*
+     * Good lord. There doesn't seem to a nice POSIX compatible way of doing this. This does the job
+     * but the directory names look silly. We can revisit this later if necessary.
+     */
     thandle = pthread_self();
     sprintf(buf, "WT_TEST_%p", (void *)thandle);
 }
 
 /*
- * __fuzz_setup --
+ * fuzzutil_setup --
  *     Initialize the connection and session the first time LibFuzzer executes the target.
  */
 void
-__fuzz_setup()
+fuzzutil_setup()
 {
     char home[100];
 
@@ -30,18 +38,30 @@ __fuzz_setup()
     }
 
     WT_CLEAR(home);
-    __fuzz_generate_home_name(home);
+    fuzzutil_generate_home_name(home);
     testutil_make_work_dir(home);
     testutil_check(wiredtiger_open(home, NULL, "create,cache_size=5MB", &fuzz_state.conn));
     testutil_check(fuzz_state.conn->open_session(fuzz_state.conn, NULL, NULL, &fuzz_state.session));
 }
 
+/*
+ * fuzzutil_sliced_input_init --
+ *     Often, our fuzz target requires multiple inputs. For example, for configuration parsing we'd
+ *     need a configuration string and a key to search for. We can do this by requiring the fuzzer
+ *     to provide data with a number of arbitrary multi-byte separators (in our system, we use
+ *     0xdeadbeef). If the fuzzer doesn't supply data in that format, we can return out of the fuzz
+ *     target. While our fuzz target will reject lots of input to begin with, the fuzzer will figure
+ *     out that inputs with these separators yield better coverage and will craft more sensible
+ *     inputs over time. This is what the sliced input component is designed for. It takes the data
+ *     input and the number of slices that it should expect and populates a heap allocated array of
+ *     data pointers to each separate input and their respective size.
+ */
 bool
-__fuzz_sliced_input_init(
+fuzzutil_sliced_input_init(
   const uint8_t *data, size_t size, FUZZ_SLICED_INPUT *input, size_t required_slices)
 {
     static const uint8_t separator[] = {0xde, 0xad, 0xbe, 0xef};
-    const uint8_t *begin, **slices, *end, *pos;
+    const uint8_t *begin, *end, *pos, **slices;
     size_t *sizes;
     u_int i;
 
@@ -83,15 +103,23 @@ err:
     return (false);
 }
 
+/*
+ * fuzzutil_sliced_input_free --
+ *     Free any resources on the sliced input.
+ */
 void
-__fuzz_sliced_input_free(FUZZ_SLICED_INPUT *input)
+fuzzutil_sliced_input_free(FUZZ_SLICED_INPUT *input)
 {
     free(input->slices);
     free(input->sizes);
 }
 
+/*
+ * fuzzutil_slice_to_cstring --
+ *     A conversion function to help convert from a data, size pair to a cstring.
+ */
 char *
-__fuzz_slice_to_cstring(const uint8_t *data, size_t size)
+fuzzutil_slice_to_cstring(const uint8_t *data, size_t size)
 {
     char *str;
 
