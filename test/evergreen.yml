@@ -295,15 +295,6 @@ functions:
         rm -rf "wiredtiger"
         rm -rf "wiredtiger.tgz"
 
-  "timeout function":
-    command: shell.exec
-    working_dir: "wiredtiger/build_posix"
-    params:
-      script: |
-        echo " Timeout function called \n"
-        echo " Print Pids of test format binaries\n "
-        pidof ./t
-
   "run hang analyzer":
     command: shell.exec
     params:
@@ -479,7 +470,6 @@ post:
   - func: "dump stderr/stdout"
   - func: "cleanup"
 timeout:
-  - func: "timeout function"
   - func: "run hang analyzer"
 
 tasks:
