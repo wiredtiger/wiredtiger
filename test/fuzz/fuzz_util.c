@@ -35,19 +35,20 @@ FUZZ_GLOBAL_STATE fuzz_state = {.conn = NULL, .session = NULL};
 
 /*
  * fuzzutil_generate_home_name --
- *     Create a unique home directory per thread that LibFuzzer creates.
+ *     Create a unique home directory per worker that LibFuzzer creates.
  */
 static void
 fuzzutil_generate_home_name(char *buf)
 {
-    pthread_t thandle;
+    pid_t pid;
 
     /*
-     * Good lord. There doesn't seem to a nice POSIX compatible way of doing this. This does the job
-     * but the directory names look silly. We can revisit this later if necessary.
+     * Once we're exercising the fuzz target, we don't know which worker we are. An easy way to make
+     * sure that workers don't clobber each other's home directories is to tack the process ID on
+     * the end of the name.
      */
-    thandle = pthread_self();
-    sprintf(buf, "WT_TEST_%p", (void *)thandle);
+    pid = getpid();
+    sprintf(buf, "WT_TEST_%d", pid);
 }
 
 /*
@@ -166,5 +167,5 @@ fuzzutil_slice_to_cstring(const uint8_t *data, size_t size)
     memcpy(str, data, size);
     str[size] = '\0';
 
-    return str;
+    return (str);
 }
