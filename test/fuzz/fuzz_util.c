@@ -70,9 +70,14 @@ fuzzutil_sliced_input_init(
     begin = data;
     end = data + size;
 
+    /*
+     * It might be better to do an initial pass to check that we have the right number of separators
+     * before actually storing them. Currently, we're dynamically allocating even in the case of
+     * invalid input.
+     */
     slices = malloc(sizeof(uint8_t *) * required_slices);
     sizes = malloc(sizeof(size_t) * required_slices);
-    if (!slices || !sizes)
+    if (slices == NULL || sizes == NULL)
         goto err;
 
     while ((pos = memmem(begin, end - begin, separator, sizeof(separator))) != NULL) {
