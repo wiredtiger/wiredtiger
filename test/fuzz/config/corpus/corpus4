@@ -1,1 +1,1 @@
-log.file_maxÞ­¾ïlog=(enabled,file_max=512,compressor=snappy),create,statistics=(fast)
+value_format|value_format=S,allocation_size=1024,key_format=u,log=(enabled)

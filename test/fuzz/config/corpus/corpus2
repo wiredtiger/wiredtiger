@@ -1,1 +1,1 @@
-key_formatÞ­¾ïkey_format=u,value_format=u,allocation_size=512,log=(enabled)
+log.enabled|key_format=u,allocation_size=1024,value_format=u,log=(enabled)

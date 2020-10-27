@@ -76,21 +76,21 @@ fuzzutil_setup()
  * fuzzutil_sliced_input_init --
  *     Often, our fuzz target requires multiple inputs. For example, for configuration parsing we'd
  *     need a configuration string and a key to search for. We can do this by requiring the fuzzer
- *     to provide data with a number of arbitrary multi-byte separators (in our system, we use
- *     0xdeadbeef). If the fuzzer doesn't supply data in that format, we can return out of the fuzz
- *     target. While our fuzz target will reject lots of input to begin with, the fuzzer will figure
- *     out that inputs with these separators yield better coverage and will craft more sensible
- *     inputs over time. This is what the sliced input component is designed for. It takes the data
- *     input and the number of slices that it should expect and populates a heap allocated array of
- *     data pointers to each separate input and their respective size.
+ *     to provide data with a number of arbitrary multi-byte separators. If you have a sentinel
+ *     character, you can use that, otherwise patterns like 0xdeadbeef work fine too but make the
+ *     corpus less readable. If the fuzzer doesn't supply data in that format, we can return out of
+ *     the fuzz target. While our fuzz target will reject lots of input to begin with, the fuzzer
+ *     will figure out that inputs with these separators yield better coverage and will craft more
+ *     sensible inputs over time. This is what the sliced input component is designed for. It takes
+ *     the data input and the number of slices that it should expect and populates a heap allocated
+ *     array of data pointers to each separate input and their respective size.
  */
 bool
-fuzzutil_sliced_input_init(
-  const uint8_t *data, size_t size, FUZZ_SLICED_INPUT *input, size_t required_slices)
+fuzzutil_sliced_input_init(FUZZ_SLICED_INPUT *input, const uint8_t *data, size_t size,
+  const uint8_t *sep, size_t sep_size, size_t req_slices)
 {
-    static const uint8_t separator[] = {0xde, 0xad, 0xbe, 0xef};
-    const uint8_t *begin, *end, *pos, **slices;
     size_t *sizes;
+    const uint8_t *begin, *end, *pos, **slices;
     u_int i;
 
     pos = NULL;
@@ -103,8 +103,8 @@ fuzzutil_sliced_input_init(
      * before actually storing them. Currently, we're dynamically allocating even in the case of
      * invalid input.
      */
-    slices = malloc(sizeof(uint8_t *) * required_slices);
-    sizes = malloc(sizeof(size_t) * required_slices);
+    slices = malloc(sizeof(uint8_t *) * req_slices);
+    sizes = malloc(sizeof(size_t) * req_slices);
     if (slices == NULL || sizes == NULL)
         goto err;
 
@@ -113,26 +113,26 @@ fuzzutil_sliced_input_init(
      * described at:
      * https://github.com/google/fuzzing/blob/master/docs/split-inputs.md#magic-separator.
      */
-    while ((pos = memmem(begin, end - begin, separator, sizeof(separator))) != NULL) {
-        if (i >= required_slices)
+    while ((pos = memmem(begin, end - begin, sep, sep_size)) != NULL) {
+        if (i >= req_slices)
             goto err;
         slices[i] = begin;
         sizes[i] = pos - begin;
-        begin = pos + sizeof(separator);
+        begin = pos + sep_size;
         ++i;
     }
     if (begin < end) {
-        if (i >= required_slices)
+        if (i >= req_slices)
             goto err;
         slices[i] = begin;
         sizes[i] = end - begin;
         ++i;
     }
-    if (i != required_slices)
+    if (i != req_slices)
         goto err;
     input->slices = slices;
     input->sizes = sizes;
-    input->num_slices = required_slices;
+    input->num_slices = req_slices;
     return (true);
 
 err:

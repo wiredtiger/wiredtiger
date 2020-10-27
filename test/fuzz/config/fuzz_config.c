@@ -39,12 +39,13 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     FUZZ_SLICED_INPUT input;
     WT_CONFIG_ITEM cval;
     char *config, *key;
+    static const uint8_t separator[] = {'|'};
 
     WT_CLEAR(input);
     config = key = NULL;
 
     fuzzutil_setup();
-    if (!fuzzutil_sliced_input_init(data, size, &input, 2))
+    if (!fuzzutil_sliced_input_init(&input, data, size, separator, sizeof(separator), 2))
         return (0);
 
     assert(input.num_slices == 2);

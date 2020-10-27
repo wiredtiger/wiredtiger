@@ -41,7 +41,7 @@ typedef struct {
 extern FUZZ_GLOBAL_STATE fuzz_state;
 
 void fuzzutil_setup();
-bool fuzzutil_sliced_input_init(
-  const uint8_t *data, size_t size, FUZZ_SLICED_INPUT *input, size_t required_slices);
+bool fuzzutil_sliced_input_init(FUZZ_SLICED_INPUT *input, const uint8_t *data, size_t size,
+  const uint8_t *sep, size_t sep_size, size_t req_slices);
 void fuzzutil_sliced_input_free(FUZZ_SLICED_INPUT *input);
 char *fuzzutil_slice_to_cstring(const uint8_t *data, size_t size);
