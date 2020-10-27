@@ -356,7 +356,7 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[str(0)] = values[4]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
-        # Start a transaction that will see update 5.
+        # Start a transaction that will see update 4.
         self.start_txn(sessions, cursors, values, 4)
 
         # Commit an update with timestamp 10
@@ -364,7 +364,7 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[str(0)] = values[5]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
-        # Start a transaction that will see update 6.
+        # Start a transaction that will see update 5.
         self.start_txn(sessions, cursors, values, 5)
 
         # Commit an update with timestamp 15
@@ -372,7 +372,7 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[str(0)] = values[6]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
 
-        # Start a transaction that will see update 7.
+        # Start a transaction that will see update 6.
         self.start_txn(sessions, cursors, values, 6)
 
         # Insert a bunch of other contents to trigger eviction
@@ -393,7 +393,7 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[str(0)] = values[7]
         self.session.commit_transaction()
 
-        # Start a transaction that will see update 8.
+        # Start a transaction that will see update 7.
         self.start_txn(sessions, cursors, values, 7)
 
         # Commit an update with timestamp 5
