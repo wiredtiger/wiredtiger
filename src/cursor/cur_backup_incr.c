@@ -153,7 +153,6 @@ __curbackup_incr_next(WT_CURSOR *cursor)
              * source of our id.
              */
             WT_ERR(__curbackup_incr_blkmod(session, btree, cb));
-            total_len = cb->granularity;
             /*
              * There are several cases where we do not have block modification information for
              * the file. They are described and handled as follows:
