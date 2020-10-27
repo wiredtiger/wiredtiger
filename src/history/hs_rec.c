@@ -951,6 +951,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
+    hs_insert_counter = 0;
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
     upd = NULL;
@@ -967,9 +968,8 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
          */
         WT_WITHOUT_DHANDLE(session,
           ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &insert_cursor));
-
-        F_SET(insert_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
         WT_ERR(ret);
+        F_SET(insert_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
         WT_ERR_NOTFOUND_OK(
           __wt_hs_cursor_position(session, insert_cursor, btree_id, key, WT_TS_NONE, NULL), true);
 
