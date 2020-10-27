@@ -48,8 +48,8 @@ class test_hs18(wttest.WiredTigerTestCase):
         sessions[i].begin_transaction()
         self.check_value(cursors[i], values[i])
 
-    def test_hs18(self):
-        uri = 'table:test_hs18'
+    def test_base_scenario(self):
+        uri = 'table:test_base_scenario'
         self.session.create(uri, 'key_format=S,value_format=S')
         session2 = self.setUpSessionOpen(self.conn)
         cursor = self.session.open_cursor(uri)
@@ -113,11 +113,12 @@ class test_hs18(wttest.WiredTigerTestCase):
     def test_read_timestamp_weirdness(self):
         uri = 'table:test_hs18'
         self.session.create(uri, 'key_format=S,value_format=S')
-        session2 = self.setUpSessionOpen(self.conn)
         cursor = self.session.open_cursor(uri)
+        session2 = self.setUpSessionOpen(self.conn)
         cursor2 = session2.open_cursor(uri)
+        session3 = self.setUpSessionOpen(self.conn)
+        cursor3 = session3.open_cursor(uri)
 
-        value0 = 'f' * 500
         value1 = 'a' * 500
         value2 = 'b' * 500
         value3 = 'c' * 500
@@ -126,18 +127,23 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert an update at timestamp 3
         self.session.begin_transaction()
-        cursor[str(0)] = value0
+        cursor[str(0)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Start a long running transaction which could see update 0.
         session2.begin_transaction('read_timestamp=' + timestamp_str(5))
         # Check our value is still correct.
-        self.check_value(cursor2, value0)
+        self.check_value(cursor2, value1)
 
         # Insert another update at timestamp 10
         self.session.begin_transaction()
         cursor[str(0)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+
+        # Start a long running transaction which could see update 0.
+        session3.begin_transaction('read_timestamp=' + timestamp_str(5))
+        # Check our value is still correct.
+        self.check_value(cursor3, value1)
 
         # Insert a bunch of contents to fill the cache
         for i in range(1000, 10000):
@@ -156,7 +162,8 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
 
         # Check our value is still correct.
-        self.check_value(cursor2, value0)
+        self.check_value(cursor2, value1)
+        self.check_value(cursor3, value1)
 
         # Insert a bunch of other contents to trigger eviction
         for i in range(10001, 20000):
@@ -165,7 +172,9 @@ class test_hs18(wttest.WiredTigerTestCase):
             self.session.commit_transaction()
 
         # Check our value is still correct.
-        self.check_value(cursor2, value0)
+        self.check_value(cursor2, value1)
+        # Here our value will be wrong as we're reading with a timestamp, and can now see a newer value.
+        self.check_value(cursor3, value2)
 
     # Test that forces us to ignore tombstone in order to not remove the first non timestamped updated.
     def test_ignore_tombstone(self):
@@ -413,3 +422,94 @@ class test_hs18(wttest.WiredTigerTestCase):
             self.assertEqual(cursors[i].search(), 0)
             self.assertEqual(cursors[i].get_value(), values[i])
             cursors[i].reset()
+
+    def test_modifies(self):
+        uri = 'table:test_modifies'
+        self.session.create(uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(uri)
+        session_ts_reader = self.setUpSessionOpen(self.conn)
+        cursor_ts_reader = session_ts_reader.open_cursor(uri)
+
+        # The ID of the session corresponds the value it should see.
+        sessions = []
+        cursors = []
+        values = []
+        for i in range(0, 5):
+            sessions.append(self.setUpSessionOpen(self.conn))
+            cursors.append(sessions[i].open_cursor(uri))
+
+        value_junk = 'aaaaa' * 100
+
+        values.append('f' * 10)
+        values.append('a' + values[0])
+        values.append('b' + values[1])
+        values.append('g' * 10)
+        values.append('e' + values[3])
+
+        # Insert an update at timestamp 3
+        self.session.begin_transaction()
+        cursor[str(0)] = values[0]
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
+        # Start a long running transaction which could see update 0.
+        self.start_txn(sessions, cursors, values, 0)
+
+        # Insert an update at timestamp 5
+        self.session.begin_transaction()
+        cursor.set_key(str(0))
+        cursor.modify([wiredtiger.Modify('a', 0, 0)])
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
+
+        session_ts_reader.begin_transaction('read_timestamp=3')
+        self.check_value(cursor_ts_reader, values[0])
+
+        # Start a long running transaction which could see modify 0.
+        self.start_txn(sessions, cursors, values, 1)
+
+        # Insert another modify at timestamp 10
+        self.session.begin_transaction()
+        cursor.set_key(str(0))
+        cursor.modify([wiredtiger.Modify('b', 0, 0)])
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+
+        # Start a long running transaction which could see modify 1.
+        self.start_txn(sessions, cursors, values, 2)
+
+        # Insert a bunch of contents to fill the cache
+        for i in range(2000, 10000):
+            self.session.begin_transaction()
+            cursor[str(i)] = value_junk
+            self.session.commit_transaction()
+
+        # Commit a modify without a timestamp on our original key
+        self.session.begin_transaction()
+        cursor[str(0)] = values[3]
+        self.session.commit_transaction()
+
+        # Start a long running transaction which could see value 5.
+        self.start_txn(sessions, cursors, values, 3)
+
+        # Commit a final modify.
+        self.session.begin_transaction()
+        cursor.set_key(str(0))
+        cursor.modify([wiredtiger.Modify('e', 0, 0)])
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
+
+        # Start a long running transaction which could see modify 2.
+        sessions[4].begin_transaction()
+        # Check our values are still correct.
+        for i in range(0, 5):
+            self.check_value(cursors[i], values[i])
+
+        # Insert a bunch of other contents to trigger eviction
+        for i in range(10001, 11000):
+            self.session.begin_transaction()
+            cursor[str(i)] = value_junk
+            self.session.commit_transaction()
+
+        # Check our values are still correct.
+        for i in range(0, 5):
+            self.check_value(cursors[i], values[i])
+
+        # Check our ts reader sees the value ahead of it
+        self.check_value(cursor_ts_reader, values[1])
