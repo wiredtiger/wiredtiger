@@ -36,33 +36,29 @@ typedef struct {
  *     are separated by a 4 byte 0xff sequence. This function is designed to check that the input
  *     conforms to this format and if so, returns the index to the beginning of the sequence.
  */
-static FUZZ_INPUT
-__parse_input(const uint8_t *data, size_t size)
+static bool
+__parse_input(const uint8_t *data, size_t size, FUZZ_INPUT *input)
 {
-    FUZZ_INPUT input;
     const uint8_t separator[] = {0xde, 0xad, 0xbe, 0xef};
     u_int i;
-
-    input.failure = true;
 
     /* Find the first and only separator. */
     const uint8_t *pos = memmem(data, size, separator, sizeof(separator));
     if (pos == NULL)
-        return (input);
+        return (false);
 
     /* Ensure that there aren't more separators. */
     if (memmem(pos + sizeof(separator), data + size - (pos + sizeof(separator)), separator,
           sizeof(separator)) != NULL)
-        return (input);
+        return (false);
 
-    input.key = data;
-    input.key_size = pos - data;
+    input->key = data;
+    input->key_size = pos - data;
     pos += sizeof(separator);
-    input.config = pos;
-    input.config_size = size - (pos - data);
-    input.failure = false;
+    input->config = pos;
+    input->config_size = size - (pos - data);
 
-    return (input);
+    return (true);
 }
 
 /*
@@ -81,8 +77,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     config = key = NULL;
 
     __setup();
-    input = __parse_input(data, size);
-    if (input.failure)
+    if (!__parse_input(data, size, &input))
         return (0);
 
     /* Convert to C strings. */
