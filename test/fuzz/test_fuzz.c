@@ -27,6 +27,7 @@ typedef struct {
     size_t key_size;
     const uint8_t *config;
     size_t config_size;
+    bool failure;
 } FUZZ_INPUT;
 
 /*
@@ -42,23 +43,24 @@ __parse_input(const uint8_t *data, size_t size)
     const uint8_t separator[] = {0xde, 0xad, 0xbe, 0xef};
     u_int i;
 
-    input.key_size = -1;
+    input.failure = true;
 
     /* Find the first and only separator. */
     const uint8_t *pos = memmem(data, size, separator, sizeof(separator));
     if (pos == NULL)
-        return input;
+        return (input);
 
     /* Ensure that there aren't more separators. */
     if (memmem(pos + sizeof(separator), data + size - (pos + sizeof(separator)), separator,
           sizeof(separator)) != NULL)
-        return input;
+        return (input);
 
     input.key = data;
     input.key_size = pos - data;
     pos += sizeof(separator);
     input.config = pos;
     input.config_size = size - (pos - data);
+    input.failure = false;
 
     return (input);
 }
@@ -80,7 +82,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 
     __setup();
     input = __parse_input(data, size);
-    if (input.key_size == -1)
+    if (input.failure)
         return (0);
 
     /* Convert to C strings. */
