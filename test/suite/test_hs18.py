@@ -37,13 +37,16 @@ class test_hs18(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB,eviction=(threads_max=1)'
     session_config = 'isolation=snapshot'
 
+    def check_value(self, cursor, value):
+        cursor.set_key(str(0))
+        self.assertEqual(cursor.search(), 0)
+        self.assertEqual(cursor.get_value(), value)
+        cursor.reset()
+
     def start_txn(self, sessions, cursors, values, i):
         # Start a transaction that will see update 0.
         sessions[i].begin_transaction()
-        cursors[i].set_key(str(0))
-        self.assertEqual(cursors[i].search(), 0)
-        self.assertEqual(cursors[i].get_value(), values[i])
-        cursors[i].reset()
+        self.check_value(cursors[i], values[i])
 
     def test_hs18(self):
         uri = 'table:test_hs18'
@@ -66,11 +69,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Start a long running transaction which could see update 0.
         session2.begin_transaction()
-        cursor2.set_key(str(0))
-        # Assert we can see a value
-        self.assertEqual(cursor2.search(), 0)
-        val1 = cursor2.get_value()
-        cursor2.reset()
+        self.check_value(cursor2, value0)
 
         # Insert an update at timestamp 5
         self.session.begin_transaction()
@@ -98,14 +97,8 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[str(0)] = value5
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
 
-        cursor2.set_key(str(0))
-        # Given the bug exists this will return WT_NOTFOUND.
-        self.assertEqual(cursor2.search(), 0)
-        val2 = cursor2.get_value()
-        self.assertEqual(val1, val2)
-
-        # Let go of the page since we want to evict.
-        cursor2.reset()
+        # Check our value is still correct.
+        self.check_value(cursor2, value0)
 
         # Insert a bunch of other contents to trigger eviction
         for i in range(10001, 11000):
@@ -113,12 +106,66 @@ class test_hs18(wttest.WiredTigerTestCase):
             cursor[str(i)] = value3
             self.session.commit_transaction()
 
-        cursor2.set_key(str(0))
-        # Given the bug exists this will return WT_NOTFOUND.
-        self.assertEqual(cursor2.search(), 0)
-        val2 = cursor2.get_value()
-        self.assertEqual(val1, val2)
-        session2.rollback_transaction()
+        # Check our value is still correct.
+        self.check_value(cursor2, value0)
+
+    # Test that we don't get the wrong value if we read with a timestamp originally.
+    def test_read_timestamp_weirdness(self):
+        uri = 'table:test_hs18'
+        self.session.create(uri, 'key_format=S,value_format=S')
+        session2 = self.setUpSessionOpen(self.conn)
+        cursor = self.session.open_cursor(uri)
+        cursor2 = session2.open_cursor(uri)
+
+        value0 = 'f' * 500
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+        value3 = 'c' * 500
+        value4 = 'd' * 500
+        value5 = 'e' * 500
+
+        # Insert an update at timestamp 3
+        self.session.begin_transaction()
+        cursor[str(0)] = value0
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
+        # Start a long running transaction which could see update 0.
+        session2.begin_transaction('read_timestamp=' + timestamp_str(5))
+        # Check our value is still correct.
+        self.check_value(cursor2, value0)
+
+        # Insert another update at timestamp 10
+        self.session.begin_transaction()
+        cursor[str(0)] = value2
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+
+        # Insert a bunch of contents to fill the cache
+        for i in range(1000, 10000):
+            self.session.begin_transaction()
+            cursor[str(i)] = value3
+            self.session.commit_transaction()
+
+        # Commit an update without a timestamp on our original key
+        self.session.begin_transaction()
+        cursor[str(0)] = value4
+        self.session.commit_transaction()
+
+        # Commit an update with timestamp 15
+        self.session.begin_transaction()
+        cursor[str(0)] = value5
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
+
+        # Check our value is still correct.
+        self.check_value(cursor2, value0)
+
+        # Insert a bunch of other contents to trigger eviction
+        for i in range(10001, 20000):
+            self.session.begin_transaction()
+            cursor[str(i)] = value3
+            self.session.commit_transaction()
+
+        # Check our value is still correct.
+        self.check_value(cursor2, value0)
 
     # Test that forces us to ignore tombstone in order to not remove the first non timestamped updated.
     def test_ignore_tombstone(self):
@@ -141,11 +188,8 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Start a long running transaction which could see update 0.
         session2.begin_transaction()
 
-        # Assert we can see a value
-        cursor2.set_key(str(0))
-        self.assertEqual(cursor2.search(), 0)
-        self.assertEqual(value0, cursor2.get_value())
-        cursor2.reset()
+        # Check our value is still correct.
+        self.check_value(cursor2, value0)
 
         # Insert an update at timestamp 5
         self.session.begin_transaction()
@@ -163,11 +207,8 @@ class test_hs18(wttest.WiredTigerTestCase):
             cursor[str(i)] = value3
             self.session.commit_transaction()
 
-        # Ensure our update exists
-        cursor2.set_key(str(0))
-        self.assertEqual(cursor2.search(), 0)
-        self.assertEqual(value0, cursor2.get_value())
-        cursor2.reset()
+        # Check our value is still correct.
+        self.check_value(cursor2, value0)
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
@@ -180,10 +221,8 @@ class test_hs18(wttest.WiredTigerTestCase):
             cursor[str(i)] = value3
             self.session.commit_transaction()
 
-        cursor2.set_key(str(0))
-        # Given the bug exists this will return WT_NOTFOUND.
-        self.assertEqual(cursor2.search(), 0)
-        self.assertEqual(value0, cursor2.get_value())
+        # Check our value is still correct.
+        self.check_value(cursor2, value0)
 
     # Test older readers for each of the updates moved to the history store.
     def test_multiple_older_readers(self):
