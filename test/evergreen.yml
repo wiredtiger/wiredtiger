@@ -304,6 +304,18 @@ functions:
         echo " Print Pids of test format binaries\n "
         pidof ./t
 
+  "run hang analyzer":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger"
+      script: |
+        set -o verbose
+
+        hang_analyzer_option="-o file -o stdout"
+
+        echo "Calling the hang analyzer ..."
+        PATH="/opt/mongodbtoolchain/gdb/bin:$PATH" ${python_binary|python3} test/hang_analyzer/hang_analyzer.py $hang_analyzer_option
+
   "dump stderr/stdout":
     command: shell.exec
     params:
@@ -447,6 +459,7 @@ post:
   - func: "cleanup"
 timeout:
   - func: "timeout function"
+  - func: "run hang analyzer"
 
 tasks:
   # Base compile task on posix flavours
