@@ -38,13 +38,15 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     WT_DECL_ITEM(packed_modify);
     WT_ITEM buf;
     WT_MODIFY modify;
+    WT_SESSION_IMPL *session_impl;
     size_t buf_size;
     const uint8_t *modify_ptr;
 
     if (size < 10)
-        return 0;
+        return (0);
 
     fuzzutil_setup();
+    session_impl = (WT_SESSION_IMPL *)fuzz_state.session;
 
     WT_CLEAR(cursor);
     WT_CLEAR(buf);
@@ -63,11 +65,10 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     testutil_check(
       fuzz_state.session->open_cursor(fuzz_state.session, "metadata:", NULL, NULL, &cursor));
     testutil_check(__wt_modify_pack(cursor, &modify, 1, &packed_modify));
-    testutil_check(__wt_modify_apply_item(
-      (WT_SESSION_IMPL *)fuzz_state.session, "u", &buf, packed_modify->data));
+    testutil_check(__wt_modify_apply_item(session_impl, "u", &buf, packed_modify->data));
 
     testutil_check(cursor->close(cursor));
-    __wt_scr_free((WT_SESSION_IMPL *)fuzz_state.session, &packed_modify);
-    __wt_buf_free((WT_SESSION_IMPL *)fuzz_state.session, &buf);
+    __wt_scr_free(session_impl, &packed_modify);
+    __wt_buf_free(session_impl, &buf);
     return (0);
 }
