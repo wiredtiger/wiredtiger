@@ -966,7 +966,7 @@ __hs_reinsert_key_from_pos(
     WT_WITHOUT_DHANDLE(
       session, ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &insert_cursor));
 
-    F_SET(&((WT_CURSOR_BTREE *)insert_cursor)->iface, WT_CURSTD_IGNORE_TOMBSTONE);
+    F_SET(insert_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     WT_ERR(ret);
     WT_ERR_NOTFOUND_OK(
       __wt_hs_cursor_position(session, insert_cursor, btree_id, key, WT_TS_NONE, NULL), true);
