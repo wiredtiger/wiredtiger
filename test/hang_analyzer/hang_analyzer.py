@@ -284,7 +284,7 @@ class LLDBDumper(object):
         # XCode (7.2): lldb-340.4.119
         # LLVM - lldb version 3.7.0 ( revision )
 
-        if 'version' not in lldb_version:
+        if 'version' not in str(lldb_version):
             # We have XCode's lldb
             lldb_version = lldb_version[lldb_version.index("lldb-"):]
             lldb_version = lldb_version.replace('lldb-', '')
@@ -309,7 +309,7 @@ class LLDBDumper(object):
             "quit",
         ]
 
-        tf = tempfile.NamedTemporaryFile()
+        tf = tempfile.NamedTemporaryFile(mode="w+")
 
         for cmd in cmds:
             tf.write(cmd + "\n")
