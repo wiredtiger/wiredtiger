@@ -1015,6 +1015,14 @@ __hs_reinsert_key_from_pos(
         stop_time_point.ts = stop_time_point.durable_ts = WT_TS_NONE;
         stop_time_point.txnid = hs_cbt->upd_value->tw.stop_txn;
 
+        /*
+         * Once we reinsert the entry below, we're not allowed to fail otherwise we'll be leaving
+         * our history store an invalid state. Anything that can potentially fail, such as heap
+         * allocation of the tombstone that we'll be using to remove the old value, should be
+         * performed before reinsertion.
+         */
+        WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
+
         /* Reinsert entry with zero timestamp. */
         while ((ret = __hs_insert_record_with_btree_int(session, insert_cursor, btree_id, &hs_key,
                   (uint8_t)hs_upd_type, &hs_value, &start_time_point, &stop_time_point,
@@ -1035,10 +1043,6 @@ __hs_reinsert_key_from_pos(
          * If anything fails after this point we need to panic as it will leave our history store in
          * an unexpected state with duplicate entries.
          */
-        if ((ret = __wt_upd_alloc_tombstone(session, &upd, NULL)) != 0)
-            WT_ERR_PANIC(session, WT_PANIC,
-              "Failed to allocate tombstone, history store now "
-              " contains duplicate values.");
         upd->txnid = WT_TXN_NONE;
         upd->start_ts = upd->durable_ts = WT_TS_NONE;
         if ((ret = __wt_hs_modify(hs_cbt, upd)) != 0)
