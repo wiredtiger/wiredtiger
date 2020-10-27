@@ -18,8 +18,8 @@ typedef struct {
     uint64_t txnid;
 } WT_HS_TIME_POINT;
 
-static int __hs_reinsert_key_from_pos(
-  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key);
+static int __hs_reinsert_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
+  uint32_t btree_id, const WT_ITEM *key, bool reinsert);
 static int __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   WT_BTREE *btree, const WT_ITEM *key, wt_timestamp_t ts, uint64_t *hs_counter,
   const WT_ITEM *srch_key);
@@ -515,12 +515,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd == first_non_ts_upd &&
           !F_ISSET(first_non_ts_upd, WT_UPDATE_CLEARED_HS)) {
             /* We can only delete history store entries that have timestamps. */
-            WT_ERR(__wt_hs_reinsert_key_from_ts(session, btree->id, key, 1));
+            WT_ERR(__wt_hs_reinsert_key_from_ts(session, btree->id, key, 1, true));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
             F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
         } else if (first_non_ts_upd != NULL && !F_ISSET(first_non_ts_upd, WT_UPDATE_CLEARED_HS) &&
           (list->ins == NULL || ts_updates_in_hs)) {
-            WT_ERR(__wt_hs_reinsert_key_from_ts(session, btree->id, key, 1));
+            WT_ERR(__wt_hs_reinsert_key_from_ts(session, btree->id, key, 1, true));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_mix_ts);
             F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
         }
@@ -678,7 +678,7 @@ err:
  */
 static int
 __hs_reinsert_key_from_ts_int(
-  WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts)
+  WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(srch_key);
@@ -726,7 +726,7 @@ __hs_reinsert_key_from_ts_int(
         goto done;
 
     WT_ASSERT(session, ts == WT_TS_NONE || hs_start_ts != WT_TS_NONE);
-    WT_ERR(__hs_reinsert_key_from_pos(session, hs_cursor, btree_id, key));
+    WT_ERR(__hs_reinsert_key_from_pos(session, hs_cursor, btree_id, key, reinsert));
 done:
     ret = 0;
 err:
@@ -740,7 +740,7 @@ err:
  */
 int
 __wt_hs_reinsert_key_from_ts(
-  WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts)
+  WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
 {
     WT_DECL_RET;
 
@@ -748,7 +748,8 @@ __wt_hs_reinsert_key_from_ts(
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
 
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
-    while ((ret = __hs_reinsert_key_from_ts_int(session, btree_id, key, ts)) == WT_RESTART)
+    while (
+      (ret = __hs_reinsert_key_from_ts_int(session, btree_id, key, ts, reinsert)) == WT_RESTART)
         WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
 
     return (ret);
@@ -935,8 +936,8 @@ err:
  *     stop timestamps ensure that they are only visible to transaction id based readers.
  */
 static int
-__hs_reinsert_key_from_pos(
-  WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id, const WT_ITEM *key)
+__hs_reinsert_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
+  const WT_ITEM *key, bool reinsert)
 {
     WT_CURSOR *insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
@@ -956,32 +957,35 @@ __hs_reinsert_key_from_pos(
     upd = NULL;
     insert_cursor = NULL;
 
-    /*
-     * Determine the starting value of our counter, i.e. highest counter value of the timestamp
-     * range for timestamp 0. We'll be inserting at timestamp 0 and don't want to overwrite a
-     * currently existing counter.
-     *
-     * The cursor will also be positioned at the start of the range that we wish to start inserting.
-     */
-    WT_WITHOUT_DHANDLE(
-      session, ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &insert_cursor));
-
-    F_SET(insert_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
-    WT_ERR(ret);
-    WT_ERR_NOTFOUND_OK(
-      __wt_hs_cursor_position(session, insert_cursor, btree_id, key, WT_TS_NONE, NULL), true);
-
-    if (ret == WT_NOTFOUND) {
-        hs_insert_counter = 0;
-        ret = 0;
-    } else {
-        WT_ERR(insert_cursor->get_key(
-          insert_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_insert_counter));
+    if (reinsert) {
         /*
-         * Increment the hs counter that we'll be using to insert with to avoid overwriting the
-         * record we just found.
+         * Determine the starting value of our counter, i.e. highest counter value of the timestamp
+         * range for timestamp 0. We'll be inserting at timestamp 0 and don't want to overwrite a
+         * currently existing counter.
+         *
+         * The cursor will also be positioned at the start of the range that we wish to start
+         * inserting.
          */
-        hs_insert_counter++;
+        WT_WITHOUT_DHANDLE(session,
+          ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &insert_cursor));
+
+        F_SET(insert_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+        WT_ERR(ret);
+        WT_ERR_NOTFOUND_OK(
+          __wt_hs_cursor_position(session, insert_cursor, btree_id, key, WT_TS_NONE, NULL), true);
+
+        if (ret == WT_NOTFOUND) {
+            hs_insert_counter = 0;
+            ret = 0;
+        } else {
+            WT_ERR(insert_cursor->get_key(
+              insert_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_insert_counter));
+            /*
+             * Increment the hs counter that we'll be using to insert with to avoid overwriting the
+             * record we just found.
+             */
+            hs_insert_counter++;
+        }
     }
 
     /* Begin iterating over the range of entries we expect to replace. */
@@ -1006,15 +1010,6 @@ __hs_reinsert_key_from_pos(
             continue;
         }
 
-        WT_ERR(hs_cursor->get_value(
-          hs_cursor, &hs_stop_durable_ts, &durable_timestamp, &hs_upd_type, &hs_value));
-
-        start_time_point.ts = start_time_point.durable_ts = WT_TS_NONE;
-        start_time_point.txnid = hs_cbt->upd_value->tw.start_txn;
-
-        stop_time_point.ts = stop_time_point.durable_ts = WT_TS_NONE;
-        stop_time_point.txnid = hs_cbt->upd_value->tw.stop_txn;
-
         /*
          * Once we reinsert the entry below, we're not allowed to fail otherwise we'll be leaving
          * our history store an invalid state. Anything that can potentially fail, such as heap
@@ -1023,14 +1018,24 @@ __hs_reinsert_key_from_pos(
          */
         WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
 
-        /* Reinsert entry with zero timestamp. */
-        while ((ret = __hs_insert_record_with_btree_int(session, insert_cursor, btree_id, &hs_key,
-                  (uint8_t)hs_upd_type, &hs_value, &start_time_point, &stop_time_point,
-                  hs_insert_counter)) == WT_RESTART)
-            ;
-        hs_insert_counter++;
-        WT_ERR(ret);
+        if (reinsert) {
+            WT_ERR(hs_cursor->get_value(
+              hs_cursor, &hs_stop_durable_ts, &durable_timestamp, &hs_upd_type, &hs_value));
 
+            start_time_point.ts = start_time_point.durable_ts = WT_TS_NONE;
+            start_time_point.txnid = hs_cbt->upd_value->tw.start_txn;
+
+            stop_time_point.ts = stop_time_point.durable_ts = WT_TS_NONE;
+            stop_time_point.txnid = hs_cbt->upd_value->tw.stop_txn;
+
+            /* Reinsert entry with zero timestamp. */
+            while ((ret = __hs_insert_record_with_btree_int(session, insert_cursor, btree_id,
+                      &hs_key, (uint8_t)hs_upd_type, &hs_value, &start_time_point, &stop_time_point,
+                      hs_insert_counter)) == WT_RESTART)
+                ;
+            hs_insert_counter++;
+            WT_ERR(ret);
+        }
         /*
          * Since we're using internal functions to modify the row structure, we need to manually set
          * the comparison to an exact match.
@@ -1040,15 +1045,19 @@ __hs_reinsert_key_from_pos(
          * Append a globally visible tombstone to the update list. This will effectively make the
          * value invisible and the key itself will eventually get removed during reconciliation.
          *
-         * If anything fails after this point we need to panic as it will leave our history store in
-         * an unexpected state with duplicate entries.
+         * If anything fails after this point and we're reinserting we need to panic as it will
+         * leave our history store in an unexpected state with duplicate entries.
          */
         upd->txnid = WT_TXN_NONE;
         upd->start_ts = upd->durable_ts = WT_TS_NONE;
-        if ((ret = __wt_hs_modify(hs_cbt, upd)) != 0)
-            WT_ERR_PANIC(session, WT_PANIC,
-              "Failed to insert tombstone, history store now "
-              " contains duplicate values.");
+        if ((ret = __wt_hs_modify(hs_cbt, upd)) != 0) {
+            if (reinsert)
+                WT_ERR_PANIC(session, WT_PANIC,
+                  "Failed to insert tombstone, history store now "
+                  " contains duplicate values.");
+            else
+                WT_ERR(ret);
+        }
         upd = NULL;
         WT_STAT_CONN_INCR(session, cache_hs_key_truncate);
     }
