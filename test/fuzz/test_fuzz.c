@@ -50,7 +50,8 @@ __parse_input(const uint8_t *data, size_t size)
         return input;
 
     /* Ensure that there aren't more separators. */
-    if (memmem(pos + sizeof(separator), data + size - (pos + sizeof(separator)), separator, sizeof(separator)) != NULL)
+    if (memmem(pos + sizeof(separator), data + size - (pos + sizeof(separator)), separator,
+          sizeof(separator)) != NULL)
         return input;
 
     input.key = data;
