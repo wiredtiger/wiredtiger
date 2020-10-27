@@ -317,6 +317,25 @@ functions:
         echo "Calling the hang analyzer ..."
         PATH="/opt/mongodbtoolchain/gdb/bin:$PATH" ${python_binary|python3} ../test/hang_analyzer/hang_analyzer.py $hang_analyzer_option
 
+  "save hang analyzer core/debugger files":
+    - command: archive.targz_pack
+      params:
+        target: "wt-hang-analyzer.tgz"
+        source_dir: "wiredtiger/build_posix"
+        include:
+          - "./*core*"
+          - "./debugger*.*"
+    - command: s3.put
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_file: wt-hang-analyzer.tgz
+        bucket: build_external
+        permissions: public-read
+        content_type: application/tar
+        display_name: Hang Analyzer Output - Execution ${execution}
+        remote_file: wiredtiger/${build_variant}/${revision}/hang_analyzer/wt-hang-analyzer_${task_name}_${build_id}${postfix|}.tgz
+
   "dump stderr/stdout":
     command: shell.exec
     params:
@@ -456,6 +475,7 @@ post:
   - func: "upload artifact"
     vars:
       postfix: -${execution}
+  - func: "save hang analyzer core/debugger files"
   - func: "dump stderr/stdout"
   - func: "cleanup"
 timeout:
