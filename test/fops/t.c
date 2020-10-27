@@ -42,7 +42,7 @@ static char home[512];
 static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
 static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
 static void onint(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-static void shutdown(void);
+static void __shutdown(void);
 static int usage(void);
 static void wt_startup(char *);
 static void wt_shutdown(void);
@@ -121,7 +121,7 @@ main(int argc, char *argv[])
 
     printf("%s: process %" PRIu64 "\n", progname, (uint64_t)getpid());
     for (cnt = 1; runs == 0 || cnt <= runs; ++cnt) {
-        shutdown(); /* Clean up previous runs */
+        __shutdown(); /* Clean up previous runs */
 
         for (cp = configs; cp->uri != NULL; ++cp) {
             uri = cp->uri;
@@ -175,7 +175,7 @@ wt_shutdown(void)
  *     Clean up from previous runs.
  */
 static void
-shutdown(void)
+__shutdown(void)
 {
     testutil_clean_work_dir(home);
 }
@@ -231,7 +231,7 @@ onint(int signo)
 {
     (void)(signo);
 
-    shutdown();
+    __shutdown();
 
     fprintf(stderr, "\n");
     exit(EXIT_FAILURE);

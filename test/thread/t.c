@@ -42,7 +42,7 @@ static FILE *logfp;    /* Log file */
 static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
 static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
 static void onint(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-static void shutdown(void);
+static void __shutdown(void);
 static int usage(void);
 static void wt_connect(char *);
 static void wt_shutdown(void);
@@ -154,7 +154,7 @@ main(int argc, char *argv[])
     for (cnt = 1; runs == 0 || cnt <= runs; ++cnt) {
         printf("    %d: %u readers, %u writers\n", cnt, readers, writers);
 
-        shutdown(); /* Clean up previous runs */
+        __shutdown(); /* Clean up previous runs */
 
         wt_connect(config_open); /* WiredTiger connection */
 
@@ -210,7 +210,7 @@ wt_shutdown(void)
  *     Clean up from previous runs.
  */
 static void
-shutdown(void)
+__shutdown(void)
 {
     testutil_clean_work_dir(home);
 }
@@ -254,7 +254,7 @@ onint(int signo)
 {
     (void)(signo);
 
-    shutdown();
+    __shutdown();
 
     fprintf(stderr, "\n");
     exit(EXIT_FAILURE);

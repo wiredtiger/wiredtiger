@@ -61,6 +61,9 @@ extern "C" {
 #include <windows.h>
 #endif
 
+/* io_uring support */
+#include <liburing.h>
+
 /*
  * DO NOT EDIT: automatically built by dist/s_typedef.
  * Forward type declarations for internal types: BEGIN

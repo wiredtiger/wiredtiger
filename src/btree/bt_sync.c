@@ -667,6 +667,10 @@ err:
     if (txn->isolation == WT_ISO_READ_COMMITTED && saved_pinned_id == WT_TXN_NONE)
         __wt_txn_release_snapshot(session);
 
+    /* Sync the file before leave to write io_uring */
+    if (ret == 0)
+        WT_RET(btree->bm->sync(btree->bm, session, true));
+
     /* Clear the checkpoint flag. */
     btree->syncing = WT_BTREE_SYNC_OFF;
     btree->sync_session = NULL;

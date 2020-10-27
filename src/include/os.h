@@ -140,6 +140,13 @@ struct __wt_file_handle_posix {
 
     bool direct_io; /* O_DIRECT configured */
 
+    /* io_uring support */
+    struct io_uring ring;
+    bool ring_initialized;
+    uint64_t nsubmit;
+    uint64_t ncomplete;
+    WT_SPINLOCK ring_lock;
+
     /* The memory buffer and variables if we use mmap for I/O */
     uint8_t *mmap_buf;
     bool mmap_file_mappable;

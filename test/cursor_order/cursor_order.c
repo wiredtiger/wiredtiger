@@ -34,7 +34,7 @@ static FILE *logfp;    /* Log file */
 static int handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
 static int handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
 static void onint(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-static void shutdown(void);
+static void __shutdown(void);
 static int usage(void);
 static void wt_connect(SHARED_CONFIG *, char *);
 static void wt_shutdown(SHARED_CONFIG *);
@@ -150,7 +150,7 @@ main(int argc, char *argv[])
         printf("    %d: %" PRIu64 " reverse scanners, %" PRIu64 " writers\n", cnt,
           cfg->reverse_scanners, cfg->append_inserters);
 
-        shutdown(); /* Clean up previous runs */
+        __shutdown(); /* Clean up previous runs */
 
         wt_connect(cfg, config_open); /* WiredTiger connection */
 
@@ -207,7 +207,7 @@ wt_shutdown(SHARED_CONFIG *cfg)
  *     Clean up from previous runs.
  */
 static void
-shutdown(void)
+__shutdown(void)
 {
     testutil_clean_work_dir(home);
 }
@@ -251,7 +251,7 @@ onint(int signo)
 {
     (void)(signo);
 
-    shutdown();
+    __shutdown();
 
     fprintf(stderr, "\n");
     exit(EXIT_FAILURE);
