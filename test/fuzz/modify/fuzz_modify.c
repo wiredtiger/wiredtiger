@@ -47,6 +47,9 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     WT_CLEAR(buf);
     WT_CLEAR(modify);
 
+    if (size < 10)
+        return (0);
+
     /* Choose some portion of the buffer for the underlying value. */
     buf.data = &data[0];
     buf.size = data[0] % size;

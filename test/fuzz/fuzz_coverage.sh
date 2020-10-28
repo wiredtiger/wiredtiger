@@ -10,6 +10,7 @@
 
 if test "$#" -lt "1"; then
 	echo "$0: must specify fuzz test to generate coverage for"
+	exit 1
 fi
 
 fuzz_test_bin="$1"
