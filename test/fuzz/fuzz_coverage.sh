@@ -30,7 +30,16 @@ else
 fi
 
 fuzz_cov_name="${fuzz_test_bin}_cov"
+combined_profdata_name="${fuzz_cov_name}.profdata"
 
-$profdata_bin merge -sparse *.profraw -o default.profdata || exit 1
-$cov_bin show $fuzz_test_bin -instr-profile=default.profdata > "${fuzz_cov_name}.txt"
-$cov_bin show $fuzz_test_bin -instr-profile=default.profdata -format=html > "${fuzz_cov_name}.html"
+# Check that there is coverage data.
+ls *.profraw &> /dev/null
+if test $? -ne 0; then
+	echo "$0: could not find any .profraw files in the current directory"
+	echo "$0: ensure that -fprofile-instr-generate and -fcoverage-mapping are added to your CFLAGS and LINKFLAGS when configuring"
+	exit 1
+fi
+
+$profdata_bin merge -sparse *.profraw -o $combined_profdata_name || exit 1
+$cov_bin show $fuzz_test_bin -instr-profile=$combined_profdata_name > "${fuzz_cov_name}.txt"
+$cov_bin show $fuzz_test_bin -instr-profile=$combined_profdata_name -format=html > "${fuzz_cov_name}.html"
