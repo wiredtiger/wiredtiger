@@ -543,9 +543,9 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-4.0 CXX=clang++-4.0 ADD_CFLAGS="-ggdb -fPIC"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=clang-5.0 CXX=clang++-5.0 ADD_CFLAGS="-ggdb -fPIC"
+      # - func: "compile wiredtiger"
+      #   vars:
+      #     configure_env_vars: CC=clang-5.0 CXX=clang++-5.0 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-6.0 CXX=clang++-6.0 ADD_CFLAGS="-ggdb -fPIC"
