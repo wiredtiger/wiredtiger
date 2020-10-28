@@ -47,7 +47,7 @@ fuzz_run.sh <fuzz-test-binary> [fuzz-test-args]
 
 Each fuzz target will produce a few outputs:
 
-- \c fuzz-<worker_num>.log: The LibFuzzer log for a worker.
+- \c fuzz-N.log: The LibFuzzer log for worker N.
 
 - \c WT_TEST_<pid>: The home directory for a given worker process.
 
