@@ -22,8 +22,9 @@ Some administrative tasks can be accomplished using the following special
 cursor types that give access to data managed by WiredTiger:
 <table>
 @hrow{URI, Type, Notes}
-@row{<tt>backup:</tt>,
-	backup cursor,
+@row{<tt>backup:[query_id]</tt>,
+	backup cursor (optionally only returning block incremental ids if
+	<code>query_id</code> is appended,
 	key=<code>string</code>\, see @ref backup for details}
 @row{<code>log:</code>,
 	log cursor,

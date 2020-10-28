@@ -98,7 +98,7 @@ class test_backup18(wttest.WiredTigerTestCase, suite_subprocess):
             lambda:self.assertEquals(self.session.open_cursor('backup:query_id',
             None, None), 0), msg)
         bkup_c.close()
-        
+
         # Check a few basic cases.
         self.pr("Query IDs basic cases")
         expect = ["ID1"]
