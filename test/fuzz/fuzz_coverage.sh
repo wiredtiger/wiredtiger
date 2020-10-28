@@ -21,7 +21,7 @@
 #	how many times they were hit in the fuzz test.
 # <fuzz-test-binary>_cov.html --
 #	A coverage report in html format. If you happen to be on a machine with a desktop
-#	environment, this might be a nicer way to visualise the coverage.
+#	environment, this might be a nicer way to visualize the coverage.
 
 if test "$#" -lt "1"; then
 	echo "$0: must specify fuzz test to generate coverage for"

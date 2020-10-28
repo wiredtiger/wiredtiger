@@ -50,7 +50,7 @@ Each fuzz target will produce a few outputs:
 - \c WT_TEST_<pid>: The home directory for a given worker process.
 
 - \c crash-<input-hash>: If an error occurs, you may see a file like this containing the input that
-crashed the target. (e.g. crash-0eb8e4ed029b774d80f2b66408203801cb982a60).
+crashed the target.
 
 - \c WT_TEST_<pid>.profraw: If you're running with Clang coverage (more on this later), you'll see
 files containing profiling data for a given worker. These will be used by \c fuzz_coverage.
@@ -87,10 +87,57 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 
 When we supply the \c -fsanitize=fuzzer flag, Clang will use its own \c main function and repeatedly
 call your \c LLVMFuzzerTestOneInput with various inputs. There is a lot of information online about
-best practices when writing fuzzing targets but to summarise, the requirements are much like those
+best practices when writing fuzzing targets but to summarize, the requirements are much like those
 for writing unit tests: they should be fast, deterministic and stateless (as possible). The
 [LLVM LibFuzzer reference page](https://llvm.org/docs/LibFuzzer.html) is a good place to start if
 you'd like to learn more.
+
+## Fuzz Utilities
+
+WiredTiger has a small fuzz utilities library containing common functionality required for writing
+fuzz targets. Most of the important functions here are about manipulating fuzz input into something
+that your target can use with a WiredTiger API.
+
+### Slicing inputs
+
+If the function that you're trying to exercise can accept a binary blob of data, then your target
+will be straightforward as it'll more or less just pass the input to the function under test. But
+for functions that require more structured input, this can pose a challenge. As an example, the
+\c fuzz_config target requires two inputs that we want to be variable length: a configuration string
+and a key to search for. In order to do this, we can create an arbitrary separator sequence to split
+the input into multiple parts with the following API:
+
+@code
+typedef struct {
+    const uint8_t **slices;
+    size_t *sizes;
+    size_t num_slices;
+} FUZZ_SLICED_INPUT;
+
+bool fuzzutil_sliced_input_init(FUZZ_SLICED_INPUT *input, const uint8_t *data, size_t size,
+    const uint8_t *sep, size_t sep_size, size_t req_slices);
+@endcode
+
+So we can give it the data buffer, a separator sequence and the number of inputs we need. If we
+don't find the right number of separators in our input, we return \c false and we should return
+out of the fuzzing target. While this may seem like the target will reject a lot of input, the
+fuzzing engine is able to figure out (especially if an initial corpus is supplied), that inputs
+with the right number of separators tend to yield better code coverage and will bias its generated
+inputs towards this format.
+
+In \c fuzz_config, we use the \c | character as a separator since this cannot appear in a
+configuration string. So an input separated correctly will look like this:
+
+@code
+allocation_size|key_format=u,value_format=u,allocation_size=512,log=(enabled)
+@endcode
+
+But for data where there is no distinct character that can be used as a sentinel, we can provide
+a byte sequence such as 0xdeadbeef. So in that case, a valid input may look like this:
+
+@code
+0xaa 0xaa 0xde 0xad 0xbe 0xef 0xff 0xff
+@endcode
 
 # Viewing code coverage for an LLVM LibFuzzer target
 
@@ -141,16 +188,16 @@ The \c fuzz_coverage.sh script produces a few outputs:
 command and search for the functions that you're interested in. The numbers on the left of each line
 of code indicate how many times they were hit in the fuzz test.
 - \c <fuzz-test-binary>_cov.html: A coverage report in html format. If you happen to be on a machine
-with a desktop environment, this might be a nicer way to visualise the coverage.
+with a desktop environment, this might be a nicer way to visualize the coverage.
 
-The \c fuzz_coverage.sh script uses a few optional environment variables to modify its behaviour.
+The \c fuzz_coverage.sh script uses a few optional environment variables to modify its behavior.
 
 - \c PROFDATA_BINARY: The binary used to merge the profiling data. The script defaults to using
 \c llvm-profdata.
 - \c COV_BINARY: The binary used to generate coverage information. The script defaults to using
 \c llvm-cov.
 
-For consistency, you should use the \c llvm-profdata and \cllvm-cov binaries from the same LLVM
+For consistency, you should use the \c llvm-profdata and \c llvm-cov binaries from the same LLVM
 version as your \c clang compiler. Since I used \c clang-8 in my configuration, my invocation
 looks like this:
 

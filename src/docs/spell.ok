@@ -3,6 +3,7 @@ ACM
 APIs
 ActiveState
 Adler's
+ASan
 Atomicity
 BLOBs
 BLRrVv
@@ -14,6 +15,7 @@ CSV
 CXX
 Cheng
 Christoph
+COV
 Collet's
 Coverity
 Coverity's
@@ -57,9 +59,12 @@ JavaScript
 KMS
 LD
 LDFLAGS
+LibFuzzer
 LIBS
+LINKFLAGS
 LLC
 LLVM
+LLVMFuzzerTestOneInput
 LOGREC
 LRU
 LRrVv
@@ -84,6 +89,7 @@ OPTYPE
 PMU
 PPC
 PRELOAD
+PROFDATA
 README
 RedHat
 RepMgr
@@ -127,6 +133,7 @@ apiflags
 ar
 archiver
 arg
+args
 atomicity
 autoconf
 autogen
@@ -172,6 +179,7 @@ conn
 const
 control's
 copydoc
+cov
 cp
 cpp
 cpu
@@ -241,6 +249,7 @@ exe
 fadvise
 failchk
 fallocate
+fcoverage
 fd's
 fdatasync
 fextend
@@ -262,10 +271,14 @@ flamegraph
 flamegraphs
 fnv
 forw
+fprofile
 fput
 freelist
+fsanitize
 fsync
 ftruncate
+fuzzer
+fuzzutil
 fvisibility
 fxray
 gcc
@@ -322,6 +335,7 @@ len
 lgnd
 li
 libdir
+libfuzzer
 libhe
 libkvs
 libtool
@@ -435,6 +449,8 @@ printlog
 printvalue
 priv
 proc
+profdata
+profraw
 pthread
 pthreads
 putKey
@@ -459,6 +475,7 @@ recoverability
 recs
 rectype
 relinking
+req
 rerequests
 ret
 rf
@@ -480,6 +497,7 @@ scons
 screenshots
 secretkey
 selectable
+sep
 seqname
 seqno
 serializable
@@ -575,6 +593,13 @@ wrlock
 wtperf
 wtstats
 xa
+xaa
+xad
+xbe
+xde
+xdeadbeef
+xef
+xff
 xray
 yieldcpu
 zlib

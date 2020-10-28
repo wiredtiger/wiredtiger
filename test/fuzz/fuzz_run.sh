@@ -23,7 +23,7 @@
 #	The home directory for a given worker process.
 # crash-<input-hash> --
 #	If an error occurs, you may see a file like this containing the input that crashed the fuzz
-#	target (e.g. crash-0eb8e4ed029b774d80f2b66408203801cb982a60).
+#	target.
 # WT_TEST_<pid>.profraw --
 #	If you're running with Clang coverage, you'll see these files containing profiling data for
 #	a given worker. These will be used by fuzz_coverage.
