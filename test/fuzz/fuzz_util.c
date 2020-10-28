@@ -25,11 +25,11 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+#include "fuzz_util.h"
+
 #include <assert.h>
 #include <stdint.h>
 #include <stddef.h>
-
-#include "fuzz_util.h"
 
 FUZZ_GLOBAL_STATE fuzz_state = {.conn = NULL, .session = NULL};
 
