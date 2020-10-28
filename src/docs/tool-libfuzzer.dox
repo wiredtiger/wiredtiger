@@ -29,7 +29,7 @@ $ make
 Each fuzz target is just a program under \c build_posix/test/fuzz/. Once you become familiar with
 LibFuzzer, it may be easier to run the target program directly, but for first-time users, the script
 at \c test/fuzz/fuzz_run.sh is handy. It performs a limited number of runs, automatically cleans up
-after itself in between runs adn provides a sensible set of parameters which you can add to. For
+after itself in between runs and provides a sensible set of parameters which you can add to. For
 example:
 
 @code
@@ -54,6 +54,8 @@ crashed the target. (e.g. crash-0eb8e4ed029b774d80f2b66408203801cb982a60).
 
 - \c WT_TEST_<pid>.profraw: If you're running with Clang coverage (more on this later), you'll see
 files containing profiling data for a given worker. These will be used by \c fuzz_coverage.
+
+### Corpus
 
 LibFuzzer is a coverage based fuzzer meaning that it notices when a particular input hits a new code
 path and adds it to a "corpus" of interesting data inputs. It then uses existing data in the corpus
