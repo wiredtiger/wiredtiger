@@ -57,7 +57,7 @@ export LLVM_PROFILE_FILE="WT_TEST_%p.profraw"
 #	branches. Ideally, we'd just let the fuzzer run until the process is killed by the user but
 #	unfortunately, coverage data won't get written out in that case.
 # - close_fd_mask=3
-#	Supress stdout and stderr. This isn't ideal but any fuzzing target that prints an error will
-#	quickly fill up your disk. Better to just replay the input without this flag if you uncover
-#	a bug.
+#	Suppress stdout and stderr. This isn't ideal but any fuzzing target that prints an error
+#	will quickly fill up your disk. Better to just replay the input without this flag if you
+#	uncover a bug.
 $fuzz_test_bin -jobs=8 -runs=100000000 -close_fd_mask=3 "$@"
