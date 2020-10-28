@@ -2,12 +2,14 @@
 
 # Building and running an LLVM LibFuzzer target
 
-Insert description here.
+LLVM LibFuzzer is in-process, coverage-guided, evolutionary fuzzing engine. It feeds a series of
+fuzzed inputs via a "target" function and attempts to trigger crashes, memory bugs and undefined
+behavior.
 
 ## Step 1: Select Clang as your C compiler in your build configuration
 
-Support for LibFuzzer is implemented as a compiler flag in Clang. Our configuration will whether the
-compiler in use supports \c -fsanitize=fuzzer and if so, elects to build the fuzz targets.
+Support for LibFuzzer is implemented as a compiler flag in Clang. Our configuration checks whether
+the compiler in use supports \c -fsanitize=fuzzer and if so, elects to build the fuzz targets.
 
 Compiling with the ASan isn't mandatory but it is recommended since fuzzing often exposes memory
 bugs.
@@ -164,7 +166,7 @@ You should invoke \c fuzz_run.sh for your desired fuzz target as described in th
 
 ## Step 3: Generate code coverage information
 
-After running your fuzz target with Clang coverage switched on, you'll see a number of \c *.profraw
+After running your fuzz target with Clang coverage switched on, you'll see a number of \c profraw
 files in your working directory.
 
 Those files contain the raw profiling data however, we'll need to do some post-processing to get it
@@ -204,3 +206,5 @@ looks like this:
 @code
 $ PROFDATA_BINARY=llvm-profdata-8 COV_BINARY=llvm-cov-8 bash ../../../test/fuzz/fuzz_coverage.sh ./fuzz_modify
 @endcode
+
+*/
