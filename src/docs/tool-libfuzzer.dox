@@ -1,0 +1,157 @@
+/*! @page tool-libfuzzer Testing with LLVM LibFuzzer
+
+# Building and running an LLVM LibFuzzer target
+
+Insert description here.
+
+## Step 1: Select Clang as your C compiler in your build configuration
+
+Support for LibFuzzer is implemented as a compiler flag in Clang. Our configuration will whether the
+compiler in use supports \c -fsanitize=fuzzer and if so, elects to build the fuzz targets.
+
+Compiling with the ASan isn't mandatory but it is recommended since fuzzing often exposes memory
+bugs.
+
+@code
+$ cd build_posix/
+$ ../configure CC="clang-8" CFLAGS="-fsanitize=address"
+@endcode
+
+## Step 2: Build as usual
+
+@code
+$ cd build_posix
+$ make
+@endcode
+
+## Step 3: Run a fuzz target
+
+Each fuzz target is just a program under \c build_posix/test/fuzz/. Once you become familiar with
+LibFuzzer, it may be easier to run the target program directly, but for first-time users, the script
+at \c test/fuzz/fuzz_run.sh is handy. It performs a limited number of runs, automatically cleans up
+after itself in between runs adn provides a sensible set of parameters which you can add to. For
+example:
+
+@code
+$ cd build_posix/test/fuzz/
+$ bash ../../../test/fuzz/fuzz_run.sh ./fuzz_modify
+@endcode
+
+In general the usage is:  
+
+@code
+fuzz_run.sh <fuzz-test-binary> [fuzz-test-args]
+@endcode
+
+Each fuzz target will produce a few outputs:
+
+- \c fuzz-<num>.log: The LibFuzzer log for a worker.
+
+- \c WT_TEST_<pid>: The home directory for a given worker process.
+
+- \c crash-<input-hash>: If an error occurs, you may see a file like this containing the input that
+crashed the target. (e.g. crash-0eb8e4ed029b774d80f2b66408203801cb982a60).
+
+- \c WT_TEST_<pid>.profraw: If you're running with Clang coverage (more on this later), you'll see
+files containing profiling data for a given worker. These will be used by \c fuzz_coverage.
+
+LibFuzzer is a coverage based fuzzer meaning that it notices when a particular input hits a new code
+path and adds it to a "corpus" of interesting data inputs. It then uses existing data in the corpus
+to mutate and come up with new inputs.
+
+While LibFuzzer will automatically add to its corpus when it finds an interesting input, some fuzz
+targets (especially those that expect data in a certain format) require a corpus to start things off
+in order to be effective. The target \c fuzz_config is one example of this as it expects its data
+sliced with a separator so the fuzzer needs some examples to guide it. The corpus is supplied as the
+first positional argument to both \c fuzz_run.sh and the underlying fuzz target itself. For example:
+
+@code
+$ cd build_posix/test/fuzz/
+$ bash ../../../test/fuzz/fuzz_run.sh ./fuzz_config ../../../test/fuzz/config/corpus/
+@endcode
+
+# Implementing an LLVM LibFuzzer target
+
+## Overview
+
+So you have functionality that you'd like to test against LLVM LibFuzzer and would like to add a new
+target to the system.
+
+We do this by implementing a function with the following prototype:
+
+@code
+int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
+@endcode
+
+When we supply the \c -fsanitize=fuzzer flag, Clang will use its own \c main function and repeatedly
+call your \c LLVMFuzzerTestOneInput with various inputs. There is a lot of information online about
+best practices when writing fuzzing targets but to summarise, the requirements are much like those
+for writing unit tests: they should be fast, deterministic and stateless (as possible). The
+[LLVM LibFuzzer reference page](https://llvm.org/docs/LibFuzzer.html) is a good place to start if
+you'd like to learn more.
+
+# Viewing code coverage for an LLVM LibFuzzer target
+
+After you've implemented a new fuzzing target, you'll want to validate that it's doing something
+useful. If you're not seeing crashes, it's either because the code that you're fuzzing is very
+robust (in which case, kudos to you!) OR your fuzzing target isn't doing a good job of exercising
+different code paths.
+
+## Step 1: Configure your build to compile with Clang coverage
+
+In order to view code coverage information, you'll need to compile with the
+\c -fprofile-instr-generate and \c -fcoverage-mapping flags to tell Clang to instrument your code
+with profiling information. It's important that you add these to both your \c CFLAGS and your
+\c LINKFLAGS.
+
+@code
+$ cd build_posix/
+$ ../configure CC="clang-8" CFLAGS="-fprofile-instr-generate -fcoverage-mapping" LINKFLAGS="-fprofile-instr-generate -fcoverage-mapping"
+@endcode
+
+## Step 2: Build and run fuzz target
+
+You should invoke \c fuzz_run.sh for your desired fuzz target as described in the section above.
+
+## Step 3: Generate code coverage information
+
+After running your fuzz target with Clang coverage switched on, you'll see a number of \c *.profraw
+files in your working directory.
+
+Those files contain the raw profiling data however, we'll need to do some post-processing to get it
+into a readable form. We have a script called \c fuzz_coverage.sh that handles this for us. It
+expects to be called from the same directory that the fuzz target was executed in.
+
+@code
+$ cd build_posix/test/fuzz
+$ bash ../../../test/fuzz/fuzz_coverage.sh ./fuzz_modify
+@endcode
+
+In general the usage is:
+
+@code
+fuzz_coverage.sh <fuzz-test-binary>
+@endcode
+
+The \c fuzz_coverage.sh script produces a few outputs:
+
+- \c <fuzz-test-binary>_cov.txt: A coverage report in text format. You can open it with the \c less
+command and search for the functions that you're interested in. The numbers on the left of each line
+of code indicate how many times they were hit in the fuzz test.
+- \c <fuzz-test-binary>_cov.html: A coverage report in html format. If you happen to be on a machine
+with a desktop environment, this might be a nicer way to visualise the coverage.
+
+The \c fuzz_coverage.sh script uses a few optional environment variables to modify its behaviour.
+
+- \c PROFDATA_BINARY: The binary used to merge the profiling data. The script defaults to using
+\c llvm-profdata.
+- \c COV_BINARY: The binary used to generate coverage information. The script defaults to using
+\c llvm-cov.
+
+For consistency, you should use the \c llvm-profdata and \cllvm-cov binaries from the same LLVM
+version as your \c clang compiler. Since I used \c clang-8 in my configuration, my invocation
+looks like this:
+
+@code
+$ PROFDATA_BINARY=llvm-profdata-8 COV_BINARY=llvm-cov-8 bash ../../../test/fuzz/fuzz_coverage.sh ./fuzz_modify
+@endcode

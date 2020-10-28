@@ -28,7 +28,6 @@
 #	If you're running with Clang coverage, you'll see these files containing profiling data for
 #	a given worker. These will be used by fuzz_coverage.
 
-
 if test "$#" -lt "1"; then
 	echo "$0: must specify fuzz test to run"
 	exit 1
