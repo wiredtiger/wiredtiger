@@ -11,8 +11,8 @@ behavior.
 Support for LibFuzzer is implemented as a compiler flag in Clang. Our configuration checks whether
 the compiler in use supports \c -fsanitize=fuzzer and if so, elects to build the fuzz targets.
 
-Compiling with the ASan isn't mandatory but it is recommended since fuzzing often exposes memory
-bugs.
+Compiling with Clang's Address Sanitizer isn't mandatory but it is recommended since fuzzing often
+exposes memory bugs.
 
 @code
 $ cd build_posix/
@@ -28,18 +28,17 @@ $ make
 
 ## Step 3: Run a fuzz target
 
-Each fuzz target is just a program under \c build_posix/test/fuzz/. Once you become familiar with
-LibFuzzer, it may be easier to run the target program directly, but for first-time users, the script
-at \c test/fuzz/fuzz_run.sh is handy. It performs a limited number of runs, automatically cleans up
-after itself in between runs and provides a sensible set of parameters which you can add to. For
-example:
+Each fuzz target is a program under \c build_posix/test/fuzz/. WiredTiger provides the
+\c test/fuzz/fuzz_run.sh script to quickly get started using the fuzzer. It performs a limited
+number of runs, automatically cleans up after itself in between runs and provides a sensible set of
+parameters which you can add to. For example:
 
 @code
 $ cd build_posix/test/fuzz/
 $ bash ../../../test/fuzz/fuzz_run.sh ./fuzz_modify
 @endcode
 
-In general the usage is:  
+In general the usage is:
 
 @code
 fuzz_run.sh <fuzz-test-binary> [fuzz-test-args]
@@ -47,12 +46,14 @@ fuzz_run.sh <fuzz-test-binary> [fuzz-test-args]
 
 Each fuzz target will produce a few outputs:
 
-- \c fuzz-N.log: The LibFuzzer log for worker N.
-
-- \c WT_TEST_<pid>: The home directory for a given worker process.
-
 - \c crash-<input-hash>: If an error occurs, you may see a file like this containing the input that
 crashed the target.
+
+- \c fuzz-N.log: The LibFuzzer log for worker N. This is just an ID that LibFuzzer assigns to each
+worker ranging from 0 => the number of workers - 1. The pid of the worker is written at the end of
+each log file.
+
+- \c WT_TEST_<pid>: The home directory for a given worker process.
 
 - \c WT_TEST_<pid>.profraw: If you're running with Clang coverage (more on this later), you'll see
 files containing profiling data for a given worker. These will be used by \c fuzz_coverage.
@@ -91,8 +92,8 @@ When we supply the \c -fsanitize=fuzzer flag, Clang will use its own \c main fun
 call your \c LLVMFuzzerTestOneInput with various inputs. There is a lot of information online about
 best practices when writing fuzzing targets but to summarize, the requirements are much like those
 for writing unit tests: they should be fast, deterministic and stateless (as possible). The
-[LLVM LibFuzzer reference page](https://llvm.org/docs/LibFuzzer.html) is a good place to start if
-you'd like to learn more.
+[LLVM LibFuzzer reference page](https://llvm.org/docs/LibFuzzer.html) is a good place to start to
+learn more.
 
 ## Fuzz Utilities
 

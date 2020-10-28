@@ -3,11 +3,11 @@ ACM
 APIs
 ActiveState
 Adler's
-ASan
 Atomicity
 BLOBs
 BLRrVv
 CFLAGS
+COV
 CPPFLAGS
 CPUs
 CRC
@@ -15,7 +15,6 @@ CSV
 CXX
 Cheng
 Christoph
-COV
 Collet's
 Coverity
 Coverity's
@@ -99,6 +98,7 @@ Roelofs
 RrVv
 Rrx
 SCons
+Sanitizer
 Seward's
 SiH
 TSC
