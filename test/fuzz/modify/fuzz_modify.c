@@ -39,11 +39,6 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     WT_ITEM buf;
     WT_MODIFY modify;
     WT_SESSION_IMPL *session_impl;
-    size_t buf_size;
-    const uint8_t *modify_ptr;
-
-    if (size < 10)
-        return (0);
 
     fuzzutil_setup();
     session_impl = (WT_SESSION_IMPL *)fuzz_state.session;
