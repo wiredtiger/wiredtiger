@@ -1,12 +1,27 @@
 #!/bin/bash
-
+#
 # fuzz_coverage.sh - generate coverage information after running a fuzz test.
 #
 # This script assumes it is running in the directory that the fuzz test was executed in and requires
-# that WiredTiger was compiled with "-fprofile-instr-generate" and "-fcoverage-mapping".
+# that WiredTiger was running with "-fprofile-instr-generate" and "-fcoverage-mapping".
 #
 # Usage
 # fuzz_coverage.sh <fuzz-test-binary>
+#
+# Environment variables
+# PROFDATA_BINARY --
+# 	The binary to use to merge the profiling data. (default: llvm-profdata)
+# COV_BINARY --
+# 	The binary to use to generate coverage information. (default: llvm-cov)
+#
+# Output
+# <fuzz-test-binary>_cov.txt --
+#	A coverage report in txt format. You can open it with the "less" command and search for the
+#	functions that you're interested in. The numbers on the left of each line of code indicate
+#	how many times they were hit in the fuzz test.
+# <fuzz-test-binary>_cov.html --
+#	A coverage report in html format. If you happen to be on a machine with a GUI, this might
+#	be a nicer way to visualise the coverage.
 
 if test "$#" -lt "1"; then
 	echo "$0: must specify fuzz test to generate coverage for"
