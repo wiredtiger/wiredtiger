@@ -157,7 +157,6 @@ class test_backup17(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.add_data(self.uri2)
         uri2_off = self.take_incr_backup(3, True)
-        self.mult += 1
 
         # Assert that we recorded fewer offsets on the consolidated backup.
         self.assertLess(len(uri2_off), len(uri1_off))
