@@ -40,7 +40,7 @@ typedef struct {
 
 extern FUZZ_GLOBAL_STATE fuzz_state;
 
-void fuzzutil_setup();
+void fuzzutil_setup(void);
 bool fuzzutil_sliced_input_init(FUZZ_SLICED_INPUT *input, const uint8_t *data, size_t size,
   const uint8_t *sep, size_t sep_size, size_t req_slices);
 void fuzzutil_sliced_input_free(FUZZ_SLICED_INPUT *input);

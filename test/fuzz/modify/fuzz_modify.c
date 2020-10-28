@@ -27,6 +27,8 @@
  */
 #include "fuzz_util.h"
 
+int LLVMFuzzerTestOneInput(const uint8_t *, size_t);
+
 /*
  * LLVMFuzzerTestOneInput --
  *    A fuzzing target for modifies.

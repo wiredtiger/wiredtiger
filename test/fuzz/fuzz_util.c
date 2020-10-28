@@ -56,7 +56,7 @@ fuzzutil_generate_home_name(char *buf)
  *     Initialize the connection and session the first time LibFuzzer executes the target.
  */
 void
-fuzzutil_setup()
+fuzzutil_setup(void)
 {
     char home[100];
 
@@ -113,11 +113,11 @@ fuzzutil_sliced_input_init(FUZZ_SLICED_INPUT *input, const uint8_t *data, size_t
      * described at:
      * https://github.com/google/fuzzing/blob/master/docs/split-inputs.md#magic-separator.
      */
-    while ((pos = memmem(begin, end - begin, sep, sep_size)) != NULL) {
+    while ((pos = memmem(begin, (size_t)(end - begin), sep, sep_size)) != NULL) {
         if (i >= req_slices)
             goto err;
         slices[i] = begin;
-        sizes[i] = pos - begin;
+        sizes[i] = (size_t)(pos - begin);
         begin = pos + sep_size;
         ++i;
     }
@@ -125,7 +125,7 @@ fuzzutil_sliced_input_init(FUZZ_SLICED_INPUT *input, const uint8_t *data, size_t
         if (i >= req_slices)
             goto err;
         slices[i] = begin;
-        sizes[i] = end - begin;
+        sizes[i] = (size_t)(end - begin);
         ++i;
     }
     if (i != req_slices)
