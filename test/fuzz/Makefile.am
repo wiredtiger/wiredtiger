@@ -1,10 +1,10 @@
-AM_CPPFLAGS = -fsanitize=fuzzer,address
+AM_CPPFLAGS = -fsanitize=fuzzer
 AM_CPPFLAGS += -I$(top_builddir)
 AM_CPPFLAGS += -I$(top_srcdir)/src/include
 AM_CPPFLAGS += -I$(top_srcdir)/test/utility
 AM_CPPFLAGS += -I$(top_srcdir)/test/fuzz
 
-AM_LDFLAGS = -fsanitize=fuzzer,address -static
+AM_LDFLAGS = -fsanitize=fuzzer -static
 
 noinst_PROGRAMS = fuzz_config fuzz_modify
 
