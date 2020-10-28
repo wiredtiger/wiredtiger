@@ -29,6 +29,9 @@ else
 	cov_bin="$COV_BINARY"
 fi
 
+# Remove anything from previous runs.
+rm *_cov.profdata *_cov.txt *_cov.html &> /dev/null
+
 fuzz_cov_name="${fuzz_test_bin}_cov"
 combined_profdata_name="${fuzz_cov_name}.profdata"
 
