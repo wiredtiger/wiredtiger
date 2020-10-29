@@ -82,8 +82,8 @@ fuzzutil_setup(void)
  *     the fuzz target. While our fuzz target will reject lots of input to begin with, the fuzzer
  *     will figure out that inputs with these separators yield better coverage and will craft more
  *     sensible inputs over time. This is what the sliced input component is designed for. It takes
- *     the data input and the number of slices that it should expect and populates a heap allocated
- *     array of data pointers to each separate input and their respective size.
+ *     the data input, a separator and the number of slices that it should expect and populates a
+ *     heap allocated array of data pointers to each separate input and their respective size.
  */
 bool
 fuzzutil_sliced_input_init(FUZZ_SLICED_INPUT *input, const uint8_t *data, size_t size,
@@ -150,6 +150,8 @@ fuzzutil_sliced_input_free(FUZZ_SLICED_INPUT *input)
 {
     free(input->slices);
     free(input->sizes);
+    input->slices = NULL;
+    input->sizes = NULL;
 }
 
 /*
