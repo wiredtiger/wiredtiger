@@ -32,16 +32,20 @@ typedef struct {
     WT_SESSION *session;
 } FUZZ_GLOBAL_STATE;
 
+extern FUZZ_GLOBAL_STATE fuzz_state;
+
+void fuzzutil_setup(void);
+
+/* ![fuzzutil sliced input api] */
 typedef struct {
     const uint8_t **slices;
     size_t *sizes;
     size_t num_slices;
 } FUZZ_SLICED_INPUT;
 
-extern FUZZ_GLOBAL_STATE fuzz_state;
-
-void fuzzutil_setup(void);
 bool fuzzutil_sliced_input_init(FUZZ_SLICED_INPUT *input, const uint8_t *data, size_t size,
   const uint8_t *sep, size_t sep_size, size_t req_slices);
 void fuzzutil_sliced_input_free(FUZZ_SLICED_INPUT *input);
+/* ![fuzzutil sliced input api] */
+
 char *fuzzutil_slice_to_cstring(const uint8_t *data, size_t size);
