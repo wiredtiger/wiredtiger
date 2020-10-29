@@ -388,7 +388,7 @@ __ckpt_add_blkmod_entry(
     WT_ASSERT(session, blk_mod->bitstring.size >= __bitstr_size((uint32_t)blk_mod->nbits));
     WT_ASSERT(session, end_bit < blk_mod->nbits);
     /* Set all the bits needed to record this offset/length pair. */
-    __bit_nset(blk_mod->bitstring.mem, start_bit, end_bit);
+    __bit_nset(static_cast<uint8_t *>(blk_mod->bitstring.mem), start_bit, end_bit);
     return (0);
 }
 

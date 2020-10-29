@@ -119,7 +119,7 @@ testutil_clean_work_dir(const char *dir)
       __wt_snprintf(buf, len, "%s %s %s %s", DIR_EXISTS_COMMAND, dir, RM_COMMAND, dir));
 #else
     len = strlen(dir) + strlen(RM_COMMAND) + 1;
-    if ((buf = malloc(len)) == NULL)
+    if ((buf = static_cast<char*>(malloc(len))) == NULL)
         testutil_die(ENOMEM, "Failed to allocate memory");
 
     testutil_check(__wt_snprintf(buf, len, "%s%s", RM_COMMAND, dir));
@@ -144,7 +144,7 @@ testutil_make_work_dir(const char *dir)
 
     /* Additional bytes for the mkdir command */
     len = strlen(dir) + strlen(MKDIR_COMMAND) + 1;
-    if ((buf = malloc(len)) == NULL)
+    if ((buf = static_cast<char*>(malloc(len))) == NULL)
         testutil_die(ENOMEM, "Failed to allocate memory");
 
     /* mkdir shares syntax between Windows and Linux */
@@ -340,7 +340,7 @@ dstrdup(const void *str)
 {
     char *p;
 
-    if ((p = strdup(str)) != NULL)
+    if ((p = strdup(static_cast<const char*>(str))) != NULL)
         return (p);
     testutil_die(errno, "strdup");
 }
@@ -355,7 +355,7 @@ dstrndup(const char *str, size_t len)
 {
     char *p;
 
-    p = dcalloc(len + 1, sizeof(char));
+    p = static_cast<char*>(dcalloc(len + 1, sizeof(char)));
     memcpy(p, str, len);
     return (p);
 }

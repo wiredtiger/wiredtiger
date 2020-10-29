@@ -90,7 +90,7 @@ __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
     filecfg[0] = oldvalue;
     if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
         WT_ERR(__rename_blkmod(session, oldvalue, buf));
-        filecfg[1] = buf->mem;
+        filecfg[1] = static_cast<const char *>(buf->mem);
     } else
         filecfg[1] = NULL;
     WT_ERR(__wt_config_collapse(session, filecfg, &newvalue));

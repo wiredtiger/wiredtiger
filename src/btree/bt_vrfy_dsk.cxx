@@ -370,7 +370,7 @@ __verify_dsk_row_int(
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
         case WT_CELL_KEY_OVFL:
-            if ((ret = bm->addr_invalid(bm, session, unpack->data, unpack->size)) == EINVAL)
+	        if ((ret = bm->addr_invalid(bm, session, static_cast<const uint8_t *>(unpack->data), unpack->size)) == EINVAL)
                 (void)__err_cell_corrupt_or_eof(session, ret, cell_num, tag);
             WT_ERR(ret);
             break;

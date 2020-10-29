@@ -887,12 +887,12 @@ __verify_page_content_int(
 
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
-            if ((ret = __verify_overflow(session, unpack.data, unpack.size, vs)) != 0)
+	        if ((ret = __verify_overflow(session, static_cast<const uint8_t *>(unpack.data), unpack.size, vs)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32
                   " on page at %s references an overflow item at %s that failed verification",
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
-                  __wt_addr_string(session, unpack.data, unpack.size, vs->tmp2));
+                           __wt_addr_string(session, static_cast<const uint8_t *>(unpack.data), unpack.size, vs->tmp2));
             break;
         }
 

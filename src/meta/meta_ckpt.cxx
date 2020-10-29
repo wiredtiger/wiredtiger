@@ -352,7 +352,7 @@ __wt_meta_block_metadata(WT_SESSION_IMPL *session, const char *config, WT_CKPT *
         WT_ERR(__wt_buf_grow(session, b, encrypt_size));
         WT_ERR(__wt_encrypt(session, kencryptor, 0, a, b));
         WT_ERR(__wt_buf_grow(session, a, b->size * 2 + 1));
-        __wt_fill_hex(static_cast<const uint8_t *>(b->mem), b->size, static_cast<const uint8_t *>(a->mem), a->memsize, &a->size);
+        __wt_fill_hex(static_cast<const uint8_t *>(b->mem), b->size, static_cast<uint8_t *>(a->mem), a->memsize, &a->size);
 
         metadata = static_cast<const char*>(a->data);
         metadata_len = a->size;
@@ -991,7 +991,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
         WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, WT_SYSTEM_OLDEST_URI), false);
     else {
         WT_ERR(__wt_buf_fmt(session, buf, WT_SYSTEM_OLDEST_TS "=\"%s\"", hex_timestamp));
-        WT_ERR(__wt_metadata_update(session, WT_SYSTEM_OLDEST_URI, buf->data));
+        WT_ERR(__wt_metadata_update(session, WT_SYSTEM_OLDEST_URI, static_cast<const char *>(buf->data)));
     }
 
     /* Record snapshot information in metadata for checkpoint. */
@@ -1006,13 +1006,13 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
             WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "%s", txn->snapshot[snap_count], ","));
 
         WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "%s", txn->snapshot[snap_count], "]"));
-        WT_ERR(__wt_metadata_update(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, buf->data));
+        WT_ERR(__wt_metadata_update(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, static_cast<const char *>(buf->data)));
     }
 
     /* Record the base write gen in metadata as part of checkpoint */
     WT_ERR(__wt_buf_fmt(
       session, buf, WT_SYSTEM_BASE_WRITE_GEN "=%" PRIu64, S2C(session)->base_write_gen));
-    WT_ERR(__wt_metadata_update(session, WT_SYSTEM_BASE_WRITE_GEN_URI, buf->data));
+    WT_ERR(__wt_metadata_update(session, WT_SYSTEM_BASE_WRITE_GEN_URI, static_cast<const char *>(buf->data)));
 
 err:
     __wt_scr_free(session, &buf);
