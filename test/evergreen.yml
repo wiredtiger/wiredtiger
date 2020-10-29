@@ -324,7 +324,7 @@ functions:
         bucket: build_external
         permissions: public-read
         content_type: application/tar
-        display_name: Hang Analyzer Output - Execution ${execution}
+        display_name: WT Hang Analyzer Output - Execution ${execution}
         remote_file: wiredtiger/${build_variant}/${revision}/wt_hang_analyzer/wt-hang-analyzer_${task_name}_${build_id}${postfix|}.tgz
 
   "dump stderr/stdout":
