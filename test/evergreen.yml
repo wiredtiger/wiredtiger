@@ -182,7 +182,7 @@ functions:
         for i in $(seq ${times|1}); do
           ${test_env_vars|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
         done
-  "test hang analyzer script":
+  "test wt hang analyzer script":
     command: shell.exec
     params:
       working_dir: "wiredtiger/test/format"
@@ -295,7 +295,7 @@ functions:
         rm -rf "wiredtiger"
         rm -rf "wiredtiger.tgz"
 
-  "run hang analyzer":
+  "run wt hang analyzer":
     command: shell.exec
     params:
       working_dir: "wiredtiger/build_posix"
@@ -305,10 +305,10 @@ functions:
         # Dump core (-c) and debugger outputs (-o)
         wt_hang_analyzer_option="-c -o file -o stdout"
 
-        echo "Calling the hang analyzer ..."
+        echo "Calling the wt hang analyzer ..."
         PATH="/opt/mongodbtoolchain/gdb/bin:$PATH" ${python_binary|python3} ../test/wt_hang_analyzer/wt_hang_analyzer.py $wt_hang_analyzer_option
 
-  "save hang analyzer core/debugger files":
+  "save wt hang analyzer core/debugger files":
     - command: archive.targz_pack
       params:
         target: "wt-hang-analyzer.tgz"
@@ -466,11 +466,11 @@ post:
   - func: "upload artifact"
     vars:
       postfix: -${execution}
-  - func: "save hang analyzer core/debugger files"
+  - func: "save wt hang analyzer core/debugger files"
   - func: "dump stderr/stdout"
   - func: "cleanup"
 timeout:
-  - func: "run hang analyzer"
+  - func: "run wt hang analyzer"
 
 tasks:
   # Base compile task on posix flavours
