@@ -7,7 +7,9 @@ A prototype hang analyzer for Evergreen integration to help investigate test tim
 2. Script will iterate through a list of interesting processes,
     and run the tools from step 1. The list of processes can be provided as an option.
 
-Supports Linux and Windows.
+Currenty only supports Linux. There are two issues with the MacOS and windows implementation:
+1. lldb cannot attach to processes in MacOS.
+2. Windows cannot find the debug symbols.
 """
 
 import csv
@@ -24,7 +26,7 @@ import tempfile
 import threading
 import traceback
 import time
-from distutils import spawn  # pylint: disable=no-name-in-module
+from distutils import spawn
 from io import BytesIO, TextIOWrapper
 from optparse import OptionParser
 _IS_WINDOWS = (sys.platform == "win32")
@@ -39,7 +41,7 @@ Helper class to read output of a subprocess.
 Used to avoid deadlocks from the pipe buffer filling up and blocking the subprocess while it's
 being waited on.
 """
-class LoggerPipe(threading.Thread):  # pylint: disable=too-many-instance-attributes
+class LoggerPipe(threading.Thread):
     """Asynchronously reads the output of a subprocess and sends it to a logger."""
 
     # The start() and join() methods are not intended to be called directly on the LoggerPipe
@@ -83,8 +85,7 @@ class LoggerPipe(threading.Thread):  # pylint: disable=too-many-instance-attribu
             for line in iter(self.__pipe_out.readline, b""):
                 # Convert the output of the process from a bytestring to a UTF-8 string, and replace
                 # any characters that cannot be decoded with the official Unicode replacement
-                # character, U+FFFD. The log messages of MongoDB processes are not always valid
-                # UTF-8 sequences. See SERVER-7506.
+                # character, U+FFFD.
                 line = line.decode("utf-8", "replace")
                 self.__logger.log(self.__level, line.rstrip())
 
@@ -110,7 +111,7 @@ class LoggerPipe(threading.Thread):  # pylint: disable=too-many-instance-attribu
 
         # No need to pass a timeout to join() because the thread should already be done after
         # notifying us it has finished reading output from the pipe.
-        LoggerPipe.__join(self)  # Tidy up the started thread.
+        LoggerPipe.__join(self)
 
 def call(args, logger):
     """Call subprocess on args list."""
@@ -183,7 +184,6 @@ class WindowsDumper(object):
         # Use the shell api to get the variable instead
         root_dir = shell.SHGetFolderPath(0, shellcon.CSIDL_PROGRAM_FILESX86, None, 0)
 
-
         # Construct the debugger search paths in most-recent order
         debugger_paths = [os.path.join(root_dir, "Windows Kits", "10", "Debuggers", "x64")]
         for idx in reversed(range(0, 2)):
@@ -197,8 +197,7 @@ class WindowsDumper(object):
 
         return None
 
-    def dump_info(  # pylint: disable=too-many-arguments
-            self, root_logger, logger, pid, process_name, take_dump):
+    def dump_info(self, root_logger, logger, pid, process_name, take_dump):
         """Dump useful information to the console."""
         debugger = "cdb.exe"
         dbg = self.__find_debugger(root_logger, debugger)
@@ -270,8 +269,7 @@ class LLDBDumper(object):
         """Find the installed debugger."""
         return find_program(debugger, ['/usr/bin'])
 
-    def dump_info(  # pylint: disable=too-many-arguments
-            self, root_logger, logger, pid, process_name, take_dump):
+    def dump_info(self, root_logger, logger, pid, process_name, take_dump):
         """Dump info."""
         debugger = "lldb"
         dbg = self.__find_debugger(debugger)
@@ -366,8 +364,7 @@ class GDBDumper(object):
         """Find the installed debugger."""
         return find_program(debugger, ['/opt/mongodbtoolchain/v3/bin/gdb', '/usr/bin'])
 
-    def dump_info(  # pylint: disable=too-many-arguments,too-many-locals
-            self, root_logger, logger, pid, process_name, take_dump):
+    def dump_info(self, root_logger, logger, pid, process_name, take_dump):
         """Dump info."""
         debugger = "gdb"
         dbg = self.__find_debugger(debugger)
@@ -390,7 +387,7 @@ class GDBDumper(object):
         cmds = [
             "set interactive-mode off",
             "set print thread-events off",  # Suppress GDB messages of threads starting/finishing.
-            "file %s" % process_name,  # Solaris must load the process to read the symbols.
+            "file %s" % process_name,
             "attach %d" % pid,
             "info sharedlibrary",
             "info threads",  # Dump a simple list of commands to get the thread name
@@ -484,7 +481,7 @@ def pname_match(exact_match, pname, processes):
 #
 # 1. Get a list of interesting processes
 # 2. Dump useful information or take dumps
-def main():  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
+def main():
     """Execute Main program."""
     root_logger = logging.Logger("hang_analyzer", level=logging.DEBUG)
 
@@ -565,7 +562,7 @@ def main():  # pylint: disable=too-many-branches,too-many-locals,too-many-statem
     all_processes = ps.dump_processes(root_logger)
 
     # Canonicalize the process names to lowercase to handle cases where the name of the Python
-    # process is /System/Library/.../Python on OS X and -p python is specified to hang_analyzer.py.
+    # process is /System/Library/.../Python on OS X and -p python is specified.
     all_processes = [(pid, process_name.lower()) for (pid, process_name) in all_processes]
 
     # Find all running interesting processes:
@@ -596,7 +593,7 @@ def main():  # pylint: disable=too-many-branches,too-many-locals,too-many-statem
         try:
             dbg.dump_info(root_logger, process_logger, pid, process_name, options.dump_core
                           and check_dump_quota(max_dump_size_bytes, dbg.get_dump_ext()))
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception as err:
             root_logger.info("Error encountered when invoking debugger %s", err)
             trapped_exceptions.append(traceback.format_exc())
 
