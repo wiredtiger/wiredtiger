@@ -51,8 +51,7 @@ Each fuzz target will produce a few outputs:
 crashed the target.
 
 - \c fuzz-N.log: The LibFuzzer log for worker N. This is just an ID that LibFuzzer assigns to each
-worker ranging from 0 => the number of workers - 1. The pid of the worker is written at the end of
-each log file.
+worker ranging from 0 => the number of workers - 1.
 
 - \c WT_TEST_<pid>: The home directory for a given worker process.
 

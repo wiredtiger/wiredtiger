@@ -21,8 +21,7 @@
 #	If an error occurs, a file will be produced containing the input that crashed the target.
 # fuzz-N.log --
 #	The LibFuzzer log for worker N. This is just an ID that LibFuzzer assigns to each worker
-#	ranging from 0 => the number of workers - 1. The pid of the worker is written at the end of
-#	each log file.
+#	ranging from 0 => the number of workers - 1.
 # WT_TEST_<pid> --
 #	The home directory for a given worker process.
 # WT_TEST_<pid>.profraw --
