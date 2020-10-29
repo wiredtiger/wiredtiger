@@ -53,7 +53,6 @@ class test_backup17(wttest.WiredTigerTestCase, suite_subprocess):
     bigval = 'Value' * 100
 
     def add_data(self, uri):
-
         c = self.session.open_cursor(uri)
         for i in range(0, self.nops):
             num = i + (self.mult * self.nops)
@@ -62,7 +61,6 @@ class test_backup17(wttest.WiredTigerTestCase, suite_subprocess):
             c[key] = val
         self.session.checkpoint()
         c.close()
-        # Increase the multiplier so that later calls insert unique items.
 
     def take_incr_backup(self, id, consolidate):
         # Open the backup data source for incremental backup.
@@ -71,7 +69,7 @@ class test_backup17(wttest.WiredTigerTestCase, suite_subprocess):
             buf += ',consolidate=true'
         buf += ')'
         bkup_c = self.session.open_cursor('backup:', None, buf)
-        offsets = []
+        lens = []
         saw_multiple = False
         while True:
             ret = bkup_c.next()
@@ -98,7 +96,7 @@ class test_backup17(wttest.WiredTigerTestCase, suite_subprocess):
                     shutil.copy(newfile, self.dir)
                 else:
                     self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
-                    offsets.append(offset)
+                    lens.append(size)
                     rfp = open(newfile, "r+b")
                     wfp = open(self.dir + '/' + newfile, "w+b")
                     rfp.seek(offset, 0)
@@ -117,7 +115,7 @@ class test_backup17(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertTrue(saw_multiple)
         else:
             self.assertFalse(saw_multiple)
-        return offsets
+        return lens
 
     def test_backup17(self):
 
@@ -153,13 +151,15 @@ class test_backup17(wttest.WiredTigerTestCase, suite_subprocess):
         # same data to the second table. Perform an incremental backup with consolidate on and
         # verify we get fewer, consolidated values.
         self.add_data(self.uri)
-        uri1_off = self.take_incr_backup(2, False)
+        uri1_lens = self.take_incr_backup(2, False)
 
         self.add_data(self.uri2)
-        uri2_off = self.take_incr_backup(3, True)
+        uri2_lens = self.take_incr_backup(3, True)
 
-        # Assert that we recorded fewer offsets on the consolidated backup.
-        self.assertLess(len(uri2_off), len(uri1_off))
+        # Assert that we recorded fewer lengths on the consolidated backup.
+        self.assertLess(len(uri2_lens), len(uri1_lens))
+        # Assert that we recorded the same total data length for both.
+        self.assertEqual(sum(uri2_lens), sum(uri1_lens))
 
 if __name__ == '__main__':
     wttest.run()

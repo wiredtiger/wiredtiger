@@ -460,7 +460,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
      * Consolidation can be on a per incremental basis or a per-file duplicate cursor basis.
      */
     WT_RET(__wt_config_gets(session, cfg, "incremental.consolidate", &cval));
-    consolidate = F_ISSET(cb, WT_CURBACKUP_CONSOLIDATE);
+    consolidate = F_MASK(cb, WT_CURBACKUP_CONSOLIDATE);
     if (cval.val) {
         if (is_dup)
             WT_RET_MSG(session, EINVAL,
