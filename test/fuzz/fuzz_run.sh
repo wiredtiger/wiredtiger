@@ -5,15 +5,15 @@
 # This script will emit all data in the current working directory including: fuzzing logs, home
 # directories and profiling data (if we've compiled with Clang coverage).
 #
-# Running fuzz targets compiled with ASan (-fsanitize=address) is recommended. If you want to also
-# run calculate coverage, you should also add "-fprofile-instr-generate" and "-fcoverage-mapping" to
+# Running fuzzers compiled with ASan (-fsanitize=address) is recommended. If you want to also run
+# calculate coverage, you should also add "-fprofile-instr-generate" and "-fcoverage-mapping" to
 # your CFLAGS and LINKFLAGS when configuring.
 #
 # Usage
 # fuzz_run.sh <fuzz-test-binary> [fuzz-test-args]
 #
-# If the fuzz target you're running has an existing corpus directory, you may want to run with the
-# corpus supplied:
+# If the fuzzer you're running has an existing corpus directory, you may want to run with the corpus
+# supplied:
 # e.g. fuzz_run.sh ../../build_posix/test/fuzz/fuzz_config corpus/
 #
 # Output
@@ -26,7 +26,7 @@
 # WT_TEST_<pid> --
 #	The home directory for a given worker process.
 # WT_TEST_<pid>.profraw --
-#	If a target is running with Clang coverage, files containing profiling data for a given
+#	If a fuzzer is running with Clang coverage, files containing profiling data for a given
 #	worker will be produced. These will be used by fuzz_coverage.
 
 if test "$#" -lt "1"; then
