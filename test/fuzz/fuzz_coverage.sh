@@ -16,12 +16,12 @@
 #
 # Output
 # <fuzz-test-binary>_cov.txt --
-#	A coverage report in text format. You can open it with the "less" command and search for the
-#	functions that you're interested in. The numbers on the left of each line of code indicate
-#	how many times they were hit in the fuzz test.
+#	A coverage report in text format. It can be inspect with the "less" command and searched for
+#	functions of interest. The numbers on the left of each line of code indicate how many times
+#	they were hit in the fuzz test.
 # <fuzz-test-binary>_cov.html --
-#	A coverage report in html format. If you happen to be on a machine with a desktop
-#	environment, this might be a nicer way to visualize the coverage.
+#	A coverage report in html format. If a web browser is available, this might be a nicer way
+#	visualize the coverage.
 
 if test "$#" -lt "1"; then
 	echo "$0: must specify fuzz test to generate coverage for"

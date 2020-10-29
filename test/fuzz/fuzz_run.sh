@@ -17,16 +17,17 @@
 # e.g. fuzz_run.sh ../../build_posix/test/fuzz/fuzz_config corpus/
 #
 # Output
-# fuzz-<num>.log --
-#	The LibFuzzer log for a worker.
+# crash-<input-hash> --
+#	If an error occurs, a file will be produced containing the input that crashed the target.
+# fuzz-N.log --
+#	The LibFuzzer log for worker N. This is just an ID that LibFuzzer assigns to each worker
+#	ranging from 0 => the number of workers - 1. The pid of the worker is written at the end of
+#	each log file.
 # WT_TEST_<pid> --
 #	The home directory for a given worker process.
-# crash-<input-hash> --
-#	If an error occurs, you may see a file like this containing the input that crashed the fuzz
-#	target.
 # WT_TEST_<pid>.profraw --
-#	If you're running with Clang coverage, you'll see these files containing profiling data for
-#	a given worker. These will be used by fuzz_coverage.
+#	If a target is running with Clang coverage, files containing profiling data for a given
+#	worker will be produced. These will be used by fuzz_coverage.
 
 if test "$#" -lt "1"; then
 	echo "$0: must specify fuzz test to run"
