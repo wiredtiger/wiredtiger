@@ -13,11 +13,13 @@
  *	Handle extension list errors that would normally panic the system but
  * which should fail gracefully when verifying.
  */
-#define WT_BLOCK_RET(session, block, v, ...)                    \
-    do {                                                        \
-        int __ret = (v);                                        \
-        __wt_err(session, __ret, __VA_ARGS__);                  \
-        return ((block)->verify ? __ret : __wt_panic(session)); \
+#define WT_BLOCK_RET(session, block, v, ...)                                        \
+    do {                                                                            \
+        int __ret = (v);                                                            \
+        __wt_err(session, __ret, __VA_ARGS__);                                      \
+        return ((block)->verify ?                                                   \
+            __ret :                                                                 \
+            __wt_panic(session, WT_PANIC, "block manager extension list failure")); \
     } while (0)
 
 static int __block_append(WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
@@ -297,13 +299,10 @@ __wt_block_misplaced(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *list
     else if (live && __block_off_match(&block->live.discard, offset, size))
         name = "discard";
     __wt_spin_unlock(session, &block->live_lock);
-    if (name != NULL) {
-        __wt_errx(session, "%s failed: %" PRIuMAX "/%" PRIu32
-                           " is on the %s list "
-                           "(%s, %d)",
-          list, (uintmax_t)offset, size, name, func, line);
-        return (__wt_panic(session));
-    }
+    if (name != NULL)
+        return (__wt_panic(session, WT_PANIC,
+          "%s failed: %" PRIuMAX "/%" PRIu32 " is on the %s list (%s, %d)", list, (uintmax_t)offset,
+          size, name, func, line));
     return (0);
 }
 #endif
@@ -336,7 +335,7 @@ __block_off_remove(
         __block_size_srch(el->sz, ext->size, sstack);
         szp = *sstack[0];
         if (szp == NULL || szp->size != ext->size)
-            WT_PANIC_RET(session, EINVAL, "extent not found in by-size list during remove");
+            WT_RET_PANIC(session, EINVAL, "extent not found in by-size list during remove");
         __block_off_srch(szp->off, off, astack, true);
         ext = *astack[0];
         if (ext == NULL || ext->off != off)
@@ -472,8 +471,8 @@ __block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_off
     block->size += size;
 
     WT_STAT_DATA_INCR(session, block_extension);
-    __wt_verbose(session, WT_VERB_BLOCK, "file extend %" PRIdMAX "B @ %" PRIdMAX, (intmax_t)size,
-      (intmax_t)*offp);
+    __wt_verbose(session, WT_VERB_BLOCK, "file extend %" PRIdMAX "-%" PRIdMAX, (intmax_t)*offp,
+      (intmax_t)(*offp + size));
 
     return (0);
 }
@@ -496,9 +495,9 @@ __wt_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_o
 
     WT_STAT_DATA_INCR(session, block_alloc);
     if (size % block->allocsize != 0)
-        WT_RET_MSG(session, EINVAL, "cannot allocate a block size %" PRIdMAX
-                                    " that is not "
-                                    "a multiple of the allocation size %" PRIu32,
+        WT_RET_MSG(session, EINVAL,
+          "cannot allocate a block size %" PRIdMAX
+          " that is not a multiple of the allocation size %" PRIu32,
           (intmax_t)size, block->allocsize);
 
     /*
@@ -643,7 +642,7 @@ __wt_block_extlist_check(WT_SESSION_IMPL *session, WT_EXTLIST *al, WT_EXTLIST *b
             b = b->next[0];
             continue;
         }
-        WT_PANIC_RET(session, EINVAL, "checkpoint merge check: %s list overlaps the %s list",
+        WT_RET_PANIC(session, EINVAL, "checkpoint merge check: %s list overlaps the %s list",
           al->name, bl->name);
     }
     return (0);

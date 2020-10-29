@@ -50,24 +50,13 @@ struct __wt_rec_dictionary {
         uint32_t entries;
         uint64_t recno;
         WT_ITEM key;
-        wt_timestamp_t newest_start_durable_ts;
-        wt_timestamp_t oldest_start_ts;
-        uint64_t oldest_start_txn;
-        wt_timestamp_t newest_stop_durable_ts;
-        wt_timestamp_t newest_stop_ts;
-        uint64_t newest_stop_txn;
-        bool prepare;
+	    WT_TIME_AGGREGATE ta;
 
         /* Saved minimum split-size boundary information. */
         uint32_t min_entries;
         uint64_t min_recno;
         WT_ITEM min_key;
-        wt_timestamp_t min_newest_start_durable_ts;
-        wt_timestamp_t min_oldest_start_ts;
-        uint64_t min_oldest_start_txn;
-        wt_timestamp_t min_newest_stop_durable_ts;
-        wt_timestamp_t min_newest_stop_ts;
-        uint64_t min_newest_stop_txn;
+	    WT_TIME_AGGREGATE ta_min;
 
         size_t min_offset; /* byte offset */
 
@@ -93,20 +82,30 @@ struct __wt_reconcile {
     uint64_t orig_btree_checkpoint_gen;
     uint64_t orig_txn_checkpoint_gen;
 
-    /*
-     * Track the oldest running transaction and whether to skew history store to the newest update.
-     */
-    bool hs_skew_newest;
+    /* Track the oldest running transaction. */
     uint64_t last_running;
+
+    /* Track the oldest running id. This one doesn't consider checkpoint. */
+    uint64_t rec_start_oldest_id;
+
+    /* Track the pinned timestamp at the time reconciliation started. */
+    wt_timestamp_t rec_start_pinned_ts;
 
     /* Track the page's min/maximum transactions. */
     uint64_t max_txn;
     wt_timestamp_t max_ts;
-    wt_timestamp_t max_ondisk_ts;
     wt_timestamp_t min_skipped_ts;
 
     u_int updates_seen;     /* Count of updates seen. */
     u_int updates_unstable; /* Count of updates not visible_all. */
+
+    /*
+     * When we do not find any update to be written for the whole page, we would like to mark
+     * eviction failed in the case of update-restore. There is no progress made by eviction in such
+     * a case, the page size stays the same and considering it a success could force the page
+     * through eviction repeatedly.
+     */
+    bool update_used;
 
     /*
      * When we can't mark the page clean after reconciliation (for example, checkpoint or eviction
@@ -172,6 +171,30 @@ struct __wt_reconcile {
     uint8_t *first_free;    /* Current first free byte */
     size_t space_avail;     /* Remaining space in this chunk */
     size_t min_space_avail; /* Remaining space in this chunk to put a minimum size boundary */
+
+    /*
+     * Counters tracking how much time information is included in reconciliation for each page that
+     * is written to disk. The number of entries on a page is limited to a 32 bit number so these
+     * counters can be too.
+     */
+    uint32_t count_durable_start_ts;
+    uint32_t count_start_ts;
+    uint32_t count_start_txn;
+    uint32_t count_durable_stop_ts;
+    uint32_t count_stop_ts;
+    uint32_t count_stop_txn;
+    uint32_t count_prepare;
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
+#define WT_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
+#define WT_REC_TIME_NEWEST_STOP_TS 0x04u
+#define WT_REC_TIME_NEWEST_STOP_TXN 0x08u
+#define WT_REC_TIME_NEWEST_TXN 0x10u
+#define WT_REC_TIME_OLDEST_START_TS 0x20u
+#define WT_REC_TIME_PREPARE 0x40u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint16_t ts_usage_flags;
 
     /*
      * Saved update list, supporting WT_REC_HS configurations. While reviewing updates for each
@@ -245,18 +268,22 @@ struct __wt_reconcile {
      * violation and fragile, we need a better solution.
      */
     WT_CURSOR_BTREE update_modify_cbt;
+
+    /*
+     * Variables to track reconciliation calls for pages containing cells with time window values
+     * and prepared transactions.
+     */
+    bool rec_page_cell_with_ts;
+    bool rec_page_cell_with_txn_id;
+    bool rec_page_cell_with_prepared_txn;
 };
 
 typedef struct {
     WT_UPDATE *upd; /* Update to write (or NULL) */
 
-    wt_timestamp_t start_durable_ts; /* Transaction IDs, timestamps */
-    wt_timestamp_t start_ts;
-    uint64_t start_txn;
-    wt_timestamp_t stop_durable_ts;
-    wt_timestamp_t stop_ts;
-    uint64_t stop_txn;
-    bool prepare;
+    WT_TIME_WINDOW tw;
+
+    bool upd_saved; /* An element on the row's update chain was saved */
 } WT_UPDATE_SELECT;
 
 /*

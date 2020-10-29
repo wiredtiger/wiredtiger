@@ -74,9 +74,15 @@ __wt_col_search(
     uint32_t base, indx, limit, read_flags;
     int depth;
 
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
     btree = S2BT(session);
     current = NULL;
+
+    /*
+     * Assert the session and cursor have the right relationship (not search specific, but search is
+     * a convenient place to check given any operation on a cursor will likely search a page).
+     */
+    WT_ASSERT(session, session->dhandle == cbt->dhandle);
 
     __cursor_pos_clear(cbt);
 
@@ -156,9 +162,8 @@ descend:
         /*
          * Reference the slot used for next step down the tree.
          *
-         * Base is the smallest index greater than recno and may be the
-         * (last + 1) index.  The slot for descent is the one before
-         * base.
+         * Base is the smallest index greater than recno and may be the (last + 1) index. The slot
+         * for descent is the one before base.
          */
         if (recno != descent->ref_recno) {
             /*

@@ -66,24 +66,21 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
     /*
      * Acquire an exclusive lock on the handle and mark it dead.
      *
-     * The close would require I/O if an update cannot be written
-     * (updates in a no-longer-referenced file might not yet be
-     * globally visible if sessions have disjoint sets of files
-     * open).  In that case, skip it: we'll retry the close the
-     * next time, after the transaction state has progressed.
+     * The close would require I/O if an update cannot be written (updates in a no-longer-referenced
+     * file might not yet be globally visible if sessions have disjoint sets of files open). In that
+     * case, skip it: we'll retry the close the next time, after the transaction state has
+     * progressed.
      *
-     * We don't set WT_DHANDLE_EXCLUSIVE deliberately, we want
-     * opens to block on us and then retry rather than returning an
-     * EBUSY error to the application.  This is done holding the
-     * handle list lock so that connection-level handle searches
-     * never need to retry.
+     * We don't set WT_DHANDLE_EXCLUSIVE deliberately, we want opens to block on us and then retry
+     * rather than returning an EBUSY error to the application. This is done holding the handle list
+     * lock so that connection-level handle searches never need to retry.
      */
     WT_RET(__wt_try_writelock(session, &dhandle->rwlock));
 
     /* Only sweep clean trees where all updates are visible. */
     if (btree != NULL &&
       (btree->modified ||
-          !__wt_txn_visible_all(session, btree->rec_max_txn, btree->rec_max_timestamp)))
+        !__wt_txn_visible_all(session, btree->rec_max_txn, btree->rec_max_timestamp)))
         goto err;
 
     /*
@@ -328,7 +325,7 @@ __sweep_server(void *arg)
 
     if (0) {
 err:
-        WT_PANIC_MSG(session, ret, "handle sweep server error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "handle sweep server error"));
     }
     return (WT_THREAD_RET_VALUE);
 }
@@ -406,7 +403,6 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
 
     conn = S2C(session);
 
@@ -419,8 +415,7 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
     __wt_cond_destroy(session, &conn->sweep_cond);
 
     if (conn->sweep_session != NULL) {
-        wt_session = &conn->sweep_session->iface;
-        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_TRET(__wt_session_close_internal(conn->sweep_session));
 
         conn->sweep_session = NULL;
     }

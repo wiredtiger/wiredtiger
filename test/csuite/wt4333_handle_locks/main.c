@@ -57,9 +57,8 @@ uri_init(void)
 
     /* Initialize the file contents. */
     for (i = 0; i < uris; ++i) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf),
-          "key_format=S,value_format=S,"
-          "allocation_size=4K,leaf_page_max=32KB,"));
+        testutil_check(__wt_snprintf(
+          buf, sizeof(buf), "key_format=S,value_format=S,allocation_size=4K,leaf_page_max=32KB,"));
         testutil_check(session->create(session, uri_list[i], buf));
         testutil_check(session->open_cursor(session, uri_list[i], NULL, NULL, &cursor));
         for (key = 1; key < MAXKEY; ++key) {
@@ -109,8 +108,8 @@ op(WT_SESSION *session, WT_RAND_STATE *rnd, WT_CURSOR **cpp)
         /*
          * Use a checkpoint handle for 50% of reads.
          *
-         * FIXME: Checkpoint cursors are known to have issues in durable history so we've removing
-         * the use of checkpoint handles in this test. As part of WT-5927, we should either
+         * FIXME-WT-5927: Checkpoint cursors are known to have issues in durable history so we've
+         * removing the use of checkpoint handles in this test. As part of WT-5927, we should either
          * re-enable the testing of checkpoint cursors or remove this comment.
          */
         ret = session->open_cursor(session, uri_list[i], NULL, NULL, &cursor);
@@ -259,7 +258,7 @@ runone(bool config_cache)
     testutil_check(__wt_snprintf(buf, sizeof(buf),
       "create"
       ", cache_cursors=%s"
-      ", cache_size=5GB"
+      ", cache_size=1GB"
       ", checkpoint_sync=true"
       ", eviction=(threads_max=5)"
       ", file_manager=("
@@ -305,11 +304,18 @@ run(int argc, char *argv[])
         u_int uris;
         bool cache_cursors;
     } runs[] = {
-      {1, 1, false}, {1, 1, true}, {8, 1, false}, {8, 1, true}, {16, 1, false}, {16, 1, true},
-      {16, WT_ELEMENTS(uri_list), false}, {16, WT_ELEMENTS(uri_list), true}, {200, 100, false},
-      {200, 100, true}, {200, WT_ELEMENTS(uri_list), false}, {200, WT_ELEMENTS(uri_list), true},
-      {300, 100, false}, {300, 100, true}, {600, WT_ELEMENTS(uri_list), false},
-      {600, WT_ELEMENTS(uri_list), true},
+      {1, 1, false},
+      {1, 1, true},
+      {8, 1, false},
+      {8, 1, true},
+      {16, 1, false},
+      {16, 1, true},
+      {16, WT_ELEMENTS(uri_list), false},
+      {16, WT_ELEMENTS(uri_list), true},
+      {64, 100, false},
+      {64, 100, true},
+      {64, WT_ELEMENTS(uri_list), false},
+      {64, WT_ELEMENTS(uri_list), true},
     };
     WT_RAND_STATE rnd;
     u_int i, n;

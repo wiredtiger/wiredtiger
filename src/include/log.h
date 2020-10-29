@@ -50,8 +50,11 @@ union __wt_lsn {
 #define WT_LOG_ALIGN 128
 
 /*
- * Atomically set the two components of the LSN.
+ * Atomically set the LSN. There are two forms. We need WT_ASSIGN_LSN because some compilers (at
+ * least clang address sanitizer) does not do atomic 64-bit structure assignment so we need to
+ * explicitly assign the 64-bit field. And WT_SET_LSN atomically sets the LSN given a file/offset.
  */
+#define WT_ASSIGN_LSN(dstl, srcl) (dstl)->file_offset = (srcl)->file_offset
 #define WT_SET_LSN(l, f, o) (l)->file_offset = (((uint64_t)(f) << 32) + (o))
 
 #define WT_INIT_LSN(l) WT_SET_LSN((l), 1, 0)
@@ -170,9 +173,10 @@ union __wt_lsn {
 /* Slot is in use */
 #define WT_LOG_SLOT_ACTIVE(state) (WT_LOG_SLOT_JOINED(state) != WT_LOG_SLOT_JOIN_MASK)
 /* Slot is in use, but closed to new joins */
-#define WT_LOG_SLOT_CLOSED(state)                                                              \
-    (WT_LOG_SLOT_ACTIVE(state) && (FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_CLOSE) && \
-                                    !FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_RESERVED)))
+#define WT_LOG_SLOT_CLOSED(state)                                  \
+    (WT_LOG_SLOT_ACTIVE(state) &&                                  \
+      (FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_CLOSE) && \
+        !FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_RESERVED)))
 /* Slot is in use, all data copied into buffer */
 #define WT_LOG_SLOT_INPROGRESS(state) (WT_LOG_SLOT_RELEASED(state) != WT_LOG_SLOT_JOINED(state))
 #define WT_LOG_SLOT_DONE(state) (WT_LOG_SLOT_CLOSED(state) && !WT_LOG_SLOT_INPROGRESS(state))
@@ -397,6 +401,7 @@ struct __wt_txn_printlog_args {
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_TXN_PRINTLOG_HEX 0x1u /* Add hex output */
+#define WT_TXN_PRINTLOG_MSG 0x2u /* Messages only */
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };

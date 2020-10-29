@@ -80,8 +80,8 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
             break;
         WT_ERR(__wt_getline(session, fs, value));
         if (value->size == 0)
-            WT_PANIC_ERR(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
-        WT_ERR(__wt_metadata_update(session, static_cast<const char*>(key->data), static_cast<const char*>(value->data)));
+            WT_ERR_PANIC(session, EINVAL, "%s: zero-length value", WT_METADATA_BACKUP);
+            WT_ERR(__wt_metadata_update(session, static_cast<const char *>(key->data), static_cast<const char *>(value->data)));
     }
 
     F_SET(S2C(session), WT_CONN_WAS_BACKUP);
@@ -135,16 +135,22 @@ __metadata_load_bulk(WT_SESSION_IMPL *session)
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    /*
+     * We want to explicitly close, not just release the metadata cursor here. We know we are in
+     * initialization and this open cursor holds a lock on the metadata and we may need to verify
+     * the metadata.
+     */
+    WT_TRET(__wt_metadata_cursor_close(session));
     return (ret);
 }
 
 /*
- * __turtle_validate_version --
+ * __wt_turtle_validate_version --
  *     Retrieve version numbers from the turtle file and validate them against our WiredTiger
  *     version.
  */
-static int
-__turtle_validate_version(WT_SESSION_IMPL *session)
+int
+__wt_turtle_validate_version(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     uint32_t major, minor;
@@ -226,7 +232,13 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
      * Discard any turtle setup file left-over from previous runs. This doesn't matter for
      * correctness, it's just cleaning up random files.
      */
-    WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE_SET, false));
+
+    if ((ret = __wt_remove_if_exists(session, WT_METADATA_TURTLE_SET, false)) != 0) {
+        /* If we're a readonly database, we can skip discarding the leftover file. */
+        if (ret == EACCES)
+            ret = 0;
+        WT_RET(ret);
+    }
 
     /*
      * If we found a corrupted turtle file, then delete it and create a new. We could die after
@@ -271,23 +283,19 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
          * incremental backup file and a destination database that incorrectly ran recovery.
          */
         if (exist_incr && !exist_isrc)
-            WT_RET_MSG(session, EINVAL,
-              "Incremental backup after running recovery "
-              "is not allowed");
+            WT_RET_MSG(session, EINVAL, "Incremental backup after running recovery is not allowed");
         /*
          * If we have a backup file and metadata and turtle files, we want to recreate the metadata
          * from the backup.
          */
         if (exist_backup) {
-            WT_RET(__wt_msg(session,
-              "Both %s and %s exist; recreating metadata from "
-              "backup",
+            WT_RET(__wt_msg(session, "Both %s and %s exist; recreating metadata from backup",
               WT_METADATA_TURTLE, WT_METADATA_BACKUP));
             WT_RET(__wt_remove_if_exists(session, WT_METAFILE, false));
             WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
             load = true;
         } else if (validate_turtle)
-            WT_RET(__turtle_validate_version(session));
+            WT_RET(__wt_turtle_validate_version(session));
     } else
         load = true;
     if (load) {
@@ -375,7 +383,8 @@ err:
      */
     if (ret == 0 || strcmp(key, WT_METADATA_COMPAT) == 0 || F_ISSET(S2C(session), WT_CONN_SALVAGE))
         return (ret);
-    WT_PANIC_RET(session, WT_TRY_SALVAGE, "%s: fatal turtle file read error", WT_METADATA_TURTLE);
+    F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
+    WT_RET_PANIC(session, WT_TRY_SALVAGE, "%s: fatal turtle file read error", WT_METADATA_TURTLE);
 }
 
 /*
@@ -431,5 +440,6 @@ err:
      */
     if (ret == 0)
         return (ret);
-    WT_PANIC_RET(session, ret, "%s: fatal turtle file update error", WT_METADATA_TURTLE);
+    F_SET(conn, WT_CONN_DATA_CORRUPTION);
+    WT_RET_PANIC(session, ret, "%s: fatal turtle file update error", WT_METADATA_TURTLE);
 }

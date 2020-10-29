@@ -22,6 +22,8 @@
 
 #define __wt_err(session, error, ...) __wt_err_func(session, error, __func__, __LINE__, __VA_ARGS__)
 #define __wt_errx(session, ...) __wt_errx_func(session, __func__, __LINE__, __VA_ARGS__)
+#define __wt_panic(session, error, ...) \
+    __wt_panic_func(session, error, __func__, __LINE__, __VA_ARGS__)
 #define __wt_set_return(session, error) __wt_set_return_func(session, __func__, __LINE__, error)
 
 /* Set "ret" and branch-to-err-label tests. */
@@ -46,6 +48,9 @@
     } while (0)
 #define WT_ERR_ERROR_OK(a, e, keep) WT_ERR_TEST((ret = (a)) != 0 && ret != (e), ret, keep)
 #define WT_ERR_NOTFOUND_OK(a, keep) WT_ERR_ERROR_OK(a, WT_NOTFOUND, keep)
+
+/* Return WT_PANIC regardless of earlier return codes. */
+#define WT_ERR_PANIC(session, v, ...) WT_ERR(__wt_panic(session, v, __VA_ARGS__))
 
 /* Return tests. */
 #define WT_RET(a)               \
@@ -81,45 +86,32 @@
 #define WT_RET_BUSY_OK(a) WT_RET_ERROR_OK(a, EBUSY)
 #define WT_RET_NOTFOUND_OK(a) WT_RET_ERROR_OK(a, WT_NOTFOUND)
 /* Set "ret" if not already set. */
-#define WT_TRET(a)                                                                             \
-    do {                                                                                       \
-        int __ret;                                                                             \
-        if ((__ret = (a)) != 0 && (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || \
-                                    ret == WT_NOTFOUND || ret == WT_RESTART))                  \
-            ret = __ret;                                                                       \
+#define WT_TRET(a)                                                                           \
+    do {                                                                                     \
+        int __ret;                                                                           \
+        if ((__ret = (a)) != 0 &&                                                            \
+          (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND || \
+            ret == WT_RESTART))                                                              \
+            ret = __ret;                                                                     \
     } while (0)
 #define WT_TRET_ERROR_OK(a, e)                                                               \
     do {                                                                                     \
         int __ret;                                                                           \
         if ((__ret = (a)) != 0 && __ret != (e) &&                                            \
           (__ret == WT_PANIC || ret == 0 || ret == WT_DUPLICATE_KEY || ret == WT_NOTFOUND || \
-              ret == WT_RESTART))                                                            \
+            ret == WT_RESTART))                                                              \
             ret = __ret;                                                                     \
     } while (0)
 #define WT_TRET_BUSY_OK(a) WT_TRET_ERROR_OK(a, EBUSY)
 #define WT_TRET_NOTFOUND_OK(a) WT_TRET_ERROR_OK(a, WT_NOTFOUND)
 
-/* Called on unexpected code path: locate the failure. */
-#define __wt_illegal_value(session, v) \
-    __wt_illegal_value_func(session, (uintmax_t)(v), __func__, __LINE__)
+/* Return WT_PANIC regardless of earlier return codes. */
+#define WT_RET_PANIC(session, v, ...) return (__wt_panic(session, v, __VA_ARGS__))
 
-#define WT_PANIC_MSG(session, v, ...)       \
-    do {                                    \
-        __wt_err(session, v, __VA_ARGS__);  \
-        WT_IGNORE_RET(__wt_panic(session)); \
-    } while (0)
-#define WT_PANIC_ERR(session, v, ...)                             \
-    do {                                                          \
-        WT_PANIC_MSG(session, v, __VA_ARGS__);                    \
-        /* Return WT_PANIC regardless of earlier return codes. */ \
-        WT_ERR(WT_PANIC);                                         \
-    } while (0)
-#define WT_PANIC_RET(session, v, ...)                             \
-    do {                                                          \
-        WT_PANIC_MSG(session, v, __VA_ARGS__);                    \
-        /* Return WT_PANIC regardless of earlier return codes. */ \
-        return (WT_PANIC);                                        \
-    } while (0)
+/* Called on unexpected code path: locate the failure. */
+#define __wt_illegal_value(session, v)             \
+    __wt_panic(session, EINVAL, "%s: 0x%" PRIxMAX, \
+      "encountered an illegal file format or internal value", (uintmax_t)(v))
 
 /*
  * WT_ERR_ASSERT, WT_RET_ASSERT, WT_ASSERT
@@ -149,6 +141,13 @@
             __wt_abort(session);               \
         }                                      \
     } while (0)
+#define WT_RET_PANIC_ASSERT(session, exp, v, ...) \
+    do {                                          \
+        if (!(exp)) {                             \
+            __wt_err(session, v, __VA_ARGS__);    \
+            __wt_abort(session);                  \
+        }                                         \
+    } while (0)
 #else
 #define WT_ASSERT(session, exp) WT_UNUSED(session)
 #define WT_ERR_ASSERT(session, exp, v, ...)      \
@@ -161,7 +160,15 @@
         if (!(exp))                              \
             WT_RET_MSG(session, v, __VA_ARGS__); \
     } while (0)
+#define WT_RET_PANIC_ASSERT(session, exp, v, ...)  \
+    do {                                           \
+        if (!(exp))                                \
+            WT_RET_PANIC(session, v, __VA_ARGS__); \
+    } while (0)
 #endif
+
+/* Verbose messages. */
+#define WT_VERBOSE_ISSET(session, flag) (FLD_ISSET(S2C(session)->verbose, flag))
 
 /*
  * __wt_verbose --
@@ -171,8 +178,8 @@
  *     additional argument, there's no portable way to remove the comma before an empty __VA_ARGS__
  *     value.
  */
-#define __wt_verbose(session, flag, fmt, ...)               \
-    do {                                                    \
-        if (WT_VERBOSE_ISSET(session, flag))                \
-            __wt_verbose_worker(session, fmt, __VA_ARGS__); \
+#define __wt_verbose(session, flag, fmt, ...)                              \
+    do {                                                                   \
+        if (WT_VERBOSE_ISSET(session, flag))                               \
+            __wt_verbose_worker(session, "[" #flag "] " fmt, __VA_ARGS__); \
     } while (0)

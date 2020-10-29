@@ -39,7 +39,7 @@ class test_cursor16(wttest.WiredTigerTestCase):
     uri_count = 100
     session_count = 100
 
-    conn_config = 'cache_cursors=true,statistics=(fast)'
+    conn_config = 'cache_cursors=true,statistics=(fast),in_memory=true'
 
     # Returns the number of cursors cached
     def cached_stats(self):

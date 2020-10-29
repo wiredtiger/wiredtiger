@@ -513,7 +513,7 @@ int ThreadRunner::create_all(WT_CONNECTION *conn) {
     ASSERT(_session == NULL);
     if (_thread->options.synchronized)
         _thread->_op.synchronized_check();
-    WT_RET(conn->open_session(conn, NULL, NULL, &_session));
+    WT_RET(conn->open_session(conn, NULL, _thread->options.session_config.c_str(), &_session));
     _table_usage.clear();
     _stats.track_latency(_workload->options.sample_interval_ms > 0);
     WT_RET(workgen_random_alloc(_session, &_rand_state));
@@ -841,9 +841,9 @@ int ThreadRunner::op_run(Operation *op) {
       (track->ops % _workload->options.sample_rate == 0);
 
     VERBOSE(*this, "OP " << op->_optype << " " << op->_table._uri.c_str() << ", recno=" << recno);
-    timespec start;
+    uint64_t start;
     if (measure_latency)
-        workgen_epoch(&start);
+        workgen_clock(&start);
 
     // Whether or not we are measuring latency, we track how many operations
     // are in progress, or that complete.
@@ -929,15 +929,15 @@ int ThreadRunner::op_run(Operation *op) {
     }
 
     if (measure_latency) {
-        timespec stop;
-        workgen_epoch(&stop);
-        track->complete_with_latency(ts_us(stop - start));
+        uint64_t stop;
+        workgen_clock(&stop);
+        track->complete_with_latency(ns_to_us(stop - start));
     } else if (track != NULL)
         track->complete();
 
     if (op->_group != NULL) {
         uint64_t endtime = 0;
-        timespec now;
+        uint64_t now;
 
         if (op->_timed != 0.0)
             endtime = _op_time_us + secs_us(op->_timed);
@@ -951,8 +951,8 @@ int ThreadRunner::op_run(Operation *op) {
                      i != op->_group->end(); i++)
                     WT_ERR(op_run(&*i));
             }
-            workgen_epoch(&now);
-        } while (!_stop && ts_us(now) < endtime);
+            workgen_clock(&now);
+        } while (!_stop && ns_to_us(now) < endtime);
 
         if (op->_timed != 0.0)
             _op_time_us = endtime;
@@ -1096,9 +1096,10 @@ int Throttle::throttle(uint64_t op_count, uint64_t *op_limit) {
     return (0);
 }
 
-ThreadOptions::ThreadOptions() : name(), throttle(0.0), throttle_burst(1.0),
+ThreadOptions::ThreadOptions() : name(), session_config(), throttle(0.0), throttle_burst(1.0),
     synchronized(false), _options() {
     _options.add_string("name", name, "name of the thread");
+    _options.add_string("session_config", session_config, "session config which is passed to open_session");
     _options.add_double("throttle", throttle,
       "Limit to this number of operations per second");
     _options.add_double("throttle_burst", throttle_burst,
@@ -1106,7 +1107,7 @@ ThreadOptions::ThreadOptions() : name(), throttle(0.0), throttle_burst(1.0),
       "to having large bursts with lulls (10.0 or larger)");
 }
 ThreadOptions::ThreadOptions(const ThreadOptions &other) :
-    name(other.name), throttle(other.throttle),
+    name(other.name), session_config(other.session_config), throttle(other.throttle),
   throttle_burst(other.throttle_burst), synchronized(other.synchronized),
   _options(other._options) {}
 ThreadOptions::~ThreadOptions() {}
@@ -1486,14 +1487,13 @@ void SleepOperationInternal::parse_config(const std::string &config)
 int SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
     uint64_t endtime;
-    timespec now;
-    uint64_t now_us;
+    uint64_t now, now_us;
 
     (void)runner;    /* not used */
     (void)session;   /* not used */
 
-    workgen_epoch(&now);
-    now_us = ts_us(now);
+    workgen_clock(&now);
+    now_us = ns_to_us(now);
     if (runner->_thread->options.synchronized)
         endtime = runner->_op_time_us + secs_us(_sleepvalue);
     else
@@ -1508,8 +1508,8 @@ int SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
         else
             usleep(sleep_us);
 
-        workgen_epoch(&now);
-        now_us = ts_us(now);
+        workgen_clock(&now);
+        now_us = ns_to_us(now);
     }
     return (0);
 }

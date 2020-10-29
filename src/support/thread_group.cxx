@@ -39,7 +39,7 @@ err:
         ret = thread->stop_func(session, thread);
 
     if (ret != 0 && F_ISSET(thread, WT_THREAD_PANIC_FAIL))
-        WT_PANIC_MSG(session, ret, "Unrecoverable utility thread error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "Unrecoverable utility thread error"));
 
     /*
      * The three cases when threads are expected to stop are:
@@ -47,7 +47,8 @@ err:
      * 2.  When the connection is closing.
      * 3.  When a shutdown has been requested via clearing the run flag.
      */
-    WT_ASSERT(session, !F_ISSET(thread, WT_THREAD_RUN) ||
+    WT_ASSERT(session,
+      !F_ISSET(thread, WT_THREAD_RUN) ||
         F_ISSET(S2C(session), WT_CONN_CLOSING | WT_CONN_RECOVERING));
 
     return (WT_THREAD_RET_VALUE);
@@ -139,8 +140,9 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
     conn = S2C(session);
     thread = NULL;
 
-    __wt_verbose(session, WT_VERB_THREAD_GROUP, "Resize thread group: %s, from min: %" PRIu32
-                                                " -> %" PRIu32 " from max: %" PRIu32 " -> %" PRIu32,
+    __wt_verbose(session, WT_VERB_THREAD_GROUP,
+      "Resize thread group: %s, from min: %" PRIu32 " -> %" PRIu32 " from max: %" PRIu32
+      " -> %" PRIu32,
       group->name, group->min, new_min, group->max, new_max);
 
     WT_ASSERT(session,
@@ -150,15 +152,16 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
         return (0);
 
     if (new_min > new_max)
-        WT_RET_MSG(session, EINVAL, "Illegal thread group resize: %s, from min: %" PRIu32
-                                    " -> %" PRIu32 " from max: %" PRIu32 " -> %" PRIu32,
+        WT_ERR_MSG(session, EINVAL,
+          "Illegal thread group resize: %s, from min: %" PRIu32 " -> %" PRIu32 " from max: %" PRIu32
+          " -> %" PRIu32,
           group->name, group->min, new_min, group->max, new_max);
 
     /*
      * Call shrink to reduce the number of thread structures and running threads if required by the
      * change in group size.
      */
-    WT_RET(__thread_group_shrink(session, group, new_max));
+    WT_ERR(__thread_group_shrink(session, group, new_max));
 
     /*
      * Only reallocate the thread array if it is the largest ever, since our realloc doesn't support
@@ -166,7 +169,7 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
      */
     if (group->alloc < new_max) {
         alloc = group->alloc * sizeof(*group->threads);
-        WT_RET(__wt_realloc(session, &alloc, new_max * sizeof(*group->threads), &group->threads));
+        WT_ERR(__wt_realloc(session, &alloc, new_max * sizeof(*group->threads), &group->threads));
         group->alloc = new_max;
     }
 
@@ -175,15 +178,10 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
      */
     for (i = group->max; i < new_max; i++) {
         WT_ERR(__wt_calloc_one(session, &thread));
-        /*
-         * Threads get their own session and hs table cursor
-         * (if the hs table is open).
-         */
+        /* Threads get their own session. */
         session_flags = LF_ISSET(WT_THREAD_CAN_WAIT) ? WT_SESSION_CAN_WAIT : 0;
         WT_ERR(
           __wt_open_internal_session(conn, group->name, false, session_flags, &thread->session));
-        if (LF_ISSET(WT_THREAD_HS) && F_ISSET(conn, WT_CONN_HS_OPEN))
-            WT_ERR(__wt_hs_cursor_open(thread->session));
         if (LF_ISSET(WT_THREAD_PANIC_FAIL))
             F_SET(thread, WT_THREAD_PANIC_FAIL);
         thread->id = i;
@@ -233,7 +231,7 @@ err:
     group->min = new_min;
     WT_TRET(__wt_thread_group_destroy(session, group));
 
-    WT_PANIC_RET(session, ret, "Error while resizing thread group");
+    WT_RET_PANIC(session, ret, "Error while resizing thread group");
 }
 
 /*
@@ -248,7 +246,9 @@ __wt_thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint3
 
     __wt_writelock(session, &group->lock);
     WT_TRET(__thread_group_resize(session, group, new_min, new_max, flags));
-    __wt_writeunlock(session, &group->lock);
+    /* If the resize fails, the thread group is destroyed, including the lock. */
+    if (ret == 0)
+        __wt_writeunlock(session, &group->lock);
     return (ret);
 }
 
@@ -283,7 +283,9 @@ __wt_thread_group_create(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, const
     group->name = name;
 
     WT_TRET(__thread_group_resize(session, group, min, max, flags));
-    __wt_writeunlock(session, &group->lock);
+    /* If the resize fails, the thread group is destroyed, including the lock. */
+    if (ret == 0)
+        __wt_writeunlock(session, &group->lock);
 
 /* Cleanup on error to avoid leaking resources */
 err:

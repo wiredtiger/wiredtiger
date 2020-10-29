@@ -147,7 +147,7 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 err:
     /* Something really bad just happened. */
-    WT_PANIC_RET(session, ret, "fatal error during page split");
+    WT_RET_PANIC(session, ret, "fatal error during page split");
 }
 #endif
 
@@ -159,7 +159,7 @@ static int
 __split_ovfl_key_cleanup(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref)
 {
     WT_CELL *cell;
-    WT_CELL_UNPACK kpack;
+    WT_CELL_UNPACK_KV kpack;
     WT_IKEY *ikey;
     uint32_t cell_offset;
 
@@ -181,7 +181,7 @@ __split_ovfl_key_cleanup(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref)
     ikey->cell_offset = 0;
 
     cell = static_cast<WT_CELL *>(WT_PAGE_REF_OFFSET(page, cell_offset));
-    __wt_cell_unpack(session, page, cell, &kpack);
+    __wt_cell_unpack_kv(session, page->dsk, cell, &kpack);
     if (FLD_ISSET(kpack.flags, WT_CELL_UNPACK_OVERFLOW) && kpack.raw != WT_CELL_KEY_OVFL_RM)
         WT_RET(__wt_ovfl_discard(session, page, cell));
 
@@ -197,7 +197,7 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
   WT_REF **to_refp, size_t *incrp)
 {
     WT_ADDR *addr, *ref_addr;
-    WT_CELL_UNPACK unpack;
+    WT_CELL_UNPACK_ADDR unpack;
     WT_DECL_RET;
     WT_IKEY *ikey;
     WT_REF *ref;
@@ -247,15 +247,9 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
      */
     WT_ORDERED_READ(ref_addr, static_cast<WT_ADDR*>(ref->addr));
     if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
-        __wt_cell_unpack(session, from_home, (WT_CELL *)ref_addr, &unpack);
+        __wt_cell_unpack_addr(session, from_home->dsk, (WT_CELL *)ref_addr, &unpack);
         WT_RET(__wt_calloc_one(session, &addr));
-        addr->oldest_start_ts = unpack.oldest_start_ts;
-        addr->oldest_start_txn = unpack.oldest_start_txn;
-        addr->newest_start_durable_ts = unpack.newest_start_durable_ts;
-        addr->newest_stop_ts = unpack.newest_stop_ts;
-        addr->newest_stop_txn = unpack.newest_stop_txn;
-        addr->newest_stop_durable_ts = unpack.newest_stop_durable_ts;
-        addr->prepare = F_ISSET(&unpack, WT_CELL_UNPACK_PREPARE);
+        WT_TIME_AGGREGATE_COPY(&addr->ta, &unpack.ta);
         WT_ERR(__wt_memdup(session, unpack.data, unpack.size, &addr->addr));
         addr->size = (uint8_t)unpack.size;
         switch (unpack.raw) {
@@ -574,17 +568,17 @@ err:
     case WT_ERR_RETURN:
         __wt_free_ref_index(session, root, alloc_index, true);
         break;
-    case WT_ERR_PANIC:
-        __wt_err(session, ret, "fatal error during root page split to deepen the tree");
-        ret = WT_PANIC;
-        break;
     case WT_ERR_IGNORE:
-        if (ret != 0 && ret != WT_PANIC) {
-            __wt_err(session, ret,
-              "ignoring not-fatal error during root page split "
-              "to deepen the tree");
+        if (ret != WT_PANIC) {
+            if (ret != 0)
+                __wt_err(session, ret,
+                  "ignoring not-fatal error during root page split to deepen the tree");
             ret = 0;
+            break;
         }
+    /* FALLTHROUGH */
+    case WT_ERR_PANIC:
+        ret = __wt_panic(session, ret, "fatal error during root page split to deepen the tree");
         break;
     }
     return (ret);
@@ -877,17 +871,16 @@ err:
         if (empty_parent)
             ret = __wt_set_return(session, EBUSY);
         break;
-    case WT_ERR_PANIC:
-        __wt_err(session, ret, "fatal error during parent page split");
-        ret = WT_PANIC;
-        break;
     case WT_ERR_IGNORE:
-        if (ret != 0 && ret != WT_PANIC) {
-            __wt_err(session, ret,
-              "ignoring not-fatal error during parent page "
-              "split");
+        if (ret != WT_PANIC) {
+            if (ret != 0)
+                __wt_err(session, ret, "ignoring not-fatal error during parent page split");
             ret = 0;
+            break;
         }
+    /* FALLTHROUGH */
+    case WT_ERR_PANIC:
+        ret = __wt_panic(session, ret, "fatal error during parent page split");
         break;
     }
     __wt_scr_free(session, &scr);
@@ -1154,17 +1147,16 @@ err:
         }
         __wt_free_ref_index(session, page, alloc_index, true);
         break;
-    case WT_ERR_PANIC:
-        __wt_err(session, ret, "fatal error during internal page split");
-        ret = WT_PANIC;
-        break;
     case WT_ERR_IGNORE:
-        if (ret != 0 && ret != WT_PANIC) {
-            __wt_err(session, ret,
-              "ignoring not-fatal error during internal page "
-              "split");
+        if (ret != WT_PANIC) {
+            if (ret != 0)
+                __wt_err(session, ret, "ignoring not-fatal error during internal page split");
             ret = 0;
+            break;
         }
+    /* FALLTHROUGH */
+    case WT_ERR_PANIC:
+        ret = __wt_panic(session, ret, "fatal error during internal page split");
         break;
     }
     return (ret);
@@ -1413,7 +1405,10 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * our caller will not discard the disk image when discarding the original page, and our caller
      * will discard the allocated page on error, when discarding the allocated WT_REF.
      */
-    WT_RET(__wt_page_inmem(session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page));
+    F_SET(session, WT_SESSION_INSTANTIATE_PREPARE);
+    ret = __wt_page_inmem(session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page);
+    F_CLR(session, WT_SESSION_INSTANTIATE_PREPARE);
+    WT_RET(ret);
     multi->disk_image = NULL;
 
     /*
@@ -1528,7 +1523,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     mod->last_eviction_timestamp = orig->modify->last_eviction_timestamp;
     mod->rec_max_txn = orig->modify->rec_max_txn;
     mod->rec_max_timestamp = orig->modify->rec_max_timestamp;
-    mod->last_stable_timestamp = orig->modify->last_stable_timestamp;
 
     /* Add the update/restore flag to any previous state. */
     mod->restore_state = orig->modify->restore_state;
@@ -1658,7 +1652,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
       session, multi->disk_image != NULL || (multi->supd_entries == 0 && !multi->supd_restore));
 
     /* Verify any disk image we have. */
-    WT_ASSERT(session, multi->disk_image == NULL ||
+    WT_ASSERT(session,
+      multi->disk_image == NULL ||
         __wt_verify_dsk_image(
 	        session, "[page instantiate]", static_cast<const WT_PAGE_HEADER*>(multi->disk_image), 0, &multi->addr, true) == 0);
 
@@ -1705,13 +1700,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     if (multi->addr.addr != NULL) {
         WT_RET(__wt_calloc_one(session, &addr));
         ref->addr = addr;
-        addr->oldest_start_ts = multi->addr.oldest_start_ts;
-        addr->oldest_start_txn = multi->addr.oldest_start_txn;
-        addr->newest_start_durable_ts = multi->addr.newest_start_durable_ts;
-        addr->newest_stop_ts = multi->addr.newest_stop_ts;
-        addr->newest_stop_txn = multi->addr.newest_stop_txn;
-        addr->newest_stop_durable_ts = multi->addr.newest_stop_durable_ts;
-        addr->prepare = multi->addr.prepare;
+        WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
         WT_RET(__wt_memdup(session, multi->addr.addr, multi->addr.size, &addr->addr));
         addr->size = multi->addr.size;
         addr->type = multi->addr.type;
@@ -1767,6 +1756,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     WT_ASSERT(session, __wt_leaf_page_can_split(session, page));
     WT_ASSERT(session, __wt_page_is_modified(page));
+    WT_ASSERT(session, __wt_page_del_active(session, ref, true) == false);
     F_SET_ATOMIC(page, WT_PAGE_SPLIT_INSERT);
 
     /* Find the last item on the page. */
@@ -1796,9 +1786,6 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->addr = ref->addr;
     F_SET(child, WT_REF_FLAG_LEAF);
     child->state = WT_REF_MEM;
-
-    WT_ERR_ASSERT(session, ref->page_del == NULL, WT_PANIC,
-      "unexpected page-delete structure when splitting a page");
 
     /*
      * The address has moved to the replacement WT_REF. Make sure it isn't freed when the original

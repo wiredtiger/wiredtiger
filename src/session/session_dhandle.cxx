@@ -23,7 +23,7 @@ __session_add_dhandle(WT_SESSION_IMPL *session)
 
     dhandle_cache->dhandle = session->dhandle;
 
-    bucket = dhandle_cache->dhandle->name_hash % WT_HASH_ARRAY_SIZE;
+    bucket = dhandle_cache->dhandle->name_hash & (S2C(session)->dh_hash_size - 1);
     TAILQ_INSERT_HEAD(&session->dhandles, dhandle_cache, q);
     TAILQ_INSERT_HEAD(&session->dhhash[bucket], dhandle_cache, hashq);
 
@@ -39,7 +39,7 @@ __session_discard_dhandle(WT_SESSION_IMPL *session, WT_DATA_HANDLE_CACHE *dhandl
 {
     uint64_t bucket;
 
-    bucket = dhandle_cache->dhandle->name_hash % WT_HASH_ARRAY_SIZE;
+    bucket = dhandle_cache->dhandle->name_hash & (S2C(session)->dh_hash_size - 1);
     TAILQ_REMOVE(&session->dhandles, dhandle_cache, q);
     TAILQ_REMOVE(&session->dhhash[bucket], dhandle_cache, hashq);
 
@@ -61,7 +61,7 @@ __session_find_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *ch
 
     dhandle = NULL;
 
-    bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
+    bucket = __wt_hash_city64(uri, strlen(uri)) & (S2C(session)->dh_hash_size - 1);
 retry:
     TAILQ_FOREACH (dhandle_cache, &session->dhhash[bucket], hashq) {
         dhandle = dhandle_cache->dhandle;
@@ -244,12 +244,11 @@ __wt_session_release_dhandle(WT_SESSION_IMPL *session)
     }
 
     /*
-     * Close the handle if we are finishing a bulk load or rebalance or if the handle is set to
-     * discard on release. Bulk loads and rebalanced trees are special because they may have huge
-     * root pages in memory, and we need to push those pages out of the cache. The only way to do
-     * that is to close the handle.
+     * Close the handle if we are finishing a bulk load or if the handle is set to discard on
+     * release. Bulk loads are special because they may have huge root pages in memory, and we need
+     * to push those pages out of the cache. The only way to do that is to close the handle.
      */
-    if (btree != NULL && F_ISSET(btree, WT_BTREE_BULK | WT_BTREE_REBALANCE)) {
+    if (btree != NULL && F_ISSET(btree, WT_BTREE_BULK)) {
         WT_ASSERT(
           session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !F_ISSET(dhandle, WT_DHANDLE_DISCARD));
         /*
@@ -387,8 +386,8 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
 
         if (dhandle != session->dhandle && dhandle->session_inuse == 0 &&
           (WT_DHANDLE_INACTIVE(dhandle) ||
-              (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time) ||
-              empty_btree)) {
+            (dhandle->timeofdeath != 0 && now - dhandle->timeofdeath > conn->sweep_idle_time) ||
+            empty_btree)) {
             WT_STAT_CONN_INCR(session, dh_session_handles);
             WT_ASSERT(session, !WT_IS_METADATA(dhandle));
             __session_discard_dhandle(session, dhandle_cache);
@@ -526,7 +525,8 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
     WT_ASSERT(session, !F_ISSET(dhandle, WT_DHANDLE_DEAD));
     WT_ASSERT(session, LF_ISSET(WT_DHANDLE_LOCK_ONLY) || F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
-    WT_ASSERT(session, LF_ISSET(WT_DHANDLE_EXCLUSIVE) == F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) ||
+    WT_ASSERT(session,
+      LF_ISSET(WT_DHANDLE_EXCLUSIVE) == F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) ||
         dhandle->excl_ref > 1);
 
     return (0);

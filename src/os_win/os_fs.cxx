@@ -109,13 +109,11 @@ __win_fs_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char 
     WT_ERR(__wt_to_utf16_string(session, to, &to_wide));
 
     /*
-     * We want an atomic rename, but that's not guaranteed by MoveFileExW
-     * (or by any MSDN API). Don't set the MOVEFILE_COPY_ALLOWED flag to
-     * prevent the system from falling back to a copy and delete process.
-     * Do set the MOVEFILE_WRITE_THROUGH flag so the window is as small
-     * as possible, just in case. WiredTiger renames are done in a single
-     * directory and we expect that to be an atomic metadata update on any
-     * modern filesystem.
+     * We want an atomic rename, but that's not guaranteed by MoveFileExW (or by any MSDN API).
+     * Don't set the MOVEFILE_COPY_ALLOWED flag to prevent the system from falling back to a copy
+     * and delete process. Do set the MOVEFILE_WRITE_THROUGH flag so the window is as small as
+     * possible, just in case. WiredTiger renames are done in a single directory and we expect that
+     * to be an atomic metadata update on any modern filesystem.
      */
     WT_WINCALL_RETRY(MoveFileExW(from_wide->data, to_wide->data,
                        MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH),
@@ -270,8 +268,8 @@ __win_file_read(
     nr = 0;
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
-    WT_ASSERT(
-      session, !win_fh->direct_io || S2C(session)->buffer_alignment == 0 ||
+    WT_ASSERT(session,
+      !win_fh->direct_io || S2C(session)->buffer_alignment == 0 ||
         (!((uintptr_t)buf & (uintptr_t)(S2C(session)->buffer_alignment - 1)) &&
           len >= S2C(session)->buffer_alignment && len % S2C(session)->buffer_alignment == 0));
 
@@ -285,8 +283,7 @@ __win_file_read(
             windows_error = __wt_getlasterror();
             ret = __wt_map_windows_error(windows_error);
             __wt_err(session, ret,
-              "%s: handle-read: ReadFile: failed to read %lu "
-              "bytes at offset %" PRIuMAX ": %s",
+              "%s: handle-read: ReadFile: failed to read %lu bytes at offset %" PRIuMAX ": %s",
               file_handle->name, chunk, (uintmax_t)offset,
               __wt_formatmessage(session, windows_error));
             return (ret);
@@ -418,8 +415,8 @@ __win_file_write(
     nw = 0;
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
-    WT_ASSERT(
-      session, !win_fh->direct_io || S2C(session)->buffer_alignment == 0 ||
+    WT_ASSERT(session,
+      !win_fh->direct_io || S2C(session)->buffer_alignment == 0 ||
         (!((uintptr_t)buf & (uintptr_t)(S2C(session)->buffer_alignment - 1)) &&
           len >= S2C(session)->buffer_alignment && len % S2C(session)->buffer_alignment == 0));
 
@@ -433,8 +430,7 @@ __win_file_write(
             windows_error = __wt_getlasterror();
             ret = __wt_map_windows_error(windows_error);
             __wt_err(session, ret,
-              "%s: handle-write: WriteFile: failed to write %lu "
-              "bytes at offset %" PRIuMAX ": %s",
+              "%s: handle-write: WriteFile: failed to write %lu bytes at offset %" PRIuMAX ": %s",
               file_handle->name, chunk, (uintmax_t)offset,
               __wt_formatmessage(session, windows_error));
             return (ret);
@@ -532,10 +528,10 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char 
             windows_error = __wt_getlasterror();
             ret = __wt_map_windows_error(windows_error);
             __wt_err(session, ret,
-              win_fh->direct_io ? "%s: handle-open: CreateFileW: failed with direct "
-                                  "I/O configured, some filesystem types do not "
-                                  "support direct I/O: %s" :
-                                  "%s: handle-open: CreateFileW: %s",
+              win_fh->direct_io ?
+                "%s: handle-open: CreateFileW: failed with direct I/O configured, some filesystem "
+                "types do not support direct I/O: %s" :
+                "%s: handle-open: CreateFileW: %s",
               name, __wt_formatmessage(session, windows_error));
             WT_ERR(ret);
         }

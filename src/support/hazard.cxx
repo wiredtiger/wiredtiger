@@ -66,7 +66,7 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
   ,
   const char *func, int line
 #endif
-  )
+)
 {
     WT_HAZARD *hp;
     uint8_t current_state;
@@ -89,7 +89,8 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 
     /* If we have filled the current hazard pointer array, grow it. */
     if (session->nhazard >= session->hazard_size) {
-        WT_ASSERT(session, session->nhazard == session->hazard_size &&
+        WT_ASSERT(session,
+          session->nhazard == session->hazard_size &&
             session->hazard_inuse == session->hazard_size);
         WT_RET(hazard_grow(session));
     }
@@ -98,11 +99,13 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
      * If there are no available hazard pointer slots, make another one visible.
      */
     if (session->nhazard >= session->hazard_inuse) {
-        WT_ASSERT(session, session->nhazard == session->hazard_inuse &&
+        WT_ASSERT(session,
+          session->nhazard == session->hazard_inuse &&
             session->hazard_inuse < session->hazard_size);
         hp = &session->hazard[session->hazard_inuse++];
     } else {
-        WT_ASSERT(session, session->nhazard < session->hazard_inuse &&
+        WT_ASSERT(session,
+          session->nhazard < session->hazard_inuse &&
             session->hazard_inuse <= session->hazard_size);
 
         /*
@@ -156,14 +159,13 @@ __wt_hazard_set_func(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
     }
 
     /*
-     * The page isn't available, it's being considered for eviction
-     * (or being evicted, for all we know).  If the eviction server
-     * sees our hazard pointer before evicting the page, it will
-     * return the page to use, no harm done, if it doesn't, it will
-     * go ahead and complete the eviction.
+     * The page isn't available, it's being considered for eviction (or being evicted, for all we
+     * know). If the eviction server sees our hazard pointer before evicting the page, it will
+     * return the page to use, no harm done, if it doesn't, it will go ahead and complete the
+     * eviction.
      *
-     * We don't bother publishing this update: the worst case is we
-     * prevent some random page from being evicted.
+     * We don't bother publishing this update: the worst case is we prevent some random page from
+     * being evicted.
      */
     hp->ref = NULL;
     *busyp = true;
@@ -211,7 +213,7 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
      * A serious error, we should always find the hazard pointer. Panic, because using a page we
      * didn't have pinned down implies corruption.
      */
-    WT_PANIC_RET(session, EINVAL, "session %p: clear hazard pointer: %p: not found",
+    WT_RET_PANIC(session, EINVAL, "session %p: clear hazard pointer: %p: not found",
       (void *)session, (void *)ref);
 }
 
@@ -244,15 +246,13 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 #endif
 
     /*
-     * Clear any hazard pointers because it's not a correctness problem
-     * (any hazard pointer we find can't be real because the session is
-     * being closed when we're called). We do this work because session
-     * close isn't that common that it's an expensive check, and we don't
-     * want to let a hazard pointer lie around, keeping a page from being
-     * evicted.
+     * Clear any hazard pointers because it's not a correctness problem (any hazard pointer we find
+     * can't be real because the session is being closed when we're called). We do this work because
+     * session close isn't that common that it's an expensive check, and we don't want to let a
+     * hazard pointer lie around, keeping a page from being evicted.
      *
-     * We don't panic: this shouldn't be a correctness issue (at least, I
-     * can't think of a reason it would be).
+     * We don't panic: this shouldn't be a correctness issue (at least, I can't think of a reason it
+     * would be).
      */
     for (hp = session->hazard; hp < session->hazard + session->hazard_inuse; ++hp)
         if (hp->ref != NULL) {
@@ -261,9 +261,7 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
         }
 
     if (session->nhazard != 0)
-        __wt_errx(session,
-          "session %p: close hazard pointer table: count didn't "
-          "match entries",
+        __wt_errx(session, "session %p: close hazard pointer table: count didn't match entries",
           (void *)session);
 }
 
@@ -393,8 +391,7 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
         __wt_sleep(0, 10000);
     }
     __wt_errx(session,
-      "hazard pointer reference to discarded object: "
-      "(%p: session %p name %s: %s, line %d)",
+      "hazard pointer reference to discarded object: (%p: session %p name %s: %s, line %d)",
       (void *)hp->ref, (void *)s, s->name == NULL ? "UNKNOWN" : s->name, hp->func, hp->line);
     return (false);
 }

@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, json, unittest
+import os, json
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet, SimpleLSMDataSet, SimpleIndexDataSet, \
     ComplexDataSet, ComplexLSMDataSet
@@ -48,7 +48,7 @@ class FakeCursor:
     def __iter__(self):
         return self
 
-    def __next__(self):  # ready for python3.x
+    def __next__(self):
         return self.next()
 
     def next(self):

@@ -159,7 +159,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     page_flags = WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
     if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
-    WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused));
+    F_SET(session, WT_SESSION_INSTANTIATE_PREPARE);
+    ret = __wt_page_inmem(session, ref, tmp.data, page_flags, &notused);
+    F_CLR(session, WT_SESSION_INSTANTIATE_PREPARE);
+    WT_ERR(ret);
     tmp.mem = NULL;
 
 skip_read:
@@ -203,7 +206,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
   ,
   const char *func, int line
 #endif
-  )
+)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -219,15 +222,15 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
         LF_SET(WT_READ_IGNORE_CACHE_SIZE);
 
     /* Sanity check flag combinations. */
-    WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT) ||
-        LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF));
+    WT_ASSERT(session,
+      !LF_ISSET(WT_READ_DELETED_SKIP) || !LF_ISSET(WT_READ_NO_WAIT) || LF_ISSET(WT_READ_CACHE));
     WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_CHECK) || !LF_ISSET(WT_READ_DELETED_SKIP));
 
     /*
      * Ignore reads of pages already known to be in cache, otherwise the eviction server can
      * dominate these statistics.
      */
-    if (!LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF)) {
+    if (!LF_ISSET(WT_READ_CACHE)) {
         WT_STAT_CONN_INCR(session, cache_pages_requested);
         WT_STAT_DATA_INCR(session, cache_pages_requested);
     }
@@ -238,18 +241,14 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
         case WT_REF_DELETED:
             if (LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT))
                 return (WT_NOTFOUND);
-            if (LF_ISSET(WT_READ_DELETED_CHECK) && __wt_delete_page_skip(session, ref, false))
+            if (LF_ISSET(WT_READ_DELETED_CHECK) &&
+              __wt_delete_page_skip(session, ref, !F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT)))
                 return (WT_NOTFOUND);
             goto read;
         case WT_REF_DISK:
             /* Optionally limit reads to cache-only. */
             if (LF_ISSET(WT_READ_CACHE))
                 return (WT_NOTFOUND);
-
-            /* Optionally limit reads to internal pages only. */
-            if (LF_ISSET(WT_READ_CACHE_LEAF) && F_ISSET(ref, WT_REF_FLAG_LEAF))
-                return (WT_NOTFOUND);
-
 read:
             /*
              * The page isn't in memory, read it. If this thread respects the cache size, check for
@@ -257,7 +256,7 @@ read:
              */
             if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
                 WT_RET(__wt_cache_eviction_check(
-                  session, true, !F_ISSET(&session->txn, WT_TXN_HAS_ID), NULL));
+                  session, true, !F_ISSET(session->txn, WT_TXN_HAS_ID), NULL));
             WT_RET(__page_read(session, ref, flags));
 
             /* We just read a page, don't evict it before we have a chance to use it. */
@@ -347,6 +346,14 @@ read:
                 else if (ret == EBUSY) {
                     WT_NOT_READ(ret, 0);
                     WT_STAT_CONN_INCR(session, page_forcible_evict_blocked);
+                    /*
+                     * Forced eviction failed: check if this transaction is keeping content pinned
+                     * in cache.
+                     */
+                    if (force_attempts > 1 &&
+                      (ret = __wt_txn_is_blocking(session, true)) == WT_ROLLBACK)
+                        WT_STAT_CONN_INCR(session, cache_eviction_force_rollback);
+                    WT_RET(ret);
                     stalled = true;
                     break;
                 }

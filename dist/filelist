@@ -1,9 +1,6 @@
 # filelist --
 #	List of source files for WiredTiger library.
 
-src/async/async_api.cxx
-src/async/async_op.cxx
-src/async/async_worker.cxx
 src/block/block_addr.cxx
 src/block/block_ckpt.cxx
 src/block/block_ckpt_scan.cxx
@@ -34,7 +31,6 @@ src/btree/bt_ovfl.cxx
 src/btree/bt_page.cxx
 src/btree/bt_random.cxx
 src/btree/bt_read.cxx
-src/btree/bt_rebalance.cxx
 src/btree/bt_ret.cxx
 src/btree/bt_slvg.cxx
 src/btree/bt_split.cxx
@@ -85,6 +81,7 @@ src/cursor/cur_config.cxx
 src/cursor/cur_ds.cxx
 src/cursor/cur_dump.cxx
 src/cursor/cur_file.cxx
+src/cursor/cur_hs.cxx
 src/cursor/cur_index.cxx
 src/cursor/cur_join.cxx
 src/cursor/cur_json.cxx
@@ -97,7 +94,10 @@ src/evict/evict_file.cxx
 src/evict/evict_lru.cxx
 src/evict/evict_page.cxx
 src/evict/evict_stat.cxx
-src/history/hs.cxx
+src/history/hs_conn.cxx
+src/history/hs_cursor.cxx
+src/history/hs_verify.cxx
+src/history/hs_rec.cxx
 src/log/log.cxx
 src/log/log_auto.cxx
 src/log/log_slot.cxx
@@ -135,33 +135,33 @@ src/os_posix/os_fs.cxx			POSIX_HOST
 src/os_posix/os_getenv.cxx		POSIX_HOST
 src/os_posix/os_map.cxx			POSIX_HOST
 src/os_posix/os_mtx_cond.cxx		POSIX_HOST
-src/os_posix/os_once.cxx			POSIX_HOST
+src/os_posix/os_once.cxx		POSIX_HOST
 src/os_posix/os_pagesize.cxx		POSIX_HOST
-src/os_posix/os_path.cxx			POSIX_HOST
-src/os_posix/os_priv.cxx			POSIX_HOST
+src/os_posix/os_path.cxx		POSIX_HOST
+src/os_posix/os_priv.cxx		POSIX_HOST
 src/os_posix/os_setvbuf.cxx		POSIX_HOST
-src/os_posix/os_sleep.cxx			POSIX_HOST
+src/os_posix/os_sleep.cxx		POSIX_HOST
 src/os_posix/os_snprintf.cxx		POSIX_HOST
 src/os_posix/os_thread.cxx		POSIX_HOST
-src/os_posix/os_time.cxx			POSIX_HOST
-src/os_posix/os_yield.cxx			POSIX_HOST
+src/os_posix/os_time.cxx		POSIX_HOST
+src/os_posix/os_yield.cxx		POSIX_HOST
 src/os_win/os_dir.cxx			WINDOWS_HOST
-src/os_win/os_dlopen.cxx			WINDOWS_HOST
+src/os_win/os_dlopen.cxx		WINDOWS_HOST
 src/os_win/os_fs.cxx			WINDOWS_HOST
-src/os_win/os_getenv.cxx			WINDOWS_HOST
+src/os_win/os_getenv.cxx		WINDOWS_HOST
 src/os_win/os_map.cxx			WINDOWS_HOST
 src/os_win/os_mtx_cond.cxx		WINDOWS_HOST
 src/os_win/os_once.cxx			WINDOWS_HOST
 src/os_win/os_pagesize.cxx		WINDOWS_HOST
 src/os_win/os_path.cxx			WINDOWS_HOST
 src/os_win/os_priv.cxx			WINDOWS_HOST
-src/os_win/os_setvbuf.cxx			WINDOWS_HOST
+src/os_win/os_setvbuf.cxx		WINDOWS_HOST
 src/os_win/os_sleep.cxx			WINDOWS_HOST
 src/os_win/os_snprintf.cxx		WINDOWS_HOST
-src/os_win/os_thread.cxx			WINDOWS_HOST
+src/os_win/os_thread.cxx		WINDOWS_HOST
 src/os_win/os_time.cxx			WINDOWS_HOST
 src/os_win/os_utf8.cxx			WINDOWS_HOST
-src/os_win/os_winerr.cxx			WINDOWS_HOST
+src/os_win/os_winerr.cxx		WINDOWS_HOST
 src/os_win/os_yield.cxx			WINDOWS_HOST
 src/packing/pack_api.cxx
 src/packing/pack_impl.cxx
@@ -205,6 +205,7 @@ src/support/rand.cxx
 src/support/scratch.cxx
 src/support/stat.cxx
 src/support/thread_group.cxx
+src/support/timestamp.cxx
 src/txn/txn.cxx
 src/txn/txn_ckpt.cxx
 src/txn/txn_ext.cxx

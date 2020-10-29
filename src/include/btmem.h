@@ -10,30 +10,32 @@
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_READ_CACHE 0x0001u
-#define WT_READ_CACHE_LEAF 0x0002u
-#define WT_READ_DELETED_CHECK 0x0004u
-#define WT_READ_DELETED_SKIP 0x0008u
-#define WT_READ_IGNORE_CACHE_SIZE 0x0010u
-#define WT_READ_NOTFOUND_OK 0x0020u
-#define WT_READ_NO_GEN 0x0040u
-#define WT_READ_NO_SPLIT 0x0080u
-#define WT_READ_NO_WAIT 0x0100u
-#define WT_READ_PREV 0x0200u
-#define WT_READ_RESTART_OK 0x0400u
-#define WT_READ_SKIP_INTL 0x0800u
-#define WT_READ_TRUNCATE 0x1000u
-#define WT_READ_WONT_NEED 0x2000u
+#define WT_READ_DELETED_CHECK 0x0002u
+#define WT_READ_DELETED_SKIP 0x0004u
+#define WT_READ_IGNORE_CACHE_SIZE 0x0008u
+#define WT_READ_NOTFOUND_OK 0x0010u
+#define WT_READ_NO_GEN 0x0020u
+#define WT_READ_NO_SPLIT 0x0040u
+#define WT_READ_NO_WAIT 0x0080u
+#define WT_READ_PREV 0x0100u
+#define WT_READ_RESTART_OK 0x0200u
+#define WT_READ_SKIP_INTL 0x0400u
+#define WT_READ_TRUNCATE 0x0800u
+#define WT_READ_WONT_NEED 0x1000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_REC_CHECKPOINT 0x01u
-#define WT_REC_CLEAN_AFTER_REC 0x02u
-#define WT_REC_EVICT 0x04u
-#define WT_REC_HS 0x08u
-#define WT_REC_IN_MEMORY 0x10u
-#define WT_REC_SCRUB 0x20u
-#define WT_REC_VISIBILITY_ERR 0x40u
-#define WT_REC_VISIBLE_ALL 0x80u
+#define WT_REC_APP_EVICTION_SNAPSHOT 0x001u
+#define WT_REC_CALL_URGENT 0x002u
+#define WT_REC_CHECKPOINT 0x004u
+#define WT_REC_CLEAN_AFTER_REC 0x008u
+#define WT_REC_EVICT 0x010u
+#define WT_REC_EVICTION_THREAD 0x020u
+#define WT_REC_HS 0x040u
+#define WT_REC_IN_MEMORY 0x080u
+#define WT_REC_SCRUB 0x100u
+#define WT_REC_VISIBILITY_ERR 0x200u
+#define WT_REC_VISIBLE_ALL 0x400u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
@@ -126,14 +128,7 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  *	An in-memory structure to hold a block's location.
  */
 struct __wt_addr {
-    /* Validity window */
-    wt_timestamp_t newest_start_durable_ts;
-    wt_timestamp_t oldest_start_ts;
-    uint64_t oldest_start_txn;
-    wt_timestamp_t newest_stop_durable_ts;
-    wt_timestamp_t newest_stop_ts;
-    uint64_t newest_stop_txn;
-    bool prepare;
+    WT_TIME_AGGREGATE ta;
 
     uint8_t *addr; /* Block-manager's cookie */
     uint8_t size;  /* Block-manager's cookie length */
@@ -159,14 +154,7 @@ struct __wt_addr {
  * copy of the WT_REF address information.
  */
 struct __wt_addr_copy {
-    /* Validity window */
-    wt_timestamp_t newest_start_durable_ts;
-    wt_timestamp_t oldest_start_ts;
-    uint64_t oldest_start_txn;
-    wt_timestamp_t newest_stop_durable_ts;
-    wt_timestamp_t newest_stop_ts;
-    uint64_t newest_stop_txn;
-    bool prepare;
+    WT_TIME_AGGREGATE ta;
 
     uint8_t type;
 
@@ -312,15 +300,6 @@ struct __wt_ovfl_track {
     WT_CELL **discard;
     size_t discard_entries;
     size_t discard_allocated;
-
-    /* Cached overflow value cell/update address pairs. */
-    struct {
-        WT_CELL *cell;
-        uint8_t *data;
-        size_t size;
-    } * remove;
-    size_t remove_allocated;
-    uint32_t remove_next;
 };
 
 /*
@@ -349,14 +328,12 @@ struct __wt_page_modify {
     uint64_t rec_max_txn;
     wt_timestamp_t rec_max_timestamp;
 
-    /* Stable timestamp at last reconciliation. */
-    wt_timestamp_t last_stable_timestamp;
-
     /* The largest update transaction ID (approximate). */
     uint64_t update_txn;
 
     /* Dirty bytes added to the cache. */
     size_t bytes_dirty;
+    size_t bytes_updates;
 
     /*
      * When pages are reconciled, the result is one or more replacement blocks. A replacement block
@@ -490,8 +467,7 @@ struct __wt_page_modify {
 #define WT_PM_REC_REPLACE 3    /* Reconciliation: single block */
     uint8_t rec_result;        /* Reconciliation state */
 
-#define WT_PAGE_RS_HS 0x1
-#define WT_PAGE_RS_RESTORED 0x2
+#define WT_PAGE_RS_RESTORED 0x1
     uint8_t restore_state; /* Created by restoring updates */
 };
 
@@ -1120,10 +1096,15 @@ struct __wt_update {
     volatile uint8_t prepare_state; /* prepare state */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_UPDATE_HS 0x1u                    /* Update has been written to history store. */
-#define WT_UPDATE_RESTORED_FOR_ROLLBACK 0x2u /* Update restored for rollback to stable. */
-#define WT_UPDATE_RESTORED_FROM_DISK 0x4u    /* Update is temporary retrieved from disk. */
-                                             /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_UPDATE_BEHIND_MIXED_MODE 0x01u        /* Update that older than a mixed mode update. */
+#define WT_UPDATE_CLEARED_HS 0x02u               /* Update that cleared the history store. */
+#define WT_UPDATE_DS 0x04u                       /* Update has been written to the data store. */
+#define WT_UPDATE_HS 0x08u                       /* Update has been written to history store. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x10u /* Prepared update restored from data store. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x20u   /* Fast truncate instantiation */
+#define WT_UPDATE_RESTORED_FROM_DS 0x40u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x80u         /* Update restored from history store. */
+                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 
     /*
@@ -1147,6 +1128,37 @@ struct __wt_update {
  * overhead of tiny allocations can swamp our cache overhead calculation.
  */
 #define WT_UPDATE_MEMSIZE(upd) WT_ALIGN(WT_UPDATE_SIZE + (upd)->size, 32)
+
+/*
+ * WT_UPDATE_VALUE --
+ *
+ * A generic representation of an update's value regardless of where it exists. This structure is
+ * used to represent both in-memory updates and updates that don't exist in an update list such as
+ * reconstructed modify updates, updates in the history store and onpage values.
+ *
+ * The skip buffer flag is an optimization for callers of various read functions to communicate that
+ * they just want to check that an update exists and not read its underlying value. This means that
+ * the read functions can avoid the performance penalty of reconstructing modifies.
+ */
+struct __wt_update_value {
+    WT_ITEM buf;
+    WT_TIME_WINDOW tw;
+    uint8_t type;
+    bool skip_buf;
+};
+
+/*
+ * WT_WITH_UPDATE_VALUE_SKIP_BUF --
+ *
+ * A helper macro to use for calling read functions when we're checking for the existence of a given
+ * key. This means that read functions can avoid the performance penalty of reconstructing modifies.
+ */
+#define WT_WITH_UPDATE_VALUE_SKIP_BUF(op) \
+    do {                                  \
+        cbt->upd_value->skip_buf = true;  \
+        op;                               \
+        cbt->upd_value->skip_buf = false; \
+    } while (0)
 
 /*
  * WT_MAX_MODIFY_UPDATE, WT_MODIFY_VECTOR_STACK_SIZE
@@ -1310,14 +1322,15 @@ struct __wt_insert_head {
         (page)->modify->mod_col_append[0])
 
 /* WT_FIX_FOREACH walks fixed-length bit-fields on a disk page. */
-#define WT_FIX_FOREACH(btree, dsk, v, i)                                                           \
-    for ((i) = 0, (v) = (i) < (dsk)->u.entries ?                                                   \
-           __bit_getv(                                                                             \
-                    static_cast<uint8_t *>(WT_PAGE_HEADER_BYTE(btree, dsk)), 0, (btree)->bitcnt) : \
-           0;                                                                                      \
-         (i) < (dsk)->u.entries;                                                                   \
-         ++(i), (v) = __bit_getv(                                                                  \
-                  static_cast<uint8_t *>(WT_PAGE_HEADER_BYTE(btree, dsk)), i, (btree)->bitcnt))
+#define WT_FIX_FOREACH(btree, dsk, v, i)                                     \
+    for ((i) = 0,                                                            \
+        (v) = (i) < (dsk)->u.entries ?                                       \
+             __bit_getv(static_cast<uint8_t *>(WT_PAGE_HEADER_BYTE(btree, dsk)), 0, (btree)->bitcnt) : \
+           0;                                                                \
+         (i) < (dsk)->u.entries; ++(i),                                      \
+        (v) = (i) < (dsk)->u.entries ?                                       \
+             __bit_getv(static_cast<uint8_t *>(WT_PAGE_HEADER_BYTE(btree, dsk)), i, (btree)->bitcnt) : \
+           0)
 
 /*
  * Manage split generation numbers. Splits walk the list of sessions to check when it is safe to

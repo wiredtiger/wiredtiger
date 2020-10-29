@@ -128,8 +128,7 @@ __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx, WT_CURSOR *cur,
         WT_RET(__wt_schema_project_merge(
           session, ctable->cg_cursors, idx->key_plan, idx->key_format, &cur->key));
         /*
-         * The index key is now set and the value is empty
-         * (it starts clear and is never set).
+         * The index key is now set and the value is empty (it starts clear and is never set).
          */
         F_SET(cur, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
         WT_RET(f(cur));
@@ -151,7 +150,7 @@ __apply_idx(WT_CURSOR_TABLE *ctable, size_t func_off, bool skip_immutable)
     int (*f)(WT_CURSOR *);
 
     cp = ctable->idx_cursors;
-    session = (WT_SESSION_IMPL *)ctable->iface.session;
+    session = CUR2S(ctable);
 
     for (i = 0; i < ctable->table->nindices; i++, cp++) {
         idx = ctable->table->indices[i];
@@ -704,12 +703,11 @@ err:
     CURSOR_UPDATE_API_END(session, ret);
 
     /*
-     * The application might do a WT_CURSOR.get_value call when we return,
-     * so we need a value and the underlying functions didn't set one up.
-     * For various reasons, those functions may not have done a search and
-     * any previous value in the cursor might race with WT_CURSOR.reserve
-     * (and in cases like LSM, the reserve never encountered the original
-     * key). For simplicity, repeat the search here.
+     * The application might do a WT_CURSOR.get_value call when we return, so we need a value and
+     * the underlying functions didn't set one up. For various reasons, those functions may not have
+     * done a search and any previous value in the cursor might race with WT_CURSOR.reserve (and in
+     * cases like LSM, the reserve never encountered the original key). For simplicity, repeat the
+     * search here.
      */
     return (ret == 0 ? cursor->search(cursor) : ret);
 }
@@ -731,7 +729,7 @@ __wt_table_range_truncate(WT_CURSOR_TABLE *start, WT_CURSOR_TABLE *stop)
     int cmp;
 
     ctable = (start != NULL) ? start : stop;
-    session = (WT_SESSION_IMPL *)ctable->iface.session;
+    session = CUR2S(ctable);
     wt_start = &start->iface;
     wt_stop = &stop->iface;
 
@@ -879,7 +877,7 @@ __curtable_open_colgroups(WT_CURSOR_TABLE *ctable, const char *cfg_arg[])
     const char *cfg[] = {cfg_arg[0], cfg_arg[1], "dump=\"\",readonly=0", NULL, NULL};
     u_int i;
 
-    session = (WT_SESSION_IMPL *)ctable->iface.session;
+    session = CUR2S(ctable);
     table = ctable->table;
 
     WT_RET(__curtable_complete(session, table)); /* completeness check */
@@ -906,7 +904,7 @@ __curtable_open_indices(WT_CURSOR_TABLE *ctable)
     WT_TABLE *table;
     u_int i;
 
-    session = (WT_SESSION_IMPL *)ctable->iface.session;
+    session = CUR2S(ctable);
     table = ctable->table;
 
     WT_RET(__wt_schema_open_indices(session, table));
@@ -1039,20 +1037,18 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     WT_ERR(__curtable_open_colgroups(ctable, cfg));
 
     /*
-     * We'll need to squirrel away a copy of the cursor configuration for
-     * if/when we open indices.
+     * We'll need to squirrel away a copy of the cursor configuration for if/when we open indices.
      *
-     * cfg[0] is the baseline configuration for the cursor open and we can
-     * acquire another copy from the configuration structures, so it would
-     * be reasonable not to copy it here: but I'd rather be safe than sorry.
+     * cfg[0] is the baseline configuration for the cursor open and we can acquire another copy from
+     * the configuration structures, so it would be reasonable not to copy it here: but I'd rather
+     * be safe than sorry.
      *
      * cfg[1] is the application configuration.
      *
-     * Underlying indices are always opened without dump or readonly; that
-     * information is appended to cfg[1] so later "fast" configuration calls
-     * (checking only cfg[0] and cfg[1]) work. I don't expect to see more
-     * than two configuration strings here, but it's written to compact into
-     * two configuration strings, a copy of cfg[0] and the rest in cfg[1].
+     * Underlying indices are always opened without dump or readonly; that information is appended
+     * to cfg[1] so later "fast" configuration calls (checking only cfg[0] and cfg[1]) work. I don't
+     * expect to see more than two configuration strings here, but it's written to compact into two
+     * configuration strings, a copy of cfg[0] and the rest in cfg[1].
      */
     WT_ERR(__wt_calloc_def(session, 3, &ctable->cfg));
     WT_ERR(__wt_strdup(session, cfg[0], &ctable->cfg[0]));

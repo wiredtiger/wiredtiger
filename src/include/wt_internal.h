@@ -69,16 +69,6 @@ struct __wt_addr;
 typedef struct __wt_addr WT_ADDR;
 struct __wt_addr_copy;
 typedef struct __wt_addr_copy WT_ADDR_COPY;
-struct __wt_async;
-typedef struct __wt_async WT_ASYNC;
-struct __wt_async_cursor;
-typedef struct __wt_async_cursor WT_ASYNC_CURSOR;
-struct __wt_async_format;
-typedef struct __wt_async_format WT_ASYNC_FORMAT;
-struct __wt_async_op_impl;
-typedef struct __wt_async_op_impl WT_ASYNC_OP_IMPL;
-struct __wt_async_worker_state;
-typedef struct __wt_async_worker_state WT_ASYNC_WORKER_STATE;
 struct __wt_blkincr;
 typedef struct __wt_blkincr WT_BLKINCR;
 struct __wt_block;
@@ -107,8 +97,12 @@ struct __wt_capacity;
 typedef struct __wt_capacity WT_CAPACITY;
 struct __wt_cell;
 typedef struct __wt_cell WT_CELL;
-struct __wt_cell_unpack;
-typedef struct __wt_cell_unpack WT_CELL_UNPACK;
+struct __wt_cell_unpack_addr;
+typedef struct __wt_cell_unpack_addr WT_CELL_UNPACK_ADDR;
+struct __wt_cell_unpack_common;
+typedef struct __wt_cell_unpack_common WT_CELL_UNPACK_COMMON;
+struct __wt_cell_unpack_kv;
+typedef struct __wt_cell_unpack_kv WT_CELL_UNPACK_KV;
 struct __wt_ckpt;
 typedef struct __wt_ckpt WT_CKPT;
 struct __wt_col;
@@ -315,8 +309,10 @@ struct __wt_thread;
 typedef struct __wt_thread WT_THREAD;
 struct __wt_thread_group;
 typedef struct __wt_thread_group WT_THREAD_GROUP;
-struct __wt_time_pair;
-typedef struct __wt_time_pair WT_TIME_PAIR;
+struct __wt_time_aggregate;
+typedef struct __wt_time_aggregate WT_TIME_AGGREGATE;
+struct __wt_time_window;
+typedef struct __wt_time_window WT_TIME_WINDOW;
 struct __wt_txn;
 typedef struct __wt_txn WT_TXN;
 struct __wt_txn_global;
@@ -329,6 +325,8 @@ struct __wt_txn_shared;
 typedef struct __wt_txn_shared WT_TXN_SHARED;
 struct __wt_update;
 typedef struct __wt_update WT_UPDATE;
+struct __wt_update_value;
+typedef struct __wt_update_value WT_UPDATE_VALUE;
 union __wt_lsn;
 typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -375,11 +373,11 @@ typedef uint64_t wt_timestamp_t;
 #include "misc.h"
 #include "mutex.h"
 
-#include "stat.h"    /* required by dhandle.h */
-#include "dhandle.h" /* required by btree.h */
+#include "stat.h"      /* required by dhandle.h */
+#include "dhandle.h"   /* required by btree.h */
+#include "timestamp.h" /* required by reconcile.h */
 
 #include "api.h"
-#include "async.h"
 #include "block.h"
 #include "bloom.h"
 #include "btmem.h"
@@ -413,30 +411,31 @@ typedef uint64_t wt_timestamp_t;
 #endif
 #include "verify_build.h"
 
-#include "cache.i"   /* required by misc.i */
-#include "ctype.i"   /* required by packing.i */
-#include "intpack.i" /* required by cell.i, packing.i */
-#include "misc.i"    /* required by mutex.i */
+#include "cache_inline.h"   /* required by misc_inline.h */
+#include "ctype_inline.h"   /* required by packing_inline.h */
+#include "intpack_inline.h" /* required by cell_inline.h, packing_inline.h */
+#include "misc_inline.h"    /* required by mutex_inline.h */
 
-#include "buf.i"   /* required by cell.i */
-#include "cell.i"  /* required by btree.i */
-#include "mutex.i" /* required by btree.i */
-#include "txn.i"   /* required by btree.i */
+#include "buf_inline.h"       /* required by cell_inline.h */
+#include "timestamp_inline.h" /* required by btree_inline.h */
+#include "cell_inline.h"      /* required by btree_inline.h */
+#include "mutex_inline.h"     /* required by btree_inline.h */
+#include "txn_inline.h"       /* required by btree_inline.h */
 
-#include "bitstring.i"
-#include "block.i"
-#include "btree.i" /* required by cursor.i */
-#include "btree_cmp.i"
-#include "column.i"
-#include "cursor.i"
-#include "log.i"
-#include "os_fhandle.i"
-#include "os_fs.i"
-#include "os_fstream.i"
-#include "packing.i"
-#include "reconcile.i"
-#include "serial.i"
-#include "time.i"
+#include "bitstring_inline.h"
+#include "block_inline.h"
+#include "btree_inline.h" /* required by cursor_inline.h */
+#include "btree_cmp_inline.h"
+#include "column_inline.h"
+#include "cursor_inline.h"
+#include "log_inline.h"
+#include "os_fhandle_inline.h"
+#include "os_fs_inline.h"
+#include "os_fstream_inline.h"
+#include "packing_inline.h"
+#include "reconcile_inline.h"
+#include "serial_inline.h"
+#include "time_inline.h"
 
 #if defined(__cplusplus)
 }

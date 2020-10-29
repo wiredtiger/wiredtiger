@@ -28,12 +28,46 @@
 
 #include "format.h"
 
+/*
+ * track_ts_diff --
+ *     Return a one character descriptor of relative timestamp values.
+ */
+static const char *
+track_ts_diff(uint64_t left_ts, uint64_t right_ts)
+{
+    if (left_ts < right_ts)
+        return "+";
+    else if (left_ts == right_ts)
+        return "=";
+    else
+        return "-";
+}
+
+/*
+ * track_ts_dots --
+ *     Return an entry in the time stamp progress indicator.
+ */
+static const char *
+track_ts_dots(u_int dot_count)
+{
+    static const char *dots[] = {"   ", ".  ", ".. ", "..."};
+
+    return (dots[dot_count % WT_ELEMENTS(dots)]);
+}
+
+/*
+ * track --
+ *     Show a status line of operations and time stamp progress.
+ */
 void
 track(const char *tag, uint64_t cnt, TINFO *tinfo)
 {
-    static size_t lastlen = 0;
+    static size_t last_len;
+    static uint64_t last_cur, last_old, last_stable;
+    static u_int cur_dot_cnt, old_dot_cnt, stable_dot_cnt;
     size_t len;
-    char msg[128];
+    uint64_t cur_ts, old_ts, stable_ts;
+    char msg[128], ts_msg[64];
 
     if (g.c_quiet || tag == NULL)
         return;
@@ -44,26 +78,58 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
     else if (tinfo == NULL)
         testutil_check(__wt_snprintf_len_set(
           msg, sizeof(msg), &len, "%4" PRIu32 ": %s: %" PRIu64, g.run_cnt, tag, cnt));
-    else
-        testutil_check(__wt_snprintf_len_set(msg, sizeof(msg), &len, "%4" PRIu32 ": %s: "
-                                                                     "search %" PRIu64 "%s, "
-                                                                     "insert %" PRIu64 "%s, "
-                                                                     "update %" PRIu64 "%s, "
-                                                                     "remove %" PRIu64 "%s",
-          g.run_cnt, tag, tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search,
-          tinfo->search > M(9) ? "M" : "",
-          tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert,
-          tinfo->insert > M(9) ? "M" : "",
-          tinfo->update > M(9) ? tinfo->update / M(1) : tinfo->update,
-          tinfo->update > M(9) ? "M" : "",
-          tinfo->remove > M(9) ? tinfo->remove / M(1) : tinfo->remove,
-          tinfo->remove > M(9) ? "M" : ""));
+    else {
+        ts_msg[0] = '\0';
+        if (g.c_txn_timestamps) {
+            /*
+             * Don't worry about having a completely consistent set of timestamps.
+             */
+            old_ts = g.oldest_timestamp;
+            stable_ts = g.stable_timestamp;
+            cur_ts = g.timestamp;
 
-    if (lastlen > len) {
-        memset(msg + len, ' ', (size_t)(lastlen - len));
-        msg[lastlen] = '\0';
+            if (old_ts != last_old) {
+                ++old_dot_cnt;
+                last_old = old_ts;
+            }
+            if (stable_ts != last_stable) {
+                ++stable_dot_cnt;
+                last_stable = stable_ts;
+            }
+            if (cur_ts != last_cur) {
+                ++cur_dot_cnt;
+                last_cur = cur_ts;
+            }
+
+            testutil_check(__wt_snprintf(ts_msg, sizeof(ts_msg),
+              " old%s"
+              "stb%s%s"
+              "ts%s%s",
+              track_ts_dots(old_dot_cnt), track_ts_diff(old_ts, stable_ts),
+              track_ts_dots(stable_dot_cnt), track_ts_diff(stable_ts, cur_ts),
+              track_ts_dots(cur_dot_cnt)));
+        }
+        testutil_check(
+          __wt_snprintf_len_set(msg, sizeof(msg), &len,
+            "%4" PRIu32 ": %s: "
+            "S %" PRIu64 "%s, "
+            "I %" PRIu64 "%s, "
+            "U %" PRIu64 "%s, "
+            "R %" PRIu64 "%s%s",
+            g.run_cnt, tag, tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search,
+            tinfo->search > M(9) ? "M" : "",
+            tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert,
+            tinfo->insert > M(9) ? "M" : "",
+            tinfo->update > M(9) ? tinfo->update / M(1) : tinfo->update,
+            tinfo->update > M(9) ? "M" : "",
+            tinfo->remove > M(9) ? tinfo->remove / M(1) : tinfo->remove,
+            tinfo->remove > M(9) ? "M" : "", ts_msg));
     }
-    lastlen = len;
+    if (last_len > len) {
+        memset(msg + len, ' ', (size_t)(last_len - len));
+        msg[last_len] = '\0';
+    }
+    last_len = len;
 
     if (printf("%s\r", msg) < 0)
         testutil_die(EIO, "printf");
@@ -102,12 +168,6 @@ path_setup(const char *home)
     g.home_rand = dmalloc(len);
     testutil_check(__wt_snprintf(g.home_rand, len, "%s/%s", g.home, name));
 
-    /* Log file. */
-    name = "OPERATIONS.log";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_log = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_log, len, "%s/%s", g.home, name));
-
     /* History store dump file. */
     name = "FAIL.HSdump";
     len = strlen(g.home) + strlen(name) + 2;
@@ -132,19 +192,13 @@ path_setup(const char *home)
  *     Read and return a value from a file.
  */
 bool
-fp_readv(FILE *fp, char *name, bool eof_ok, uint32_t *vp)
+fp_readv(FILE *fp, char *name, uint32_t *vp)
 {
     u_long ulv;
     char *endptr, buf[100];
 
-    if (fgets(buf, sizeof(buf), fp) == NULL) {
-        if (feof(g.randfp)) {
-            if (eof_ok)
-                return (true);
-            testutil_die(errno, "%s: read-value EOF", name);
-        }
+    if (fgets(buf, sizeof(buf), fp) == NULL)
         testutil_die(errno, "%s: read-value error", name);
-    }
 
     errno = 0;
     ulv = strtoul(buf, &endptr, 10);
@@ -152,64 +206,6 @@ fp_readv(FILE *fp, char *name, bool eof_ok, uint32_t *vp)
     testutil_assert(ulv <= UINT32_MAX);
     *vp = (uint32_t)ulv;
     return (false);
-}
-
-/*
- * rng_slow --
- *     Return a random number, doing the real work.
- */
-uint32_t
-rng_slow(WT_RAND_STATE *rnd)
-{
-    uint32_t v;
-
-    /*
-     * We can reproduce a single-threaded run based on the random numbers used in the initial run,
-     * plus the configuration files.
-     */
-    if (g.replay) {
-        if (fp_readv(g.randfp, g.home_rand, true, &v)) {
-            fprintf(stderr,
-              "\n"
-              "end of random number log reached\n");
-            exit(EXIT_SUCCESS);
-        }
-        return (v);
-    }
-
-    v = __wt_random(rnd);
-
-    /* Save and flush the random number so we're up-to-date on error. */
-    (void)fprintf(g.randfp, "%" PRIu32 "\n", v);
-    (void)fflush(g.randfp);
-
-    return (v);
-}
-
-/*
- * handle_init --
- *     Initialize logging/random number handles for a run.
- */
-void
-handle_init(void)
-{
-    /* Open/truncate logging/random number handles. */
-    if (g.logging && (g.logfp = fopen(g.home_log, "w")) == NULL)
-        testutil_die(errno, "fopen: %s", g.home_log);
-    if ((g.randfp = fopen(g.home_rand, g.replay ? "r" : "w")) == NULL)
-        testutil_die(errno, "%s", g.home_rand);
-}
-
-/*
- * handle_teardown --
- *     Shutdown logging/random number handles for a run.
- */
-void
-handle_teardown(void)
-{
-    /* Flush/close logging/random number handles. */
-    fclose_and_clear(&g.logfp);
-    fclose_and_clear(&g.randfp);
 }
 
 /*
@@ -229,33 +225,78 @@ fclose_and_clear(FILE **fpp)
 }
 
 /*
+ * timestamp_parse --
+ *     Parse a timestamp to an integral value.
+ */
+static void
+timestamp_parse(const char *p, uint64_t *tsp)
+{
+    char *endptr;
+
+    errno = 0;
+    *tsp = __wt_strtouq(p, &endptr, 16);
+    testutil_assert(errno == 0 && endptr[0] == '\0');
+}
+
+/*
+ * timestamp_stable --
+ *     Set the stable timestamp on open.
+ */
+void
+timestamp_init(void)
+{
+    WT_CONNECTION *conn;
+    char timestamp_buf[2 * sizeof(uint64_t) + 1];
+
+    conn = g.wts_conn;
+
+    testutil_check(conn->query_timestamp(conn, timestamp_buf, "get=recovery"));
+    timestamp_parse(timestamp_buf, &g.timestamp);
+}
+
+/*
  * timestamp_once --
  *     Update the timestamp once.
  */
 void
-timestamp_once(void)
+timestamp_once(bool allow_lag, bool final)
 {
     static const char *oldest_timestamp_str = "oldest_timestamp=";
+    static const char *stable_timestamp_str = "stable_timestamp=";
     WT_CONNECTION *conn;
     WT_DECL_RET;
-    char buf[WT_TS_HEX_STRING_SIZE + 64];
+    uint64_t all_durable;
+    char buf[WT_TS_HEX_STRING_SIZE * 2 + 64];
 
     conn = g.wts_conn;
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", oldest_timestamp_str));
+    if (final)
+        g.oldest_timestamp = g.stable_timestamp = ++g.timestamp;
+    else {
+        if ((ret = conn->query_timestamp(conn, buf, "get=all_durable")) == 0)
+            testutil_timestamp_parse(buf, &all_durable);
+        else {
+            testutil_assert(ret == WT_NOTFOUND);
+            return;
+        }
 
-    /*
-     * Lock out transaction timestamp operations. The lock acts as a barrier ensuring we've checked
-     * if the workers have finished, we don't want that line reordered.
-     */
-    testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
+        /*
+         * If a lag is permitted, move the oldest timestamp half the way to the current
+         * "all_durable" timestamp.  Move the stable timestamp to "all_durable".
+         */
+        if (allow_lag)
+            g.oldest_timestamp = (all_durable + g.oldest_timestamp) / 2;
+        else
+            g.oldest_timestamp = all_durable;
+        g.stable_timestamp = all_durable;
+    }
 
-    ret = conn->query_timestamp(conn, buf + strlen(oldest_timestamp_str), "get=all_durable");
-    testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-    if (ret == 0)
-        testutil_check(conn->set_timestamp(conn, buf));
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%" PRIx64 ",%s%" PRIx64, oldest_timestamp_str,
+      g.oldest_timestamp, stable_timestamp_str, g.stable_timestamp));
 
-    testutil_check(pthread_rwlock_unlock(&g.ts_lock));
+    testutil_check(conn->set_timestamp(conn, buf));
+    trace_msg(
+      "%-10s oldest=%" PRIu64 ", stable=%" PRIu64, "setts", g.oldest_timestamp, g.stable_timestamp);
 }
 
 /*
@@ -265,72 +306,106 @@ timestamp_once(void)
 WT_THREAD_RET
 timestamp(void *arg)
 {
-    bool done;
-
-    (void)(arg);
-
-    /* Update the oldest timestamp at least once every 15 seconds. */
-    done = false;
-    do {
-        /*
-         * Do a final bump of the oldest timestamp as part of shutting down the worker threads,
-         * otherwise recent operations can prevent verify from running.
-         */
-        if (g.workers_finished)
-            done = true;
-        else
-            random_sleep(&g.rnd, 15);
-
-        timestamp_once();
-
-    } while (!done);
-
-    return (WT_THREAD_RET_VALUE);
-}
-
-/*
- * alter --
- *     Periodically alter a table's metadata.
- */
-WT_THREAD_RET
-alter(void *arg)
-{
     WT_CONNECTION *conn;
-    WT_DECL_RET;
     WT_SESSION *session;
-    u_int period;
-    char buf[32];
-    bool access_value;
 
     (void)(arg);
     conn = g.wts_conn;
 
-    /*
-     * Only alter the access pattern hint. If we alter the cache resident setting we may end up with
-     * a setting that fills cache and doesn't allow it to be evicted.
-     */
-    access_value = false;
-
-    /* Open a session */
+    /* Locks need session */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
+    /* Update the oldest and stable timestamps at least once every 15 seconds. */
     while (!g.workers_finished) {
-        period = mmrand(NULL, 1, 10);
+        random_sleep(&g.rnd, 15);
 
-        testutil_check(__wt_snprintf(
-          buf, sizeof(buf), "access_pattern_hint=%s", access_value ? "random" : "none"));
-        access_value = !access_value;
-        /*
-         * Alter can return EBUSY if concurrent with other operations.
-         */
-        while ((ret = session->alter(session, g.uri, buf)) != 0 && ret != EBUSY)
-            testutil_die(ret, "session.alter");
-        while (period > 0 && !g.workers_finished) {
-            --period;
-            __wt_sleep(1, 0);
-        }
+        lock_writelock(session, &g.ts_lock); /* Lock out transaction timestamp operations. */
+        timestamp_once(true, false);
+        lock_writeunlock(session, &g.ts_lock);
     }
 
     testutil_check(session->close(session, NULL));
     return (WT_THREAD_RET_VALUE);
+}
+
+/*
+ * timestamp_teardown --
+ *     Wrap up timestamp operations.
+ */
+void
+timestamp_teardown(void)
+{
+    /*
+     * Do a final bump of the oldest and stable timestamps, otherwise recent operations can prevent
+     * verify from running.
+     */
+    timestamp_once(false, true);
+}
+
+/*
+ * set_oldest_timestamp --
+ *     Query the oldest timestamp from wiredtiger and set it as our global oldest timestamp. This
+ *     should only be called on runs for pre existing databases.
+ */
+void
+set_oldest_timestamp(void)
+{
+    static const char *oldest_timestamp_str = "oldest_timestamp=";
+
+    WT_CONNECTION *conn;
+    WT_DECL_RET;
+    uint64_t oldest_ts;
+    char buf[WT_TS_HEX_STRING_SIZE * 2 + 64], tsbuf[WT_TS_HEX_STRING_SIZE];
+
+    conn = g.wts_conn;
+
+    if ((ret = conn->query_timestamp(conn, tsbuf, "get=oldest")) == 0) {
+        testutil_timestamp_parse(tsbuf, &oldest_ts);
+        g.timestamp = oldest_ts;
+        testutil_check(
+          __wt_snprintf(buf, sizeof(buf), "%s%" PRIx64, oldest_timestamp_str, g.oldest_timestamp));
+    } else if (ret != WT_NOTFOUND)
+        /*
+         * Its possible there may not be an oldest timestamp as such we could get not found. This
+         * should be okay assuming timestamps are not configured if they are, it's still okay as we
+         * could have configured timestamps after not running with timestamps. As such only error if
+         * we get a non not found error. If we were supposed to fail with not found we'll see an
+         * error later on anyway.
+         */
+        testutil_die(ret, "unable to query oldest timestamp");
+}
+
+/*
+ * lock_init --
+ *     Initialize abstract lock that can use either pthread of wt reader-writer locks.
+ */
+void
+lock_init(WT_SESSION *session, RWLOCK *lock)
+{
+    testutil_assert(lock->lock_type == LOCK_NONE);
+
+    if (g.c_wt_mutex) {
+        testutil_check(__wt_rwlock_init((WT_SESSION_IMPL *)session, &lock->l.wt));
+        lock->lock_type = LOCK_WT;
+    } else {
+        testutil_check(pthread_rwlock_init(&lock->l.pthread, NULL));
+        lock->lock_type = LOCK_PTHREAD;
+    }
+}
+
+/*
+ * lock_destroy --
+ *     Destroy abstract lock.
+ */
+void
+lock_destroy(WT_SESSION *session, RWLOCK *lock)
+{
+    testutil_assert(LOCK_INITIALIZED(lock));
+
+    if (lock->lock_type == LOCK_WT) {
+        __wt_rwlock_destroy((WT_SESSION_IMPL *)session, &lock->l.wt);
+    } else {
+        testutil_check(pthread_rwlock_destroy(&lock->l.pthread));
+    }
+    lock->lock_type = LOCK_NONE;
 }

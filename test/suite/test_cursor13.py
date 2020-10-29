@@ -42,12 +42,40 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
     stat_cursor_reopen = 0
 
     # Returns a list: [cursor_cached, cursor_reopened]
+    #
+    # We want the statistics for operations triggered from our program. The challenge is that
+    # eviction threads may cache history store cursors in the background. We address this by
+    # subtracting out operations from the history store file. This is tricky because we can't
+    # atomically check the connections stats and the history store stats.  So we look at the
+    # history store stats before and after the connection stats and only accept a result where
+    # the history store stats haven't changed.
     def caching_stats(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        cache = stat_cursor[stat.conn.cursor_cache][2]
-        reopen = stat_cursor[stat.conn.cursor_reopen][2]
-        stat_cursor.close()
-        return [cache, reopen]
+        hs_stats_uri = 'statistics:file:WiredTigerHS.wt'
+        max_tries = 100
+        for i in range(max_tries):
+            hs_stats_before = self.session.open_cursor(hs_stats_uri, None, None)
+            conn_stats = self.session.open_cursor('statistics:', None, None)
+            hs_stats_after = self.session.open_cursor(hs_stats_uri, None, None)
+
+            totals = [ conn_stats [stat.conn.cursor_cache][2],
+                         conn_stats [stat.conn.cursor_reopen][2] ]
+            hs_before = [ hs_stats_before[stat.dsrc.cursor_cache][2],
+                          hs_stats_before[stat.dsrc.cursor_reopen][2] ]
+            hs_after = [ hs_stats_after[stat.dsrc.cursor_cache][2],
+                         hs_stats_after[stat.dsrc.cursor_reopen][2] ]
+
+            hs_stats_before.close()
+            hs_stats_after.close()
+            conn_stats.close()
+
+            if hs_before[0] == hs_after[0] and hs_before[1] == hs_after[1]:
+                break
+
+            # Fail if we haven't been able to get stable hs stats after too many attempts.
+            # Seems impossible, but better to check than to have an accidental infinite loop.
+            self.assertNotEqual(i, max_tries - 1)
+
+        return [totals[0] - hs_after[0], totals[1] - hs_after[1]]
 
     # Returns a list: [cursor_sweep, cursor_sweep_buckets,
     #                  cursor_sweep_examined, cursor_sweep_closed]
@@ -447,6 +475,7 @@ class test_cursor13_big(test_cursor13_big_base):
         #self.tty('opens = ' + str(self.opencount) + \
         #         ', closes = ' + str(self.closecount))
         #self.tty('stats after = ' + str(end_stats))
+
         self.assertEquals(end_stats[0] - begin_stats[0], self.closecount)
         self.assertEquals(end_stats[1] - begin_stats[1], self.opencount)
 

@@ -33,8 +33,18 @@
 #define WT_HS_FILE "WiredTigerHS.wt"     /* History store table */
 #define WT_HS_URI "file:WiredTigerHS.wt" /* History store table URI */
 
-#define WT_SYSTEM_PREFIX "system:"             /* System URI prefix */
-#define WT_SYSTEM_CKPT_URI "system:checkpoint" /* Checkpoint URI */
+#define WT_SYSTEM_PREFIX "system:"                               /* System URI prefix */
+#define WT_SYSTEM_CKPT_TS "checkpoint_timestamp"                 /* Checkpoint timestamp name */
+#define WT_SYSTEM_CKPT_URI "system:checkpoint"                   /* Checkpoint timestamp URI */
+#define WT_SYSTEM_OLDEST_TS "oldest_timestamp"                   /* Oldest timestamp name */
+#define WT_SYSTEM_OLDEST_URI "system:oldest"                     /* Oldest timestamp URI */
+#define WT_SYSTEM_CKPT_SNAPSHOT "snapshots"                      /* List of snapshots */
+#define WT_SYSTEM_CKPT_SNAPSHOT_MIN "snapshot_min"               /* Snapshot minimum */
+#define WT_SYSTEM_CKPT_SNAPSHOT_MAX "snapshot_max"               /* Snapshot maximum */
+#define WT_SYSTEM_CKPT_SNAPSHOT_COUNT "snapshot_count"           /* Snapshot count */
+#define WT_SYSTEM_CKPT_SNAPSHOT_URI "system:checkpoint_snapshot" /* Checkpoint snapshot URI */
+#define WT_SYSTEM_BASE_WRITE_GEN_URI "system:checkpoint_base_write_gen" /* Base write gen URI */
+#define WT_SYSTEM_BASE_WRITE_GEN "base_write_gen"                       /* Base write gen name */
 
 /*
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
@@ -85,7 +95,7 @@ struct __wt_blkincr {
 /*
  * At the default granularity, this is enough for blocks in a 2G file.
  */
-#define WT_BLOCK_MODS_LIST_MIN 16 /* Initial bytes for bitmap. */
+#define WT_BLOCK_MODS_LIST_MIN 128 /* Initial bits for bitmap. */
 struct __wt_block_mods {
     const char *id_str;
 
@@ -95,8 +105,9 @@ struct __wt_block_mods {
     uint64_t offset; /* Zero bit offset for bitstring */
     uint64_t granularity;
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_BLOCK_MODS_VALID 0x1u /* Entry is valid */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_BLOCK_MODS_RENAME 0x1u /* Entry is from a rename */
+#define WT_BLOCK_MODS_VALID 0x2u  /* Entry is valid */
+                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };
 
@@ -133,13 +144,7 @@ struct __wt_ckpt {
 
     WT_BLOCK_MODS backup_blocks[WT_BLKINCR_MAX];
 
-    /* Validity window */
-    wt_timestamp_t start_durable_ts;
-    wt_timestamp_t oldest_start_ts;
-    uint64_t oldest_start_txn;
-    wt_timestamp_t stop_durable_ts;
-    wt_timestamp_t newest_stop_ts;
-    uint64_t newest_stop_txn;
+    WT_TIME_AGGREGATE ta; /* Validity window */
 
     WT_ITEM addr; /* Checkpoint cookie string */
     WT_ITEM raw;  /* Checkpoint cookie raw */

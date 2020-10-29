@@ -5,11 +5,13 @@ ActiveState
 Adler's
 Atomicity
 BLOBs
+BLRrVv
 CFLAGS
 CPPFLAGS
 CPUs
 CRC
 CSV
+CXX
 Cheng
 Christoph
 Collet's
@@ -72,6 +74,7 @@ MVCC's
 Makefiles
 Mewhort
 MongoDB
+MongoDB's
 Multithreaded
 NOTFOUND
 NSEC
@@ -82,7 +85,6 @@ PMU
 PPC
 PRELOAD
 README
-Rebalance
 RedHat
 RepMgr
 Riak
@@ -125,7 +127,6 @@ apiflags
 ar
 archiver
 arg
-async
 atomicity
 autoconf
 autogen
@@ -203,7 +204,6 @@ desc
 destructor
 destructors
 dev
-devdoc
 dhandle
 dhandle's
 dhandles
@@ -246,6 +246,10 @@ fdatasync
 fextend
 fh
 fieldname
+fileBackgroundColor
+fileBorderColor
+fileFontColor
+fileShadowing
 fileID
 fileformats
 fileid
@@ -278,6 +282,7 @@ hb
 hotbackup
 href
 hrow
+hs
 hsearch
 html
 htmlinclude
@@ -298,6 +303,7 @@ je
 jemalloc
 jitter
 jni
+jprx
 jrx
 json
 jxf
@@ -313,6 +319,7 @@ lastname
 latencies
 le
 len
+lgnd
 li
 libdir
 libhe
@@ -371,9 +378,11 @@ mutex
 mutexes
 mutexing
 mvcc
+mx
 mygcc
 mytable
 namespace
+nav
 ndary
 ndbm
 newsite
@@ -419,6 +428,7 @@ png
 posix
 pre
 prepends
+prev
 primary's
 printf
 printlog
@@ -442,7 +452,6 @@ readonly
 realclean
 realloc
 realloc'd
-rebalance
 recno
 recnoN
 recnum
@@ -476,6 +485,7 @@ seqno
 serializable
 sess
 sid
+skinparam
 skiplist
 spinlock
 spinlocks
@@ -503,7 +513,6 @@ svg
 sys
 syscalls
 sz
-t2
 tRuE
 tablename
 tcl
@@ -551,12 +560,14 @@ valuefmt
 valuev
 vec
 versa
+viewable
 vm
 vpmsum
 warmup
 wget
 whitespace
 wiredtiger
+workgen
 workQ
 writelock
 writelocks

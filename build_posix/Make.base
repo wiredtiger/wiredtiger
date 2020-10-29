@@ -19,7 +19,6 @@ wt_SOURCES =\
 	src/utilities/util_downgrade.cxx \
 	src/utilities/util_drop.cxx \
 	src/utilities/util_dump.cxx \
-	src/utilities/util_import.cxx \
 	src/utilities/util_list.cxx \
 	src/utilities/util_load.cxx \
 	src/utilities/util_load_json.cxx \
@@ -28,7 +27,6 @@ wt_SOURCES =\
 	src/utilities/util_misc.cxx \
 	src/utilities/util_printlog.cxx \
 	src/utilities/util_read.cxx \
-	src/utilities/util_rebalance.cxx \
 	src/utilities/util_rename.cxx \
 	src/utilities/util_salvage.cxx \
 	src/utilities/util_stat.cxx \

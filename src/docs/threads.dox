@@ -1,4 +1,4 @@
-/*! @m_page{{c,java},threads,Multithreading}
+/*! @page threads Multithreading
 
 All WT_CONNECTION methods are thread safe, and WT_CONNECTION handles can
 be shared between threads.  Applications typically open a single
@@ -21,11 +21,6 @@ a set of shared session or cursor handles).  There is no thread-local
 state in WiredTiger, and no built-in synchronization of session or
 cursor handles, either, so if multiple threads access a session or
 cursor handle, access must be serialized by the application.
-
-WT_ASYNC_OP methods are not thread-safe, and must be accessed by only a
-single thread at a time.  WT_ASYNC_OP methods may be accessed by
-different threads serially (and that is expected to happen when the
-asynchronous callback function runs).
 
 @section threads_example Code samples
 

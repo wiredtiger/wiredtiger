@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from helper import copy_wiredtiger_home
-import unittest, wiredtiger, wttest
+import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 import os, shutil
 from wtscenario import make_scenarios
@@ -40,7 +40,8 @@ def timestamp_str(t):
 # test to ensure salvage, verify & simulating crash are working for prepared transactions.
 class test_prepare_hs03(wttest.WiredTigerTestCase):
     # Force a small cache.
-    conn_config = 'cache_size=50MB,statistics=(fast)'
+    conn_config = ('cache_size=50MB,statistics=(fast),'
+                   'eviction_dirty_trigger=50,eviction_updates_trigger=50')
 
     # Create a small table.
     uri = "table:test_prepare_hs03"
@@ -183,7 +184,6 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # and call verify
         self.corrupt_salvage_verify()
 
-    @unittest.skip("Temporarily disabled")
     def test_prepare_hs(self):
         nrows = 100
         ds = SimpleDataSet(self, self.uri, nrows, key_format="S", value_format='u')

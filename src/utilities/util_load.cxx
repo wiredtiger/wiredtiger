@@ -14,13 +14,26 @@ static int config_rename(WT_SESSION *, char **, const char *);
 static int format(WT_SESSION *);
 static int insert(WT_CURSOR *, const char *);
 static int load_dump(WT_SESSION *);
-static int usage(void);
 
 static bool append = false;       /* -a append (ignore number keys) */
 static char *cmdname;             /* -r rename */
 static char **cmdconfig;          /* configuration pairs */
 static bool json = false;         /* -j input is JSON format */
 static bool no_overwrite = false; /* -n don't overwrite existing data */
+
+static int
+usage(void)
+{
+    static const char *options[] = {"-a",
+      "ignore record number keys in the input and assign new record number keys", "-f input",
+      "read from the specified file (by default records are read from stdin)", "-j",
+      "read in JSON format", "-n", "fail at any attempt to overwrite existing data", "-r name",
+      "use the argument as the table name, ignoring any name in the source", NULL, NULL};
+
+    util_usage(
+      "load [-as] [-f input-file] [-r name] [object configuration ...]", "options:", options);
+    return (1);
+}
 
 int
 util_load(WT_SESSION *session, int argc, char *argv[])
@@ -61,9 +74,8 @@ util_load(WT_SESSION *session, int argc, char *argv[])
 
     /* -a and -o are mutually exclusive. */
     if (append && no_overwrite)
-        return (util_err(session, EINVAL,
-          "the -a (append) and -n (no-overwrite) flags are mutually "
-          "exclusive"));
+        return (util_err(
+          session, EINVAL, "the -a (append) and -n (no-overwrite) flags are mutually exclusive"));
 
     /* The remaining arguments are configuration uri/string pairs. */
     if (argc != 0) {
@@ -132,9 +144,7 @@ load_dump(WT_SESSION *session)
      * Check the append flag (it only applies to objects where the primary key is a record number).
      */
     if (append && !WT_STREQ(cursor->key_format, "r")) {
-        fprintf(stderr,
-          "%s: %s: -a option illegal unless the primary key is a "
-          "record number\n",
+        fprintf(stderr, "%s: %s: -a option illegal unless the primary key is a record number\n",
           progname, uri);
         ret = 1;
     } else
@@ -393,9 +403,7 @@ config_update(WT_SESSION *session, char **list)
      */
     for (configp = cmdconfig; configp != NULL && *configp != NULL; configp += 2)
         if (strstr(configp[1], "key_format=") || strstr(configp[1], "value_format="))
-            return (util_err(session, 0,
-              "an object's key or value format may not be "
-              "modified"));
+            return (util_err(session, 0, "an object's key or value format may not be modified"));
 
     /*
      * If there were command-line configuration pairs, walk the list of command-line URIs and find a
@@ -409,15 +417,14 @@ config_update(WT_SESSION *session, char **list)
         switch (found) {
         case 0:
             return (util_err(session, 0,
-              "the command line object name %s was not matched "
-              "by any loaded object name",
+              "the command line object name %s was not matched by any loaded object name",
               *configp));
         case 1:
             break;
         default:
             return (util_err(session, 0,
-              "the command line object name %s was not unique, "
-              "matching more than a single loaded object name",
+              "the command line object name %s was not unique, matching more than a single loaded "
+              "object name",
               *configp));
         }
     }
@@ -448,8 +455,8 @@ config_update(WT_SESSION *session, char **list)
         cfg[cnt++] = NULL;
 
         if ((ret = __wt_config_merge((WT_SESSION_IMPL *)session, cfg,
-               "filename=,id=,"
-               "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,version=,source=,",
+               "filename=,id=,checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,version=,source="
+               ",",
                &p)) != 0)
             break;
 
@@ -560,14 +567,4 @@ err:
     free(value.mem);
 
     return (ret);
-}
-
-static int
-usage(void)
-{
-    (void)fprintf(stderr,
-      "usage: %s %s "
-      "load [-as] [-f input-file] [-r name] [object configuration ...]\n",
-      progname, usage_prefix);
-    return (1);
 }

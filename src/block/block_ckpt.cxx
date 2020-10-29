@@ -196,11 +196,11 @@ __wt_block_checkpoint_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     case WT_CKPT_INPROGRESS:
     case WT_CKPT_PANIC_ON_FAILURE:
     case WT_CKPT_SALVAGE:
-        __wt_err(session, EINVAL,
-          "%s: an unexpected checkpoint start: the checkpoint "
-          "has already started or was configured for salvage",
+        ret = __wt_panic(session, EINVAL,
+          "%s: an unexpected checkpoint start: the checkpoint has already started or was "
+          "configured for salvage",
           block->name);
-        ret = __wt_block_panic(session);
+        __wt_block_set_readonly(session);
         break;
     case WT_CKPT_NONE:
         block->ckpt_state = WT_CKPT_INPROGRESS;
@@ -343,6 +343,122 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
 #endif
 
 /*
+ * __ckpt_add_blkmod_entry --
+ *     Add an offset/length entry to the bitstring based on granularity.
+ */
+static int
+__ckpt_add_blkmod_entry(
+  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len)
+{
+    uint64_t end_bit, start_bit;
+    uint32_t end_buf_bytes, end_rdup_bits, end_rdup_bytes;
+
+    WT_ASSERT(session, blk_mod->granularity != 0);
+    /*
+     * Figure out the starting and ending locations in the bitmap based on its granularity and our
+     * offset and length. The bit locations are zero-based; be careful translating to sizes.
+     */
+    start_bit = (uint64_t)offset / blk_mod->granularity;
+    end_bit = (uint64_t)(offset + len - 1) / blk_mod->granularity;
+    WT_ASSERT(session, end_bit < UINT32_MAX);
+    /* We want to grow the bitmap by 64 bits, or 8 bytes at a time. */
+    end_rdup_bits = WT_MAX(__wt_rduppo2((uint32_t)end_bit + 1, 64), WT_BLOCK_MODS_LIST_MIN);
+    end_rdup_bytes = __bitstr_size(end_rdup_bits);
+    end_buf_bytes = __bitstr_size((uint32_t)blk_mod->nbits);
+    /*
+     * We are doing a lot of shifting. Make sure that the number of bytes we end up with is a
+     * multiple of eight. We guarantee that in the rounding up call, but also make sure that the
+     * constant stays a multiple of eight.
+     */
+    WT_ASSERT(session, end_rdup_bytes % 8 == 0);
+    if (end_rdup_bytes > end_buf_bytes) {
+        /* If we don't have enough, extend the buffer. */
+        if (blk_mod->nbits == 0) {
+            WT_RET(__wt_buf_initsize(session, &blk_mod->bitstring, end_rdup_bytes));
+            memset(blk_mod->bitstring.mem, 0, end_rdup_bytes);
+        } else {
+            WT_RET(
+              __wt_buf_set(session, &blk_mod->bitstring, blk_mod->bitstring.data, end_rdup_bytes));
+            memset(
+              (uint8_t *)blk_mod->bitstring.mem + end_buf_bytes, 0, end_rdup_bytes - end_buf_bytes);
+        }
+        blk_mod->nbits = end_rdup_bits;
+    }
+    /* Make sure we're not going to run past the end of the bitmap */
+    WT_ASSERT(session, blk_mod->bitstring.size >= __bitstr_size((uint32_t)blk_mod->nbits));
+    WT_ASSERT(session, end_bit < blk_mod->nbits);
+    /* Set all the bits needed to record this offset/length pair. */
+    __bit_nset(blk_mod->bitstring.mem, start_bit, end_bit);
+    return (0);
+}
+
+/*
+ * __ckpt_add_blk_mods_alloc --
+ *     Add the checkpoint's allocated blocks to all valid incremental backup source identifiers.
+ */
+static int
+__ckpt_add_blk_mods_alloc(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci)
+{
+    WT_BLOCK_MODS *blk_mod;
+    WT_CKPT *ckpt;
+    WT_EXT *ext;
+    u_int i;
+
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (F_ISSET(ckpt, WT_CKPT_ADD))
+            break;
+    }
+    /* If this is not the live checkpoint or we don't care about incremental blocks, we're done. */
+    if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
+        return (0);
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blk_mod = &ckpt->backup_blocks[i];
+        /* If there is no information at this entry, we're done. */
+        if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
+            continue;
+
+        WT_EXT_FOREACH (ext, ci->alloc.off) {
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ext->off, ext->size));
+        }
+    }
+    return (0);
+}
+
+/*
+ * __ckpt_add_blk_mods_ext --
+ *     Add a set of extent blocks to all valid incremental backup source identifiers.
+ */
+static int
+__ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci)
+{
+    WT_BLOCK_MODS *blk_mod;
+    WT_CKPT *ckpt;
+    u_int i;
+
+    WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (F_ISSET(ckpt, WT_CKPT_ADD))
+            break;
+    }
+    /* If this is not the live checkpoint or we don't care about incremental blocks, we're done. */
+    if (ckpt == NULL || !F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
+        return (0);
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blk_mod = &ckpt->backup_blocks[i];
+        /* If there is no information at this entry, we're done. */
+        if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
+            continue;
+
+        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->alloc.offset, ci->alloc.size));
+        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->discard.offset, ci->discard.size));
+        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->avail.offset, ci->avail.size));
+    }
+    return (0);
+}
+
+/*
  * __ckpt_process --
  *     Process the list of checkpoints.
  */
@@ -389,11 +505,11 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         break;
     case WT_CKPT_NONE:
     case WT_CKPT_PANIC_ON_FAILURE:
-        __wt_err(session, EINVAL,
-          "%s: an unexpected checkpoint attempt: the checkpoint "
-          "was never started or has already completed",
+        ret = __wt_panic(session, EINVAL,
+          "%s: an unexpected checkpoint attempt: the checkpoint was never started or has already "
+          "completed",
           block->name);
-        ret = __wt_block_panic(session);
+        __wt_block_set_readonly(session);
         break;
     case WT_CKPT_SALVAGE:
         /* Salvage doesn't use the standard checkpoint APIs. */
@@ -474,6 +590,12 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     ckpt_size = ci->ckpt_size;
     ckpt_size += ci->alloc.bytes;
     ckpt_size -= ci->discard.bytes;
+
+    /*
+     * Record the checkpoint's allocated blocks. Do so before skipping any processing and before
+     * possibly merging in blocks from any previous checkpoint.
+     */
+    WT_ERR(__ckpt_add_blk_mods_alloc(session, ckptbase, ci));
 
     /* Skip the additional processing if we aren't deleting checkpoints. */
     if (!deleting)
@@ -581,11 +703,9 @@ live_update:
         if (F_ISSET(ckpt, WT_CKPT_ADD)) {
             /*
              * !!!
-             * Our caller wants the final checkpoint size.  Setting
-             * the size here violates layering, but the alternative
-             * is a call for the btree layer to crack the checkpoint
-             * cookie into its components, and that's a fair amount
-             * of work.
+             * Our caller wants the final checkpoint size. Setting the size here violates layering,
+             * but the alternative is a call for the btree layer to crack the checkpoint cookie into
+             * its components, and that's a fair amount of work.
              */
             ckpt->size = ckpt_size;
 
@@ -631,15 +751,14 @@ live_update:
     if ((a = static_cast<WT_BLOCK_CKPT *>(ckpt->bpriv)) == NULL)
         a = &block->live;
     if (a->discard.entries != 0)
-        WT_ERR_MSG(session, WT_ERROR,
-          "first checkpoint incorrectly has blocks on the discard "
-          "list");
+        WT_ERR_MSG(
+          session, WT_ERROR, "first checkpoint incorrectly has blocks on the discard list");
 #endif
 
 err:
     if (ret != 0 && fatal) {
-        __wt_err(session, ret, "%s: fatal checkpoint failure", block->name);
-        ret = __wt_block_panic(session);
+        ret = __wt_panic(session, ret, "%s: fatal checkpoint failure", block->name);
+        __wt_block_set_readonly(session);
     }
 
     if (locked)
@@ -651,78 +770,6 @@ err:
             __wt_block_ckpt_destroy(session, ci);
 
     return (ret);
-}
-
-/*
- * __ckpt_add_blkmod_entry --
- *     Add an offset/length entry to the bitstring based on granularity.
- */
-static int
-__ckpt_add_blkmod_entry(
-  WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, wt_off_t offset, wt_off_t len)
-{
-    uint64_t end, start;
-    uint32_t end_buf_bytes, end_rdup_bytes;
-
-    WT_ASSERT(session, blk_mod->granularity != 0);
-    start = (uint64_t)offset / blk_mod->granularity;
-    end = (uint64_t)(offset + len) / blk_mod->granularity;
-    WT_ASSERT(session, end < UINT32_MAX);
-    end_rdup_bytes = WT_MAX(__wt_rduppo2((uint32_t)end, 8), WT_BLOCK_MODS_LIST_MIN);
-    end_buf_bytes = (uint32_t)blk_mod->nbits >> 3;
-    /*
-     * We are doing a lot of shifting. Make sure that the number of bytes we end up with is a
-     * multiple of eight. We guarantee that in the rounding up call, but also make sure that the
-     * constant stays a multiple of eight.
-     */
-    WT_ASSERT(session, end_rdup_bytes % 8 == 0);
-    if (end_rdup_bytes > end_buf_bytes) {
-        /* If we don't have enough, extend the buffer. */
-        if (blk_mod->nbits == 0) {
-            WT_RET(__wt_buf_initsize(session, &blk_mod->bitstring, end_rdup_bytes));
-            memset(blk_mod->bitstring.mem, 0, end_rdup_bytes);
-        } else {
-            WT_RET(
-              __wt_buf_set(session, &blk_mod->bitstring, blk_mod->bitstring.data, end_rdup_bytes));
-            memset(
-              (uint8_t *)blk_mod->bitstring.mem + end_buf_bytes, 0, end_rdup_bytes - end_buf_bytes);
-        }
-        blk_mod->nbits = end_rdup_bytes << 3;
-    }
-
-    /* Set all the bits needed to record this offset/length pair. */
-    __bit_nset(static_cast<uint8_t *>(blk_mod->bitstring.mem), start, end);
-    return (0);
-}
-
-/*
- * __ckpt_add_blk_mods --
- *     Add the blocks to all valid incremental backup source identifiers.
- */
-static int
-__ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
-{
-    WT_BLOCK_MODS *blk_mod;
-    WT_EXT *ext;
-    u_int i;
-
-    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-        blk_mod = &ckpt->backup_blocks[i];
-        /* If there is no information at this entry, we're done. */
-        if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
-            continue;
-
-        WT_EXT_FOREACH (ext, ci->alloc.off)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ext->off, ext->size));
-
-        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->alloc.offset, ci->alloc.size));
-        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->discard.offset, ci->discard.size));
-        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
-            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->avail.offset, ci->avail.size));
-    }
-    return (0);
 }
 
 /*
@@ -747,9 +794,8 @@ __ckpt_update(
     WT_RET(__wt_block_extlist_check(session, &ci->alloc, &ci->discard));
 #endif
     /*
-     * Write the checkpoint's alloc and discard extent lists. After each write, remove any allocated
-     * blocks from the system's allocation list, checkpoint extent blocks don't appear on any extent
-     * lists.
+     * Write the checkpoint's alloc and discard extent lists. Note these blocks never appear on the
+     * system's allocation list, checkpoint extent blocks don't appear on any extent lists.
      */
     WT_RET(__wt_block_extlist_write(session, block, &ci->alloc, NULL));
     WT_RET(__wt_block_extlist_write(session, block, &ci->discard, NULL));
@@ -798,29 +844,34 @@ __ckpt_update(
     }
 
     /*
-     * If this is the live system, we need to record the list of blocks written for this checkpoint
-     * (including the blocks we allocated to write the extent lists).
+     * Record the blocks allocated to write the extent lists. We must record blocks in the live
+     * system's extent lists, as those blocks are a necessary part of the checkpoint a hot backup
+     * might recover. Update blocks in extent lists used to rewrite other checkpoints (for example,
+     * an intermediate checkpoint rewritten because a checkpoint was rolled into it), even though
+     * it's not necessary: those blocks aren't the last checkpoint in the file and so aren't
+     * included in a recoverable checkpoint, they don't matter on a hot backup target until they're
+     * allocated and used in the context of a live system. Regardless, they shouldn't materially
+     * affect how much data we're writing, and it keeps things more consistent on the target to
+     * update them. (Ignore the live system's ckpt_avail list here. The blocks on that list were
+     * written into the final avail extent list which will be copied to the hot backup, and that's
+     * all that matters.)
      */
-    if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS))
-        WT_RET(__ckpt_add_blk_mods(session, ckpt, ci));
+    WT_RET(__ckpt_add_blk_mods_ext(session, ckptbase, ci));
 
     /*
      * Set the file size for the live system.
      *
      * !!!
-     * We do NOT set the file size when re-writing checkpoints because we
-     * want to test the checkpoint's blocks against a reasonable maximum
-     * file size during verification.  This is bad: imagine a checkpoint
-     * appearing early in the file, re-written, and then the checkpoint
-     * requires blocks at the end of the file, blocks after the listed file
-     * size.  If the application opens that checkpoint for writing
-     * (discarding subsequent checkpoints), we would truncate the file to
-     * the early chunk, discarding the re-written checkpoint information.
-     * The alternative, updating the file size has its own problems, in
-     * that case we'd work correctly, but we'd lose all of the blocks
-     * between the original checkpoint and the re-written checkpoint.
-     * Currently, there's no API to roll-forward intermediate checkpoints,
-     * if there ever is, this will need to be fixed.
+     * We do NOT set the file size when re-writing checkpoints because we want to test the
+     * checkpoint's blocks against a reasonable maximum file size during verification. This is bad:
+     * imagine a checkpoint appearing early in the file, re-written, and then the checkpoint
+     * requires blocks at the end of the file, blocks after the listed file size. If the application
+     * opens that checkpoint for writing (discarding subsequent checkpoints), we would truncate the
+     * file to the early chunk, discarding the re-written checkpoint information. The alternative,
+     * updating the file size has its own problems, in that case we'd work correctly, but we'd lose
+     * all of the blocks between the original checkpoint and the re-written checkpoint. Currently,
+     * there's no API to roll-forward intermediate checkpoints, if there ever is, this will need to
+     * be fixed.
      */
     if (is_live)
         ci->file_size = block->size;
@@ -860,26 +911,26 @@ __wt_block_checkpoint_resolve(WT_SESSION_IMPL *session, WT_BLOCK *block, bool fa
         goto done;
     case WT_CKPT_NONE:
     case WT_CKPT_SALVAGE:
-        __wt_err(session, EINVAL,
-          "%s: an unexpected checkpoint resolution: the checkpoint "
-          "was never started or completed, or configured for salvage",
+        ret = __wt_panic(session, EINVAL,
+          "%s: an unexpected checkpoint resolution: the checkpoint was never started or completed, "
+          "or configured for salvage",
           block->name);
-        ret = __wt_block_panic(session);
+        __wt_block_set_readonly(session);
         break;
     case WT_CKPT_PANIC_ON_FAILURE:
         if (!failed)
             break;
-        __wt_err(
+        ret = __wt_panic(
           session, EINVAL, "%s: the checkpoint failed, the system must restart", block->name);
-        ret = __wt_block_panic(session);
+        __wt_block_set_readonly(session);
         break;
     }
     WT_ERR(ret);
 
     if ((ret = __wt_block_extlist_merge(session, block, &ci->ckpt_avail, &ci->avail)) != 0) {
-        __wt_err(
+        ret = __wt_panic(
           session, ret, "%s: fatal checkpoint failure during extent list merge", block->name);
-        ret = __wt_block_panic(session);
+        __wt_block_set_readonly(session);
     }
     __wt_spin_unlock(session, &block->live_lock);
 

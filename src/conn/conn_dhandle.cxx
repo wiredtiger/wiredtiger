@@ -166,7 +166,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
         dhandle = (WT_DATA_HANDLE *)table;
         dhandle->type = WT_DHANDLE_TYPE_TABLE;
     } else
-        WT_PANIC_RET(session, EINVAL, "illegal handle allocation URI %s", uri);
+        WT_RET_PANIC(session, EINVAL, "illegal handle allocation URI %s", uri);
 
     /* Btree handles keep their data separate from the interface. */
     if (dhandle->type == WT_DHANDLE_TYPE_BTREE) {
@@ -198,7 +198,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
      * Prepend the handle to the connection list, assuming we're likely to need new files again
      * soon, until they are cached by all sessions.
      */
-    bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
+    bucket = dhandle->name_hash & (S2C(session)->dh_hash_size - 1);
     WT_CONN_DHANDLE_INSERT(S2C(session), dhandle, bucket);
 
     session->dhandle = dhandle;
@@ -225,7 +225,7 @@ __wt_conn_dhandle_find(WT_SESSION_IMPL *session, const char *uri, const char *ch
     /* We must be holding the handle list lock at a higher level. */
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));
 
-    bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
+    bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
     if (checkpoint == NULL) {
         TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
             if (F_ISSET(dhandle, WT_DHANDLE_DEAD))
@@ -367,13 +367,12 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
     }
 
     /*
-     * If marking the handle dead, do so after closing the underlying btree.
-     * (Don't do it before that, the block manager asserts there are never
-     * two references to a block manager object, and re-opening the handle
-     * can succeed once we mark this handle dead.)
+     * If marking the handle dead, do so after closing the underlying btree. (Don't do it before
+     * that, the block manager asserts there are never two references to a block manager object, and
+     * re-opening the handle can succeed once we mark this handle dead.)
      *
-     * Check discard too, code we call to clear the cache expects the data
-     * handle dead flag to be set when discarding modified pages.
+     * Check discard too, code we call to clear the cache expects the data handle dead flag to be
+     * set when discarding modified pages.
      */
     if (marked_dead || discard)
         F_SET(dhandle, WT_DHANDLE_DEAD);
@@ -426,8 +425,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
 
     WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !LF_ISSET(WT_DHANDLE_LOCK_ONLY));
 
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE_FLAGS) ||
-        !F_ISSET(S2C(session), WT_CONN_CLOSING_NO_MORE_OPENS));
+    WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_CLOSING_NO_MORE_OPENS));
 
     /* Turn off eviction. */
     if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
@@ -514,8 +512,13 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    uint64_t time_diff, time_start, time_stop;
     bool skip;
+
+    conn = S2C(session);
+    time_start = time_stop = 0;
 
     /* Always apply the name function, if supplied. */
     skip = false;
@@ -527,14 +530,27 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
         return (0);
 
     /*
-     * We need to pull the handle into the session handle cache and make
-     * sure it's referenced to stop other internal code dropping the handle
-     * (e.g in LSM when cleaning up obsolete chunks).
+     * We need to pull the handle into the session handle cache and make sure it's referenced to
+     * stop other internal code dropping the handle (e.g in LSM when cleaning up obsolete chunks).
      */
     if ((ret = __wt_session_get_dhandle(session, dhandle->name, dhandle->checkpoint, NULL, 0)) != 0)
         return (ret == EBUSY ? 0 : ret);
 
+    if (WT_SESSION_IS_CHECKPOINT(session))
+        time_start = __wt_clock(session);
     WT_SAVE_DHANDLE(session, ret = file_func(session, cfg));
+    /* We need to gather this information before releasing the dhandle. */
+    if (WT_SESSION_IS_CHECKPOINT(session)) {
+        time_stop = __wt_clock(session);
+        time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+        if (F_ISSET(S2BT(session), WT_BTREE_SKIP_CKPT)) {
+            ++conn->ckpt_skip;
+            conn->ckpt_skip_time += time_diff;
+        } else {
+            ++conn->ckpt_apply;
+            conn->ckpt_apply_time += time_diff;
+        }
+    }
     WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
@@ -552,15 +568,16 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     uint64_t bucket;
+    uint64_t time_diff, time_start, time_stop;
 
     conn = S2C(session);
-
+    time_start = time_stop = 0;
     /*
      * If we're given a URI, then we walk only the hash list for that name. If we don't have a URI
      * we walk the entire dhandle list.
      */
     if (uri != NULL) {
-        bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
+        bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
 
         for (dhandle = NULL;;) {
             WT_WITH_HANDLE_LIST_READ_LOCK(
@@ -574,11 +591,16 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
     } else {
+        if (WT_SESSION_IS_CHECKPOINT(session)) {
+            conn->ckpt_apply = conn->ckpt_skip = 0;
+            conn->ckpt_apply_time = conn->ckpt_skip_time = 0;
+            time_start = __wt_clock(session);
+        }
         for (dhandle = NULL;;) {
             WT_WITH_HANDLE_LIST_READ_LOCK(
               session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
             if (dhandle == NULL)
-                return (0);
+                goto done;
 
             if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
               dhandle->type != WT_DHANDLE_TYPE_BTREE || dhandle->checkpoint != NULL ||
@@ -586,6 +608,18 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
                 continue;
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
+done:
+        if (WT_SESSION_IS_CHECKPOINT(session)) {
+            time_stop = __wt_clock(session);
+            time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_applied, conn->ckpt_apply);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_skipped, conn->ckpt_skip);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_walked, conn->dhandle_count);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration, time_diff);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration_apply, conn->ckpt_apply_time);
+            WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration_skip, conn->ckpt_skip_time);
+        }
+        return (0);
     }
 
 err:
@@ -659,7 +693,7 @@ __wt_conn_dhandle_close_all(WT_SESSION_IMPL *session, const char *uri, bool remo
      */
     WT_ERR(__conn_dhandle_close_one(session, uri, NULL, removed, mark_dead));
 
-    bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
+    bucket = __wt_hash_city64(uri, strlen(uri)) & (conn->dh_hash_size - 1);
     TAILQ_FOREACH (dhandle, &conn->dhhash[bucket], hashq) {
         if (strcmp(dhandle->name, uri) != 0 || dhandle->checkpoint == NULL ||
           F_ISSET(dhandle, WT_DHANDLE_DEAD))
@@ -687,7 +721,7 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
 
     conn = S2C(session);
     dhandle = session->dhandle;
-    bucket = dhandle->name_hash % WT_HASH_ARRAY_SIZE;
+    bucket = dhandle->name_hash & (conn->dh_hash_size - 1);
 
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));
     WT_ASSERT(session, dhandle != conn->cache->walk_tree);
@@ -785,7 +819,7 @@ restart:
     }
 
     /* Shut down the history store table after all eviction is complete. */
-    __wt_hs_destroy(session);
+    __wt_hs_close(session);
 
     /*
      * Closing the files may have resulted in entries on our default session's list of open data
@@ -800,8 +834,7 @@ restart:
      * it's potentially used when discarding other open data handles. Close it before discarding the
      * underlying metadata handle.
      */
-    if (session->meta_cursor != NULL)
-        WT_TRET(session->meta_cursor->close(session->meta_cursor));
+    WT_TRET(__wt_metadata_cursor_close(session));
 
     /* Close the remaining handles. */
     WT_TAILQ_SAFE_REMOVE_BEGIN(dhandle, &conn->dhqh, q, dhandle_tmp)

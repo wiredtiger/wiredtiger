@@ -26,7 +26,7 @@ __schema_backup_check_int(WT_SESSION_IMPL *session, const char *name)
      * There is a window at the end of a backup where the list has been cleared from the connection
      * but the flag is still set. It is safe to drop at that point.
      */
-    if (!conn->hot_backup || (backup_list = conn->hot_backup_list) == NULL) {
+    if (conn->hot_backup_start == 0 || (backup_list = conn->hot_backup_list) == NULL) {
         return (0);
     }
     for (i = 0; backup_list[i] != NULL; ++i) {
@@ -50,7 +50,7 @@ __wt_schema_backup_check(WT_SESSION_IMPL *session, const char *name)
     WT_DECL_RET;
 
     conn = S2C(session);
-    if (!conn->hot_backup)
+    if (conn->hot_backup_start == 0)
         return (0);
     WT_WITH_HOTBACKUP_READ_LOCK_UNCOND(session, ret = __schema_backup_check_int(session, name));
     return (ret);
@@ -84,7 +84,7 @@ __wt_schema_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_ses
      * flags from the original.
      */
     *int_sessionp = session;
-    if (F_ISSET(&session->txn, WT_TXN_RUNNING)) {
+    if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
         /* We should not have a schema txn running now. */
         WT_ASSERT(session, !F_ISSET(session, WT_SESSION_SCHEMA_TXN));
         WT_RET(
@@ -100,12 +100,8 @@ __wt_schema_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_ses
 int
 __wt_schema_session_release(WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
 {
-    WT_SESSION *wt_session;
-
-    if (session != int_session) {
-        wt_session = &int_session->iface;
-        WT_RET(wt_session->close(wt_session, NULL));
-    }
+    if (session != int_session)
+        WT_RET(__wt_session_close_internal(int_session));
 
     return (0);
 }
@@ -121,9 +117,7 @@ __str_name_check(WT_SESSION_IMPL *session, const char *name, bool skip_wt)
 
     if (!skip_wt && WT_PREFIX_MATCH(name, "WiredTiger"))
         WT_RET_MSG(session, EINVAL,
-          "%s: the \"WiredTiger\" name space may not be "
-          "used by applications",
-          name);
+          "%s: the \"WiredTiger\" name space may not be used by applications", name);
 
     /*
      * Disallow JSON quoting characters -- the config string parsing code supports quoted strings,
@@ -131,9 +125,7 @@ __str_name_check(WT_SESSION_IMPL *session, const char *name, bool skip_wt)
      */
     if (strpbrk(name, "{},:[]\\\"'") != NULL)
         WT_RET_MSG(session, EINVAL,
-          "%s: WiredTiger objects should not include grouping "
-          "characters in their names",
-          name);
+          "%s: WiredTiger objects should not include grouping characters in their names", name);
     return (0);
 }
 

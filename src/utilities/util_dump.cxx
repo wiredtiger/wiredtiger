@@ -26,7 +26,25 @@ static int dump_table_parts_config(WT_SESSION *, WT_CURSOR *, const char *, cons
 static int dup_json_string(const char *, char **);
 static int print_config(WT_SESSION *, const char *, const char *, bool, bool);
 static int time_pair_to_timestamp(WT_SESSION_IMPL *, char *, WT_ITEM *);
-static int usage(void);
+
+static int
+usage(void)
+{
+    static const char *options[] = {"-c checkpoint",
+      "dump as of the named checkpoint (the default is the most recent version of the data)",
+      "-f output", "dump to the specified file (the default is stdout)", "-j",
+      "dump in JSON format", "-p", "dump in human readable format (pretty-print)", "-r",
+      "dump in reverse order", "-t timestamp",
+      "dump as of the specified timestamp (the default is the most recent version of the data)",
+      "-x",
+      "dump all characters in a hexadecimal encoding (by default printable characters are not "
+      "encoded)",
+      NULL, NULL};
+
+    util_usage(
+      "dump [-jprx] [-c checkpoint] [-f output-file] [-t timestamp] uri", "options:", options);
+    return (1);
+}
 
 static FILE *fp;
 
@@ -34,19 +52,21 @@ int
 util_dump(WT_SESSION *session, int argc, char *argv[])
 {
     WT_CURSOR *cursor;
+    WT_CURSOR_DUMP *hs_dump_cursor;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_SESSION_IMPL *session_impl;
-    int ch, i;
+    int ch, format_specifiers, i;
     char *checkpoint, *ofile, *p, *simpleuri, *timestamp, *uri;
-    bool hex, json, reverse;
+    bool hex, json, pretty, reverse;
 
     session_impl = (WT_SESSION_IMPL *)session;
 
     cursor = NULL;
+    hs_dump_cursor = NULL;
     checkpoint = ofile = simpleuri = uri = timestamp = NULL;
-    hex = json = reverse = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "c:f:t:jrx")) != EOF)
+    hex = json = pretty = reverse = false;
+    while ((ch = __wt_getopt(progname, argc, argv, "c:f:t:jprx")) != EOF)
         switch (ch) {
         case 'c':
             checkpoint = __wt_optarg;
@@ -54,14 +74,17 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         case 'f':
             ofile = __wt_optarg;
             break;
-        case 't':
-            timestamp = __wt_optarg;
-            break;
         case 'j':
             json = true;
             break;
+        case 'p':
+            pretty = true;
+            break;
         case 'r':
             reverse = true;
+            break;
+        case 't':
+            timestamp = __wt_optarg;
             break;
         case 'x':
             hex = true;
@@ -77,9 +100,16 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     if (argc < 1 || (argc != 1 && !json))
         return (usage());
 
-    /* -j and -x are incompatible. */
-    if (hex && json) {
-        fprintf(stderr, "%s: the -j and -x dump options are incompatible\n", progname);
+    /* -j, -p and -x are incompatible. */
+    format_specifiers = 0;
+    if (json)
+        ++format_specifiers;
+    if (pretty)
+        ++format_specifiers;
+    if (hex)
+        ++format_specifiers;
+    if (format_specifiers > 1) {
+        fprintf(stderr, "%s: the -j, -p and -x dump options are incompatible\n", progname);
         return (usage());
     }
 
@@ -117,8 +147,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
         if (checkpoint != NULL)
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
-        WT_ERR(
-          __wt_buf_catfmt(session_impl, tmp, "dump=%s", json ? "json" : (hex ? "hex" : "print")));
+        WT_ERR(__wt_buf_catfmt(session_impl, tmp, "dump=%s",
+          json ? "json" : (hex ? "hex" : (pretty ? "pretty" : "print"))));
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
             fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
               session->strerror(session, ret));
@@ -137,8 +167,11 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
          * nothing will be visible. The only exception is if we've supplied a timestamp in which
          * case, we're specifically interested in what is visible at a given read timestamp.
          */
-        if (WT_STREQ(simpleuri, WT_HS_URI) && timestamp == NULL)
-            F_SET(session_impl, WT_SESSION_IGNORE_HS_TOMBSTONE);
+        if (WT_STREQ(simpleuri, WT_HS_URI) && timestamp == NULL) {
+            hs_dump_cursor = (WT_CURSOR_DUMP *)cursor;
+            /* Set the "ignore tombstone" flag on the underlying cursor. */
+            F_SET(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
+        }
         if (dump_config(session, simpleuri, cursor, hex, json) != 0)
             goto err;
 
@@ -147,8 +180,11 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (json && dump_json_table_end(session) != 0)
             goto err;
 
+        if (hs_dump_cursor != NULL)
+            F_CLR(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
         ret = cursor->close(cursor);
         cursor = NULL;
+        hs_dump_cursor = NULL;
         if (ret != 0) {
             (void)util_err(session, ret, NULL);
             goto err;
@@ -162,9 +198,13 @@ err:
         ret = 1;
     }
 
-    F_CLR(session_impl, WT_SESSION_IGNORE_HS_TOMBSTONE);
-    if (cursor != NULL && (ret = cursor->close(cursor)) != 0)
-        ret = util_err(session, ret, NULL);
+    if (cursor != NULL) {
+        if (hs_dump_cursor != NULL)
+            F_CLR(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
+        if ((ret = cursor->close(cursor)) != 0)
+            ret = util_err(session, ret, NULL);
+    }
+
     if (ofile != NULL && (ret = fclose(fp)) != 0)
         ret = util_err(session, errno, NULL);
 
@@ -226,6 +266,12 @@ dump_config(WT_SESSION *session, const char *uri, WT_CURSOR *cursor, bool hex, b
             ret = 1;
     } else if (ret == WT_NOTFOUND)
         ret = util_err(session, 0, "%s: No such object exists", uri);
+    else if (ret == ENOTSUP)
+        /*
+         * Ignore ENOTSUP error. We return that for getting the creation metadata for a complex
+         * table because the meaning of that is undefined. It does mean the table exists.
+         */
+        ret = 0;
     else
         ret = util_err(session, ret, "%s", uri);
 
@@ -663,14 +709,4 @@ print_config(WT_SESSION *session, const char *key, const char *cfg, bool json, b
     if (ret < 0)
         return (util_err(session, EIO, NULL));
     return (0);
-}
-
-static int
-usage(void)
-{
-    (void)fprintf(stderr,
-      "usage: %s %s "
-      "dump [-jrx] [-c checkpoint] [-f output-file] [-t timestamp] uri\n",
-      progname, usage_prefix);
-    return (1);
 }

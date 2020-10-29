@@ -52,23 +52,21 @@ typedef struct {
 } LZ4_COMPRESSOR;
 
 /*
- * LZ4 decompression requires the exact compressed byte count returned by the
- * LZ4_compress_default and LZ4_compress_destSize functions. WiredTiger doesn't
- * track that value, store it in the destination buffer.
+ * LZ4 decompression requires the exact compressed byte count returned by the LZ4_compress_default
+ * and LZ4_compress_destSize functions. WiredTiger doesn't track that value, store it in the
+ * destination buffer.
  *
- * Additionally, LZ4_compress_destSize may compress into the middle of a record,
- * and after decompression we return the length to the last record successfully
- * decompressed, not the number of bytes decompressed; store that value in the
- * destination buffer as well.
+ * Additionally, LZ4_compress_destSize may compress into the middle of a record, and after
+ * decompression we return the length to the last record successfully decompressed, not the number
+ * of bytes decompressed; store that value in the destination buffer as well.
  *
- * (Since raw compression has been removed from WiredTiger, the lz4 compression
- * code no longer calls LZ4_compress_destSize. Some support remains to support
- * existing compressed objects.)
+ * (Since raw compression has been removed from WiredTiger, the lz4 compression code no longer calls
+ * LZ4_compress_destSize. Some support remains to support existing compressed objects.)
  *
  * Use fixed-size, 4B values (WiredTiger never writes buffers larger than 4GB).
  *
- * The unused field is available for a mode flag if one is needed in the future,
- * we guarantee it's 0.
+ * The unused field is available for a mode flag if one is needed in the future, we guarantee it's
+ * 0.
  */
 typedef struct {
     uint32_t compressed_len;   /* True compressed length */
@@ -183,9 +181,8 @@ lz4_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, siz
     lz4_prefix_swap(&prefix);
 #endif
     if (prefix.compressed_len + sizeof(LZ4_PREFIX) > src_len) {
-        (void)wt_api->err_printf(wt_api, session,
-          "WT_COMPRESSOR.decompress: stored size exceeds source "
-          "size");
+        (void)wt_api->err_printf(
+          wt_api, session, "WT_COMPRESSOR.decompress: stored size exceeds source size");
         return (WT_ERROR);
     }
 

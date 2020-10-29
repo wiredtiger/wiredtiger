@@ -101,8 +101,10 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
          * delivered in between those calls so the file may no longer exist but reading the
          * directory will still return its entry. Handle that case and skip the file if it happens.
          */
-        if (rfd < 0 && errno == ENOENT)
+        if (rfd < 0 && errno == ENOENT) {
+            printf("COPY_DIR: direct:%d ENOENT Source file %s not found.\n", directio, dp->d_name);
             continue;
+        }
         testutil_assertfmt(rfd >= 0, "Open of source %s failed with %d\n", fromfile, errno);
         wfd = open(tofile, O_WRONLY | O_CREAT, 0666);
         testutil_assertfmt(wfd >= 0, "Open of dest %s failed with %d\n", tofile, errno);

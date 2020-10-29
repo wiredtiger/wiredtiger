@@ -175,9 +175,9 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
                     shutil.copy(copy_from, copy_to)
                 else:
                     self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
-                    write_from = newfile
+                    read_from = newfile
                     write_to = self.home_incr + '.' + str(self.counter) + '/' + newfile
-                    rfp = open(write_from, "r+b")
+                    rfp = open(read_from, "r+b")
                     wfp = open(write_to, "w+b")
                     rfp.seek(offset, 0)
                     wfp.seek(offset, 0)

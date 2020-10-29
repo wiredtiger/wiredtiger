@@ -30,7 +30,7 @@
 #   Test that compact reduces the file size.
 #
 
-import time, unittest, wiredtiger, wttest
+import time, wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
@@ -109,7 +109,6 @@ class test_compact02(wttest.WiredTigerTestCase):
         self.session = self.conn.open_session(None)
 
     # Create a table, add keys with both big and small values.
-    @unittest.skip("Temporarily disabled")
     def test_compact02(self):
         self.ConnectionOpen(self.cacheSize)
 
@@ -150,11 +149,11 @@ class test_compact02(wttest.WiredTigerTestCase):
         # Compact can collide with eviction, if that happens we retry. Wait for
         # a long time, the check for EBUSY means we're not retrying on any real
         # errors.
-        for i in range(1, 60):
+        for i in range(1, 100):
             if not self.raisesBusy(
               lambda: self.session.compact(self.uri, None)):
                 break
-            time.sleep(5)
+            time.sleep(6)
 
         # 6. Get stats on compacted table.
         sz = self.getSize()

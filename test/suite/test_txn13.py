@@ -40,19 +40,22 @@ class test_txn13(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
     tablename = 'test_txn13'
     uri = 'table:' + tablename
-    nops = 1024
+    # We use 8 ops here to get around the 10 operation check done by WiredTiger to determine if
+    # a transaction is blocking or not.
+    nops = 8
     create_params = 'key_format=i,value_format=S'
 
+    # The 1gb, 2gb and 4gb scenario names refer to the valuesize * nops.
     scenarios = make_scenarios([
-        ('1gb', dict(expect_err=False, valuesize=1048576)),
-        ('2gb', dict(expect_err=False, valuesize=2097152)),
-        ('4gb', dict(expect_err=True, valuesize=4194304))
+        ('1gb', dict(expect_err=False, valuesize=134217728)),
+        ('2gb', dict(expect_err=False, valuesize=268435456)),
+        ('4gb', dict(expect_err=True, valuesize=536870912))
     ])
 
     # Turn on logging for this test.
     def conn_config(self):
         return 'log=(archive=false,enabled,file_max=%s)' % self.logmax + \
-            ',cache_size=20G'
+            ',cache_size=20G,eviction_dirty_trigger=100'
 
     @wttest.longtest('txn tests with huge values')
     def test_large_values(self):

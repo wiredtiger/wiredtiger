@@ -85,6 +85,11 @@ typedef enum {
     } WT_EVICT_WALK_TYPE;
 
 /*
+ * An invalid btree file ID value. ID 0 is reserved for the metadata file.
+ */
+#define WT_BTREE_ID_INVALID UINT32_MAX
+
+/*
  * WT_BTREE --
  *	A btree handle.
  */
@@ -178,10 +183,10 @@ struct __wt_btree {
     WT_BM *bm;          /* Block manager reference */
     u_int block_header; /* WT_PAGE_HEADER_BYTE_SIZE */
 
-    uint64_t write_gen;   /* Write generation */
-    uint64_t rec_max_txn; /* Maximum txn seen (clean trees) */
+    uint64_t write_gen;      /* Write generation */
+    uint64_t base_write_gen; /* Write generation on startup. */
+    uint64_t rec_max_txn;    /* Maximum txn seen (clean trees) */
     wt_timestamp_t rec_max_timestamp;
-    uint64_t hs_counter; /* History store counter */
 
     uint64_t checkpoint_gen;       /* Checkpoint generation */
     WT_SESSION_IMPL *sync_session; /* Syncing session */
@@ -199,16 +204,33 @@ struct __wt_btree {
 #define WT_SESSION_BTREE_SYNC_SAFE(session, btree) \
     ((btree)->syncing != WT_BTREE_SYNC_RUNNING || (btree)->sync_session == (session))
 
-    uint64_t bytes_inmem;       /* Cache bytes in memory. */
     uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
     uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
     uint64_t bytes_dirty_total; /* Bytes ever dirtied in cache. */
+    uint64_t bytes_inmem;       /* Cache bytes in memory. */
+    uint64_t bytes_internal;    /* Bytes in internal pages. */
+    uint64_t bytes_updates;     /* Bytes in updates. */
 
     /*
      * The maximum bytes allowed to be used for the table on disk. This is currently only used for
      * the history store table.
      */
     uint64_t file_max;
+
+/*
+ * We maintain a timer for a clean file to avoid excessive checking of checkpoint information that
+ * incurs a large processing penalty. We avoid that but will periodically incur the cost to clean up
+ * checkpoints that can be deleted.
+ */
+#define WT_BTREE_CLEAN_CKPT(session, btree, val)                          \
+    do {                                                                  \
+        (btree)->clean_ckpt_timer = (val);                                \
+        WT_STAT_DATA_SET((session), btree_clean_checkpoint_timer, (val)); \
+    } while (0)
+/* Statistics don't like UINT64_MAX, use INT64_MAX. It's still forever. */
+#define WT_BTREE_CLEAN_CKPT_FOREVER INT64_MAX
+#define WT_BTREE_CLEAN_MINUTES 10
+    uint64_t clean_ckpt_timer;
 
     /*
      * We flush pages from the tree (in order to make checkpoint faster), without a high-level lock.
@@ -251,18 +273,16 @@ struct __wt_btree {
 #define WT_BTREE_NO_CHECKPOINT 0x004000u /* Disable checkpoints */
 #define WT_BTREE_NO_LOGGING 0x008000u    /* Disable logging */
 #define WT_BTREE_READONLY 0x010000u      /* Handle is readonly */
-#define WT_BTREE_REBALANCE 0x020000u     /* Handle is for rebalance */
-#define WT_BTREE_SALVAGE 0x040000u       /* Handle is for salvage */
-#define WT_BTREE_SKIP_CKPT 0x080000u     /* Handle skipped checkpoint */
-#define WT_BTREE_UPGRADE 0x100000u       /* Handle is for upgrade */
-#define WT_BTREE_VERIFY 0x200000u        /* Handle is for verify */
+#define WT_BTREE_SALVAGE 0x020000u       /* Handle is for salvage */
+#define WT_BTREE_SKIP_CKPT 0x040000u     /* Handle skipped checkpoint */
+#define WT_BTREE_UPGRADE 0x080000u       /* Handle is for upgrade */
+#define WT_BTREE_VERIFY 0x100000u        /* Handle is for verify */
     uint32_t flags;
 };
 
 /* Flags that make a btree handle special (not for normal use). */
-#define WT_BTREE_SPECIAL_FLAGS                                                                   \
-    (WT_BTREE_ALTER | WT_BTREE_BULK | WT_BTREE_REBALANCE | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | \
-      WT_BTREE_VERIFY)
+#define WT_BTREE_SPECIAL_FLAGS \
+    (WT_BTREE_ALTER | WT_BTREE_BULK | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)
 
 /*
  * WT_SALVAGE_COOKIE --

@@ -8,7 +8,15 @@
 
 #include "util.h"
 
-static int usage(void);
+static int
+usage(void)
+{
+    static const char *options[] = {"-a", "append each value as a new record in the data source",
+      "-o", "allow overwrite of previously existing records", NULL, NULL};
+
+    util_usage("write [-ao] uri key ...", "options:", options);
+    return (1);
+}
 
 int
 util_write(WT_SESSION *session, int argc, char *argv[])
@@ -69,17 +77,14 @@ util_write(WT_SESSION *session, int argc, char *argv[])
      */
     if (!WT_STREQ(cursor->key_format, "r") && !WT_STREQ(cursor->key_format, "S")) {
         fprintf(stderr,
-          "%s: write command only possible when the key format is "
-          "a record number or string\n",
+          "%s: write command only possible when the key format is a record number or string\n",
           progname);
         return (1);
     }
     rkey = WT_STREQ(cursor->key_format, "r");
     if (!WT_STREQ(cursor->value_format, "S")) {
-        fprintf(stderr,
-          "%s: write command only possible when the value format is "
-          "a string\n",
-          progname);
+        fprintf(
+          stderr, "%s: write command only possible when the value format is a string\n", progname);
         return (1);
     }
 
@@ -101,14 +106,4 @@ util_write(WT_SESSION *session, int argc, char *argv[])
     }
 
     return (0);
-}
-
-static int
-usage(void)
-{
-    (void)fprintf(stderr,
-      "usage: %s %s "
-      "write [-ao] uri key ...\n",
-      progname, usage_prefix);
-    return (1);
 }

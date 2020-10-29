@@ -8,7 +8,12 @@
 
 #include "util.h"
 
-static int usage(void);
+static int
+usage(void)
+{
+    util_usage("read uri key ...", NULL, NULL);
+    return (1);
+}
 
 int
 util_read(WT_SESSION *session, int argc, char *argv[])
@@ -51,17 +56,14 @@ util_read(WT_SESSION *session, int argc, char *argv[])
      */
     if (!WT_STREQ(cursor->key_format, "r") && !WT_STREQ(cursor->key_format, "S")) {
         fprintf(stderr,
-          "%s: read command only possible when the key format is "
-          "a record number or string\n",
+          "%s: read command only possible when the key format is a record number or string\n",
           progname);
         return (1);
     }
     rkey = WT_STREQ(cursor->key_format, "r");
     if (!WT_STREQ(cursor->value_format, "S")) {
-        fprintf(stderr,
-          "%s: read command only possible when the value format is "
-          "a string\n",
-          progname);
+        fprintf(
+          stderr, "%s: read command only possible when the value format is a string\n", progname);
         return (1);
     }
 
@@ -93,14 +95,4 @@ util_read(WT_SESSION *session, int argc, char *argv[])
     }
 
     return (rval ? 1 : 0);
-}
-
-static int
-usage(void)
-{
-    (void)fprintf(stderr,
-      "usage: %s %s "
-      "read uri key ...\n",
-      progname, usage_prefix);
-    return (1);
 }

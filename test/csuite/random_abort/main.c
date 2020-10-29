@@ -68,6 +68,12 @@ static bool inmem;
 #define ENV_CONFIG_REC "log=(recover=on)"
 
 /*
+ * A minimum width of 10, along with zero filling, means that all the keys sort according to their
+ * integer value, making each thread's key space distinct.
+ */
+#define KEY_FORMAT ("%010" PRIu64)
+
+/*
  * Maximum number of modifications that are allowed to perform cursor modify operation.
  */
 #define MAX_MODIFY_ENTRIES 10
@@ -156,9 +162,15 @@ thread_run(void *arg)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-    /* Make sure that alternative threads operate on column-store table */
+#if 0
+    /*
+     * Make sure that alternative threads operate on column-store table
+     *
+     * FIXME-WT-6125: temporarily turn off column store test.
+     */
     if (td->id % 2 != 0)
         columnar_table = true;
+#endif
 
     if (columnar_table)
         testutil_check(session->open_cursor(session, col_uri, NULL, NULL, &cursor));
@@ -174,6 +186,9 @@ thread_run(void *arg)
         if (i == 0)
             i++;
 
+        /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
+        testutil_check(session->begin_transaction(session, "isolation=snapshot"));
+
         /*
          * The value is the insert- with key appended.
          */
@@ -182,7 +197,7 @@ thread_run(void *arg)
         if (columnar_table)
             cursor->set_key(cursor, i);
         else {
-            testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, i));
+            testutil_check(__wt_snprintf(kname, sizeof(kname), KEY_FORMAT, i));
             cursor->set_key(cursor, kname);
         }
         /*
@@ -198,6 +213,10 @@ thread_run(void *arg)
         }
         cursor->set_value(cursor, &data);
         testutil_check(cursor->insert(cursor));
+
+        /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
+        testutil_check(session->commit_transaction(session, NULL));
+
         /*
          * Save the key separately for checking later.
          */
@@ -208,6 +227,9 @@ thread_run(void *arg)
          * Decide what kind of operation can be performed on the already inserted data.
          */
         if (i % MAX_NUM_OPS == OP_TYPE_DELETE) {
+            /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
+            testutil_check(session->begin_transaction(session, "isolation=snapshot"));
+
             if (columnar_table)
                 cursor->set_key(cursor, i);
             else
@@ -215,12 +237,13 @@ thread_run(void *arg)
 
             testutil_check(cursor->remove(cursor));
 
+            /* FIXME-WT-6035: temporarily turn off tests for lower isolation levels. */
+            testutil_check(session->commit_transaction(session, NULL));
+
             /* Save the key separately for checking later.*/
             if (fprintf(fp[DELETE_RECORD_FILE_ID], "%" PRIu64 "\n", i) == -1)
                 testutil_die(errno, "fprintf");
-        } else if (i % MAX_NUM_OPS == OP_TYPE_INSERT)
-            continue;
-        else if (i % MAX_NUM_OPS == OP_TYPE_MODIFY) {
+        } else if (i % MAX_NUM_OPS == OP_TYPE_MODIFY) {
             testutil_check(__wt_snprintf(new_buf, sizeof(new_buf), "modify-%" PRIu64, i));
             new_buf_size = (data.size < MAX_VAL - 1 ? data.size : MAX_VAL - 1);
 
@@ -259,7 +282,7 @@ thread_run(void *arg)
              */
             if (fprintf(fp[MODIFY_RECORD_FILE_ID], "%s %" PRIu64 "\n", new_buf, i) == -1)
                 testutil_die(errno, "fprintf");
-        } else
+        } else if (i % MAX_NUM_OPS != OP_TYPE_INSERT)
             /* Dead code. To catch any op type misses */
             testutil_die(0, "Unsupported operation type.");
     }
@@ -360,6 +383,8 @@ recover_and_verify(uint32_t nthreads)
     absent = count = 0;
     fatal = false;
     for (i = 0; i < nthreads; ++i) {
+
+#if 0
         /*
          * Every alternative thread is operated on column-store table. Make sure that proper cursor
          * is used for verification of recovered records.
@@ -371,6 +396,11 @@ recover_and_verify(uint32_t nthreads)
             columnar_table = false;
             cursor = row_cursor;
         }
+#else
+        /* FIXME-WT-6125: temporarily turn off column store test. */
+        columnar_table = false;
+        cursor = row_cursor;
+#endif
 
         middle = 0;
         testutil_check(__wt_snprintf(fname[DELETE_RECORD_FILE_ID],
@@ -438,7 +468,7 @@ recover_and_verify(uint32_t nthreads)
                 if (columnar_table)
                     cursor->set_key(cursor, key);
                 else {
-                    testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, key));
+                    testutil_check(__wt_snprintf(kname, sizeof(kname), KEY_FORMAT, key));
                     cursor->set_key(cursor, kname);
                 }
 
@@ -455,9 +485,7 @@ recover_and_verify(uint32_t nthreads)
                     fatal = true;
                 } else {
                     if (!inmem)
-                        printf(
-                          "%s: deleted record"
-                          " found with key %" PRIu64 "\n",
+                        printf("%s: deleted record found with key %" PRIu64 "\n",
                           fname[DELETE_RECORD_FILE_ID], key);
                     absent++;
                     middle = key;
@@ -469,7 +497,7 @@ recover_and_verify(uint32_t nthreads)
                 if (columnar_table)
                     cursor->set_key(cursor, key);
                 else {
-                    testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, key));
+                    testutil_check(__wt_snprintf(kname, sizeof(kname), KEY_FORMAT, key));
                     cursor->set_key(cursor, kname);
                 }
 
@@ -477,9 +505,7 @@ recover_and_verify(uint32_t nthreads)
                     if (ret != WT_NOTFOUND)
                         testutil_die(ret, "search");
                     if (!inmem)
-                        printf(
-                          "%s: no insert record"
-                          " with key %" PRIu64 "\n",
+                        printf("%s: no insert record with key %" PRIu64 "\n",
                           fname[INSERT_RECORD_FILE_ID], key);
                     absent++;
                     middle = key;
@@ -522,7 +548,7 @@ recover_and_verify(uint32_t nthreads)
                 if (columnar_table)
                     cursor->set_key(cursor, key);
                 else {
-                    testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, key));
+                    testutil_check(__wt_snprintf(kname, sizeof(kname), KEY_FORMAT, key));
                     cursor->set_key(cursor, kname);
                 }
 
@@ -721,12 +747,8 @@ main(int argc, char *argv[])
     if (chdir(home) != 0)
         testutil_die(errno, "parent chdir: %s", home);
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "rm -rf ../%s.SAVE; mkdir ../%s.SAVE; "
-      "cp -p WiredTigerLog.* ../%s.SAVE;",
-      home, home, home));
-    if ((status = system(buf)) < 0)
-        testutil_die(status, "system: %s", buf);
+    /* Copy the data to a separate folder for debugging purpose. */
+    testutil_copy_data(home);
 
     /*
      * Recover the database and verify whether all the records from all threads are present or not?

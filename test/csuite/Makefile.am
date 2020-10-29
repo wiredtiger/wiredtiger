@@ -7,10 +7,6 @@ AM_LDFLAGS = -static
 all_TESTS=
 noinst_PROGRAMS=
 
-# The import test is only a shell script
-# Temporarily disabled
-# all_TESTS += import/smoke.sh
-
 test_incr_backup_SOURCES = incr_backup/main.c
 noinst_PROGRAMS += test_incr_backup
 all_TESTS += incr_backup/smoke.sh
@@ -53,12 +49,12 @@ all_TESTS += test_wt2403_lsm_workload
 
 test_wt2246_col_append_SOURCES = wt2246_col_append/main.c
 noinst_PROGRAMS += test_wt2246_col_append
-all_TESTS += test_wt2246_col_append
+# Temporarily disabled (WT-5790)
+# all_TESTS += test_wt2246_col_append
 
 test_wt2323_join_visibility_SOURCES = wt2323_join_visibility/main.c
 noinst_PROGRAMS += test_wt2323_join_visibility
-# Temporarily disabled
-# all_TESTS += test_wt2323_join_visibility
+all_TESTS += test_wt2323_join_visibility
 
 test_wt2535_insert_race_SOURCES = wt2535_insert_race/main.c
 noinst_PROGRAMS += test_wt2535_insert_race
@@ -122,8 +118,7 @@ all_TESTS += test_wt3874_pad_byte_collator
 
 test_wt4105_large_doc_small_upd_SOURCES = wt4105_large_doc_small_upd/main.c
 noinst_PROGRAMS += test_wt4105_large_doc_small_upd
-# Temporarily disabled (WT-5579)
-# all_TESTS += test_wt4105_large_doc_small_upd
+all_TESTS += test_wt4105_large_doc_small_upd
 
 test_wt4117_checksum_SOURCES = wt4117_checksum/main.c
 noinst_PROGRAMS += test_wt4117_checksum
@@ -148,6 +143,14 @@ all_TESTS += test_wt4803_history_store_abort
 test_wt4891_meta_ckptlist_get_alloc_SOURCES=wt4891_meta_ckptlist_get_alloc/main.c
 noinst_PROGRAMS += test_wt4891_meta_ckptlist_get_alloc
 all_TESTS += test_wt4891_meta_ckptlist_get_alloc
+
+test_wt6185_modify_ts_SOURCES = wt6185_modify_ts/main.c
+noinst_PROGRAMS += test_wt6185_modify_ts
+all_TESTS += test_wt6185_modify_ts
+
+test_wt6616_checkpoint_oldest_ts_SOURCES = wt6616_checkpoint_oldest_ts/main.c
+noinst_PROGRAMS += test_wt6616_checkpoint_oldest_ts
+all_TESTS += test_wt6616_checkpoint_oldest_ts
 
 # Run this during a "make check" smoke test.
 TESTS = $(all_TESTS)

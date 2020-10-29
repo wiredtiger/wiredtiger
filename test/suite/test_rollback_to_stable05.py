@@ -28,7 +28,7 @@
 
 import time
 from helper import copy_wiredtiger_home
-import unittest, wiredtiger, wttest
+import wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -76,10 +76,6 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
             self, uri_2, 0, key_format="i", value_format="S", config='log=(enabled=false)')
         ds_2.populate()
 
-        # Pin oldest and stable to timestamp 1.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
-            ',stable_timestamp=' + timestamp_str(1))
-
         valuea = "aaaaa" * 100
         valueb = "bbbbb" * 100
         valuec = "ccccc" * 100
@@ -113,12 +109,6 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
         self.large_updates(uri_2, valued, ds_2, nrows, 0)
         self.check(valued, uri_2, nrows, 0)
 
-        # Pin stable to timestamp 20 if prepare otherwise 10.
-        if self.prepare:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
-        else:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
-
         # Checkpoint to ensure that all the data is flushed.
         if not self.in_memory:
             self.session.checkpoint()
@@ -150,7 +140,7 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
         else:
             self.assertEqual(pages_visited, 0)
             self.assertEqual(upd_aborted, 0)
-            self.assertEqual(hs_removed, nrows * 3 * 2)
+            self.assertEqual(hs_removed, 0)
 
 if __name__ == '__main__':
     wttest.run()

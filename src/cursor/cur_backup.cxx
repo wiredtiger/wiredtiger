@@ -169,7 +169,7 @@ err:
  * __backup_free --
  *     Free list resources for a backup cursor.
  */
-static void
+static int
 __backup_free(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 {
     int i;
@@ -181,7 +181,8 @@ __backup_free(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     }
     if (cb->incr_file != NULL)
         __wt_free(session, cb->incr_file);
-    __wt_curbackup_free_incr(session, cb);
+
+    return (__wt_curbackup_free_incr(session, cb));
 }
 
 /*
@@ -213,7 +214,7 @@ err:
      * cursor is closed), because that cursor will never not be responsible for cleanup.
      */
     if (F_ISSET(cb, WT_CURBACKUP_DUP)) {
-        __backup_free(session, cb);
+        WT_TRET(__backup_free(session, cb));
         /* Make sure the original backup cursor is still open. */
         WT_ASSERT(session, F_ISSET(session, WT_SESSION_BACKUP_CURSOR));
         F_CLR(session, WT_SESSION_BACKUP_DUP);
@@ -311,7 +312,7 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
         __wt_verbose(session, WT_VERB_BACKUP, "blk[%u] flags 0x%" PRIx64, i, blk->flags);
-        /* If it isn't use, we can use it. */
+        /* If it isn't already in use, we can use it. */
         if (!F_ISSET(blk, WT_BLKINCR_INUSE))
             break;
     }
@@ -319,7 +320,7 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
      * We didn't find an entry. This should not happen.
      */
     if (i == WT_BLKINCR_MAX)
-        WT_PANIC_RET(session, WT_NOTFOUND, "Could not find an incremental backup slot to use");
+        WT_RET_PANIC(session, WT_NOTFOUND, "Could not find an incremental backup slot to use");
 
     /* Use the slot.  */
     if (blk->id_str != NULL)
@@ -610,7 +611,7 @@ __backup_start(
      * Single thread hot backups: we're holding the schema lock, so we know we'll serialize with
      * other attempts to start a hot backup.
      */
-    if (conn->hot_backup && !is_dup)
+    if (conn->hot_backup_start != 0 && !is_dup)
         WT_RET_MSG(session, EINVAL, "there is already a backup cursor open");
 
     if (F_ISSET(session, WT_SESSION_BACKUP_DUP) && is_dup)
@@ -678,20 +679,15 @@ __backup_start(
     }
     if (!target_list) {
         /*
-         * It's important to first gather the log files to be copied
-         * (which internally starts a new log file), followed by
-         * choosing a checkpoint to reference in the WiredTiger.backup
-         * file.
+         * It's important to first gather the log files to be copied (which internally starts a new
+         * log file), followed by choosing a checkpoint to reference in the WiredTiger.backup file.
          *
-         * Applications may have logic that takes a checkpoint, followed
-         * by performing a write that should only appear in the new
-         * checkpoint. This ordering prevents choosing the prior
-         * checkpoint, but including the write in the log files
-         * returned.
+         * Applications may have logic that takes a checkpoint, followed by performing a write that
+         * should only appear in the new checkpoint. This ordering prevents choosing the prior
+         * checkpoint, but including the write in the log files returned.
          *
-         * It is also possible, and considered legal, to choose the new
-         * checkpoint, but not include the log file that contains the
-         * log entry for taking the new checkpoint.
+         * It is also possible, and considered legal, to choose the new checkpoint, but not include
+         * the log file that contains the log entry for taking the new checkpoint.
          */
         WT_ERR(__backup_log_append(session, cb, true));
         WT_ERR(__backup_all(session));
@@ -765,13 +761,13 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     WT_WITH_HOTBACKUP_WRITE_LOCK(session, conn->hot_backup_list = NULL);
     if (cb->incr_src != NULL)
         F_CLR(cb->incr_src, WT_BLKINCR_INUSE);
-    __backup_free(session, cb);
+    WT_TRET(__backup_free(session, cb));
 
     /* Remove any backup specific file. */
     WT_TRET(__wt_backup_file_remove(session));
 
     /* Checkpoint deletion and next hot backup can proceed. */
-    WT_WITH_HOTBACKUP_WRITE_LOCK(session, conn->hot_backup = false);
+    WT_WITH_HOTBACKUP_WRITE_LOCK(session, conn->hot_backup_start = 0);
     F_CLR(session, WT_SESSION_BACKUP_CURSOR);
 
     return (ret);

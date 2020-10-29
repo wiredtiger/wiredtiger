@@ -96,12 +96,6 @@
 #define WT_ENCRYPT_LEN_SIZE sizeof(uint32_t)
 
 /*
- * Default hash table size; we don't need a prime number of buckets because we always use a good
- * hash function.
- */
-#define WT_HASH_ARRAY_SIZE 512
-
-/*
  * __wt_calloc_def, __wt_calloc_one --
  *     Most calloc calls don't need separate count or sizeof arguments.
  */
@@ -114,12 +108,13 @@
  *     Common case allocate-and-grow function. Starts by allocating the requested number of items
  *     (at least 10), then doubles each time the list needs to grow.
  */
-#define __wt_realloc_def(session, sizep, number, addr)                                      \
-    (((number) * sizeof(**(addr)) <= *(sizep)) ?                                            \
-        0 :                                                                                 \
-        __wt_realloc(session, sizep, (F_ISSET(S2C(session), WT_CONN_DEBUG_REALLOC_EXACT)) ? \
-            (number) * sizeof(**(addr)) :                                                   \
-            WT_MAX(*(sizep)*2, WT_MAX(10, (number)) * sizeof(**(addr))),                    \
+#define __wt_realloc_def(session, sizep, number, addr)                          \
+    (((number) * sizeof(**(addr)) <= *(sizep)) ?                                \
+        0 :                                                                     \
+        __wt_realloc(session, sizep,                                            \
+          (FLD_ISSET(S2C(session)->debug_flags, WT_CONN_DEBUG_REALLOC_EXACT)) ? \
+            (number) * sizeof(**(addr)) :                                       \
+            WT_MAX(*(sizep)*2, WT_MAX(10, (number)) * sizeof(**(addr))),        \
           addr))
 
 /*
@@ -234,9 +229,6 @@
             }                                                          \
         }                                                              \
     } while (0)
-
-/* Verbose messages. */
-#define WT_VERBOSE_ISSET(session, f) (FLD_ISSET(S2C(session)->verbose, f))
 
 #define WT_CLEAR(s) memset(&(s), 0, sizeof(s))
 

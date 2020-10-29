@@ -81,7 +81,7 @@ __wt_modify_pack(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries, WT_ITEM **
     uint8_t *data;
     int i;
 
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
     *modifyp = NULL;
 
     /*
@@ -198,10 +198,12 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
     } else { /* Shrink or grow */
         /* Move trailing data forward/backward to its new location. */
         from = (const uint8_t *)value->data + (offset + size);
-        WT_ASSERT(session, WT_DATA_IN_ITEM(value) &&
+        WT_ASSERT(session,
+          WT_DATA_IN_ITEM(value) &&
             from + (value->size - (offset + size)) <= (uint8_t *)value->mem + value->memsize);
         to = (uint8_t *)value->data + (offset + data_size);
-        WT_ASSERT(session, WT_DATA_IN_ITEM(value) &&
+        WT_ASSERT(session,
+          WT_DATA_IN_ITEM(value) &&
             to + (value->size - (offset + size)) <= (uint8_t *)value->mem + value->memsize);
         memmove(to, from, value->size - (offset + size));
 
@@ -346,33 +348,18 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const size_t
 }
 
 /*
- * __wt_modify_apply --
- *     Apply a single set of WT_MODIFY changes to a cursor buffer.
- */
-int
-__wt_modify_apply(WT_CURSOR *cursor, const void *modify)
-{
-    WT_SESSION_IMPL *session;
-    bool sformat;
-
-    session = (WT_SESSION_IMPL *)cursor->session;
-    sformat = cursor->value_format[0] == 'S';
-
-    return (__wt_modify_apply_item(session, &cursor->value, modify, sformat));
-}
-
-/*
  * __wt_modify_apply_item --
  *     Apply a single set of WT_MODIFY changes to a WT_ITEM buffer.
  */
 int
-__wt_modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify, bool sformat)
+__wt_modify_apply_item(
+  WT_SESSION_IMPL *session, const char *value_format, WT_ITEM *value, const void *modify)
 {
     WT_MODIFY mod;
     size_t datasz, destsz, item_offset, tmp;
     const size_t *p;
     int napplied, nentries;
-    bool overlap;
+    bool overlap, sformat;
 
     /*
      * Get the number of modify entries and set a second pointer to reference the replacement data.
@@ -380,6 +367,13 @@ __wt_modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, const void *mod
     p = static_cast<const size_t*>(modify);
     memcpy(&tmp, p++, sizeof(size_t));
     nentries = (int)tmp;
+
+    /*
+     * Modifies can only be applied on a single value field. Make sure we are not applying modifies
+     * to schema with multiple value fields.
+     */
+    WT_ASSERT(session, value_format[1] == '\0');
+    sformat = value_format[0] == 'S';
 
     /*
      * Grow the buffer first. This function is often called using a cursor buffer referencing
@@ -437,10 +431,11 @@ __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_DECL_RET;
 
     WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
-    WT_ERR(__wt_modify_apply(cursor, modify->data));
+    WT_ERR(
+      __wt_modify_apply_item(CUR2S(cursor), cursor->value_format, &cursor->value, modify->data));
 
 err:
-    __wt_scr_free((WT_SESSION_IMPL *)cursor->session, &modify);
+    __wt_scr_free(CUR2S(cursor), &modify);
     return (ret);
 }
 
@@ -512,6 +507,28 @@ __wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
 }
 
 /*
+ * __wt_modify_vector_peek --
+ *     Peek an update pointer off a modify vector.
+ */
+void
+__wt_modify_vector_peek(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
+{
+    WT_ASSERT(modifies->session, modifies->size > 0);
+
+    *updp = modifies->listp[modifies->size - 1];
+}
+
+/*
+ * __wt_modify_vector_clear --
+ *     Clear a modify vector.
+ */
+void
+__wt_modify_vector_clear(WT_MODIFY_VECTOR *modifies)
+{
+    modifies->size = 0;
+}
+
+/*
  * __wt_modify_vector_free --
  *     Free any resources associated with a modify vector. If we exceeded the allowed stack space on
  *     the vector and had to fallback to dynamic allocations, we'll be doing a free here.
@@ -522,4 +539,74 @@ __wt_modify_vector_free(WT_MODIFY_VECTOR *modifies)
     if (modifies->allocated_bytes != 0)
         __wt_free(modifies->session, modifies->listp);
     __wt_modify_vector_init(modifies->session, modifies);
+}
+
+/*
+ * __wt_modify_reconstruct_from_upd_list --
+ *     Takes an in-memory modify and populates an update value with the reconstructed full value.
+ */
+int
+__wt_modify_reconstruct_from_upd_list(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE_VALUE *upd_value)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_MODIFY_VECTOR modifies;
+    WT_TIME_WINDOW tw;
+
+    WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
+
+    cursor = &cbt->iface;
+
+    /* While we have a pointer to our original modify, grab this information. */
+    upd_value->tw.durable_start_ts = upd->durable_ts;
+    upd_value->tw.start_txn = upd->txnid;
+
+    /* Construct full update */
+    __wt_modify_vector_init(session, &modifies);
+    /* Find a complete update. */
+    for (; upd != NULL; upd = upd->next) {
+        if (upd->txnid == WT_TXN_ABORTED)
+            continue;
+
+        if (WT_UPDATE_DATA_VALUE(upd))
+            break;
+
+        if (upd->type == WT_UPDATE_MODIFY)
+            WT_ERR(__wt_modify_vector_push(&modifies, upd));
+    }
+    /*
+     * If there's no full update, the base item is the on-page item. If the update is a tombstone,
+     * the base item is an empty item.
+     */
+    if (upd == NULL) {
+        /*
+         * Callers of this function set the cursor slot to an impossible value to check we don't try
+         * and return on-page values when the update list should have been sufficient (which
+         * happens, for example, if an update list was truncated, deleting the standard update
+         * required by a previous modify update). Assert the case.
+         */
+        WT_ASSERT(session, cbt->slot != UINT32_MAX);
+
+        WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &upd_value->buf, &tw));
+        /*
+         * Applying modifies on top of a tombstone is invalid. So if we're using the onpage value,
+         * the stop time point should be unset.
+         */
+        WT_ASSERT(session,
+          tw.stop_txn == WT_TXN_MAX && tw.stop_ts == WT_TS_MAX && tw.durable_stop_ts == WT_TS_NONE);
+    } else {
+        /* The base update must not be a tombstone. */
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
+        WT_ERR(__wt_buf_set(session, &upd_value->buf, upd->data, upd->size));
+    }
+    /* Once we have a base item, roll forward through any visible modify updates. */
+    while (modifies.size > 0) {
+        __wt_modify_vector_pop(&modifies, &upd);
+        WT_ERR(__wt_modify_apply_item(session, cursor->value_format, &upd_value->buf, upd->data));
+    }
+    upd_value->type = WT_UPDATE_STANDARD;
+err:
+    __wt_modify_vector_free(&modifies);
+    return (ret);
 }

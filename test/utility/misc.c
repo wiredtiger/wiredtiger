@@ -61,7 +61,7 @@ testutil_die(int e, const char *fmt, ...)
     if (e != 0)
         fprintf(stderr, ": %s", wiredtiger_strerror(e));
     fprintf(stderr, "\n");
-    fprintf(stderr, "process aborting\n");
+    fprintf(stderr, "%s: process aborting\n", progname);
 
     abort();
 }
@@ -194,6 +194,35 @@ testutil_cleanup(TEST_OPTS *opts)
 }
 
 /*
+ * testutil_copy_data --
+ *     Copy the data to a backup folder.
+ */
+void
+testutil_copy_data(const char *dir)
+{
+    int status;
+    char buf[512];
+
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+      "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && cp -p * ../%s.SAVE", dir, dir, dir));
+    if ((status = system(buf)) < 0)
+        testutil_die(status, "system: %s", buf);
+}
+
+/*
+ * testutil_timestamp_parse --
+ *     Parse a timestamp to an integral value.
+ */
+void
+testutil_timestamp_parse(const char *str, uint64_t *tsp)
+{
+    char *p;
+
+    *tsp = __wt_strtouq(str, &p, 16);
+    testutil_assert(p - str <= 16);
+}
+
+/*
  * testutil_is_flag_set --
  *     Return if an environment variable flag is set.
  */
@@ -246,14 +275,10 @@ testutil_sleep_wait(uint32_t seconds, pid_t pid)
     while (seconds > 0) {
         if ((got = waitpid(pid, &status, WNOHANG | WUNTRACED)) == pid) {
             if (WIFEXITED(status))
-                testutil_die(EINVAL, "Child process %" PRIu64
-                                     " exited early"
-                                     " with status %d",
+                testutil_die(EINVAL, "Child process %" PRIu64 " exited early with status %d",
                   (uint64_t)pid, WEXITSTATUS(status));
             if (WIFSIGNALED(status))
-                testutil_die(EINVAL, "Child process %" PRIu64
-                                     " terminated "
-                                     " with signal %d",
+                testutil_die(EINVAL, "Child process %" PRIu64 " terminated  with signal %d",
                   (uint64_t)pid, WTERMSIG(status));
         } else if (got == -1)
             testutil_die(errno, "waitpid");

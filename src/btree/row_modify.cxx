@@ -32,7 +32,7 @@ __wt_page_modify_alloc(WT_SESSION_IMPL *session, WT_PAGE *page)
         __wt_cache_page_inmem_incr(session, page, sizeof(*modify));
     else
 err:
-    __wt_free(session, modify);
+        __wt_free(session, modify);
     return (ret);
 }
 
@@ -50,32 +50,39 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *old_upd, *upd, **upd_entry;
+    WT_UPDATE *last_upd, *old_upd, *upd, **upd_entry;
     size_t ins_size, upd_size;
     uint32_t ins_slot;
     u_int i, skipdepth;
-    bool logged;
+    bool inserted_to_update_chain, logged;
 
     ins = NULL;
     page = cbt->ref->page;
-    session = (WT_SESSION_IMPL *)cbt->iface.session;
+    session = CUR2S(cbt);
+    last_upd = NULL;
     upd = upd_arg;
-    logged = false;
+    inserted_to_update_chain = logged = false;
+
+    /*
+     * We should have one of the following:
+     * - A full update list to instantiate.
+     * - An update to append to the existing update list.
+     * - A key/value pair to create an update with and append to the update list.
+     * - A key with no value to create a reserved or tombstone update to append to the update list.
+     *
+     * A "full update list" is distinguished from "an update" by checking whether it has a "next"
+     * update. The modify type should only be set if no update list provided.
+     */
+    WT_ASSERT(session,
+      ((modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) && value == NULL &&
+        upd_arg == NULL) ||
+        (!(modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) &&
+          ((value == NULL && upd_arg != NULL) || (value != NULL && upd_arg == NULL))));
+    WT_ASSERT(session, upd_arg == NULL || modify_type == WT_UPDATE_INVALID);
 
     /* If we don't yet have a modify structure, we'll need one. */
     WT_RET(__wt_page_modify_init(session, page));
     mod = page->modify;
-
-    /*
-     * We should have EITHER:
-     * - A full update list to instantiate with.
-     * - An update to append the existing update list with.
-     * - A key/value pair to create an update with and append to the update list.
-     *
-     * A full update list is distinguished from an update by checking whether it has any "next"
-     * update.
-     */
-    WT_ASSERT(session, (value == NULL && upd_arg != NULL) || (value != NULL && upd_arg == NULL));
 
     /*
      * Modify: allocate an update array as necessary, build a WT_UPDATE structure, and call a
@@ -99,18 +106,22 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             WT_ERR(__wt_txn_update_check(session, cbt, old_upd = *upd_entry));
 
             /* Allocate a WT_UPDATE structure and transaction ID. */
-            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
+            WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;
 
             /* Avoid WT_CURSOR.update data copy. */
-            cbt->modify_update = upd;
+            __wt_upd_value_assign(cbt->modify_update, upd);
         } else {
             upd_size = __wt_update_list_memsize(upd);
 
+            /* If there are existing updates, append them after the new updates. */
+            for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
+                ;
+            last_upd->next = *upd_entry;
+
             /*
-             * If it's a full update list, we're trying to instantiate the row. Otherwise, it's just
-             * a single update that we'd like to append to the update list.
+             * We can either put multiple new updates or a single update on the update chain.
              *
              * Set the "old" entry to the second update in the list so that the serialization
              * function succeeds in swapping the first update into place.
@@ -159,12 +170,12 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
         cbt->ins = ins;
 
         if (upd_arg == NULL) {
-            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
+            WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;
 
             /* Avoid WT_CURSOR.update data copy. */
-            cbt->modify_update = upd;
+            __wt_upd_value_assign(cbt->modify_update, upd);
         } else
             upd_size = __wt_update_list_memsize(upd);
 
@@ -195,6 +206,8 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
           session, page, cbt->ins_head, cbt->ins_stack, &ins, ins_size, skipdepth, exclusive));
     }
 
+    inserted_to_update_chain = true;
+
     if (logged && modify_type != WT_UPDATE_RESERVE) {
         WT_ERR(__wt_txn_log_op(session, cbt));
         /*
@@ -213,8 +226,10 @@ err:
             __wt_txn_unmodify(session);
         __wt_free(session, ins);
         cbt->ins = NULL;
-        if (upd_arg == NULL)
+        if (upd_arg == NULL && !inserted_to_update_chain)
             __wt_free(session, upd);
+        if (last_upd != NULL)
+            last_upd->next = NULL;
     }
 
     return (ret);
@@ -245,40 +260,6 @@ __wt_row_insert_alloc(WT_SESSION_IMPL *session, const WT_ITEM *key, u_int skipde
     *insp = ins;
     if (ins_sizep != NULL)
         *ins_sizep = ins_size;
-    return (0);
-}
-
-/*
- * __wt_update_alloc --
- *     Allocate a WT_UPDATE structure and associated value and fill it in.
- */
-int
-__wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, WT_UPDATE **updp, size_t *sizep,
-  u_int modify_type)
-{
-    WT_UPDATE *upd;
-
-    *updp = NULL;
-
-    /*
-     * The code paths leading here are convoluted: assert we never attempt to allocate an update
-     * structure if only intending to insert one we already have.
-     */
-    WT_ASSERT(session, modify_type != WT_UPDATE_INVALID);
-
-    if (modify_type == WT_UPDATE_TOMBSTONE || modify_type == WT_UPDATE_RESERVE)
-        value = NULL;
-
-    /* Allocate the WT_UPDATE structure and room for the value, then copy any value into place. */
-    WT_RET(__wt_calloc(session, 1, WT_UPDATE_SIZE + (value == NULL ? 0 : value->size), &upd));
-    if (value != NULL && value->size != 0) {
-        upd->size = WT_STORE_SIZE(value->size);
-        memcpy(upd->data, value->data, value->size);
-    }
-    upd->type = (uint8_t)modify_type;
-
-    *updp = upd;
-    *sizep = WT_UPDATE_MEMSIZE(upd);
     return (0);
 }
 

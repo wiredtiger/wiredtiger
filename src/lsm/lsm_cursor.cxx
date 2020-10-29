@@ -32,7 +32,7 @@ __wt_clsm_request_switch(WT_CURSOR_LSM *clsm)
     WT_SESSION_IMPL *session;
 
     lsm_tree = clsm->lsm_tree;
-    session = (WT_SESSION_IMPL *)clsm->iface.session;
+    session = CUR2S(clsm);
 
     if (!lsm_tree->need_switch) {
         /*
@@ -64,7 +64,7 @@ __wt_clsm_await_switch(WT_CURSOR_LSM *clsm)
     int waited;
 
     lsm_tree = clsm->lsm_tree;
-    session = (WT_SESSION_IMPL *)clsm->iface.session;
+    session = CUR2S(clsm);
 
     /*
      * If there is no primary chunk, or a chunk has overflowed the hard limit, which either means a
@@ -96,7 +96,7 @@ __clsm_enter_update(WT_CURSOR_LSM *clsm)
     bool hard_limit, have_primary, ovfl;
 
     lsm_tree = clsm->lsm_tree;
-    session = (WT_SESSION_IMPL *)clsm->iface.session;
+    session = CUR2S(clsm);
 
     if (clsm->nchunks == 0) {
         primary = NULL;
@@ -104,10 +104,10 @@ __clsm_enter_update(WT_CURSOR_LSM *clsm)
     } else {
         primary = clsm->chunks[clsm->nchunks - 1]->cursor;
         primary_chunk = clsm->primary_chunk;
-        WT_ASSERT(session, F_ISSET(&session->txn, WT_TXN_HAS_ID));
+        WT_ASSERT(session, F_ISSET(session->txn, WT_TXN_HAS_ID));
         have_primary = (primary != NULL && primary_chunk != NULL &&
           (primary_chunk->switch_txn == WT_TXN_NONE ||
-                          WT_TXNID_LT(session->txn.id, primary_chunk->switch_txn)));
+            WT_TXNID_LT(session->txn->id, primary_chunk->switch_txn)));
     }
 
     /*
@@ -123,7 +123,7 @@ __clsm_enter_update(WT_CURSOR_LSM *clsm)
 
     if (have_primary) {
         WT_ENTER_PAGE_INDEX(session);
-        WT_WITH_BTREE(session, ((WT_CURSOR_BTREE *)primary)->btree,
+        WT_WITH_BTREE(session, CUR2BT(primary),
           ovfl = __wt_btree_lsm_over_size(
             session, hard_limit ? 2 * lsm_tree->chunk_size : lsm_tree->chunk_size));
         WT_LEAVE_PAGE_INDEX(session);
@@ -159,8 +159,8 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
     uint64_t i, pinned_id, switch_txn;
 
     lsm_tree = clsm->lsm_tree;
-    session = (WT_SESSION_IMPL *)clsm->iface.session;
-    txn = &session->txn;
+    session = CUR2S(clsm);
+    txn = session->txn;
 
     /* Merge cursors never update. */
     if (F_ISSET(clsm, WT_CLSM_MERGE))
@@ -229,7 +229,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
         if ((!update || txn->isolation != WT_ISO_SNAPSHOT ||
               F_ISSET(clsm, WT_CLSM_OPEN_SNAPSHOT)) &&
           ((update && clsm->primary_chunk != NULL) ||
-              (!update && F_ISSET(clsm, WT_CLSM_OPEN_READ))))
+            (!update && F_ISSET(clsm, WT_CLSM_OPEN_READ))))
             break;
 
 open:
@@ -259,7 +259,7 @@ __clsm_leave(WT_CURSOR_LSM *clsm)
 {
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL *)clsm->iface.session;
+    session = CUR2S(clsm);
 
     if (F_ISSET(clsm, WT_CLSM_ACTIVE)) {
         --session->ncursors;
@@ -428,8 +428,8 @@ __clsm_open_cursors(WT_CURSOR_LSM *clsm, bool update, u_int start_chunk, uint32_
 
     c = &clsm->iface;
     cursor = NULL;
-    session = (WT_SESSION_IMPL *)c->session;
-    txn = &session->txn;
+    session = CUR2S(clsm);
+    txn = session->txn;
     chunk = NULL;
     locked = false;
     lsm_tree = clsm->lsm_tree;
@@ -530,7 +530,7 @@ retry:
              */
             if (lsm_tree->custom_generation == 0 ||
               chunk->generation < lsm_tree->custom_generation) {
-                checkpoint = ((WT_CURSOR_BTREE *)cursor)->btree->dhandle->checkpoint;
+                checkpoint = ((WT_CURSOR_BTREE *)cursor)->dhandle->checkpoint;
                 if (checkpoint == NULL && F_ISSET(chunk, WT_LSM_CHUNK_ONDISK) && !chunk->empty)
                     break;
             }
@@ -639,7 +639,7 @@ retry:
     /* The last chunk is our new primary. */
     if (chunk != NULL && !F_ISSET(chunk, WT_LSM_CHUNK_ONDISK) && chunk->switch_txn == WT_TXN_NONE) {
         primary = clsm->chunks[clsm->nchunks - 1]->cursor;
-        btree = ((WT_CURSOR_BTREE *)primary)->btree;
+        btree = CUR2BT(primary);
 
         /*
          * If the primary is not yet set as the primary, do that now. Note that eviction was
@@ -681,15 +681,15 @@ err:
              */
             if (lsm_tree->custom_generation == 0 ||
               chunk->generation < lsm_tree->custom_generation) {
-                checkpoint = ((WT_CURSOR_BTREE *)cursor)->btree->dhandle->checkpoint;
-                WT_ASSERT(session, (F_ISSET(chunk, WT_LSM_CHUNK_ONDISK) && !chunk->empty) ?
-                    checkpoint != NULL :
-                    checkpoint == NULL);
+                checkpoint = ((WT_CURSOR_BTREE *)cursor)->dhandle->checkpoint;
+                WT_ASSERT(session,
+                  (F_ISSET(chunk, WT_LSM_CHUNK_ONDISK) && !chunk->empty) ? checkpoint != NULL :
+                                                                           checkpoint == NULL);
             }
 
             /* Make sure the Bloom config matches. */
-            WT_ASSERT(
-              session, (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM) && !F_ISSET(clsm, WT_CLSM_MERGE)) ?
+            WT_ASSERT(session,
+              (F_ISSET(chunk, WT_LSM_CHUNK_BLOOM) && !F_ISSET(clsm, WT_CLSM_MERGE)) ?
                 clsm->chunks[i]->bloom != NULL :
                 clsm->chunks[i]->bloom == NULL);
         }
@@ -712,7 +712,7 @@ __wt_clsm_init_merge(WT_CURSOR *cursor, u_int start_chunk, uint32_t start_id, u_
     WT_SESSION_IMPL *session;
 
     clsm = (WT_CURSOR_LSM *)cursor;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
 
     F_SET(clsm, WT_CLSM_MERGE);
     if (start_chunk != 0)
@@ -816,7 +816,7 @@ __clsm_position_chunk(WT_CURSOR_LSM *clsm, WT_CURSOR *c, bool forward, int *cmpp
     WT_SESSION_IMPL *session;
 
     cursor = &clsm->iface;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
 
     c->set_key(c, &cursor->key);
     WT_RET(c->search_near(c, cmpp));
@@ -832,7 +832,7 @@ __clsm_position_chunk(WT_CURSOR_LSM *clsm, WT_CURSOR *c, bool forward, int *cmpp
          * and stepping forward / back. In that case, keep going until we see a key in the expected
          * range.
          */
-        if (session->txn.isolation != WT_ISO_READ_UNCOMMITTED)
+        if (session->txn->isolation != WT_ISO_READ_UNCOMMITTED)
             return (0);
 
         WT_RET(WT_LSM_CURCMP(session, clsm->lsm_tree, c, cursor, *cmpp));
@@ -1149,7 +1149,7 @@ __clsm_lookup(WT_CURSOR_LSM *clsm, WT_ITEM *value)
     c = NULL;
     cursor = &clsm->iface;
     have_hash = false;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
 
     WT_FORALL_CURSORS(clsm, c, i)
     {
@@ -1386,9 +1386,10 @@ __clsm_put(WT_SESSION_IMPL *session, WT_CURSOR_LSM *clsm, const WT_ITEM *key, co
 
     lsm_tree = clsm->lsm_tree;
 
-    WT_ASSERT(session, F_ISSET(&session->txn, WT_TXN_HAS_ID) && clsm->primary_chunk != NULL &&
+    WT_ASSERT(session,
+      F_ISSET(session->txn, WT_TXN_HAS_ID) && clsm->primary_chunk != NULL &&
         (clsm->primary_chunk->switch_txn == WT_TXN_NONE ||
-                         WT_TXNID_LE(session->txn.id, clsm->primary_chunk->switch_txn)));
+          WT_TXNID_LE(session->txn->id, clsm->primary_chunk->switch_txn)));
 
     /*
      * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
@@ -1618,12 +1619,11 @@ err:
     CURSOR_UPDATE_API_END(session, ret);
 
     /*
-     * The application might do a WT_CURSOR.get_value call when we return,
-     * so we need a value and the underlying functions didn't set one up.
-     * For various reasons, those functions may not have done a search and
-     * any previous value in the cursor might race with WT_CURSOR.reserve
-     * (and in cases like LSM, the reserve never encountered the original
-     * key). For simplicity, repeat the search here.
+     * The application might do a WT_CURSOR.get_value call when we return, so we need a value and
+     * the underlying functions didn't set one up. For various reasons, those functions may not have
+     * done a search and any previous value in the cursor might race with WT_CURSOR.reserve (and in
+     * cases like LSM, the reserve never encountered the original key). For simplicity, repeat the
+     * search here.
      */
     return (ret == 0 ? cursor->search(cursor) : ret);
 }
