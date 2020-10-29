@@ -37,9 +37,9 @@ generate FlameGraphs from WiredTiger `perf` data.
 
 @subpage tool-libfuzzer
 
-LLVM LibFuzzer is in-process, coverage-guided, evolutionary fuzzing engine. It feeds a series of
+LLVM LibFuzzer is an in-process, coverage-guided, evolutionary fuzzing engine. It feeds a series of
 fuzzed inputs via a "target" function and attempts to trigger crashes, memory bugs and undefined
-behavior. Here we explain how to build and run existing fuzz targets, implement new ones and
+behavior. This article explains how to build and run existing fuzz targets, implement new ones and
 visualize coverage provided by a fuzz target.
 
 @section tool-other Other Resources
