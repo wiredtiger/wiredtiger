@@ -278,6 +278,7 @@ fsanitize
 fsync
 ftruncate
 fuzzer
+fuzzers
 fuzzutil
 fvisibility
 fxray

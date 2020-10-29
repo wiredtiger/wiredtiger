@@ -42,15 +42,16 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     WT_MODIFY modify;
     WT_SESSION_IMPL *session_impl;
 
-    fuzzutil_setup();
-    session_impl = (WT_SESSION_IMPL *)fuzz_state.session;
+    /* We can't do anything sensible with small inputs. */
+    if (size < 10)
+        return (0);
 
     WT_CLEAR(cursor);
     WT_CLEAR(buf);
     WT_CLEAR(modify);
 
-    if (size < 10)
-        return (0);
+    fuzzutil_setup();
+    session_impl = (WT_SESSION_IMPL *)fuzz_state.session;
 
     /* Choose some portion of the buffer for the underlying value. */
     buf.data = &data[0];

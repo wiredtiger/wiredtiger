@@ -1,16 +1,20 @@
 /*! @page tool-libfuzzer Testing with LLVM LibFuzzer
 
-# Building and running an LLVM LibFuzzer target
+# Building and running an LLVM LibFuzzer fuzzer
 
 LLVM LibFuzzer is an in-process, coverage-guided, evolutionary fuzzing engine. It feeds a series of
-fuzzed inputs via a "target" function and attempts to trigger crashes, memory bugs and undefined
-behavior.
+fuzzed inputs via a user-provided "target" function and attempts to trigger crashes, memory bugs and
+undefined behavior.
+
+A fuzzer is a program that consists of the aforementioned target function linked against the
+LibFuzzer runtime. The LibFuzzer runtime provides the entry-point to the program and repeatedly
+calls the target function with generated inputs.
 
 ## Step 1: Select Clang as your C compiler in your build configuration
 
 Support for LibFuzzer is implemented as a compiler flag in Clang. WiredTiger's build configuration
-checks whether the compiler in use supports \c -fsanitize=fuzzer and if so, elects to build the fuzz
-targets.
+checks whether the compiler in use supports \c -fsanitize=fuzzer and if so, elects to build the
+tests.
 
 Compiling with Clang's Address Sanitizer isn't mandatory but it is recommended since fuzzing often
 exposes memory bugs.
@@ -27,10 +31,10 @@ $ cd build_posix
 $ make
 @endcode
 
-## Step 3: Run a fuzz target
+## Step 3: Run a fuzzer
 
-Each fuzz target is a program under \c build_posix/test/fuzz/. WiredTiger provides the
-\c test/fuzz/fuzz_run.sh script to quickly get started using the fuzzer. It performs a limited
+Each fuzzer is a program under \c build_posix/test/fuzz/. WiredTiger provides the
+\c test/fuzz/fuzz_run.sh script to quickly get started using a fuzzer. It performs a limited
 number of runs, automatically cleans up after itself in between runs and provides a sensible set of
 parameters which users can add to. For example:
 
@@ -45,7 +49,7 @@ In general the usage is:
 fuzz_run.sh <fuzz-test-binary> [fuzz-test-args]
 @endcode
 
-Each fuzz target will produce a few outputs:
+Each fuzzer will produce a few outputs:
 
 - \c crash-<input-hash>: If an error occurs, a file will be produced containing the input that
 crashed the target.
@@ -55,7 +59,7 @@ worker ranging from 0 => the number of workers - 1.
 
 - \c WT_TEST_<pid>: The home directory for a given worker process.
 
-- \c WT_TEST_<pid>.profraw: If the target is running with Clang coverage (more on this later), files
+- \c WT_TEST_<pid>.profraw: If the fuzzer is running with Clang coverage (more on this later), files
 containing profiling data for a given worker will be produced. These will be used by
 \c fuzz_coverage.
 
@@ -67,20 +71,21 @@ mutate and come up with new inputs.
 
 While LibFuzzer will automatically add to its corpus when it finds an interesting input, some fuzz
 targets (especially those that expect data in a certain format) require a corpus to start things off
-in order to be effective. The target \c fuzz_config is one example of this as it expects its data
-sliced with a separator so the fuzzer needs some examples to guide it. The corpus is supplied as the
-first positional argument to both \c fuzz_run.sh and the underlying fuzz target itself. For example:
+in order to be effective. The fuzzer \c fuzz_config is one example of this as it expects its data
+sliced with a separator so the fuzzing engine needs some examples to guide it. The corpus is
+supplied as the first positional argument to both \c fuzz_run.sh and the underlying fuzzer itself.
+For example:
 
 @code
 $ cd build_posix/test/fuzz/
 $ bash ../../../test/fuzz/fuzz_run.sh ./fuzz_config ../../../test/fuzz/config/corpus/
 @endcode
 
-# Implementing an LLVM LibFuzzer target
+# Implementing an LLVM LibFuzzer fuzzer
 
 ## Overview
 
-Creating a new target for LLVM LibFuzzer requires an implementation of a single function called
+Creating a fuzzer with LLVM LibFuzzer requires an implementation of a single function called
 \c LLVMFuzzerTestOneInput. It has the following prototype:
 
 @code
@@ -133,11 +138,11 @@ a byte sequence such as \c 0xdeadbeef. So in that case, a valid input may look l
 0xaa 0xaa 0xde 0xad 0xbe 0xef 0xff 0xff
 @endcode
 
-# Viewing code coverage for an LLVM LibFuzzer target
+# Viewing code coverage for an LLVM LibFuzzer fuzzer
 
 After implementing a new fuzzing target, developers typically want to validate that it's doing
-something useful. If the target is not producing failures, it's either because the code under test
-robust or the fuzzing target isn't doing a good job of exercising different code paths.
+something useful. If the fuzzer is not producing failures, it's either because the code under test
+is robust or the fuzzing target isn't doing a good job of exercising different code paths.
 
 ## Step 1: Configure your build to compile with Clang coverage
 
@@ -151,18 +156,18 @@ $ cd build_posix/
 $ ../configure CC="clang-8" CFLAGS="-fprofile-instr-generate -fcoverage-mapping" LINKFLAGS="-fprofile-instr-generate -fcoverage-mapping"
 @endcode
 
-## Step 2: Build and run fuzz target
+## Step 2: Build and run fuzzer
 
-Invoke \c fuzz_run.sh for the desired fuzz target as described in the section above.
+Build and invoke \c fuzz_run.sh for the desired fuzzer as described in the section above.
 
 ## Step 3: Generate code coverage information
 
-After running the fuzz target with Clang coverage switched on, there should be a number of
-\c profraw files in the working directory.
+After running the fuzzer with Clang coverage switched on, there should be a number of \c profraw
+files in the working directory.
 
 Those files contain the raw profiling data however, some post-processing is required to get it into
 a readable form. WiredTiger provides a script called \c fuzz_coverage.sh that handles this. It
-expects to be called from the same directory that the fuzz target was executed in.
+expects to be called from the same directory that the fuzzer was executed in.
 
 @code
 $ cd build_posix/test/fuzz
@@ -179,7 +184,7 @@ The \c fuzz_coverage.sh script produces a few outputs:
 
 - \c <fuzz-test-binary>_cov.txt: A coverage report in text format. It can be inspected with the
 \c less command and searched for functions of interest. The numbers on the left of each line of code
-indicate how many times they were hit in the fuzz test.
+indicate how many times they were hit in the fuzzer.
 - \c <fuzz-test-binary>_cov.html: A coverage report in html format. If a web browser is available,
 this might be a nicer way to visualize the coverage.
 
