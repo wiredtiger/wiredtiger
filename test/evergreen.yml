@@ -303,10 +303,10 @@ functions:
         set -o verbose
 
         # Dump core (-c) and debugger outputs (-o)
-        hang_analyzer_option="-c -o file -o stdout"
+        wt_hang_analyzer_option="-c -o file -o stdout"
 
         echo "Calling the hang analyzer ..."
-        PATH="/opt/mongodbtoolchain/gdb/bin:$PATH" ${python_binary|python3} ../test/hang_analyzer/hang_analyzer.py $hang_analyzer_option
+        PATH="/opt/mongodbtoolchain/gdb/bin:$PATH" ${python_binary|python3} ../test/wt_hang_analyzer/wt_hang_analyzer.py $wt_hang_analyzer_option
 
   "save hang analyzer core/debugger files":
     - command: archive.targz_pack
@@ -325,7 +325,7 @@ functions:
         permissions: public-read
         content_type: application/tar
         display_name: Hang Analyzer Output - Execution ${execution}
-        remote_file: wiredtiger/${build_variant}/${revision}/hang_analyzer/wt-hang-analyzer_${task_name}_${build_id}${postfix|}.tgz
+        remote_file: wiredtiger/${build_variant}/${revision}/wt_hang_analyzer/wt-hang-analyzer_${task_name}_${build_id}${postfix|}.tgz
 
   "dump stderr/stdout":
     command: shell.exec
