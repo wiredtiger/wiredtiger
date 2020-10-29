@@ -2350,35 +2350,6 @@ tasks:
           format_test_script_args: -S
           times: 16
 
-  - name: test-hang-analyzer-format
-    # Set the timeout for 8 minutes.
-    exec_timeout_secs: 480
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "test hang analyzer script"
-
-  - name: test-hang-analyzer-unit-test
-    # Set the timeout for 4 minutes.
-    exec_timeout_secs: 240
-    depends_on:
-    - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "unit test"
-        vars:
-          unit_test_args: -v 2 c
-
-  - name: test-hang-analyzer-csuite
-    # Set the timeout for 8 minutes.
-    exec_timeout_secs: 480
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "compile wiredtiger"
-      - func: "make check all"
-
   - <<: *format-stress-test
     name: format-stress-test-1
     tags: ["stress-test-1"]
@@ -2491,9 +2462,6 @@ buildvariants:
     - name: long-test
     - name: static-wt-build-test
     - name: format-failure-configs-test
-    - name: test-hang-analyzer-format
-    - name: test-hang-analyzer-unit-test
-    - name: test-hang-analyzer-csuite
 
 - name: ubuntu1804-compilers
   display_name: "! Ubuntu 18.04 Compilers"
@@ -2584,9 +2552,6 @@ buildvariants:
     - name: ftruncate-test
     - name: long-test
     - name: configure-combinations
-    - name: test-hang-analyzer-format
-    - name: test-hang-analyzer-unit-test
-    - name: test-hang-analyzer-csuite
 
 - name: large-scale-tests
   display_name: "~ Large scale tests"
@@ -2635,7 +2600,6 @@ buildvariants:
     - name: ".windows_only"
     - name: ".unit_test"
     - name: fops
-    - name: test-hang-analyzer-unit-test
 
 - name: macos-1012
   display_name: OS X 10.12
@@ -2653,8 +2617,6 @@ buildvariants:
     - name: make-check-test
     - name: unit-test
     - name: fops
-    - name: test-hang-analyzer-unit-test
-    - name: test-hang-analyzer-csuite
 
 - name: little-endian
   display_name: "~ Little-endian (x86)"
