@@ -45,6 +45,8 @@ class test_backup18(wttest.WiredTigerTestCase, suite_subprocess):
     def id_check(self, expect):
         got = []
         bkup_c = self.session.open_cursor('backup:query_id', None, None)
+        # We cannot use 'for idstr in bkup_c:' usage because backup cursors don't have
+        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         while True:
             ret = bkup_c.next()
             if ret != 0:
@@ -57,7 +59,6 @@ class test_backup18(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(got, expect)
 
     def add_data(self):
-
         c = self.session.open_cursor(self.uri)
         for i in range(0, self.nops):
             num = i + (self.mult * self.nops)

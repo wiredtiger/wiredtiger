@@ -682,10 +682,10 @@ __backup_start(
         /* We're the lock holder, we own cleanup. */
         F_SET(cb, WT_CURBACKUP_LOCKER);
         /*
-         * If we are a query backup cursor there are no configuration settings and it will setup its
-         * own list of strings to return. We don't have to do any of the other processing. Queries
-         * create a list to return but does not create the backup file. So after appending the list
-         * of IDs we are done.
+         * If we are a query backup cursor there are no configuration settings and it will set up
+         * its own list of strings to return. We don't have to do any of the other processing. A
+         * query creates a list to return but does not create the backup file. After appending the
+         * list of IDs we are done.
          */
         if (F_ISSET(cb, WT_CURBACKUP_QUERYID)) {
             ret = __backup_query_setup(session, cb);
