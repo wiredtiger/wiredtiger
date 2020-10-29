@@ -110,7 +110,16 @@ functions that require more structured input, this can pose a challenge. As an e
 key to search for. In order to do this, the target can use an arbitrary separator sequence to split
 the input into multiple parts with the following API:
 
-@snippet fuzz_util.h fuzzutil sliced input api
+@code
+typedef struct {
+    const uint8_t **slices;
+    size_t *sizes;
+    size_t num_slices;
+} FUZZ_SLICED_INPUT;
+
+bool fuzzutil_sliced_input_init(FUZZ_SLICED_INPUT *input, const uint8_t *data, size_t size,
+    const uint8_t *sep, size_t sep_size, size_t req_slices);
+@endcode
 
 Using this API, the target can supply a data buffer, a separator sequence and the number of inputs
 it needs. If it doesn't find the right number of separators in the provided input,
