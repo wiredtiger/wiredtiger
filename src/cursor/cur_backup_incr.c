@@ -193,8 +193,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
                  */
                 start_bitoff = cb->bit_offset++;
                 if (F_ISSET(cb, WT_CURBACKUP_CONSOLIDATE)) {
-                    while (cb->bit_offset < cb->nbits &&
-                      __bit_test(cb->bitstring.mem, cb->bit_offset++))
+                    while (
+                      cb->bit_offset < cb->nbits && __bit_test(cb->bitstring.mem, cb->bit_offset++))
                         total_len += cb->granularity;
                 }
                 break;
