@@ -1,4 +1,4 @@
-AM_CPPFLAGS = -fsanitize=fuzzer
+AM_CPPFLAGS = -fsanitize=fuzzer-no-link
 AM_CPPFLAGS += -I$(top_builddir)
 AM_CPPFLAGS += -I$(top_srcdir)/src/include
 AM_CPPFLAGS += -I$(top_srcdir)/test/fuzz
