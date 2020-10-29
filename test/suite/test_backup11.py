@@ -138,7 +138,6 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
         # Now test all the error cases with an incremental primary open.
         # - We cannot specify consolidate on the duplicae cursor.
         config = 'incremental=(consolidate=true,file=test.wt)'
-        dupc = self.session.open_cursor(None, bkup_c, config)
         msg = "/consolidation can only be specified on a primary/"
         self.pr("Test consolidation on a dup")
         self.pr("=========")
