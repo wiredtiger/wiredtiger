@@ -109,7 +109,7 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
                 # Take a full bakcup into each incremental directory
                 for i in range(0, self.max_iteration):
                     copy_from = newfile
-                    # If it is log file, prepend the path.
+                    # If it is a log file, prepend the path.
                     if ("WiredTigerLog" in newfile):
                         copy_to = self.home_incr + '.' + str(i) + '/' + self.logpath
                     else:

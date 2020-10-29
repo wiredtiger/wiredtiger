@@ -33,6 +33,7 @@
 static const char *const home = "WT_BLOCK";
 static const char *const home_full = "WT_BLOCK_LOG_FULL";
 static const char *const home_incr = "WT_BLOCK_LOG_INCR";
+static const char *const home_src = "WT_BLOCK_LOG_SRCONLY";
 static const char *const logpath = "logpath";
 
 #define WTLOG "WiredTigerLog"
@@ -57,6 +58,7 @@ static size_t filelist_count = 0;
 #define CONN_CONFIG "create,cache_size=100MB,log=(enabled=true,path=logpath,file_max=100K)"
 #define MAX_ITERATIONS 5
 #define MAX_KEYS 10000
+#define SRCONLY_ID 1
 
 static int
 compare_backups(int i)
@@ -100,6 +102,29 @@ compare_backups(int i)
     if (ret != 0)
         exit(1);
 
+    if (i == SRCONLY_ID) {
+        /*
+         * Now run dump on the src_id only directory.
+         */
+        (void)snprintf(
+          buf, sizeof(buf), "../../wt -R -h %s.%d dump main > %s.%d", home_src, i, incr_out, i);
+        error_check(system(buf));
+
+        /*
+         * Compare the files.
+         */
+        (void)snprintf(buf, sizeof(buf), "cmp %s.%d %s.%d", full_out, i, incr_out, i);
+        ret = system(buf);
+        (void)snprintf(msg, sizeof(msg), "%d", i);
+        printf("Iteration %s: Tables %s.%d and src_id-only %s.%d %s\n", msg, full_out, i, incr_out,
+          i, ret == 0 ? "identical" : "differ");
+        if (ret != 0)
+            exit(1);
+        /* Clean up only the directory. The output file will be deleted below. */
+        (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d", home_src, i);
+        error_check(system(buf));
+    }
+
     /*
      * If they compare successfully, clean up.
      */
@@ -138,6 +163,11 @@ setup_directories(void)
         (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d && mkdir -p %s.%d/%s", home_full, i,
           home_full, i, logpath);
         error_check(system(buf));
+        if (i == SRCONLY_ID) {
+            (void)snprintf(buf, sizeof(buf), "rm -rf %s.%d && mkdir -p %s.%d/%s", home_src, i,
+              home_src, i, logpath);
+            error_check(system(buf));
+        }
     }
 }
 
@@ -311,6 +341,13 @@ take_full_backup(WT_SESSION *session, int i)
             printf("FULL %d: Copy: %s\n", i, buf);
 #endif
             error_check(system(buf));
+            if (i == SRCONLY_ID) {
+                (void)snprintf(buf, sizeof(buf), "cp %s/%s %s.%d/%s", home, f, home_src, SRCONLY_ID, f);
+#if 0
+                printf("FULL %d: Copy: %s\n", i, buf);
+#endif
+                error_check(system(buf));
+            }
         }
     }
     scan_end_check(ret == WT_NOTFOUND);
@@ -328,12 +365,20 @@ take_incr_backup(WT_SESSION *session, int i)
     int j, ret, rfd, wfd;
     char buf[1024], h[256], *tmp;
     const char *filename;
-    bool first;
+    bool first, src_only;
 
     tmp = NULL;
     tmp_sz = 0;
     /* Open the backup data source for incremental backup. */
-    (void)snprintf(buf, sizeof(buf), "incremental=(src_id=\"ID%d\",this_id=\"ID%d\")", i - 1, i);
+    if (i == 1) {
+        (void)snprintf(buf, sizeof(buf), "incremental=(src_id=\"ID%d\")", i - 1);
+        src_only = true;
+    } else {
+redo:
+        (void)snprintf(
+          buf, sizeof(buf), "incremental=(src_id=\"ID%d\",this_id=\"ID%d\")", i - 1, i);
+        src_only = false;
+    }
     error_check(session->open_cursor(session, "backup:", NULL, buf, &backup_cur));
     rfd = wfd = -1;
     count = 0;
@@ -344,23 +389,29 @@ take_incr_backup(WT_SESSION *session, int i)
     while ((ret = backup_cur->next(backup_cur)) == 0) {
         error_check(backup_cur->get_key(backup_cur, &filename));
         error_check(process_file(&flist, &count, &alloc, filename));
-        (void)snprintf(h, sizeof(h), "%s.0", home_incr);
-        if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
-            (void)snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h,
-              logpath, filename);
-        else
-            (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename);
+        if (!src_only) {
+            (void)snprintf(h, sizeof(h), "%s.0", home_incr);
+            if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
+                (void)snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h,
+                  logpath, filename);
+            else
+                (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename);
 #if 0
-        printf("Copying backup: %s\n", buf);
+            printf("Copying backup: %s\n", buf);
 #endif
-        error_check(system(buf));
-        first = true;
+            error_check(system(buf));
+        }
 
+        first = true;
         (void)snprintf(buf, sizeof(buf), "incremental=(file=%s)", filename);
         error_check(session->open_cursor(session, NULL, backup_cur, buf, &incr_cur));
 #if 0
         printf("Taking incremental %d: File %s\n", i, filename);
 #endif
+        if (src_only)
+            (void)snprintf(h, sizeof(h), "%s.%d", home_src, i);
+        else
+            (void)snprintf(h, sizeof(h), "%s.%d", home_incr, i);
         while ((ret = incr_cur->next(incr_cur)) == 0) {
             error_check(incr_cur->get_key(incr_cur, &offset, &size, &type));
             scan_end_check(type == WT_BACKUP_FILE || type == WT_BACKUP_RANGE);
@@ -381,7 +432,6 @@ take_incr_backup(WT_SESSION *session, int i)
                 if (first) {
                     (void)snprintf(buf, sizeof(buf), "%s/%s", home, filename);
                     error_sys_check(rfd = open(buf, O_RDONLY, 0));
-                    (void)snprintf(h, sizeof(h), "%s.%d", home_incr, i);
                     (void)snprintf(buf, sizeof(buf), "%s/%s", h, filename);
                     error_sys_check(wfd = open(buf, O_WRONLY | O_CREAT, 0));
                     first = false;
@@ -428,20 +478,24 @@ take_incr_backup(WT_SESSION *session, int i)
          * that they start out at the same for the next incremental round. We then check each
          * incremental directory along the way.
          */
-        for (j = i; j < MAX_ITERATIONS; j++) {
-            (void)snprintf(h, sizeof(h), "%s.%d", home_incr, j);
-            if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
-                (void)snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h,
-                  logpath, filename);
-            else
-                (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename);
-            error_check(system(buf));
-        }
+        if (!src_only)
+            for (j = i; j < MAX_ITERATIONS; j++) {
+                (void)snprintf(h, sizeof(h), "%s.%d", home_incr, j);
+                if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
+                    (void)snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home, logpath,
+                      filename, h, logpath, filename);
+                else
+                    (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, filename, h, filename);
+                error_check(system(buf));
+            }
     }
     scan_end_check(ret == WT_NOTFOUND);
 
     /* Done processing all files. Close backup cursor. */
     error_check(backup_cur->close(backup_cur));
+    /* If we did a source-only, go back and copy the incremental for real. */
+    if (src_only)
+        goto redo;
     error_check(finalize_files(flist, count));
     free(tmp);
 }
