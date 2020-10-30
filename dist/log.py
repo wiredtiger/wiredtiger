@@ -116,7 +116,7 @@ def printf_line(f, optype, i, ishex):
 #####################################################################
 # Create log_auto.c with handlers for each record / operation type.
 #####################################################################
-f='../src/log/log_auto.c'
+f='../src/log/log_auto.cxx'
 tfile = open(tmp_file, 'w')
 
 tfile.write('/* DO NOT EDIT: automatically built by dist/log.py. */\n')
