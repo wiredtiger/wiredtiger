@@ -259,7 +259,7 @@ struct __wt_cache_pool {
     uint64_t currently_used;
     uint32_t refs; /* Reference count for structure. */
     /* Locked: List of connections participating in the cache pool. */
-    __wt_cache_pool_qh cache_pool_qh;
+    struct __wt_cache_pool_qh cache_pool_qh;
 
     uint8_t pool_managed; /* Cache pool has a manager thread */
 

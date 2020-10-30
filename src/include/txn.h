@@ -153,12 +153,12 @@ struct __wt_txn_global {
 
     /* List of transactions sorted by durable timestamp. */
     WT_RWLOCK durable_timestamp_rwlock;
-    __wt_txn_dts_qh durable_timestamph;
+    struct __wt_txn_dts_qh durable_timestamph;
     uint32_t durable_timestampq_len;
 
     /* List of transactions sorted by read timestamp. */
     WT_RWLOCK read_timestamp_rwlock;
-    __wt_txn_rts_qh read_timestamph;
+    struct __wt_txn_rts_qh read_timestamph;
     uint32_t read_timestampq_len;
 
     /*

@@ -1113,8 +1113,10 @@ struct __wt_update {
      */
     uint8_t data[]; /* start of the data */
 
+#if defined(__cplusplus)
     __wt_update(uint64_t txnid, uint8_t type)
     : txnid(txnid), type(type) {}
+#endif
 };
 
 /*

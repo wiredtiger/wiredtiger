@@ -58,7 +58,7 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
             opts->do_data_ops = true;
             break;
         case 'h': /* Home directory */
-	        opts->home = static_cast<char*>(dstrdup(__wt_optarg));
+	        opts->home = dstrdup(__wt_optarg);
             break;
         case 'n': /* Number of records */
             opts->nrecords = (uint64_t)atoll(__wt_optarg);
@@ -122,7 +122,7 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
      */
     if (opts->home == NULL) {
         len = strlen("WT_TEST.") + strlen(opts->progname) + 10;
-        opts->home = static_cast<char *>(dmalloc(len));
+        opts->home = dmalloc(len);
         testutil_check(__wt_snprintf(opts->home, len, "WT_TEST.%s", opts->progname));
     }
 
@@ -130,12 +130,12 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
      * Setup the progress file name.
      */
     len = strlen(opts->home) + 20;
-    opts->progress_file_name = static_cast<char*>(dmalloc(len));
+    opts->progress_file_name = dmalloc(len);
     testutil_check(__wt_snprintf(opts->progress_file_name, len, "%s/progress.txt", opts->home));
 
     /* Setup the default URI string */
     len = strlen("table:") + strlen(opts->progname) + 10;
-    opts->uri = static_cast<char*>(dmalloc(len));
+    opts->uri = dmalloc(len);
     testutil_check(__wt_snprintf(opts->uri, len, "table:%s", opts->progname));
 
     return (0);
