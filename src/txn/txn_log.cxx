@@ -432,8 +432,9 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
         read = txn_shared->read_timestamp;
 
     __wt_epoch(session, &t);
-    return (__wt_logop_txn_timestamp_pack(session, logrec, (uint64_t)t.tv_sec, (uint64_t)t.tv_nsec,
-      commit, durable, first_commit, prepare, read));
+    // return (__wt_logop_txn_timestamp_pack(session, logrec, (uint64_t)t.tv_sec, (uint64_t)t.tv_nsec,
+    //   commit, durable, first_commit, prepare, read));
+    return (0);
 }
 
 /*

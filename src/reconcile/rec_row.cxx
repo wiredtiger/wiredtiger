@@ -704,7 +704,7 @@ int
 __wt_rec_row_leaf(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
-	static WT_UPDATE upd_tombstone(WT_TXN_NONE, WT_UPDATE_TOMBSTONE);
+	WT_UPDATE upd_tombstone(WT_TXN_NONE, WT_UPDATE_TOMBSTONE);
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK_KV *kpack, _kpack, *vpack, _vpack;
