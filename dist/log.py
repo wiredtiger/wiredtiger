@@ -195,9 +195,9 @@ __logrec_make_json_str(WT_SESSION_IMPL *session, char **destp, WT_ITEM *item)
 {
 \tsize_t needed;
 
-\tneeded = __logrec_json_unpack_str(NULL, 0, item->data, item->size);
+\tneeded = __logrec_json_unpack_str(NULL, 0, static_cast<const u_char *>(item->data), item->size);
 \tWT_RET(__wt_realloc(session, NULL, needed, destp));
-\t(void)__logrec_json_unpack_str(*destp, needed, item->data, item->size);
+\t(void)__logrec_json_unpack_str(*destp, needed, static_cast<const u_char *>(item->data), item->size);
 \treturn (0);
 }
 
@@ -208,7 +208,7 @@ __logrec_make_hex_str(WT_SESSION_IMPL *session, char **destp, WT_ITEM *item)
 
 \tneeded = item->size * 2 + 1;
 \tWT_RET(__wt_realloc(session, NULL, needed, destp));
-\t__wt_fill_hex(item->data, item->size, (uint8_t *)*destp, needed, NULL);
+\t__wt_fill_hex(static_cast<const uint8_t *>(item->data), item->size, (uint8_t *)*destp, needed, NULL);
 \treturn (0);
 }
 ''')

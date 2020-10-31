@@ -12,7 +12,7 @@
  * ext_collate --
  *     Call the collation function (external API version).
  */
-static int
+extern "C" int
 ext_collate(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, WT_COLLATOR *collator, WT_ITEM *first,
   WT_ITEM *second, int *cmpp)
 {
@@ -32,7 +32,7 @@ ext_collate(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, WT_COLLATOR *colla
  * ext_collator_config --
  *     Given a configuration, configure the collator (external API version).
  */
-static int
+extern "C" int
 ext_collator_config(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char *uri,
   WT_CONFIG_ARG *cfg_arg, WT_COLLATOR **collatorp, int *ownp)
 {
@@ -63,7 +63,7 @@ ext_collator_config(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
  * __collator_confchk --
  *     Check for a valid custom collator.
  */
-static int
+int
 __collator_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_COLLATOR **collatorp)
 {
     WT_CONNECTION_IMPL *conn;
@@ -115,7 +115,7 @@ __wt_collator_config(WT_SESSION_IMPL *session, const char *uri, WT_CONFIG_ITEM *
  * __conn_add_collator --
  *     WT_CONNECTION->add_collator method.
  */
-static int
+extern "C" int
 __conn_add_collator(
   WT_CONNECTION *wt_conn, const char *name, WT_COLLATOR *collator, const char *config)
 {
@@ -216,7 +216,7 @@ __wt_compressor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_COMPRE
  * __conn_add_compressor --
  *     WT_CONNECTION->add_compressor method.
  */
-static int
+extern "C" int
 __conn_add_compressor(
   WT_CONNECTION *wt_conn, const char *name, WT_COMPRESSOR *compressor, const char *config)
 {
@@ -283,7 +283,7 @@ __wt_conn_remove_compressor(WT_SESSION_IMPL *session)
  * __conn_add_data_source --
  *     WT_CONNECTION->add_data_source method.
  */
-static int
+extern "C" int
 __conn_add_data_source(
   WT_CONNECTION *wt_conn, const char *prefix, WT_DATA_SOURCE *dsrc, const char *config)
 {
@@ -447,7 +447,7 @@ err:
  * __conn_add_encryptor --
  *     WT_CONNECTION->add_encryptor method.
  */
-static int
+extern "C" int
 __conn_add_encryptor(
   WT_CONNECTION *wt_conn, const char *name, WT_ENCRYPTOR *encryptor, const char *config)
 {
@@ -541,7 +541,7 @@ __wt_conn_remove_encryptor(WT_SESSION_IMPL *session)
  * __conn_add_extractor --
  *     WT_CONNECTION->add_extractor method.
  */
-static int
+extern "C" int
 __conn_add_extractor(
   WT_CONNECTION *wt_conn, const char *name, WT_EXTRACTOR *extractor, const char *config)
 {
@@ -667,7 +667,7 @@ __wt_conn_remove_extractor(WT_SESSION_IMPL *session)
  * __conn_get_extension_api --
  *     WT_CONNECTION.get_extension_api method.
  */
-static WT_EXTENSION_API *
+extern "C" WT_EXTENSION_API *
 __conn_get_extension_api(WT_CONNECTION *wt_conn)
 {
     WT_CONNECTION_IMPL *conn;
@@ -858,7 +858,7 @@ err:
  * __conn_load_extension --
  *     WT_CONNECTION->load_extension method.
  */
-static int
+extern "C" int
 __conn_load_extension(WT_CONNECTION *wt_conn, const char *path, const char *config)
 {
     WT_CONNECTION_IMPL *conn;
@@ -915,7 +915,7 @@ err:
  * __conn_get_home --
  *     WT_CONNECTION.get_home method.
  */
-static const char *
+extern "C" const char *
 __conn_get_home(WT_CONNECTION *wt_conn)
 {
     return (((WT_CONNECTION_IMPL *)wt_conn)->home);
@@ -925,7 +925,7 @@ __conn_get_home(WT_CONNECTION *wt_conn)
  * __conn_configure_method --
  *     WT_CONNECTION.configure_method method.
  */
-static int
+extern "C" int
 __conn_configure_method(WT_CONNECTION *wt_conn, const char *method, const char *uri,
   const char *config, const char *type, const char *check)
 {
@@ -946,7 +946,7 @@ err:
  * __conn_is_new --
  *     WT_CONNECTION->is_new method.
  */
-static int
+extern "C" int
 __conn_is_new(WT_CONNECTION *wt_conn)
 {
     return (((WT_CONNECTION_IMPL *)wt_conn)->is_new);
@@ -956,7 +956,7 @@ __conn_is_new(WT_CONNECTION *wt_conn)
  * __conn_close --
  *     WT_CONNECTION->close method.
  */
-static int
+extern "C" int
 __conn_close(WT_CONNECTION *wt_conn, const char *config)
 {
     WT_CONFIG_ITEM cval;
@@ -1058,7 +1058,7 @@ err:
  * __conn_debug_info --
  *     WT_CONNECTION->debug_info method.
  */
-static int
+extern "C" int
 __conn_debug_info(WT_CONNECTION *wt_conn, const char *config)
 {
     WT_CONFIG_ITEM cval;
@@ -1101,7 +1101,7 @@ err:
  * __conn_reconfigure --
  *     WT_CONNECTION->reconfigure method.
  */
-static int
+extern "C" int
 __conn_reconfigure(WT_CONNECTION *wt_conn, const char *config)
 {
     WT_CONNECTION_IMPL *conn;
@@ -1120,7 +1120,7 @@ err:
  * __conn_open_session --
  *     WT_CONNECTION->open_session method.
  */
-static int
+extern "C" int
 __conn_open_session(WT_CONNECTION *wt_conn, WT_EVENT_HANDLER *event_handler, const char *config,
   WT_SESSION **wt_sessionp)
 {
@@ -1147,7 +1147,7 @@ err:
  * __conn_query_timestamp --
  *     WT_CONNECTION->query_timestamp method.
  */
-static int
+extern "C" int
 __conn_query_timestamp(WT_CONNECTION *wt_conn, char *hex_timestamp, const char *config)
 {
     WT_CONNECTION_IMPL *conn;
@@ -1166,7 +1166,7 @@ err:
  * __conn_set_timestamp --
  *     WT_CONNECTION->set_timestamp method.
  */
-static int
+extern "C" int
 __conn_set_timestamp(WT_CONNECTION *wt_conn, const char *config)
 {
     WT_CONNECTION_IMPL *conn;
@@ -1185,7 +1185,7 @@ err:
  * __conn_rollback_to_stable --
  *     WT_CONNECTION->rollback_to_stable method.
  */
-static int
+extern "C" int
 __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
 {
     WT_CONNECTION_IMPL *conn;
@@ -2138,7 +2138,7 @@ err:
  * __conn_set_file_system --
  *     Configure a custom file system implementation on database open.
  */
-static int
+extern "C" int
 __conn_set_file_system(WT_CONNECTION *wt_conn, WT_FILE_SYSTEM *file_system, const char *config)
 {
     WT_CONNECTION_IMPL *conn;
@@ -2239,7 +2239,7 @@ __conn_chk_file_system(WT_SESSION_IMPL *session, bool readonly)
  * wiredtiger_dummy_session_init --
  *     Initialize the connection's dummy session.
  */
-static void
+extern "C" void
 wiredtiger_dummy_session_init(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler)
 {
     WT_SESSION_IMPL *session;
@@ -2309,7 +2309,7 @@ __conn_version_verify(WT_SESSION_IMPL *session)
  * wiredtiger_open --
  *     Main library entry point: open a new connection to a WiredTiger database.
  */
-int
+extern "C" int
 wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *config,
   WT_CONNECTION **connectionp)
 {

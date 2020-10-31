@@ -56,8 +56,7 @@
             WT_DHANDLE_ACQUIRE(dhandle);                                     \
     } while (0)
 
-    typedef enum {
-        WT_DHANDLE_TYPE_BTREE, WT_DHANDLE_TYPE_TABLE } WT_DATA_HANDLE_TYPE;
+typedef enum { WT_DHANDLE_TYPE_BTREE, WT_DHANDLE_TYPE_TABLE } WT_DATA_HANDLE_TYPE;
 
 /*
  * WT_DATA_HANDLE --

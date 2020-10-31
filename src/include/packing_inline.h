@@ -386,8 +386,8 @@ __pack_write(WT_SESSION_IMPL *session, WT_PACK_VALUE *pv, uint8_t **pp, size_t m
             pad = 1;
         if (s > 0) {
             oldp = *pp;
-            WT_RET(__wt_json_strncpy((WT_SESSION *)session, (char **)pp, maxlen,
-                                     (const char *)pv->u.item.data, s));
+            WT_RET(__wt_json_strncpy(
+              (WT_SESSION *)session, (char **)pp, maxlen, (const char *)pv->u.item.data, s));
             maxlen -= (size_t)(*pp - oldp);
         }
         if (pad > 0) {

@@ -58,7 +58,7 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
             opts->do_data_ops = true;
             break;
         case 'h': /* Home directory */
-	        opts->home = dstrdup(__wt_optarg);
+            opts->home = dstrdup(__wt_optarg);
             break;
         case 'n': /* Number of records */
             opts->nrecords = (uint64_t)atoll(__wt_optarg);

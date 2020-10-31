@@ -241,12 +241,12 @@ struct __wt_ovfl_reuse {
             ",leaf_value_max=64MB"                                                \
             ",prefix_compression=false"
 
-    struct __wt_save_upd {
-        WT_INSERT *ins; /* Insert list reference */
-        WT_ROW *ripcip; /* Original on-page reference */
-        WT_UPDATE *onpage_upd;
-        bool restore; /* Whether to restore this saved update chain */
-    };
+struct __wt_save_upd {
+    WT_INSERT *ins; /* Insert list reference */
+    WT_ROW *ripcip; /* Original on-page reference */
+    WT_UPDATE *onpage_upd;
+    bool restore; /* Whether to restore this saved update chain */
+};
 
 struct __wt_multi {
     /*
@@ -271,7 +271,7 @@ struct __wt_multi {
      * If there are unresolved updates, the block wasn't written and there will always be a disk
      * image.
      */
-    WT_SAVE_UPD* supd;
+    WT_SAVE_UPD *supd;
     uint32_t supd_entries;
 
     bool supd_restore; /* Whether to restore saved update chains to this page */
@@ -1114,8 +1114,7 @@ struct __wt_update {
     uint8_t data[]; /* start of the data */
 
 #if defined(__cplusplus)
-    __wt_update(uint64_t txnid, uint8_t type)
-    : txnid(txnid), type(type) {}
+    __wt_update(uint64_t txnid, uint8_t type) : txnid(txnid), type(type) {}
 #endif
 };
 
@@ -1324,14 +1323,16 @@ struct __wt_insert_head {
         (page)->modify->mod_col_append[0])
 
 /* WT_FIX_FOREACH walks fixed-length bit-fields on a disk page. */
-#define WT_FIX_FOREACH(btree, dsk, v, i)                                     \
-    for ((i) = 0,                                                            \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-             __bit_getv(static_cast<uint8_t *>(WT_PAGE_HEADER_BYTE(btree, dsk)), 0, (btree)->bitcnt) : \
-           0;                                                                \
-         (i) < (dsk)->u.entries; ++(i),                                      \
-        (v) = (i) < (dsk)->u.entries ?                                       \
-             __bit_getv(static_cast<uint8_t *>(WT_PAGE_HEADER_BYTE(btree, dsk)), i, (btree)->bitcnt) : \
+#define WT_FIX_FOREACH(btree, dsk, v, i)                                                    \
+    for ((i) = 0,                                                                           \
+        (v) = (i) < (dsk)->u.entries ?                                                      \
+           __bit_getv(                                                                      \
+             static_cast<uint8_t *>(WT_PAGE_HEADER_BYTE(btree, dsk)), 0, (btree)->bitcnt) : \
+           0;                                                                               \
+         (i) < (dsk)->u.entries; ++(i),                                                     \
+        (v) = (i) < (dsk)->u.entries ?                                                      \
+           __bit_getv(                                                                      \
+             static_cast<uint8_t *>(WT_PAGE_HEADER_BYTE(btree, dsk)), i, (btree)->bitcnt) : \
            0)
 
 /*

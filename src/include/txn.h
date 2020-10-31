@@ -199,12 +199,12 @@ typedef enum __wt_txn_type {
     WT_TXN_OP_TRUNCATE_ROW
 } WT_TXN_TYPE;
 
-            typedef enum {
-                WT_TXN_TRUNC_ALL,
-                WT_TXN_TRUNC_BOTH,
-                WT_TXN_TRUNC_START,
-                WT_TXN_TRUNC_STOP
-            } WT_TXN_TRUNC_MODE;
+typedef enum {
+    WT_TXN_TRUNC_ALL,
+    WT_TXN_TRUNC_BOTH,
+    WT_TXN_TRUNC_START,
+    WT_TXN_TRUNC_STOP
+} WT_TXN_TRUNC_MODE;
 
 /*
  * WT_TXN_OP --

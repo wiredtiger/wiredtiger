@@ -3221,7 +3221,6 @@ struct __wt_config_item {
 	 */
 	int64_t val;
 
-
 	/*!
 	 * The type of value determined by the parser.  In all cases,
 	 * the \c str and \c len fields are set.

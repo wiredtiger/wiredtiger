@@ -309,7 +309,9 @@ union __wt_rand_state {
 
 #if defined(__cplusplus)
     // C++ doesn't generate an assignment operator with default qualifier.
-    volatile __wt_rand_state& operator=(const volatile __wt_rand_state& other) volatile {
+    volatile __wt_rand_state &
+    operator=(const volatile __wt_rand_state &other) volatile
+    {
         v = other.v;
         return *this;
     }

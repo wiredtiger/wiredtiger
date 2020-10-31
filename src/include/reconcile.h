@@ -25,43 +25,42 @@ struct __wt_rec_dictionary {
     WT_REC_DICTIONARY *next[0];
 };
 
+/*
+ * We maintain two split chunks in the memory during reconciliation to be written out as pages. As
+ * we get to the end of the data, if the last one turns out to be smaller than the minimum split
+ * size, we go back into the penultimate chunk and split at this minimum split size boundary. This
+ * moves some data from the penultimate chunk to the last chunk, hence increasing the size of the
+ * last page written without decreasing the penultimate page size beyond the minimum split size. For
+ * this reason, we maintain an expected split percentage boundary and a minimum split percentage
+ * boundary.
+ *
+ * Chunks are referenced by current and previous pointers. In case of a split, previous references
+ * the first chunk and current switches to the second chunk. If reconciliation generates more split
+ * chunks, the previous chunk is written to the disk and current and previous swap.
+ */
+struct __wt_rec_chunk {
     /*
-     * We maintain two split chunks in the memory during reconciliation to be written out as pages.
-     * As we get to the end of the data, if the last one turns out to be smaller than the minimum
-     * split size, we go back into the penultimate chunk and split at this minimum split size
-     * boundary. This moves some data from the penultimate chunk to the last chunk, hence increasing
-     * the size of the last page written without decreasing the penultimate page size beyond the
-     * minimum split size. For this reason, we maintain an expected split percentage boundary and a
-     * minimum split percentage boundary.
+     * The recno and entries fields are the starting record number of the split chunk (for
+     * column-store splits), and the number of entries in the split chunk.
      *
-     * Chunks are referenced by current and previous pointers. In case of a split, previous
-     * references the first chunk and current switches to the second chunk. If reconciliation
-     * generates more split chunks, the previous chunk is written to the disk and current and
-     * previous swap.
+     * The key for a row-store page; no column-store key is needed because the page's recno, stored
+     * in the recno field, is the column-store key.
      */
-    struct __wt_rec_chunk {
-        /*
-         * The recno and entries fields are the starting record number of the split chunk (for
-         * column-store splits), and the number of entries in the split chunk.
-         *
-         * The key for a row-store page; no column-store key is needed because the page's recno,
-         * stored in the recno field, is the column-store key.
-         */
-        uint32_t entries;
-        uint64_t recno;
-        WT_ITEM key;
-	    WT_TIME_AGGREGATE ta;
+    uint32_t entries;
+    uint64_t recno;
+    WT_ITEM key;
+    WT_TIME_AGGREGATE ta;
 
-        /* Saved minimum split-size boundary information. */
-        uint32_t min_entries;
-        uint64_t min_recno;
-        WT_ITEM min_key;
-	    WT_TIME_AGGREGATE ta_min;
+    /* Saved minimum split-size boundary information. */
+    uint32_t min_entries;
+    uint64_t min_recno;
+    WT_ITEM min_key;
+    WT_TIME_AGGREGATE ta_min;
 
-        size_t min_offset; /* byte offset */
+    size_t min_offset; /* byte offset */
 
-        WT_ITEM image; /* disk-image */
-    };
+    WT_ITEM image; /* disk-image */
+};
 
 /*
  * Reconciliation is the process of taking an in-memory page, walking each entry

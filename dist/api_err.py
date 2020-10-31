@@ -168,7 +168,7 @@ wiredtiger_strerror(int error)
 ''')
 tfile.close()
 format_srcfile(tmp_file)
-compare_srcfile(tmp_file, '../src/conn/api_strerror.c')
+compare_srcfile(tmp_file, '../src/conn/api_strerror.cxx')
 
 # Update the error documentation block.
 doc = '../src/docs/error-handling.dox'

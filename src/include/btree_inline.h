@@ -963,7 +963,7 @@ __wt_row_leaf_key_info(
         if (ikeyp != NULL)
             *ikeyp = NULL;
         if (cellp != NULL)
-	        *cellp = (WT_CELL *)WT_PAGE_REF_OFFSET(page, WT_CELL_DECODE_OFFSET(v));
+            *cellp = (WT_CELL *)WT_PAGE_REF_OFFSET(page, WT_CELL_DECODE_OFFSET(v));
         return (false);
     case WT_K_FLAG:
         /* Encoded key: no instantiated key, no cell. */
@@ -994,9 +994,9 @@ __wt_row_leaf_key_info(
     /* Instantiated key. */
     ikey = (WT_IKEY *)copy;
     if (ikeyp != NULL)
-	    *ikeyp = (WT_IKEY *)copy;
+        *ikeyp = (WT_IKEY *)copy;
     if (cellp != NULL)
-	    *cellp = (WT_CELL *)WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
+        *cellp = (WT_CELL *)WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
     if (datap != NULL) {
         *(void **)datap = WT_IKEY_DATA(ikey);
         *sizep = ikey->size;
