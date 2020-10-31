@@ -164,6 +164,7 @@ AC_CHECK_HEADERS([x86intrin.h])
 AC_CHECK_LIB(pthread, pthread_create)
 AC_CHECK_LIB(dl, dlopen)
 AC_CHECK_LIB(rt, sched_yield)
+AC_CHECK_LIB(stdc++, main)
 
 AC_CHECK_FUNCS([\
 	clock_gettime fallocate ftruncate gettimeofday posix_fadvise posix_fallocate\
