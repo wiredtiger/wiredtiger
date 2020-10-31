@@ -117,7 +117,7 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
         if (tmp == NULL)
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(bm->addr_string(bm, session, tmp, addr, addr_size));
-        WT_ERR(__wt_verify_dsk(session, static_cast<const char*>(tmp->data), buf));
+        WT_ERR(__wt_verify_dsk(session, static_cast<const char *>(tmp->data), buf));
     }
 
     WT_STAT_CONN_INCR(session, cache_read);

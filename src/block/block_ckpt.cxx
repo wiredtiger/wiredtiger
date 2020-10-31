@@ -281,9 +281,10 @@ __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
      */
     WT_RET(__wt_calloc(session, 1, sizeof(WT_BLOCK_CKPT), &ckpt->bpriv));
 
-    ci = static_cast<WT_BLOCK_CKPT*>(ckpt->bpriv);
+    ci = static_cast<WT_BLOCK_CKPT *>(ckpt->bpriv);
     WT_RET(__wt_block_ckpt_init(session, ci, ckpt->name));
-    WT_RET(__wt_block_buffer_to_ckpt(session, block, static_cast<const uint8_t*>(ckpt->raw.data), ci));
+    WT_RET(
+      __wt_block_buffer_to_ckpt(session, block, static_cast<const uint8_t *>(ckpt->raw.data), ci));
     WT_RET(__wt_block_extlist_read(session, block, &ci->alloc, ci->file_size));
     WT_RET(__wt_block_extlist_read(session, block, &ci->discard, ci->file_size));
 
@@ -610,7 +611,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
             continue;
 
         if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
-	        __wt_ckpt_verbose(session, block, "delete", ckpt->name, static_cast<const uint8_t*>(ckpt->raw.data));
+            __wt_ckpt_verbose(
+              session, block, "delete", ckpt->name, static_cast<const uint8_t *>(ckpt->raw.data));
 
         /*
          * Find the checkpoint into which we'll roll this checkpoint's blocks: it's the next real
@@ -627,7 +629,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
         if (F_ISSET(next_ckpt, WT_CKPT_ADD))
             b = &block->live;
         else
-	        b = static_cast<WT_BLOCK_CKPT*>(next_ckpt->bpriv);
+            b = static_cast<WT_BLOCK_CKPT *>(next_ckpt->bpriv);
 
         /*
          * Free the root page: there's nothing special about this free, the root page is allocated
@@ -692,7 +694,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     /* Update checkpoints marked for update. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_UPDATE))
-	        WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, static_cast<WT_BLOCK_CKPT *>(ckpt->bpriv)));
+            WT_ERR(__ckpt_update(
+              session, block, ckptbase, ckpt, static_cast<WT_BLOCK_CKPT *>(ckpt->bpriv)));
 
 live_update:
     /* Truncate the file if that's possible. */
@@ -766,7 +769,7 @@ err:
 
     /* Discard any checkpoint information we loaded. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
-	    if ((ci = static_cast<WT_BLOCK_CKPT *>(ckpt->bpriv)) != NULL)
+        if ((ci = static_cast<WT_BLOCK_CKPT *>(ckpt->bpriv)) != NULL)
             __wt_block_ckpt_destroy(session, ci);
 
     return (ret);
@@ -809,7 +812,7 @@ __ckpt_update(
          * Copy the INCOMPLETE checkpoint information into the checkpoint.
          */
         WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
-        endp = static_cast<uint8_t*>(ckpt->raw.mem);
+        endp = static_cast<uint8_t *>(ckpt->raw.mem);
         WT_RET(__wt_block_ckpt_to_buffer(session, block, &endp, ci, true));
         ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
 
@@ -883,7 +886,8 @@ __ckpt_update(
     ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
 
     if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
-	    __wt_ckpt_verbose(session, block, "create", ckpt->name, static_cast<const uint8_t*>(ckpt->raw.data));
+        __wt_ckpt_verbose(
+          session, block, "create", ckpt->name, static_cast<const uint8_t *>(ckpt->raw.data));
 
     return (0);
 }

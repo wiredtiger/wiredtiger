@@ -46,9 +46,10 @@ static int __verify_dsk_row_leaf(
  * WT_CELL_FOREACH macro, created because the loop can't simply unpack cells,
  * verify has to do additional work to ensure that unpack is safe.
  */
-#define WT_CELL_FOREACH_VRFY(session, dsk, cell, unpack, i)                                 \
-	for ((cell) = static_cast<WT_CELL *>(WT_PAGE_HEADER_BYTE(S2BT(session), dsk)), (i) = (dsk)->u.entries; (i) > 0; \
-         (cell) = (WT_CELL *)((uint8_t *)(cell) + (unpack)->__len), --(i))
+#define WT_CELL_FOREACH_VRFY(session, dsk, cell, unpack, i)                        \
+    for ((cell) = static_cast<WT_CELL *>(WT_PAGE_HEADER_BYTE(S2BT(session), dsk)), \
+        (i) = (dsk)->u.entries;                                                    \
+         (i) > 0; (cell) = (WT_CELL *)((uint8_t *)(cell) + (unpack)->__len), --(i))
 
 /*
  * __wt_verify_dsk_image --
@@ -187,7 +188,8 @@ __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_H
 int
 __wt_verify_dsk(WT_SESSION_IMPL *session, const char *tag, WT_ITEM *buf)
 {
-	return (__wt_verify_dsk_image(session, tag, static_cast<const WT_PAGE_HEADER*>(buf->data), buf->size, NULL, false));
+    return (__wt_verify_dsk_image(
+      session, tag, static_cast<const WT_PAGE_HEADER *>(buf->data), buf->size, NULL, false));
 }
 
 /*
@@ -370,7 +372,8 @@ __verify_dsk_row_int(
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
         case WT_CELL_KEY_OVFL:
-	        if ((ret = bm->addr_invalid(bm, session, static_cast<const uint8_t *>(unpack->data), unpack->size)) == EINVAL)
+            if ((ret = bm->addr_invalid(bm, session, static_cast<const uint8_t *>(unpack->data),
+                   unpack->size)) == EINVAL)
                 (void)__err_cell_corrupt_or_eof(session, ret, cell_num, tag);
             WT_ERR(ret);
             break;
@@ -532,7 +535,8 @@ __verify_dsk_row_leaf(
         switch (cell_type) {
         case WT_CELL_KEY_OVFL:
         case WT_CELL_VALUE_OVFL:
-	        if ((ret = bm->addr_invalid(bm, session, static_cast<const uint8_t*>(unpack->data), unpack->size)) == EINVAL)
+            if ((ret = bm->addr_invalid(bm, session, static_cast<const uint8_t *>(unpack->data),
+                   unpack->size)) == EINVAL)
                 (void)__err_cell_corrupt_or_eof(session, ret, cell_num, tag);
             WT_ERR(ret);
             break;
@@ -700,7 +704,8 @@ __verify_dsk_col_int(
         WT_RET(__verify_dsk_addr_validity(session, unpack, cell_num, addr, tag));
 
         /* Check if any referenced item is entirely in the file. */
-        ret = bm->addr_invalid(bm, session, static_cast<const uint8_t*>(unpack->data), unpack->size);
+        ret =
+          bm->addr_invalid(bm, session, static_cast<const uint8_t *>(unpack->data), unpack->size);
         WT_RET_ERROR_OK(ret, EINVAL);
         if (ret == EINVAL)
             return (__err_cell_corrupt_or_eof(session, ret, cell_num, tag));
@@ -777,7 +782,8 @@ __verify_dsk_col_var(
 
         /* Check if any referenced item is entirely in the file. */
         if (cell_type == WT_CELL_VALUE_OVFL) {
-	        ret = bm->addr_invalid(bm, session, static_cast<const uint8_t*>(unpack->data), unpack->size);
+            ret = bm->addr_invalid(
+              bm, session, static_cast<const uint8_t *>(unpack->data), unpack->size);
             WT_RET_ERROR_OK(ret, EINVAL);
             if (ret == EINVAL)
                 return (__err_cell_corrupt_or_eof(session, ret, cell_num, tag));
@@ -864,7 +870,7 @@ __verify_dsk_chunk(
      * Fixed-length column-store and overflow pages are simple chunks of data-> Verify the data
      * doesn't overflow the end of the page.
      */
-    p = static_cast<uint8_t*>(WT_PAGE_HEADER_BYTE(btree, dsk));
+    p = static_cast<uint8_t *>(WT_PAGE_HEADER_BYTE(btree, dsk));
     if (p + datalen > end)
         WT_RET_VRFY(session, "data on page at %s extends past the end of the page", tag);
 

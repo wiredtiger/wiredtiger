@@ -122,7 +122,8 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_TIME_WINDOW *tw
     if (page->type == WT_PAGE_ROW_LEAF) {
         __wt_read_row_time_window(session, page, &page->pg_row[cbt->slot], tw);
     } else if (page->type == WT_PAGE_COL_VAR) {
-	    __read_col_time_window(session, page, static_cast<WT_CELL *>(WT_COL_PTR(page, &page->pg_var[cbt->slot])), tw);
+        __read_col_time_window(
+          session, page, static_cast<WT_CELL *>(WT_COL_PTR(page, &page->pg_var[cbt->slot])), tw);
     } else {
         /* WT_PAGE_COL_FIX: return the default time window. */
         WT_TIME_WINDOW_INIT(tw);
@@ -173,7 +174,7 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
 
     if (page->type == WT_PAGE_COL_VAR) {
         /* Take the value from the original page cell. */
-	    cell = static_cast<WT_CELL *>(WT_COL_PTR(page, &page->pg_var[cbt->slot]));
+        cell = static_cast<WT_CELL *>(WT_COL_PTR(page, &page->pg_var[cbt->slot]));
         __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
         if (tw != NULL)
             WT_TIME_WINDOW_COPY(tw, &unpack.tw);

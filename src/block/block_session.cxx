@@ -123,7 +123,7 @@ __block_ext_discard(WT_SESSION_IMPL *session, u_int max)
     WT_BLOCK_MGR_SESSION *bms;
     WT_EXT *ext, *next;
 
-    bms = static_cast<WT_BLOCK_MGR_SESSION*>(session->block_manager);
+    bms = static_cast<WT_BLOCK_MGR_SESSION *>(session->block_manager);
     if (max != 0 && bms->ext_cache_cnt <= max)
         return (0);
 

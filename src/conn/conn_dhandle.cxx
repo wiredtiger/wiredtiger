@@ -274,7 +274,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
      * it should be NULL.
      */
     is_btree = dhandle->type == WT_DHANDLE_TYPE_BTREE;
-    btree = is_btree ? static_cast<WT_BTREE*>(dhandle->handle) : NULL;
+    btree = is_btree ? static_cast<WT_BTREE *>(dhandle->handle) : NULL;
 
     if (is_btree) {
         /* Turn off eviction. */
@@ -421,7 +421,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     WT_DECL_RET;
 
     dhandle = session->dhandle;
-    btree = static_cast<WT_BTREE*>(dhandle->handle);
+    btree = static_cast<WT_BTREE *>(dhandle->handle);
 
     WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !LF_ISSET(WT_DHANDLE_LOCK_ONLY));
 

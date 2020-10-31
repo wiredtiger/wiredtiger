@@ -229,7 +229,7 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         if ((ikey = __wt_ref_key_instantiated(ref)) == NULL) {
             __wt_ref_key(from_home, ref, &key, &size);
             WT_RET(__wt_row_ikey(session, 0, key, size, ref));
-            ikey = static_cast<WT_IKEY*>(ref->ref_ikey);
+            ikey = static_cast<WT_IKEY *>(ref->ref_ikey);
         } else {
             WT_RET(__split_ovfl_key_cleanup(session, from_home, ref));
             *decrp += sizeof(WT_IKEY) + ikey->size;
@@ -245,7 +245,7 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
      * unchanged from the original. In the case of a race, the address must no longer reference the
      * split page, we're done.
      */
-    WT_ORDERED_READ(ref_addr, static_cast<WT_ADDR*>(ref->addr));
+    WT_ORDERED_READ(ref_addr, static_cast<WT_ADDR *>(ref->addr));
     if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
         __wt_cell_unpack_addr(session, from_home->dsk, (WT_CELL *)ref_addr, &unpack);
         WT_RET(__wt_calloc_one(session, &addr));
@@ -701,7 +701,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
                 if (scr == NULL)
                     WT_ERR(__wt_scr_alloc(session, 10 * sizeof(uint32_t), &scr));
                 WT_ERR(__wt_buf_grow(session, scr, (deleted_entries + 1) * sizeof(uint32_t)));
-                deleted_refs = static_cast< uint32_t*>(scr->mem);
+                deleted_refs = static_cast<uint32_t *>(scr->mem);
                 deleted_refs[deleted_entries++] = i;
             }
         }
@@ -1654,8 +1654,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
     /* Verify any disk image we have. */
     WT_ASSERT(session,
       multi->disk_image == NULL ||
-        __wt_verify_dsk_image(
-	        session, "[page instantiate]", static_cast<const WT_PAGE_HEADER*>(multi->disk_image), 0, &multi->addr, true) == 0);
+        __wt_verify_dsk_image(session, "[page instantiate]",
+          static_cast<const WT_PAGE_HEADER *>(multi->disk_image), 0, &multi->addr, true) == 0);
 
     /* Allocate an underlying WT_REF. */
     WT_RET(__wt_calloc_one(session, refp));

@@ -1098,7 +1098,7 @@ __wt_block_extlist_read(
     WT_RET(__wt_scr_alloc(session, el->size, &tmp));
     WT_ERR(__wt_block_read_off(session, block, tmp, el->offset, el->size, el->checksum));
 
-    p = static_cast<uint8_t*>(WT_BLOCK_HEADER_BYTE(tmp->mem));
+    p = static_cast<uint8_t *>(WT_BLOCK_HEADER_BYTE(tmp->mem));
     WT_ERR(__wt_extlist_read_pair(&p, &off, &size));
     if (off != WT_BLOCK_EXTLIST_MAGIC || size != 0)
         goto corrupted;
@@ -1188,7 +1188,7 @@ __wt_block_extlist_write(
     dsk->version = WT_PAGE_VERSION_TS;
 
     /* Fill the page's data. */
-    p = static_cast<uint8_t*>(WT_BLOCK_HEADER_BYTE(dsk));
+    p = static_cast<uint8_t *>(WT_BLOCK_HEADER_BYTE(dsk));
     /* Extent list starts */
     WT_ERR(__wt_extlist_write_pair(&p, WT_BLOCK_EXTLIST_MAGIC, 0));
     WT_EXT_FOREACH (ext, el->off) /* Free ranges */

@@ -317,7 +317,7 @@ __txn_log_recover(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LS
     uint32_t rectype;
     const uint8_t *end, *p;
 
-    r = static_cast<WT_RECOVERY*>(cookie);
+    r = static_cast<WT_RECOVERY *>(cookie);
     p = WT_LOG_SKIP_HEADER(logrec->data);
     end = (const uint8_t *)logrec->data + logrec->size;
     WT_UNUSED(firstrecord);

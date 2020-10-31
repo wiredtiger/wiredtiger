@@ -176,24 +176,27 @@ __block_checkpoint_update(WT_SESSION_IMPL *session, WT_BLOCK *block, struct save
     checkpoint = info->checkpoint;
 
     if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
-	    __wt_ckpt_verbose(session, block, "import original", NULL, static_cast<const uint8_t*>(checkpoint->mem));
+        __wt_ckpt_verbose(
+          session, block, "import original", NULL, static_cast<const uint8_t *>(checkpoint->mem));
 
     /*
      * Convert the final checkpoint data blob to a WT_BLOCK_CKPT structure, update it with the avail
      * list information, and convert it back to a data blob.
      */
-    WT_RET(__wt_block_buffer_to_ckpt(session, block, static_cast<const uint8_t*>(checkpoint->data), &ci));
+    WT_RET(__wt_block_buffer_to_ckpt(
+      session, block, static_cast<const uint8_t *>(checkpoint->data), &ci));
     ci.avail.offset = info->offset;
     ci.avail.size = info->size;
     ci.avail.checksum = info->checksum;
     ci.file_size = (wt_off_t)info->file_size;
     WT_RET(__wt_buf_extend(session, checkpoint, WT_BLOCK_CHECKPOINT_BUFFER));
-    endp = static_cast<uint8_t*>(checkpoint->mem);
+    endp = static_cast<uint8_t *>(checkpoint->mem);
     WT_RET(__wt_block_ckpt_to_buffer(session, block, &endp, &ci, false));
     checkpoint->size = WT_PTRDIFF(endp, checkpoint->mem);
 
     if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
-	    __wt_ckpt_verbose(session, block, "import replace", NULL, static_cast<const uint8_t*>(checkpoint->mem));
+        __wt_ckpt_verbose(
+          session, block, "import replace", NULL, static_cast<const uint8_t *>(checkpoint->mem));
 
     return (0);
 }

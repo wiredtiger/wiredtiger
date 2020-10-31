@@ -491,7 +491,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
          * the end of the file or overflow references to non-existent pages, might as well discard
          * these pages now.
          */
-        if (__wt_verify_dsk(session, static_cast<const char*>(as->data), buf) != 0) {
+        if (__wt_verify_dsk(session, static_cast<const char *>(as->data), buf) != 0) {
             __wt_verbose(session, WT_VERB_SALVAGE, "%s page failed verify %s",
               __wt_page_type_string(dsk->type), (const char *)as->data);
             WT_ERR(bm->free(bm, session, addr, addr_size));
@@ -718,7 +718,8 @@ __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRA
 
             __wt_verbose(session, WT_VERB_SALVAGE, "%s overflow reference %s",
               __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1),
-                         __wt_addr_string(session, static_cast<const uint8_t*>(unpack.data), unpack.size, trk->ss->tmp2));
+              __wt_addr_string(
+                session, static_cast<const uint8_t *>(unpack.data), unpack.size, trk->ss->tmp2));
 
             if (++ovfl_cnt == trk->trk_ovfl_cnt)
                 break;
@@ -1338,7 +1339,7 @@ __slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_PAGE *page, uint64_t
     stop = (recno + skip + take) - 1;
 
     WT_COL_FOREACH (page, cip, i) {
-	    cell = static_cast<WT_CELL *>(WT_COL_PTR(page, cip));
+        cell = static_cast<WT_CELL *>(WT_COL_PTR(page, cip));
         __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
         recno += __wt_cell_rle(&unpack);
 
@@ -2089,8 +2090,8 @@ __slvg_ovfl_reconcile(WT_SESSION_IMPL *session, WT_STUFF *ss)
         WT_ERR(__wt_calloc_def(session, trk->trk_ovfl_cnt, &slot));
         for (j = 0; j < trk->trk_ovfl_cnt; ++j) {
             addr = &trk->trk_ovfl_addr[j];
-            searchp =
-	            static_cast<WT_TRACK**>(bsearch(addr, ss->ovfl, ss->ovfl_next, sizeof(WT_TRACK *), __slvg_ovfl_compare));
+            searchp = static_cast<WT_TRACK **>(
+              bsearch(addr, ss->ovfl, ss->ovfl_next, sizeof(WT_TRACK *), __slvg_ovfl_compare));
 
             /*
              * If the overflow page doesn't exist or if another page has already claimed it, this

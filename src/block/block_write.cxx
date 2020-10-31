@@ -287,7 +287,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     /*
      * Clear the block header to ensure all of it is initialized, even the unused fields.
      */
-    blk = static_cast<WT_BLOCK_HEADER*>(WT_BLOCK_HEADER_REF(buf->mem));
+    blk = static_cast<WT_BLOCK_HEADER *>(WT_BLOCK_HEADER_REF(buf->mem));
     memset(blk, 0, sizeof(*blk));
 
     /*

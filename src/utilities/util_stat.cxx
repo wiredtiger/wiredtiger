@@ -70,7 +70,7 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     }
 
     urilen = strlen("statistics:") + strlen(objname) + 1;
-    if ((uri = static_cast<char*>(calloc(urilen, 1))) == NULL) {
+    if ((uri = static_cast<char *>(calloc(urilen, 1))) == NULL) {
         fprintf(stderr, "%s: %s\n", progname, strerror(errno));
         goto err;
     }

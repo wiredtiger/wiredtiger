@@ -240,8 +240,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
         }
 
         /* Load the checkpoint. */
-        WT_ERR(bm->checkpoint_load(
-	               bm, session, static_cast<const uint8_t*>(ckpt->raw.data), ckpt->raw.size, root_addr, &root_addr_size, true));
+        WT_ERR(bm->checkpoint_load(bm, session, static_cast<const uint8_t *>(ckpt->raw.data),
+          ckpt->raw.size, root_addr, &root_addr_size, true));
 
         /* Skip trees with no root page. */
         if (root_addr_size != 0) {
@@ -385,7 +385,7 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
 
 err:
     __wt_scr_free(session, &tmp);
-    return (static_cast<const char*>(buf->data));
+    return (static_cast<const char *>(buf->data));
 }
 
 /*
@@ -553,7 +553,8 @@ celltype_err:
             }
 
             /* Unpack the address block and check timestamps */
-	        __wt_cell_unpack_addr(session, child_ref->home->dsk, static_cast<WT_CELL *>(child_ref->addr), unpack);
+            __wt_cell_unpack_addr(
+              session, child_ref->home->dsk, static_cast<WT_CELL *>(child_ref->addr), unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
             /* Verify the subtree. */
@@ -564,7 +565,8 @@ celltype_err:
             --vs->depth;
             WT_RET(ret);
 
-            WT_RET(bm->verify_addr(bm, session, static_cast<const uint8_t*>(unpack->data), unpack->size));
+            WT_RET(bm->verify_addr(
+              bm, session, static_cast<const uint8_t *>(unpack->data), unpack->size));
         }
         WT_INTL_FOREACH_END;
         break;
@@ -583,7 +585,8 @@ celltype_err:
                 WT_RET(__verify_row_int_key_order(session, page, child_ref, entry, vs));
 
             /* Unpack the address block and check timestamps */
-	        __wt_cell_unpack_addr(session, child_ref->home->dsk, static_cast<WT_CELL *>(child_ref->addr), unpack);
+            __wt_cell_unpack_addr(
+              session, child_ref->home->dsk, static_cast<WT_CELL *>(child_ref->addr), unpack);
             WT_RET(__verify_addr_ts(session, child_ref, unpack, vs));
 
             /* Verify the subtree. */
@@ -594,7 +597,8 @@ celltype_err:
             --vs->depth;
             WT_RET(ret);
 
-            WT_RET(bm->verify_addr(bm, session, static_cast<const uint8_t*>(unpack->data), unpack->size));
+            WT_RET(bm->verify_addr(
+              bm, session, static_cast<const uint8_t *>(unpack->data), unpack->size));
         }
         WT_INTL_FOREACH_END;
         break;
@@ -713,7 +717,7 @@ __verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
      * The physical page has already been verified, but we haven't confirmed it was an overflow
      * page, only that it was a valid page. Confirm it's the type of page we expected.
      */
-    dsk = static_cast<const WT_PAGE_HEADER*>(vs->tmp1->data);
+    dsk = static_cast<const WT_PAGE_HEADER *>(vs->tmp1->data);
     if (dsk->type != WT_PAGE_OVFL)
         WT_RET_MSG(session, WT_ERROR, "overflow referenced page at %s is not an overflow page",
           __wt_addr_string(session, addr, addr_size, vs->tmp1));
@@ -887,12 +891,14 @@ __verify_page_content_int(
 
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
-	        if ((ret = __verify_overflow(session, static_cast<const uint8_t *>(unpack.data), unpack.size, vs)) != 0)
+            if ((ret = __verify_overflow(
+                   session, static_cast<const uint8_t *>(unpack.data), unpack.size, vs)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32
                   " on page at %s references an overflow item at %s that failed verification",
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
-                           __wt_addr_string(session, static_cast<const uint8_t *>(unpack.data), unpack.size, vs->tmp2));
+                  __wt_addr_string(
+                    session, static_cast<const uint8_t *>(unpack.data), unpack.size, vs->tmp2));
             break;
         }
 
@@ -965,12 +971,14 @@ __verify_page_content_leaf(
         case WT_CELL_KEY_OVFL:
         case WT_CELL_VALUE_OVFL:
             found_ovfl = true;
-            if ((ret = __verify_overflow(session, static_cast<const uint8_t *>(unpack.data), unpack.size, vs)) != 0)
+            if ((ret = __verify_overflow(
+                   session, static_cast<const uint8_t *>(unpack.data), unpack.size, vs)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32
                   " on page at %s references an overflow item at %s that failed verification",
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
-                           __wt_addr_string(session, static_cast<const uint8_t*>(unpack.data), unpack.size, vs->tmp2));
+                  __wt_addr_string(
+                    session, static_cast<const uint8_t *>(unpack.data), unpack.size, vs->tmp2));
             break;
         }
 
@@ -1004,7 +1012,7 @@ __verify_page_content_leaf(
             WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
         } else if (page->type == WT_PAGE_COL_VAR) {
             rle = __wt_cell_rle(&unpack);
-            p = static_cast<uint8_t*>(vs->tmp1->mem);
+            p = static_cast<uint8_t *>(vs->tmp1->mem);
             WT_RET(__wt_vpack_uint(&p, 0, recno));
             vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
             WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));

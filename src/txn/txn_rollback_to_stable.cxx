@@ -738,7 +738,7 @@ __rollback_page_needs_abort(
     const char *tag;
     bool prepared, result;
 
-    addr = static_cast<WT_ADDR*>(ref->addr);
+    addr = static_cast<WT_ADDR *>(ref->addr);
     mod = ref->page == NULL ? NULL : ref->page->modify;
     durable_ts = WT_TS_NONE;
     tag = "undefined state";

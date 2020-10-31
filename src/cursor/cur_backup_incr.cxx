@@ -130,7 +130,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         if (WT_PREFIX_MATCH(file, WT_LOG_FILENAME)) {
             WT_ERR(__wt_scr_alloc(session, 0, &buf));
             WT_ERR(__wt_log_filename(session, UINT32_MAX, file, buf));
-            file = static_cast<const char*>(buf->data);
+            file = static_cast<const char *>(buf->data);
         }
         WT_ERR(__wt_fs_size(session, file, &size));
 
@@ -147,7 +147,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         if (F_ISSET(cb, WT_CURBACKUP_INCR_INIT)) {
             /* Look for the next chunk that had modifications.  */
             while (cb->bit_offset < cb->nbits)
-	            if (__bit_test(static_cast<uint8_t*>(cb->bitstring.mem), cb->bit_offset))
+                if (__bit_test(static_cast<uint8_t *>(cb->bitstring.mem), cb->bit_offset))
                     break;
                 else
                     ++cb->bit_offset;
@@ -262,7 +262,8 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
          */
         session_cache_flags = F_ISSET(session, WT_SESSION_CACHE_CURSORS);
         F_CLR(session, WT_SESSION_CACHE_CURSORS);
-        WT_ERR(__wt_curfile_open(session, static_cast<const char *>(open_uri->data), NULL, cfg, &cb->incr_cursor));
+        WT_ERR(__wt_curfile_open(
+          session, static_cast<const char *>(open_uri->data), NULL, cfg, &cb->incr_cursor));
         F_SET(session, session_cache_flags);
     }
     WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));

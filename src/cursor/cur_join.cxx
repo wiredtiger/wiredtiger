@@ -761,7 +761,7 @@ __curjoin_init_bloom(
         size = strlen(cjoin->table->iface.name) + 3;
         WT_ERR(__wt_scr_alloc(session, size, &uribuf));
         WT_ERR(__wt_buf_fmt(session, uribuf, "%s()", cjoin->table->iface.name));
-        uri = static_cast<const char*>(uribuf->data);
+        uri = static_cast<const char *>(uribuf->data);
     }
     WT_ERR(__wt_open_cursor(session, uri, &cjoin->iface, raw_cfg, &c));
 

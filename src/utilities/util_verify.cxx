@@ -80,7 +80,7 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
           strlen("dump_pages,") + strlen("dump_offsets[],") +
           (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + strlen("history_store") +
           strlen("stable_timestamp,") + 20;
-        if ((config = static_cast<char*>(malloc(size))) == NULL) {
+        if ((config = static_cast<char *>(malloc(size))) == NULL) {
             ret = util_err(session, errno, NULL);
             goto err;
         }

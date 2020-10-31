@@ -1448,8 +1448,10 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     newv = cursor->value.size;
     WT_ERR(__cursor_size_chk(session, &cursor->value));
 
-    WT_STAT_CONN_INCRV(session, cursor_update_bytes_changed, newv > orig ? newv - orig : orig - newv);
-    WT_STAT_DATA_INCRV(session, cursor_update_bytes_changed, newv > orig ? newv - orig : orig - newv);
+    WT_STAT_CONN_INCRV(
+      session, cursor_update_bytes_changed, newv > orig ? newv - orig : orig - newv);
+    WT_STAT_DATA_INCRV(
+      session, cursor_update_bytes_changed, newv > orig ? newv - orig : orig - newv);
 
     /*
      * WT_CURSOR.modify is update-without-overwrite.

@@ -194,8 +194,8 @@ int
 config_list_add(WT_SESSION *session, CONFIG_LIST *clp, char *val)
 {
     if (clp->entry + 1 >= clp->max_entry)
-	    if ((clp->list = static_cast<char**>(realloc(clp->list, (size_t)(clp->max_entry += 100) * sizeof(char *)))) ==
-          NULL)
+        if ((clp->list = static_cast<char **>(
+               realloc(clp->list, (size_t)(clp->max_entry += 100) * sizeof(char *)))) == NULL)
             /* List already freed by realloc. */
             return (util_err(session, errno, NULL));
 
@@ -243,7 +243,7 @@ config_read(WT_SESSION *session, char ***listp, bool *hexp)
     if ((ret = util_read_line(session, &l, false, &eof)) != 0)
         goto err;
     s = "WiredTiger Dump ";
-    if (strncmp(static_cast<const char*>(l.mem), s, strlen(s)) != 0) {
+    if (strncmp(static_cast<const char *>(l.mem), s, strlen(s)) != 0) {
         ret = format(session);
         goto err;
     }
@@ -251,9 +251,9 @@ config_read(WT_SESSION *session, char ***listp, bool *hexp)
     /* Header line #2: "Format={hex,print}". */
     if ((ret = util_read_line(session, &l, false, &eof)) != 0)
         goto err;
-    if (strcmp(static_cast<const char*>(l.mem), "Format=print") == 0)
+    if (strcmp(static_cast<const char *>(l.mem), "Format=print") == 0)
         *hexp = false;
-    else if (strcmp(static_cast<const char*>(l.mem), "Format=hex") == 0)
+    else if (strcmp(static_cast<const char *>(l.mem), "Format=hex") == 0)
         *hexp = true;
     else {
         ret = format(session);
@@ -263,7 +263,7 @@ config_read(WT_SESSION *session, char ***listp, bool *hexp)
     /* Header line #3: "Header". */
     if ((ret = util_read_line(session, &l, false, &eof)) != 0)
         goto err;
-    if (strcmp(static_cast<const char*>(l.mem), "Header") != 0) {
+    if (strcmp(static_cast<const char *>(l.mem), "Header") != 0) {
         ret = format(session);
         goto err;
     }
@@ -272,7 +272,7 @@ config_read(WT_SESSION *session, char ***listp, bool *hexp)
     for (entry = max_entry = 0, list = NULL;; ++entry) {
         if ((ret = util_read_line(session, &l, false, &eof)) != 0)
             goto err;
-        if (strcmp(static_cast<const char*>(l.mem), "Data") == 0)
+        if (strcmp(static_cast<const char *>(l.mem), "Data") == 0)
             break;
 
         /*
@@ -280,7 +280,8 @@ config_read(WT_SESSION *session, char ***listp, bool *hexp)
          * termination.
          */
         if (entry + 1 >= max_entry) {
-	        if ((tlist = static_cast<char**>(realloc(list, (size_t)(max_entry += 100) * sizeof(char *)))) == NULL) {
+            if ((tlist = static_cast<char **>(
+                   realloc(list, (size_t)(max_entry += 100) * sizeof(char *)))) == NULL) {
                 ret = util_err(session, errno, NULL);
 
                 /*
@@ -291,7 +292,7 @@ config_read(WT_SESSION *session, char ***listp, bool *hexp)
             }
             list = tlist;
         }
-        if ((list[entry] = strdup(static_cast<const char*>(l.mem))) == NULL) {
+        if ((list[entry] = strdup(static_cast<const char *>(l.mem))) == NULL) {
             ret = util_err(session, errno, NULL);
             goto err;
         }
@@ -435,7 +436,7 @@ config_update(WT_SESSION *session, char **list)
      */
     for (cnt = 0, configp = cmdconfig; cmdconfig != NULL && *configp != NULL; configp += 2)
         ++cnt;
-    if ((cfg = static_cast<const char**>(calloc(cnt + 10, sizeof(cfg[0])))) == NULL)
+    if ((cfg = static_cast<const char **>(calloc(cnt + 10, sizeof(cfg[0])))) == NULL)
         return (util_err(session, errno, NULL));
 
     /*
@@ -480,7 +481,7 @@ config_rename(WT_SESSION *session, char **urip, const char *name)
 
     /* Allocate room. */
     len = strlen(*urip) + strlen(name) + 10;
-    if ((buf = static_cast<char*>(malloc(len))) == NULL)
+    if ((buf = static_cast<char *>(malloc(len))) == NULL)
         return (util_err(session, errno, NULL));
 
     /*

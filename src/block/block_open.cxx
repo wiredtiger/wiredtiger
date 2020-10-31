@@ -50,9 +50,10 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         for (suffix = 1;; ++suffix) {
             WT_ERR(__wt_buf_fmt(session, tmp, "%s.%d", filename, suffix));
-            WT_ERR(__wt_fs_exist(session, static_cast<const char*>(tmp->data), &exists));
+            WT_ERR(__wt_fs_exist(session, static_cast<const char *>(tmp->data), &exists));
             if (!exists) {
-	            WT_ERR(__wt_fs_rename(session, filename, static_cast<const char*>(tmp->data), false));
+                WT_ERR(
+                  __wt_fs_rename(session, filename, static_cast<const char *>(tmp->data), false));
                 WT_ERR(__wt_msg(session, "unexpected file %s found, renamed to %s", filename,
                   (const char *)tmp->data));
                 break;
