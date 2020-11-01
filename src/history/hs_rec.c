@@ -235,10 +235,12 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      * of the key we are about to insert.
      */
     WT_ERR_NOTFOUND_OK(
-      __wt_hs_cursor_position(session, cursor, btree->id, key, start_time_point->ts, srch_key), true);
+      __wt_hs_cursor_position(session, cursor, btree->id, key, start_time_point->ts, srch_key),
+      true);
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
-        if (hs_btree_id == btree->id && start_time_point->ts == hs_start_ts && hs_counter == counter) {
+        if (hs_btree_id == btree->id && start_time_point->ts == hs_start_ts &&
+          hs_counter == counter) {
             WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
             WT_ASSERT(session, cmp != 0);
         }
