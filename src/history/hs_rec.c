@@ -229,6 +229,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
               session, cursor, btree, key, start_time_point->ts, &counter, srch_key));
     }
 
+<<<<<<< HEAD
     start_time_point.ts = upd->start_ts;
     start_time_point.durable_ts = upd->durable_ts;
     start_time_point.txnid = upd->txnid;
@@ -248,6 +249,8 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
         }
     }
 #endif
+=======
+>>>>>>> 4f7fad208de54bf79bc33f4c79f4c4d264c87cb0
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_insert_record_with_btree_int(session, cursor, btree->id, key, type, hs_value,
               start_time_point, stop_time_point, counter)) == WT_RESTART)
