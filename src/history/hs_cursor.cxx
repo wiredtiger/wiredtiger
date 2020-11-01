@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+#include <vector>
+
 /*
  * __wt_hs_row_search --
  *     Search the history store for a given key and position the cursor on it.
@@ -157,6 +159,20 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
 }
 
 /*
+ * __hs_get_modify_ids --
+ *     Returns a vector of transaction ids for a series of modifies. No point other than to try out
+ *     some C++ features.
+ */
+static std::vector<uint64_t>
+__hs_get_modify_ids(const std::vector<WT_UPDATE *> &modifies)
+{
+    std::vector<uint64_t> txnids;
+    std::transform(modifies.begin(), modifies.end(), std::back_inserter(txnids),
+      [](const WT_UPDATE *mod) { return mod->txnid; });
+    return txnids;
+}
+
+/*
  * __wt_hs_find_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
  *     for the record and return to the caller. The caller may choose to optionally allow prepared
@@ -173,7 +189,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     WT_DECL_ITEM(orig_hs_value_buf);
     WT_DECL_RET;
     WT_ITEM hs_key, recno_key;
-    WT_MODIFY_VECTOR modifies;
+    std::vector<WT_UPDATE *> modifies;
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     WT_UPDATE *mod_upd, *upd;
@@ -189,7 +205,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     mod_upd = upd = NULL;
     orig_hs_value_buf = NULL;
     WT_CLEAR(hs_key);
-    __wt_modify_vector_init(session, &modifies);
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
     hs_btree_id = S2BT(session)->id;
@@ -310,7 +325,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
          */
         while (upd_type == WT_UPDATE_MODIFY) {
             WT_ERR(__wt_upd_alloc(session, hs_value, upd_type, &mod_upd, NULL));
-            WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
+            modifies.push_back(mod_upd);
             mod_upd = NULL;
 
             /*
@@ -374,9 +389,12 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
               &upd_type_full, hs_value));
             upd_type = (uint8_t)upd_type_full;
         }
+        const auto txnids = __hs_get_modify_ids(modifies);
+        static_cast<void>(txnids);
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
-        while (modifies.size > 0) {
-            __wt_modify_vector_pop(&modifies, &mod_upd);
+        while (modifies.size() > 0) {
+            mod_upd = modifies.back();
+            modifies.pop_back();
             WT_ERR(__wt_modify_apply_item(session, value_format, hs_value, mod_upd->data));
             __wt_free_update_list(session, &mod_upd);
             mod_upd = NULL;
@@ -406,11 +424,8 @@ err:
     WT_TRET(__wt_hs_cursor_close(session));
 
     __wt_free_update_list(session, &mod_upd);
-    while (modifies.size > 0) {
-        __wt_modify_vector_pop(&modifies, &upd);
-        __wt_free_update_list(session, &upd);
-    }
-    __wt_modify_vector_free(&modifies);
+    for (auto *m : modifies)
+        __wt_free_update_list(session, &m);
 
     if (ret == 0) {
         /* Couldn't find a record. */
