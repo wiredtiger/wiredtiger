@@ -380,7 +380,7 @@ typedef uint64_t wt_timestamp_t;
 #include "timestamp.h" /* required by reconcile.h */
 
 #include "api.h"
-#include "block.h"
+#include "block_def.h"
 #include "bloom.h"
 #include "btmem.h"
 #include "btree.h"
