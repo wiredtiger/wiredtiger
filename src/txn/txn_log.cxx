@@ -432,6 +432,10 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
         read = txn_shared->read_timestamp;
 
     __wt_epoch(session, &t);
+    // Not sure what's happening here. This function is still having its name mangled despite having
+    // its declaration wrapped in extern "C" in wt_internal. Even the pre-processor output looks
+    // fine to me so there's clearly something I'm not understanding about the linkage rules.
+    //
     // return (__wt_logop_txn_timestamp_pack(session, logrec, (uint64_t)t.tv_sec,
     // (uint64_t)t.tv_nsec,
     //   commit, durable, first_commit, prepare, read));
