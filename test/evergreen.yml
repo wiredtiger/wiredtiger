@@ -182,17 +182,6 @@ functions:
         for i in $(seq ${times|1}); do
           ${test_env_vars|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
         done
-  "test wt hang analyzer script":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger/test/format"
-      script: |
-        set -o errexit
-        set -o verbose
-        ${format_test_setting|}
-
-        ${test_env_vars|} ./format.sh ${smp_command|} -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 20 2>&1
-
   "many dbs test":
     command: shell.exec
     params:
