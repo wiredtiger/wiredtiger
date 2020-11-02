@@ -106,7 +106,7 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
             newfile = cursor.get_key()
 
             if self.counter == 0:
-                # Take a full bakcup into each incremental directory
+                # Take a full backup into each incremental directory
                 for i in range(0, self.max_iteration):
                     copy_from = newfile
                     # If it is a log file, prepend the path.
