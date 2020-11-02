@@ -162,7 +162,7 @@ __wt_txn_on_going(WT_SESSION_IMPL *session, uint64_t txnid)
     __wt_readlock(session, &txn_global->rwlock);
     oldest_id = txn_global->oldest_id;
 
-    if (txnid <= oldest_id) {
+    if (WT_TXNID_LT(txnid, oldest_id)) {
         on_going = false;
         goto done;
     }
