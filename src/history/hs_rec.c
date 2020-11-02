@@ -631,12 +631,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * update was previously selected by a failed eviction pass. Also the eviction may run
              * without a snapshot if the checkpoint is running concurrently. In those cases, check
              * whether the history transaction is committed or not against the global transaction
-             * list.
+             * list. We expect the transaction is committed before the check. However, though very
+             * rare, it is possible that the check may race with transaction commit and in this case
+             * we may fail to catch the failure.
              */
 #ifdef HAVE_DIAGNOSTIC
             if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
               !__txn_visible_id(session, list->onpage_upd->txnid))
-                WT_ASSERT(session, __wt_txn_in_global_list(session, upd->txnid));
+                WT_ASSERT(session, !__wt_txn_in_global_list(session, upd->txnid));
             else
                 WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
 #endif
