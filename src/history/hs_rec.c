@@ -624,21 +624,22 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 upd->prepare_state != WT_PREPARE_LOCKED);
 
             /*
-             * Skip the check if we don't have a snapshot. Therefore, the check doesn't ensure that
-             * we never write uncommitted updates to the history store. But this is the best we can
-             * do for now.
+             * Ensure all the updates inserted to the history store are committed.
              *
              * Sometimes the application and the checkpoint threads will fall behind the eviction
-             * threads, and they may choose an invisible update if the update was previously
-             * selected by a failed eviction pass. In that case, there is no point in checking the
-             * visibility of such history store updates.
+             * threads, and they may choose an invisible update to write to the data store if the
+             * update was previously selected by a failed eviction pass. Also the eviction may run
+             * without a snapshot if the checkpoint is running concurrently. In those cases, check
+             * whether the history transaction is committed or not against the global transaction
+             * list.
              */
-            WT_WITH_TXN_ISOLATION(
-              session, WT_ISO_READ_COMMITTED, __txn_visible_id(session, upd->txnid));
-            // WT_ASSERT(session,
-            //   !F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
-            //     !__txn_visible_id(session, list->onpage_upd->txnid) ||
-            //     __txn_visible_id(session, upd->txnid));
+#ifdef HAVE_DIAGNOSTIC
+            if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
+              !__txn_visible_id(session, list->onpage_upd->txnid))
+                WT_ASSERT(session, __wt_txn_check_committed(session, upd->txnid));
+            else
+                WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
+#endif
 
             /*
              * Calculate reverse modify and clear the history store records with timestamps when

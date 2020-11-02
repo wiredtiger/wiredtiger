@@ -139,6 +139,48 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_txn_check_committed --
+ *     Check if a transaction is committed or not regardless of the current transaction's snapshot.
+ */
+bool
+__wt_txn_check_committed(WT_SESSION_IMPL *session, uint64_t txnid)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_TXN_GLOBAL *txn_global;
+    WT_TXN_SHARED *s;
+    uint64_t oldest_id;
+    uint32_t i, session_cnt;
+    bool is_committed;
+
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
+    is_committed = false;
+
+    /* We're going to scan the table: wait for the lock. */
+    __wt_readlock(session, &txn_global->rwlock);
+    oldest_id = txn_global->oldest_id;
+
+    if (txnid <= oldest_id) {
+        is_committed = true;
+        goto done;
+    }
+
+    /* Walk the array of concurrent transactions. */
+    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+        /* If the transaction is in the list, it is uncommitted. */
+        if (s->id == txnid)
+            goto done;
+    }
+
+    /* If the transaction is not in the list, it is committed. */
+    is_committed = true;
+done:
+    __wt_readunlock(session, &txn_global->rwlock);
+    return (is_committed);
+}
+
+/*
  * __txn_get_snapshot_int --
  *     Allocate a snapshot, optionally update our shared txn ids.
  */
