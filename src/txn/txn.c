@@ -139,13 +139,13 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_on_going --
- *     Check if a transaction is still on going. If not, it is either committed, prepared, or rolled
+ * __wt_txn_active --
+ *     Check if a transaction is still active. If not, it is either committed, prepared, or rolled
  *     back. It is possible that we race with commit, prepare or rollback and a transaction is still
- *     on going before the start of the call is eventually reported as resolved.
+ *     active before the start of the call is eventually reported as resolved.
  */
 bool
-__wt_txn_on_going(WT_SESSION_IMPL *session, uint64_t txnid)
+__wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
