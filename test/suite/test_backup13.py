@@ -179,7 +179,6 @@ class test_backup13(wttest.WiredTigerTestCase, suite_subprocess):
             lambda: self.session.open_cursor('backup:', None, config))
 
         # Make sure after a crash we cannot access old backup info.
-        #self.session.checkpoint('force=true')
         self.simulate_crash_restart(".", "RESTART")
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor('backup:', None, config))
