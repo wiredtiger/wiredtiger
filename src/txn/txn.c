@@ -139,32 +139,31 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_in_global_list --
- *     Check if a transaction is still in the global transaction list. If it is not, then it is
- *     committed, prepared, or rolled back. It is possible that we race with commit, prepare or
- *     rollback and a transaction is still in the global list before the start of the call is
- *     reported not in the list.
+ * __wt_txn_on_going --
+ *     Check if a transaction is still on going. If not, it is either committed, prepared, or rolled
+ *     back. It is possible that we race with commit, prepare or rollback and a transaction is still
+ *     on going before the start of the call is eventually reported as resolved.
  */
 bool
-__wt_txn_in_global_list(WT_SESSION_IMPL *session, uint64_t txnid)
+__wt_txn_on_going(WT_SESSION_IMPL *session, uint64_t txnid)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     uint64_t oldest_id;
     uint32_t i, session_cnt;
-    bool in_global_list;
+    bool on_going;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
-    in_global_list = true;
+    on_going = true;
 
     /* We're going to scan the table: wait for the lock. */
     __wt_readlock(session, &txn_global->rwlock);
     oldest_id = txn_global->oldest_id;
 
     if (txnid <= oldest_id) {
-        in_global_list = false;
+        on_going = false;
         goto done;
     }
 
@@ -176,10 +175,10 @@ __wt_txn_in_global_list(WT_SESSION_IMPL *session, uint64_t txnid)
             goto done;
     }
 
-    in_global_list = false;
+    on_going = false;
 done:
     __wt_readunlock(session, &txn_global->rwlock);
-    return (in_global_list);
+    return (on_going);
 }
 
 /*

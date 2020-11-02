@@ -638,7 +638,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 #ifdef HAVE_DIAGNOSTIC
             if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
               !__txn_visible_id(session, list->onpage_upd->txnid))
-                WT_ASSERT(session, !__wt_txn_in_global_list(session, upd->txnid));
+                WT_ASSERT(session, !__wt_txn_on_going(session, upd->txnid));
             else
                 WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
 #endif
