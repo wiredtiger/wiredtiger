@@ -152,18 +152,18 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
     WT_TXN_SHARED *s;
     uint64_t oldest_id;
     uint32_t i, session_cnt;
-    bool on_going;
+    bool active;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
-    on_going = true;
+    active = true;
 
     /* We're going to scan the table: wait for the lock. */
     __wt_readlock(session, &txn_global->rwlock);
     oldest_id = txn_global->oldest_id;
 
     if (WT_TXNID_LT(txnid, oldest_id)) {
-        on_going = false;
+        active = false;
         goto done;
     }
 
@@ -175,10 +175,10 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
             goto done;
     }
 
-    on_going = false;
+    active = false;
 done:
     __wt_readunlock(session, &txn_global->rwlock);
-    return (on_going);
+    return (active);
 }
 
 /*
