@@ -139,29 +139,32 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_check_committed --
- *     Check if a transaction is committed or not regardless of the current transaction's snapshot.
+ * __wt_txn_in_global_list --
+ *     Check if a transaction is still in the global transaction list. If it is not, then it is
+ *     committed, prepared, or rolled back. It is possible that we race with commit, prepare or
+ *     rollback and a transaction is still in the global list before the start of the call is
+ *     reported not in the list.
  */
 bool
-__wt_txn_check_committed(WT_SESSION_IMPL *session, uint64_t txnid)
+__wt_txn_in_global_list(WT_SESSION_IMPL *session, uint64_t txnid)
 {
     WT_CONNECTION_IMPL *conn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     uint64_t oldest_id;
     uint32_t i, session_cnt;
-    bool is_committed;
+    bool in_global_list;
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
-    is_committed = false;
+    in_global_list = true;
 
     /* We're going to scan the table: wait for the lock. */
     __wt_readlock(session, &txn_global->rwlock);
     oldest_id = txn_global->oldest_id;
 
     if (txnid <= oldest_id) {
-        is_committed = true;
+        in_global_list = false;
         goto done;
     }
 
@@ -173,11 +176,10 @@ __wt_txn_check_committed(WT_SESSION_IMPL *session, uint64_t txnid)
             goto done;
     }
 
-    /* If the transaction is not in the list, it is committed. */
-    is_committed = true;
+    in_global_list = false;
 done:
     __wt_readunlock(session, &txn_global->rwlock);
-    return (is_committed);
+    return (in_global_list);
 }
 
 /*
