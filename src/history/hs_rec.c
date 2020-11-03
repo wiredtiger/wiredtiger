@@ -25,12 +25,12 @@ static int __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR 
   const WT_ITEM *srch_key);
 
 /*
- * __hs_insert_updates_verbose --
+ * __hs_verbose_cache_stats --
  *     Display a verbose message once per checkpoint with details about the cache state when
  *     performing a history store table write.
  */
 static void
-__hs_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree)
+__hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
@@ -229,6 +229,20 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
               session, cursor, btree, key, start_time_point->ts, &counter, srch_key));
     }
 
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * We may have fixed out of order keys. Make sure that we haven't accidentally added a duplicate
+     * of the key we are about to insert.
+     */
+    if (F_ISSET(cursor, WT_CURSTD_KEY_SET)) {
+        WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
+        if (hs_btree_id == btree->id && start_time_point->ts == hs_start_ts &&
+          hs_counter == counter) {
+            WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+            WT_ASSERT(session, cmp != 0);
+        }
+    }
+#endif
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_insert_record_with_btree_int(session, cursor, btree->id, key, type, hs_value,
               start_time_point, stop_time_point, counter)) == WT_RESTART)
@@ -618,6 +632,31 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 continue;
             }
 
+            /* We should never write a prepared update to the history store. */
+            WT_ASSERT(session,
+              upd->prepare_state != WT_PREPARE_INPROGRESS &&
+                upd->prepare_state != WT_PREPARE_LOCKED);
+
+            /*
+             * Ensure all the updates inserted to the history store are committed.
+             *
+             * Sometimes the application and the checkpoint threads will fall behind the eviction
+             * threads, and they may choose an invisible update to write to the data store if the
+             * update was previously selected by a failed eviction pass. Also the eviction may run
+             * without a snapshot if the checkpoint is running concurrently. In those cases, check
+             * whether the history transaction is committed or not against the global transaction
+             * list. We expect the transaction is committed before the check. However, though very
+             * rare, it is possible that the check may race with transaction commit and in this case
+             * we may fail to catch the failure.
+             */
+#ifdef HAVE_DIAGNOSTIC
+            if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
+              !__txn_visible_id(session, list->onpage_upd->txnid))
+                WT_ASSERT(session, !__wt_txn_active(session, upd->txnid));
+            else
+                WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
+#endif
+
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update.
@@ -660,7 +699,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
 err:
     if (ret == 0 && insert_cnt > 0)
-        __hs_insert_updates_verbose(session, btree);
+        __hs_verbose_cache_stats(session, btree);
 
     __wt_scr_free(session, &key);
     /* modify_value is allocated in __wt_modify_pack. Free it if it is allocated. */
