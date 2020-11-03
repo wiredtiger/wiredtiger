@@ -1,6 +1,4 @@
-/*! @arch_page{arch-dhandle,Data Handles and Btrees}
-
-@arch_head{<code>WT_DHANDLE<br>WT_BTREE</code>,<code>src/include/dhandle.h<br>src/include/btree.h<br>src/conn/conn_dhandle.c<br>src/session/session_dhandle.c<br>src/btree/</code>}
+/*! @arch_page arch-dhandle Data Handles and Btrees
 
 An internal structure called Data Handle (dhandle) is used to represent and
 access Btrees and other data sources in WiredTiger. A dhandle gets created

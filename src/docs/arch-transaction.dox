@@ -1,6 +1,4 @@
-/*! @arch_page{arch-transaction,Transactions}
-
-@arch_head{<code>WT_TXN<br>WT_TXN_SHARED<br>WT_TXN_GLOBAL<br>WT_TXN_OP</code>,<code>src/include/txn.h<br>src/txn/</code>}
+/*! @arch_page arch-transaction Transactions
 
 Transactions provide a powerful abstraction for multiple threads to operate on data concurrently.
 A caller of WiredTiger uses @ref transactions within the API to start and stop transactions within

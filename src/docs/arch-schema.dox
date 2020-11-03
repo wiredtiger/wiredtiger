@@ -1,6 +1,4 @@
-/*! @arch_page{arch-schema,Schema}
-
-@arch_head{<code>WT_TABLE<br>WT_COLGROUP<br>WT_INDEX</code>,<code>src/include/schema.h<br>src/include/intpack_inline.h<br>src/include/packing_inline.h<br>src/schema/<br>src/packing/</code>}
+/*! @arch_page arch-schema Schema
 
 A schema defines the format of the application data in WiredTiger. WiredTiger
 supports various types of schemas (See @ref schema for more
