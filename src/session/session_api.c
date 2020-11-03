@@ -2002,8 +2002,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         TAILQ_INIT(&session_ret->cursor_cache[i]);
     session_ret->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
 
-    /* Initialize transaction support: default to read-committed. */
-    session_ret->isolation = WT_ISO_READ_COMMITTED;
+    /* Initialize transaction support: default to snapshot. */
+    session_ret->isolation = WT_ISO_SNAPSHOT;
     WT_ERR(__wt_txn_init(session, session_ret));
 
     /*
@@ -2120,6 +2120,8 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
      */
     F_SET(session, session_flags | WT_SESSION_INTERNAL);
 
+    /* Internal sessions default to read-committed isolation. */
+    session->isolation = session->txn->isolation = WT_ISO_READ_COMMITTED;
     *sessionp = session;
     return (0);
 }

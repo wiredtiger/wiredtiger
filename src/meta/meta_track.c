@@ -518,8 +518,8 @@ __wt_meta_track_init(WT_SESSION_IMPL *session)
           conn, "metadata-ckpt", false, WT_SESSION_NO_DATA_HANDLES, &conn->meta_ckpt_session));
 
         /*
-         * Sessions default to read-committed isolation, we rely on that for the correctness of
-         * metadata checkpoints.
+         * Internal sessions default to read-committed isolation, we rely on that for the
+         * correctness of metadata checkpoints.
          */
         WT_ASSERT(session, conn->meta_ckpt_session->txn->isolation == WT_ISO_READ_COMMITTED);
     }
