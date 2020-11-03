@@ -229,6 +229,20 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
               session, cursor, btree, key, start_time_point->ts, &counter, srch_key));
     }
 
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * We may have fixed out of order keys. Make sure that we haven't accidentally added a duplicate
+     * of the key we are about to insert.
+     */
+    if (F_ISSET(cursor, WT_CURSTD_KEY_SET)) {
+        WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
+        if (hs_btree_id == btree->id && start_time_point->ts == hs_start_ts &&
+          hs_counter == counter) {
+            WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+            WT_ASSERT(session, cmp != 0);
+        }
+    }
+#endif
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_insert_record_with_btree_int(session, cursor, btree->id, key, type, hs_value,
               start_time_point, stop_time_point, counter)) == WT_RESTART)
