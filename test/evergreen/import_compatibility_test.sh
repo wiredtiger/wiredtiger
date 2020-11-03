@@ -6,12 +6,20 @@
 set -e
 
 # build_branch --
-#     arg1: branch name
+#     1: branch name
 build_branch()
 {
-    git clone https://github.com/wiredtiger/wiredtiger.git "$1"
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Building branch: \"$1\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
+    # Clone if it doesn't already exist.
+    if [ ! -d "$1" ]; then
+        git clone --quiet https://github.com/wiredtiger/wiredtiger.git "$1"
+    fi
     cd "$1"
     git checkout --quiet "$1"
+
     config=""
     config+="--enable-snappy "
     (sh build_posix/reconf &&
@@ -20,8 +28,8 @@ build_branch()
 }
 
 # create_file --
-#     arg1: branch name
-#     arg2: file name
+#     1: branch name
+#     2: file name
 create_file()
 {
     wt_cmd="$1/wt"
@@ -34,11 +42,15 @@ create_file()
 }
 
 # import_file --
-#     arg1: dest branch name
-#     arg2: source branch name
-#     arg3: file name
+#     1: dest branch name
+#     2: source branch name
+#     3: file name
 import_file()
 {
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Importing file \"$3\" from \"$1\" to \"$2\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
     wt_cmd="$1/wt"
     wt_dir="$1/WT_TEST/"
     mkdir -p $wt_dir
@@ -52,23 +64,30 @@ import_file()
 }
 
 # verify_file --
-#     arg1: branch name
-#     arg2: file name
+#     1: branch name
+#     2: file name
 verify_file()
 {
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Branch \"$1\" verifying \"$2\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
     wt_cmd="$1/wt"
     wt_dir="$1/WT_TEST/"
 
     $wt_cmd -h $wt_dir verify "file:$2"
 }
 
-# build_branch develop
-# build_branch mongodb-4.4
+# Build both branches.
+build_branch develop
+build_branch mongodb-4.4
+
+# Create and populate a file in 4.4.
 create_file mongodb-4.4 test_import
+
+# Now import it into develop.
 import_file develop mongodb-4.4 test_import
 verify_file develop test_import
 
-# Now try to import it back.
-#
-# We should get this to fail.
+# WIP: Import it back and see how that works.
 mongodb-4.4/wt -h develop/WT_TEST/ dump file:test_import
