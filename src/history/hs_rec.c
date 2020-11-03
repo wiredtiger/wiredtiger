@@ -632,6 +632,31 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 continue;
             }
 
+            /* We should never write a prepared update to the history store. */
+            WT_ASSERT(session,
+              upd->prepare_state != WT_PREPARE_INPROGRESS &&
+                upd->prepare_state != WT_PREPARE_LOCKED);
+
+            /*
+             * Ensure all the updates inserted to the history store are committed.
+             *
+             * Sometimes the application and the checkpoint threads will fall behind the eviction
+             * threads, and they may choose an invisible update to write to the data store if the
+             * update was previously selected by a failed eviction pass. Also the eviction may run
+             * without a snapshot if the checkpoint is running concurrently. In those cases, check
+             * whether the history transaction is committed or not against the global transaction
+             * list. We expect the transaction is committed before the check. However, though very
+             * rare, it is possible that the check may race with transaction commit and in this case
+             * we may fail to catch the failure.
+             */
+#ifdef HAVE_DIAGNOSTIC
+            if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT) ||
+              !__txn_visible_id(session, list->onpage_upd->txnid))
+                WT_ASSERT(session, !__wt_txn_active(session, upd->txnid));
+            else
+                WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
+#endif
+
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update.
