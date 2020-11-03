@@ -51,7 +51,24 @@ import_file()
     $wt_cmd -h $wt_dir create -c "import=(enabled,repair=true)" "file:$3"
 }
 
+# verify_file --
+#     arg1: branch name
+#     arg2: file name
+verify_file()
+{
+    wt_cmd="$1/wt"
+    wt_dir="$1/WT_TEST/"
+
+    $wt_cmd -h $wt_dir verify "file:$2"
+}
+
 # build_branch develop
 # build_branch mongodb-4.4
 create_file mongodb-4.4 test_import
 import_file develop mongodb-4.4 test_import
+verify_file develop test_import
+
+# Now try to import it back.
+#
+# We should get this to fail.
+mongodb-4.4/wt -h develop/WT_TEST/ dump file:test_import
