@@ -6,7 +6,7 @@ table_config="memory_page_max=10m,leaf_value_max=64MB,checksum=on,split_pct=90,t
 checkpoint_interval=60
 checkpoint_threads=1
 # Compressibility is an option that requires workgen
-#compressibility=50
+compressibility=50
 compression="snappy"
 create=true
 close_conn=false
