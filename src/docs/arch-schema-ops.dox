@@ -1,9 +1,7 @@
-/*! @page arch-schema Schema Operations
+/*! @page arch-schema-ops Schema Operations
 
-A schema defines the format of the application data in WiredTiger. WiredTiger
-supports various types of schemas (See @ref schema for more
-information), operated upon through a WT_SESSION reference. This section details
-the internals of these various schema operations.
+A @ref arch-schema defines the format of the application data in WiredTiger.
+This section details the internals of various schema operations.
 
 Schema operations cause an update to the metadata and are performed under a
 schema lock to avoid concurrent operations on the same object. The following
