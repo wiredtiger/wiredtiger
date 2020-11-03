@@ -24,8 +24,8 @@ import subprocess
 import sys
 import tempfile
 import threading
-import traceback
 import time
+import traceback
 from distutils import spawn
 from io import BytesIO, TextIOWrapper
 from optparse import OptionParser
@@ -79,7 +79,7 @@ class LoggerPipe(threading.Thread):
             self.__started = True
             self.__condition.notify_all()
 
-        # Close the pipe when finished reading all of the output.
+        # Close the pipe when all of the output has been read.
         with self.__pipe_out:
             # Avoid buffering the output from the pipe.
             for line in iter(self.__pipe_out.readline, b""):
@@ -479,8 +479,8 @@ def pname_match(exact_match, pname, processes):
 
 # Basic procedure
 #
-# 1. Get a list of interesting processes
-# 2. Dump useful information or take dumps
+# 1. Get a list of interesting processes.
+# 2. Dump useful information or take dumps.
 def main():
     """Execute Main program."""
     root_logger = logging.Logger("hang_analyzer", level=logging.DEBUG)
