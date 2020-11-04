@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Test importing of files created in previous versions of WiredTiger.
-# Test that we do not allowing downgrading of databases that have an imported table.
+# Test that we can downgrade a database after importing a file.
 
 set -e
 
@@ -39,8 +39,10 @@ create_file()
 
     wt_cmd="$1/wt"
     test_dir="$1/WT_TEST/"
-    mkdir -p $test_dir
     uri="file:$2"
+
+    # Make the home directory.
+    mkdir -p $test_dir
 
     # Create the file and populate with a few key/values.
     $wt_cmd -h $test_dir create -c "key_format=S,value_format=S" $uri
@@ -61,7 +63,7 @@ import_file()
     test_dir="$1/WT_TEST/"
     mkdir -p $test_dir
 
-    # Move the file across.
+    # Move the file across to the destination branch's home directory.
     import_file="$2/WT_TEST/$3"
     cp $import_file $test_dir
 
@@ -117,6 +119,9 @@ import_compatibility_test()
     verify_file $1 test_import
 
     # Now downgrade by running wt from the older branch and dumping the table contents.
+    #
+    # Before trying this, we must remove the base configuration. The wt tool produces this file
+    # however MongoDB will not so we should emulate this.
     rm $1/WT_TEST/WiredTiger.basecfg
     $2/wt -h $1/WT_TEST/ dump file:test_import
 }
@@ -135,7 +140,8 @@ done
 for i in ${!release_branches[@]}; do
     newer=${release_branches[$i]}
 
-    # MongoDB v4.2 doesn't support live import.
+    # MongoDB v4.2 doesn't support live import so it should only ever be used as the "older" branch
+    # that we're importing from.
     if [ $newer = mongodb-4.2 ]; then
         continue
     fi
