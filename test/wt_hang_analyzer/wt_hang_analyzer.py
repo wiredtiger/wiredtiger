@@ -391,6 +391,7 @@ class GDBDumper(object):
             "attach %d" % pid,
             "info sharedlibrary",
             "info threads",  # Dump a simple list of commands to get the thread name
+            "thread apply all bt",
             "set python print-stack full",
             # Lock the scheduler, before running commands, which execute code in the attached process.
             "set scheduler-locking on",
