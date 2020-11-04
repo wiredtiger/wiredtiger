@@ -6,7 +6,7 @@
 set -e
 
 # build_branch --
-#     1: branch name
+#     1: branch
 build_branch()
 {
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
@@ -18,6 +18,7 @@ build_branch()
         git clone --quiet https://github.com/wiredtiger/wiredtiger.git "$1"
     fi
     cd "$1"
+
     git checkout --quiet "$1"
 
     config=""
@@ -28,23 +29,28 @@ build_branch()
 }
 
 # create_file --
-#     1: branch name
-#     2: file name
+#     1: branch
+#     2: file
 create_file()
 {
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Branch \"$1\" creating and populating \"$2\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
     wt_cmd="$1/wt"
-    wt_dir="$1/WT_TEST/"
-    mkdir -p $wt_dir
+    test_dir="$1/WT_TEST/"
+    mkdir -p $test_dir
+    uri="file:$2"
 
     # Create the file and populate with a few key/values.
-    $wt_cmd -h $wt_dir create -c "key_format=S,value_format=S" "file:$2"
-    $wt_cmd -h $wt_dir write "file:$2" abc 123 def 456 hij 789
+    $wt_cmd -h $test_dir create -c "key_format=S,value_format=S" $uri
+    $wt_cmd -h $test_dir write $uri abc 123 def 456 hij 789
 }
 
 # import_file --
-#     1: dest branch name
-#     2: source branch name
-#     3: file name
+#     1: dest branch
+#     2: source branch
+#     3: file
 import_file()
 {
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
@@ -52,20 +58,21 @@ import_file()
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
     wt_cmd="$1/wt"
-    wt_dir="$1/WT_TEST/"
-    mkdir -p $wt_dir
+    test_dir="$1/WT_TEST/"
+    mkdir -p $test_dir
 
     # Move the file across.
     import_file="$2/WT_TEST/$3"
-    cp $import_file $wt_dir
+    cp $import_file $test_dir
 
     # Run import via the wt tool.
-    $wt_cmd -h $wt_dir create -c "import=(enabled,repair=true)" "file:$3"
+    uri="file:$3"
+    $wt_cmd -h $test_dir create -c "import=(enabled,repair=true)" $uri
 }
 
 # verify_file --
-#     1: branch name
-#     2: file name
+#     1: branch
+#     2: file
 verify_file()
 {
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
@@ -73,21 +80,66 @@ verify_file()
     echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
     wt_cmd="$1/wt"
-    wt_dir="$1/WT_TEST/"
+    test_dir="$1/WT_TEST/"
+    uri="file:$2"
 
-    $wt_cmd -h $wt_dir verify "file:$2"
+    $wt_cmd -h $test_dir verify $uri
 }
 
-# Build both branches.
-build_branch develop
-build_branch mongodb-4.4
+# cleanup_branch --
+#     1: branch
+cleanup_branch()
+{
+    test_dir="$1/WT_TEST/"
+    if [ -d $test_dir ]; then
+        rm -rf $test_dir
+    fi
+}
 
-# Create and populate a file in 4.4.
-create_file mongodb-4.4 test_import
+# import_compatibility_test --
+#     1: newer branch
+#     2: older branch
+import_compatibility_test()
+{
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+    echo "Testing import compatibility between \"$1\" and \"$2\""
+    echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
-# Now import it into develop.
-import_file develop mongodb-4.4 test_import
-verify_file develop test_import
+    # Remove any leftover data files.
+    cleanup_branch $1
+    cleanup_branch $2
 
-# WIP: Import it back and see how that works.
-mongodb-4.4/wt -h develop/WT_TEST/ dump file:test_import
+    # Create a file in the older branch.
+    create_file $2 test_import
+
+    # Now import it into the newer branch and verify.
+    import_file $1 $2 test_import
+    verify_file $1 test_import
+
+    # Now downgrade by running wt from the older branch and dumping the table contents.
+    rm $1/WT_TEST/WiredTiger.basecfg
+    $2/wt -h $1/WT_TEST/ dump file:test_import
+}
+
+# Release branches.
+#
+# Go all the way back to mongodb-4.2 since that's the first release where we don't support live
+# import.
+release_branches=(develop mongodb-5.0 mongodb-4.4 mongodb-4.2)
+
+# Build each of the release branches.
+for b in ${release_branches[@]}; do
+    build_branch $b
+done
+
+for i in ${!release_branches[@]}; do
+    newer=${release_branches[$i]}
+
+    # MongoDB v4.2 doesn't support live import.
+    if [ $newer = mongodb-4.2 ]; then
+        continue
+    fi
+
+    older=${release_branches[$i+1]}
+    import_compatibility_test $newer $older
+done
