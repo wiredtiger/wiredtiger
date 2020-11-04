@@ -542,7 +542,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      * updates aren't having their transaction ids wiped after reopening the dhandle. The runtime
      * write generation is relevant here since it should remain static across the entire run.
      */
-    btree->write_gen = WT_MAX(ckpt->write_gen, conn->base_write_gen) + 1;
+    btree->write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
     WT_ASSERT(session, ckpt->write_gen >= ckpt->run_write_gen);
 
     /* If this is the first time opening the tree this run. */
