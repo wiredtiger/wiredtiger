@@ -818,6 +818,10 @@ restart:
         goto restart;
     }
 
+    /* Return from here if this was called from recovery flow. */
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+        return (ret);
+
     /* Shut down the history store table after all eviction is complete. */
     __wt_hs_close(session);
 

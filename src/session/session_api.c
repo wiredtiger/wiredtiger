@@ -275,6 +275,21 @@ err:
 }
 
 /*
+ * __wt_session_close_open_cursors --
+ *     Close all the open cursors from session.
+ */
+int
+__wt_session_close_open_cursors(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    F_CLR(session, WT_SESSION_CACHE_CURSORS);
+    WT_TRET(__session_close_cursors(session, &session->cursors));
+    WT_TRET(__session_close_cached_cursors(session));
+    WT_TRET(__wt_session_reset_cursors(session, true));
+    return (ret);
+}
+
+/*
  * __wt_session_close_internal --
  *     Internal function of WT_SESSION->close method.
  */
