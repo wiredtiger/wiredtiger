@@ -6,4 +6,6 @@ information), operated upon through a WT_SESSION reference.
 
 @subpage arch-schema-ops
 
+This section details the internals of various API operations that operate on schemas, such as WT_SESSION::create and WT_SESSION::rename.
+
 */

@@ -12,4 +12,6 @@ representations of the Btree.
 
 @subpage arch-dhandle-lifecycle
 
+This section describes how dhandles are created, and how and when they are destroyed.
+
 */

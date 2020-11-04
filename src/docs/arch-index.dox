@@ -121,21 +121,21 @@ wt_file -[hidden]right-> log_file
 
 We go into some detail for some of the internal components.
 
-@subpage arch-glossary
-
-WiredTiger assigns specific meanings to certain words. Here we decode them.
-
-@subpage arch-schema
-
-A schema defines the format of the application data in WiredTiger.
-
 @subpage arch-dhandle
 
 An internal structure called Data Handle (dhandle) is used to represent and
 access Btrees and other data sources in WiredTiger.
 
+@subpage arch-schema
+
+A schema defines the format of the application data in WiredTiger.
+
 @subpage arch-transaction
 
 Transactions provide a powerful abstraction for multiple threads to operate on data concurrently.
+
+@subpage arch-glossary
+
+WiredTiger assigns specific meanings to certain words. Here we decode them.
 
 */

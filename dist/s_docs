@@ -124,6 +124,18 @@ valid_build()
 	done
 }
 
+check_docs_data()
+{
+	python docs.py > $t
+	test -s $t && {
+		echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+		echo 'Documentation data errors in docs_data.py'
+		sed -e 's/^/	/' < $t
+		echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+		e=1
+	}
+}
+
 build()
 {
 	# Build from scratch on demand.
@@ -225,6 +237,9 @@ wtperf_config
 # Spell and structure check the documentation.
 spellchk
 structurechk
+
+# Check the docs data input file.
+check_docs_data
 
 # Build the documentation.
 build $clean

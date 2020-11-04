@@ -1,5 +1,5 @@
-# Create tables that are used by our doxygen filter. to process and
-# expand the arch_page macros in the documentation.
+# Create entries used by our doxygen filter to expand the arch_page
+# macros in the documentation.
 
 class ArchDocPage:
     def __init__(self, doxygen_name, data_structures, files):
@@ -21,5 +21,5 @@ arch_doc_pages = [
          'src/conn/conn_dhandle.c', 'src/session/session_dhandle.c']),
     ArchDocPage('arch-transaction',
         ['WT_TXN', 'WT_TXN_SHARED', 'WT_TXN_GLOBAL', 'WT_TXN_OP'],
-        ['src/include/txn.h', 'src/txn/']),
+        ['src/include/txn.h', 'src/include/txn_inline.h', 'src/txn/']),
 ]
