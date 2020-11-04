@@ -2552,6 +2552,7 @@ buildvariants:
   - ubuntu1804-test
   tasks:
     - name: compatibility-test-for-newer-releases
+    - name: import-compatibility-test
 
 - name: windows-64
   display_name: "! Windows 64-bit"
