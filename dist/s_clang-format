@@ -4,8 +4,15 @@ set -o pipefail
 
 download_clang_format() {
 	if [ `uname` = "Linux" ]; then
-		wget https://s3.amazonaws.com/boxes.10gen.com/build/clang-format-3.8-rhel55.tar.gz -O dist/clang-format.tar.gz
-		tar --strip=2 -C dist/ -xf dist/clang-format.tar.gz build/bin/clang-format && rm dist/clang-format.tar.gz
+	    if [ `uname -m` = "mips64" ]; then
+		    tar --strip=2 -C dist/ -xf dist/clang-format-mips64.tar.gz build/bin/clang-format
+		elif [ `uname -m` = "x86_64" ]; then
+		    wget https://s3.amazonaws.com/boxes.10gen.com/build/clang-format-3.8-rhel55.tar.gz -O dist/clang-format.tar.gz
+		    tar --strip=2 -C dist/ -xf dist/clang-format.tar.gz build/bin/clang-format && rm dist/clang-format.tar.gz
+	    else
+		    echo "$0: unsupported environment $(uname)"
+		    exit 1
+		fi
 	elif [ `uname` = "Darwin" ]; then
 		wget https://s3.amazonaws.com/boxes.10gen.com/build/clang%2Bllvm-3.8.0-x86_64-apple-darwin.tar.xz -O dist/clang-format.tar.gz
 		tar --strip=2 -C dist/ -xf dist/clang-format.tar.gz clang+llvm-3.8.0-x86_64-apple-darwin/bin/clang-format && rm dist/clang-format.tar.gz
@@ -22,7 +29,7 @@ cd `git rev-parse --show-toplevel` || exit 1
 export PATH="${PWD}/dist":$PATH
 
 # Ensure that we have the correct version of clang-format.
-clang_format_version>="3.8.0"
+clang_format_version="3.8.0"
 clang-format --version | grep "version $clang_format_version" >/dev/null 2>&1
 if test $? -ne 0; then
 	download_clang_format
