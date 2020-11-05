@@ -161,8 +161,16 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
 {
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(srch_key);
+#ifdef HAVE_DIAGNOSTIC
+    WT_DECL_ITEM(existing_val);
+#endif
     WT_DECL_RET;
     wt_timestamp_t hs_start_ts;
+#ifdef HAVE_DIAGNOSTIC
+    wt_timestamp_t durable_timestamp_diag;
+    wt_timestamp_t hs_stop_durable_ts_diag;
+    uint64_t upd_type_full_diag;
+#endif
     uint64_t counter, hs_counter;
     uint32_t hs_btree_id;
     int cmp;
@@ -213,8 +221,22 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
          */
         if (hs_btree_id == btree->id && start_time_point->ts == hs_start_ts) {
             WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
+
+#ifdef HAVE_DIAGNOSTIC
+            if (cmp == 0) {
+                WT_ERR(__wt_scr_alloc(session, 0, &existing_val));
+                WT_ERR(cursor->get_value(cursor, &hs_stop_durable_ts_diag, &durable_timestamp_diag,
+                  &upd_type_full_diag, existing_val));
+                /* Allocate buffer for the history store value. */
+                WT_ERR(__wt_compare(session, NULL, existing_val, hs_value, &cmp));
+                WT_ASSERT(session, cmp != 0);
+                __wt_scr_free(session, &existing_val);
+                counter = hs_counter + 1;
+            }
+#else
             if (cmp == 0)
                 counter = hs_counter + 1;
+#endif
         }
     }
 
