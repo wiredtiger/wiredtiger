@@ -856,7 +856,7 @@ main(int argc, char *argv[])
                  * the shadow table at t + 1. If checkpoint finishes at timestamp t, the last shadow
                  * table record will be removed by rollback to stable after restart.
                  */
-                if (durable_fp == stable_val + 1) {
+                if (durable_fp <= stable_val) {
                     printf("%s: SHADOW no record with key %" PRIu64 "\n", fname, key);
                     absent_shadow++;
                 }
