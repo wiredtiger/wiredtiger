@@ -1000,10 +1000,10 @@ err:
      *
      */
     if (rollback_to_stable_called) {
-        F_SET(S2C(session), WT_CONN_CLOSING);
+        F_SET(conn, WT_CONN_CLOSING);
         WT_TRET(__wt_session_close_open_cursors(session));
         WT_TRET(__wt_conn_dhandle_discard(session));
-        F_CLR(S2C(session), WT_CONN_CLOSING);
+        F_CLR(conn, WT_CONN_CLOSING);
     }
 
     /*
