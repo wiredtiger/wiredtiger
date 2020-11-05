@@ -894,6 +894,7 @@ io
 ip
 isalnum
 isalpha
+isascii
 iscntrl
 isdigit
 isgraph
