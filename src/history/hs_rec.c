@@ -236,7 +236,9 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
                   &upd_type_full_diag, existing_val));
                 WT_ERR(__wt_compare(session, NULL, existing_val, hs_value, &cmp));
                 if (cmp == 0)
-                    WT_ASSERT(session, start_time_point->txnid != hs_cbt->upd_value->tw.start_txn);
+                    WT_ASSERT(session,
+                      start_time_point->txnid == WT_TXN_NONE ||
+                        start_time_point->txnid != hs_cbt->upd_value->tw.start_txn);
                 counter = hs_counter + 1;
             }
 #else
