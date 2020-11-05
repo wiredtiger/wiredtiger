@@ -291,6 +291,12 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
                 tmp = drealloc(tmp, this_size);
                 tmp_sz = this_size;
             }
+            if (lseek(rfd, (wt_off_t)offset, SEEK_SET) == -1)
+                testutil_die(errno, "backup-read: lseek");
+            if (lseek(wfd1, (wt_off_t)offset, SEEK_SET) == -1)
+                testutil_die(errno, "backup-write1: lseek");
+            if (lseek(wfd2, (wt_off_t)offset, SEEK_SET) == -1)
+                testutil_die(errno, "backup-write2: lseek");
             total = 0;
             while (total < size) {
                 /*
@@ -298,19 +304,13 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
                  * is often 4 bytes and checks for any negative value. The offset returned from
                  * lseek is 8 bytes and we can have a false positive error check.
                  */
-                if (lseek(rfd, (wt_off_t)offset, SEEK_SET) == -1)
-                    testutil_die(errno, "backup-read: lseek");
-                error_sys_check(rdsize = read(rfd, tmp, this_size));
-                if (lseek(wfd1, (wt_off_t)offset, SEEK_SET) == -1)
-                    testutil_die(errno, "backup-write1: lseek");
-                if (lseek(wfd2, (wt_off_t)offset, SEEK_SET) == -1)
-                    testutil_die(errno, "backup-write2: lseek");
                 /* Use the read size since we may have read less than the granularity. */
+                error_sys_check(rdsize = read(rfd, tmp, this_size));
                 error_sys_check(write(wfd1, tmp, (size_t)rdsize));
                 error_sys_check(write(wfd2, tmp, (size_t)rdsize));
-                total += this_size;
-                offset += this_size;
-                this_size = WT_MIN(this_size, size - total);
+                total += rdsize;
+                offset += rdsize;
+                this_size = WT_MIN(rdsize, size - total);
             }
         } else {
             testutil_assert(type == WT_BACKUP_FILE);
