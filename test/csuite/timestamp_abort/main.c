@@ -853,8 +853,8 @@ main(int argc, char *argv[])
                     testutil_die(ret, "shadow search");
                 /*
                  * We respectively insert the record to the collection table at timestamp t and to
-                 * the shadow table at t + 1. If checkpoint finishes at timestamp t, the last shadow
-                 * table record will be removed by rollback to stable after restart.
+                 * the shadow table at t + 1. If the checkpoint finishes at timestamp t, the last
+                 * shadow table record will be removed by rollback to stable after restart.
                  */
                 if (durable_fp <= stable_val) {
                     printf("%s: SHADOW no record with key %" PRIu64 "\n", fname, key);
