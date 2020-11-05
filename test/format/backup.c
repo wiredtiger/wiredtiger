@@ -310,7 +310,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
                 error_sys_check(write(wfd2, tmp, (size_t)rdsize));
                 total += (uint64_t)rdsize;
                 offset += (uint64_t)rdsize;
-                this_size = WT_MIN((uint64_t)rdsize, size - total);
+                this_size = WT_MIN(this_size, size - total);
             }
         } else {
             testutil_assert(type == WT_BACKUP_FILE);
