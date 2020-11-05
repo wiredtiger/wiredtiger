@@ -308,9 +308,9 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
                 error_sys_check(rdsize = read(rfd, tmp, this_size));
                 error_sys_check(write(wfd1, tmp, (size_t)rdsize));
                 error_sys_check(write(wfd2, tmp, (size_t)rdsize));
-                total += rdsize;
-                offset += rdsize;
-                this_size = WT_MIN(rdsize, size - total);
+                total += (uint64_t)rdsize;
+                offset += (uint64_t)rdsize;
+                this_size = WT_MIN((uint64_t)rdsize, size - total);
             }
         } else {
             testutil_assert(type == WT_BACKUP_FILE);
