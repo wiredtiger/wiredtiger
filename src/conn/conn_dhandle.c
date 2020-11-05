@@ -410,6 +410,33 @@ err:
 }
 
 /*
+ * __dhandle_verbose_config --
+ *     Set verbose configuration.
+ */
+static int
+__dhandle_verbose_config(WT_SESSION_IMPL *session)
+{
+    static const WT_NAME_FLAG verbtypes[] = {
+      {"commit_timestamp", WT_DHANDLE_VERB_TS_COMMIT}, {NULL, 0}};
+    WT_CONFIG_ITEM cval, sval;
+    WT_DECL_RET;
+    const WT_NAME_FLAG *ft;
+    uint64_t flags;
+
+    WT_RET(__wt_config_gets(session, session->dhandle->cfg, "verbose", &cval));
+
+    flags = 0;
+    for (ft = verbtypes; ft->name != NULL; ft++) {
+        if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
+            LF_SET(ft->flag);
+        WT_RET_NOTFOUND_OK(ret);
+    }
+
+    session->dhandle->verbose = flags;
+    return (0);
+}
+
+/*
  * __wt_conn_dhandle_open --
  *     Open the current data handle.
  */
@@ -465,7 +492,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         WT_ERR(__wt_btree_open(session, cfg));
         break;
     case WT_DHANDLE_TYPE_TABLE:
-        WT_ERR(__wt_schema_open_table(session, cfg));
+        WT_ERR(__wt_schema_open_table(session));
         break;
     }
 
@@ -477,6 +504,8 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         dhandle->excl_session = session;
         dhandle->excl_ref = 1;
     }
+    WT_ERR(__dhandle_verbose_config(session));
+
     F_SET(dhandle, WT_DHANDLE_OPEN);
 
     /*

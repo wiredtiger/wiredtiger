@@ -27,6 +27,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
     WT_PAGE_MODIFY *mod;
     WT_SESSION_IMPL *session;
     WT_UPDATE *old_upd, *upd;
+    wt_timestamp_t prev_upd_ts;
     size_t ins_size, upd_size;
     u_int i, skipdepth;
     bool append, logged;
@@ -125,10 +126,13 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         old_upd = cbt->ins->upd;
         if (upd_arg == NULL) {
             /* Make sure the update can proceed. */
-            WT_ERR(__wt_txn_update_check(session, cbt, old_upd));
+            WT_ERR(__wt_txn_update_check(session, cbt, old_upd, &prev_upd_ts));
 
             /* Allocate a WT_UPDATE structure and transaction ID. */
             WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
+#ifdef HAVE_DIAGNOSTIC
+            upd->prev_durable_ts = prev_upd_ts;
+#endif
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;
         } else {

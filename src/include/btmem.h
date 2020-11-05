@@ -1087,6 +1087,17 @@ struct __wt_update {
                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 
+#ifdef HAVE_DIAGNOSTIC
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_UPDATE_DIAG_TS_ALWAYS 0x01u         /* A btree using always checking. */
+#define WT_UPDATE_DIAG_TS_KEY_CONSISTENT 0x02u /* A btree using key consistency checking. */
+#define WT_UPDATE_DIAG_TS_MIXED_MODE 0x04u     /* A btree not using timestamps. */
+#define WT_UPDATE_DIAG_TS_NEVER 0x08u          /* A btree not using timestamps. */
+#define WT_UPDATE_DIAG_TS_ORDERED 0x10u        /* A btree not using timestamps. */
+                                               /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint8_t diag_flags;
+    wt_timestamp_t prev_durable_ts;
+#endif
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
      * a C99 flexible array member which has the semantics we want.
@@ -1098,7 +1109,11 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.
  */
+#ifdef HAVE_DIAGNOSTIC
+#define WT_UPDATE_SIZE 48
+#else
 #define WT_UPDATE_SIZE 39
+#endif
 
 /*
  * The memory size of an update: include some padding because this is such a common case that

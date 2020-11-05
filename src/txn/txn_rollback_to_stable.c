@@ -36,7 +36,7 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
              * here.
              */
             WT_ASSERT(session,
-              !FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_KEYS) ||
+              !FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_KEY_CONSISTENT) ||
                 upd == first_upd);
             first_upd = upd->next;
 

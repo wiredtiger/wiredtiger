@@ -178,11 +178,11 @@ file_runtime_config = common_runtime_config + [
             if mixed update use is allowed. If 'key_consistent' is
             set then all updates to a specific key must be the same
             with respect to timestamp usage or not.''',
-            choices=['always', 'key_consistent', 'never', 'none']),
+            choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none', 'ordered']),
         Config('durable_timestamp', 'none', r'''
             verify that durable timestamps should 'always' or 'never' be used
             on modifications with this table.''',
-            choices=['always', 'key_consistent', 'never', 'none']),
+            choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none', 'ordered']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should 'always' or 'never' be used
             on reads with this table.  Verification is 'none'
@@ -212,6 +212,13 @@ file_runtime_config = common_runtime_config + [
         system buffer cache after that many bytes from this object are
         written into the buffer cache''',
         min=0),
+    Config('verbose', '', r'''
+        enable messages for various events. Options are given as a
+        list, such as <code>"verbose=[commit_timestamp]"</code>. In the
+        case of <code>commit_timestamp</code> decisions about expected
+        behavior are based on the <code>assert=(commit_timestamp)</code>
+        configuration''',
+        type='list', choices=['commit_timestamp'])
 ]
 
 # Per-file configuration

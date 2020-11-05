@@ -93,12 +93,21 @@ struct __wt_named_encryptor {
 
 /*
  * WT_NAMED_EXTRACTOR --
- *	An extractor list entry
+ *  An extractor list entry
  */
 struct __wt_named_extractor {
     const char *name;                    /* Name of extractor */
     WT_EXTRACTOR *extractor;             /* User supplied object */
     TAILQ_ENTRY(__wt_named_extractor) q; /* Linked list of extractors */
+};
+
+/*
+ * WT_NAME_FLAG --
+ *  Simple structure for name and flag configuration searches
+ */
+struct __wt_name_flag {
+    const char *name;
+    uint64_t flag;
 };
 
 /*

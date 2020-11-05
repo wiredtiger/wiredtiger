@@ -79,16 +79,28 @@ __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
         return;
     if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_ALWAYS))
         F_SET(session->txn, WT_TXN_TS_COMMIT_ALWAYS);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_KEYS))
-        F_SET(session->txn, WT_TXN_TS_COMMIT_KEYS);
+    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_KEY_CONSISTENT))
+        F_SET(session->txn, WT_TXN_TS_COMMIT_KEY_CONSISTENT);
+    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_MIXED_MODE))
+        F_SET(session->txn, WT_TXN_TS_COMMIT_MIXED_MODE);
     if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_NEVER))
         F_SET(session->txn, WT_TXN_TS_COMMIT_NEVER);
+    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_ORDERED))
+        F_SET(session->txn, WT_TXN_TS_COMMIT_ORDERED);
     if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_ALWAYS))
         F_SET(session->txn, WT_TXN_TS_DURABLE_ALWAYS);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_KEYS))
-        F_SET(session->txn, WT_TXN_TS_DURABLE_KEYS);
+    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_KEY_CONSISTENT))
+        F_SET(session->txn, WT_TXN_TS_DURABLE_KEY_CONSISTENT);
+    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_MIXED_MODE))
+        F_SET(session->txn, WT_TXN_TS_DURABLE_MIXED_MODE);
     if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_NEVER))
         F_SET(session->txn, WT_TXN_TS_DURABLE_NEVER);
+    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_ORDERED))
+        F_SET(session->txn, WT_TXN_TS_DURABLE_ORDERED);
+
+    /* Remember if any type of verbose tracking is encountered by the transaction. */
+    if (FLD_ISSET(session->dhandle->verbose, WT_DHANDLE_VERB_TS_COMMIT))
+        F_SET(session->txn, WT_TXN_VERB_TS_COMMIT);
 }
 
 /*
@@ -811,6 +823,25 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
     }
     upd->type = (uint8_t)modify_type;
 
+#ifdef HAVE_DIAGNOSTIC
+    if (FLD_ISSET(session->dhandle->verbose, WT_DHANDLE_VERB_TS_COMMIT)) {
+        if (FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_ALWAYS) ||
+          FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_DURABLE_TS_ALWAYS))
+            FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_ALWAYS);
+        if (FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_KEY_CONSISTENT) ||
+          FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_DURABLE_TS_KEY_CONSISTENT))
+            FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_KEY_CONSISTENT);
+        if (FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_MIXED_MODE) ||
+          FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_DURABLE_TS_MIXED_MODE))
+            FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_MIXED_MODE);
+        if (FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_NEVER) ||
+          FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_DURABLE_TS_NEVER))
+            FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_NEVER);
+        if (FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_ORDERED) ||
+          FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_DURABLE_TS_ORDERED))
+            FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_ORDERED);
+    }
+#endif
     *updp = upd;
     if (sizep != NULL)
         *sizep = WT_UPDATE_MEMSIZE(upd);
@@ -1224,7 +1255,8 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
  *     Check if the current transaction can update an item.
  */
 static inline int
-__wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__wt_txn_update_check(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, wt_timestamp_t *prev_tsp)
 {
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
@@ -1277,6 +1309,10 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
         ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
     }
 
+    if (prev_tsp != NULL && upd != NULL) {
+        WT_ASSERT(session, upd->durable_ts >= upd->start_ts);
+        *prev_tsp = upd->durable_ts;
+    }
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
     return (ret);

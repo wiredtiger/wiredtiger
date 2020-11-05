@@ -995,6 +995,11 @@ struct __wt_session {
 	 * object blocks from the system buffer cache after that many bytes from this object are
 	 * read or written into the buffer cache., an integer greater than or equal to 0; default \c
 	 * 0.}
+	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
+	 * as <code>"verbose=[commit_timestamp]"</code>. In the case of
+	 * <code>commit_timestamp</code> decisions about expected behavior are based on the
+	 * <code>assert=(commit_timestamp)</code> configuration., a list\, with values chosen from
+	 * the following options: \c "commit_timestamp"; default empty.}
 	 * @configend
 	 * @errors
 	 */
@@ -1221,6 +1226,11 @@ struct __wt_session {
 	 * applications use a WT_ITEM structure to manipulate raw byte arrays.  Value items of type
 	 * 't' are bitfields\, and when configured with record number type keys\, will be stored
 	 * using a fixed-length store., a format string; default \c u.}
+	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
+	 * as <code>"verbose=[commit_timestamp]"</code>. In the case of
+	 * <code>commit_timestamp</code> decisions about expected behavior are based on the
+	 * <code>assert=(commit_timestamp)</code> configuration., a list\, with values chosen from
+	 * the following options: \c "commit_timestamp"; default empty.}
 	 * @configend
 	 * @errors
 	 */

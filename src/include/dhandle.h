@@ -100,6 +100,11 @@ struct __wt_data_handle {
     WT_DSRC_STATS *stats[WT_COUNTER_SLOTS];
     WT_DSRC_STATS *stat_array;
 
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_DHANDLE_VERB_TS_COMMIT 0x1u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint64_t verbose;
+
 /* Flags values over 0xff are reserved for WT_BTREE_* */
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_DHANDLE_DEAD 0x01u         /* Dead, awaiting discard */
