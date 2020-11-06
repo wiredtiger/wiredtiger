@@ -741,15 +741,14 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RECOVERY_FILE *metafile;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup,
-      rollback_to_stable_called;
+    bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
 
     conn = S2C(session);
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
     do_checkpoint = hs_exists = true;
-    eviction_started = rollback_to_stable_called = false;
+    eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
     /* We need a real session for recovery. */
@@ -964,17 +963,16 @@ done:
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
           __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
 
-        rollback_to_stable_called = true;
         WT_ERR(__wt_rollback_to_stable(session, NULL, false));
+
+        /* Initialize the connection's base write generation after rollback to stable. */
+        WT_ERR(__wt_metadata_init_base_write_gen(session));
     } else if (do_checkpoint)
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
          * the checkpoint LSN and archiving.
          */
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
-
-    /* Initialize the connection's base write generation. */
-    WT_ERR(__wt_metadata_init_base_write_gen(session));
 
     /*
      * If we're downgrading and have newer log files, force an archive, no matter what the archive
@@ -995,16 +993,15 @@ err:
     }
 
     /*
-     * Close all the cursors and open dhandles if rollback to stable was called to make sure that
-     * all the modified pages as part of RTS are evicted from the cache.
-     *
+     * The main intention of closing all the modified files dhandles because transaction information
+     * don't get reset until the btree write gen number is less than the base write generation.
+     * The conn closing flag is set to clean a modified page while checkpointing a file as part of
+     * closing the dhandle.
      */
-    if (rollback_to_stable_called) {
-        F_SET(conn, WT_CONN_CLOSING);
-        WT_TRET(__wt_session_close_open_cursors(session));
-        WT_TRET(__wt_conn_dhandle_discard(session));
-        F_CLR(conn, WT_CONN_CLOSING);
-    }
+    F_SET(conn, WT_CONN_CLOSING);
+    WT_TRET(__wt_session_close_open_cursors(session));
+    WT_TRET(__wt_conn_dhandle_discard(session));
+    F_CLR(conn, WT_CONN_CLOSING);
 
     /*
      * Destroy the eviction threads that were started in support of recovery. They will be restarted
