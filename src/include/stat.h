@@ -401,7 +401,7 @@ struct __wt_connection_stats {
     int64_t cache_hs_key_truncate_rts;
     int64_t cache_hs_key_truncate;
     int64_t cache_hs_key_truncate_onpage_removal;
-    int64_t cache_hs_key_truncate_mix_ts;
+    int64_t cache_hs_key_truncate_non_ts;
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
     int64_t cache_inmem_split;
@@ -849,6 +849,7 @@ struct __wt_dsrc_stats {
     int64_t cache_hs_key_truncate;
     int64_t cache_hs_key_truncate_onpage_removal;
     int64_t cache_hs_key_truncate_mix_ts;
+    int64_t cache_hs_key_truncate_non_ts;
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
     int64_t cache_inmem_split;
