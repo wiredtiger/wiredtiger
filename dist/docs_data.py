@@ -11,15 +11,16 @@ class ArchDocPage:
 # List of all architecture subsections
 ##########################################
 arch_doc_pages = [
-    ArchDocPage('arch-schema',
-        ['WT_TABLE', 'WT_COLGROUP', 'WT_INDEX'],
-        ['src/include/schema.h', 'src/include/intpack_inline.h',
-         'src/include/packing_inline.h', 'src/schema/', 'src/packing/']),
     ArchDocPage('arch-dhandle',
-        ['WT_DHANDLE', 'WT_BTREE'],
-        ['src/include/dhandle.h', 'src/include/btree.h',
+        ['WT_BTREE', 'WT_DHANDLE'],
+        ['src/include/btree.h', 'src/include/dhandle.h',
          'src/conn/conn_dhandle.c', 'src/session/session_dhandle.c']),
+    ArchDocPage('arch-schema',
+        ['WT_COLGROUP', 'WT_INDEX', 'WT_LSM_TREE', 'WT_TABLE'],
+        ['src/include/intpack_inline.h', 'src/include/packing_inline.h',
+         'src/include/schema.h',
+         'src/lsm/', 'src/packing/', 'src/schema/']),
     ArchDocPage('arch-transaction',
-        ['WT_TXN', 'WT_TXN_SHARED', 'WT_TXN_GLOBAL', 'WT_TXN_OP'],
+        ['WT_TXN', 'WT_TXN_GLOBAL', 'WT_TXN_OP', 'WT_TXN_SHARED'],
         ['src/include/txn.h', 'src/include/txn_inline.h', 'src/txn/']),
 ]
