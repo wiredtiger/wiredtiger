@@ -1171,16 +1171,18 @@ __txn_commit_timestamps_verbose(WT_SESSION_IMPL *session)
     WT_TXN_OP *op;
     WT_UPDATE *upd;
     wt_timestamp_t op_ts, prev_op_durable_ts;
+    bool txn_has_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     u_int i;
 
     txn = session->txn;
+    txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
 
     /* Nothing to do if no tables this transaction touched were configured for verbose logging. */
-    if (!F_ISSET(txn, WT_TXN_VERB_TS_COMMIT))
+    if (!F_ISSET(txn, WT_TXN_VERB_TS_WRITE))
         return (0);
 
-    /* For now don't check timestamp usage while a transaction is prepared. */
+    /* Don't check timestamp usage while a transaction is prepared. */
     if (F_ISSET(txn, WT_TXN_PREPARE))
         return (0);
 
@@ -1203,28 +1205,26 @@ __txn_commit_timestamps_verbose(WT_SESSION_IMPL *session)
         op_ts = upd->start_ts != WT_TS_NONE ? upd->start_ts : txn->commit_timestamp;
         prev_op_durable_ts = upd->prev_durable_ts;
 
-        if (FLD_ISSET(upd->diag_flags, WT_UPDATE_DIAG_TS_ALWAYS) &&
-          !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+        if (FLD_ISSET(upd->diag_flags, WT_UPDATE_DIAG_TS_ALWAYS) && !txn_has_ts)
             WT_RET(__wt_msg(session,
               WT_COMMIT_TS_VERB_PREFIX
               "commit timestamp not used on table configured to require timestamps"));
 
-        if (FLD_ISSET(upd->diag_flags, WT_UPDATE_DIAG_TS_NEVER) &&
-          F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+        if (FLD_ISSET(upd->diag_flags, WT_UPDATE_DIAG_TS_NEVER) && txn_has_ts)
             WT_RET(__wt_msg(session,
               WT_COMMIT_TS_VERB_PREFIX
               "commit timestamp %s used on table configured to not use timestamps",
               __wt_timestamp_to_string(op_ts, ts_string[0])));
 
         if (FLD_ISSET(upd->diag_flags, WT_UPDATE_DIAG_TS_KEY_CONSISTENT) &&
-          prev_op_durable_ts != WT_TS_NONE && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+          prev_op_durable_ts != WT_TS_NONE && !txn_has_ts)
             WT_RET(__wt_msg(session,
               WT_COMMIT_TS_VERB_PREFIX
               "no timestamp provided for an update to a "
               "table configured to always use timestamps once they are first used"));
 
-        if (FLD_ISSET(upd->diag_flags, WT_UPDATE_DIAG_TS_ORDERED) &&
-          F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) && prev_op_durable_ts > op_ts)
+        if (FLD_ISSET(upd->diag_flags, WT_UPDATE_DIAG_TS_ORDERED) && txn_has_ts &&
+          prev_op_durable_ts > op_ts)
             WT_RET(__wt_msg(session,
               WT_COMMIT_TS_VERB_PREFIX
               "committing a transaction that updates a "
@@ -1261,33 +1261,29 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
     WT_UPDATE *upd;
     wt_timestamp_t op_ts, prev_op_durable_ts, prev_op_ts;
     u_int i;
-    bool op_zero_ts, upd_zero_ts;
+    bool op_zero_ts, upd_zero_ts, used_ts;
 
     txn = session->txn;
     cursor = NULL;
 
+    used_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
     /*
      * Debugging checks on timestamps, if user requested them.
      */
-    if (F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS) && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-      txn->mod_count != 0)
+    if (F_ISSET(txn, WT_TXN_TS_WRITE_ALWAYS) && !used_ts && txn->mod_count != 0)
         WT_RET_MSG(session, EINVAL, "commit_timestamp required and none set on this transaction");
-    if (F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-      txn->mod_count != 0)
+    if (F_ISSET(txn, WT_TXN_TS_WRITE_NEVER) && used_ts && txn->mod_count != 0)
         WT_RET_MSG(
-          session, EINVAL, "no commit_timestamp required and timestamp set on this transaction");
-    if (F_ISSET(txn, WT_TXN_TS_DURABLE_ALWAYS) && !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
-      txn->mod_count != 0)
-        WT_RET_MSG(session, EINVAL, "durable_timestamp required and none set on this transaction");
-    if (F_ISSET(txn, WT_TXN_TS_DURABLE_NEVER) && F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
-      txn->mod_count != 0)
-        WT_RET_MSG(session, EINVAL,
-          "no durable_timestamp required and durable timestamp set on this transaction");
+          session, EINVAL, "no commit_timestamp expected and timestamp set on this transaction");
+
+    if (txn->commit_timestamp > txn->durable_timestamp)
+        WT_RET_MSG(
+          session, EINVAL, "transaction with commit timestamp greater than durable timestamp");
 
     /*
      * If we're not doing any key consistency checking, we're done.
      */
-    if (!F_ISSET(txn, WT_TXN_TS_COMMIT_KEY_CONSISTENT | WT_TXN_TS_DURABLE_KEY_CONSISTENT))
+    if (!F_ISSET(txn, WT_TXN_TS_WRITE_KEY_CONSISTENT))
         return (0);
 
     /*
@@ -1372,11 +1368,14 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
          */
         if (op_ts == WT_TS_NONE)
             op_ts = txn->commit_timestamp;
-        if (F_ISSET(txn, WT_TXN_TS_COMMIT_KEY_CONSISTENT) && op_ts < prev_op_ts)
-            WT_ERR_MSG(session, EINVAL, "out of order commit timestamps");
-        if (F_ISSET(txn, WT_TXN_TS_DURABLE_KEY_CONSISTENT) &&
+        /*
+         * Check based on the durable timestamp, but first ensure that it's a stronger check than
+         * comparing commit timestamps would be.
+         */
+        WT_ASSERT(session, txn->durable_timestamp >= op_ts && prev_op_durable_ts >= prev_op_ts);
+        if (F_ISSET(txn, WT_TXN_TS_WRITE_KEY_CONSISTENT) &&
           txn->durable_timestamp < prev_op_durable_ts)
-            WT_ERR_MSG(session, EINVAL, "out of order durable timestamps");
+            WT_ERR_MSG(session, EINVAL, "out of order commit timestamps");
     }
 
 err:

@@ -410,29 +410,44 @@ err:
 }
 
 /*
- * __dhandle_verbose_config --
- *     Set verbose configuration.
+ * __conn_dhandle_config_parse --
+ *     Parse out configuration settings relevant for the data handle.
  */
 static int
-__dhandle_verbose_config(WT_SESSION_IMPL *session)
+__conn_dhandle_config_parse(WT_SESSION_IMPL *session)
 {
     static const WT_NAME_FLAG verbtypes[] = {
-      {"commit_timestamp", WT_DHANDLE_VERB_TS_COMMIT}, {NULL, 0}};
+      {"write_timestamp", WT_DHANDLE_VERB_TS_WRITE}, {NULL, 0}};
     WT_CONFIG_ITEM cval, sval;
     WT_DECL_RET;
+    WT_DATA_HANDLE *dhandle;
     const WT_NAME_FLAG *ft;
-    uint64_t flags;
+    const char **cfg;
 
-    WT_RET(__wt_config_gets(session, session->dhandle->cfg, "verbose", &cval));
+    dhandle = session->dhandle;
+    cfg = session->dhandle->cfg;
 
-    flags = 0;
+    /* Setup verbose options */
+    WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
+
     for (ft = verbtypes; ft->name != NULL; ft++) {
         if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
-            LF_SET(ft->flag);
+            F_SET(dhandle, ft->flag);
         WT_RET_NOTFOUND_OK(ret);
     }
 
-    session->dhandle->verbose = flags;
+    /* Setup timestamp usage hints */
+    WT_RET(__wt_config_gets(session, cfg, "write_timestamp", &cval));
+    if (WT_STRING_MATCH("always", cval.str, cval.len))
+        F_SET(dhandle, WT_DHANDLE_TS_ALWAYS);
+    else if (WT_STRING_MATCH("key_consistent", cval.str, cval.len))
+        F_SET(dhandle, WT_DHANDLE_TS_KEY_CONSISTENT);
+    else if (WT_STRING_MATCH("mixed_mode", cval.str, cval.len))
+        F_SET(dhandle, WT_DHANDLE_TS_MIXED_MODE);
+    else if (WT_STRING_MATCH("never", cval.str, cval.len))
+        F_SET(dhandle, WT_DHANDLE_TS_NEVER);
+    else if (WT_STRING_MATCH("ordered", cval.str, cval.len))
+        F_SET(dhandle, WT_DHANDLE_TS_ORDERED);
     return (0);
 }
 
@@ -475,6 +490,8 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     __conn_dhandle_config_clear(session);
     WT_ERR(__conn_dhandle_config_set(session));
 
+    WT_ERR(__conn_dhandle_config_parse(session));
+
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
         /* Set any special flags on the btree handle. */
@@ -504,7 +521,6 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         dhandle->excl_session = session;
         dhandle->excl_ref = 1;
     }
-    WT_ERR(__dhandle_verbose_config(session));
 
     F_SET(dhandle, WT_DHANDLE_OPEN);
 

@@ -77,30 +77,28 @@ __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     if (btree == NULL)
         return;
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_ALWAYS))
-        F_SET(session->txn, WT_TXN_TS_COMMIT_ALWAYS);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_KEY_CONSISTENT))
-        F_SET(session->txn, WT_TXN_TS_COMMIT_KEY_CONSISTENT);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_MIXED_MODE))
-        F_SET(session->txn, WT_TXN_TS_COMMIT_MIXED_MODE);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_NEVER))
-        F_SET(session->txn, WT_TXN_TS_COMMIT_NEVER);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_ORDERED))
-        F_SET(session->txn, WT_TXN_TS_COMMIT_ORDERED);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_ALWAYS))
-        F_SET(session->txn, WT_TXN_TS_DURABLE_ALWAYS);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_KEY_CONSISTENT))
-        F_SET(session->txn, WT_TXN_TS_DURABLE_KEY_CONSISTENT);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_MIXED_MODE))
-        F_SET(session->txn, WT_TXN_TS_DURABLE_MIXED_MODE);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_NEVER))
-        F_SET(session->txn, WT_TXN_TS_DURABLE_NEVER);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_ORDERED))
-        F_SET(session->txn, WT_TXN_TS_DURABLE_ORDERED);
+
+#ifndef HAVE_DIAGNOSTIC
+    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_TS_WRITE_DIAGNOSTIC))
+        return;
+#endif
+    if (!FLD_ISSET(btree->assert_flags, WT_ASSERT_TS_WRITE_ALL))
+        return;
+
+    if (F_ISSET(session->dhandle, WT_DHANDLE_TS_ALWAYS))
+        F_SET(session->txn, WT_TXN_TS_WRITE_ALWAYS);
+    if (F_ISSET(session->dhandle, WT_DHANDLE_TS_KEY_CONSISTENT))
+        F_SET(session->txn, WT_TXN_TS_WRITE_KEY_CONSISTENT);
+    if (F_ISSET(session->dhandle, WT_DHANDLE_TS_MIXED_MODE))
+        F_SET(session->txn, WT_TXN_TS_WRITE_MIXED_MODE);
+    if (F_ISSET(session->dhandle, WT_DHANDLE_TS_NEVER))
+        F_SET(session->txn, WT_TXN_TS_WRITE_NEVER);
+    if (F_ISSET(session->dhandle, WT_DHANDLE_TS_ORDERED))
+        F_SET(session->txn, WT_TXN_TS_WRITE_ORDERED);
 
     /* Remember if any type of verbose tracking is encountered by the transaction. */
-    if (FLD_ISSET(session->dhandle->verbose, WT_DHANDLE_VERB_TS_COMMIT))
-        F_SET(session->txn, WT_TXN_VERB_TS_COMMIT);
+    if (F_ISSET(session->dhandle, WT_DHANDLE_VERB_TS_WRITE))
+        F_SET(session->txn, WT_TXN_VERB_TS_WRITE);
 }
 
 /*
@@ -824,21 +822,16 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
     upd->type = (uint8_t)modify_type;
 
 #ifdef HAVE_DIAGNOSTIC
-    if (FLD_ISSET(session->dhandle->verbose, WT_DHANDLE_VERB_TS_COMMIT)) {
-        if (FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_ALWAYS) ||
-          FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_DURABLE_TS_ALWAYS))
+    if (F_ISSET(session->dhandle, WT_DHANDLE_VERB_TS_WRITE)) {
+        if (F_ISSET(session->dhandle, WT_DHANDLE_TS_ALWAYS))
             FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_ALWAYS);
-        if (FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_KEY_CONSISTENT) ||
-          FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_DURABLE_TS_KEY_CONSISTENT))
+        else if (F_ISSET(session->dhandle, WT_DHANDLE_TS_KEY_CONSISTENT))
             FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_KEY_CONSISTENT);
-        if (FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_MIXED_MODE) ||
-          FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_DURABLE_TS_MIXED_MODE))
+        else if (F_ISSET(session->dhandle, WT_DHANDLE_TS_MIXED_MODE))
             FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_MIXED_MODE);
-        if (FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_NEVER) ||
-          FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_DURABLE_TS_NEVER))
+        else if (F_ISSET(session->dhandle, WT_DHANDLE_TS_NEVER))
             FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_NEVER);
-        if (FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_ORDERED) ||
-          FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_DURABLE_TS_ORDERED))
+        else if (F_ISSET(session->dhandle, WT_DHANDLE_TS_ORDERED))
             FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_ORDERED);
     }
 #endif
@@ -1240,10 +1233,10 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
      * Same if it should never have a read timestamp.
      */
     if (!F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
-      FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_ALWAYS) &&
+      FLD_ISSET(btree->assert_flags, WT_ASSERT_TS_READ_ALWAYS) &&
       !F_ISSET(txn, WT_TXN_SHARED_TS_READ))
         WT_RET_MSG(session, EINVAL, "read_timestamp required and none set on this transaction");
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_NEVER) &&
+    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_TS_READ_NEVER) &&
       F_ISSET(txn, WT_TXN_SHARED_TS_READ))
         WT_RET_MSG(
           session, EINVAL, "no read_timestamp required and timestamp set on this transaction");
