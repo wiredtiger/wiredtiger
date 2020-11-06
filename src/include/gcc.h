@@ -220,8 +220,8 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 /*
  * Use an isb instruction here to be closer to the original x86 pause instruction. The yield
  * instruction that was previously here is a nop that is intended to provide a hint that a
- * thread is a SMT systems could yield. This is different from the x86 pause instruction
- * which delays exeuction by O(100) cycles. The isb will typically delay exeuction by about
+ * thread in a SMT system could yield. This is different from the x86 pause instruction
+ * which delays execution by O(100) cycles. The isb will typically delay execution by about
  * 50 cycles so it's a reasonable alternative.
  */
 #define WT_PAUSE() __asm__ volatile("isb" ::: "memory")
