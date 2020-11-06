@@ -769,7 +769,6 @@ dsrc_stats = [
     CacheStat('cache_hs_insert', 'history store table insert calls'),
     CacheStat('cache_hs_insert_restart', 'history store table insert calls that returned restart'),
     CacheStat('cache_hs_key_truncate', 'history store table truncation to remove an update'),
-    CacheStat('cache_hs_key_truncate_mix_ts', 'history store table truncation to remove range of updates due to mixed timestamps'),
     CacheStat('cache_hs_key_truncate_onpage_removal', 'history store table truncation to remove range of updates due to key being removed from the data page during reconciliation'),
     CacheStat('cache_hs_key_truncate_non_ts', 'history store table truncation to remove range of updates due to non timestamped update on data page'),
     CacheStat('cache_hs_key_truncate_rts', 'history store table truncation by rollback to stable to remove an update'),
