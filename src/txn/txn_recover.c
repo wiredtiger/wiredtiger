@@ -966,7 +966,7 @@ done:
         WT_ERR(__wt_rollback_to_stable(session, NULL, false));
 
         /* Initialize the connection's base write generation after rollback to stable. */
-        WT_ERR(__wt_metadata_init_base_write_gen(session));
+        WT_ERR(__wt_metadata_update_base_write_gen(session, config));
     } else if (do_checkpoint)
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
