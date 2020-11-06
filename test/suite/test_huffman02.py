@@ -46,12 +46,12 @@ class test_huffman02(wttest.WiredTigerTestCase, suite_subprocess):
     scenarios = make_scenarios(type, huffval)
 
     def test_huffman(self):
-        if self.keybad or self.valbad:
+        if self.valbad:
             msg = '/Invalid argument/'
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
-                self.session.create(self.uri, self.huffkey + self.huffval), msg)
+                self.session.create(self.uri, self.huffval), msg)
         else:
-            self.session.create(self.uri, self.huffkey + self.huffval)
+            self.session.create(self.uri, self.huffval)
 
 if __name__ == '__main__':
     wttest.run()

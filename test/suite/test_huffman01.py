@@ -50,12 +50,6 @@ class test_huffman01(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_huffman(self):
         dir = self.conn.get_home()
-        if self.kfile != None:
-            # For the UTF settings write some made-up frequency information.
-            f = open(dir + '/' + self.kfile, 'w')
-            f.write('48 546233\n49 460946\n')
-            f.write('0x4a 546233\n0x4b 460946\n')
-            f.close()
         # if self.vfile != None and not os.path.exists(self.vfile):
         if self.vfile != None:
             f = open(dir + '/' + self.vfile, 'w')
@@ -63,7 +57,7 @@ class test_huffman01(wttest.WiredTigerTestCase, suite_subprocess):
             f.write('48 546233\n49 460946\n')
             f.write('0x4a 546233\n0x4b 460946\n')
             f.close()
-        config=self.huffkey + self.huffval
+        config= self.huffval
         self.session.create(self.table_name, config)
 
 # Test Huffman encoding ranges.
