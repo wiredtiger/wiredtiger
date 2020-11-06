@@ -965,7 +965,10 @@ done:
 
         WT_ERR(__wt_rollback_to_stable(session, NULL, false));
 
-        /* Initialize the connection's base write generation after rollback to stable. */
+        /*
+         * Update the base write gen based on this file's configuration after rollback to stable
+         * modify and checkpointed.
+         */
         WT_ERR(__wt_metadata_update_base_write_gen(session, config));
     } else if (do_checkpoint)
         /*
@@ -994,8 +997,8 @@ err:
 
     /*
      * The main intention of closing all the modified files dhandles because transaction information
-     * don't get reset until the btree write gen number is less than the base write generation.
-     * The conn closing flag is set to clean a modified page while checkpointing a file as part of
+     * don't get reset until the btree write gen number is less than the base write generation. The
+     * conn closing flag is set to clean a modified page while checkpointing a file as part of
      * closing the dhandle.
      */
     F_SET(conn, WT_CONN_CLOSING);

@@ -819,9 +819,9 @@ restart:
     }
 
     /*
-     * Return from here if called from recovery flow.
-     * Close all dhandles apart from metadata, history store and system related to make sure that
-     * the modified files are evicted from cache and flushed to disk.
+     * Return from here if called from recovery flow. Close all dhandles apart from metadata,
+     * history store and system related to make sure that the modified files are evicted from cache
+     * and flushed to disk.
      */
 
     if (F_ISSET(conn, WT_CONN_RECOVERING))
