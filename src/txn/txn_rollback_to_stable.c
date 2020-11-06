@@ -1357,16 +1357,22 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    bool exclusive;
 
     conn = S2C(session);
+    exclusive = false;
 
     /*
      * History store operations create transactions so we need to block eviction everywhere before
      * doing rollback to stable's preliminary check since it checks for active transactions.
      */
     WT_ERR(__rollback_evict_exclusive_on(session));
+    exclusive = true;
+
     WT_ERR(__rollback_to_stable_check(session));
+
     WT_ERR(__rollback_evict_exclusive_off(session));
+    exclusive = false;
 
     /*
      * Allocate a non-durable btree bitstring. We increment the global value before using it, so the
@@ -1376,7 +1382,9 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
     WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_btree_apply(session));
 
 err:
-    WT_TRET(__rollback_evict_exclusive_off(session));
+    /* This is quite expensive, so don't waste work. */
+    if (exclusive)
+        WT_TRET(__rollback_evict_exclusive_off(session));
 
     return (ret);
 }
