@@ -2120,8 +2120,6 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
      */
     F_SET(session, session_flags | WT_SESSION_INTERNAL);
 
-    /* Internal sessions default to read-committed isolation. */
-    session->isolation = session->txn->isolation = WT_ISO_READ_COMMITTED;
     *sessionp = session;
     return (0);
 }
