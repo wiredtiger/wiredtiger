@@ -2740,9 +2740,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
     }
 
-    /* Initialize the connection's base write generation. */
-    WT_ERR(__wt_metadata_init_base_write_gen(session));
-
     WT_ERR(__wt_metadata_cursor(session, NULL));
     /*
      * Load any incremental backup information. This reads the metadata so must be done after the

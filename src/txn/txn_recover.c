@@ -964,18 +964,15 @@ done:
           __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
 
         WT_ERR(__wt_rollback_to_stable(session, NULL, false));
-
-        /*
-         * Update the base write gen based on this file's configuration after rollback to stable
-         * modify and checkpointed.
-         */
-        WT_ERR(__wt_metadata_update_base_write_gen(session, config));
     } else if (do_checkpoint)
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
          * the checkpoint LSN and archiving.
          */
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
+
+    /* Initialize the connection's base write generation after rollback to stable. */
+    WT_ERR(__wt_metadata_init_base_write_gen(session));
 
     /*
      * If we're downgrading and have newer log files, force an archive, no matter what the archive
@@ -996,6 +993,13 @@ err:
     }
 
     /*
+     * Destroy the eviction threads that were started in support of recovery. They will be restarted
+     * once the history store table is created.
+     */
+    if (eviction_started)
+        WT_TRET(__wt_evict_destroy(session));
+
+    /*
      * The main intention of closing all the modified files dhandles because transaction information
      * don't get reset until the btree write gen number is less than the base write generation. The
      * conn closing flag is set to clean a modified page while checkpointing a file as part of
@@ -1005,13 +1009,6 @@ err:
     WT_TRET(__wt_session_close_open_cursors(session));
     WT_TRET(__wt_conn_dhandle_discard(session));
     F_CLR(conn, WT_CONN_CLOSING);
-
-    /*
-     * Destroy the eviction threads that were started in support of recovery. They will be restarted
-     * once the history store table is created.
-     */
-    if (eviction_started)
-        WT_TRET(__wt_evict_destroy(session));
 
     WT_TRET(__wt_session_close_internal(session));
     F_CLR(conn, WT_CONN_RECOVERING);

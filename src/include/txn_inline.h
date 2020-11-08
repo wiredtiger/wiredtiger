@@ -1236,7 +1236,8 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
 
-    if (txn->isolation != WT_ISO_SNAPSHOT)
+    /* Don't check if transaction isolation is not snapshot or the table is metadata. */
+    if (txn->isolation != WT_ISO_SNAPSHOT || WT_IS_METADATA(cbt->dhandle))
         return (0);
 
     if (txn_global->debug_rollback != 0 &&
