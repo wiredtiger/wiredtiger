@@ -447,6 +447,13 @@ def get_hang_analyzers():
 
     dbg = None
     ps = None
+
+    # Currently there are issues with MacOS and windows implementation. So, skip
+    # taking the dump and result in an error.
+    # FIXME : Remove the skip block of code after fixing the issues.
+    if _IS_WINDOWS or sys.platform == "cygwin" or sys.platform == "darwin":
+        return [ps, dbg]
+
     if sys.platform.startswith("linux"):
         dbg = GDBDumper()
         ps = LinuxProcessList()
