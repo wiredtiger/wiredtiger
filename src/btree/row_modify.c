@@ -62,6 +62,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     session = CUR2S(cbt);
     last_upd = NULL;
     upd = upd_arg;
+    prev_upd_ts = WT_TS_NONE;
     inserted_to_update_chain = logged = false;
 
     /*
