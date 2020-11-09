@@ -563,8 +563,8 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
             continue;
         case WT_CELL_KEY:
             /*
-             * Simple keys without compression (prefix compressed), can be directly referenced on
-             * the page to avoid repeatedly unpacking their cells.
+             * Simple keys without prefix compression can be directly referenced on the page to
+             * avoid repeatedly unpacking their cells.
              */
             if (unpack.prefix == 0)
                 __wt_row_leaf_key_set(page, rip, &unpack);
