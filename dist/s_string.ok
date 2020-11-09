@@ -350,6 +350,7 @@ Runtime
 SIMD
 SLIST
 SLVG
+SMT
 SOURCE's
 SPINLOCK
 SQL
@@ -895,6 +896,8 @@ io
 ip
 isalnum
 isalpha
+isascii
+isb
 iscntrl
 isdigit
 isgraph
