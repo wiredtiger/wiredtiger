@@ -116,13 +116,14 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
      * checkpoint's byte representation was wrong because it was using the wrong allocation size.
      */
     WT_ERR(__wt_block_manager_open(session, filename, cfg, false, true, allocsize, &bm));
+    __wt_free(session, checkpoint_list);
+    __wt_free(session, metadata);
     ret = bm->checkpoint_last(bm, session, &metadata, &checkpoint_list, checkpoint);
     WT_TRET(bm->close(bm, session));
 
     /*
-     * The just inserted metadata was correct as of immediately before the final checkpoint, but
-     * it's not quite right. The block manager returned the corrected final checkpoint, put it all
-     * together.
+     * The metadata was correct as of immediately before the final checkpoint, but it's not quite
+     * right. The block manager returned the corrected final checkpoint, put it all together.
      *
      * Get the checkpoint information from the file's metadata as an array of WT_CKPT structures.
      * Update the last checkpoint with the corrected information. Update the file's metadata with
