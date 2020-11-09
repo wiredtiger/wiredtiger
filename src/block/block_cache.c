@@ -26,7 +26,7 @@ __wt_blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
     else if (blkcache->type == BLKCACHE_NVRAM) {
 #ifdef HAVE_LIBMEMKIND
         *retp = memkind_malloc(blkcache->pmem_kind, size);
-        if (retp == NULL)
+        if (*retp == NULL)
             return __wt_errno();
 #else
         WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind.");
