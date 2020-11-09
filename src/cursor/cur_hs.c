@@ -150,12 +150,12 @@ static int
 __curhs_close(WT_CURSOR *cursor)
 {
     WT_CURSOR *file_cursor;
-    WT_CURSOR_HS *hsc;
+    WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    hsc = (WT_CURSOR_HS *)cursor;
-    file_cursor = hsc->file_cursor;
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    file_cursor = hs_cursor->file_cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(
       cursor, session, close, file_cursor == NULL ? NULL : CUR2BT(file_cursor));
 err:
@@ -175,12 +175,12 @@ static int
 __curhs_reset(WT_CURSOR *cursor)
 {
     WT_CURSOR *file_cursor;
-    WT_CURSOR_HS *hsc;
+    WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    hsc = (WT_CURSOR_HS *)cursor;
-    file_cursor = hsc->file_cursor;
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    file_cursor = hs_cursor->file_cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, CUR2BT(file_cursor));
 
     ret = file_cursor->reset(file_cursor);
@@ -195,7 +195,7 @@ err:
  *     Initialize a history store cursor.
  */
 int
-__wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
+__wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
 {
     WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
       __wt_cursor_get_value,                          /* get-value */
@@ -218,18 +218,20 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
       __wt_cursor_reopen_notsup,                      /* reopen */
       __curhs_close);                                 /* close */
     WT_CURSOR *cursor;
-    WT_CURSOR_HS *hsc;
+    WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
 
-    WT_RET(__wt_calloc_one(session, &hsc));
-    cursor = (WT_CURSOR *)hsc;
+    WT_RET(__wt_calloc_one(session, &hs_cursor));
+    cursor = (WT_CURSOR *)hs_cursor;
     *cursor = iface;
     cursor->session = (WT_SESSION *)session;
     cursor->key_format = WT_HS_KEY_FORMAT;
     cursor->value_format = WT_HS_VALUE_FORMAT;
 
     /* Open the file cursor for operations on the regular history store .*/
-    WT_ERR(__hs_cursor_open_int(session, &hsc->file_cursor));
+    WT_ERR(__hs_cursor_open_int(session, &hs_cursor->file_cursor));
+
+    WT_ERR(__wt_cursor_init(cursor, WT_HS_URI, owner, NULL, cursorp));
 
     if (0) {
 err:
