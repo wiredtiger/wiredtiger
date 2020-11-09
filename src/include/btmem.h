@@ -1084,18 +1084,15 @@ struct __wt_update {
 #define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x20u   /* Fast truncate instantiation */
 #define WT_UPDATE_RESTORED_FROM_DS 0x40u         /* Update restored from data store. */
 #define WT_UPDATE_RESTORED_FROM_HS 0x80u         /* Update restored from history store. */
-                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint8_t flags;
-
-#ifdef HAVE_DIAGNOSTIC
-/* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_UPDATE_DIAG_TS_ALWAYS 0x01u         /* A btree using always checking. */
 #define WT_UPDATE_DIAG_TS_KEY_CONSISTENT 0x02u /* A btree using key consistency checking. */
 #define WT_UPDATE_DIAG_TS_MIXED_MODE 0x04u     /* A btree not using timestamps. */
 #define WT_UPDATE_DIAG_TS_NEVER 0x08u          /* A btree not using timestamps. */
 #define WT_UPDATE_DIAG_TS_ORDERED 0x10u        /* A btree not using timestamps. */
-                                               /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint8_t diag_flags;
+                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint16_t flags;
+
+#ifdef HAVE_DIAGNOSTIC
     wt_timestamp_t prev_durable_ts;
 #endif
     /*
@@ -1112,7 +1109,7 @@ struct __wt_update {
 #ifdef HAVE_DIAGNOSTIC
 #define WT_UPDATE_SIZE 48
 #else
-#define WT_UPDATE_SIZE 39
+#define WT_UPDATE_SIZE 40
 #endif
 
 /*

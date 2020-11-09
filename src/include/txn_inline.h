@@ -821,20 +821,19 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
     }
     upd->type = (uint8_t)modify_type;
 
-#ifdef HAVE_DIAGNOSTIC
     if (F_ISSET(session->dhandle, WT_DHANDLE_VERB_TS_WRITE)) {
         if (F_ISSET(session->dhandle, WT_DHANDLE_TS_ALWAYS))
-            FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_ALWAYS);
+            FLD_SET(upd->flags, WT_UPDATE_DIAG_TS_ALWAYS);
         else if (F_ISSET(session->dhandle, WT_DHANDLE_TS_KEY_CONSISTENT))
-            FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_KEY_CONSISTENT);
+            FLD_SET(upd->flags, WT_UPDATE_DIAG_TS_KEY_CONSISTENT);
         else if (F_ISSET(session->dhandle, WT_DHANDLE_TS_MIXED_MODE))
-            FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_MIXED_MODE);
+            FLD_SET(upd->flags, WT_UPDATE_DIAG_TS_MIXED_MODE);
         else if (F_ISSET(session->dhandle, WT_DHANDLE_TS_NEVER))
-            FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_NEVER);
+            FLD_SET(upd->flags, WT_UPDATE_DIAG_TS_NEVER);
         else if (F_ISSET(session->dhandle, WT_DHANDLE_TS_ORDERED))
-            FLD_SET(upd->diag_flags, WT_UPDATE_DIAG_TS_ORDERED);
+            FLD_SET(upd->flags, WT_UPDATE_DIAG_TS_ORDERED);
     }
-#endif
+
     *updp = upd;
     if (sizep != NULL)
         *sizep = WT_UPDATE_MEMSIZE(upd);

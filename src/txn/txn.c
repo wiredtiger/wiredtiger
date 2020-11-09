@@ -1162,11 +1162,6 @@ err:
 static inline int
 __txn_commit_timestamps_verbose(WT_SESSION_IMPL *session)
 {
-#ifndef HAVE_DIAGNOSTIC
-    WT_UNUSED(session);
-    return (0);
-#else
-#define WT_COMMIT_TS_VERB_PREFIX "Commit timestamp unexpected usage: "
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
@@ -1177,6 +1172,8 @@ __txn_commit_timestamps_verbose(WT_SESSION_IMPL *session)
 
     txn = session->txn;
     txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
+
+#define WT_COMMIT_TS_VERB_PREFIX "Commit timestamp unexpected usage: "
 
     /* Nothing to do if no tables this transaction touched were configured for verbose logging. */
     if (!F_ISSET(txn, WT_TXN_VERB_TS_WRITE))
@@ -1203,27 +1200,29 @@ __txn_commit_timestamps_verbose(WT_SESSION_IMPL *session)
         upd = op->u.op_upd;
 
         op_ts = upd->start_ts != WT_TS_NONE ? upd->start_ts : txn->commit_timestamp;
-        prev_op_durable_ts = upd->prev_durable_ts;
 
-        if (FLD_ISSET(upd->diag_flags, WT_UPDATE_DIAG_TS_ALWAYS) && !txn_has_ts)
+        if (FLD_ISSET(upd->flags, WT_UPDATE_DIAG_TS_ALWAYS) && !txn_has_ts)
             WT_RET(__wt_msg(session,
               WT_COMMIT_TS_VERB_PREFIX
               "commit timestamp not used on table configured to require timestamps"));
 
-        if (FLD_ISSET(upd->diag_flags, WT_UPDATE_DIAG_TS_NEVER) && txn_has_ts)
+        if (FLD_ISSET(upd->flags, WT_UPDATE_DIAG_TS_NEVER) && txn_has_ts)
             WT_RET(__wt_msg(session,
               WT_COMMIT_TS_VERB_PREFIX
               "commit timestamp %s used on table configured to not use timestamps",
               __wt_timestamp_to_string(op_ts, ts_string[0])));
 
-        if (FLD_ISSET(upd->diag_flags, WT_UPDATE_DIAG_TS_KEY_CONSISTENT) &&
+#ifdef HAVE_DIAGNOSTIC
+        prev_op_durable_ts = upd->prev_durable_ts;
+
+        if (FLD_ISSET(upd->flags, WT_UPDATE_DIAG_TS_KEY_CONSISTENT) &&
           prev_op_durable_ts != WT_TS_NONE && !txn_has_ts)
             WT_RET(__wt_msg(session,
               WT_COMMIT_TS_VERB_PREFIX
               "no timestamp provided for an update to a "
               "table configured to always use timestamps once they are first used"));
 
-        if (FLD_ISSET(upd->diag_flags, WT_UPDATE_DIAG_TS_ORDERED) && txn_has_ts &&
+        if (FLD_ISSET(upd->flags, WT_UPDATE_DIAG_TS_ORDERED) && txn_has_ts &&
           prev_op_durable_ts > op_ts)
             WT_RET(__wt_msg(session,
               WT_COMMIT_TS_VERB_PREFIX
@@ -1233,7 +1232,7 @@ __txn_commit_timestamps_verbose(WT_SESSION_IMPL *session)
               __wt_timestamp_to_string(op_ts, ts_string[0]),
               __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
 
-        if (FLD_ISSET(upd->diag_flags, WT_UPDATE_DIAG_TS_MIXED_MODE) &&
+        if (FLD_ISSET(upd->flags, WT_UPDATE_DIAG_TS_MIXED_MODE) &&
           F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) && op_ts != WT_TS_NONE && prev_op_durable_ts > op_ts)
             WT_RET(__wt_msg(session,
               WT_COMMIT_TS_VERB_PREFIX
@@ -1242,9 +1241,12 @@ __txn_commit_timestamps_verbose(WT_SESSION_IMPL *session)
               "update (%s) on a table configured for mixed mode ordering",
               __wt_timestamp_to_string(op_ts, ts_string[0]),
               __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
-    }
-    return (0);
+#else
+        WT_UNUSED(prev_op_durable_ts);
 #endif
+    }
+
+    return (0);
 }
 
 /*
@@ -1377,6 +1379,10 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
           txn->durable_timestamp < prev_op_durable_ts)
             WT_ERR_MSG(session, EINVAL, "out of order commit timestamps");
     }
+
+#ifndef HAVE_DIAGNOSTIC
+    WT_UNUSED(prev_op_ts);
+#endif
 
 err:
     if (cursor != NULL)
