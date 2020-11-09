@@ -1076,20 +1076,20 @@ struct __wt_update {
     volatile uint8_t prepare_state; /* prepare state */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_UPDATE_BEHIND_MIXED_MODE 0x01u        /* Update that older than a mixed mode update. */
-#define WT_UPDATE_CLEARED_HS 0x02u               /* Update that cleared the history store. */
-#define WT_UPDATE_DS 0x04u                       /* Update has been written to the data store. */
-#define WT_UPDATE_HS 0x08u                       /* Update has been written to history store. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x10u /* Prepared update restored from data store. */
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x20u   /* Fast truncate instantiation */
-#define WT_UPDATE_RESTORED_FROM_DS 0x40u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x80u         /* Update restored from history store. */
-#define WT_UPDATE_DIAG_TS_ALWAYS 0x01u         /* A btree using always checking. */
-#define WT_UPDATE_DIAG_TS_KEY_CONSISTENT 0x02u /* A btree using key consistency checking. */
-#define WT_UPDATE_DIAG_TS_MIXED_MODE 0x04u     /* A btree not using timestamps. */
-#define WT_UPDATE_DIAG_TS_NEVER 0x08u          /* A btree not using timestamps. */
-#define WT_UPDATE_DIAG_TS_ORDERED 0x10u        /* A btree not using timestamps. */
-                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_UPDATE_BEHIND_MIXED_MODE 0x0001u        /* Update that older than a mixed mode update. */
+#define WT_UPDATE_CLEARED_HS 0x0002u               /* Update that cleared the history store. */
+#define WT_UPDATE_DIAG_TS_ALWAYS 0x0004u           /* A btree using always checking. */
+#define WT_UPDATE_DIAG_TS_KEY_CONSISTENT 0x0008u   /* A btree using key consistency checking. */
+#define WT_UPDATE_DIAG_TS_MIXED_MODE 0x0010u       /* A btree not using timestamps. */
+#define WT_UPDATE_DIAG_TS_NEVER 0x0020u            /* A btree not using timestamps. */
+#define WT_UPDATE_DIAG_TS_ORDERED 0x0040u          /* A btree not using timestamps. */
+#define WT_UPDATE_DS 0x0080u                       /* Update has been written to the data store. */
+#define WT_UPDATE_HS 0x0100u                       /* Update has been written to history store. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x0200u /* Prepared update restored from data store. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x0400u   /* Fast truncate instantiation */
+#define WT_UPDATE_RESTORED_FROM_DS 0x0800u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x1000u         /* Update restored from history store. */
+                                                   /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint16_t flags;
 
 #ifdef HAVE_DIAGNOSTIC

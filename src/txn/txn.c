@@ -1166,9 +1166,9 @@ __txn_commit_timestamps_verbose(WT_SESSION_IMPL *session)
     WT_TXN_OP *op;
     WT_UPDATE *upd;
     wt_timestamp_t op_ts, prev_op_durable_ts;
-    bool txn_has_ts;
-    char ts_string[2][WT_TS_INT_STRING_SIZE];
     u_int i;
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool txn_has_ts;
 
     txn = session->txn;
     txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
