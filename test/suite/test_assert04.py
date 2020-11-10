@@ -42,8 +42,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
     def test_timestamp_alter(self):
         base = 'assert04'
         uri = 'file:' + base
-        cfg_on = 'assert=(commit_timestamp=key_consistent)'
-        cfg_off = 'assert=(commit_timestamp=none)'
+        cfg_on = 'assert=(write_timestamp=key_consistent)'
+        cfg_off = 'assert=(write_timestamp=none)'
         msg_ooo='/out of order/'
         msg_usage='/used inconsistently/'
 
@@ -179,7 +179,7 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         # That checking will verify any individual key is always or never
         # used with a timestamp. And if it is used with a timestamp that
         # the timestamps are in increasing order for that key.
-        self.session.create(uri, 'key_format=S,value_format=S,assert=(commit_timestamp=key_consistent)')
+        self.session.create(uri, 'key_format=S,value_format=S,assert=(write_timestamp=key_consistent)')
 
         # Insert a data item at timestamp 2.
         c = self.session.open_cursor(uri)

@@ -45,10 +45,10 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
     uri_never = base_uri + '.never.wt'
     uri_none = base_uri + '.none.wt'
     cfg = 'key_format=S,value_format=S,'
-    cfg_always = 'assert=(durable_timestamp=always)'
+    cfg_always = 'assert=(write_timestamp=always)'
     cfg_def = ''
-    cfg_never = 'assert=(durable_timestamp=never)'
-    cfg_none = 'assert=(durable_timestamp=none)'
+    cfg_never = 'assert=(write_timestamp=never)'
+    cfg_none = 'assert=(write_timestamp=none)'
 
     count = 1
     #

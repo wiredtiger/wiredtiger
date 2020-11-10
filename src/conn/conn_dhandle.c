@@ -490,7 +490,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     __conn_dhandle_config_clear(session);
     WT_ERR(__conn_dhandle_config_set(session));
 
-    WT_ERR(__conn_dhandle_config_parse(session));
+    WT_ERR_NOTFOUND_OK(__conn_dhandle_config_parse(session), false);
 
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
