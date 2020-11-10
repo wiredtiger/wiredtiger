@@ -37,8 +37,8 @@ class test_assert03(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'log=(enabled)'
     base_uri = 'file:assert03.wt'
     cfg = 'key_format=S,value_format=S'
-    always = 'assert=(write_timestamp=always)'
-    never = 'assert=(write_timestamp=never)'
+    all = 'write_timestamp=always,assert=(write_timestamp=all)'
+    diagnostic = 'write_timestamp=never,assert=(write_timestamp=diagnostic)'
     none = 'assert=(write_timestamp=none)'
 
     def test_assert03(self):
@@ -55,7 +55,7 @@ class test_assert03(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Now rotate through the alter settings and verify the data.
         # The always setting should fail.
-        self.session.alter(self.base_uri, self.always)
+        self.session.alter(self.base_uri, self.all)
         c = self.session.open_cursor(self.base_uri)
         self.session.begin_transaction()
         c['key1'] = 'value1'
@@ -65,7 +65,7 @@ class test_assert03(wttest.WiredTigerTestCase, suite_subprocess):
         c.close()
 
         # The never and none settings should succeed.
-        self.session.alter(self.base_uri, self.never)
+        self.session.alter(self.base_uri, self.diagnostic)
         c = self.session.open_cursor(self.base_uri)
         self.session.begin_transaction()
         c['key2'] = 'value2'

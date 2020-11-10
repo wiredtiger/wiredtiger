@@ -425,7 +425,10 @@ __conn_dhandle_config_parse(WT_SESSION_IMPL *session)
     const char **cfg;
 
     dhandle = session->dhandle;
-    cfg = session->dhandle->cfg;
+    cfg = dhandle->cfg;
+
+    /* Clear all the timestamp usage flags. */
+    F_CLR(dhandle, WT_DHANDLE_TS_FLAGS);
 
     /* Setup verbose options */
     WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
@@ -490,10 +493,10 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     __conn_dhandle_config_clear(session);
     WT_ERR(__conn_dhandle_config_set(session));
 
-    WT_ERR_NOTFOUND_OK(__conn_dhandle_config_parse(session), false);
-
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
+        WT_ERR(__conn_dhandle_config_parse(session));
+
         /* Set any special flags on the btree handle. */
         F_SET(btree, LF_MASK(WT_BTREE_SPECIAL_FLAGS));
 

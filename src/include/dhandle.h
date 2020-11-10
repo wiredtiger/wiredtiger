@@ -119,3 +119,8 @@ struct __wt_data_handle {
                                              /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };
+
+/* Handle timestamp usage flags. */
+#define WT_DHANDLE_TS_FLAGS                                                           \
+    (WT_DHANDLE_TS_ALWAYS | WT_DHANDLE_TS_MIXED_MODE | WT_DHANDLE_TS_KEY_CONSISTENT | \
+      WT_DHANDLE_TS_NEVER | WT_DHANDLE_TS_ORDERED | WT_DHANDLE_VERB_TS_WRITE)
