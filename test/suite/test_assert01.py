@@ -41,7 +41,7 @@ class test_assert01(wttest.WiredTigerTestCase, suite_subprocess):
     base_uri = 'file:' + base
     uri_all = base_uri + '.all.wt'
     uri_def = base_uri + '.def.wt'
-    uri_diagnostic = base_uri + '.never.wt'
+    uri_diagnostic = base_uri + '.diagnostic.wt'
     uri_none = base_uri + '.none.wt'
     cfg = 'key_format=S,value_format=S,'
     cfg_all = 'write_timestamp=always,assert=(write_timestamp=all)'
@@ -65,8 +65,8 @@ class test_assert01(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.timestamp_transaction(
             'commit_timestamp=' + timestamp_str(self.count))
         c[key] = val
-        # All settings other than never should commit successfully
-        if (use_ts != 'never'):
+        # All settings other than diagnostic should commit successfully
+        if (use_ts != 'diagnostic'):
             self.session.commit_transaction()
         else:
             msg = "/timestamp set on this transaction/"
@@ -82,8 +82,8 @@ class test_assert01(wttest.WiredTigerTestCase, suite_subprocess):
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
         c[key] = val
-        # All settings other than always should commit successfully
-        if (use_ts != 'always'):
+        # All settings other than all should commit successfully
+        if (use_ts != 'all'):
             self.session.commit_transaction()
         else:
             msg = "/none set on this transaction/"

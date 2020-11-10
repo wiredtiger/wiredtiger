@@ -69,8 +69,8 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
             'commit_timestamp=' + timestamp_str(self.count))
         self.session.timestamp_transaction(
             'durable_timestamp=' + timestamp_str(self.count))
-        # All settings other than never should commit successfully
-        if (use_ts != 'never'):
+        # All settings other than diagnostic should commit successfully
+        if (use_ts != 'diagnostic'):
             self.session.commit_transaction()
         else:
             '''
@@ -97,8 +97,8 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.session.timestamp_transaction(
             'commit_timestamp=' + timestamp_str(self.count))
-        # All settings other than always should commit successfully
-        if (use_ts != 'always'):
+        # All settings other than all should commit successfully
+        if (use_ts != 'all'):
             self.session.commit_transaction()
         else:
             '''
