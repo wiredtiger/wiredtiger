@@ -545,17 +545,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     btree->write_gen = WT_MAX(ckpt->write_gen + 1, conn->base_write_gen);
     WT_ASSERT(session, ckpt->write_gen >= ckpt->run_write_gen);
 
-    /*
-     * The metadata file contains the write gen information so we can't initialize it with the right
-     * information. This is fine because we don't expect transaction semantics from the metadata
-     * file so let's just initialize to 0.
-     */
-    if (WT_IS_METADATA(btree->dhandle))
-        btree->base_write_gen = btree->run_write_gen = 0;
     /* If this is the first time opening the tree this run. */
-    else if (F_ISSET(session, WT_SESSION_IMPORT) || ckpt->run_write_gen < conn->base_write_gen)
+    if (F_ISSET(session, WT_SESSION_IMPORT) || ckpt->run_write_gen < conn->base_write_gen)
         btree->base_write_gen = btree->run_write_gen = btree->write_gen;
-    /* If we're reopening the tree during this run. */
     else
         btree->base_write_gen = btree->run_write_gen = ckpt->run_write_gen;
 
