@@ -241,6 +241,13 @@ __create_file(
      * race with a drop.
      */
     WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+    /*
+     * If we have created the file and gotten an exclusive dhandle and incremental backup is active
+     * mark the btree as created so that the incremental code knows this is a newly created file and
+     * we need to copy the file header which may be one or more blocks.
+     */
+    if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
+        F_SET(S2BT(session), WT_BTREE_DURING_BACKUP);
     if (WT_META_TRACKING(session))
         WT_ERR(__wt_meta_track_handle_lock(session, true));
     else

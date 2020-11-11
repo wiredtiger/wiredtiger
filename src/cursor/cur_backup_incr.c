@@ -123,7 +123,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_RAW);
 
     if (!F_ISSET(cb, WT_CURBACKUP_INCR_INIT) &&
-      (btree == NULL || F_ISSET(cb, WT_CURBACKUP_FORCE_FULL | WT_CURBACKUP_RENAME))) {
+      (btree == NULL || F_ISSET(cb, WT_CURBACKUP_FORCE_FULL | WT_CURBACKUP_RENAME) ||
+        F_ISSET(btree, WT_BTREE_DURING_BACKUP))) {
         /*
          * We don't have this object's incremental information or it's a forced file copy. If this
          * is a log file, use the full pathname that may include the log path.
@@ -144,6 +145,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
          * incremental cursor below and return WT_NOTFOUND.
          */
         F_SET(cb, WT_CURBACKUP_INCR_INIT);
+        if (btree != NULL)
+            F_CLR(btree, WT_BTREE_DURING_BACKUP);
         __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
     } else {
         if (!F_ISSET(cb, WT_CURBACKUP_INCR_INIT)) {
