@@ -1436,8 +1436,8 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
     void *files_acquired;
 
     conn = S2C(session);
-    files_acquired = NULL;
     files_acquired_len = conn->next_file_id + 1;
+    files_acquired = NULL;
 
     /* A boolean array determining whether exclusive access to a file has been acquired. */
     WT_RET(__wt_calloc(session, files_acquired_len, sizeof(bool), &files_acquired));
