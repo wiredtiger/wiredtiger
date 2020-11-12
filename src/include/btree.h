@@ -100,14 +100,6 @@ struct __wt_btree {
     uint32_t maxmempage_image; /* In-memory page image max size */
     uint64_t splitmempage;     /* In-memory split trigger size */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_ASSERT_TS_READ_ALWAYS 0x1u
-#define WT_ASSERT_TS_READ_NEVER 0x2u
-#define WT_ASSERT_TS_WRITE_ALL 0x4u
-#define WT_ASSERT_TS_WRITE_DIAGNOSTIC 0x8u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint32_t assert_flags; /* Debugging assertion information */
-
     void *huffman_value; /* Value huffman encoding */
 
     enum {

@@ -44,9 +44,9 @@ class test_assert01(wttest.WiredTigerTestCase, suite_subprocess):
     uri_diagnostic = base_uri + '.diagnostic.wt'
     uri_none = base_uri + '.none.wt'
     cfg = 'key_format=S,value_format=S,'
-    cfg_all = 'write_timestamp=always,assert=(write_timestamp=all)'
+    cfg_all = 'verbose=(write_timestamp=true),write_timestamp=always,assert=(write_timestamp=all)'
     cfg_def = ''
-    cfg_diagnostic = 'write_timestamp=never,assert=(write_timestamp=diagnostic)'
+    cfg_diagnostic = 'verbose=(write_timestamp=true),write_timestamp=never,assert=(write_timestamp=diagnostic)'
     cfg_none = 'assert=(write_timestamp=none)'
     session_config = 'isolation=snapshot'
 
@@ -94,19 +94,18 @@ class test_assert01(wttest.WiredTigerTestCase, suite_subprocess):
         c.close()
 
     def test_commit_timestamp(self):
-        #if not wiredtiger.diagnostic_build():
-        #    self.skipTest('requires a diagnostic build')
-
         # Create a data item at a timestamp
         self.session.create(self.uri_all, self.cfg + self.cfg_all)
         self.session.create(self.uri_def, self.cfg + self.cfg_def)
-        self.session.create(self.uri_diagnostic, self.cfg + self.cfg_diagnostic)
+        if wiredtiger.diagnostic_build():
+            self.session.create(self.uri_diagnostic, self.cfg + self.cfg_diagnostic)
         self.session.create(self.uri_none, self.cfg + self.cfg_none)
 
         # Check inserting into each table
         self.insert_check(self.uri_all, 'all')
         self.insert_check(self.uri_def, 'none')
-        self.insert_check(self.uri_diagnostic, 'diagnostic')
+        if wiredtiger.diagnostic_build():
+            self.insert_check(self.uri_diagnostic, 'diagnostic')
         self.insert_check(self.uri_none, 'none')
 
 if __name__ == '__main__':

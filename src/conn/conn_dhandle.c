@@ -416,41 +416,47 @@ err:
 static int
 __conn_dhandle_config_parse(WT_SESSION_IMPL *session)
 {
-    static const WT_NAME_FLAG verbtypes[] = {
-      {"write_timestamp", WT_DHANDLE_VERB_TS_WRITE}, {NULL, 0}};
-    WT_CONFIG_ITEM cval, sval;
-    WT_DECL_RET;
+    WT_CONFIG_ITEM cval;
     WT_DATA_HANDLE *dhandle;
-    const WT_NAME_FLAG *ft;
     const char **cfg;
 
     dhandle = session->dhandle;
     cfg = dhandle->cfg;
 
-    /* Clear all the timestamp usage flags. */
-    F_CLR(dhandle, WT_DHANDLE_TS_FLAGS);
-
-    /* Setup verbose options */
-    WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
-
-    for (ft = verbtypes; ft->name != NULL; ft++) {
-        if ((ret = __wt_config_subgets(session, &cval, ft->name, &sval)) == 0 && sval.val != 0)
-            F_SET(dhandle, ft->flag);
-        WT_RET_NOTFOUND_OK(ret);
-    }
+    /* Clear all the flags. */
+    dhandle->ts_flags = 0;
 
     /* Setup timestamp usage hints */
     WT_RET(__wt_config_gets(session, cfg, "write_timestamp", &cval));
     if (WT_STRING_MATCH("always", cval.str, cval.len))
-        F_SET(dhandle, WT_DHANDLE_TS_ALWAYS);
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_ALWAYS);
     else if (WT_STRING_MATCH("key_consistent", cval.str, cval.len))
-        F_SET(dhandle, WT_DHANDLE_TS_KEY_CONSISTENT);
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT);
     else if (WT_STRING_MATCH("mixed_mode", cval.str, cval.len))
-        F_SET(dhandle, WT_DHANDLE_TS_MIXED_MODE);
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_MIXED_MODE);
     else if (WT_STRING_MATCH("never", cval.str, cval.len))
-        F_SET(dhandle, WT_DHANDLE_TS_NEVER);
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_NEVER);
     else if (WT_STRING_MATCH("ordered", cval.str, cval.len))
-        F_SET(dhandle, WT_DHANDLE_TS_ORDERED);
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_ORDERED);
+
+    /* Debugging information */
+    WT_RET(__wt_config_gets(session, cfg, "assert.write_timestamp", &cval));
+    if (WT_STRING_MATCH("all", cval.str, cval.len))
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE_ALL);
+    else if (WT_STRING_MATCH("diagnostic", cval.str, cval.len))
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE_DIAGNOSTIC);
+
+    WT_RET(__wt_config_gets(session, cfg, "assert.read_timestamp", &cval));
+    if (WT_STRING_MATCH("always", cval.str, cval.len))
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_READ_ALWAYS);
+    else if (WT_STRING_MATCH("never", cval.str, cval.len))
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_READ_NEVER);
+
+    /* Setup verbose options */
+    WT_RET(__wt_config_gets(session, cfg, "verbose.write_timestamp", &cval));
+    if (cval.val != 0)
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_VERB_TS_WRITE);
+
     return (0);
 }
 
@@ -492,11 +498,10 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     /* Discard any previous configuration, set up the new configuration. */
     __conn_dhandle_config_clear(session);
     WT_ERR(__conn_dhandle_config_set(session));
+    WT_ERR(__conn_dhandle_config_parse(session));
 
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
-        WT_ERR(__conn_dhandle_config_parse(session));
-
         /* Set any special flags on the btree handle. */
         F_SET(btree, LF_MASK(WT_BTREE_SPECIAL_FLAGS));
 

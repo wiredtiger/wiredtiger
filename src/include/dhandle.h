@@ -102,25 +102,28 @@ struct __wt_data_handle {
 
 /* Flags values over 0xff are reserved for WT_BTREE_* */
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_DHANDLE_DEAD 0x0001u              /* Dead, awaiting discard */
-#define WT_DHANDLE_DISCARD 0x0002u           /* Close on release */
-#define WT_DHANDLE_DISCARD_KILL 0x0004u      /* Mark dead on release */
-#define WT_DHANDLE_DROPPED 0x0008u           /* Handle is dropped */
-#define WT_DHANDLE_EXCLUSIVE 0x0010u         /* Exclusive access */
-#define WT_DHANDLE_IS_METADATA 0x0020u       /* Metadata handle */
-#define WT_DHANDLE_LOCK_ONLY 0x0040u         /* Handle only used as a lock */
-#define WT_DHANDLE_OPEN 0x0080u              /* Handle is open */
-#define WT_DHANDLE_TS_ALWAYS 0x0100u         /* Handle is open */
-#define WT_DHANDLE_TS_KEY_CONSISTENT 0x0200u /* Handle is open */
-#define WT_DHANDLE_TS_MIXED_MODE 0x0400u     /* Handle is open */
-#define WT_DHANDLE_TS_NEVER 0x0800u          /* Handle is open */
-#define WT_DHANDLE_TS_ORDERED 0x1000u        /* Handle is open */
-#define WT_DHANDLE_VERB_TS_WRITE 0x2000u     /* Verbose logging for timestamp usage */
-                                             /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_DHANDLE_DEAD 0x01u         /* Dead, awaiting discard */
+#define WT_DHANDLE_DISCARD 0x02u      /* Close on release */
+#define WT_DHANDLE_DISCARD_KILL 0x04u /* Mark dead on release */
+#define WT_DHANDLE_DROPPED 0x08u      /* Handle is dropped */
+#define WT_DHANDLE_EXCLUSIVE 0x10u    /* Exclusive access */
+#define WT_DHANDLE_IS_METADATA 0x20u  /* Metadata handle */
+#define WT_DHANDLE_LOCK_ONLY 0x40u    /* Handle only used as a lock */
+#define WT_DHANDLE_OPEN 0x80u         /* Handle is open */
+                                      /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
-};
 
-/* Handle timestamp usage flags. */
-#define WT_DHANDLE_TS_FLAGS                                                           \
-    (WT_DHANDLE_TS_ALWAYS | WT_DHANDLE_TS_MIXED_MODE | WT_DHANDLE_TS_KEY_CONSISTENT | \
-      WT_DHANDLE_TS_NEVER | WT_DHANDLE_TS_ORDERED | WT_DHANDLE_VERB_TS_WRITE)
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_DHANDLE_ASSERT_TS_READ_ALWAYS 0x001u
+#define WT_DHANDLE_ASSERT_TS_READ_NEVER 0x002u
+#define WT_DHANDLE_ASSERT_TS_WRITE_ALL 0x004u
+#define WT_DHANDLE_ASSERT_TS_WRITE_DIAGNOSTIC 0x008u
+#define WT_DHANDLE_TS_ALWAYS 0x010u         /* Handle is open */
+#define WT_DHANDLE_TS_KEY_CONSISTENT 0x020u /* Handle is open */
+#define WT_DHANDLE_TS_MIXED_MODE 0x040u     /* Handle is open */
+#define WT_DHANDLE_TS_NEVER 0x080u          /* Handle is open */
+#define WT_DHANDLE_TS_ORDERED 0x100u        /* Handle is open */
+#define WT_DHANDLE_VERB_TS_WRITE 0x200u     /* Verbose logging for timestamp usage */
+                                            /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t ts_flags;
+};

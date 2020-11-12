@@ -408,20 +408,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     else
         btree->checksum = CKSUM_UNCOMPRESSED;
 
-    /* Debugging information */
-    WT_RET(__wt_config_gets(session, cfg, "assert.write_timestamp", &cval));
-    btree->assert_flags = 0;
-    if (WT_STRING_MATCH("all", cval.str, cval.len))
-        FLD_SET(btree->assert_flags, WT_ASSERT_TS_WRITE_ALL);
-    else if (WT_STRING_MATCH("diagnostic", cval.str, cval.len))
-        FLD_SET(btree->assert_flags, WT_ASSERT_TS_WRITE_DIAGNOSTIC);
-
-    WT_RET(__wt_config_gets(session, cfg, "assert.read_timestamp", &cval));
-    if (WT_STRING_MATCH("always", cval.str, cval.len))
-        FLD_SET(btree->assert_flags, WT_ASSERT_TS_READ_ALWAYS);
-    else if (WT_STRING_MATCH("never", cval.str, cval.len))
-        FLD_SET(btree->assert_flags, WT_ASSERT_TS_READ_NEVER);
-
     /* Huffman encoding */
     WT_RET(__wt_btree_huffman_open(session));
 

@@ -995,11 +995,12 @@ struct __wt_session {
 	 * object blocks from the system buffer cache after that many bytes from this object are
 	 * read or written into the buffer cache., an integer greater than or equal to 0; default \c
 	 * 0.}
-	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
-	 * as <code>"verbose=[write_timestamp]"</code>. In the case of <code>write_timestamp</code>
-	 * decisions about expected behavior are based on the <code>write_timestamp</code>
-	 * configuration hint., a list\, with values chosen from the following options: \c
-	 * "write_timestamp"; default empty.}
+	 * @config{verbose = (, enable messages for various events., a set of related configuration
+	 * options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_timestamp, enable verify
+	 * that commit timestamps are used per the configured <code>write_timestamp</code> option
+	 * for this table., a boolean flag; default \c false.}
+	 * @config{ ),,}
 	 * @config{write_timestamp, describe how timestamps are expected to be used on modifications
 	 * to the table.  The hint can be used to log verbose messages and/or enforce expected
 	 * usage.  The choices are <code>always</code> to ensure a timestamp is used for every
@@ -1233,11 +1234,12 @@ struct __wt_session {
 	 * applications use a WT_ITEM structure to manipulate raw byte arrays.  Value items of type
 	 * 't' are bitfields\, and when configured with record number type keys\, will be stored
 	 * using a fixed-length store., a format string; default \c u.}
-	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
-	 * as <code>"verbose=[write_timestamp]"</code>. In the case of <code>write_timestamp</code>
-	 * decisions about expected behavior are based on the <code>write_timestamp</code>
-	 * configuration hint., a list\, with values chosen from the following options: \c
-	 * "write_timestamp"; default empty.}
+	 * @config{verbose = (, enable messages for various events., a set of related configuration
+	 * options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_timestamp, enable verify
+	 * that commit timestamps are used per the configured <code>write_timestamp</code> option
+	 * for this table., a boolean flag; default \c false.}
+	 * @config{ ),,}
 	 * @config{write_timestamp, describe how timestamps are expected to be used on modifications
 	 * to the table.  The hint can be used to log verbose messages and/or enforce expected
 	 * usage.  The choices are <code>always</code> to ensure a timestamp is used for every

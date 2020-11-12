@@ -45,6 +45,39 @@ class Config:
 common_runtime_config = [
     Config('app_metadata', '', r'''
         application-owned metadata for this object'''),
+    Config('write_timestamp', 'never', r'''
+        describe how timestamps are expected to be used on modifications
+        to the table. The hint can be used to log verbose messages and/or
+        enforce expected usage. The choices are <code>always</code> to ensure
+        a timestamp is used for every operation on a table,
+        <code>key_consistent</code> to ensure that once timestamps are used for
+        a value they are always used, <code>ordered</code> key_consistent plus
+        subsequent updates to each value must use increasing timestamps,
+        <code>mixed_mode</code> <code>ordered</code> except that updates with
+        no timestamp are allowed and have the effect of resetting the chain of
+        updates once transaction ID based snapshot is no longer relevant.''',
+        choices=['always', 'key_consistent', 'mixed_mode', 'never', 'ordered']),
+    Config('assert', '', r'''
+        enable enhanced checking. ''',
+        type='category', subconfig= [
+        Config('write_timestamp', 'none', r'''
+            verify that commit timestamps are used per the configured
+            <code>write_timestamp</code> option for this table.''',
+            choices=['all', 'diagnostic', 'none']),
+        Config('read_timestamp', 'none', r'''
+            verify that timestamps should 'always' or 'never' be used
+            on reads with this table.  Verification is 'none'
+            if mixed read use is allowed.''',
+            choices=['always', 'never', 'none'])
+        ], undoc=True),
+    Config('verbose', '', r'''
+        enable messages for various events. ''',
+        type='category', subconfig= [
+        Config('write_timestamp', 'false', r'''
+            enable verify that commit timestamps are used per the configured
+            <code>write_timestamp</code> option for this table.''',
+            type='boolean'),
+        ]),
 ]
 
 # Metadata shared by all schema objects
@@ -169,31 +202,6 @@ file_runtime_config = common_runtime_config + [
         option leads to an advisory call to an appropriate operating
         system API where available''',
         choices=['none', 'random', 'sequential']),
-    Config('write_timestamp', 'never', r'''
-        describe how timestamps are expected to be used on modifications
-        to the table. The hint can be used to log verbose messages and/or
-        enforce expected usage. The choices are <code>always</code> to ensure
-        a timestamp is used for every operation on a table,
-        <code>key_consistent</code> to ensure that once timestamps are used for
-        a value they are always used, <code>ordered</code> key_consistent plus
-        subsequent updates to each value must use increasing timestamps,
-        <code>mixed_mode</code> <code>ordered</code> except that updates with
-        no timestamp are allowed and have the effect of resetting the chain of
-        updates once transaction ID based snapshot is no longer relevant.''',
-        choices=['always', 'key_consistent', 'mixed_mode', 'never', 'ordered']),
-    Config('assert', '', r'''
-        enable enhanced checking. ''',
-        type='category', subconfig= [
-        Config('write_timestamp', 'none', r'''
-            verify that commit timestamps are used per the configured
-            <code>write_timestamp</code> option for this table.''',
-            choices=['all', 'diagnostic', 'none']),
-        Config('read_timestamp', 'none', r'''
-            verify that timestamps should 'always' or 'never' be used
-            on reads with this table.  Verification is 'none'
-            if mixed read use is allowed.''',
-            choices=['always', 'never', 'none'])
-        ], undoc=True),
     Config('cache_resident', 'false', r'''
         do not ever evict the object's pages from cache. Not compatible with
         LSM tables; see @ref tuning_cache_resident for more information''',
@@ -217,13 +225,6 @@ file_runtime_config = common_runtime_config + [
         system buffer cache after that many bytes from this object are
         written into the buffer cache''',
         min=0),
-    Config('verbose', '', r'''
-        enable messages for various events. Options are given as a
-        list, such as <code>"verbose=[write_timestamp]"</code>. In the
-        case of <code>write_timestamp</code> decisions about expected
-        behavior are based on the <code>write_timestamp</code>
-        configuration hint''',
-        type='list', choices=['write_timestamp'])
 ]
 
 # Per-file configuration
