@@ -295,6 +295,7 @@ __curhs_insert(WT_CURSOR *cursor)
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
+    hs_upd = upd_local = NULL;
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, insert, CUR2BT(file_cursor));
 
