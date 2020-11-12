@@ -259,7 +259,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              */
             memset(&addr_unpack, 0, sizeof(addr_unpack));
             WT_TIME_AGGREGATE_COPY(&addr_unpack.ta, &ckpt->ta);
-            if (ckpt->write_gen <= S2C(session)->base_write_gen) {
+            if (ckpt->write_gen <= btree->base_write_gen) {
                 addr_unpack.ta.newest_txn = WT_TXN_NONE;
                 addr_unpack.ta.newest_stop_txn = WT_TXN_MAX;
             }
@@ -283,7 +283,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
                 /* Open a history store cursor. */
                 WT_ERR(__wt_hs_cursor_open(session));
-                WT_TRET(__wt_history_store_verify_one(session));
+                WT_TRET(__wt_hs_verify_one(session));
                 WT_TRET(__wt_hs_cursor_close(session));
                 /*
                  * We cannot error out here. If we got an error verifying the history store, we need

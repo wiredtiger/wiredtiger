@@ -1015,11 +1015,10 @@ struct __wt_col {
 
 /*
  * WT_IKEY --
- *	Instantiated key: row-store keys are usually prefix compressed and
- *	sometimes Huffman encoded or overflow objects.  Normally, a row-store
- *	page in-memory key points to the on-page WT_CELL, but in some cases,
- *	we instantiate the key in memory, in which case the row-store page
- *	in-memory key points to a WT_IKEY structure.
+ *  Instantiated key: row-store keys are usually prefix compressed or overflow objects.
+ *  Normally, a row-store page in-memory key points to the on-page WT_CELL, but in some
+ *  cases, we instantiate the key in memory, in which case the row-store page in-memory
+ *  key points to a WT_IKEY structure.
  */
 struct __wt_ikey {
     uint32_t size; /* Key length */
@@ -1076,10 +1075,10 @@ struct __wt_update {
     volatile uint8_t prepare_state; /* prepare state */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_UPDATE_CLEARED_HS 0x01u               /* Update that cleared the history store. */
-#define WT_UPDATE_DS 0x02u                       /* Update has been written to the data store. */
-#define WT_UPDATE_HS 0x04u                       /* Update has been written to history store. */
-#define WT_UPDATE_OBSOLETE 0x08u                 /* Update that is obsolete. */
+#define WT_UPDATE_BEHIND_MIXED_MODE 0x01u        /* Update that older than a mixed mode update. */
+#define WT_UPDATE_CLEARED_HS 0x02u               /* Update that cleared the history store. */
+#define WT_UPDATE_DS 0x04u                       /* Update has been written to the data store. */
+#define WT_UPDATE_HS 0x08u                       /* Update has been written to history store. */
 #define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x10u /* Prepared update restored from data store. */
 #define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x20u   /* Fast truncate instantiation */
 #define WT_UPDATE_RESTORED_FROM_DS 0x40u         /* Update restored from data store. */

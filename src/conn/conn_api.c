@@ -1789,6 +1789,12 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_PUBLISH(conn->debug_ckpt_cnt, (uint32_t)cval.val);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.corruption_abort", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT);
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.cursor_copy", &cval));
     if (cval.val)
         FLD_SET(conn->debug_flags, WT_CONN_DEBUG_CURSOR_COPY);
@@ -2756,7 +2762,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     if (verify_meta) {
         WT_ERR(__wt_open_internal_session(conn, "verify hs", false, 0, &verify_session));
-        ret = __wt_history_store_verify(verify_session);
+        ret = __wt_hs_verify(verify_session);
         WT_TRET(__wt_session_close_internal(verify_session));
         WT_ERR(ret);
     }

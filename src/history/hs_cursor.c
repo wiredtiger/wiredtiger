@@ -106,8 +106,7 @@ __hs_cursor_position_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
      * history store as opposed to comparing the embedded data store key since the ordering is not
      * guaranteed to be the same.
      */
-    cursor->set_key(
-      cursor, btree_id, key, timestamp != WT_TS_NONE ? timestamp : WT_TS_MAX, UINT64_MAX);
+    cursor->set_key(cursor, btree_id, key, timestamp, UINT64_MAX);
     /* Copy the raw key before searching as a basis for comparison. */
     WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
     WT_ERR(cursor->search_near(cursor, &exact));
@@ -225,6 +224,15 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
      * history store) to the oldest (earlier in the history store) for a given key.
      */
     read_timestamp = allow_prepare ? txn->prepare_timestamp : txn_shared->read_timestamp;
+
+    /*
+     * A reader without a timestamp should read the largest timestamp in the range, however cursor
+     * search near if given a 0 timestamp will place at the top of the range and hide the records
+     * below it. As such we need to adjust a 0 timestamp to the timestamp max value.
+     */
+    if (read_timestamp == WT_TS_NONE)
+        read_timestamp = WT_TS_MAX;
+
     WT_ERR_NOTFOUND_OK(
       __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp, NULL), true);
     if (ret == WT_NOTFOUND) {
@@ -258,6 +266,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
          */
         if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw)) {
             WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
+            WT_STAT_DATA_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
         /*
@@ -374,6 +383,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
             mod_upd = NULL;
         }
         WT_STAT_CONN_INCR(session, cache_hs_read_squash);
+        WT_STAT_DATA_INCR(session, cache_hs_read_squash);
     }
 
     /*
@@ -409,6 +419,7 @@ err:
         if (upd == NULL) {
             ret = WT_NOTFOUND;
             WT_STAT_CONN_INCR(session, cache_hs_read_miss);
+            WT_STAT_DATA_INCR(session, cache_hs_read_miss);
         } else {
             WT_STAT_CONN_INCR(session, cache_hs_read);
             WT_STAT_DATA_INCR(session, cache_hs_read);

@@ -267,8 +267,10 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
           hs_stop_durable_ts <= newer_hs_durable_ts || hs_start_ts == hs_stop_durable_ts ||
             first_record);
 
-        if (hs_stop_durable_ts < newer_hs_durable_ts)
+        if (hs_stop_durable_ts < newer_hs_durable_ts) {
             WT_STAT_CONN_INCR(session, txn_rts_hs_stop_older_than_newer_start);
+            WT_STAT_DATA_INCR(session, txn_rts_hs_stop_older_than_newer_start);
+        }
 
         /*
          * Stop processing when we find the newer version value of this key is stable according to
@@ -319,6 +321,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         WT_STAT_CONN_INCR(session, cache_hs_key_truncate_rts_unstable);
+        WT_STAT_DATA_INCR(session, txn_rts_hs_removed);
+        WT_STAT_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
     }
 
     if (replace) {
@@ -369,10 +373,12 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
                 tombstone->next = upd;
                 upd = tombstone;
                 WT_STAT_CONN_INCR(session, txn_rts_hs_restore_tombstones);
+                WT_STAT_DATA_INCR(session, txn_rts_hs_restore_tombstones);
             }
         } else {
             WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
+            WT_STAT_DATA_INCR(session, txn_rts_keys_removed);
             __wt_verbose(session, WT_VERB_RTS, "%p: key removed", (void *)key);
         }
 
@@ -385,6 +391,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         WT_STAT_CONN_INCR(session, cache_hs_key_truncate_rts);
+        WT_STAT_DATA_INCR(session, txn_rts_hs_removed);
+        WT_STAT_DATA_INCR(session, cache_hs_key_truncate_rts);
     }
 
     if (0) {
@@ -439,6 +447,7 @@ __rollback_abort_row_ondisk_kv(
               __wt_timestamp_to_string(rollback_timestamp, ts_string[4]));
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_INCR(session, txn_rts_sweep_hs_keys);
+            WT_STAT_DATA_INCR(session, txn_rts_sweep_hs_keys);
         } else
             return (0);
     } else if (vpack->tw.durable_start_ts > rollback_timestamp ||
@@ -458,6 +467,7 @@ __rollback_abort_row_ondisk_kv(
              */
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
+            WT_STAT_DATA_INCR(session, txn_rts_keys_removed);
         }
     } else if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
       (vpack->tw.durable_stop_ts > rollback_timestamp || prepared)) {
@@ -473,6 +483,7 @@ __rollback_abort_row_ondisk_kv(
         upd->start_ts = vpack->tw.start_ts;
         F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
         WT_STAT_CONN_INCR(session, txn_rts_keys_restored);
+        WT_STAT_DATA_INCR(session, txn_rts_keys_restored);
         __wt_verbose(session, WT_VERB_RTS,
           "key restored with commit timestamp: %s, durable timestamp: %s txnid: %" PRIu64
           "and removed commit timestamp: %s, durable timestamp: %s, txnid: %" PRIu64
@@ -1049,16 +1060,8 @@ __rollback_evict_exclusive_off(WT_SESSION_IMPL *session)
 static int
 __rollback_to_stable_check(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_TXN_GLOBAL *txn_global;
     bool txn_active;
-
-    conn = S2C(session);
-    txn_global = &conn->txn_global;
-
-    if (!txn_global->has_stable_timestamp)
-        WT_RET_MSG(session, EINVAL, "rollback_to_stable requires a stable timestamp");
 
     /*
      * Help the user comply with the requirement that there are no concurrent operations. Protect
@@ -1145,6 +1148,8 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_INCR(session, txn_rts_hs_removed);
         WT_STAT_CONN_INCR(session, cache_hs_key_truncate_rts);
+        WT_STAT_DATA_INCR(session, txn_rts_hs_removed);
+        WT_STAT_DATA_INCR(session, cache_hs_key_truncate_rts);
         hs_upd = NULL;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
@@ -1229,17 +1234,19 @@ static int
 __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
 {
     WT_CONFIG ckptconf;
-    WT_CONFIG_ITEM cval, durableval, key;
+    WT_CONFIG_ITEM cval, value, key;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts,
       rollback_timestamp;
+    size_t addr_size;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
     bool durable_ts_found, prepared_updates;
 
     txn_global = &S2C(session)->txn_global;
+    addr_size = 0;
 
     /*
      * Copy the stable timestamp, otherwise we'd need to lock it each time it's accessed. Even
@@ -1273,32 +1280,62 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
         __wt_config_subinit(session, &ckptconf, &cval);
         for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
-            ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &durableval);
+            ret = __wt_config_subgets(session, &cval, "newest_start_durable_ts", &value);
             if (ret == 0) {
                 newest_start_durable_ts =
-                  WT_MAX(newest_start_durable_ts, (wt_timestamp_t)durableval.val);
+                  WT_MAX(newest_start_durable_ts, (wt_timestamp_t)value.val);
                 durable_ts_found = true;
             }
             WT_ERR_NOTFOUND_OK(ret, false);
-            ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &durableval);
+            ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
             if (ret == 0) {
-                newest_stop_durable_ts =
-                  WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)durableval.val);
+                newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
                 durable_ts_found = true;
             }
             WT_ERR_NOTFOUND_OK(ret, false);
-            ret = __wt_config_subgets(session, &cval, "prepare", &durableval);
+            ret = __wt_config_subgets(session, &cval, "prepare", &value);
             if (ret == 0) {
-                if (durableval.val)
+                if (value.val)
                     prepared_updates = true;
             }
             WT_ERR_NOTFOUND_OK(ret, false);
+            ret = __wt_config_subgets(session, &cval, "addr", &value);
+            if (ret == 0)
+                addr_size = value.len;
+            WT_ERR_NOTFOUND_OK(ret, false);
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
-        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
-        /* Ignore performing rollback to stable on files that don't exist. */
-        if (ret == ENOENT)
+
+        /*
+         * The rollback to stable will skip the tables during recovery in the following conditions
+         * 1. Empty table
+         * 2. Table has timestamped updates without a stable timestamp.
+         */
+        if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+          (addr_size == 0 ||
+            (txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
+            __wt_verbose(session, WT_VERB_RTS, "Skip rollback to stable on file %s because %s", uri,
+              addr_size == 0 ? "its checkpoint address length is 0" :
+                               "it has timestamped updates and the stable timestamp is 0");
             continue;
+        }
+
+        /* Set this flag to return error instead of panic if file is corrupted. */
+        F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
+        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
+        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
+
+        /*
+         * Ignore performing rollback to stable on files that does not exist or the files where
+         * corruption is detected.
+         */
+        if ((ret == ENOENT) ||
+          (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
+            __wt_verbose(session, WT_VERB_RTS,
+              "Ignore performing rollback to stable on %s because the file %s", uri,
+              ret == ENOENT ? "does not exist" : "is corrupted.");
+            continue;
+        }
         WT_ERR(ret);
 
         /*
