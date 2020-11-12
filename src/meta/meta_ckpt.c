@@ -861,7 +861,7 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
 
 /*
  * __wt_meta_ckptlist_update_config --
- *     Provided a metadata config, set a file's checkpoint value from the WT_CKPT list.
+ *     Provided a metadata config and list of checkpoints, set a file's checkpoint value.
  */
 int
 __wt_meta_ckptlist_update_config(
