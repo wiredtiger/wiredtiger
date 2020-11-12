@@ -159,10 +159,6 @@ __curhs_close(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(
       cursor, session, close, file_cursor == NULL ? NULL : CUR2BT(file_cursor));
 err:
-<<<<<<< HEAD
-=======
-
->>>>>>> develop
     if (file_cursor != NULL)
         WT_TRET(file_cursor->close(file_cursor));
     __wt_cursor_close(cursor);
@@ -381,11 +377,8 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
 
     WT_ERR(__wt_cursor_init(cursor, WT_HS_URI, owner, NULL, cursorp));
 
-<<<<<<< HEAD
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
 
-=======
->>>>>>> develop
     if (0) {
 err:
         WT_TRET(__curhs_close(cursor));
