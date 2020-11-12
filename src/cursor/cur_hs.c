@@ -249,8 +249,8 @@ __curhs_get_value(WT_CURSOR *cursor, ...)
     file_cursor = hs_cursor->file_cursor;
 
     va_start(ap, cursor);
-    ret = file_cursor->get_value(file_cursor, va_arg(ap, wt_timestamp_t *), va_arg(ap, wt_timestamp_t *),
-      va_arg(ap, uint64_t *), va_arg(ap, WT_ITEM **));
+    ret = file_cursor->get_value(file_cursor, va_arg(ap, wt_timestamp_t *),
+      va_arg(ap, wt_timestamp_t *), va_arg(ap, uint64_t *), va_arg(ap, WT_ITEM **));
     va_end(ap);
 
     return (ret);
@@ -291,7 +291,6 @@ __curhs_insert(WT_CURSOR *cursor)
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_upd, *upd_local;
 
-    session = CUR2S(cursor);
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
