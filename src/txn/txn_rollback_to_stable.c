@@ -998,10 +998,8 @@ __rollback_evict_exclusive_apply(WT_SESSION_IMPL *session, bool *files_acquired,
         /* Open the dhandle if it's not already open. */
         ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
 
-        if (ret == ENOENT) {
-            ret = 0;
+        if (ret == ENOENT)
             continue;
-        }
         WT_ERR(ret);
 
         /* Apply function to dhandle. */
