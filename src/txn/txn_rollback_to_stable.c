@@ -976,7 +976,8 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
  *     Apply an eviction helper to all dhandles.
  */
 static int
-__rollback_evict_exclusive_apply(WT_SESSION_IMPL *session, int (*dhandle_func)(WT_SESSION_IMPL *))
+__rollback_evict_exclusive_apply(WT_SESSION_IMPL *session, bool *files_acquired,
+  size_t files_acquired_len, int (*dhandle_func)(WT_SESSION_IMPL *, bool *, size_t))
 {
     WT_CURSOR *metadata_cursor;
     WT_DECL_RET;
@@ -997,12 +998,14 @@ __rollback_evict_exclusive_apply(WT_SESSION_IMPL *session, int (*dhandle_func)(W
         /* Open the dhandle if it's not already open. */
         ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
 
-        if (ret == ENOENT)
+        if (ret == ENOENT) {
+            ret = 0;
             continue;
+        }
         WT_ERR(ret);
 
         /* Apply function to dhandle. */
-        WT_ERR((*dhandle_func)(session));
+        WT_ERR((*dhandle_func)(session, files_acquired, files_acquired_len));
 
         WT_ERR(__wt_session_release_dhandle(session));
     }
@@ -1020,25 +1023,58 @@ err:
 }
 
 /*
+ * __rollback_evict_file_exclusive_on_wrapper --
+ *     A wrapper around the "exclusive on" helper that marks the file as acquired.
+ */
+static int
+__rollback_evict_file_exclusive_on_wrapper(
+  WT_SESSION_IMPL *session, bool *files_acquired, size_t files_acquired_len)
+{
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
+    if (btree->id >= files_acquired_len || files_acquired[btree->id])
+        return (0);
+
+    WT_RET(__wt_evict_file_exclusive_on(session));
+    files_acquired[btree->id] = true;
+
+    return (0);
+}
+
+/*
  * __rollback_evict_exclusive_on --
  *     Get exclusive eviction access to any files that may conflict with rollback to stable's
  *     preliminary check for active transactions.
  */
 static int
-__rollback_evict_exclusive_on(WT_SESSION_IMPL *session)
+__rollback_evict_exclusive_on(
+  WT_SESSION_IMPL *session, bool *files_acquired, size_t files_acquired_len)
 {
-    return (__rollback_evict_exclusive_apply(session, __wt_evict_file_exclusive_on));
+    return (__rollback_evict_exclusive_apply(
+      session, files_acquired, files_acquired_len, __rollback_evict_file_exclusive_on_wrapper));
 }
 
 /*
  * __rollback_evict_file_exclusive_off_wrapper --
- *     A wrapper around the "exclusive off" helper so that we can use it in a similar way to the
- *     "on" helper.
+ *     A wrapper around the "exclusive off" helper that checks whether the file has been acquired
+ *     before attempting to release it.
  */
 static int
-__rollback_evict_file_exclusive_off_wrapper(WT_SESSION_IMPL *session)
+__rollback_evict_file_exclusive_off_wrapper(
+  WT_SESSION_IMPL *session, bool *files_acquired, size_t files_acquired_len)
 {
+    WT_BTREE *btree;
+
+    btree = S2BT(session);
+
+    if (btree->id >= files_acquired_len || !files_acquired[btree->id])
+        return (0);
+
     __wt_evict_file_exclusive_off(session);
+    files_acquired[btree->id] = false;
+
     return (0);
 }
 
@@ -1048,9 +1084,11 @@ __rollback_evict_file_exclusive_off_wrapper(WT_SESSION_IMPL *session)
  *     preliminary check for active transactions.
  */
 static int
-__rollback_evict_exclusive_off(WT_SESSION_IMPL *session)
+__rollback_evict_exclusive_off(
+  WT_SESSION_IMPL *session, bool *files_acquired, size_t files_acquired_len)
 {
-    return (__rollback_evict_exclusive_apply(session, __rollback_evict_file_exclusive_off_wrapper));
+    return (__rollback_evict_exclusive_apply(
+      session, files_acquired, files_acquired_len, __rollback_evict_file_exclusive_off_wrapper));
 }
 
 /*
@@ -1394,22 +1432,25 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    bool exclusive;
+    size_t files_acquired_len;
+    void *files_acquired;
 
     conn = S2C(session);
-    exclusive = false;
+    files_acquired = NULL;
+    files_acquired_len = conn->next_file_id + 1;
+
+    /* A boolean array determining whether exclusive access to a file has been acquired. */
+    WT_RET(__wt_calloc(session, files_acquired_len, sizeof(bool), &files_acquired));
 
     /*
      * History store operations create transactions so we need to block eviction everywhere before
      * doing rollback to stable's preliminary check since it checks for active transactions.
      */
-    WT_ERR(__rollback_evict_exclusive_on(session));
-    exclusive = true;
+    WT_ERR(__rollback_evict_exclusive_on(session, files_acquired, files_acquired_len));
 
     WT_ERR(__rollback_to_stable_check(session));
 
-    WT_ERR(__rollback_evict_exclusive_off(session));
-    exclusive = false;
+    WT_ERR(__rollback_evict_exclusive_off(session, files_acquired, files_acquired_len));
 
     /*
      * Allocate a non-durable btree bitstring. We increment the global value before using it, so the
@@ -1419,9 +1460,8 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
     WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_btree_apply(session));
 
 err:
-    /* This is quite expensive, so don't waste work. */
-    if (exclusive)
-        WT_TRET(__rollback_evict_exclusive_off(session));
+    WT_TRET(__rollback_evict_exclusive_off(session, files_acquired, files_acquired_len));
+    __wt_free(session, files_acquired);
 
     return (ret);
 }
