@@ -1,31 +1,19 @@
 #!/usr/bin/env python
 """Hang Analyzer module.
 
-A prototype hang analyzer for Evergreen integration to help investigate test timeouts
+A prototype hang analyzer for Evergreen integration to help investigate test timeouts.
 
-1. Script supports taking dumps, and/or dumping a summary of useful information about a process
+1. Script supports taking dumps, and/or dumping a summary of useful information about a process.
 2. Script will iterate through a list of interesting processes,
     and run the tools from step 1. The list of processes can be provided as an option.
 
-Currenty only supports Linux. There are two issues with the MacOS and windows implementation:
-1. lldb cannot attach to processes in MacOS.
-2. Windows cannot find the debug symbols.
+Currently only supports Linux. There are two issues with the MacOS and Windows implementations:
+1. WT-6918 - lldb cannot attach to processes in MacOS.
+2. WT-6919 - Windows cannot find the debug symbols.
 """
 
-import csv
-import glob
-import itertools
-import logging
-import os
-import platform
-import re
-import signal
-import subprocess
-import sys
-import tempfile
-import threading
-import time
-import traceback
+import csv, glob, itertools, logging, re, tempfile, traceback
+import os, sys, platform, signal, subprocess, threading, time
 from distutils import spawn
 from io import BytesIO, TextIOWrapper
 from optparse import OptionParser
@@ -53,7 +41,7 @@ class LoggerPipe(threading.Thread):
         """Initialize the LoggerPipe with the specified arguments."""
 
         threading.Thread.__init__(self)
-        # Main thread should not call join() when exiting
+        # Main thread should not call join() when exiting.
         self.daemon = True
 
         self.__logger = logger
@@ -174,17 +162,17 @@ class WindowsDumper(object):
     @staticmethod
     def __find_debugger(logger, debugger):
         """Find the installed debugger."""
-        # We are looking for c:\Program Files (x86)\Windows Kits\8.1\Debuggers\x64
+        # We are looking for c:\Program Files (x86)\Windows Kits\8.1\Debuggers\x64.
         cdb = spawn.find_executable(debugger)
         if cdb is not None:
             return cdb
         from win32com.shell import shell, shellcon
 
-        # Cygwin via sshd does not expose the normal environment variables
-        # Use the shell api to get the variable instead
+        # Cygwin via sshd does not expose the normal environment variables.
+        # Use the shell api to get the variable instead.
         root_dir = shell.SHGetFolderPath(0, shellcon.CSIDL_PROGRAM_FILESX86, None, 0)
 
-        # Construct the debugger search paths in most-recent order
+        # Construct the debugger search paths in most-recent order.
         debugger_paths = [os.path.join(root_dir, "Windows Kits", "10", "Debuggers", "x64")]
         for idx in reversed(range(0, 2)):
             debugger_paths.append(
@@ -210,24 +198,24 @@ class WindowsDumper(object):
 
         dump_command = ""
         if take_dump:
-            # Dump to file, dump_<process name>.<pid>.mdmp
+            # Dump to file, dump_<process name>.<pid>.mdmp.
             dump_file = "dump_%s.%d.%s" % (os.path.splitext(process_name)[0], pid,
                                            self.get_dump_ext())
             dump_command = ".dump /ma %s" % dump_file
             root_logger.info("Dumping core to %s", dump_file)
 
         cmds = [
-            ".symfix",  # Fixup symbol path
-            "!sym noisy",  # Enable noisy symbol loading
-            ".symopt +0x10",  # Enable line loading (off by default in CDB, on by default in WinDBG)
-            ".reload",  # Reload symbols
-            "!peb",  # Dump current exe, & environment variables
-            "lm",  # Dump loaded modules
+            ".symfix",  # Fixup symbol path.
+            "!sym noisy",  # Enable noisy symbol loading.
+            ".symopt +0x10",  # Enable line loading (off by default in CDB, on by default in WinDBG).
+            ".reload",  # Reload symbols.
+            "!peb",  # Dump current exe & environment variables.
+            "lm",  # Dump loaded modules.
             dump_command,
-            "!uniqstack -pn",  # Dump All unique Threads with function arguments
-            "!cs -l",  # Dump all locked critical sections
-            ".detach",  # Detach
-            "q"  # Quit
+            "!uniqstack -pn",  # Dump all unique threads with function arguments.
+            "!cs -l",  # Dump all locked critical sections.
+            ".detach",  # Detach.
+            "q"  # Quit.
         ]
 
         call([dbg, '-c', ";".join(cmds), '-p', str(pid)], logger)
@@ -260,7 +248,7 @@ class WindowsProcessList(object):
 
         return [[int(row[1]), row[0]] for row in csv_reader if row[1] != "PID"]
 
-# LLDB dumper is for MacOS X
+# LLDB dumper is for MacOS X.
 class LLDBDumper(object):
     """LLDBDumper class."""
 
@@ -285,13 +273,13 @@ class LLDBDumper(object):
         logger.info(lldb_version)
 
         # Do we have the XCode or LLVM version of lldb?
-        # Old versions of lldb do not work well when taking commands via a file
-        # XCode (7.2): lldb-340.4.119
-        # LLVM - lldb version 3.7.0 ( revision )
+        # Old versions of lldb do not work well when taking commands via a file.
+        # XCode (7.2): lldb-340.4.119.
+        # LLVM - lldb version 3.7.0 ( revision ).
 
         lldb_version = str(lldb_version)
         if 'version' not in lldb_version:
-            # We have XCode's lldb
+            # We have XCode's lldb.
             lldb_version = lldb_version[lldb_version.index("lldb-"):]
             lldb_version = lldb_version.replace('lldb-', '')
             lldb_major_version = int(lldb_version[:lldb_version.index('.')])
@@ -301,7 +289,7 @@ class LLDBDumper(object):
 
         dump_command = ""
         if take_dump:
-            # Dump to file, dump_<process name>.<pid>.core
+            # Dump to file, dump_<process name>.<pid>.core.
             dump_file = "dump_%s.%d.%s" % (process_name, pid, self.get_dump_ext())
             dump_command = "process save-core %s" % dump_file
             root_logger.info("Dumping core to %s", dump_file)
@@ -322,7 +310,7 @@ class LLDBDumper(object):
 
         tf.flush()
 
-        # Works on in MacOS 10.9 & later
+        # Works on in MacOS 10.9 & later.
         #call([dbg] +  list( itertools.chain.from_iterable([['-o', b] for b in cmds])), logger)
         call(['cat', tf.name], logger)
         call([dbg, '--source', tf.name], logger)
@@ -355,7 +343,7 @@ class DarwinProcessList(object):
 
         return [[int(row[0]), row[1]] for row in csv_reader if row[0] != "PID"]
 
-# GDB dumper is for Linux
+# GDB dumper is for Linux.
 class GDBDumper(object):
     """GDBDumper class."""
 
@@ -377,7 +365,7 @@ class GDBDumper(object):
 
         dump_command = ""
         if take_dump:
-            # Dump to file, dump_<process name>.<pid>.core
+            # Dump to file, dump_<process name>.<pid>.core.
             dump_file = "dump_%s.%d.%s" % (process_name, pid, self.get_dump_ext())
             dump_command = "gcore %s" % dump_file
             root_logger.info("Dumping core to %s", dump_file)
@@ -390,7 +378,7 @@ class GDBDumper(object):
             "file %s" % process_name,
             "attach %d" % pid,
             "info sharedlibrary",
-            "info threads",  # Dump a simple list of commands to get the thread name
+            "info threads",  # Dump a simple list of commands to get the thread name.
             "thread apply all bt",
             "set python print-stack full",
             # Lock the scheduler, before running commands, which execute code in the attached process.
@@ -448,10 +436,9 @@ def get_hang_analyzers():
     dbg = None
     ps = None
 
-    # Currently there are issues with MacOS and windows implementation. So, skip
-    # taking the dump and result in an error.
-    # FIXME : Remove the skip block of code after fixing the issues.
-    if _IS_WINDOWS or sys.platform == "cygwin" or sys.platform == "darwin":
+    # Skip taking the dump in Mac OS and result in an error.
+    # FIXME : WT-6918 - Remove the skip block of code after fixing the issues.
+    if sys.platform == "darwin":
         return [ps, dbg]
 
     if sys.platform.startswith("linux"):
@@ -552,7 +539,7 @@ def main():
         options.debugger_output = ['stdout']
 
     if options.process_ids is not None:
-        # process_ids is an int list of PIDs
+        # process_ids is an int list of PIDs.
         process_ids = [int(pid) for pid in options.process_ids.split(',')]
 
     if options.process_exact_names is not None:
