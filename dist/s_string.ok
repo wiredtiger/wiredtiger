@@ -634,6 +634,7 @@ curconfig
 curdump
 curextract
 curfile
+curhs
 curindex
 curjoin
 curlog
