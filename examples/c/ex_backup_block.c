@@ -43,6 +43,7 @@ static const char *const incr_out = "./backup_block_incr";
 
 static const char *const uri = "table:main";
 static const char *const uri2 = "table:extra";
+static const char *const uri3 = "table:reopen";
 
 typedef struct __filelist {
     const char *name;
@@ -101,6 +102,27 @@ compare_backups(int i)
         exit(1);
 
     /*
+     * On the last iteration compare the created table across the reopen.
+     */
+    if (i == MAX_ITERATIONS) {
+        (void)snprintf(
+          buf, sizeof(buf), "../../wt -R -h %s.%d dump reopen > %s.%d", home_full, i, full_out, i);
+        error_check(system(buf));
+        (void)snprintf(
+          buf, sizeof(buf), "../../wt -R -h %s.%d dump reopen > %s.%d", home_incr, i, incr_out, i);
+        error_check(system(buf));
+        /*
+         * Compare the files.
+         */
+        (void)snprintf(buf, sizeof(buf), "cmp %s.%d %s.%d", full_out, i, incr_out, i);
+        ret = system(buf);
+            (void)snprintf(msg, sizeof(msg), "%d", i);
+        printf("Iteration %s: Table reopen.wt %s.%d and %s.%d %s\n", msg, full_out, i, incr_out, i,
+          ret == 0 ? "identical" : "differ");
+        if (ret != 0)
+            exit(1);
+    }
+    /*
      * If they compare successfully, clean up.
      */
     if (i != 0) {
@@ -122,7 +144,7 @@ setup_directories(void)
     int i;
     char buf[1024];
 
-    for (i = 0; i < MAX_ITERATIONS; i++) {
+    for (i = 0; i <= MAX_ITERATIONS; i++) {
         /*
          * For incremental backups we need 0-N. The 0 incremental directory will compare with the
          * original at the end.
@@ -142,20 +164,17 @@ setup_directories(void)
 }
 
 static void
-add_work(WT_SESSION *session, int iter, int iterj)
+add_work(WT_SESSION *session, const char *work_uri, int iter, int iterj)
 {
-    WT_CURSOR *cursor, *cursor2;
+    WT_CURSOR *cursor;
     int i;
     char k[64], v[64];
 
-    error_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+    error_check(session->open_cursor(session, work_uri, NULL, NULL, &cursor));
     /*
      * Only on even iterations add content to the extra table. This illustrates and shows that
      * sometimes only some tables will be updated.
      */
-    cursor2 = NULL;
-    if (iter % 2 == 0)
-        error_check(session->open_cursor(session, uri2, NULL, NULL, &cursor2));
     /*
      * Perform some operations with individual auto-commit transactions.
      */
@@ -165,15 +184,8 @@ add_work(WT_SESSION *session, int iter, int iterj)
         cursor->set_key(cursor, k);
         cursor->set_value(cursor, v);
         error_check(cursor->insert(cursor));
-        if (cursor2 != NULL) {
-            cursor2->set_key(cursor2, k);
-            cursor2->set_value(cursor2, v);
-            error_check(cursor2->insert(cursor2));
-        }
     }
     error_check(cursor->close(cursor));
-    if (cursor2 != NULL)
-        error_check(cursor2->close(cursor2));
 }
 
 static int
@@ -269,7 +281,7 @@ take_full_backup(WT_SESSION *session, int i)
         hdir = home_incr;
     if (i == 0) {
         (void)snprintf(
-          buf, sizeof(buf), "incremental=(granularity=1M,enabled=true,this_id=\"ID%d\")", i);
+          buf, sizeof(buf), "incremental=(granularity=16K,enabled=true,this_id=\"ID%d\")", i);
         error_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
     } else
         error_check(session->open_cursor(session, "backup:", NULL, NULL, &cursor));
@@ -294,7 +306,7 @@ take_full_backup(WT_SESSION *session, int i)
             /*
              * Take a full backup into each incremental directory.
              */
-            for (j = 0; j < MAX_ITERATIONS; j++) {
+            for (j = 0; j <= MAX_ITERATIONS; j++) {
                 (void)snprintf(h, sizeof(h), "%s.%d", home_incr, j);
                 (void)snprintf(buf, sizeof(buf), "cp %s/%s %s/%s", home, f, h, f);
 #if 0
@@ -342,8 +354,12 @@ take_incr_backup(WT_SESSION *session, int i)
     /*! [Query existing IDs] */
 
     /* Open the backup data source for incremental backup. */
+#if 0
     (void)snprintf(buf, sizeof(buf), "incremental=(src_id=\"ID%d\",this_id=\"ID%d\"%s)", i - 1, i,
       i % 2 == 0 ? "" : ",consolidate=true");
+#else
+    (void)snprintf(buf, sizeof(buf), "incremental=(src_id=\"ID%d\",this_id=\"ID%d\")", i - 1, i);
+#endif
     error_check(session->open_cursor(session, "backup:", NULL, buf, &backup_cur));
     rfd = wfd = -1;
     count = 0;
@@ -393,7 +409,7 @@ take_incr_backup(WT_SESSION *session, int i)
                     error_sys_check(rfd = open(buf, O_RDONLY, 0));
                     (void)snprintf(h, sizeof(h), "%s.%d", home_incr, i);
                     (void)snprintf(buf, sizeof(buf), "%s/%s", h, filename);
-                    error_sys_check(wfd = open(buf, O_WRONLY | O_CREAT, 0));
+                    error_sys_check(wfd = open(buf, O_WRONLY | O_CREAT, 0664));
                     first = false;
                 }
 
@@ -438,7 +454,7 @@ take_incr_backup(WT_SESSION *session, int i)
          * that they start out at the same for the next incremental round. We then check each
          * incremental directory along the way.
          */
-        for (j = i; j < MAX_ITERATIONS; j++) {
+        for (j = i; j <= MAX_ITERATIONS; j++) {
             (void)snprintf(h, sizeof(h), "%s.%d", home_incr, j);
             if (strncmp(filename, WTLOG, WTLOGLEN) == 0)
                 (void)snprintf(buf, sizeof(buf), "cp %s/%s/%s %s/%s/%s", home, logpath, filename, h,
@@ -478,7 +494,8 @@ main(int argc, char *argv[])
     error_check(session->create(session, uri, "key_format=S,value_format=S"));
     error_check(session->create(session, uri2, "key_format=S,value_format=S"));
     printf("Adding initial data\n");
-    add_work(session, 0, 0);
+    add_work(session, uri, 0, 0);
+    add_work(session, uri2, 0, 0);
 
     printf("Taking initial backup\n");
     take_full_backup(session, 0);
@@ -489,7 +506,9 @@ main(int argc, char *argv[])
         printf("Iteration %d: adding data\n", i);
         /* For each iteration we may add work and checkpoint multiple times. */
         for (j = 0; j < i; j++) {
-            add_work(session, i, j);
+            add_work(session, uri, i, j);
+            if (i % 2 == 0)
+                add_work(session, uri2, i, j);
             error_check(session->checkpoint(session, NULL));
         }
 
@@ -510,6 +529,10 @@ main(int argc, char *argv[])
         error_check(compare_backups(i));
     }
 
+    /* Add data to a newly created table and back it up after a reopen. */
+    error_check(session->create(session, uri3, "allocation_size=32K,internal_page_max=32K,leaf_page_max=32K,key_format=S,value_format=S"));
+    add_work(session, uri3, 0, 0);
+
     printf("Close and reopen the connection\n");
     /*
      * Close and reopen the connection to illustrate the durability of id information.
@@ -528,11 +551,16 @@ main(int argc, char *argv[])
 
     /*
      * We should have an entry for i-1 and i-2. Use the older one.
+     * Take another backup after reopening including the extra table.
      */
     (void)snprintf(
       cmd_buf, sizeof(cmd_buf), "incremental=(src_id=\"ID%d\",this_id=\"ID%d\")", i - 2, i);
-    error_check(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur));
-    error_check(backup_cur->close(backup_cur));
+    printf("Iteration %d REOPEN: taking full backup\n", i);
+    take_full_backup(session, i);
+    printf("Iteration %d REOPEN: taking incremental backup\n", i);
+    take_incr_backup(session, i);
+    printf("Iteration %d: dumping and comparing data\n", i);
+    error_check(compare_backups(i));
 
     /*
      * After we're done, release resources. Test the force stop setting.
