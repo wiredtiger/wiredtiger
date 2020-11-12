@@ -111,6 +111,7 @@ struct __wt_fh {
     TAILQ_ENTRY(__wt_fh) hashq;     /* internal hash queue */
     u_int ref;                      /* reference count */
     WT_FS_OPEN_FILE_TYPE file_type; /* file type */
+    bool created_during_bkup;       /* file created during incremental backup */
 
     WT_FILE_HANDLE *handle;
 };
