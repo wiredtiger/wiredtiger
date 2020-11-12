@@ -999,17 +999,6 @@ err:
     if (eviction_started)
         WT_TRET(__wt_evict_destroy(session));
 
-    /*
-     * The main intention of closing all the modified files dhandles because transaction information
-     * don't get reset until the btree write gen number is less than the base write generation. The
-     * conn closing flag is set to clean a modified page while checkpointing a file as part of
-     * closing the dhandle.
-     */
-    F_SET(conn, WT_CONN_CLOSING);
-    WT_TRET(__wt_session_close_open_cursors(session));
-    WT_TRET(__wt_conn_dhandle_discard(session));
-    F_CLR(conn, WT_CONN_CLOSING);
-
     WT_TRET(__wt_session_close_internal(session));
     F_CLR(conn, WT_CONN_RECOVERING);
 
