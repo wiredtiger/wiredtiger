@@ -501,7 +501,7 @@ __wt_meta_ckptlist_get(
     config = NULL;
 
     WT_ERR(__wt_metadata_search(session, fname, &config));
-    WT_ERR(__wt_meta_ckptlist_get_with_config(session, update, ckptbasep, config));
+    WT_ERR(__wt_meta_ckptlist_get_from_config(session, update, ckptbasep, config));
 
 err:
     __wt_free(session, config);
@@ -509,11 +509,11 @@ err:
 }
 
 /*
- * __wt_meta_ckptlist_get_with_config --
+ * __wt_meta_ckptlist_get_from_config --
  *     Provided a metadata config, load all available checkpoint information for a file.
  */
 int
-__wt_meta_ckptlist_get_with_config(
+__wt_meta_ckptlist_get_from_config(
   WT_SESSION_IMPL *session, bool update, WT_CKPT **ckptbasep, const char *config)
 {
     WT_CKPT *ckpt, *ckptbase;
@@ -857,6 +857,44 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
     return (0);
+}
+
+/*
+ * __wt_meta_ckptlist_update_config --
+ *     Provided a metadata config and list of checkpoints, set a file's checkpoint value.
+ */
+int
+__wt_meta_ckptlist_update_config(
+  WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *oldcfg, char **newcfgp)
+{
+    WT_CKPT *ckpt;
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
+    char *newcfg;
+    const char *cfg[3];
+
+    newcfg = NULL;
+    WT_RET(__wt_scr_alloc(session, 1024, &buf));
+    WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
+
+    /* Add backup block modifications for any added checkpoint. */
+    WT_CKPT_FOREACH (ckptbase, ckpt)
+        if (F_ISSET(ckpt, WT_CKPT_ADD))
+            WT_ERR(__wt_ckpt_blkmod_to_meta(session, buf, ckpt));
+
+    /* Replace the checkpoint entry. */
+    cfg[0] = oldcfg;
+    cfg[1] = buf->mem;
+    cfg[2] = NULL;
+    WT_ERR(__wt_config_collapse(session, cfg, &newcfg));
+
+    *newcfgp = newcfg;
+
+err:
+    if (ret != 0)
+        __wt_free(session, newcfg);
+    __wt_scr_free(session, &buf);
+    return (ret);
 }
 
 /*
