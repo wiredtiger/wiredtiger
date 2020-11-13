@@ -152,6 +152,7 @@ __curhs_close(WT_CURSOR *cursor)
     WT_CURSOR *file_cursor;
     WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
+    WT_ITEM *key;
     WT_SESSION_IMPL *session;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
@@ -161,6 +162,8 @@ __curhs_close(WT_CURSOR *cursor)
 err:
     if (file_cursor != NULL)
         WT_TRET(file_cursor->close(file_cursor));
+    key = &hs_cursor->key;
+    __wt_scr_free(session, &key);
     __wt_cursor_close(cursor);
 
     API_END_RET(session, ret);
@@ -185,6 +188,10 @@ __curhs_reset(WT_CURSOR *cursor)
     ret = file_cursor->reset(file_cursor);
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
+    hs_cursor->btree_id = 0;
+    hs_cursor->key.data = NULL;
+    hs_cursor->key.size = 0;
+    hs_cursor->flags = 0;
 
 err:
     API_END_RET(session, ret);
@@ -199,15 +206,58 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
 {
     WT_CURSOR *file_cursor;
     WT_CURSOR_HS *hs_cursor;
+    WT_ITEM *key;
+    WT_SESSION_IMPL *session;
     va_list ap;
+    wt_timestamp_t start_ts;
+    uint32_t arg_count;
+    uint64_t counter;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
+    session = CUR2S(cursor);
+    start_ts = WT_TS_NONE;
+    counter = 0;
 
     va_start(ap, cursor);
-    file_cursor->set_key(file_cursor, va_arg(ap, uint32_t), va_arg(ap, WT_ITEM *),
-      va_arg(ap, wt_timestamp_t), va_arg(ap, uint64_t));
+    arg_count = va_arg(ap, uint32_t);
+
+    WT_ASSERT(session, arg_count >= 1 && arg_count <= 4);
+
+    hs_cursor->btree_id = va_arg(ap, uint32_t);
+    F_SET(hs_cursor, WT_HSC_BTREE_ID_SET);
+    if (arg_count > 1)
+    {
+        key = va_arg(ap, WT_ITEM *);
+        WT_IGNORE_RET(__wt_buf_set(session, &hs_cursor->key, key->data, key->size));
+        F_SET(hs_cursor, WT_HSC_KEY_SET);
+    }
+    else {
+        hs_cursor->key.data = NULL;
+        hs_cursor->key.size = 0;
+        F_CLR(hs_cursor, WT_HSC_KEY_SET);
+    }
+
+    if (arg_count > 2)
+    {
+        start_ts = va_arg(ap, wt_timestamp_t);
+        F_SET(hs_cursor, WT_HSC_TS_SET);
+    }
+    else
+        F_CLR(hs_cursor, WT_HSC_TS_SET);
+    
+    if (arg_count > 3)
+    {
+        counter = va_arg(ap, uint64_t);
+        F_SET(hs_cursor, WT_HSC_COUNTER_SET);
+    }
+    else
+        F_CLR(hs_cursor, WT_HSC_COUNTER_SET);
+    
     va_end(ap);
+
+    file_cursor->set_key(file_cursor, hs_cursor->btree_id, &hs_cursor->key,
+      start_ts, counter);
 }
 
 /*
@@ -364,6 +414,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     WT_CURSOR *cursor;
     WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
+    WT_ITEM *key;
 
     WT_RET(__wt_calloc_one(session, &hs_cursor));
     cursor = (WT_CURSOR *)hs_cursor;
@@ -376,8 +427,11 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     WT_ERR(__hs_cursor_open_int(session, &hs_cursor->file_cursor));
 
     WT_ERR(__wt_cursor_init(cursor, WT_HS_URI, owner, NULL, cursorp));
-
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
+    hs_cursor->btree_id = 0;
+    key = &hs_cursor->key;
+    WT_RET(__wt_scr_alloc(session, 0, &key));
+    hs_cursor->flags = 0;
 
     if (0) {
 err:
