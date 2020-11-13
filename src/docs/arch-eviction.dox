@@ -1,0 +1,14 @@
+/*! @arch_page arch-eviction Eviction
+
+Eviction represents the process of writing dirty data to disk.
+The general strategy uses a dedicated set of eviction threads that
+are tasked with identifying candidate data to be written, reconciling data
+(converting the in-memory format to on-disk format), and finally
+writing the data.
+
+Eviction cannot be triggered directly by API calls, but happens as a result
+of enough data being dirtied.
+
+Eviction is managed using \c WT_EVICT_QUEUE structures,
+each of which contains a list of \c WT_EVICT_ENTRY structures.
+*/
