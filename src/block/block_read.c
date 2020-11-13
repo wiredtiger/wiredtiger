@@ -259,7 +259,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
     else {
 	if(__wt_blkcache_get_or_check(session, offset, size, checksum, buf->mem) != 0) {
 	    WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
-	    WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, size, checksum, buf->mem, false), -1);
+	    WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, size, checksum, buf->mem, false), WT_CACHE_FULL);
 	}
     }
 #else
@@ -304,8 +304,8 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
 			 WT_CLOCKDIFF_NS(time_stop, time_start));
 
 	    time_start = __wt_clock(session);
-	    WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, size,
-					       checksum, buf->mem, false), -1);
+	    /* Ignore errors */
+	    WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, size, checksum, buf->mem, false), WT_CACHE_FULL);
 	    time_stop = __wt_clock(session);
 	    __wt_verbose(session, WT_VERB_BLKCACHE, "put latency: "
                          "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64 ", "

@@ -27,7 +27,7 @@ __wt_blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
 #ifdef HAVE_LIBMEMKIND
         *retp = memkind_malloc(blkcache->pmem_kind, size);
         if (*retp == NULL)
-            return __wt_errno();
+            return WT_CACHE_FULL;
 #else
         WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind.");
 #endif
@@ -166,7 +166,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
 
     /* Are we within cache size limits? */
     if (blkcache->bytes_used >= blkcache->max_bytes)
-        return -1;
+        return WT_CACHE_FULL;
 
     /*
      * Allocate space in the cache outside of the critical section. In the unlikely event that we
