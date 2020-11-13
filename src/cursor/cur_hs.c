@@ -443,8 +443,10 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     if (ret == WT_NOTFOUND)
         goto done;
 
-    /* There are some key field missing, we are searching a range of keys. Place the cursor at the
-     * start of the range. */
+    /* 
+     * There are some key fields missing so we are searching a range of keys. Place the cursor at the
+     * start of the range.
+     */
     if (!F_ISSET(hs_cursor, WT_HSC_COUNTER_SET)) {
         /*
          * If we raced with a history store insert, we may be two or more records away from our
