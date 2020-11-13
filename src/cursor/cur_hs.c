@@ -191,6 +191,7 @@ __curhs_reset(WT_CURSOR *cursor)
     hs_cursor->btree_id = 0;
     hs_cursor->key.data = NULL;
     hs_cursor->key.size = 0;
+    hs_cursor->construct_reverse_modify = false;
     hs_cursor->flags = 0;
 
 err:
@@ -222,11 +223,12 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
     va_start(ap, cursor);
     arg_count = va_arg(ap, uint32_t);
 
-    WT_ASSERT(session, arg_count >= 1 && arg_count <= 4);
+    WT_ASSERT(session, arg_count >= 2 && arg_count <= 5);
 
+    hs_cursor->construct_reverse_modify = va_arg(ap, bool);
     hs_cursor->btree_id = va_arg(ap, uint32_t);
     F_SET(hs_cursor, WT_HSC_BTREE_ID_SET);
-    if (arg_count > 1)
+    if (arg_count > 2)
     {
         key = va_arg(ap, WT_ITEM *);
         WT_IGNORE_RET(__wt_buf_set(session, &hs_cursor->key, key->data, key->size));
@@ -238,7 +240,7 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
         F_CLR(hs_cursor, WT_HSC_KEY_SET);
     }
 
-    if (arg_count > 2)
+    if (arg_count > 3)
     {
         start_ts = va_arg(ap, wt_timestamp_t);
         F_SET(hs_cursor, WT_HSC_TS_SET);
@@ -246,7 +248,7 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
     else
         F_CLR(hs_cursor, WT_HSC_TS_SET);
     
-    if (arg_count > 3)
+    if (arg_count > 4)
     {
         counter = va_arg(ap, uint64_t);
         F_SET(hs_cursor, WT_HSC_COUNTER_SET);
@@ -431,6 +433,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     hs_cursor->btree_id = 0;
     key = &hs_cursor->key;
     WT_RET(__wt_scr_alloc(session, 0, &key));
+    hs_cursor->construct_reverse_modify = false;
     hs_cursor->flags = 0;
 
     if (0) {
