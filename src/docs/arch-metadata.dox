@@ -5,7 +5,7 @@ The table's key is a \c uri string, and the value is its complete
 configuration string.  The configuration itself is a list of key/value
 pairs in string form.  The configuration's keys are dependent on the
 type of \c uri.  Thus, a metadata entry with a \c uri key beginning with
-\c "table:" will a configuration string
+\c "table:" will be a configuration string
 having configuration entries like \c key_format and \c value_format to
 describe the data encoding for the uri.  A metadata key beginning with
 \c "file:" will have a different set of configuration entries associated
