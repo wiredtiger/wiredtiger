@@ -869,7 +869,8 @@ __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
         WT_ASSERT(session, btree != NULL);
 
         /* Initialize the btrees write gens to connection base write gen */
-        btree->base_write_gen = btree->write_gen = conn->base_write_gen;
+        btree->write_gen = btree->base_write_gen = btree->run_write_gen =
+          WT_MAX(btree->write_gen, conn->base_write_gen);
     }
     return (0);
 }
