@@ -271,7 +271,6 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
     uint32_t btree_id;
     int cmp;
 
-    ret = 0;
     file_cursor = hs_cursor->file_cursor;
     std_cursor = (WT_CURSOR *)hs_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
@@ -357,7 +356,6 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
     uint32_t btree_id;
     int cmp;
 
-    ret = 0;
     file_cursor = hs_cursor->file_cursor;
     std_cursor = (WT_CURSOR *)hs_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
