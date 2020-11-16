@@ -308,19 +308,23 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
             continue;
         }
 
-        /* Don't check visibility is we want to read any history store record that is not obsolete.
+        /*
+         * Don't check the visibility of the record if we want to read any history store record that
+         * is not obsolete.
          */
         if (F_ISSET(std_cursor, WT_CURSTD_HS_READ_COMMITTED))
             break;
 
-        /*
-         * If the stop time point of a record is visible to us, we won't be able to see anything for
-         * this entire key.
-         */
-        if (F_ISSET(hs_cursor, WT_HSC_KEY_SET) &&
-          __wt_txn_tw_stop_visible(session, &cbt->upd_value->tw)) {
-            ret = WT_NOTFOUND;
-            goto done;
+        if (__wt_txn_tw_stop_visible(session, &cbt->upd_value->tw)) {
+            /*
+             * If the stop time point of a record is visible to us, we won't be able to see anything
+             * for this entire key.
+             */
+            if (F_ISSET(hs_cursor, WT_HSC_KEY_SET)) {
+                ret = WT_NOTFOUND;
+                goto done;
+            } else
+                continue;
         }
 
         /* If the start time point is visible to us, let's return that record. */
@@ -389,7 +393,9 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
             continue;
         }
 
-        /* Don't check visibility is we want to read any history store record that is not obsolete.
+        /*
+         * Don't check the visibility of the record if we want to read any history store record that
+         * is not obsolete.
          */
         if (F_ISSET(std_cursor, WT_CURSTD_HS_READ_COMMITTED))
             break;
@@ -397,8 +403,7 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         /*
          * If the stop time point of a record is visible to us, check the next one.
          */
-        if (F_ISSET(hs_cursor, WT_HSC_KEY_SET) &&
-          __wt_txn_tw_stop_visible(session, &cbt->upd_value->tw))
+        if (__wt_txn_tw_stop_visible(session, &cbt->upd_value->tw))
             continue;
 
         /* If the start time point is visible to us, let's return that record. */
@@ -443,9 +448,9 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     if (ret == WT_NOTFOUND)
         goto done;
 
-    /* 
-     * There are some key fields missing so we are searching a range of keys. Place the cursor at the
-     * start of the range.
+    /*
+     * There are some key fields missing so we are searching a range of keys. Place the cursor at
+     * the start of the range.
      */
     if (!F_ISSET(hs_cursor, WT_HSC_COUNTER_SET)) {
         /*
