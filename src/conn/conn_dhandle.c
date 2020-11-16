@@ -848,6 +848,33 @@ restart:
 }
 
 /*
+ * __wt_dhandle_update_write_gens --
+ *     Update the open dhandles write generation and base write generation number.
+ */
+int
+__wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+
+    conn = S2C(session);
+
+    for (dhandle = NULL;;) {
+        WT_WITH_HANDLE_LIST_WRITE_LOCK(session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
+        if (dhandle == NULL)
+            break;
+        btree = (WT_BTREE *)dhandle->handle;
+
+        WT_ASSERT(session, btree != NULL);
+
+        /* Initialize the btrees write gens to connection base write gen */
+        btree->base_write_gen = btree->write_gen = conn->base_write_gen;
+    }
+    return (0);
+}
+
+/*
  * __wt_verbose_dump_handles --
  *     Dump information about all data handles.
  */
