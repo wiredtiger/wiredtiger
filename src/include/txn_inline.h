@@ -826,19 +826,6 @@ __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type
     }
     upd->type = (uint8_t)modify_type;
 
-    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_VERB_TS_WRITE)) {
-        if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_ALWAYS))
-            F_SET(upd, WT_UPDATE_DIAG_TS_ALWAYS);
-        else if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT))
-            F_SET(upd, WT_UPDATE_DIAG_TS_KEY_CONSISTENT);
-        else if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_MIXED_MODE))
-            F_SET(upd, WT_UPDATE_DIAG_TS_MIXED_MODE);
-        else if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_NEVER))
-            F_SET(upd, WT_UPDATE_DIAG_TS_NEVER);
-        else if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_ORDERED))
-            F_SET(upd, WT_UPDATE_DIAG_TS_ORDERED);
-    }
-
     *updp = upd;
     if (sizep != NULL)
         *sizep = WT_UPDATE_MEMSIZE(upd);

@@ -883,15 +883,17 @@ done:
  *     Print warning messages when encountering surprise timestamp usage.
  */
 static inline int
-__txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
     WT_TXN *txn;
+    WT_UPDATE *upd;
     wt_timestamp_t op_ts, prev_op_durable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool txn_has_ts;
 
     txn = session->txn;
     txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
+    upd = op->u.op_upd;
 
 #define WT_COMMIT_TS_VERB_PREFIX "Commit timestamp unexpected usage: "
 
@@ -901,12 +903,12 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
     op_ts = upd->start_ts != WT_TS_NONE ? upd->start_ts : txn->commit_timestamp;
 
-    if (FLD_ISSET(upd->flags, WT_UPDATE_DIAG_TS_ALWAYS) && !txn_has_ts)
+    if (FLD_ISSET(upd->flags, WT_DHANDLE_TS_ALWAYS) && !txn_has_ts)
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
           "commit timestamp not used on table configured to require timestamps"));
 
-    if (FLD_ISSET(upd->flags, WT_UPDATE_DIAG_TS_NEVER) && txn_has_ts)
+    if (FLD_ISSET(upd->flags, WT_DHANDLE_TS_NEVER) && txn_has_ts)
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
           "commit timestamp %s used on table configured to not use timestamps",
@@ -915,15 +917,14 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 #ifdef HAVE_DIAGNOSTIC
     prev_op_durable_ts = upd->prev_durable_ts;
 
-    if (FLD_ISSET(upd->flags, WT_UPDATE_DIAG_TS_KEY_CONSISTENT) &&
-      prev_op_durable_ts != WT_TS_NONE && !txn_has_ts)
+    if (FLD_ISSET(upd->flags, WT_DHANDLE_TS_KEY_CONSISTENT) && prev_op_durable_ts != WT_TS_NONE &&
+      !txn_has_ts)
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
           "no timestamp provided for an update to a "
           "table configured to always use timestamps once they are first used"));
 
-    if (FLD_ISSET(upd->flags, WT_UPDATE_DIAG_TS_ORDERED) && txn_has_ts &&
-      prev_op_durable_ts > op_ts)
+    if (FLD_ISSET(upd->flags, WT_DHANDLE_TS_ORDERED) && txn_has_ts && prev_op_durable_ts > op_ts)
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
           "committing a transaction that updates a "
@@ -932,7 +933,7 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
           __wt_timestamp_to_string(op_ts, ts_string[0]),
           __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
 
-    if (FLD_ISSET(upd->flags, WT_UPDATE_DIAG_TS_MIXED_MODE) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+    if (FLD_ISSET(upd->flags, WT_DHANDLE_TS_MIXED_MODE) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
       op_ts != WT_TS_NONE && prev_op_durable_ts > op_ts)
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
@@ -1113,7 +1114,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
         return (0);
 
-    WT_ERR(__txn_commit_timestamps_usage_check(session, upd));
+    WT_ERR(__txn_commit_timestamps_usage_check(session, op));
     /*
      * Retrieve the previous update from the history store and append it to the update chain.
      *
@@ -1570,7 +1571,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                     break;
 
                 __wt_txn_op_set_timestamp(session, op);
-                WT_ERR(__txn_commit_timestamps_usage_check(session, upd));
+                WT_ERR(__txn_commit_timestamps_usage_check(session, op));
             } else {
                 /*
                  * If an operation has the key repeated flag set, skip resolving prepared updates as
