@@ -473,7 +473,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
             WT_ERR_NOTFOUND_OK(ret, true);
             if (ret == WT_NOTFOUND)
                 goto done;
-            
+
             *exactp = cmp == 0 ? 0 : 1;
         } else
             *exactp = 1;
