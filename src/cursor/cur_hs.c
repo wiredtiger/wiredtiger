@@ -289,12 +289,12 @@ __curhs_insert(WT_CURSOR *cursor)
     WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *hs_upd, *upd_local;
+    WT_UPDATE *hs_tombstone, *hs_upd;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
-    hs_upd = upd_local = NULL;
+    hs_tombstone = hs_upd = NULL;
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, insert, CUR2BT(file_cursor));
 
@@ -304,33 +304,38 @@ __curhs_insert(WT_CURSOR *cursor)
          * Insert a delete record to represent stop time point for the actual record to be inserted.
          * Set the stop time point as the commit time point of the history store delete record.
          */
-        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
-        hs_upd->start_ts = hs_cursor->time_window.stop_ts;
-        hs_upd->durable_ts = hs_cursor->time_window.durable_stop_ts;
-        hs_upd->txnid = hs_cursor->time_window.stop_txn;
+        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
+        hs_tombstone->start_ts = hs_cursor->time_window.stop_ts;
+        hs_tombstone->durable_ts = hs_cursor->time_window.durable_stop_ts;
+        hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
     }
 
     /*
      * Append to the delete record, the actual record to be inserted into the history store. Set the
      * current update start time point as the commit time point to the history store record.
      */
-    WT_ERR(__wt_upd_alloc(session, &file_cursor->value, WT_UPDATE_STANDARD, &upd_local, NULL));
-    upd_local->start_ts = hs_cursor->time_window.start_ts;
-    upd_local->durable_ts = hs_cursor->time_window.durable_start_ts;
-    upd_local->txnid = hs_cursor->time_window.start_txn;
+    WT_ERR(__wt_upd_alloc(session, &file_cursor->value, WT_UPDATE_STANDARD, &hs_upd, NULL));
+    hs_upd->start_ts = hs_cursor->time_window.start_ts;
+    hs_upd->durable_ts = hs_cursor->time_window.durable_start_ts;
+    hs_upd->txnid = hs_cursor->time_window.start_txn;
 
     /* Insert the standard update as next update if there is a tombstone. */
-    if (hs_upd != NULL)
-        hs_upd->next = upd_local;
-    else
-        hs_upd = upd_local;
+    if (hs_tombstone != NULL) {
+        hs_tombstone->next = hs_upd;
+        hs_upd = hs_tombstone;
+        hs_tombstone = NULL;
+    }
 
     /* Search the page and insert the updates. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, true));
     WT_ERR(ret);
     WT_ERR(__wt_hs_modify(cbt, hs_upd));
 
+    if (0) {
 err:
+        __wt_free(session, hs_tombstone);
+        __wt_free(session, hs_upd);
+    }
     API_END_RET(session, ret);
 }
 
