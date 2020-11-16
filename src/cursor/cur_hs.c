@@ -437,6 +437,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
     *exactp = 0;
+    cmp = 0;
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, search_near, CUR2BT(file_cursor));
 
