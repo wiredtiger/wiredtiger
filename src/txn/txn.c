@@ -883,10 +883,9 @@ done:
  *     Print warning messages when encountering surprise timestamp usage.
  */
 static inline int
-__txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+__txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd)
 {
     WT_TXN *txn;
-    WT_UPDATE *upd;
     wt_timestamp_t op_ts, prev_op_durable_ts;
     uint32_t ts_flags;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -894,7 +893,6 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 
     txn = session->txn;
     txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
-    upd = op->u.op_upd;
 
 #define WT_COMMIT_TS_VERB_PREFIX "Commit timestamp unexpected usage: "
 
@@ -1116,7 +1114,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
         return (0);
 
-    WT_ERR(__txn_commit_timestamps_usage_check(session, op));
+    WT_ERR(__txn_commit_timestamps_usage_check(session, op, upd));
     /*
      * Retrieve the previous update from the history store and append it to the update chain.
      *
@@ -1573,7 +1571,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                     break;
 
                 __wt_txn_op_set_timestamp(session, op);
-                WT_ERR(__txn_commit_timestamps_usage_check(session, op));
+                WT_ERR(__txn_commit_timestamps_usage_check(session, op, upd));
             } else {
                 /*
                  * If an operation has the key repeated flag set, skip resolving prepared updates as
