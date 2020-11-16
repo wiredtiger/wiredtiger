@@ -888,6 +888,7 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     WT_TXN *txn;
     WT_UPDATE *upd;
     wt_timestamp_t op_ts, prev_op_durable_ts;
+    uint32_t ts_flags;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool txn_has_ts;
 
@@ -902,13 +903,14 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op)
         return (0);
 
     op_ts = upd->start_ts != WT_TS_NONE ? upd->start_ts : txn->commit_timestamp;
+    ts_flags = op->btree->dhandle->ts_flags;
 
-    if (FLD_ISSET(upd->flags, WT_DHANDLE_TS_ALWAYS) && !txn_has_ts)
+    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ALWAYS) && !txn_has_ts)
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
           "commit timestamp not used on table configured to require timestamps"));
 
-    if (FLD_ISSET(upd->flags, WT_DHANDLE_TS_NEVER) && txn_has_ts)
+    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_NEVER) && txn_has_ts)
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
           "commit timestamp %s used on table configured to not use timestamps",
@@ -917,14 +919,14 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 #ifdef HAVE_DIAGNOSTIC
     prev_op_durable_ts = upd->prev_durable_ts;
 
-    if (FLD_ISSET(upd->flags, WT_DHANDLE_TS_KEY_CONSISTENT) && prev_op_durable_ts != WT_TS_NONE &&
+    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT) && prev_op_durable_ts != WT_TS_NONE &&
       !txn_has_ts)
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
           "no timestamp provided for an update to a "
           "table configured to always use timestamps once they are first used"));
 
-    if (FLD_ISSET(upd->flags, WT_DHANDLE_TS_ORDERED) && txn_has_ts && prev_op_durable_ts > op_ts)
+    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ORDERED) && txn_has_ts && prev_op_durable_ts > op_ts)
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
           "committing a transaction that updates a "
@@ -933,7 +935,7 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op)
           __wt_timestamp_to_string(op_ts, ts_string[0]),
           __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
 
-    if (FLD_ISSET(upd->flags, WT_DHANDLE_TS_MIXED_MODE) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_MIXED_MODE) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
       op_ts != WT_TS_NONE && prev_op_durable_ts > op_ts)
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX

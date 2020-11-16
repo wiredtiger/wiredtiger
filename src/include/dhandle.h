@@ -118,11 +118,11 @@ struct __wt_data_handle {
 #define WT_DHANDLE_ASSERT_TS_READ_NEVER 0x002u
 #define WT_DHANDLE_ASSERT_TS_WRITE_ALL 0x004u
 #define WT_DHANDLE_ASSERT_TS_WRITE_DIAGNOSTIC 0x008u
-#define WT_DHANDLE_TS_ALWAYS 0x010u         /* Handle is open */
-#define WT_DHANDLE_TS_KEY_CONSISTENT 0x020u /* Handle is open */
-#define WT_DHANDLE_TS_MIXED_MODE 0x040u     /* Handle is open */
-#define WT_DHANDLE_TS_NEVER 0x080u          /* Handle is open */
-#define WT_DHANDLE_TS_ORDERED 0x100u        /* Handle is open */
+#define WT_DHANDLE_TS_ALWAYS 0x010u         /* A btree using always checking. */
+#define WT_DHANDLE_TS_KEY_CONSISTENT 0x020u /* A btree using key consistency checking. */
+#define WT_DHANDLE_TS_MIXED_MODE 0x040u     /* A btree using mixed mode timesamps checking. */
+#define WT_DHANDLE_TS_NEVER 0x080u          /* A btree not using timesamps checking. */
+#define WT_DHANDLE_TS_ORDERED 0x100u        /* A btree using ordered timestamps checking. */
 #define WT_DHANDLE_VERB_TS_WRITE 0x200u     /* Verbose logging for timestamp usage */
                                             /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t ts_flags;
