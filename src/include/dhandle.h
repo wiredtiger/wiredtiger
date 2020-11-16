@@ -114,16 +114,16 @@ struct __wt_data_handle {
     uint32_t flags;
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_DHANDLE_ASSERT_TS_READ_ALWAYS 0x001u
-#define WT_DHANDLE_ASSERT_TS_READ_NEVER 0x002u
-#define WT_DHANDLE_ASSERT_TS_WRITE_ALL 0x004u
-#define WT_DHANDLE_ASSERT_TS_WRITE_DIAGNOSTIC 0x008u
-#define WT_DHANDLE_TS_ALWAYS 0x010u         /* A btree using always checking. */
-#define WT_DHANDLE_TS_KEY_CONSISTENT 0x020u /* A btree using key consistency checking. */
-#define WT_DHANDLE_TS_MIXED_MODE 0x040u     /* A btree using mixed mode timesamps checking. */
-#define WT_DHANDLE_TS_NEVER 0x080u          /* A btree not using timesamps checking. */
-#define WT_DHANDLE_TS_ORDERED 0x100u        /* A btree using ordered timestamps checking. */
-#define WT_DHANDLE_VERB_TS_WRITE 0x200u     /* Verbose logging for timestamp usage */
-                                            /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_DHANDLE_ASSERT_TS_READ_ALWAYS 0x001u      /* Assert read always checking. */
+#define WT_DHANDLE_ASSERT_TS_READ_NEVER 0x002u       /* Assert read never checking. */
+#define WT_DHANDLE_ASSERT_TS_WRITE_ALL 0x004u        /* Assert write all checking. */
+#define WT_DHANDLE_ASSERT_TS_WRITE_DIAGNOSTIC 0x008u /* Assert write diagnostic. */
+#define WT_DHANDLE_TS_ALWAYS 0x010u                  /* Handle using always checking. */
+#define WT_DHANDLE_TS_KEY_CONSISTENT 0x020u          /* Handle using key consistency checking. */
+#define WT_DHANDLE_TS_MIXED_MODE 0x040u /* Handle using mixed mode timestamps checking. */
+#define WT_DHANDLE_TS_NEVER 0x080u      /* Handle not using timestamps checking. */
+#define WT_DHANDLE_TS_ORDERED 0x100u    /* Handle using ordered timestamps checking. */
+#define WT_DHANDLE_VERB_TS_WRITE 0x200u /* Handle verbose logging for timestamps usage. */
+                                        /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t ts_flags;
 };
