@@ -271,13 +271,14 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
     uint32_t btree_id;
     int cmp;
 
+    ret = 0;
     file_cursor = hs_cursor->file_cursor;
     std_cursor = (WT_CURSOR *)hs_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
 
     WT_ERR(__wt_scr_alloc(session, 0, &ds_key));
 
-    for (;; ret = __wt_hs_cursor_prev(session, file_cursor)) {
+    for (; ret == 0; ret = __wt_hs_cursor_prev(session, file_cursor)) {
         WT_ERR(file_cursor->get_key(file_cursor, &btree_id, &ds_key, &start_ts, &counter));
 
         /* Stop before crossing over to the next btree */
@@ -356,13 +357,14 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
     uint32_t btree_id;
     int cmp;
 
+    ret = 0;
     file_cursor = hs_cursor->file_cursor;
     std_cursor = (WT_CURSOR *)hs_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
 
     WT_ERR(__wt_scr_alloc(session, 0, &ds_key));
 
-    for (;; ret = __wt_hs_cursor_next(session, file_cursor)) {
+    for (; ret == 0; ret = __wt_hs_cursor_next(session, file_cursor)) {
         WT_ERR(file_cursor->get_key(file_cursor, &btree_id, &ds_key, &start_ts, &counter));
 
         /* Stop before crossing over to the next btree */
