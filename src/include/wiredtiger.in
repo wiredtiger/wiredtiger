@@ -867,6 +867,12 @@ struct __wt_session {
 	 * @config{checkpoint, the name of a checkpoint to open (the reserved name
 	 * "WiredTigerCheckpoint" opens the most recent internal checkpoint taken for the object).
 	 * The cursor does not support data modification., a string; default empty.}
+	 * @config{debug = (, configure debug specific behavior on a cursor.  Generally only used
+	 * for internal testing purposes., a set of related configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;release_evict, Configure the cursor to evict the page
+	 * positioned on when the reset API is used., a boolean flag; default \c false.}
+	 * @config{
+	 * ),,}
 	 * @config{dump, configure the cursor for dump format inputs and outputs: "hex" selects a
 	 * simple hexadecimal format\, "json" selects a JSON format with each record formatted as
 	 * fields named by column names if available\, "pretty" selects a human-readable format
