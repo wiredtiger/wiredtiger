@@ -983,9 +983,9 @@ done:
     /*
      * Update the open dhandles write generations and base write generation with the connection's
      * base write generation. The write generations of the pages which are in disk will be
-     * initilised when loaded to cache.
+     * initialized when loaded to cache.
      */
-    WT_ERR(__wt_dhandle_update_write_gens(session));
+    __wt_dhandle_update_write_gens(session);
 
     /*
      * If we're downgrading and have newer log files, force an archive, no matter what the archive
