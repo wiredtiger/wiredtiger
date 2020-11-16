@@ -793,10 +793,8 @@ static inline int
 __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type, WT_UPDATE **updp,
   size_t *sizep)
 {
-    WT_DATA_HANDLE *dhandle;
     WT_UPDATE *upd;
 
-    dhandle = session->dhandle;
     *updp = NULL;
 
     /*
