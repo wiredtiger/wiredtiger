@@ -52,7 +52,7 @@ class test_hs19(wttest.WiredTigerTestCase):
         # to reconstruct the final value, corrupting the resulting value.
         self.session.begin_transaction()
         cursor.set_key(str(0))
-        mods = [wiredtiger.Modify('AAAAAAAAAAAAAAAAAAA', 102, 0)]
+        mods = [wiredtiger.Modify('AAAAAAAAAA', 102, 10)]
         self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
@@ -86,12 +86,12 @@ class test_hs19(wttest.WiredTigerTestCase):
         evict_cursor.reset()
         evict_cursor.close()
 
-        # Construct the expected value.
+        # Construct and test the value as at timestamp 1
         expected = list(value1)
         expected[100] = 'B'
         expected = str().join(expected)
 
-        # Retrieve the value at timestamp 2.
+        # Retrieve the value at timestamp 1.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
         cursor.set_key(str(0))
         cursor.search()
@@ -100,3 +100,35 @@ class test_hs19(wttest.WiredTigerTestCase):
         # Assert that it matches our expected value which it won't.
         self.assertEqual(cursor[str(0)], expected)
         self.session.rollback_transaction()
+
+        # Construct and test the value as at timestamp 2
+        expected = list(expected)
+        expected[101] = 'C'
+        expected = str().join(expected)
+
+        # Retrieve the value at timestamp 1.
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
+        cursor.set_key(str(0))
+        cursor.search()
+        cursor.get_value()
+
+        # Assert that it matches our expected value which it won't.
+        self.assertEqual(cursor[str(0)], expected)
+        self.session.rollback_transaction()
+
+        # Construct and test the value as at timestamp 3
+        expected = list(expected)
+        for x in range(10):
+            expected[102 + x] = 'A'
+        expected = str().join(expected)
+
+        # Retrieve the value at timestamp 1.
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
+        cursor.set_key(str(0))
+        cursor.search()
+        cursor.get_value()
+
+        # Assert that it matches our expected value which it won't.
+        self.assertEqual(cursor[str(0)], expected)
+        self.session.rollback_transaction()
+
