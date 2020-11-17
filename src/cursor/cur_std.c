@@ -989,13 +989,13 @@ __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[])
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    session = (WT_SESSION_IMPL*)cursor->session;
+    session = (WT_SESSION_IMPL *)cursor->session;
 
     /*
-     * Debug options. Special handling for options that aren't found - since reconfigure
-     * passes in just the single configuration string, not the stack.
+     * Debug options. Special handling for options that aren't found - since reconfigure passes in
+     * just the single configuration string, not the stack.
      */
-    if ((ret = __wt_config_gets(session, cfg, "debug.release_evict", &cval)) == 0) {
+    if ((ret = __wt_config_gets_def(session, cfg, "debug.release_evict", 0, &cval)) == 0) {
         if (cval.val)
             F_SET(cursor, WT_CURSTD_DEBUG_RESET_EVICT);
         else
