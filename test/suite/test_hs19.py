@@ -14,7 +14,7 @@ class test_hs19(wttest.WiredTigerTestCase):
         junk_uri = 'table:junk'
         self.session.create(uri, 'key_format=S,value_format=S')
         session2 = self.conn.open_session()
-        session2.create(junk_uri, 'key_format=S,value_format=S');
+        session2.create(junk_uri, 'key_format=S,value_format=S')
         cursor2 = session2.open_cursor(junk_uri)
         cursor = self.session.open_cursor(uri)
         self.conn.set_timestamp(
@@ -131,4 +131,3 @@ class test_hs19(wttest.WiredTigerTestCase):
         # Assert that it matches our expected value which it won't.
         self.assertEqual(cursor[str(0)], expected)
         self.session.rollback_transaction()
-
