@@ -146,6 +146,25 @@ err:
     return (ret);
 }
 
+static bool
+__rollback_abort_updates_newer_than_snapmin(WT_SESSION_IMPL *session, uint64_t txnid)
+{
+    bool found;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    /* 
+     * Return true when the recovery snapshot count is 0, which means there
+     * is no uncommitted transaction ids to cmpare with
+     */
+    if (conn->recovery_ckpt_snapshot_count == 0)
+        return true;
+
+    WT_BINARY_SEARCH(txnid, conn->recovery_ckpt_snapshot, conn->recovery_ckpt_snapshot_count, found);
+    return found;
+}
+
 /*
  * __rollback_row_ondisk_fixup_key --
  *     Abort updates in the history store and replace the on-disk value with an update that
@@ -278,7 +297,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * update chain. Also it confirms that history store doesn't contains any newer version than
          * the current version for the key.
          */
-        if (!replace && hs_stop_durable_ts <= rollback_timestamp) {
+        if (!replace && (__rollback_abort_updates_newer_than_snapmin(session, cbt->upd_value->tw.stop_txn) && (hs_stop_durable_ts <= rollback_timestamp))) {
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with stop timestamp: %s and stable timestamp: %s",
               __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[0]),
@@ -287,7 +306,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         }
 
         /* Stop processing when we find a stable update according to the given timestamp. */
-        if (hs_durable_ts <= rollback_timestamp) {
+        if (__rollback_abort_updates_newer_than_snapmin(session, cbt->upd_value->tw.start_txn) && (hs_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with start timestamp: %s, durable timestamp: %s, stop "
               "timestamp: %s and stable timestamp: %s",
@@ -450,7 +469,7 @@ __rollback_abort_row_ondisk_kv(
             WT_STAT_DATA_INCR(session, txn_rts_sweep_hs_keys);
         } else
             return (0);
-    } else if (vpack->tw.durable_start_ts > rollback_timestamp ||
+    } else if (((vpack->tw.durable_start_ts > rollback_timestamp) && __rollback_abort_updates_newer_than_snapmin(session, vpack->tw.start_txn)) ||
       (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
         __wt_verbose(session, WT_VERB_RTS,
           "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s, "
@@ -470,7 +489,7 @@ __rollback_abort_row_ondisk_kv(
             WT_STAT_DATA_INCR(session, txn_rts_keys_removed);
         }
     } else if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
-      (vpack->tw.durable_stop_ts > rollback_timestamp || prepared)) {
+      (((vpack->tw.durable_stop_ts > rollback_timestamp) && __rollback_abort_updates_newer_than_snapmin(session, vpack->tw.stop_txn)) || prepared)) {
         /*
          * Clear the remove operation from the key by inserting the original on-disk value as a
          * standard update.
@@ -760,7 +779,7 @@ __rollback_page_needs_abort(
      * greater than the given timestamp:
      * 1. The reconciled replace page max durable timestamp.
      * 2. The reconciled multi page max durable timestamp.
-     * 3. The on page address max durable timestamp.
+     * 3. The on page address max durable timestamp and transaction id.
      * 4. The off page address max durable timestamp.
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
@@ -784,12 +803,12 @@ __rollback_page_needs_abort(
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &vpack);
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &vpack.ta);
         prepared = vpack.ta.prepare;
-        result = (durable_ts > rollback_timestamp) || prepared;
+        result = (durable_ts > rollback_timestamp) || prepared || (vpack.ta.newest_txn >= S2C(session)->recovery_ckpt_snap_min);
     } else if (addr != NULL) {
         tag = "address";
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &addr->ta);
         prepared = addr->ta.prepare;
-        result = (durable_ts > rollback_timestamp) || prepared;
+        result = (durable_ts > rollback_timestamp) || prepared || (addr->ta.newest_txn >= S2C(session)->recovery_ckpt_snap_min);
     }
 
     __wt_verbose(session, WT_VERB_RTS,
@@ -912,7 +931,7 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
 
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
-    while ((ret = __wt_tree_walk_custom_skip(session, &ref, __wt_rts_page_skip, &rollback_timestamp,
+    while ((ret = __wt_tree_walk_custom_skip(session, &ref, __wt_rts_page_skip, &rollback_timestamp, 
               WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL)
         if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
@@ -1158,13 +1177,14 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts,
       rollback_timestamp;
+    uint64_t rollback_txnid;
     size_t addr_size;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
     bool durable_ts_found, prepared_updates;
 
     txn_global = &S2C(session)->txn_global;
-    addr_size = 0;
+    addr_size = rollback_txnid = 0;
 
     /*
      * Copy the stable timestamp, otherwise we'd need to lock it each time it's accessed. Even
@@ -1221,6 +1241,10 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             if (ret == 0)
                 addr_size = value.len;
             WT_ERR_NOTFOUND_OK(ret, false);
+            ret = __wt_config_subgets(session, &cval, "newest_txn", &value);
+            if (value.len != 0)
+                rollback_txnid = (uint64_t)value.val;
+            WT_ERR_NOTFOUND_OK(ret, false);
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
 
@@ -1261,9 +1285,12 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * 1. The tree is modified.
          * 2. The checkpoint durable start/stop timestamp is greater than the rollback timestamp.
          * 3. There is no durable timestamp in any checkpoint.
+         * 4. The checkpoint newest txn is greater than snapshot min txn id
          */
+        // if (S2BT(session)->modified || max_durable_ts > rollback_timestamp || prepared_updates ||
+        // rollback_txnid > S2C(session)->recovery_ckpt_snap_min ||
         if (S2BT(session)->modified || max_durable_ts > rollback_timestamp || prepared_updates ||
-          !durable_ts_found) {
+          !durable_ts_found || (rollback_txnid > S2C(session)->recovery_ckpt_snap_min)) {
             __wt_verbose(session, WT_VERB_RTS,
               "tree rolled back with durable timestamp: %s, or when tree is modified: %s or "
               "prepared updates: %s or when durable time is not found: %s",
