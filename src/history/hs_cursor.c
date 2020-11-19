@@ -176,7 +176,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     WT_MODIFY_VECTOR modifies;
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
-    WT_UPDATE *mod_upd, *upd;
+    WT_UPDATE *mod_upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, hs_start_ts, hs_start_ts_tmp;
     wt_timestamp_t hs_stop_durable_ts, hs_stop_durable_ts_tmp, read_timestamp;
     uint64_t hs_counter, hs_counter_tmp, upd_type_full;
@@ -186,7 +186,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     bool upd_found;
 
     hs_cursor = NULL;
-    mod_upd = upd = NULL;
+    mod_upd = NULL;
     orig_hs_value_buf = NULL;
     WT_CLEAR(hs_key);
     __wt_modify_vector_init(session, &modifies);
@@ -382,7 +382,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
             __wt_modify_vector_pop(&modifies, &mod_upd);
             WT_ERR(__wt_modify_apply_item(session, value_format, hs_value, mod_upd->data));
             __wt_free_update_list(session, &mod_upd);
-            mod_upd = NULL;
         }
         WT_STAT_CONN_INCR(session, cache_hs_read_squash);
         WT_STAT_DATA_INCR(session, cache_hs_read_squash);
@@ -411,8 +410,8 @@ err:
 
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
-        __wt_modify_vector_pop(&modifies, &upd);
-        __wt_free_update_list(session, &upd);
+        __wt_modify_vector_pop(&modifies, &mod_upd);
+        __wt_free_update_list(session, &mod_upd);
     }
     __wt_modify_vector_free(&modifies);
 
