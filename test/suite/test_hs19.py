@@ -76,6 +76,8 @@ class test_hs19(wttest.WiredTigerTestCase):
 
         # Insert a modify ahead of our reconstructed modify, this one will be used unintentionally
         # to reconstruct the final value, corrupting the resulting value.
+        # The 0 at the end of the modify call indicates how many bytes to replace, we keep
+        # it as 0 here to not overwrite any of the existing value.
         self.session.begin_transaction()
         cursor.set_key(str(0))
         mods = [wiredtiger.Modify('AAAAAAAAAA', 102, 0)]
