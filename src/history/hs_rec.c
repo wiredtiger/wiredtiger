@@ -18,6 +18,8 @@ typedef struct {
     uint64_t txnid;
 } WT_HS_TIME_POINT;
 
+static int __wt_hs_delete_key_from_ts_btree(WT_SESSION_IMPL *session, uint32_t btree_id,
+  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert);
 static int __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   uint32_t btree_id, const WT_ITEM *key, bool reinsert);
 static int __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
@@ -86,6 +88,9 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, u
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = upd_local = NULL;
+
+    /* The session should be pointing at the history store btree. */
+    WT_ASSERT(session, WT_IS_HS(S2BT(session)));
 
     /*
      * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to
@@ -322,6 +327,7 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
 {
     WT_UPDATE *upd;
     *updp = NULL;
+
     __wt_modify_vector_pop(modifies, &upd);
     if (upd->type == WT_UPDATE_TOMBSTONE) {
         if (modifies->size == 0) {
@@ -378,6 +384,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     int nentries;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
     bool enable_reverse_modify, hs_inserted, squashed, ts_updates_in_hs;
+
     btree = S2BT(session);
     cursor = session->hs_cursor;
     prev_upd = NULL;
@@ -756,11 +763,11 @@ err:
 }
 
 /*
- * __hs_delete_key_from_ts_int --
+ * __hs_delete_key_from_ts_btree_int --
  *     Internal helper for deleting history store content of a given key from a timestamp.
  */
 static int
-__hs_delete_key_from_ts_int(
+__hs_delete_key_from_ts_btree_int(
   WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
 {
     WT_CURSOR *hs_cursor;
@@ -818,6 +825,29 @@ err:
 }
 
 /*
+ * __wt_hs_delete_key_from_ts_btree --
+ *     Delete history store content of a given key from a timestamp.
+ */
+static int
+__wt_hs_delete_key_from_ts_btree(
+  WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
+{
+    WT_DECL_RET;
+
+    /* The session should be pointing at the history store btree. */
+    WT_ASSERT(session, WT_IS_HS(S2BT(session)));
+
+    /* The tree structure can change while we try to insert the mod list, retry if that happens. */
+    while ((ret = __hs_delete_key_from_ts_btree_int(session, btree_id, key, ts, reinsert)) ==
+      WT_RESTART) {
+        WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
+        WT_STAT_DATA_INCR(session, cache_hs_insert_restart);
+    }
+
+    return (ret);
+}
+
+/*
  * __wt_hs_delete_key_from_ts --
  *     Delete history store content of a given key from a timestamp.
  */
@@ -831,11 +861,8 @@ __wt_hs_delete_key_from_ts(
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
 
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
-    while (
-      (ret = __hs_delete_key_from_ts_int(session, btree_id, key, ts, reinsert)) == WT_RESTART) {
-        WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
-        WT_STAT_DATA_INCR(session, cache_hs_insert_restart);
-    }
+    WT_WITH_BTREE(session, CUR2BT(session->hs_cursor),
+      (ret = __wt_hs_delete_key_from_ts_btree(session, btree_id, key, ts, reinsert)));
 
     return (ret);
 }
@@ -869,6 +896,9 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
     tombstone = NULL;
+
+    /* The session should be pointing at the history store btree. */
+    WT_ASSERT(session, WT_IS_HS(S2BT(session)));
 
     /*
      * Position ourselves at the beginning of the key range that we may have to fixup. Prior to
