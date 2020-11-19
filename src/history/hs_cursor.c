@@ -183,7 +183,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     uint32_t hs_btree_id;
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
-    bool modify;
+    bool upd_found;
 
     hs_cursor = NULL;
     mod_upd = upd = NULL;
@@ -193,7 +193,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
     hs_btree_id = S2BT(session)->id;
-    WT_NOT_READ(modify, false);
+    upd_found = false;
 
     WT_STAT_CONN_INCR(session, cursor_search_hs);
     WT_STAT_DATA_INCR(session, cursor_search_hs);
@@ -287,6 +287,8 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     /* We do not have tombstones in the history store anymore. */
     WT_ASSERT(session, upd_type != WT_UPDATE_TOMBSTONE);
 
+    upd_found = true;
+
     /*
      * If the caller has signalled they don't need the value buffer, don't bother reconstructing a
      * modify update or copying the contents into the value buffer.
@@ -299,7 +301,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
      * together.
      */
     if (upd_type == WT_UPDATE_MODIFY) {
-        WT_NOT_READ(modify, true);
         /* Store this so that we don't have to make a special case for the first modify. */
         hs_stop_durable_ts_tmp = hs_stop_durable_ts;
 
@@ -322,6 +323,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
             WT_ERR_NOTFOUND_OK(__wt_hs_cursor_next(session, hs_cursor), true);
             if (ret == WT_NOTFOUND) {
                 /* Fallback to the onpage value as the base value. */
+                ret = 0;
                 orig_hs_value_buf = hs_value;
                 hs_value = on_disk_buf;
                 upd_type = WT_UPDATE_STANDARD;
@@ -416,17 +418,17 @@ err:
 
     if (ret == 0) {
         /* Couldn't find a record. */
-        if (upd == NULL) {
+        if (upd_found) {
+            WT_STAT_CONN_INCR(session, cache_hs_read);
+            WT_STAT_DATA_INCR(session, cache_hs_read);
+        } else {
             ret = WT_NOTFOUND;
             WT_STAT_CONN_INCR(session, cache_hs_read_miss);
             WT_STAT_DATA_INCR(session, cache_hs_read_miss);
-        } else {
-            WT_STAT_CONN_INCR(session, cache_hs_read);
-            WT_STAT_DATA_INCR(session, cache_hs_read);
         }
     }
 
-    WT_ASSERT(session, upd != NULL || ret != 0);
+    WT_ASSERT(session, ret == 0 || upd_value->type == WT_UPDATE_INVALID);
 
     return (ret);
 }
