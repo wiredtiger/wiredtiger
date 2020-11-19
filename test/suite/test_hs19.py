@@ -1,3 +1,31 @@
+#!/usr/bin/env python
+#
+# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2008-2014 WiredTiger, Inc.
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+
 import time, wiredtiger, wttest
 
 def timestamp_str(t):
@@ -36,8 +64,6 @@ class test_hs19(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(1))
 
-        # This is the modify we will eventually try and reconstruct. It will get written as the on
-        # disk value by eviction later on.
         self.session.begin_transaction()
         cursor.set_key(str(0))
         mods = [wiredtiger.Modify('C', 101, 1)]
@@ -52,7 +78,7 @@ class test_hs19(wttest.WiredTigerTestCase):
         # to reconstruct the final value, corrupting the resulting value.
         self.session.begin_transaction()
         cursor.set_key(str(0))
-        mods = [wiredtiger.Modify('AAAAAAAAAA', 102, 10)]
+        mods = [wiredtiger.Modify('AAAAAAAAAA', 102, 0)]
         self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
@@ -75,8 +101,6 @@ class test_hs19(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
-        # Evict the page, this utilises a modified reserve call that triggers eviction of the
-        # underlying page.
         # First deposition the first cursor, so the page can be evicted.
         cursor.reset()
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
@@ -95,10 +119,9 @@ class test_hs19(wttest.WiredTigerTestCase):
         self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
         cursor.set_key(str(0))
         cursor.search()
-        cursor.get_value()
 
-        # Assert that it matches our expected value which it won't.
-        self.assertEqual(cursor[str(0)], expected)
+        # Assert that it matches our expected value.
+        self.assertEqual(cursor.get_value(), expected)
         self.session.rollback_transaction()
 
         # Construct and test the value as at timestamp 2
@@ -110,24 +133,22 @@ class test_hs19(wttest.WiredTigerTestCase):
         self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
         cursor.set_key(str(0))
         cursor.search()
-        cursor.get_value()
 
-        # Assert that it matches our expected value which it won't.
-        self.assertEqual(cursor[str(0)], expected)
+        # Assert that it matches our expected value.
+        self.assertEqual(cursor.get_value(), expected)
         self.session.rollback_transaction()
 
         # Construct and test the value as at timestamp 3
         expected = list(expected)
         for x in range(10):
             expected[102 + x] = 'A'
+            expected.append('a')
         expected = str().join(expected)
 
         # Retrieve the value at timestamp 1.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
         cursor.set_key(str(0))
         cursor.search()
-        cursor.get_value()
-
-        # Assert that it matches our expected value which it won't.
-        self.assertEqual(cursor[str(0)], expected)
+        # Assert that it matches our expected value.
+        self.assertEqual(cursor.get_value(), expected)
         self.session.rollback_transaction()
