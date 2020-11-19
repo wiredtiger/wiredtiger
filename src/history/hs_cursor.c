@@ -320,7 +320,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
              * update here we fall back to the datastore version. If its timestamp doesn't match our
              * timestamp then we return not found.
              */
-            ret = __wt_hs_cursor_next(session, hs_cursor);
+            WT_ERR_NOTFOUND_OK(__wt_hs_cursor_next(session, hs_cursor), true);
             if (ret == WT_NOTFOUND) {
                 /* Fallback to the onpage value as the base value. */
                 ret = 0;
@@ -329,7 +329,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
                 upd_type = WT_UPDATE_STANDARD;
                 break;
             }
-            WT_ERR(ret);
             hs_start_ts_tmp = WT_TS_NONE;
             /*
              * Make sure we use the temporary variants of these variables. We need to retain the
