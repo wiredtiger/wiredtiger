@@ -413,11 +413,11 @@ err:
     __wt_modify_vector_free(&modifies);
 
     if (ret == 0) {
-        /* Couldn't find a record. */
         if (upd_found) {
             WT_STAT_CONN_INCR(session, cache_hs_read);
             WT_STAT_DATA_INCR(session, cache_hs_read);
         } else {
+            /* Couldn't find a record. */
             ret = WT_NOTFOUND;
             WT_STAT_CONN_INCR(session, cache_hs_read_miss);
             WT_STAT_DATA_INCR(session, cache_hs_read_miss);
