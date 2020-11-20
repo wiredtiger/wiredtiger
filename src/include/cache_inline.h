@@ -430,6 +430,22 @@ __wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double 
 }
 
 /*
+ * __wt_cache_almost_full --
+ *     Return if the cache is almost reaching capacity.
+ */
+static inline bool
+__wt_cache_almost_full(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    cache = conn->cache;
+
+    return (__wt_cache_bytes_inuse(cache) >= ((conn->cache_size / 100) * 90));
+}
+
+/*
  * __wt_cache_full --
  *     Return if the cache is at (or over) capacity.
  */

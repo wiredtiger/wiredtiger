@@ -61,11 +61,18 @@ static inline uint64_t
 __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_PAGE *page;
     uint64_t read_gen;
 
     btree = S2BT(session);
+    conn = S2C(session);
     page = ref->page;
+
+    /* If cache is almost full, give high priority to modified HS pages. */
+    if (WT_IS_HS(btree) && __wt_cache_almost_full(session) && page->modify != NULL &&
+      conn->cache->bytes_hs >= conn->cache_size / 3 && !F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        return (WT_READGEN_OLDEST);
 
     /* Any page set to the oldest generation should be discarded. */
     if (WT_READGEN_EVICT_SOON(page->read_gen))
@@ -87,8 +94,8 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
      * The base read-generation is skewed by the eviction priority. Internal pages are also
      * adjusted, we prefer to evict leaf pages.
      */
-    if (page->modify != NULL && F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DIRTY) &&
-      !F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_CLEAN))
+    if (page->modify != NULL && F_ISSET(conn->cache, WT_CACHE_EVICT_DIRTY) &&
+      !F_ISSET(conn->cache, WT_CACHE_EVICT_CLEAN))
         read_gen = page->modify->update_txn;
     else
         read_gen = page->read_gen;
@@ -1719,6 +1726,15 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
 
     /* If we don't want any pages from this tree, move on. */
     if (target_pages == 0)
+        return (0);
+
+    /*
+     * Skip btrees other than history store if cache pressure is high and HS content dominates
+     * cache. Evicting unclean non-HS pages can generate even more HS content and will not help with
+     * the cache pressure and will probably just amplify it further.
+     */
+    if (!WT_IS_HS(btree) && __wt_cache_almost_full(session) &&
+      cache->bytes_hs >= conn->cache_size / 3)
         return (0);
 
     /*
