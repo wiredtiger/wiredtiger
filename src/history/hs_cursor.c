@@ -415,8 +415,7 @@ err:
             WT_STAT_CONN_INCR(session, cache_hs_read);
             WT_STAT_DATA_INCR(session, cache_hs_read);
         } else {
-            /* Couldn't find a record. */
-            ret = WT_NOTFOUND;
+            upd_value->type == WT_UPDATE_INVALID;
             WT_STAT_CONN_INCR(session, cache_hs_read_miss);
             WT_STAT_DATA_INCR(session, cache_hs_read_miss);
         }
