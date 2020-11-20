@@ -422,7 +422,6 @@ err:
         }
     }
 
-    WT_ASSERT(session, ret == 0 || upd_value->type == WT_UPDATE_INVALID);
     WT_TRET(__wt_hs_cursor_close(session));
 
     /* Mark the buffer as invalid if there is error or the value is not found. */
