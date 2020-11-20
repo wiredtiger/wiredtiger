@@ -1133,7 +1133,7 @@ __wt_txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[], bool waiting)
  * transaction.
  */
 #undef WT_CHECKPOINT_SESSION_FLAGS
-#define WT_CHECKPOINT_SESSION_FLAGS (WT_SESSION_CAN_WAIT)
+#define WT_CHECKPOINT_SESSION_FLAGS (WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE)
     orig_flags = F_MASK(session, WT_CHECKPOINT_SESSION_FLAGS);
     F_SET(session, WT_CHECKPOINT_SESSION_FLAGS);
 
