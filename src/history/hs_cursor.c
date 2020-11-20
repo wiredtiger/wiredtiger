@@ -235,17 +235,15 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
 
     WT_ERR_NOTFOUND_OK(
       __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp, NULL), true);
-    if (ret == WT_NOTFOUND) {
-        ret = 0;
+    if (ret == WT_NOTFOUND)
         goto done;
-    }
+
     for (;; ret = __wt_hs_cursor_prev(session, hs_cursor)) {
         WT_ERR_NOTFOUND_OK(ret, true);
         /* If we hit the end of the table, let's get out of here. */
-        if (ret == WT_NOTFOUND) {
-            ret = 0;
+        if (ret == WT_NOTFOUND)
             goto done;
-        }
+
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
 
         /* Stop before crossing over to the next btree */
