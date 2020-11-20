@@ -331,7 +331,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
                 upd_type = WT_UPDATE_STANDARD;
                 break;
             }
-
             hs_start_ts_tmp = WT_TS_NONE;
             /*
              * Make sure we use the temporary variants of these variables. We need to retain the
@@ -380,7 +379,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
               &upd_type_full, hs_value));
             upd_type = (uint8_t)upd_type_full;
         }
-
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
             __wt_modify_vector_pop(&modifies, &mod_upd);
@@ -430,7 +428,7 @@ err:
 
     WT_TRET(__wt_hs_cursor_close(session));
 
-    /* Mark the buffer as invalid if there is an error or the value is not found. */
+    /* Mark the buffer as invalid if there is an error. */
     if (ret != 0)
         upd_value->type = WT_UPDATE_INVALID;
 
