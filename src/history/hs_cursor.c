@@ -235,14 +235,18 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
 
     WT_ERR_NOTFOUND_OK(
       __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, read_timestamp, NULL), true);
-    if (ret == WT_NOTFOUND)
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
         goto done;
+    }
 
     for (;; ret = __wt_hs_cursor_prev(session, hs_cursor)) {
         WT_ERR_NOTFOUND_OK(ret, true);
         /* If we hit the end of the table, let's get out of here. */
-        if (ret == WT_NOTFOUND)
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
             goto done;
+        }
 
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
 
@@ -318,14 +322,17 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
              * update here we fall back to the datastore version. If its timestamp doesn't match our
              * timestamp then we return not found.
              */
-            WT_ERR_NOTFOUND_OK(__wt_hs_cursor_next(session, hs_cursor), true);
+            ret = __wt_hs_cursor_next(session, hs_cursor);
             if (ret == WT_NOTFOUND) {
                 /* Fallback to the onpage value as the base value. */
+                ret = 0;
                 orig_hs_value_buf = hs_value;
                 hs_value = on_disk_buf;
                 upd_type = WT_UPDATE_STANDARD;
                 break;
             }
+            WT_ERR(ret);
+
             hs_start_ts_tmp = WT_TS_NONE;
             /*
              * Make sure we use the temporary variants of these variables. We need to retain the
