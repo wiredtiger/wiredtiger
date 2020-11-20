@@ -426,7 +426,7 @@ err:
 
     /* Mark the buffer as invalid if there is an error or the value is not found. */
     if (ret != 0)
-        upd_value->type == WT_UPDATE_INVALID;
+        upd_value->type = WT_UPDATE_INVALID;
 
     WT_ASSERT(session, ret != 0 || upd_value->type != WT_UPDATE_INVALID);
 
