@@ -427,7 +427,5 @@ err:
     if (ret != 0)
         upd_value->type = WT_UPDATE_INVALID;
 
-    WT_ASSERT(session, ret != 0 || upd_value->type != WT_UPDATE_INVALID);
-
     return (ret);
 }
