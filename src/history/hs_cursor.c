@@ -403,8 +403,6 @@ err:
         __wt_scr_free(session, &hs_value);
     WT_ASSERT(session, hs_key.mem == NULL && hs_key.memsize == 0);
 
-    WT_TRET(__wt_hs_cursor_close(session));
-
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &mod_upd);
@@ -425,6 +423,7 @@ err:
     }
 
     WT_ASSERT(session, ret == 0 || upd_value->type == WT_UPDATE_INVALID);
+    WT_TRET(__wt_hs_cursor_close(session));
 
     return (ret);
 }
