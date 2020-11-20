@@ -381,6 +381,8 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
               &upd_type_full, hs_value));
             upd_type = (uint8_t)upd_type_full;
         }
+        WT_RET(ret);
+
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
             __wt_modify_vector_pop(&modifies, &mod_upd);
