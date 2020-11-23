@@ -207,6 +207,13 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
 
     /* Set the file's size. */
     WT_ERR(__wt_filesize(session, block->fh, &block->size));
+    /*
+     * If we're opening a file and it only contains a header and we're doing incremental backup
+     * indicate this so that the first checkpoint is sure to set all the bits as dirty to cover the
+     * header so that the header gets copied.
+     */
+    if (block->size == allocsize && F_ISSET(conn, WT_CONN_INCR_BACKUP))
+        block->created_during_backup = true;
 
     /* Initialize the live checkpoint's lock. */
     WT_ERR(__wt_spin_init(session, &block->live_lock, "block manager"));
@@ -384,12 +391,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
          */
         if (F_ISSET(session, WT_SESSION_IMPORT_REPAIR))
             goto err;
-
-        if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
-            ret = ENOENT;
-        else
-            WT_ERR_MSG(
-              session, WT_ERROR, "%s does not appear to be a WiredTiger file", block->name);
+        WT_ERR_MSG(session, WT_ERROR, "%s does not appear to be a WiredTiger file", block->name);
     }
 
     if (desc->majorv > WT_BLOCK_MAJOR_VERSION ||
