@@ -322,7 +322,12 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
              */
             WT_ERR_NOTFOUND_OK(__wt_hs_cursor_next(session, hs_cursor), true);
             if (ret == WT_NOTFOUND) {
-                /* Fallback to the onpage value as the base value. */
+                /*
+                 * Fallback to the onpage value as the base value.
+                 *
+                 * Work around of clang analyzer complaining the value is never read as it is reset
+                 * again by the following WT_ERR macro.
+                 */
                 WT_NOT_READ(ret, 0);
                 orig_hs_value_buf = hs_value;
                 hs_value = on_disk_buf;
