@@ -1611,7 +1611,7 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     uint32_t target_pages, target_pages_clean, target_pages_dirty, target_pages_updates;
 
     cache = S2C(session)->cache;
-    target_pages_clean = target_pages_dirty = target_pages_updates = 0;
+    target_pages = target_pages_clean = target_pages_dirty = target_pages_updates = 0;
 
 /*
  * The minimum number of pages we should consider per tree.
@@ -1913,7 +1913,9 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
 
         /* Pages being forcibly evicted go on the urgent queue. */
         if (modified &&
-          (page->read_gen == WT_READGEN_OLDEST || page->memory_footprint >= btree->splitmempage)) {
+          (page->read_gen == WT_READGEN_OLDEST || page->memory_footprint >= btree->splitmempage ||
+            (WT_IS_HS(btree) && __wt_cache_almost_full(session) &&
+              __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs) >= conn->cache_size / 3))) {
             WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_oldest);
             if (__wt_page_evict_urgent(session, ref))
                 urgent_queued = true;
