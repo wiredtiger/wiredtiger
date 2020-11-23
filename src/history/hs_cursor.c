@@ -162,14 +162,14 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
 }
 
 /*
- * __wt_hs_find_upd_int --
+ * __hs_find_upd_int --
  *     Internal helper to scan the history store for a record the btree cursor wants to position on.
  *     Create an update for the record and return to the caller. The caller may choose to optionally
  *     allow prepared updates to be returned regardless of whether prepare is being ignored
  *     globally. Otherwise, a prepare conflict will be returned upon reading a prepared update.
  */
 static int
-__wt_hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
+__hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
   const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, bool allow_prepare,
   WT_ITEM *on_disk_buf, WT_TIME_WINDOW *on_disk_tw)
 {
@@ -425,10 +425,7 @@ err:
 
 /*
  * __wt_hs_find_upd --
- *     Scan the history store for a record the btree cursor wants to position on. Create an update
- *     for the record and return to the caller. The caller may choose to optionally allow prepared
- *     updates to be returned regardless of whether prepare is being ignored globally. Otherwise, a
- *     prepare conflict will be returned upon reading a prepared update.
+ *     Scan the history store for a record.
  */
 int
 __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
@@ -445,7 +442,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     /* Open a history store table cursor. */
     WT_ERR(__wt_hs_cursor_open(session));
     WT_WITH_BTREE(session, CUR2BT(session->hs_cursor),
-      (ret = __wt_hs_find_upd_int(session, btree->id, key, value_format, recno, upd_value,
+      (ret = __hs_find_upd_int(session, btree->id, key, value_format, recno, upd_value,
          allow_prepare, on_disk_buf, on_disk_tw)));
 
 err:

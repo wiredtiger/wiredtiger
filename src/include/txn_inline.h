@@ -451,8 +451,8 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      * Take a local copy of these IDs in case they are updated while we are checking visibility.
      */
     oldest_id = txn_global->oldest_id;
-    include_checkpoint_txn = btree == NULL ||
-      (!WT_IS_HS(btree) && btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
+    include_checkpoint_txn =
+      btree == NULL || (btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
     if (!include_checkpoint_txn)
         return (oldest_id);
 
