@@ -441,3 +441,24 @@ err:
 
     return (ret);
 }
+
+/*
+ * __wt_hs_find_upd --
+ *     Scan the history store for a record.
+ */
+int
+__wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
+  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf, WT_TIME_WINDOW *on_disk_tw)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+
+    btree = S2BT(session);
+
+    WT_RET(__wt_hs_cursor_open(session));
+    WT_WITH_BTREE(session, CUR2BT(session->hs_cursor),
+      (ret = __hs_find_upd_int(session, btree->id, key, value_format, recno, upd_value,
+         allow_prepare, on_disk_buf, on_disk_tw)));
+    WT_TRET(__wt_hs_cursor_close(session));
+    return (ret);
+}
