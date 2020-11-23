@@ -182,23 +182,24 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     WT_MODIFY_VECTOR modifies;
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
-    WT_UPDATE *mod_upd, *upd;
+    WT_UPDATE *mod_upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, hs_start_ts, hs_start_ts_tmp;
     wt_timestamp_t hs_stop_durable_ts, hs_stop_durable_ts_tmp, read_timestamp;
     uint64_t hs_counter, hs_counter_tmp, upd_type_full;
     uint32_t hs_btree_id;
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
     int cmp;
-    bool modify;
+    bool upd_found;
 
     hs_cursor = NULL;
-    mod_upd = upd = NULL;
+    mod_upd = NULL;
     orig_hs_value_buf = NULL;
     WT_CLEAR(hs_key);
     __wt_modify_vector_init(session, &modifies);
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-    WT_NOT_READ(modify, false);
+    hs_btree_id = S2BT(session)->id;
+    upd_found = false;
 
     WT_STAT_CONN_INCR(session, cursor_search_hs);
     WT_STAT_DATA_INCR(session, cursor_search_hs);
@@ -290,6 +291,8 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     /* We do not have tombstones in the history store anymore. */
     WT_ASSERT(session, upd_type != WT_UPDATE_TOMBSTONE);
 
+    upd_found = true;
+
     /*
      * If the caller has signalled they don't need the value buffer, don't bother reconstructing a
      * modify update or copying the contents into the value buffer.
@@ -302,7 +305,6 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
      * together.
      */
     if (upd_type == WT_UPDATE_MODIFY) {
-        WT_NOT_READ(modify, true);
         /* Store this so that we don't have to make a special case for the first modify. */
         hs_stop_durable_ts_tmp = hs_stop_durable_ts;
 
@@ -324,7 +326,13 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
              */
             WT_ERR_NOTFOUND_OK(__wt_hs_cursor_next(session, hs_cursor), true);
             if (ret == WT_NOTFOUND) {
-                /* Fallback to the onpage value as the base value. */
+                /*
+                 * Fallback to the onpage value as the base value.
+                 *
+                 * Work around of clang analyzer complaining the value is never read as it is reset
+                 * again by the following WT_ERR macro.
+                 */
+                WT_NOT_READ(ret, 0);
                 orig_hs_value_buf = hs_value;
                 hs_value = on_disk_buf;
                 upd_type = WT_UPDATE_STANDARD;
@@ -383,7 +391,6 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
             __wt_modify_vector_pop(&modifies, &mod_upd);
             WT_ERR(__wt_modify_apply_item(session, value_format, hs_value, mod_upd->data));
             __wt_free_update_list(session, &mod_upd);
-            mod_upd = NULL;
         }
         WT_STAT_CONN_INCR(session, cache_hs_read_squash);
         WT_STAT_DATA_INCR(session, cache_hs_read_squash);
@@ -410,50 +417,27 @@ err:
 
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
-        __wt_modify_vector_pop(&modifies, &upd);
-        __wt_free_update_list(session, &upd);
+        __wt_modify_vector_pop(&modifies, &mod_upd);
+        __wt_free_update_list(session, &mod_upd);
     }
     __wt_modify_vector_free(&modifies);
 
-    /* Couldn't find a record in a success scenario. */
-    if (ret == 0 && upd == NULL)
-        ret = WT_NOTFOUND;
-
-    WT_ASSERT(session, upd != NULL || ret != 0);
-    return (ret);
-}
-
-/*
- * __wt_hs_find_upd --
- *     Scan the history store for a record.
- */
-int
-__wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
-  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf, WT_TIME_WINDOW *on_disk_tw)
-{
-    WT_BTREE *btree;
-    WT_DECL_RET;
-
-    btree = S2BT(session);
-
-    WT_STAT_CONN_INCR(session, cursor_search_hs);
-    WT_STAT_DATA_INCR(session, cursor_search_hs);
-
-    /* Open a history store table cursor. */
-    WT_ERR(__wt_hs_cursor_open(session));
-    WT_WITH_BTREE(session, CUR2BT(session->hs_cursor),
-      (ret = __hs_find_upd_int(session, btree->id, key, value_format, recno, upd_value,
-         allow_prepare, on_disk_buf, on_disk_tw)));
-
-err:
-    WT_TRET(__wt_hs_cursor_close(session));
     if (ret == 0) {
-        WT_STAT_CONN_INCR(session, cache_hs_read);
-        WT_STAT_DATA_INCR(session, cache_hs_read);
-    } else if (ret == WT_NOTFOUND) {
-        WT_STAT_CONN_INCR(session, cache_hs_read_miss);
-        WT_STAT_DATA_INCR(session, cache_hs_read_miss);
+        if (upd_found) {
+            WT_STAT_CONN_INCR(session, cache_hs_read);
+            WT_STAT_DATA_INCR(session, cache_hs_read);
+        } else {
+            upd_value->type = WT_UPDATE_INVALID;
+            WT_STAT_CONN_INCR(session, cache_hs_read_miss);
+            WT_STAT_DATA_INCR(session, cache_hs_read_miss);
+        }
     }
+
+    /* Mark the buffer as invalid if there is an error. */
+    if (ret != 0)
+        upd_value->type = WT_UPDATE_INVALID;
+
+    WT_ASSERT(session, ret != WT_NOTFOUND);
 
     return (ret);
 }
