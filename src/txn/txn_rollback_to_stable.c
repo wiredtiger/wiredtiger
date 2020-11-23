@@ -982,51 +982,36 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 
 /*
  * __rollback_evict_exclusive_apply --
- *     Apply an eviction helper to all dhandles.
+ *     Apply an eviction helper to all open dhandles.
  */
 static int
 __rollback_evict_exclusive_apply(WT_SESSION_IMPL *session, bool *files_acquired,
   size_t files_acquired_len, int (*dhandle_func)(WT_SESSION_IMPL *, bool *, size_t))
 {
-    WT_CURSOR *metadata_cursor;
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    const char *uri;
 
-    WT_RET(__wt_metadata_cursor(session, &metadata_cursor));
+    conn = S2C(session);
 
-    while ((ret = metadata_cursor->next(metadata_cursor)) == 0) {
-        WT_ERR(metadata_cursor->get_key(metadata_cursor, &uri));
+    for (dhandle = NULL;;) {
+        WT_WITH_HANDLE_LIST_WRITE_LOCK(session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
+        if (dhandle == NULL)
+            break;
+
+        if (!WT_PREFIX_MATCH(dhandle->name, "file:"))
+            continue;
 
         /* Evictions of the metadata or history store files won't cause history store operations. */
-        if (WT_STREQ(uri, WT_METAFILE_URI) || WT_STREQ(uri, WT_HS_URI))
+        if (WT_IS_METADATA(dhandle) || WT_IS_HS((WT_BTREE *)dhandle->handle))
             continue;
 
-        if (!WT_PREFIX_MATCH(uri, "file:"))
-            continue;
-
-        /* Open the dhandle if it's not already open. */
-        ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
-
-        if (ret == ENOENT)
-            continue;
-        WT_ERR(ret);
-
-        /* Apply function to dhandle. */
-        WT_ERR((*dhandle_func)(session, files_acquired, files_acquired_len));
-
-        WT_ERR(__wt_session_release_dhandle(session));
+        WT_WITH_DHANDLE(
+          session, dhandle, ret = (*dhandle_func)(session, files_acquired, files_acquired_len));
+        WT_RET(ret);
     }
-    if (ret == WT_NOTFOUND)
-        ret = 0;
 
-err:
-    /* Release any dhandle that we might have. */
-    if (ret != 0)
-        WT_TRET(__wt_session_release_dhandle(session));
-
-    WT_TRET(__wt_metadata_cursor_close(session));
-
-    return (ret);
+    return (0);
 }
 
 /*
