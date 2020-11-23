@@ -69,11 +69,12 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
     conn = S2C(session);
     page = ref->page;
 
-#define WT_EVICT_HS_HIGH_PRIORTY 1000
+#define WT_EVICT_HS_HIGH_PRIORTY 10
 
     /* If cache is almost full, give high priority to modified HS pages. */
     if (WT_IS_HS(btree) && __wt_cache_almost_full(session) && page->modify != NULL &&
-      conn->cache->bytes_hs >= conn->cache_size / 2 && !F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+      __wt_cache_bytes_plus_overhead(conn->cache, conn->cache->bytes_hs) >= conn->cache_size / 3 &&
+      !F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (WT_EVICT_HS_HIGH_PRIORTY);
 
     /* Any page set to the oldest generation should be discarded. */
@@ -1736,7 +1737,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      * the cache pressure and will probably just amplify it further.
      */
     if (!WT_IS_HS(btree) && __wt_cache_almost_full(session) &&
-      cache->bytes_hs >= conn->cache_size / 2)
+      __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs) >= conn->cache_size / 3)
         return (0);
 
     /*
