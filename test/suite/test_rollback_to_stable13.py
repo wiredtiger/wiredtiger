@@ -101,9 +101,9 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         self.large_updates(uri, value_b, ds, nrows, 60)
 
         # Verify data is visible and correct.
-        #self.check(value_a, uri, nrows, 20)
-        #self.check(None, uri, 0, 30)
-        #self.check(value_b, uri, nrows, 60)
+        self.check(value_a, uri, nrows, 20)
+        self.check(None, uri, 0, 30)
+        self.check(value_b, uri, nrows, 60)
 
         # Pin stable to timestamp 50 if prepare otherwise 40.
         if self.prepare:
@@ -113,8 +113,6 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
 
         self.session.checkpoint()
 
-        self.session.breakpoint()
-
         # Simulate a server crash and restart.
         self.simulate_crash_restart(".", "RESTART")
 
@@ -122,7 +120,7 @@ class test_rollback_to_stable13(test_rollback_to_stable_base):
         self.check(None, uri, 0, 50)
 
         # Check that we restore the correct value from the history store.
-        #self.check(value_a, uri, nrows, 20)
+        self.check(value_a, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         restored_tombstones = stat_cursor[stat.conn.txn_rts_hs_restore_tombstones][2]
