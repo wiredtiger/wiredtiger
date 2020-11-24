@@ -1030,8 +1030,16 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 static int
 __rollback_to_stable_check(WT_SESSION_IMPL *session)
 {
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_TXN_GLOBAL *txn_global;
     bool txn_active;
+
+    conn = S2C(session);
+    txn_global = &conn->txn_global;
+
+    if (!txn_global->has_stable_timestamp)
+        WT_RET_MSG(session, EINVAL, "rollback_to_stable requires a stable timestamp");
 
     /*
      * Help the user comply with the requirement that there are no concurrent operations. Protect
@@ -1211,13 +1219,12 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts,
       rollback_timestamp;
     uint64_t rollback_txnid;
-    size_t addr_size;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
     bool durable_ts_found, prepared_updates;
 
     txn_global = &S2C(session)->txn_global;
-    addr_size = rollback_txnid = 0;
+    rollback_txnid = 0;
 
     /*
      * Copy the stable timestamp, otherwise we'd need to lock it each time it's accessed. Even
@@ -1270,47 +1277,16 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
                     prepared_updates = true;
             }
             WT_ERR_NOTFOUND_OK(ret, false);
-            ret = __wt_config_subgets(session, &cval, "addr", &value);
-            if (ret == 0)
-                addr_size = value.len;
-            WT_ERR_NOTFOUND_OK(ret, false);
             ret = __wt_config_subgets(session, &cval, "newest_txn", &value);
             if (value.len != 0)
                 rollback_txnid = (uint64_t)value.val;
             WT_ERR_NOTFOUND_OK(ret, false);
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
-
-        /*
-         * The rollback to stable will skip the tables during recovery in the following conditions
-         * 1. Empty table
-         * 2. Table has timestamped updates without a stable timestamp.
-         */
-        if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
-          (addr_size == 0 ||
-            (txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
-            __wt_verbose(session, WT_VERB_RTS, "Skip rollback to stable on file %s because %s", uri,
-              addr_size == 0 ? "its checkpoint address length is 0" :
-                               "it has timestamped updates and the stable timestamp is 0");
-            continue;
-        }
-
-        /* Set this flag to return error instead of panic if file is corrupted. */
-        F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
         ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
-        F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
-
-        /*
-         * Ignore performing rollback to stable on files that does not exist or the files where
-         * corruption is detected.
-         */
-        if ((ret == ENOENT) ||
-          (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
-            __wt_verbose(session, WT_VERB_RTS,
-              "Ignore performing rollback to stable on %s because the file %s", uri,
-              ret == ENOENT ? "does not exist" : "is corrupted.");
+        /* Ignore performing rollback to stable on files that don't exist. */
+        if (ret == ENOENT)
             continue;
-        }
         WT_ERR(ret);
 
         /*
