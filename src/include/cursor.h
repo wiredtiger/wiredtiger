@@ -159,14 +159,14 @@ struct __wt_cursor_btree {
     WT_COL *cip_saved; /* Last iteration reference */
 
     /*
-     * We don't instantiate prefix-compressed keys on pages where there's no Huffman encoding
-     * because we don't want to waste memory if only moving a cursor through the page, and it's
-     * faster to build keys while moving through the page than to roll-forward from a previously
-     * instantiated key (we don't instantiate all of the keys, just the ones at binary search
-     * points). We can't use the application's WT_CURSOR key field as a copy of the last-returned
-     * key because it may have been altered by the API layer, for example, dump cursors. Instead we
-     * store the last-returned key in a temporary buffer. The rip_saved field is used to determine
-     * if the key in the temporary buffer has the prefix needed for building the current key.
+     * We don't instantiate prefix-compressed keys on pages because we don't want to waste memory if
+     * only moving a cursor through the page, and it's faster to build keys while moving through the
+     * page than to roll-forward from a previously instantiated key (we don't instantiate all of the
+     * keys, just the ones at binary search points). We can't use the application's WT_CURSOR key
+     * field as a copy of the last-returned key because it may have been altered by the API layer,
+     * for example, dump cursors. Instead we store the last-returned key in a temporary buffer. The
+     * rip_saved field is used to determine if the key in the temporary buffer has the prefix needed
+     * for building the current key.
      */
     WT_ROW *rip_saved; /* Last-returned key reference */
 
@@ -280,6 +280,23 @@ struct __wt_cursor_dump {
     WT_CURSOR iface;
 
     WT_CURSOR *child;
+};
+
+struct __wt_cursor_hs {
+    WT_CURSOR iface;
+
+    WT_CURSOR *file_cursor; /* Queries of regular history store data */
+    WT_TIME_WINDOW time_window;
+    uint32_t btree_id;
+    WT_ITEM datastore_key;
+
+    /* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_HS_CUR_BTREE_ID_SET 0x1u
+#define WT_HS_CUR_COUNTER_SET 0x2u
+#define WT_HS_CUR_KEY_SET 0x4u
+#define WT_HS_CUR_TS_SET 0x8u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint8_t flags;
 };
 
 struct __wt_cursor_index {

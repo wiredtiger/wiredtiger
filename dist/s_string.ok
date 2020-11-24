@@ -346,6 +346,7 @@ Redistributions
 Refactor
 Resize
 RocksDB
+Runtime
 SIMD
 SLIST
 SLVG
@@ -634,6 +635,7 @@ curconfig
 curdump
 curextract
 curfile
+curhs
 curindex
 curjoin
 curlog
@@ -895,6 +897,7 @@ io
 ip
 isalnum
 isalpha
+isascii
 isb
 iscntrl
 isdigit
