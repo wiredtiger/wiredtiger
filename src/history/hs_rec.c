@@ -846,7 +846,7 @@ __wt_hs_delete_key_from_ts(
             WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
             WT_STAT_DATA_INCR(session, cache_hs_insert_restart);
         }
-    } while (ret != WT_RESTART);
+    } while (ret == WT_RESTART);
 
     return (ret);
 }

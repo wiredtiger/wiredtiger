@@ -198,7 +198,6 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     __wt_modify_vector_init(session, &modifies);
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-    hs_btree_id = S2BT(session)->id;
     upd_found = false;
 
     WT_STAT_CONN_INCR(session, cursor_search_hs);
