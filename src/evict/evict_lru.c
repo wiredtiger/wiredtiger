@@ -1611,7 +1611,7 @@ __evict_walk_target(WT_SESSION_IMPL *session)
     uint32_t target_pages, target_pages_clean, target_pages_dirty, target_pages_updates;
 
     cache = S2C(session)->cache;
-    target_pages = target_pages_clean = target_pages_dirty = target_pages_updates = 0;
+    target_pages_clean = target_pages_dirty = target_pages_updates = 0;
 
 /*
  * The minimum number of pages we should consider per tree.
@@ -1720,7 +1720,14 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     /* If we don't want any pages from this tree, move on. */
     if (target_pages == 0)
         return (0);
-
+    /*
+     * Skip btrees other than history store if the cache pressure is high and HS content dominates
+     * cache. Evicting unclean non-HS pages can generate even more HS content and will not help with
+     * the cache pressure and will probably just amplify it further.
+     */
+    if (!WT_IS_HS(btree) && __wt_cache_almost_full(session) &&
+      __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs) >= conn->cache_size / 3)
+        return (0);
     /*
      * These statistics generate a histogram of the number of pages targeted for eviction each
      * round. The range of values here start at MIN_PAGES_PER_TREE as this is the smallest number of
