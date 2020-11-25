@@ -1,7 +1,7 @@
 /*! @page upgrading Upgrading WiredTiger applications
 
 </dl><hr>
-@section version_322 Upgrading to Version 3.2.2
+@section version_1000 Upgrading to Version 10.0.0
 <dl>
 
 <dt>Asynchronous API</dt>
