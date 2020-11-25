@@ -143,6 +143,50 @@ __wt_hs_cursor_search_near(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
 }
 
 /*
+ * __curhs_next --
+ *     WT_CURSOR->next method for the hs cursor type.
+ */
+static int
+__curhs_next(WT_CURSOR *cursor)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_HS *hs_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    file_cursor = hs_cursor->file_cursor;
+    CURSOR_API_CALL(cursor, session, next, CUR2BT(file_cursor));
+
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = file_cursor->next(file_cursor));
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curhs_prev --
+ *     WT_CURSOR->prev method for the hs cursor type.
+ */
+static int
+__curhs_prev(WT_CURSOR *cursor)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_HS *hs_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    file_cursor = hs_cursor->file_cursor;
+    CURSOR_API_CALL(cursor, session, prev, CUR2BT(file_cursor));
+
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = file_cursor->prev(file_cursor));
+
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __curhs_close --
  *     WT_CURSOR->close method for the hs cursor type.
  */
@@ -279,7 +323,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
 
     WT_ERR(__wt_scr_alloc(session, 0, &datastore_key));
 
-    for (; ret == 0; ret = __wt_hs_cursor_prev(session, file_cursor)) {
+    for (; ret == 0; ret = std_cursor->prev(std_cursor)) {
         WT_ERR(file_cursor->get_key(file_cursor, &btree_id, &datastore_key, &start_ts, &counter));
 
         /* Stop before crossing over to the next btree. */
@@ -364,7 +408,7 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
 
     WT_ERR(__wt_scr_alloc(session, 0, &datastore_key));
 
-    for (; ret == 0; ret = __wt_hs_cursor_next(session, file_cursor)) {
+    for (; ret == 0; ret = std_cursor->next(std_cursor)) {
         WT_ERR(file_cursor->get_key(file_cursor, &btree_id, &datastore_key, &start_ts, &counter));
 
         /* Stop before crossing over to the next btree. */
@@ -465,7 +509,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
          * the beginning.
          */
         if (exact < 0) {
-            while ((ret = __wt_hs_cursor_next(session, file_cursor)) == 0) {
+            while ((ret = cursor->next(cursor)) == 0) {
                 WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
                 if (cmp >= 0)
                     break;
@@ -671,8 +715,8 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
       __curhs_set_value,                          /* set-value */
       __wt_cursor_compare_notsup,                 /* compare */
       __wt_cursor_equals_notsup,                  /* equals */
-      __wt_cursor_notsup,                         /* next */
-      __wt_cursor_notsup,                         /* prev */
+      __curhs_next,                               /* next */
+      __curhs_prev,                               /* prev */
       __curhs_reset,                              /* reset */
       __wt_cursor_notsup,                         /* search */
       __curhs_search_near,                        /* search-near */
