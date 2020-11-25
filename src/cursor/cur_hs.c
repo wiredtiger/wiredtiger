@@ -645,16 +645,21 @@ __curhs_insert(WT_CURSOR *cursor)
         hs_tombstone = NULL;
     }
 
+retry:
     /* Search the page and insert the updates. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, true));
     WT_ERR(ret);
-    WT_ERR(__wt_hs_modify(cbt, hs_upd));
+    ret = __wt_hs_modify(cbt, hs_upd);
+    if (ret == WT_RESTART)
+        goto retry;
+    WT_ERR(ret);
 
     if (0) {
 err:
         __wt_free(session, hs_tombstone);
         __wt_free(session, hs_upd);
     }
+
     API_END_RET(session, ret);
 }
 
@@ -679,16 +684,23 @@ __curhs_remove(WT_CURSOR *cursor)
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, insert, CUR2BT(file_cursor));
 
+    /* Remove must be called with cursor positioned. */
+    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
+
     cbt->compare = 0;
     WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
-    while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART)
-        ;
+    while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
+        WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
+        WT_ERR(ret);
+    }
+
     WT_ERR(ret);
 
     if (0) {
 err:
         __wt_free(session, hs_tombstone);
     }
+
     API_END_RET(session, ret);
 }
 
