@@ -1140,9 +1140,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
          */
         upd->txnid = WT_TXN_NONE;
         upd->start_ts = upd->durable_ts = WT_TS_NONE;
-        while ((ret = __wt_hs_modify(hs_cbt, upd)) != WT_RESTART)
-            ;
-        if (ret != 0) {
+        if ((ret = __wt_hs_modify(hs_cbt, upd)) != 0) {
             if (reinsert)
                 WT_ERR_PANIC(session, WT_PANIC,
                   "Failed to insert tombstone, history store now "
