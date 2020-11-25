@@ -9,6 +9,9 @@
 
 #include "wt_internal.h"
 
+static int __curhs_prev_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
+static int __curhs_next_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
+
 /*
  * __hs_cursor_open_int --
  *     Open a new history store table cursor, internal function.
@@ -158,7 +161,8 @@ __curhs_next(WT_CURSOR *cursor)
     file_cursor = hs_cursor->file_cursor;
     CURSOR_API_CALL(cursor, session, next, CUR2BT(file_cursor));
 
-    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = file_cursor->next(file_cursor));
+    WT_ERR(__wt_hs_cursor_next(session, file_cursor));
+    WT_ERR(__curhs_next_visible(session, hs_cursor));
 
 err:
     API_END_RET(session, ret);
@@ -180,7 +184,8 @@ __curhs_prev(WT_CURSOR *cursor)
     file_cursor = hs_cursor->file_cursor;
     CURSOR_API_CALL(cursor, session, prev, CUR2BT(file_cursor));
 
-    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = file_cursor->prev(file_cursor));
+    WT_ERR(__wt_hs_cursor_prev(session, file_cursor));
+    WT_ERR(__curhs_prev_visible(session, hs_cursor));
 
 err:
     API_END_RET(session, ret);
@@ -323,7 +328,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
 
     WT_ERR(__wt_scr_alloc(session, 0, &datastore_key));
 
-    for (; ret == 0; ret = std_cursor->prev(std_cursor)) {
+    for (; ret == 0; ret = __wt_hs_cursor_prev(session, file_cursor)) {
         WT_ERR(file_cursor->get_key(file_cursor, &btree_id, &datastore_key, &start_ts, &counter));
 
         /* Stop before crossing over to the next btree. */
@@ -408,7 +413,7 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
 
     WT_ERR(__wt_scr_alloc(session, 0, &datastore_key));
 
-    for (; ret == 0; ret = std_cursor->next(std_cursor)) {
+    for (; ret == 0; ret = __wt_hs_cursor_next(session, file_cursor)) {
         WT_ERR(file_cursor->get_key(file_cursor, &btree_id, &datastore_key, &start_ts, &counter));
 
         /* Stop before crossing over to the next btree. */
@@ -509,7 +514,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
          * the beginning.
          */
         if (exact < 0) {
-            while ((ret = cursor->next(cursor)) == 0) {
+            while ((ret = __wt_hs_cursor_next(session, file_cursor)) == 0) {
                 WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
                 if (cmp >= 0)
                     break;
@@ -545,7 +550,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
              * be more than one record away the end of our target key/timestamp range. Keep
              * iterating backwards until we land on our key.
              */
-            while ((ret = file_cursor->prev(cursor)) == 0) {
+            while ((ret = __wt_hs_cursor_prev(session, file_cursor)) == 0) {
                 WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
                 WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
 
