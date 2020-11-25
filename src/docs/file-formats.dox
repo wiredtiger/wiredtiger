@@ -1,4 +1,4 @@
-/*! @m_page{{c,java},file_formats,File formats and compression}
+/*! @page file_formats File formats and compression
 
 @section file_formats_formats File formats
 
@@ -96,13 +96,11 @@ pages to disk.
   Dictionary compression is disabled by default.
 
 - Huffman encoding reduces the size requirement of both the in-memory
-and on-disk objects by compressing individual key/value items, and can
-be separately configured either or both keys and values.  The cost is
-additional CPU and memory use when searching the in-memory tree (if keys
-are encoded), and additional CPU and memory use when returning values
-from the in-memory tree and when writing pages to disk.  Note the
-additional CPU cost of Huffman encoding can be high, and should be
-considered.  (See @subpage_single huffman for details.)
+and on-disk objects by compressing individual value items.  The cost is
+additional CPU and memory use when returning values from the in-memory
+tree and when writing pages to disk.  Note the additional CPU cost of
+Huffman encoding can be high, and should be considered. (See
+@subpage_single huffman for details.)
 
   Huffman encoding is disabled by default.
 
@@ -110,7 +108,7 @@ considered.  (See @subpage_single huffman for details.)
 compressing blocks of the backing object's file.  The cost is additional
 CPU and memory use when reading and writing pages to disk.  Note the
 additional CPU cost of block compression can be high, and should be
-considered.   (See @x_ref compression_considerations for details.)
+considered.   (See @ref compression_considerations for details.)
 
   Block compression is disabled by default.
 
@@ -146,7 +144,7 @@ Huffman encoding can be high, and should be considered.
 compressing blocks of the backing object's file.  The cost is additional
 CPU and memory use when reading and writing pages to disk.  Note the
 additional CPU cost of block compression can be high, and should be
-considered.   (See @x_ref compression_considerations for details.)
+considered.   (See @ref compression_considerations for details.)
 
   Block compression is disabled by default.
 
@@ -157,7 +155,7 @@ compression: block compression.
 compressing blocks of the backing object's file.  The cost is additional
 CPU and memory use when reading and writing pages to disk.  Note the
 additional CPU cost of block compression can be high, and should be
-considered.   (See @x_ref compression_considerations for details.)
+considered.   (See @ref compression_considerations for details.)
 
   Block compression is disabled by default.
 

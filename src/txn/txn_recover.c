@@ -548,8 +548,7 @@ err:
 
 /*
  * __recovery_setup_file --
- *     Set up the recovery slot for a file, track the largest file ID, and update the base write gen
- *     based on the file's configuration.
+ *     Set up the recovery slot for a file and track the largest file ID.
  */
 static int
 __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
@@ -595,8 +594,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
       (WT_IS_MAX_LSN(&r->max_ckpt_lsn) || __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
         WT_ASSIGN_LSN(&r->max_ckpt_lsn, &lsn);
 
-    /* Update the base write gen based on this file's configuration. */
-    return (__wt_metadata_update_base_write_gen(r->session, config));
+    return (0);
 }
 
 /*
@@ -841,11 +839,19 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(ret);
     }
 
-    /* Check whether the history store exists. */
-    WT_ERR(__hs_exists(session, metac, cfg, &hs_exists));
-
     /* Scan the metadata to find the live files and their IDs. */
     WT_ERR(__recovery_file_scan(&r));
+
+    /*
+     * Check whether the history store exists.
+     *
+     * This will open a dhandle on the history store and initialize its write gen so we must ensure
+     * that the connection-wide base write generation is stable at this point. Performing a recovery
+     * file scan will involve updating the connection-wide base write generation so we MUST do this
+     * before checking for the existence of a history store file.
+     */
+    WT_ERR(__hs_exists(session, metac, cfg, &hs_exists));
+
     /*
      * Clear this out. We no longer need it and it could have been re-allocated when scanning the
      * files.
@@ -970,6 +976,16 @@ done:
          * the checkpoint LSN and archiving.
          */
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
+
+    /* Initialize the connection's base write generation after rollback to stable. */
+    WT_ERR(__wt_metadata_init_base_write_gen(session));
+
+    /*
+     * Update the open dhandles write generations and base write generation with the connection's
+     * base write generation. The write generations of the pages which are in disk will be
+     * initialized when loaded to cache.
+     */
+    __wt_dhandle_update_write_gens(session);
 
     /*
      * If we're downgrading and have newer log files, force an archive, no matter what the archive

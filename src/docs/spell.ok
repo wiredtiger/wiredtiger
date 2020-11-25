@@ -142,6 +142,7 @@ bool
 boolean
 booleans
 br
+btmem
 btree
 btrees
 bufs
@@ -238,6 +239,7 @@ eq
 erlang
 errno
 exe
+extensibility
 fadvise
 failchk
 fallocate
@@ -246,6 +248,10 @@ fdatasync
 fextend
 fh
 fieldname
+fileBackgroundColor
+fileBorderColor
+fileFontColor
+fileShadowing
 fileID
 fileformats
 fileid
@@ -260,6 +266,7 @@ fnv
 forw
 fput
 freelist
+fs
 fsync
 ftruncate
 fvisibility
@@ -481,6 +488,7 @@ seqno
 serializable
 sess
 sid
+skinparam
 skiplist
 spinlock
 spinlocks

@@ -49,15 +49,9 @@ Format  Python  Notes
   u     str     raw byte array
 """
 
-try:
-    from wiredtiger.packutil import _chr, _is_string, _ord, _string_result, \
-        empty_pack, x00
-    from wiredtiger.intpacking import pack_int, unpack_int
-except ImportError:
-    # When WiredTiger is installed as a package, python2 needs this
-    from .packutil import _chr, _is_string, _ord, _string_result, \
-        empty_pack, x00
-    from intpacking import pack_int, unpack_int
+from wiredtiger.packutil import _chr, _is_string, _ord, _string_result, \
+    empty_pack, x00
+from wiredtiger.intpacking import pack_int, unpack_int
 
 def __get_type(fmt):
     if not fmt:
@@ -180,7 +174,10 @@ def pack(fmt, *values):
             if _is_string(val) and f in 'Ss':
                 result += str(val[:l]).encode()
             else:
-                result += val[:l]
+                if type(val) is bytes:
+                    result += val[:l]
+                else:
+                    result += val[:l].encode()
             if f == 'S' and not havesize:
                 result += x00
             elif size > l and havesize:

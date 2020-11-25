@@ -180,15 +180,13 @@ class test_cursor12(wttest.WiredTigerTestCase):
     }
     ]
 
-    def setUp(self):
-        if sys.version_info[0] >= 3 and self.valuefmt == 'u':
-            # Python3 distinguishes bytes from strings
-            self.nullbyte = b'\x00'
-            self.spacebyte = b' '
+    def nulls_to_spaces(self, bytes_or_str):
+        if self.valuefmt == 'u':
+            # The value is binary
+            return bytes_or_str.replace(b'\x00', b' ')
         else:
-            self.nullbyte = '\x00'
-            self.spacebyte = ' '
-        super(test_cursor12, self).setUp()
+            # The value is a string
+            return bytes_or_str.replace('\x00', ' ')
 
     # Convert a string to the correct type for the value.
     def make_value(self, s):
@@ -242,7 +240,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
             self.assertEquals(c.search(), 0)
             v = c.get_value()
             expect = self.make_value(i['f'])
-            self.assertEquals(v.replace(self.nullbyte, self.spacebyte), expect)
+            self.assertEquals(self.nulls_to_spaces(v), expect)
 
             if not single:
                 row = row + 1
@@ -259,14 +257,13 @@ class test_cursor12(wttest.WiredTigerTestCase):
             self.assertEquals(c.search(), 0)
             v = c.get_value()
             expect = self.make_value(i['f'])
-            self.assertEquals(v.replace(self.nullbyte, self.spacebyte), expect)
+            self.assertEquals(self.nulls_to_spaces(v), expect)
 
             if not single:
                 row = row + 1
         c.close()
 
-    # Smoke-test the modify API, anything other than an explicit transaction
-    # in snapshot isolation fails.
+    # Smoke-test the modify API, anything other than an snapshot isolation fails.
     def test_modify_txn_api(self):
         ds = SimpleDataSet(self, self.uri, 100, key_format=self.keyfmt, value_format=self.valuefmt)
         ds.populate()
@@ -274,12 +271,6 @@ class test_cursor12(wttest.WiredTigerTestCase):
         c = self.session.open_cursor(self.uri, None)
         c.set_key(ds.key(10))
         msg = '/not supported/'
-
-        self.session.begin_transaction()
-        mods = []
-        mods.append(wiredtiger.Modify('-', 1, 1))
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: c.modify(mods), msg)
-        self.session.rollback_transaction()
 
         self.session.begin_transaction("isolation=read-uncommitted")
         mods = []

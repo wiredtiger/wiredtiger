@@ -13,6 +13,7 @@ API
 APIs
 ARG
 ARGS
+ASAN
 ASM
 Addr
 Ailamaki
@@ -345,9 +346,11 @@ Redistributions
 Refactor
 Resize
 RocksDB
+Runtime
 SIMD
 SLIST
 SLVG
+SMT
 SOURCE's
 SPINLOCK
 SQL
@@ -632,6 +635,7 @@ curconfig
 curdump
 curextract
 curfile
+curhs
 curindex
 curjoin
 curlog
@@ -698,12 +702,14 @@ dll
 dlopen
 dlsym
 dmalloc
+dmb
 dmsg
 doxgen
 doxygen
 drealloc
 ds
 dsb
+dsbs
 dsk
 dsrc
 dst
@@ -891,9 +897,14 @@ io
 ip
 isalnum
 isalpha
+isascii
+isb
 iscntrl
 isdigit
 isgraph
+ish
+ishld
+ishst
 islocked
 islower
 ispo
@@ -1224,6 +1235,7 @@ setstr
 setv
 setvbuf
 sfence
+shareability
 signalled
 sii
 sizeof
@@ -1306,6 +1318,7 @@ timestamp
 timestamped
 timestamps
 tinfo
+tlb
 tmp
 todo
 tokenizer
