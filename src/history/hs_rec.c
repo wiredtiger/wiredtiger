@@ -1002,8 +1002,10 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
         tombstone->txnid = WT_TXN_NONE;
         tombstone->start_ts = tombstone->durable_ts = WT_TS_NONE;
-        while ((ret = __wt_hs_modify(hs_cbt, tombstone)) == WT_RESTART)
-            ;
+        while ((ret = __wt_hs_modify(hs_cbt, tombstone)) == WT_RESTART) {
+            WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(hs_cbt, &hs_cursor->key, false));
+            WT_ERR(ret);
+        }
         WT_ERR(ret);
         tombstone = NULL;
         WT_STAT_CONN_INCR(session, cache_hs_order_fixup_move);
