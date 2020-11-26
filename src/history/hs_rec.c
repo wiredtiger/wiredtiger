@@ -1072,6 +1072,7 @@ __hs_delete_key_from_pos(
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     upd = NULL;
     insert_cursor = NULL;
+    insert_counter = 0;
 
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_key.key));
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_value.value));
