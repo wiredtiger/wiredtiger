@@ -182,6 +182,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_HS
 #endif
     int cmp;
 
+    hs_key->counter = 0;
     /* Allocate buffers for the history store and search key. */
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_key.key));
     WT_ERR(__wt_scr_alloc(session, 0, &srch_key));
@@ -242,11 +243,11 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_HS
                       tw->start_txn == WT_TXN_NONE ||
                         tw->start_txn != hs_cbt->upd_value->tw.start_txn ||
                         tw->start_ts != hs_cbt->upd_value->tw.start_ts);
-                ++retrieved_key.counter;
+                hs_key->counter = retrieved_key.counter + 1;
             }
 #else
             if (cmp == 0)
-                ++retrieved_key.counter;
+                hs_key->counter = retrieved_key.counter + 1;
 #endif
         }
     }
