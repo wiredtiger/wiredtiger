@@ -751,9 +751,8 @@ extern int __wt_hs_cursor_prev(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_cursor_search_near(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exactp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_hs_delete_key_from_ts(
-  WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
+  wt_timestamp_t ts, bool reinsert) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format,
   uint64_t recno, WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf,
   WT_TIME_WINDOW *on_disk_tw) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
