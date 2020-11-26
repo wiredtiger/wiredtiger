@@ -400,7 +400,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &hs_key.key));
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_value.value));
     WT_ERR(__wt_scr_alloc(session, 0, &full_value));
     WT_ERR(__wt_scr_alloc(session, 0, &prev_full_value));
 
@@ -718,14 +717,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
                 hs_value.type = WT_UPDATE_MODIFY;
-                hs_value.value->data = modify_value->data;
-                hs_value.value->size = modify_value->size;
+                hs_value.value = modify_value;
                 WT_ERR(__hs_insert_record(session, cursor, &hs_key, &hs_value, &tw));
                 __wt_scr_free(session, &modify_value);
             } else {
                 hs_value.type = WT_UPDATE_STANDARD;
-                hs_value.value->data = full_value->data;
-                hs_value.value->size = full_value->size;
+                hs_value.value = full_value;
                 WT_ERR(__hs_insert_record(session, cursor, &hs_key, &hs_value, &tw));
             }
 
@@ -765,7 +762,6 @@ err:
         __wt_scr_free(session, &modify_value);
     __wt_modify_vector_free(&modifies);
     __wt_scr_free(session, &hs_key.key);
-    __wt_scr_free(session, &hs_value.value);
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &prev_full_value);
     return (ret);
