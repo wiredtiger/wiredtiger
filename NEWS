@@ -7,6 +7,7 @@ WiredTiger release 10.0.0, 2020-11-25
 See the upgrading documentation for details of API and behavior changes.
 
 Significant changes:
+* WT-6710	Change default transaction isolation to snapshot
 * WT-4833	Drop support for Python2
 * WT-6410	Remove WT_SESSION.rebalance
 * WT-6674	Remove Async API code and documentation

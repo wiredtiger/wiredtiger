@@ -4,6 +4,11 @@
 @section version_1000 Upgrading to Version 10.0.0
 <dl>
 
+<dt>Default transaction isolation level</dt>
+<dd>
+The default transaction isolation level has been changed from "read-committed" to "snapshot" in WiredTiger.
+</dd>
+
 <dt>Python 2 support</dt>
 <dd>
 The support for Python 2 has been dropped from WiredTiger.
