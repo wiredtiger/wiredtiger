@@ -786,6 +786,7 @@ __hs_delete_key_from_ts_int(
     WT_ASSERT(session, WT_IS_HS(S2BT(session)));
 
     hs_cursor = session->hs_cursor;
+    WT_RET(__wt_scr_alloc(session, 0, &retrieved_key.key));
     WT_RET(__wt_scr_alloc(session, 0, &srch_key));
 
     hs_cursor->set_key(hs_cursor, hs_key->btree_id, hs_key->key, ts, 0);
@@ -827,6 +828,7 @@ __hs_delete_key_from_ts_int(
 done:
     ret = 0;
 err:
+    __wt_scr_free(session, &retrieved_key.key);
     __wt_scr_free(session, &srch_key);
     return (ret);
 }
