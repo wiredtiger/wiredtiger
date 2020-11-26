@@ -6,6 +6,14 @@ WiredTiger release 10.0.0, 2020-11-25
 
 See the upgrading documentation for details of API and behavior changes.
 
+Significant changes:
+* WT-4833	Drop support for Python2
+* WT-6410	Remove WT_SESSION.rebalance
+* WT-6674	Remove Async API code and documentation
+* WT-6675	Remove WiredTiger Java language API and documentation
+* WT-6678	Remove Huffman Encoding support for Keys
+* WT-6713	Remove transaction support from custom data sources
+
 See JIRA changelog for a full listing:
 https://jira.mongodb.org/projects/WT/versions/24082
 
