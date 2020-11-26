@@ -718,12 +718,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
                 hs_value.type = WT_UPDATE_MODIFY;
-                hs_value.value = modify_value;
+                hs_value.value->data = modify_value->data;
+                hs_value.value->size = modify_value->size;
                 WT_ERR(__hs_insert_record(session, cursor, &hs_key, &hs_value, &tw));
                 __wt_scr_free(session, &modify_value);
             } else {
                 hs_value.type = WT_UPDATE_STANDARD;
-                hs_value.value = full_value;
+                hs_value.value->data = full_value->data;
+                hs_value.value->size = full_value->size;
                 WT_ERR(__hs_insert_record(session, cursor, &hs_key, &hs_value, &tw));
             }
 
