@@ -1234,15 +1234,12 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
 
         /*
-         * The rollback to stable will skip the tables during recovery and shutdown in the following
-         * conditions.
-         * 1. Empty table
+         * The rollback to stable will skip the tables in the following conditions.
+         * 1. Empty table and not in-memory scenario.
          * 2. Table has timestamped updates without a stable timestamp.
          */
-        if ((F_ISSET(S2C(session), WT_CONN_RECOVERING) ||
-              F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP)) &&
-          (addr_size == 0 ||
-            (txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
+        if ((!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && addr_size == 0) ||
+          (txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE)) {
             __wt_verbose(session, WT_VERB_RTS, "Skip rollback to stable on file %s because %s", uri,
               addr_size == 0 ? "its checkpoint address length is 0" :
                                "it has timestamped updates and the stable timestamp is 0");
