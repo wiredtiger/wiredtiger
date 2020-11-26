@@ -393,15 +393,16 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     if (!btree->hs_entries)
         btree->hs_entries = true;
 
-    /* Ensure enough room for a column-store key without checking. */
-    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &hs_key.key));
-
-    WT_ERR(__wt_scr_alloc(session, 0, &full_value));
-
-    WT_ERR(__wt_scr_alloc(session, 0, &prev_full_value));
-
     hs_key.btree_id = btree->id;
     hs_key.counter = 0;
+    hs_key.key = NULL;
+    hs_value.value = NULL;
+
+    /* Ensure enough room for a column-store key without checking. */
+    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &hs_key.key));
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_value.value));
+    WT_ERR(__wt_scr_alloc(session, 0, &full_value));
+    WT_ERR(__wt_scr_alloc(session, 0, &prev_full_value));
 
     /* Enter each update in the boundary's list into the history store. */
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
@@ -757,11 +758,12 @@ err:
     if (ret == 0 && insert_cnt > 0)
         __hs_verbose_cache_stats(session, btree);
 
-    __wt_scr_free(session, &hs_key.key);
     /* modify_value is allocated in __wt_modify_pack. Free it if it is allocated. */
     if (modify_value != NULL)
         __wt_scr_free(session, &modify_value);
     __wt_modify_vector_free(&modifies);
+    __wt_scr_free(session, &hs_key.key);
+    __wt_scr_free(session, &hs_value.value);
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &prev_full_value);
     return (ret);
@@ -786,8 +788,9 @@ __hs_delete_key_from_ts_int(
     WT_ASSERT(session, WT_IS_HS(S2BT(session)));
 
     hs_cursor = session->hs_cursor;
-    WT_RET(__wt_scr_alloc(session, 0, &retrieved_key.key));
-    WT_RET(__wt_scr_alloc(session, 0, &srch_key));
+    retrieved_key.key = NULL;
+    WT_ERR(__wt_scr_alloc(session, 0, &retrieved_key.key));
+    WT_ERR(__wt_scr_alloc(session, 0, &srch_key));
 
     hs_cursor->set_key(hs_cursor, hs_key->btree_id, hs_key->key, ts, 0);
     WT_ERR(__wt_buf_set(session, srch_key, hs_cursor->key.data, hs_cursor->key.size));
@@ -890,6 +893,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     tombstone = NULL;
 
+    retrieved_key.key = NULL;
+    retrieved_value.value = NULL;
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_key.key));
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_value.value));
 
@@ -1076,6 +1081,8 @@ __hs_delete_key_from_pos(
     insert_cursor = NULL;
     insert_counter = 0;
 
+    retrieved_key.key = NULL;
+    retrieved_value.value = NULL;
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_key.key));
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_value.value));
 
