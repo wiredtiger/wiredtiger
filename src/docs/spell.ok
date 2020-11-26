@@ -455,6 +455,7 @@ readonly
 realclean
 realloc
 realloc'd
+rebalance
 recno
 recnoN
 recnum
