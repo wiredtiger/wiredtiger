@@ -786,7 +786,6 @@ __hs_delete_key_from_ts_int(
     WT_ASSERT(session, WT_IS_HS(S2BT(session)));
 
     hs_cursor = session->hs_cursor;
-    retrieved_key.key = NULL;
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_key.key));
     WT_ERR(__wt_scr_alloc(session, 0, &srch_key));
 
@@ -891,8 +890,6 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     tombstone = NULL;
 
-    retrieved_key.key = NULL;
-    retrieved_value.value = NULL;
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_key.key));
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_value.value));
 
@@ -921,7 +918,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
             break;
     }
     if (ret == WT_NOTFOUND)
-        return (0);
+        goto done;
     WT_ERR(ret);
 
     /*
@@ -1043,6 +1040,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     }
     if (ret == WT_NOTFOUND)
         ret = 0;
+done:
 err:
     __wt_free(session, tombstone);
     __wt_scr_free(session, &retrieved_key.key);
@@ -1079,8 +1077,6 @@ __hs_delete_key_from_pos(
     insert_cursor = NULL;
     insert_counter = 0;
 
-    retrieved_key.key = NULL;
-    retrieved_value.value = NULL;
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_key.key));
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_value.value));
 
