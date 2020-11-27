@@ -7,6 +7,10 @@ WiredTiger release 10.0.0, 2020-11-25
 See the upgrading documentation for details of API and behavior changes.
 
 Significant changes:
+* WT-4427	Make WiredTiger timestamps always on and 8 bytes
+* WT-4642	Store transaction IDs durably
+* WT-5225	Create persistent file for History store
+* WT-5500	Implement new history store format
 * WT-6710	Change default transaction isolation to snapshot
 * WT-4833	Drop support for Python2
 * WT-6410	Remove WT_SESSION.rebalance

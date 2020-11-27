@@ -104,6 +104,8 @@ WiredTiger
 WiredTiger's
 WiredTigerCheckpoint
 WiredTigerException
+WiredTigerHS
+WiredTigerLAS
 WiredTigerLog
 WiredTigerPanicException
 WiredTigerRollbackException
