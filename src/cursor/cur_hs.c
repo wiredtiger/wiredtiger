@@ -159,7 +159,7 @@ __curhs_next(WT_CURSOR *cursor)
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
-    CURSOR_API_CALL(cursor, session, next, CUR2BT(file_cursor));
+    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, next, CUR2BT(file_cursor));
 
     WT_ERR(__wt_hs_cursor_next(session, file_cursor));
     WT_ERR(__curhs_next_visible(session, hs_cursor));
@@ -182,7 +182,7 @@ __curhs_prev(WT_CURSOR *cursor)
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
-    CURSOR_API_CALL(cursor, session, prev, CUR2BT(file_cursor));
+    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, prev, CUR2BT(file_cursor));
 
     WT_ERR(__wt_hs_cursor_prev(session, file_cursor));
     WT_ERR(__curhs_prev_visible(session, hs_cursor));
