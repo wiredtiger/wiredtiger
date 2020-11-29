@@ -692,6 +692,7 @@ __curhs_remove(WT_CURSOR *cursor)
      * comparison to an exact match.
      */
     cbt->compare = 0;
+    /* Add a tombstone with WT_TXN_NONE transaction id and WT_TS_NONE timestamps. */
     WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
     hs_tombstone->txnid = WT_TXN_NONE;
     hs_tombstone->start_ts = hs_tombstone->durable_ts = WT_TS_NONE;
