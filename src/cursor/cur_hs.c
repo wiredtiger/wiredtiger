@@ -693,6 +693,8 @@ __curhs_remove(WT_CURSOR *cursor)
      */
     cbt->compare = 0;
     WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
+    hs_tombstone->txnid = WT_TXN_NONE;
+    hs_tombstone->start_ts = hs_tombstone->durable_ts = WT_TS_NONE;
     while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
         WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
         WT_ERR(ret);
