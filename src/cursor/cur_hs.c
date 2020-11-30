@@ -684,7 +684,9 @@ __curhs_update(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, update, CUR2BT(file_cursor));
 
     /* We are assuming that the caller has already searched and found the key. */
-    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET));
+    WT_ASSERT(
+      session, F_ISSET(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET | WT_CURSTD_VALUE_INT));
+    WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_COUNTER_SET | WT_HS_CUR_TS_SET));
 
     /*
      * Only valid scenario to update the history store is to add the stop timestamp. Any other case
@@ -693,8 +695,12 @@ __curhs_update(WT_CURSOR *cursor)
     WT_ASSERT(session, !WT_TIME_WINDOW_IS_EMPTY(&hs_cursor->time_window));
     WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP(&hs_cursor->time_window));
 
-    /* We are positioned on the newest value for user key. */
-    WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_COUNTER_SET | WT_HS_CUR_TS_SET));
+    /*
+     * Ideally we want to check if we are positioned on the newest value for user key. However, we
+     * can't check if the timestamp was set to WT_TS_MAX when we searched for the key. We can can a
+     * next() on cursor to confirm there is no newer value but that would disturb our cursor. A more
+     * expensive method would be to search again and verify.
+     */
 
     /* The tombstone to represent the stop time window. */
     WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
@@ -725,10 +731,11 @@ __curhs_update(WT_CURSOR *cursor)
     /* Connect the tombstone to the update. */
     hs_tombstone->next = hs_upd;
 
-    /* Search the page and insert the updates. */
-    WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, true));
-    WT_ERR(ret);
-    WT_ERR(__wt_hs_modify(cbt, hs_tombstone));
+    /* Insert the updates and if we fail, search and try again. */
+    while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
+        WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, true));
+        WT_ERR(ret);
+    }
 
     if (0) {
 err:
