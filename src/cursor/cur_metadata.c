@@ -545,7 +545,8 @@ err:
         WT_TRET(c->close(c));
     __wt_cursor_close(cursor);
 
-    CURSOR_API_END_RET(session, cursor, ret);
+    __wt_op_timer_stop(session);
+    CURSOR_API_END_RET(session, NULL, ret);
 }
 
 /*

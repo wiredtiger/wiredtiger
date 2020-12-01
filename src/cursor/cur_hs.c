@@ -166,7 +166,7 @@ err:
     __wt_scr_free(session, &datastore_key);
     __wt_cursor_close(cursor);
 
-    CURSOR_API_END_RET(session, cursor, ret);
+    CURSOR_API_END_RET(session, NULL, ret);
 }
 
 /*
