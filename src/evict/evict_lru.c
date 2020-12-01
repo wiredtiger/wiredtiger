@@ -2368,7 +2368,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
             ret = WT_ROLLBACK;
             break;
         }
-            
 
         /*
          * Check if we have become busy.
