@@ -74,7 +74,7 @@ __curextract_insert(WT_CURSOR *cursor)
     ret = cextract->f(cextract->idxc);
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -205,7 +205,7 @@ __wt_curtable_get_value(WT_CURSOR *cursor, ...)
     va_end(ap);
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -301,7 +301,7 @@ __curtable_set_valuev(WT_CURSOR *cursor, va_list ap)
         }
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -342,7 +342,7 @@ __curtable_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     ret = WT_CURSOR_PRIMARY(a)->compare(WT_CURSOR_PRIMARY(a), WT_CURSOR_PRIMARY(b), cmpp);
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, a, ret);
 }
 
 /*
@@ -361,7 +361,7 @@ __curtable_next(WT_CURSOR *cursor)
     APPLY_CG(ctable, next);
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -395,7 +395,7 @@ __curtable_next_random(WT_CURSOR *cursor)
     }
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -414,7 +414,7 @@ __curtable_prev(WT_CURSOR *cursor)
     APPLY_CG(ctable, prev);
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -433,7 +433,7 @@ __curtable_reset(WT_CURSOR *cursor)
     APPLY_CG(ctable, reset);
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -452,7 +452,7 @@ __curtable_search(WT_CURSOR *cursor)
     APPLY_CG(ctable, search);
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -483,7 +483,7 @@ __curtable_search_near(WT_CURSOR *cursor, int *exact)
     }
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -560,7 +560,7 @@ __curtable_insert(WT_CURSOR *cursor)
         F_SET(primary, WT_CURSTD_KEY_EXT);
 
 err:
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END(session, cursor, ret);
     return (ret);
 }
 
@@ -607,7 +607,7 @@ __curtable_update(WT_CURSOR *cursor)
         WT_ERR(__apply_idx(ctable, offsetof(WT_CURSOR, insert), true));
 
 err:
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END(session, cursor, ret);
     __wt_scr_free(session, &value_copy);
     return (ret);
 }
@@ -667,7 +667,7 @@ notfound:
         APPLY_CG(ctable, reset);
 
 err:
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END(session, cursor, ret);
     return (ret);
 }
 
@@ -700,7 +700,7 @@ __curtable_reserve(WT_CURSOR *cursor)
     APPLY_CG(ctable, reserve);
 
 err:
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END(session, cursor, ret);
 
     /*
      * The application might do a WT_CURSOR.get_value call when we return, so we need a value and
@@ -837,7 +837,7 @@ err:
     cursor->internal_uri = NULL;
     __wt_cursor_close(cursor);
 
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*

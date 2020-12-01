@@ -75,7 +75,7 @@ __curbulk_insert_fix(WT_CURSOR *cursor)
     ret = __wt_bulk_insert_fix(session, cbulk, false);
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -107,7 +107,7 @@ __curbulk_insert_fix_bitmap(WT_CURSOR *cursor)
     ret = __wt_bulk_insert_fix_bitmap(session, cbulk);
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -180,7 +180,7 @@ __curbulk_insert_var(WT_CURSOR *cursor)
 
 duplicate:
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -258,7 +258,7 @@ __curbulk_insert_row(WT_CURSOR *cursor)
     ret = __wt_bulk_insert_row(session, cbulk);
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -290,7 +290,7 @@ __curbulk_insert_row_skip_check(WT_CURSOR *cursor)
     ret = __wt_bulk_insert_row(session, cbulk);
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*

@@ -802,7 +802,7 @@ __clsm_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     WT_ERR(__wt_compare(session, alsm->lsm_tree->collator, &a->key, &b->key, cmpp));
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, a, ret);
 }
 
 /*
@@ -912,7 +912,7 @@ err:
     __clsm_leave(clsm);
     if (ret == 0)
         __clsm_deleted_decode(clsm, &cursor->value);
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -995,7 +995,7 @@ err:
         F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
     __clsm_leave(clsm);
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -1069,7 +1069,7 @@ err:
     __clsm_leave(clsm);
     if (ret == 0)
         __clsm_deleted_decode(clsm, &cursor->value);
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -1128,7 +1128,7 @@ __clsm_reset(WT_CURSOR *cursor)
     __clsm_leave(clsm);
 
 err:
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -1226,7 +1226,7 @@ err:
     __clsm_leave(clsm);
     if (ret == 0)
         __clsm_deleted_decode(clsm, &cursor->value);
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -1368,7 +1368,7 @@ err:
     } else
         clsm->current = NULL;
 
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
@@ -1484,7 +1484,7 @@ __clsm_insert(WT_CURSOR *cursor)
 err:
     __wt_scr_free(session, &buf);
     __clsm_leave(clsm);
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END(session, cursor, ret);
     return (ret);
 }
 
@@ -1532,7 +1532,7 @@ __clsm_update(WT_CURSOR *cursor)
 err:
     __wt_scr_free(session, &buf);
     __clsm_leave(clsm);
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END(session, cursor, ret);
     return (ret);
 }
 
@@ -1582,7 +1582,7 @@ __clsm_remove(WT_CURSOR *cursor)
 
 err:
     __clsm_leave(clsm);
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END(session, cursor, ret);
     return (ret);
 }
 
@@ -1616,7 +1616,7 @@ __clsm_reserve(WT_CURSOR *cursor)
 
 err:
     __clsm_leave(clsm);
-    CURSOR_UPDATE_API_END(session, ret);
+    CURSOR_UPDATE_API_END(session, cursor, ret);
 
     /*
      * The application might do a WT_CURSOR.get_value call when we return, so we need a value and
@@ -1657,7 +1657,7 @@ err:
         __wt_lsm_tree_release(session, clsm->lsm_tree);
     __wt_cursor_close(cursor);
 
-    API_END_RET(session, ret);
+    CURSOR_API_END_RET(session, cursor, ret);
 }
 
 /*
