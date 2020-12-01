@@ -147,11 +147,11 @@ err:
 }
 
 /*
- * __rollback_txnid_check_if_committed --
+ * __rollback_check_if_txnid_committed --
  *     Check if the transaction id is committed.
  */
 static bool
-__rollback_txnid_check_if_committed(WT_SESSION_IMPL *session, uint64_t txnid)
+__rollback_check_if_txnid_committed(WT_SESSION_IMPL *session, uint64_t txnid)
 {
     WT_CONNECTION_IMPL *conn;
     bool found;
@@ -304,25 +304,28 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * the current version for the key.
          */
         if (!replace &&
-          (!__rollback_txnid_check_if_committed(session, cbt->upd_value->tw.stop_txn)) &&
+          (!__rollback_check_if_txnid_committed(session, cbt->upd_value->tw.stop_txn)) &&
           (hs_stop_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RTS,
-              "history store update valid with stop timestamp: %s and stable timestamp: %s",
+              "history store update valid with stop timestamp: %s, stable timestamp: %s and txnid "
+              ": %" PRIu64,
               __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[0]),
-              __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
+              __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
+              cbt->upd_value->tw.stop_txn);
             break;
         }
 
         /* Stop processing when we find a stable update according to the given timestamp. */
-        if (!__rollback_txnid_check_if_committed(session, cbt->upd_value->tw.start_txn) &&
+        if (!__rollback_check_if_txnid_committed(session, cbt->upd_value->tw.start_txn) &&
           (hs_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with start timestamp: %s, durable timestamp: %s, stop "
-              "timestamp: %s and stable timestamp: %s",
+              "timestamp: %s, stable timestamp: %s and txnid : %" PRIu64,
               __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
               __wt_timestamp_to_string(hs_durable_ts, ts_string[1]),
               __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]),
-              __wt_timestamp_to_string(rollback_timestamp, ts_string[3]));
+              __wt_timestamp_to_string(rollback_timestamp, ts_string[3]),
+              cbt->upd_value->tw.start_txn);
             valid_update_found = true;
             break;
         }
@@ -361,7 +364,16 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         if (valid_update_found) {
             WT_ERR(__wt_upd_alloc(session, &full_value, WT_UPDATE_STANDARD, &upd, NULL));
 
-            upd->txnid = cbt->upd_value->tw.start_txn;
+            /*
+             * Set the transaction id of updates to WT_TXN_NONE when called from recovery, because
+             * the connections write generation will be initialized after rollback to stable and the
+             * updates in the cache will be problematic. The transaction id of pages which are in
+             * disk will be automatically reset as part of unpacking cell when loaded to cache.
+             */
+            if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+                upd->txnid = WT_TXN_NONE;
+            else
+                upd->txnid = cbt->upd_value->tw.start_txn;
             upd->durable_ts = cbt->upd_value->tw.durable_start_ts;
             upd->start_ts = cbt->upd_value->tw.start_ts;
             __wt_verbose(session, WT_VERB_RTS,
@@ -489,14 +501,14 @@ __rollback_abort_row_ondisk_kv(
         } else
             return (0);
     } else if (((vpack->tw.durable_start_ts > rollback_timestamp) ||
-                 __rollback_txnid_check_if_committed(session, vpack->tw.start_txn)) ||
+                 __rollback_check_if_txnid_committed(session, vpack->tw.start_txn)) ||
       (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
         __wt_verbose(session, WT_VERB_RTS,
           "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s, "
-          "prepared: %s and stable timestamp: %s",
+          "prepared: %s, stable timestamp: %s and txnid : %" PRIu64,
           __wt_timestamp_to_string(vpack->tw.durable_start_ts, ts_string[0]),
           __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]), prepared ? "true" : "false",
-          __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
+          __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), vpack->tw.start_txn);
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             return (__rollback_row_ondisk_fixup_key(session, page, rip, rollback_timestamp, true));
         else {
@@ -510,7 +522,7 @@ __rollback_abort_row_ondisk_kv(
         }
     } else if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
       (((vpack->tw.durable_stop_ts > rollback_timestamp) ||
-         __rollback_txnid_check_if_committed(session, vpack->tw.stop_txn)) ||
+         __rollback_check_if_txnid_committed(session, vpack->tw.stop_txn)) ||
         prepared)) {
         /*
          * Clear the remove operation from the key by inserting the original on-disk value as a
@@ -826,13 +838,15 @@ __rollback_page_needs_abort(
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &vpack.ta);
         prepared = vpack.ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          (vpack.ta.newest_txn >= S2C(session)->recovery_ckpt_snap_min);
+          (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+            vpack.ta.newest_txn >= S2C(session)->recovery_ckpt_snap_min);
     } else if (addr != NULL) {
         tag = "address";
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &addr->ta);
         prepared = addr->ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          (addr->ta.newest_txn >= S2C(session)->recovery_ckpt_snap_min);
+          (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+            addr->ta.newest_txn >= S2C(session)->recovery_ckpt_snap_min);
     }
 
     __wt_verbose(session, WT_VERB_RTS,
@@ -1205,7 +1219,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     size_t addr_size;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
-    bool durable_ts_found, prepared_updates;
+    bool durable_ts_found, prepared_updates, rollback_recovery_txnid;
 
     txn_global = &S2C(session)->txn_global;
     rollback_txnid = 0;
@@ -1239,7 +1253,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
 
         /* Find out the max durable timestamp of the object from checkpoint. */
         newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
-        durable_ts_found = prepared_updates = false;
+        durable_ts_found = prepared_updates = rollback_recovery_txnid = false;
         WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
         __wt_config_subinit(session, &ckptconf, &cval);
         for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
@@ -1272,6 +1286,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             WT_ERR_NOTFOUND_OK(ret, false);
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
+        rollback_recovery_txnid = F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+          rollback_txnid > S2C(session)->recovery_ckpt_snap_min;
 
         /*
          * The rollback to stable will skip the tables during recovery and shutdown in the following
@@ -1315,13 +1331,14 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * 4. The checkpoint newest txn is greater than snapshot min txn id
          */
         if (S2BT(session)->modified || max_durable_ts > rollback_timestamp || prepared_updates ||
-          !durable_ts_found || (rollback_txnid > S2C(session)->recovery_ckpt_snap_min)) {
+          !durable_ts_found || rollback_recovery_txnid) {
             __wt_verbose(session, WT_VERB_RTS,
               "tree rolled back with durable timestamp: %s, or when tree is modified: %s or "
-              "prepared updates: %s or when durable time is not found: %s",
+              "prepared updates: %s or when durable time is not found: %s or txnid is greater than "
+              "recovery checkpoint snap min: %s",
               __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
               S2BT(session)->modified ? "true" : "false", prepared_updates ? "true" : "false",
-              !durable_ts_found ? "true" : "false");
+              !durable_ts_found ? "true" : "false", rollback_recovery_txnid ? "true" : "false");
             WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp));
         } else
             __wt_verbose(session, WT_VERB_RTS,
