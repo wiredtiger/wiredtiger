@@ -201,7 +201,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         elif stable >= 0 and self.oldest_ts > stable:
             expected = self.FAILURE
         return expected
-        
+
     def set_global_timestamps(self, oldest, stable):
         config = self.make_timestamp_config(oldest, stable)
         expected = self.expected_result_set_timestamp(oldest, stable)
@@ -290,7 +290,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
 
         # Although it's theoretically possible to never successfully update a single row,
         # with a large number of iterations that should never happen.  I'd rather catch
-        # a test code error where we mistakenly don't update any rows.            
+        # a test code error where we mistakenly don't update any rows.
         self.assertGreater(expect_key, 0)
         cursor.close()
 
