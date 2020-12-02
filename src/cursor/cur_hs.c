@@ -652,9 +652,11 @@ __curhs_insert(WT_CURSOR *cursor)
 
     if (0) {
 err:
+        F_CLR(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         __wt_free(session, hs_tombstone);
         __wt_free(session, hs_upd);
     }
+    WT_TRET(__cursor_reset(cbt));
     API_END_RET(session, ret);
 }
 
