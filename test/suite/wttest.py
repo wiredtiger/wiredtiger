@@ -135,7 +135,7 @@ class CapturedFd(object):
                              gotstr + '"')
         self.expectpos = os.path.getsize(self.filename)
 
-    def checkAdditionalPattern(self, testcase, pat, flags):
+    def checkAdditionalPattern(self, testcase, pat, re_flags = 0):
         """
         Check to see that an additional string has been added to the
         output file.  If it has not, raise it as a test failure.
@@ -144,7 +144,7 @@ class CapturedFd(object):
         if self.file != None:
             self.file.flush()
         gotstr = self.readFileFrom(self.filename, self.expectpos, 1500)
-        if re.search(pat, gotstr, flags) == None:
+        if re.search(pat, gotstr, re_flags) == None:
             testcase.fail('in ' + self.desc +
                           ', expected pattern "' + pat + '", but got "' +
                           gotstr + '"')
