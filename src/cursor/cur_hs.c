@@ -650,6 +650,7 @@ __curhs_insert(WT_CURSOR *cursor)
     WT_ERR(ret);
     WT_ERR(__wt_hs_modify(cbt, hs_upd));
 
+    /* Insert doesn't maintain a position across calls, clear resources. */
     if (0) {
 err:
         F_CLR(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
