@@ -966,6 +966,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         if (insert_cursor == NULL) {
             WT_WITHOUT_DHANDLE(session,
               ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &insert_cursor));
+            F_SET(insert_cursor, WT_CURSTD_IGNORE_TOMBSTONE | WT_CURSTD_HS_CURSOR);
             WT_ERR(ret);
         }
 
@@ -1075,7 +1076,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
         WT_WITHOUT_DHANDLE(session,
           ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &insert_cursor));
         WT_ERR(ret);
-        F_SET(insert_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+        F_SET(insert_cursor, WT_CURSTD_IGNORE_TOMBSTONE | WT_CURSTD_HS_CURSOR);
         WT_ERR_NOTFOUND_OK(
           __wt_hs_cursor_position(session, insert_cursor, btree_id, key, WT_TS_NONE, NULL), true);
 

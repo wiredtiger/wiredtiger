@@ -234,7 +234,6 @@ err:
     __wt_cursor_close(cursor);
     session->bkp_cursor = NULL;
 
-    __wt_op_timer_stop(session);
     CURSOR_API_END_RET(session, NULL, ret);
 }
 

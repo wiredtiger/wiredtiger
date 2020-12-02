@@ -36,29 +36,34 @@
     WT_CURSOR *__cursor = NULL;             \
     WT_DATA_HANDLE *__olddh = (s)->dhandle; \
     const char *__oldname = (s)->name;      \
+    bool __op_timer_started = false;        \
     (s)->dhandle = (dh);                    \
     (s)->name = (s)->lastop = #h "." #n;    \
-    WT_UNUSED(__cursor)
+    WT_UNUSED(__cursor);                    \
+    WT_UNUSED(__op_timer_started)
 #define API_SESSION_POP(s)  \
     (s)->dhandle = __olddh; \
     (s)->name = __oldname
 
 /* Standard entry points to the API: declares/initializes local variables. */
-#define API_SESSION_INIT(s, cur, h, n, dh)                                     \
-    WT_TRACK_OP_DECL;                                                          \
-    API_SESSION_PUSH(s, h, n, dh);                                             \
-    /*                                                                         \
-     * No code before this line, otherwise error handling won't be             \
-     * correct.                                                                \
-     */                                                                        \
-    WT_ERR(WT_SESSION_CHECK_PANIC(s));                                         \
-    WT_SINGLE_THREAD_CHECK_START(s);                                           \
-    WT_TRACK_OP_INIT(s);                                                       \
-    if ((__cursor = (cur)) == NULL || !F_ISSET(__cursor, WT_CURSTD_HS_CURSOR)) \
-        __wt_op_timer_start(s);                                                \
-    /* Reset wait time if this isn't an API reentry. */                        \
-    if (__oldname == NULL)                                                     \
-        (s)->cache_wait_us = 0;                                                \
+#define API_SESSION_INIT(s, cur, h, n, dh)                                       \
+    WT_TRACK_OP_DECL;                                                            \
+    API_SESSION_PUSH(s, h, n, dh);                                               \
+    /*                                                                           \
+     * No code before this line, otherwise error handling won't be               \
+     * correct.                                                                  \
+     */                                                                          \
+    WT_ERR(WT_SESSION_CHECK_PANIC(s));                                           \
+    WT_SINGLE_THREAD_CHECK_START(s);                                             \
+    WT_TRACK_OP_INIT(s);                                                         \
+    if ((__cursor = (cur)) == NULL || !F_ISSET(__cursor, WT_CURSTD_HS_CURSOR)) { \
+        __wt_op_timer_start(s);                                                  \
+        __op_timer_started = true;                                               \
+    }                                                                            \
+                                                                                 \
+    /* Reset wait time if this isn't an API reentry. */                          \
+    if (__oldname == NULL)                                                       \
+        (s)->cache_wait_us = 0;                                                  \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #h ":" #n)
 
 #define API_CALL_NOCONF(s, cur, h, n, dh) \
@@ -72,21 +77,21 @@
         if ((config) != NULL)                                             \
     WT_ERR(__wt_config_check((s), WT_CONFIG_REF(session, h##_##n), (config), 0))
 
-#define API_END(s, cur, ret)                                                       \
-    if ((s) != NULL) {                                                             \
-        WT_TRACK_OP_END(s);                                                        \
-        WT_SINGLE_THREAD_CHECK_STOP(s);                                            \
-        if ((ret) != 0)                                                            \
-            __wt_txn_err_set(s, ret);                                              \
-        if ((__cursor = (cur)) == NULL || !F_ISSET(__cursor, WT_CURSTD_HS_CURSOR)) \
-            __wt_op_timer_stop(s);                                                 \
-        /*                                                                         \
-         * No code after this line, otherwise error handling                       \
-         * won't be correct.                                                       \
-         */                                                                        \
-        API_SESSION_POP(s);                                                        \
-    }                                                                              \
-    }                                                                              \
+#define API_END(s, cur, ret)                                 \
+    if ((s) != NULL) {                                       \
+        WT_TRACK_OP_END(s);                                  \
+        WT_SINGLE_THREAD_CHECK_STOP(s);                      \
+        if ((ret) != 0)                                      \
+            __wt_txn_err_set(s, ret);                        \
+        if (__op_timer_started)                              \
+            __wt_op_timer_stop(s);                           \
+        /*                                                   \
+         * No code after this line, otherwise error handling \
+         * won't be correct.                                 \
+         */                                                  \
+        API_SESSION_POP(s);                                  \
+    }                                                        \
+    }                                                        \
     while (0)
 
 /* An API call wrapped in a transaction if necessary. */

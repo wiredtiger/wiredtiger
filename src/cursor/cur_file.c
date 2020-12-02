@@ -526,7 +526,6 @@ err:
     }
 
 done:
-    __wt_op_timer_stop(session);
     CURSOR_API_END_RET(session, NULL, ret);
 }
 

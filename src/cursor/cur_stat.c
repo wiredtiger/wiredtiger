@@ -350,8 +350,6 @@ err:
     __wt_free(session, cst->desc_buf);
 
     __wt_cursor_close(cursor);
-
-    __wt_op_timer_stop(session);
     CURSOR_API_END_RET(session, NULL, ret);
 }
 
