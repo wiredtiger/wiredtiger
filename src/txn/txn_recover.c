@@ -979,6 +979,16 @@ done:
          */
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
+    /* Initialize the connection's base write generation after rollback to stable. */
+    WT_ERR(__wt_metadata_init_base_write_gen(session));
+
+    /*
+     * Update the open dhandles write generations and base write generation with the connection's
+     * base write generation. The write generations of the pages which are in disk will be
+     * initialized when loaded to cache.
+     */
+    __wt_dhandle_update_write_gens(session);
+
     /*
      * If we're downgrading and have newer log files, force an archive, no matter what the archive
      * setting is.
