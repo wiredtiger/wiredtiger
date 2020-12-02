@@ -2289,7 +2289,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         }
 
 err:
-    WT_TRET(__wt_cursor_hs_open(session));
+    WT_TRET(__wt_cursor_hs_close(session));
     return (ret);
 }
 
