@@ -1717,17 +1717,19 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     if (target_pages > remaining_slots)
         target_pages = remaining_slots;
 
-    /* If we don't want any pages from this tree, move on. */
-    if (target_pages == 0)
-        return (0);
     /*
      * Skip btrees other than history store if the cache pressure is high and HS content dominates
      * cache. Evicting unclean non-HS pages can generate even more HS content and will not help with
      * the cache pressure and will probably just amplify it further.
      */
     if (!WT_IS_HS(btree) && __wt_cache_almost_full(session) &&
-      __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs) >= conn->cache_size / 3)
+      __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs) >= conn->cache_size / 4)
+        target_pages = (target_pages + 1) / 10;
+
+    /* If we don't want any pages from this tree, move on. */
+    if (target_pages == 0)
         return (0);
+
     /*
      * These statistics generate a histogram of the number of pages targeted for eviction each
      * round. The range of values here start at MIN_PAGES_PER_TREE as this is the smallest number of
@@ -1919,10 +1921,11 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
             __wt_cache_read_gen_new(session, page);
 
         /* Pages being forcibly evicted go on the urgent queue. */
-        if (modified &&
-          (page->read_gen == WT_READGEN_OLDEST || page->memory_footprint >= btree->splitmempage ||
-            (WT_IS_HS(btree) && __wt_cache_almost_full(session) &&
-              __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs) >= conn->cache_size / 3))) {
+        if ((modified &&
+              (page->read_gen == WT_READGEN_OLDEST ||
+                page->memory_footprint >= btree->splitmempage)) ||
+          (WT_IS_HS(btree) && __wt_cache_almost_full(session) &&
+            __wt_cache_bytes_plus_overhead(cache, cache->bytes_hs) >= conn->cache_size / 4)) {
             WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_oldest);
             if (__wt_page_evict_urgent(session, ref))
                 urgent_queued = true;
