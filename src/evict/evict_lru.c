@@ -2364,9 +2364,13 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
          * previous txn is blocking call, however it won't pickup transactions that have been
          * committed or rolled back as their mod count is 0, and that txn needs to be the oldest.
          *
+         * Don't check timeout for internal sessions as some operations like recovery and rollback
+         * to stable may take a long time and the default timeout may not be long enough. Also these
+         * operations are running with exclusive access, they should be able to continue and finish.
+         *
          * Additionally we don't return rollback which could confuse the caller.
          */
-        if (__wt_op_timer_fired(session))
+        if (app_thread && __wt_op_timer_fired(session))
             break;
 
         /*
