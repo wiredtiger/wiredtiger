@@ -118,7 +118,7 @@ __wt_cursor_hs_open(WT_SESSION_IMPL *session)
 
 /*
  * __wt_cursor_hs_close --
- *     Discard history store cursor the new interface.
+ *     Discard history store cursor with the new interface.
  */
 int
 __wt_cursor_hs_close(WT_SESSION_IMPL *session)
