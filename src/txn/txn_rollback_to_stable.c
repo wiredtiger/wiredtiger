@@ -978,6 +978,7 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 static int
 __rollback_evict_file_exclusive_toggle(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_UNUSED(cfg);
     WT_ASSERT(session, cfg == NULL);
 
     WT_RET(__wt_evict_file_exclusive_on(session));
