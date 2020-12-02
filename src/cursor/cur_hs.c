@@ -162,6 +162,11 @@ __curhs_next(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, next, CUR2BT(file_cursor));
 
     WT_ERR(__wt_hs_cursor_next(session, file_cursor));
+    /*
+     * We need to check if the history store record is visible to the current session. If not, the
+     * __curhs_next_visible() will also keep iterating forward through the records until it finds a
+     * visible record or bail out if records stop satisfying the fields set in cursor.
+     */
     WT_ERR(__curhs_next_visible(session, hs_cursor));
 
 err:
@@ -185,6 +190,11 @@ __curhs_prev(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, prev, CUR2BT(file_cursor));
 
     WT_ERR(__wt_hs_cursor_prev(session, file_cursor));
+    /*
+     * We need to check if the history store record is visible to the current session. If not, the
+     * __curhs_prev_visible() will also keep iterating backwards through the records until it finds
+     * a visible record or bail out if records stop satisfying the fields set in cursor.
+     */
     WT_ERR(__curhs_prev_visible(session, hs_cursor));
 
 err:
