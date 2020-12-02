@@ -107,7 +107,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
     # given timestamps.
     def updates(self, value, ds, do_prepare, commit_ts, durable_ts):
         session = self.session
-        needsRollback = False
+        needs_rollback = False
         prepare_config = None
         commit_config = 'commit_timestamp=' + timestamp_str(commit_ts)
 
@@ -136,7 +136,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
 
         try:
             for i in range(0, self.nrows):
-                needsRollback = False
+                needs_rollback = False
                 if self.do_illegal():
                     # Illegal outside of transaction
                     self.report('prepare_transaction', prepare_config)
@@ -145,7 +145,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
 
                 with self.expect(self.SUCCESS, 'begin_transaction'):
                     session.begin_transaction()
-                    needsRollback = True
+                    needs_rollback = True
 
                 self.report('set key/value')
                 with self.expect(self.SUCCESS, 'cursor insert'):
@@ -160,21 +160,21 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                 # to do a bad commit, WT will panic, and the test cannot continue.
                 # Only proceed with the commit if we have don't have that particular case.
                 if not bad_commit or not do_prepare or bad_prepare:
-                    needsRollback = False
+                    needs_rollback = False
                     self.report('commit_transaction', commit_config)
                     with self.expect(self.FAILURE if bad_commit else self.SUCCESS, 'commit'):
                         session.commit_transaction(commit_config)
                         self.commit_value = value
-                if needsRollback:
+                if needs_rollback:
                     self.report('rollback_transaction')
-                    needsRollback = False
+                    needs_rollback = False
                     session.rollback_transaction()
         except Exception as e:
             # We don't expect any exceptions, they should be caught as part of self.expect statements.
             self.pr(msg + 'UNEXPECTED EXCEPTION!')
             self.pr(msg + 'fail: ' + str(e))
             raise e
-        if needsRollback:
+        if needs_rollback:
             self.report('rollback_transaction')
             session.rollback_transaction()
         cursor.close()
