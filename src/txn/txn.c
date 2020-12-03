@@ -1260,6 +1260,9 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
          * rollback to stable. If the update is restored from the data store, it is either
          * instantiated along with the prepared stop when the page is read into memory or appended
          * by a failed eviction which attempted to write a prepared update to the data store.
+         *
+         * If we're allowing mixed mode operations, we can omit this check since we're expecting
+         * interleaving of timestamped and non-timestamped updates.
          */
         op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
         upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
