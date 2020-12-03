@@ -981,6 +981,10 @@ __rollback_evict_file_exclusive_toggle(WT_SESSION_IMPL *session, const char *cfg
     WT_UNUSED(cfg);
     WT_ASSERT(session, cfg == NULL);
 
+    /* History store evictions won't cause writes to history store so no need to do this. */
+    if (WT_IS_HS(S2BT(session)))
+        return (0);
+
     WT_RET(__wt_evict_file_exclusive_on(session));
     __wt_evict_file_exclusive_off(session);
 
