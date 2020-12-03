@@ -169,7 +169,10 @@ __curhs_next(WT_CURSOR *cursor)
      */
     WT_ERR(__curhs_next_visible(session, hs_cursor));
 
+    if (0) {
 err:
+        cursor->reset(cursor);
+    }
     API_END_RET(session, ret);
 }
 
@@ -197,7 +200,10 @@ __curhs_prev(WT_CURSOR *cursor)
      */
     WT_ERR(__curhs_prev_visible(session, hs_cursor));
 
+    if (0) {
 err:
+        WT_TRET(cursor->reset(cursor));
+    }
     API_END_RET(session, ret);
 }
 
@@ -582,8 +588,12 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
         WT_ERR(__curhs_prev_visible(session, hs_cursor));
     }
 
-done:
+    if (0) {
 err:
+        cursor->reset(cursor);
+    }
+
+done:
     __wt_scr_free(session, &srch_key);
     API_END_RET(session, ret);
 }
@@ -716,11 +726,10 @@ retry:
     /* Insert doesn't maintain a position across calls, clear resources. */
     if (0) {
 err:
-        F_CLR(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         __wt_free(session, hs_tombstone);
         __wt_free(session, hs_upd);
     }
-    WT_TRET(__cursor_reset(cbt));
+    WT_TRET(cursor->reset(cursor));
     API_END_RET(session, ret);
 }
 
@@ -769,9 +778,8 @@ __curhs_remove(WT_CURSOR *cursor)
 
     if (0) {
 err:
-        F_CLR(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         __wt_free(session, hs_tombstone);
-        WT_TRET(__cursor_reset(cbt));
+        WT_TRET(cursor->reset(cursor));
     }
     
     API_END_RET(session, ret);
@@ -859,12 +867,11 @@ __curhs_update(WT_CURSOR *cursor)
     /* History store update doesn't maintain a position across calls, clear resources. */
     if (0) {
 err:
-        F_CLR(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         __wt_free(session, hs_tombstone);
         __wt_free(session, hs_upd);
         __wt_scr_free(session, &hs_value);
     }
-    WT_TRET(__cursor_reset(cbt));
+    WT_TRET(cursor->reset(cursor));
     API_END_RET(session, ret);
 }
 
