@@ -149,11 +149,11 @@ err:
 }
 
 /*
- * __rollback_check_if_txnid_committed --
+ * __rollback_check_if_txnid_noncommitted --
  *     Check if the transaction id is committed.
  */
 static bool
-__rollback_check_if_txnid_committed(WT_SESSION_IMPL *session, uint64_t txnid)
+__rollback_check_if_txnid_noncommitted(WT_SESSION_IMPL *session, uint64_t txnid)
 {
     WT_CONNECTION_IMPL *conn;
     bool found;
@@ -306,7 +306,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * the current version for the key.
          */
         if (!replace &&
-          (!__rollback_check_if_txnid_committed(session, cbt->upd_value->tw.stop_txn)) &&
+          (!__rollback_check_if_txnid_noncommitted(session, cbt->upd_value->tw.stop_txn)) &&
           (hs_stop_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with stop timestamp: %s, stable timestamp: %s and txnid "
@@ -321,7 +321,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * Stop processing when we find a stable update according to the given timestamp and
          * transaction id.
          */
-        if (!__rollback_check_if_txnid_committed(session, cbt->upd_value->tw.start_txn) &&
+        if (!__rollback_check_if_txnid_noncommitted(session, cbt->upd_value->tw.start_txn) &&
           (hs_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with start timestamp: %s, durable timestamp: %s, stop "
@@ -506,7 +506,7 @@ __rollback_abort_row_ondisk_kv(
         } else
             return (0);
     } else if (((vpack->tw.durable_start_ts > rollback_timestamp) ||
-                 __rollback_check_if_txnid_committed(session, vpack->tw.start_txn)) ||
+                 __rollback_check_if_txnid_noncommitted(session, vpack->tw.start_txn)) ||
       (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
         __wt_verbose(session, WT_VERB_RTS,
           "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s, "
@@ -527,7 +527,7 @@ __rollback_abort_row_ondisk_kv(
         }
     } else if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
       (((vpack->tw.durable_stop_ts > rollback_timestamp) ||
-         __rollback_check_if_txnid_committed(session, vpack->tw.stop_txn)) ||
+         __rollback_check_if_txnid_noncommitted(session, vpack->tw.stop_txn)) ||
         prepared)) {
         /*
          * Clear the remove operation from the key by inserting the original on-disk value as a
