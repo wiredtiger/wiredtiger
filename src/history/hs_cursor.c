@@ -59,7 +59,7 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
 
     if (0) {
 err:
-        WT_TRET(__cursor_reset(cbt));
+        WT_TRET(__cursor_reset(hs_cbt));
     }
     return (ret);
 }
