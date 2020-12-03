@@ -15,7 +15,6 @@
 typedef struct {
     uint32_t btree_id;
     WT_ITEM *ds_key;
-    uint64_t counter;
 } WT_HS_KEY;
 
 typedef struct {
@@ -26,7 +25,7 @@ typedef struct {
 static int __hs_delete_key_from_pos(
   WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_HS_KEY *hs_key, bool reinsert);
 static int __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
-  WT_HS_KEY *hs_key, wt_timestamp_t ts, const WT_ITEM *srch_key);
+  WT_HS_KEY *hs_key, wt_timestamp_t ts, uint64_t *hs_counter, const WT_ITEM *srch_key);
 
 /*
  * __hs_verbose_cache_stats --
@@ -81,7 +80,7 @@ __hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
  */
 static int
 __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_HS_KEY *hs_key,
-  WT_HS_VALUE *hs_value, WT_TIME_WINDOW *tw)
+  WT_HS_VALUE *hs_value, WT_TIME_WINDOW *tw, uint64_t counter)
 {
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
@@ -97,7 +96,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, W
      * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to
      * create an update chain for a direct insertion onto the history store page.
      */
-    cursor->set_key(cursor, hs_key->btree_id, hs_key->ds_key, tw->start_ts, hs_key->counter);
+    cursor->set_key(cursor, hs_key->btree_id, hs_key->ds_key, tw->start_ts, counter);
     cursor->set_value(cursor, tw->durable_stop_ts, tw->durable_start_ts, (uint64_t)hs_value->type,
       hs_value->ds_value);
 
@@ -180,9 +179,11 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_HS
     wt_timestamp_t hs_stop_durable_ts_diag;
     uint64_t upd_type_full_diag;
 #endif
+    uint64_t counter, hs_counter;
     int cmp;
 
-    hs_key->counter = 0;
+    counter = 0;
+
     /* Allocate buffers for the history store and search key. */
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_key.ds_key));
     WT_ERR(__wt_scr_alloc(session, 0, &srch_key));
@@ -222,8 +223,8 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_HS
                          session, cursor, hs_key->btree_id, hs_key->ds_key, tw->start_ts, srch_key),
       true);
     if (ret == 0) {
-        WT_ERR(cursor->get_key(cursor, &retrieved_key.btree_id, retrieved_key.ds_key, &hs_start_ts,
-          &retrieved_key.counter));
+        WT_ERR(cursor->get_key(
+          cursor, &retrieved_key.btree_id, retrieved_key.ds_key, &hs_start_ts, &hs_counter));
         /*
          * Check the whether the existing record is also from the same timestamp.
          *
@@ -243,11 +244,11 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_HS
                       tw->start_txn == WT_TXN_NONE ||
                         tw->start_txn != hs_cbt->upd_value->tw.start_txn ||
                         tw->start_ts != hs_cbt->upd_value->tw.start_ts);
-                hs_key->counter = retrieved_key.counter + 1;
+                counter = hs_counter + 1;
             }
 #else
             if (cmp == 0)
-                hs_key->counter = retrieved_key.counter + 1;
+                counter = hs_counter + 1;
 #endif
         }
     }
@@ -259,8 +260,8 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_HS
     if (tw->start_ts != WT_TS_NONE) {
         WT_ERR_NOTFOUND_OK(__wt_hs_cursor_next(session, cursor), true);
         if (ret == 0)
-            WT_ERR(
-              __hs_fixup_out_of_order_from_pos(session, cursor, hs_key, tw->start_ts, srch_key));
+            WT_ERR(__hs_fixup_out_of_order_from_pos(
+              session, cursor, hs_key, tw->start_ts, &counter, srch_key));
     }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -269,18 +270,18 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_HS
      * of the key we are about to insert.
      */
     if (F_ISSET(cursor, WT_CURSTD_KEY_SET)) {
-        WT_ERR(cursor->get_key(cursor, &retrieved_key.btree_id, retrieved_key.ds_key, &hs_start_ts,
-          &retrieved_key.counter));
+        WT_ERR(cursor->get_key(
+          cursor, &retrieved_key.btree_id, retrieved_key.ds_key, &hs_start_ts, &hs_counter));
         if (retrieved_key.btree_id == hs_key->btree_id && tw->start_ts == hs_start_ts &&
-          retrieved_key.counter == hs_key->counter) {
+          hs_counter == counter) {
             WT_ERR(__wt_compare(session, NULL, hs_key->ds_key, retrieved_key.ds_key, &cmp));
             WT_ASSERT(session, cmp != 0);
         }
     }
 #endif
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
-    while ((ret = __hs_insert_record_with_btree_int(session, cursor, hs_key, hs_value, tw)) ==
-      WT_RESTART) {
+    while ((ret = __hs_insert_record_with_btree_int(
+              session, cursor, hs_key, hs_value, tw, counter)) == WT_RESTART) {
         WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
         WT_STAT_DATA_INCR(session, cache_hs_insert_restart);
     }
@@ -394,7 +395,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         btree->hs_entries = true;
 
     hs_key.btree_id = btree->id;
-    hs_key.counter = 0;
 
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &hs_key.ds_key));
@@ -778,6 +778,7 @@ __hs_delete_key_from_ts_int(
     WT_DECL_RET;
     WT_HS_KEY retrieved_key;
     wt_timestamp_t hs_start_ts;
+    uint64_t hs_counter;
     int cmp, exact;
 
     /* The session should be pointing at the history store btree. */
@@ -813,8 +814,8 @@ __hs_delete_key_from_ts_int(
             goto done;
     }
     /* Bailing out here also means we have no history store records for our key. */
-    WT_ERR(hs_cursor->get_key(hs_cursor, &retrieved_key.btree_id, retrieved_key.ds_key,
-      &hs_start_ts, &retrieved_key.counter));
+    WT_ERR(hs_cursor->get_key(
+      hs_cursor, &retrieved_key.btree_id, retrieved_key.ds_key, &hs_start_ts, &hs_counter));
     if (retrieved_key.btree_id != hs_key->btree_id)
         goto done;
     WT_ERR(__wt_compare(session, NULL, hs_key->ds_key, retrieved_key.ds_key, &cmp));
@@ -844,7 +845,6 @@ __wt_hs_delete_key_from_ts(
 
     hs_key.btree_id = btree_id;
     hs_key.ds_key = key;
-    hs_key.counter = 0;
 
     /* If the operation can't open new handles, it should have figured that out before here. */
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
@@ -870,7 +870,7 @@ __wt_hs_delete_key_from_ts(
  */
 static int
 __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_HS_KEY *hs_key,
-  wt_timestamp_t ts, const WT_ITEM *srch_key)
+  wt_timestamp_t ts, uint64_t *counter, const WT_ITEM *srch_key)
 {
     WT_CURSOR *insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
@@ -880,6 +880,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     WT_TIME_WINDOW tw;
     WT_UPDATE *tombstone;
     wt_timestamp_t hs_ts, stat_durable_ts, stop_durable_ts;
+    uint64_t hs_counter;
     int cmp;
     char ts_string[5][WT_TS_INT_STRING_SIZE];
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
@@ -909,8 +910,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * inserting and then a "next". In the regular case, our cursor will be positioned on the
          * next key and we'll break out of the first iteration in one of the conditions below.
          */
-        WT_ERR(hs_cursor->get_key(hs_cursor, &retrieved_key.btree_id, retrieved_key.ds_key, &hs_ts,
-          &retrieved_key.counter));
+        WT_ERR(hs_cursor->get_key(
+          hs_cursor, &retrieved_key.btree_id, retrieved_key.ds_key, &hs_ts, &hs_counter));
         WT_ERR(__wt_compare(session, NULL, &hs_cursor->key, srch_key, &cmp));
         if (cmp > 0)
             break;
@@ -945,8 +946,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * inserting and then a "next". In the regular case, our cursor will be positioned on the
          * next key and we'll break out of the first iteration in one of the conditions below.
          */
-        WT_ERR(hs_cursor->get_key(hs_cursor, &retrieved_key.btree_id, retrieved_key.ds_key, &hs_ts,
-          &retrieved_key.counter));
+        WT_ERR(hs_cursor->get_key(
+          hs_cursor, &retrieved_key.btree_id, retrieved_key.ds_key, &hs_ts, &hs_counter));
         if (retrieved_key.btree_id != hs_key->btree_id)
             break;
 
@@ -1017,10 +1018,10 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
 
         /* Reinsert entry with earlier timestamp. */
         while ((ret = __hs_insert_record_with_btree_int(
-                  session, insert_cursor, hs_key, &retrieved_value, &tw)) == WT_RESTART)
+                  session, insert_cursor, hs_key, &retrieved_value, &tw, *counter)) == WT_RESTART)
             ;
         WT_ERR(ret);
-        ++(hs_key->counter);
+        ++(*counter);
 
         /* Delete entry with higher timestamp. */
         hs_cbt->compare = 0;
@@ -1066,14 +1067,14 @@ __hs_delete_key_from_pos(
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
     wt_timestamp_t start_durable_ts, start_ts, stop_durable_ts;
-    uint64_t insert_counter;
+    uint64_t hs_counter, hs_insert_counter;
     int cmp;
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
     hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
+    hs_insert_counter = 0;
     upd = NULL;
     insert_cursor = NULL;
-    insert_counter = 0;
 
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_key.ds_key));
     WT_ERR(__wt_scr_alloc(session, 0, &retrieved_value.ds_value));
@@ -1096,23 +1097,23 @@ __hs_delete_key_from_pos(
           true);
 
         if (ret == WT_NOTFOUND) {
-            insert_counter = 0;
+            hs_insert_counter = 0;
             ret = 0;
         } else {
             WT_ERR(insert_cursor->get_key(insert_cursor, &retrieved_key.btree_id,
-              retrieved_key.ds_key, &start_ts, &insert_counter));
+              retrieved_key.ds_key, &start_ts, &hs_insert_counter));
             /*
              * Increment the hs counter that we'll be using to insert with to avoid overwriting the
              * record we just found.
              */
-            insert_counter++;
+            hs_insert_counter++;
         }
     }
 
     /* Begin iterating over the range of entries we expect to replace. */
     for (; ret == 0; ret = __wt_hs_cursor_next(session, hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &retrieved_key.btree_id, retrieved_key.ds_key,
-          &start_ts, &retrieved_key.counter));
+        WT_ERR(hs_cursor->get_key(
+          hs_cursor, &retrieved_key.btree_id, retrieved_key.ds_key, &start_ts, &hs_counter));
         /*
          * If the btree id or key isn't ours, that means that we've hit the end of the key range and
          * that there is no more history store content for this key.
@@ -1151,12 +1152,11 @@ __hs_delete_key_from_pos(
             tw.stop_ts = tw.durable_stop_ts = WT_TS_NONE;
             tw.stop_txn = hs_cbt->upd_value->tw.stop_txn;
 
-            retrieved_key.counter = insert_counter;
             /* Reinsert entry with zero timestamp. */
-            while ((ret = __hs_insert_record_with_btree_int(
-                      session, insert_cursor, &retrieved_key, &retrieved_value, &tw)) == WT_RESTART)
+            while ((ret = __hs_insert_record_with_btree_int(session, insert_cursor, &retrieved_key,
+                      &retrieved_value, &tw, hs_insert_counter)) == WT_RESTART)
                 ;
-            insert_counter++;
+            hs_insert_counter++;
             WT_ERR(ret);
         }
         /*
