@@ -773,7 +773,7 @@ __curhs_remove(WT_CURSOR *cursor)
 
     WT_ERR(ret);
 
-    /* Invalidate the previous value but we will hold on the position of the key. */
+    /* Invalidate the previous value but we will hold on to the position of the key. */
     F_CLR(file_cursor, WT_CURSTD_VALUE_SET);
 
     if (0) {
