@@ -37,7 +37,7 @@ __wt_blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
 
 /*
  * __wt_blkcache_free --
- *     Free the block in the cache.
+ *     Free a chunk of memory.
  */
 static void
 __wt_blkcache_free(WT_SESSION_IMPL *session, void *ptr)
@@ -281,6 +281,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
             __wt_overwrite_and_free(session, blkcache_item);
             WT_STAT_CONN_DECRV(session, block_cache_bytes, size);
             WT_STAT_CONN_DECR(session, block_cache_blocks);
+	    WT_STAT_CONN_INCR(session, block_cache_blocks_removed);
 	    __wt_verbose(session, WT_VERB_BLKCACHE, "block removed from cache: "
 		 "offset=%" PRIuMAX ", size=%" PRIu32,
 		 (uintmax_t)offset, (uint32_t)size);

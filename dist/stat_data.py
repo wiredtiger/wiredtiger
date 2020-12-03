@@ -203,6 +203,7 @@ connection_stats = [
     BlockStat('block_byte_write_mmap', 'bytes written via memory map API', 'size'),
     BlockStat('block_byte_write_syscall', 'bytes written via system call API', 'size'),
     BlockStat('block_cache_blocks', 'block cache total blocks'),
+    BlockStat('block_cache_blocks_removed', 'block cache removed blocks'),
     BlockStat('block_cache_blocks_update', 'block cache cached blocks updated'),
     BlockStat('block_cache_blocks_write', 'block cache total blocks inserted on write path'),
     BlockStat('block_cache_bytes', 'block cache total bytes'),
