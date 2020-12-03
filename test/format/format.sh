@@ -17,7 +17,7 @@ onintr()
 trap 'onintr' 2
 
 usage() {
-	echo "usage: $0 [-aEFRSv] [-b format-binary] [-c config] [-e env-var]"
+	echo "usage: $0 [-aEFRrSv] [-b format-binary] [-c config] [-e env-var]"
 	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [format-configuration]"
 	echo
 	echo "    -a           abort/recovery testing (defaults to off)"
@@ -30,6 +30,7 @@ usage() {
 	echo "    -j parallel  jobs to execute in parallel (defaults to 8)"
 	echo "    -n total     total jobs to execute (defaults to no limit)"
 	echo "    -R           run timing stress split test configurations (defaults to off)"
+        echo "    -r           record with UndoDB (defaults to off)"
 	echo "    -S           run smoke-test configurations (defaults to off)"
 	echo "    -t minutes   minutes to run (defaults to no limit)"
 	echo "    -v           verbose output (defaults to off)"
@@ -76,6 +77,7 @@ format_args=""
 home="."
 minutes=0
 parallel_jobs=8
+record=""
 skip_errors=0
 smoke_test=0
 timing_stress_split_test=0
@@ -123,6 +125,13 @@ while :; do
 	-R)
 		timing_stress_split_test=1
 		shift ;;
+        -r)
+                record=live-record
+                if ! [ $(command -v live-record) ]; then
+                    echo "$name: -r option requires live-record binary in PATH"
+                    exit 1
+                fi
+                shift ;;
 	-S)
 		smoke_test=1
 		shift ;;
@@ -237,7 +246,7 @@ skip_known_errors()
 		err_tokens[1]=${!skip_error_list[i]:1:1}
 
 		grep -q "${err_tokens[0]}" $log && grep -q "${err_tokens[1]}" $log
-		
+
 		[[ $? -eq 0 ]] && {
 			echo "Skip error :  { ${err_tokens[0]} && ${err_tokens[1]} }"
 			return 0
@@ -352,7 +361,7 @@ resolve()
 			# Everything is a table unless explicitly a file.
 			uri="table:wt"
 			grep 'data_source=file' $dir/CONFIG > /dev/null && uri="file:wt"
-						
+
 			# Use the wt utility to recover & verify the object.
 			if  $($wt_binary -R -h $dir verify $uri >> $log 2>&1); then
 				rm -rf $dir $dir.RECOVER $log
@@ -451,7 +460,7 @@ format()
 		echo "$name: starting job in $dir ($(date))"
 	fi
 
-	cmd="$format_binary -c "$config" -h "$dir" -1 $args quiet=1"
+	cmd="$record $format_binary -c "$config" -h "$dir" -1 $args quiet=1"
 	echo "$name: $cmd"
 
 	# Disassociate the command from the shell script so we can exit and let the command
@@ -488,7 +497,7 @@ while :; do
 
 	# Check if we're only running the smoke-tests and we're done.
 	[[ $smoke_test -ne 0 ]] && [[ $smoke_next -ge ${#smoke_list[@]} ]] && quit=1
-	
+
 	# Check if the total number of jobs has been reached.
 	[[ $total_jobs -ne 0 ]] && [[ $count_jobs -ge $total_jobs ]] && quit=1
 
