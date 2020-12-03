@@ -671,7 +671,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * FIXME-WT-6443: We should be able to replace this with an assertion.
              */
             if (!F_ISSET(upd, WT_UPDATE_BEHIND_MIXED_MODE) &&
-              (tw.start_ts < upd->start_ts ||
+              (tw.stop_ts < upd->start_ts ||
                 (tw.stop_ts == upd->start_ts && tw.stop_txn <= upd->txnid))) {
                 __wt_verbose(session, WT_VERB_TIMESTAMP,
                   "Warning: fixing out-of-order timestamps %s earlier than previous update %s",
@@ -879,7 +879,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     WT_HS_VALUE retrieved_value;
     WT_TIME_WINDOW tw;
     WT_UPDATE *tombstone;
-    wt_timestamp_t hs_ts, stat_durable_ts, stop_durable_ts;
+    wt_timestamp_t durable_start_ts, durable_stop_ts, hs_ts;
     uint64_t hs_counter;
     int cmp;
     char ts_string[5][WT_TS_INT_STRING_SIZE];
@@ -1013,7 +1013,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         tw.stop_txn = hs_cbt->upd_value->tw.stop_txn;
 
         /* Extract the underlying value for reinsertion. */
-        WT_ERR(hs_cursor->get_value(hs_cursor, &stat_durable_ts, &stop_durable_ts,
+        WT_ERR(hs_cursor->get_value(hs_cursor, &durable_stop_ts, &durable_start_ts,
           &retrieved_value.type, retrieved_value.ds_value));
 
         /* Reinsert entry with earlier timestamp. */
