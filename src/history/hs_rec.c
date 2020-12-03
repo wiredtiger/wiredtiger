@@ -280,6 +280,8 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     cursor->set_value(
       cursor, stop_time_point->durable_ts, start_time_point->durable_ts, (uint64_t)type, hs_value);
     WT_ERR(cursor->insert(cursor));
+    WT_STAT_CONN_INCR(session, cache_hs_insert);
+    WT_STAT_DATA_INCR(session, cache_hs_insert);
 
 err:
 #ifdef HAVE_DIAGNOSTIC
@@ -739,15 +741,14 @@ err:
 }
 
 /*
- * __hs_delete_key_from_ts_int --
- *     Internal helper for deleting history store content of a given key from a timestamp.
+ * __wt_hs_delete_key_from_ts --
+ *     Delete history store content of a given key from a timestamp.
  */
-static int
-__hs_delete_key_from_ts_int(
+int
+__wt_hs_delete_key_from_ts(
   WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
 {
     WT_CURSOR *hs_cursor;
-    WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
     WT_ITEM hs_key;
     wt_timestamp_t hs_start_ts;
@@ -755,37 +756,14 @@ __hs_delete_key_from_ts_int(
     uint32_t hs_btree_id;
     int cmp, exact;
 
-    /* The session should be pointing at the history store btree. */
-    WT_ASSERT(session, WT_IS_HS(S2BT(session)));
-
     hs_cursor = session->hs_cursor;
-    WT_RET(__wt_scr_alloc(session, 0, &srch_key));
 
-    hs_cursor->set_key(hs_cursor, btree_id, key, ts, 0);
-    WT_ERR(__wt_buf_set(session, srch_key, hs_cursor->key.data, hs_cursor->key.size));
-    WT_ERR_NOTFOUND_OK(__wt_hs_cursor_search_near(session, hs_cursor, &exact), true);
+    hs_cursor->set_key(hs_cursor, btree_id, key, ts);
+    WT_ERR_NOTFOUND_OK(hs_cursor->search_near(hs_cursor, &exact), true);
     /* Empty history store is fine. */
     if (ret == WT_NOTFOUND)
         goto done;
-    /*
-     * If we raced with a history store insert, we may be two or more records away from our target.
-     * Keep iterating forwards until we are on or past our target key.
-     *
-     * We can't use the cursor positioning helper that we use for regular reads since that will
-     * place us at the end of a particular key/timestamp range whereas we want to be placed at the
-     * beginning.
-     */
-    if (exact < 0) {
-        while ((ret = __wt_hs_cursor_next(session, hs_cursor)) == 0) {
-            WT_ERR(__wt_compare(session, NULL, &hs_cursor->key, srch_key, &cmp));
-            if (cmp >= 0)
-                break;
-        }
-        /* No entries greater than or equal to the key we searched for. */
-        WT_ERR_NOTFOUND_OK(ret, true);
-        if (ret == WT_NOTFOUND)
-            goto done;
-    }
+
     /* Bailing out here also means we have no history store records for our key. */
     WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_counter));
     if (hs_btree_id != btree_id)
@@ -799,33 +777,6 @@ __hs_delete_key_from_ts_int(
 done:
     ret = 0;
 err:
-    __wt_scr_free(session, &srch_key);
-    return (ret);
-}
-
-/*
- * __wt_hs_delete_key_from_ts --
- *     Delete history store content of a given key from a timestamp.
- */
-int
-__wt_hs_delete_key_from_ts(
-  WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
-{
-    WT_DECL_RET;
-
-    /* If the operation can't open new handles, it should have figured that out before here. */
-    WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
-
-    /* The tree structure can change while we try to insert the mod list, retry if that happens. */
-    do {
-        WT_WITH_BTREE(session, CUR2BT(session->hs_cursor),
-          (ret = __hs_delete_key_from_ts_int(session, btree_id, key, ts, reinsert)));
-        if (ret == WT_RESTART) {
-            WT_STAT_CONN_INCR(session, cache_hs_insert_restart);
-            WT_STAT_DATA_INCR(session, cache_hs_insert_restart);
-        }
-    } while (ret == WT_RESTART);
-
     return (ret);
 }
 
