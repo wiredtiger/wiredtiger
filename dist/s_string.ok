@@ -724,6 +724,7 @@ dup
 eee
 eg
 egrep
+el
 emp
 encodings
 encryptor
@@ -1018,6 +1019,7 @@ metadata's
 metafile
 mfence
 minorp
+mips
 mkdir
 mmap
 mmrand
