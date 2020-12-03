@@ -30,7 +30,7 @@ usage() {
 	echo "    -j parallel  jobs to execute in parallel (defaults to 8)"
 	echo "    -n total     total jobs to execute (defaults to no limit)"
 	echo "    -R           run timing stress split test configurations (defaults to off)"
-        echo "    -r           record with UndoDB (defaults to off)"
+	echo "    -r           record with UndoDB (defaults to off)"
 	echo "    -S           run smoke-test configurations (defaults to off)"
 	echo "    -t minutes   minutes to run (defaults to no limit)"
 	echo "    -v           verbose output (defaults to off)"
