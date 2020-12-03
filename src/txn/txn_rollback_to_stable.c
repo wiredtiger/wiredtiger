@@ -7,7 +7,8 @@
  */
 
 #include "wt_internal.h"
-
+#define WT_RECOVERY_VALID_TXNID(session, txnid) \
+    (F_ISSET(S2C(session), WT_CONN_RECOVERING) && txnid >= S2C(session)->recovery_ckpt_snap_min)
 /*
  * __rollback_abort_newer_update --
  *     Abort updates in an update change with timestamps newer than the rollback timestamp. Also,
@@ -160,7 +161,7 @@ __rollback_check_if_txnid_committed(WT_SESSION_IMPL *session, uint64_t txnid)
 
     /*
      * Return false when the recovery snapshot count is 0, which means there is no uncommitted
-     * transaction ids to compare with
+     * transaction ids.
      */
     if (conn->recovery_ckpt_snapshot_count == 0)
         return false;
@@ -315,7 +316,10 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             break;
         }
 
-        /* Stop processing when we find a stable update according to the given timestamp. */
+        /*
+         * Stop processing when we find a stable update according to the given timestamp and
+         * transaction id.
+         */
         if (!__rollback_check_if_txnid_committed(session, cbt->upd_value->tw.start_txn) &&
           (hs_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RTS,
@@ -838,15 +842,13 @@ __rollback_page_needs_abort(
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &vpack.ta);
         prepared = vpack.ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
-            vpack.ta.newest_txn >= S2C(session)->recovery_ckpt_snap_min);
+          WT_RECOVERY_VALID_TXNID(session, vpack.ta.newest_txn);
     } else if (addr != NULL) {
         tag = "address";
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &addr->ta);
         prepared = addr->ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
-            addr->ta.newest_txn >= S2C(session)->recovery_ckpt_snap_min);
+          WT_RECOVERY_VALID_TXNID(session, addr->ta.newest_txn);
     }
 
     __wt_verbose(session, WT_VERB_RTS,
@@ -1286,8 +1288,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             WT_ERR_NOTFOUND_OK(ret, false);
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
-        rollback_recovery_txnid = F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
-          rollback_txnid > S2C(session)->recovery_ckpt_snap_min;
+        rollback_recovery_txnid = WT_RECOVERY_VALID_TXNID(session, rollback_txnid);
 
         /*
          * The rollback to stable will skip the tables during recovery and shutdown in the following
