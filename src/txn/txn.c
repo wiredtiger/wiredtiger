@@ -1263,7 +1263,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
          */
         op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
         upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
-        if (op_zero_ts != upd_zero_ts &&
+        if (!F_ISSET(txn, WT_TXN_TS_DURABLE_MIXED) && op_zero_ts != upd_zero_ts &&
           !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DS)) {
             WT_ERR(__wt_verbose_dump_update(session, upd));
             WT_ERR(__wt_verbose_dump_txn_one(session, session, EINVAL,
