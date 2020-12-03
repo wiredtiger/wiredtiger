@@ -251,7 +251,6 @@ __curhs_reset(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, CUR2BT(file_cursor));
 
     ret = file_cursor->reset(file_cursor);
-    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
     hs_cursor->btree_id = 0;
     hs_cursor->datastore_key.data = NULL;
@@ -781,7 +780,7 @@ err:
         __wt_free(session, hs_tombstone);
         WT_TRET(cursor->reset(cursor));
     }
-    
+
     API_END_RET(session, ret);
 }
 
