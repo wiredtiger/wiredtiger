@@ -713,12 +713,14 @@ retry:
         goto retry;
     WT_ERR(ret);
 
+    /* Insert doesn't maintain a position across calls, clear resources. */
     if (0) {
 err:
+        F_CLR(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         __wt_free(session, hs_tombstone);
         __wt_free(session, hs_upd);
     }
-
+    WT_TRET(__cursor_reset(cbt));
     API_END_RET(session, ret);
 }
 
@@ -843,13 +845,13 @@ __curhs_update(WT_CURSOR *cursor)
     /* Connect the tombstone to the update. */
     hs_tombstone->next = hs_upd;
 
-    /* Insert the updates and if we fail, search and try again. */
+    /* Update the updates and if we fail, search and try again. */
     while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
-        WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, true));
+        WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
         WT_ERR(ret);
     }
 
-    /* Insert doesn't maintain a position across calls, clear resources. */
+    /* History store update doesn't maintain a position across calls, clear resources. */
     if (0) {
 err:
         F_CLR(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
