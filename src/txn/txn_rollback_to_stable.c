@@ -7,7 +7,8 @@
  */
 
 #include "wt_internal.h"
-#define WT_RECOVERY_VALID_TXNID(session, txnid) \
+
+#define WT_ROLLBACK_CHECK_RECOVERYFLAG_TXNID(session, txnid) \
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) && txnid >= S2C(session)->recovery_ckpt_snap_min)
 /*
  * __rollback_abort_newer_update --
@@ -842,13 +843,13 @@ __rollback_page_needs_abort(
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &vpack.ta);
         prepared = vpack.ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          WT_RECOVERY_VALID_TXNID(session, vpack.ta.newest_txn);
+          WT_ROLLBACK_CHECK_RECOVERYFLAG_TXNID(session, vpack.ta.newest_txn);
     } else if (addr != NULL) {
         tag = "address";
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &addr->ta);
         prepared = addr->ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          WT_RECOVERY_VALID_TXNID(session, addr->ta.newest_txn);
+          WT_ROLLBACK_CHECK_RECOVERYFLAG_TXNID(session, addr->ta.newest_txn);
     }
 
     __wt_verbose(session, WT_VERB_RTS,
@@ -1288,7 +1289,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             WT_ERR_NOTFOUND_OK(ret, false);
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
-        rollback_recovery_txnid = WT_RECOVERY_VALID_TXNID(session, rollback_txnid);
+        rollback_recovery_txnid = F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+          rollback_txnid > S2C(session)->recovery_ckpt_snap_min;
 
         /*
          * The rollback to stable will skip the tables during recovery and shutdown in the following
