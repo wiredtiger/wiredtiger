@@ -798,6 +798,7 @@ __curhs_update(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone, *hs_upd;
+    bool retry;
 
     uint64_t hs_upd_type;
     wt_timestamp_t hs_durable_ts, hs_stop_durable_ts;
@@ -806,6 +807,7 @@ __curhs_update(WT_CURSOR *cursor)
     file_cursor = hs_cursor->file_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
     hs_tombstone = hs_upd = NULL;
+    retry = false;
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, update, CUR2BT(file_cursor));
 
@@ -857,20 +859,26 @@ __curhs_update(WT_CURSOR *cursor)
     /* Connect the tombstone to the update. */
     hs_tombstone->next = hs_upd;
 
-    /* Update the updates and if we fail, search and try again. */
+    /* Make the updates and if we fail, search and try again. */
     while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
+        WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
+        WT_ERR(ret);
+        retry = true;
+    }
+
+    /* If we retry, search again to point to the updated value. */
+    if (retry) {
         WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
         WT_ERR(ret);
     }
 
-    /* History store update doesn't maintain a position across calls, clear resources. */
     if (0) {
 err:
         __wt_free(session, hs_tombstone);
         __wt_free(session, hs_upd);
         __wt_scr_free(session, &hs_value);
+        WT_TRET(cursor->reset(cursor));
     }
-    WT_TRET(cursor->reset(cursor));
     API_END_RET(session, ret);
 }
 
