@@ -1348,6 +1348,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    size_t retries;
 
     conn = S2C(session);
     cache = conn->cache;
@@ -1357,7 +1358,8 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
      * for all active evictions to complete and give us a better chance of passing the rollback to
      * stable check.
      */
-    if (F_ISSET(cache, WT_CACHE_EVICT_ALL))
+#define WT_RTS_EVICT_MAX_RETRIES 5
+    for (retries = 0; retries < WT_RTS_EVICT_MAX_RETRIES && F_ISSET(cache, WT_CACHE_EVICT_ALL); ++retries)
         WT_RET(__rollback_evict_exclusive_toggle(session));
 
     WT_RET(__rollback_to_stable_check(session));
