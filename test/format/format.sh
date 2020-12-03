@@ -17,8 +17,8 @@ onintr()
 trap 'onintr' 2
 
 usage() {
-	echo "usage: $0 [-aEFRrSv] [-b format-binary] [-c config] [-e env-var]"
-	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [format-configuration]"
+	echo "usage: $0 [-aEFRSv] [-b format-binary] [-c config] [-e env-var]"
+	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-R live-record-binary] [-t minutes] [format-configuration]"
 	echo
 	echo "    -a           abort/recovery testing (defaults to off)"
 	echo "    -b binary    format binary (defaults to "./t")"
@@ -30,7 +30,7 @@ usage() {
 	echo "    -j parallel  jobs to execute in parallel (defaults to 8)"
 	echo "    -n total     total jobs to execute (defaults to no limit)"
 	echo "    -R           run timing stress split test configurations (defaults to off)"
-	echo "    -r           record with UndoDB (defaults to off)"
+	echo "    -r binary    record with UndoDB (defaults to no recording)"
 	echo "    -S           run smoke-test configurations (defaults to off)"
 	echo "    -t minutes   minutes to run (defaults to no limit)"
 	echo "    -v           verbose output (defaults to off)"
@@ -77,7 +77,7 @@ format_args=""
 home="."
 minutes=0
 parallel_jobs=8
-record=""
+live_record_binary=""
 skip_errors=0
 smoke_test=0
 timing_stress_split_test=0
@@ -126,12 +126,12 @@ while :; do
 		timing_stress_split_test=1
 		shift ;;
         -r)
-                record=live-record
-                if ! [ $(command -v live-record) ]; then
-                    echo "$name: -r option requires live-record binary in PATH"
-                    exit 1
-                fi
-                shift ;;
+		live_record_binary="$2"
+		if ! [ $(command -v "$live_record_binary") ]; then
+			echo "$name: -r option argument \"${live_record_binary}\" does not exist in path"
+			exit 1
+		fi
+		shift; shift ;;
 	-S)
 		smoke_test=1
 		shift ;;
@@ -460,7 +460,7 @@ format()
 		echo "$name: starting job in $dir ($(date))"
 	fi
 
-	cmd="$record $format_binary -c "$config" -h "$dir" -1 $args quiet=1"
+	cmd="$live_record_binary $format_binary -c "$config" -h "$dir" -1 $args quiet=1"
 	echo "$name: $cmd"
 
 	# Disassociate the command from the shell script so we can exit and let the command
