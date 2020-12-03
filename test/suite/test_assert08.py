@@ -46,26 +46,55 @@ class test_assert08(wttest.WiredTigerTestCase):
         self.session.create(self.uri, self.create_config)
         cursor = self.session.open_cursor(self.uri)
 
+        # The error pattern that we expect when violating mixed-mode validation.
+        error_pattern = 'out of order durable timestamps'
+
+        # A few inserts in regular timestamp order.
         self.session.begin_transaction()
         for i in range(1, self.nrows):
             cursor[i] = 'a'
-        self.session.commit_transaction()
-
-        self.session.begin_transaction()
-        for i in range(1, self.nrows):
-            cursor[i] = 'b'
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
         self.session.begin_transaction()
         for i in range(1, self.nrows):
-            cursor[i] = 'c'
+            cursor[i] = 'b'
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
 
+        # Try to commit at 15.
+        # Since we just committed at 20, this should fail validation.
+        self.session.begin_transaction()
+        for i in range(1, self.nrows):
+            cursor[i] = 'z'
+        with self.expectedStderrPattern(error_pattern):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction(
+                    'commit_timestamp=' + timestamp_str(15)))
+
+        # Committing at 30 is fine since it's past 20.
+        self.session.begin_transaction()
+        for i in range(1, self.nrows):
+            cursor[i] = 'c'
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(30))
+
+        self.session.begin_transaction()
+        for i in range(1, self.nrows):
+            cursor[i] = 'z'
+        with self.expectedStderrPattern(error_pattern):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: self.session.commit_transaction(
+                    'commit_timestamp=' + timestamp_str(5)))
+
+        # Allow a non-timestamped commit.
+        #
+        # This is the allowance we're making compared with the `key_consistent` setting. This resets
+        # the chain.
         self.session.begin_transaction()
         for i in range(1, self.nrows):
             cursor[i] = 'd'
         self.session.commit_transaction()
 
+        # Since we've reset the chain and rendered the previous history obsolete (10, 20, 30, etc),
+        # we're allowed to commit back at 5.
         self.session.begin_transaction()
         for i in range(1, self.nrows):
             cursor[i] = 'e'
