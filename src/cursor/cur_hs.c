@@ -764,11 +764,16 @@ __curhs_remove(WT_CURSOR *cursor)
 
     WT_ERR(ret);
 
+    /* Invalidate the previous value but we will hold on the position of the key. */
+    F_CLR(file_cursor, WT_CURSTD_VALUE_SET);
+
     if (0) {
 err:
+        F_CLR(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         __wt_free(session, hs_tombstone);
+        WT_TRET(__cursor_reset(cbt));
     }
-
+    
     API_END_RET(session, ret);
 }
 
