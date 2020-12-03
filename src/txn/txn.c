@@ -1195,7 +1195,14 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
     /*
      * If we're not doing any key consistency checking, we're done.
      */
-    if (!F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS | WT_TXN_TS_DURABLE_KEYS))
+    if (!F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS | WT_TXN_TS_DURABLE_KEYS | WT_TXN_TS_DURABLE_MIXED))
+        return (0);
+
+    /*
+     * If we're allowing mixed mode operations and the user has made a non-timestamped update, we
+     * have nothing to check here.
+     */
+    if (F_ISSET(txn, WT_TXN_TS_DURABLE_MIXED) && txn->durable_timestamp == WT_TS_NONE)
         return (0);
 
     /*
@@ -1277,7 +1284,8 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
             op_timestamp = txn->commit_timestamp;
         if (F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS) && op_timestamp < prev_op_timestamp)
             WT_ERR_MSG(session, EINVAL, "out of order commit timestamps");
-        if (F_ISSET(txn, WT_TXN_TS_DURABLE_KEYS) && txn->durable_timestamp < durable_op_timestamp)
+        if (F_ISSET(txn, WT_TXN_TS_DURABLE_KEYS | WT_TXN_TS_DURABLE_MIXED) &&
+          txn->durable_timestamp < durable_op_timestamp)
             WT_ERR_MSG(session, EINVAL, "out of order durable timestamps");
     }
 

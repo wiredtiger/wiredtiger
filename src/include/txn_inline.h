@@ -87,6 +87,8 @@ __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
         F_SET(session->txn, WT_TXN_TS_DURABLE_ALWAYS);
     if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_KEYS))
         F_SET(session->txn, WT_TXN_TS_DURABLE_KEYS);
+    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_MIXED))
+        F_SET(session->txn, WT_TXN_TS_DURABLE_MIXED);
     if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_NEVER))
         F_SET(session->txn, WT_TXN_TS_DURABLE_NEVER);
 }

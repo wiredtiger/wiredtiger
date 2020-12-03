@@ -427,6 +427,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         FLD_SET(btree->assert_flags, WT_ASSERT_COMMIT_TS_ALWAYS | WT_ASSERT_DURABLE_TS_ALWAYS);
     else if (WT_STRING_MATCH("key_consistent", cval.str, cval.len))
         FLD_SET(btree->assert_flags, WT_ASSERT_DURABLE_TS_KEYS);
+    else if (WT_STRING_MATCH("mixed_mode", cval.str, cval.len))
+        FLD_SET(btree->assert_flags, WT_ASSERT_DURABLE_TS_MIXED);
     else if (WT_STRING_MATCH("never", cval.str, cval.len))
         FLD_SET(btree->assert_flags, WT_ASSERT_DURABLE_TS_NEVER);
 
