@@ -58,6 +58,8 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /* Can't do history store eviction for history store itself or for metadata. */
     WT_ASSERT(
       session, !LF_ISSET(WT_REC_HS) || (!WT_IS_HS(btree) && !WT_IS_METADATA(btree->dhandle)));
+    /* Flag as unused for non diagnostic builds. */
+    WT_UNUSED(btree);
 
     /* It's an error to be called with a clean page. */
     WT_ASSERT(session, __wt_page_is_modified(page));
@@ -2281,10 +2283,12 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     btree = S2BT(session);
 
     /*
-     * Sanity check: Can't insert into history store for history store itself or from the metadata
-     * file.
+     * Sanity check: Can't insert updates into history store from the history store itself or from
+     * the metadata file.
      */
     WT_ASSERT(session, !WT_IS_HS(btree) && !WT_IS_METADATA(btree->dhandle));
+    /* Flag as unused for non diagnostic builds. */
+    WT_UNUSED(btree);
 
     /* Check if there's work to do. */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
