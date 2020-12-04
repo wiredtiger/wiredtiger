@@ -965,7 +965,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
 
             insert_cursor->set_key(insert_cursor, btree_id, key, WT_TS_NONE, hs_insert_counter);
             insert_cursor->set_value(insert_cursor, &hs_insert_tw, WT_TS_NONE, WT_TS_NONE,
-              (uint64_t)hs_upd_type, hs_value);
+              (uint64_t)hs_upd_type, &hs_value);
             WT_ERR(insert_cursor->insert(insert_cursor));
             WT_STAT_CONN_INCR(session, cache_hs_insert);
             WT_STAT_DATA_INCR(session, cache_hs_insert);
