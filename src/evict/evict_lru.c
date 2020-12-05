@@ -2366,7 +2366,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
          *
          * Don't check timeout for internal sessions as some operations like recovery and rollback
          * to stable may take a long time and the default timeout may not be long enough. Also these
-         * operations are running with exclusive access, they should be able to continue and finish.
+         * operations are running with exclusive access and they should be able to continue and finish.
          *
          * Additionally we don't return rollback which could confuse the caller.
          */
