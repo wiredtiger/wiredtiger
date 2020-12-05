@@ -349,7 +349,7 @@ err:
     __wt_free(session, cjoin->entries);
     __wt_cursor_close(cursor);
 
-    CURSOR_API_END_RET(session, NULL, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -545,7 +545,7 @@ __curjoin_extract_insert(WT_CURSOR *cursor)
         cextract->ismember = true;
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -694,7 +694,7 @@ __curjoin_get_key(WT_CURSOR *cursor, ...)
     va_end(ap);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -721,7 +721,7 @@ __curjoin_get_value(WT_CURSOR *cursor, ...)
     va_end(ap);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1063,7 +1063,7 @@ __curjoin_next(WT_CURSOR *cursor)
 err:
         F_SET(cjoin, WT_CURJOIN_ERROR);
     }
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1146,7 +1146,7 @@ __curjoin_reset(WT_CURSOR *cursor)
         WT_ERR(__curjoin_iter_reset(cjoin->iter));
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*

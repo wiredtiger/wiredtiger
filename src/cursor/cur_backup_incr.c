@@ -214,7 +214,7 @@ done:
 err:
     F_SET(cursor, raw);
     __wt_scr_free(session, &buf);
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*

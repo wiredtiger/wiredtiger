@@ -443,5 +443,5 @@ __wt_session_compact_readonly(WT_SESSION *wt_session, const char *uri, const cha
     WT_STAT_CONN_INCR(session, session_table_compact_fail);
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }

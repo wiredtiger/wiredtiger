@@ -77,7 +77,7 @@
         if ((config) != NULL)                                             \
     WT_ERR(__wt_config_check((s), WT_CONFIG_REF(session, h##_##n), (config), 0))
 
-#define API_END(s, cur, ret)                                 \
+#define API_END(s, ret)                                      \
     if ((s) != NULL) {                                       \
         WT_TRACK_OP_END(s);                                  \
         WT_SINGLE_THREAD_CHECK_STOP(s);                      \
@@ -121,8 +121,8 @@
             F_SET((s)->txn, WT_TXN_UPDATE);
 
 /* End a transactional API call, optional retry on deadlock. */
-#define TXN_API_END_RETRY(s, cur, ret, retry)                      \
-    API_END(s, cur, ret);                                          \
+#define TXN_API_END_RETRY(s, ret, retry)                           \
+    API_END(s, ret);                                               \
     if (__update)                                                  \
         F_CLR((s)->txn, WT_TXN_UPDATE);                            \
     if (__autotxn) {                                               \
@@ -146,18 +146,18 @@
     while (1)
 
 /* End a transactional API call, retry on deadlock. */
-#define TXN_API_END(s, cur, ret) TXN_API_END_RETRY(s, cur, ret, 1)
+#define TXN_API_END(s, ret) TXN_API_END_RETRY(s, ret, 1)
 
 /*
  * In almost all cases, API_END is returning immediately, make it simple. If a session or connection
  * method is about to return WT_NOTFOUND (some underlying object was not found), map it to ENOENT,
  * only cursor methods return WT_NOTFOUND.
  */
-#define API_END_RET(s, cur, ret) \
-    API_END(s, cur, ret);        \
+#define API_END_RET(s, ret) \
+    API_END(s, ret);        \
     return (ret)
 #define API_END_RET_NOTFOUND_MAP(s, ret) \
-    API_END(s, NULL, ret);               \
+    API_END(s, ret);                     \
     return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
 
 /*
@@ -166,7 +166,7 @@
  * ENOENT.
  */
 #define API_END_RET_NO_TXN_ERROR(s, ret) \
-    API_END(s, NULL, 0);                 \
+    API_END(s, 0);                       \
     return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
 
 #define CONNECTION_API_CALL(conn, s, n, config, cfg) \
@@ -176,8 +176,6 @@
 #define CONNECTION_API_CALL_NOCONF(conn, s, n) \
     s = (conn)->default_session;               \
     API_CALL_NOCONF(s, NULL, WT_CONNECTION, n, NULL)
-
-#define CONNECTION_API_END_RET(s, ret) API_END_RET(s, NULL, ret)
 
 #define SESSION_API_CALL_PREPARE_ALLOWED(s, n, config, cfg) \
     API_CALL(s, NULL, WT_SESSION, n, NULL, config, cfg)
@@ -210,8 +208,6 @@
 #define SESSION_TXN_API_CALL(s, n, config, cfg)  \
     SESSION_API_PREPARE_CHECK(s, WT_SESSION, n); \
     TXN_API_CALL(s, NULL, WT_SESSION, n, NULL, config, cfg)
-
-#define SESSION_API_END_RET(s, ret) API_END_RET(s, NULL, ret)
 
 #define CURSOR_API_CALL(cur, s, n, bt)                                                          \
     (s) = (WT_SESSION_IMPL *)(cur)->session;                                                    \
@@ -266,9 +262,7 @@
     CURSOR_UPDATE_API_CALL(cur, s, n);             \
     JOINABLE_CURSOR_CALL_CHECK(cur)
 
-#define CURSOR_UPDATE_API_END(s, cur, ret) \
-    if ((ret) == WT_PREPARE_CONFLICT)      \
-        (ret) = WT_ROLLBACK;               \
-    TXN_API_END(s, cur, ret)
-
-#define CURSOR_API_END_RET(s, cur, ret) API_END_RET(s, cur, ret)
+#define CURSOR_UPDATE_API_END(s, ret) \
+    if ((ret) == WT_PREPARE_CONFLICT) \
+        (ret) = WT_ROLLBACK;          \
+    TXN_API_END(s, ret)

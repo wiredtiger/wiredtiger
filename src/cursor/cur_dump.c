@@ -109,7 +109,7 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
     }
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -191,7 +191,7 @@ err:
         cursor->saved_err = ret;
         F_CLR(cursor, WT_CURSTD_KEY_SET);
     }
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -258,7 +258,7 @@ __curdump_get_value(WT_CURSOR *cursor, ...)
     }
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -296,7 +296,7 @@ err:
         cursor->saved_err = ret;
         F_CLR(cursor, WT_CURSTD_VALUE_SET);
     }
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -369,7 +369,7 @@ err:
     __wt_json_close(session, cursor);
     __wt_cursor_close(cursor);
 
-    CURSOR_API_END_RET(session, NULL, ret);
+    API_END_RET(session, ret);
 }
 
 /*

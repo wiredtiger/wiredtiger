@@ -42,7 +42,7 @@ __curfile_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     ret = __wt_btcur_compare((WT_CURSOR_BTREE *)a, (WT_CURSOR_BTREE *)b, cmpp);
 
 err:
-    CURSOR_API_END_RET(session, a, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -72,7 +72,7 @@ __curfile_equals(WT_CURSOR *a, WT_CURSOR *b, int *equalp)
     ret = __wt_btcur_equals((WT_CURSOR_BTREE *)a, (WT_CURSOR_BTREE *)b, equalp);
 
 err:
-    CURSOR_API_END_RET(session, a, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -98,7 +98,7 @@ __curfile_next(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -125,7 +125,7 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -151,7 +151,7 @@ __curfile_prev(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -177,7 +177,7 @@ __curfile_reset(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -208,7 +208,7 @@ __curfile_search(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -239,7 +239,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -279,7 +279,7 @@ __curfile_insert(WT_CURSOR *cursor)
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:
-    CURSOR_UPDATE_API_END(session, cursor, ret);
+    CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
 
@@ -307,7 +307,7 @@ __wt_curfile_insert_check(WT_CURSOR *cursor)
  * Detecting a conflict should not cause transaction error.
  */
 err:
-    CURSOR_UPDATE_API_END(session, cursor, ret);
+    CURSOR_UPDATE_API_END(session, ret);
     WT_TRET(tret);
     return (ret);
 }
@@ -342,7 +342,7 @@ __curfile_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) != 0);
 
 err:
-    CURSOR_UPDATE_API_END(session, cursor, ret);
+    CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
 
@@ -375,7 +375,7 @@ __curfile_update(WT_CURSOR *cursor)
         F_MASK(cursor, WT_CURSTD_VALUE_SET) == WT_CURSTD_VALUE_INT);
 
 err:
-    CURSOR_UPDATE_API_END(session, cursor, ret);
+    CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
 
@@ -423,7 +423,7 @@ __curfile_remove(WT_CURSOR *cursor)
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:
-    CURSOR_UPDATE_API_END(session, cursor, ret);
+    CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
 
@@ -456,7 +456,7 @@ __curfile_reserve(WT_CURSOR *cursor)
     WT_ASSERT(session, F_MASK(cursor, WT_CURSTD_VALUE_SET) == 0);
 
 err:
-    CURSOR_UPDATE_API_END(session, cursor, ret);
+    CURSOR_UPDATE_API_END(session, ret);
 
     /*
      * The application might do a WT_CURSOR.get_value call when we return, so we need a value and
@@ -526,7 +526,7 @@ err:
     }
 
 done:
-    CURSOR_API_END_RET(session, NULL, ret);
+    API_END_RET(session, ret);
 }
 
 /*

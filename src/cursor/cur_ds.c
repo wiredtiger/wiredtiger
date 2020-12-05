@@ -134,7 +134,7 @@ __curds_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
     }
 
 err:
-    CURSOR_API_END_RET(session, a, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -159,7 +159,7 @@ __curds_next(WT_CURSOR *cursor)
     ret = __curds_cursor_resolve(cursor, source->next(source));
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -184,7 +184,7 @@ __curds_prev(WT_CURSOR *cursor)
     ret = __curds_cursor_resolve(cursor, source->prev(source));
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -210,7 +210,7 @@ __curds_reset(WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -235,7 +235,7 @@ __curds_search(WT_CURSOR *cursor)
     ret = __curds_cursor_resolve(cursor, source->search(source));
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -260,7 +260,7 @@ __curds_search_near(WT_CURSOR *cursor, int *exact)
     ret = __curds_cursor_resolve(cursor, source->search_near(source, exact));
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -288,7 +288,7 @@ __curds_insert(WT_CURSOR *cursor)
     ret = __curds_cursor_resolve(cursor, source->insert(source));
 
 err:
-    CURSOR_UPDATE_API_END(session, cursor, ret);
+    CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
 
@@ -317,7 +317,7 @@ __curds_update(WT_CURSOR *cursor)
     ret = __curds_cursor_resolve(cursor, source->update(source));
 
 err:
-    CURSOR_UPDATE_API_END(session, cursor, ret);
+    CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
 
@@ -345,7 +345,7 @@ __curds_remove(WT_CURSOR *cursor)
     ret = __curds_cursor_resolve(cursor, source->remove(source));
 
 err:
-    CURSOR_UPDATE_API_END(session, cursor, ret);
+    CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
 
@@ -371,7 +371,7 @@ __curds_reserve(WT_CURSOR *cursor)
     ret = __curds_cursor_resolve(cursor, source->reserve(source));
 
 err:
-    CURSOR_UPDATE_API_END(session, cursor, ret);
+    CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
 
@@ -408,7 +408,7 @@ err:
 
     __wt_cursor_close(cursor);
 
-    CURSOR_API_END_RET(session, NULL, ret);
+    API_END_RET(session, ret);
 }
 
 /*

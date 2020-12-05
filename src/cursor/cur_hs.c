@@ -166,7 +166,7 @@ err:
     __wt_scr_free(session, &datastore_key);
     __wt_cursor_close(cursor);
 
-    CURSOR_API_END_RET(session, NULL, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -194,7 +194,7 @@ __curhs_reset(WT_CURSOR *cursor)
     hs_cursor->flags = 0;
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -526,7 +526,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
 done:
 err:
     __wt_scr_free(session, &srch_key);
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -660,7 +660,7 @@ err:
         __wt_free(session, hs_upd);
     }
 
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -708,7 +708,7 @@ err:
         __wt_free(session, hs_tombstone);
     }
 
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*

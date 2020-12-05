@@ -140,7 +140,7 @@ __curbackup_next(WT_CURSOR *cursor)
     F_SET(cursor, WT_CURSTD_KEY_INT);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -162,7 +162,7 @@ __curbackup_reset(WT_CURSOR *cursor)
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -234,7 +234,7 @@ err:
     __wt_cursor_close(cursor);
     session->bkp_cursor = NULL;
 
-    CURSOR_API_END_RET(session, NULL, ret);
+    API_END_RET(session, ret);
 }
 
 /*

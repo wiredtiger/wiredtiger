@@ -671,7 +671,7 @@ __session_alter_readonly(WT_SESSION *wt_session, const char *uri, const char *co
     WT_STAT_CONN_INCR(session, session_table_alter_fail);
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -755,7 +755,7 @@ __session_create_readonly(WT_SESSION *wt_session, const char *uri, const char *c
     WT_STAT_CONN_INCR(session, session_table_create_fail);
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -793,7 +793,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
     ret = __wt_log_flush(session, flags);
 
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -813,7 +813,7 @@ __session_log_flush_readonly(WT_SESSION *wt_session, const char *config)
 
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -836,7 +836,7 @@ __session_log_printf(WT_SESSION *wt_session, const char *fmt, ...)
     va_end(ap);
 
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -857,7 +857,7 @@ __session_log_printf_readonly(WT_SESSION *wt_session, const char *fmt, ...)
 
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -909,7 +909,7 @@ __session_rename_readonly(
     WT_STAT_CONN_INCR(session, session_table_rename_fail);
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1021,7 +1021,7 @@ __session_drop_readonly(WT_SESSION *wt_session, const char *uri, const char *con
     WT_STAT_CONN_INCR(session, session_table_drop_fail);
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1198,7 +1198,7 @@ __session_salvage_readonly(WT_SESSION *wt_session, const char *uri, const char *
     WT_STAT_CONN_INCR(session, session_table_salvage_fail);
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1373,7 +1373,7 @@ __session_truncate(
         WT_ERR(__wt_session_range_truncate(session, uri, start, stop));
 
 err:
-    TXN_API_END_RETRY(session, NULL, ret, 0);
+    TXN_API_END_RETRY(session, ret, 0);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, session_table_truncate_fail);
@@ -1407,7 +1407,7 @@ __session_truncate_readonly(
     WT_STAT_CONN_INCR(session, session_table_truncate_fail);
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1454,7 +1454,7 @@ __session_upgrade_readonly(WT_SESSION *wt_session, const char *uri, const char *
 
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1504,7 +1504,7 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
     ret = __wt_txn_begin(session, cfg);
 
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1560,7 +1560,7 @@ err:
         F_CLR(session, WT_SESSION_RESOLVING_TXN);
     }
 
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1585,7 +1585,7 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
     F_CLR(session, WT_SESSION_RESOLVING_TXN);
 
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1605,7 +1605,7 @@ __session_prepare_transaction_readonly(WT_SESSION *wt_session, const char *confi
 
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1638,7 +1638,7 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
     F_CLR(session, WT_SESSION_RESOLVING_TXN);
 
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1661,7 +1661,7 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
 
     ret = __wt_txn_set_timestamp(session, cfg);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1679,7 +1679,7 @@ __session_query_timestamp(WT_SESSION *wt_session, char *hex_timestamp, const cha
 
     ret = __wt_txn_query_timestamp(session, hex_timestamp, cfg, false);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1711,7 +1711,7 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
         *prange = S2C(session)->txn_global.current - pinned;
 
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1799,7 +1799,7 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
     }
 
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1819,7 +1819,7 @@ __session_transaction_sync_readonly(WT_SESSION *wt_session, const char *config)
 
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -1879,7 +1879,7 @@ __session_checkpoint_readonly(WT_SESSION *wt_session, const char *config)
 
     ret = __wt_session_notsup(session);
 err:
-    SESSION_API_END_RET(session, ret);
+    API_END_RET(session, ret);
 }
 
 /*

@@ -77,7 +77,7 @@ __curlog_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
         *cmpp =
           (acl->step_count != bcl->step_count ? (acl->step_count < bcl->step_count ? -1 : 1) : 0);
 err:
-    CURSOR_API_END_RET(session, a, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -219,7 +219,7 @@ __curlog_next(WT_CURSOR *cursor)
     WT_STAT_DATA_INCR(session, cursor_next);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -257,7 +257,7 @@ __curlog_search(WT_CURSOR *cursor)
 
 err:
     F_SET(cursor, raw);
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -279,7 +279,7 @@ __curlog_reset(WT_CURSOR *cursor)
     WT_INIT_LSN(cl->next_lsn);
 
 err:
-    CURSOR_API_END_RET(session, cursor, ret);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -314,7 +314,7 @@ err:
 
     __wt_cursor_close(cursor);
 
-    CURSOR_API_END_RET(session, NULL, ret);
+    API_END_RET(session, ret);
 }
 
 /*
