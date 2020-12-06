@@ -873,7 +873,7 @@ __wt_txn_read_upd_list(
 
         /*
          * Save the prepared update to help us detect if we race with prepared commit or rollback
-         * irrespective of update visiblity.
+         * irrespective of update visibility.
          */
         if ((prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
           prepare_updp != NULL && *prepare_updp == NULL &&
