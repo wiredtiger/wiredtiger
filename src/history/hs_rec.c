@@ -128,7 +128,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      * timestamp. Otherwise the newly inserting history store record may fall behind the existing
      * one can lead to wrong order.
      */
-    cursor->set_key(cursor, btree->id, key, start_time_point->ts);
+    cursor->set_key(cursor, 3, btree->id, key, start_time_point->ts);
     WT_ERR_NOTFOUND_OK(cursor->search_near(cursor, &cmp), true);
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
@@ -195,7 +195,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     hs_insert_tw.stop_txn = stop_time_point->txnid;
     hs_insert_tw.durable_stop_ts = stop_time_point->durable_ts;
 
-    cursor->set_key(cursor, btree->id, key, start_time_point->ts, counter);
+    cursor->set_key(cursor, 4, btree->id, key, start_time_point->ts, counter);
     cursor->set_value(cursor, &hs_insert_tw, stop_time_point->durable_ts,
       start_time_point->durable_ts, (uint64_t)type, hs_value);
     WT_ERR(cursor->insert(cursor));
@@ -677,7 +677,7 @@ __wt_hs_delete_key_from_ts(
 
     hs_cursor = session->hs_cursor;
 
-    hs_cursor->set_key(hs_cursor, btree_id, key, ts);
+    hs_cursor->set_key(hs_cursor, 2, btree_id, key, ts);
     WT_ERR_NOTFOUND_OK(hs_cursor->search_near(hs_cursor, &exact), true);
     /* Empty history store is fine. */
     if (ret == WT_NOTFOUND)
@@ -902,7 +902,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
          */
         WT_WITHOUT_DHANDLE(session, ret = __wt_curhs_open(session, NULL, &insert_cursor));
         WT_ERR(ret);
-        insert_cursor->set_key(insert_cursor, btree_id, key, WT_TS_NONE);
+        insert_cursor->set_key(insert_cursor, 3, btree_id, key, WT_TS_NONE);
         WT_ERR_NOTFOUND_OK(insert_cursor->search_near(insert_cursor, &cmp), true);
 
         if (ret == WT_NOTFOUND) {
@@ -963,7 +963,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
             hs_insert_tw.durable_stop_ts = WT_TS_NONE;
             hs_insert_tw.stop_txn = hs_cbt->upd_value->tw.stop_txn;
 
-            insert_cursor->set_key(insert_cursor, btree_id, key, WT_TS_NONE, hs_insert_counter);
+            insert_cursor->set_key(insert_cursor, 4, btree_id, key, WT_TS_NONE, hs_insert_counter);
             insert_cursor->set_value(insert_cursor, &hs_insert_tw, WT_TS_NONE, WT_TS_NONE,
               (uint64_t)hs_upd_type, &hs_value);
             WT_ERR(insert_cursor->insert(insert_cursor));
