@@ -269,8 +269,8 @@ read:
              *
              * Don't check timeout for internal sessions as some operations like recovery and
              * rollback to stable may take a long time and the default timeout may not be long
-             * enough. Also these operations are running with exclusive access and they should be able
-             * to continue and finish.
+             * enough. Also these operations are running with exclusive access and they should be
+             * able to continue and finish.
              */
             if (ret != 0) {
                 if (!F_ISSET(session, WT_SESSION_INTERNAL) && __wt_op_timer_fired(session))
