@@ -916,8 +916,10 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         if (cmp > 0)
             break;
     }
-    if (ret == WT_NOTFOUND)
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
         goto done;
+    }   
     WT_ERR(ret);
 
     /*
