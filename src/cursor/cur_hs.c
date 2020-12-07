@@ -349,7 +349,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         /* Stop before crossing over to the next btree. */
         if (F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET) && btree_id != hs_cursor->btree_id) {
             ret = WT_NOTFOUND;
-            goto done;
+            goto err;
         }
 
         /*
@@ -360,7 +360,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
             WT_ERR(__wt_compare(session, NULL, datastore_key, &hs_cursor->datastore_key, &cmp));
             if (cmp != 0) {
                 ret = WT_NOTFOUND;
-                goto done;
+                goto err;
             }
         }
 
@@ -388,7 +388,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
              */
             if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
                 ret = WT_NOTFOUND;
-                goto done;
+                goto err;
             } else
                 continue;
         }
@@ -398,7 +398,6 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
             break;
     }
 
-done:
 err:
     __wt_scr_free(session, &datastore_key);
     return (ret);
@@ -434,7 +433,7 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         /* Stop before crossing over to the next btree. */
         if (F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET) && btree_id != hs_cursor->btree_id) {
             ret = WT_NOTFOUND;
-            goto done;
+            goto err;
         }
 
         /*
@@ -445,7 +444,7 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
             WT_ERR(__wt_compare(session, NULL, datastore_key, &hs_cursor->datastore_key, &cmp));
             if (cmp != 0) {
                 ret = WT_NOTFOUND;
-                goto done;
+                goto err;
             }
         }
 
@@ -477,7 +476,6 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
             break;
     }
 
-done:
 err:
     __wt_scr_free(session, &datastore_key);
     return (ret);
@@ -509,11 +507,8 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     /* At least we have the btree id set. */
     WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET));
     WT_ERR(__wt_buf_set(session, srch_key, file_cursor->key.data, file_cursor->key.size));
-    WT_ERR_NOTFOUND_OK(__wt_hs_cursor_search_near(session, file_cursor, &exact), true);
-
-    /* Empty history store is fine. */
-    if (ret == WT_NOTFOUND)
-        goto done;
+    /* Reset cursor if we get WT_NOTFOUND. */
+    WT_ERR(__wt_hs_cursor_search_near(session, file_cursor, &exact));
 
     /*
      * There are some key fields missing so we are searching a range of keys. Place the cursor at
@@ -534,10 +529,10 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                 if (cmp >= 0)
                     break;
             }
-            /* No entries greater than or equal to the key we searched for. */
-            WT_ERR_NOTFOUND_OK(ret, true);
-            if (ret == WT_NOTFOUND)
-                goto done;
+            /* 
+             * No entries greater than or equal to the key we searched for. Reset cursor if we get WT_NOTFOUND.
+             */
+            WT_ERR(ret);
 
             *exactp = cmp;
         } else
@@ -592,7 +587,6 @@ err:
         WT_TRET(cursor->reset(cursor));
     }
 
-done:
     __wt_scr_free(session, &srch_key);
     API_END_RET(session, ret);
 }
