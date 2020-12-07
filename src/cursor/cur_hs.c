@@ -529,8 +529,9 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                 if (cmp >= 0)
                     break;
             }
-            /* 
-             * No entries greater than or equal to the key we searched for. Reset cursor if we get WT_NOTFOUND.
+            /*
+             * No entries greater than or equal to the key we searched for. Reset cursor if we get
+             * WT_NOTFOUND.
              */
             WT_ERR(ret);
 
@@ -863,7 +864,7 @@ __curhs_update(WT_CURSOR *cursor)
     /* If we retry, search again to point to the updated value. */
     if (retry) {
         WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
-        WT_ERR(ret);
+        WT_TRET(ret);
     }
 
     if (0) {
