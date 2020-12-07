@@ -54,7 +54,7 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
     }
 
 #ifdef HAVE_DIAGNOSTIC
-    WT_ERR(__wt_cursor_key_order_init(hs_cbt));
+    WT_TRET(__wt_cursor_key_order_init(hs_cbt));
 #endif
 
     if (0) {
