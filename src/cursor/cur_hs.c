@@ -171,7 +171,7 @@ __curhs_next(WT_CURSOR *cursor)
 
     if (0) {
 err:
-        cursor->reset(cursor);
+        WT_TRET(cursor->reset(cursor));
     }
     API_END_RET(session, ret);
 }
@@ -589,7 +589,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
 
     if (0) {
 err:
-        cursor->reset(cursor);
+        WT_TRET(cursor->reset(cursor));
     }
 
 done:
