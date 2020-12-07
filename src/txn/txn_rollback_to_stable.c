@@ -1293,7 +1293,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
           rollback_txnid > S2C(session)->recovery_ckpt_snap_min;
 
         /* Increment the inconsistent checkpoint stats counter. */
-        if (rollback_txnid > S2C(session)->recovery_ckpt_snap_min) {
+        if (rollback_recovery_txnid) {
             WT_STAT_CONN_INCR(session, txn_rts_inconsistent_ckpt);
             WT_STAT_DATA_INCR(session, txn_rts_inconsistent_ckpt);
         }
