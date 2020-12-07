@@ -658,6 +658,7 @@ connection_stats = [
     TxnStat('txn_rts_pages_visited', 'rollback to stable pages visited'),
     TxnStat('txn_rts_tree_walk_skip_pages', 'rollback to stable tree walk skipping pages'),
     TxnStat('txn_rts_sweep_hs_keys', 'rollback to stable sweeping history store keys'),
+    TxnStat('txn_rts_inconsistent_ckpt', 'rollback to stable inconsistent checkpoint'),
     TxnStat('txn_rts_upd_aborted', 'rollback to stable updates aborted'),
     TxnStat('txn_set_ts', 'set timestamp calls'),
     TxnStat('txn_set_ts_durable', 'set timestamp durable calls'),
@@ -943,6 +944,7 @@ dsrc_stats = [
     TxnStat('txn_rts_keys_removed', 'rollback to stable keys removed'),
     TxnStat('txn_rts_keys_restored', 'rollback to stable keys restored'),
     TxnStat('txn_rts_sweep_hs_keys', 'rollback to stable sweeping history store keys'),
+    TxnStat('txn_rts_inconsistent_ckpt', 'rollback to stable inconsistent checkpoint'),
     TxnStat('txn_update_conflict', 'update conflicts'),
 ]
 
