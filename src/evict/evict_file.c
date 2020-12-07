@@ -63,10 +63,14 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
          * the write will fail with EBUSY. Our caller handles that error, retrying later.
          */
         if (syncop == WT_SYNC_CLOSE && __wt_page_is_modified(page)) {
+            /*
+             * When setting the reconciliation flags, remember to not enable history store eviction
+             * for the history store file itself. Also metadata file doesn't have any associated
+             * history.
+             */
             rec_flags = WT_REC_EVICT | WT_REC_CLEAN_AFTER_REC | WT_REC_VISIBLE_ALL;
             if (!WT_IS_HS(btree) && !WT_IS_METADATA(dhandle))
                 rec_flags |= WT_REC_HS;
-
             WT_ERR(__wt_reconcile(session, ref, NULL, rec_flags));
         }
 
