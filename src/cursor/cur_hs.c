@@ -624,15 +624,22 @@ __curhs_get_key(WT_CURSOR *cursor, ...)
     WT_CURSOR *file_cursor;
     WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
+    WT_ITEM **usr_key;
+    wt_timestamp_t *start_ts;
+    uint64_t *counter;
+    uint32_t *btree_id;
     va_list ap;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
 
     va_start(ap, cursor);
-    ret = file_cursor->get_key(file_cursor, va_arg(ap, uint32_t *), va_arg(ap, WT_ITEM **),
-      va_arg(ap, wt_timestamp_t *), va_arg(ap, uint64_t *));
+    btree_id = va_arg(ap, uint32_t *);
+    usr_key = va_arg(ap, WT_ITEM **);
+    start_ts = va_arg(ap, wt_timestamp_t *);
+    counter = va_arg(ap, uint64_t *);
     va_end(ap);
+    ret = file_cursor->get_key(file_cursor, btree_id, usr_key, start_ts, counter);
 
     return (ret);
 }
