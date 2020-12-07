@@ -656,13 +656,22 @@ __curhs_get_value(WT_CURSOR *cursor, ...)
     WT_DECL_RET;
     va_list ap;
 
+    wt_timestamp_t *stop_ts;
+    wt_timestamp_t *start_ts;
+    uint64_t *type;
+    WT_ITEM **hs_val;
+
+    va_start(ap, cursor);
+    stop_ts = va_arg(ap, wt_timestamp_t *);
+    start_ts = va_arg(ap, wt_timestamp_t *);
+    type = va_arg(ap, uint64_t *);
+    hs_val = va_arg(ap, WT_ITEM **);
+    va_end(ap);
+
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
 
-    va_start(ap, cursor);
-    ret = file_cursor->get_value(file_cursor, va_arg(ap, wt_timestamp_t *),
-      va_arg(ap, wt_timestamp_t *), va_arg(ap, uint64_t *), va_arg(ap, WT_ITEM **));
-    va_end(ap);
+    ret = file_cursor->get_value(file_cursor, stop_ts, start_ts, type, hs_val);
 
     return (ret);
 }
