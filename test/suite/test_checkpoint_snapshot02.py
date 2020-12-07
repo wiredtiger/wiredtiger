@@ -34,54 +34,48 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from wiredtiger import stat
 
-# test_checkpoint_snapshot01.py
-#   Checkpoint snapshot - Create multiple sessions which creates snapshots and
-#   checkpoint to save the snapshot details in metadata file.
+# test_checkpoint_snapshot02.py
+#   This test is to run checkpoint and eviction in parallel with timing
+#   stress for checkpoint and let eviction write more data than checkpoint.
 #
 
-class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB,statistics=(fast)'
+class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
     # Create a table.
-    uri = "table:test_checkpoint_snapshot01"
-
-    nsessions = 5
-    nkeys = 40
+    uri = "table:test_checkpoint_snapshot02"
     nrows = 100
+
+    def conn_config(self):
+        config = 'cache_size=5MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
+        return config
+
+    def large_updates(self, uri, value, ds, nrows):
+        # Update a large number of records.
+        session = self.session
+        cursor = session.open_cursor(uri)
+        for i in range(0, nrows):
+            session.begin_transaction()
+            cursor[ds.key(i)] = value
+            session.commit_transaction()
+        cursor.close()
 
     def test_checkpoint_snapshot(self):
 
         ds = SimpleDataSet(self, self.uri, self.nrows, key_format="S", value_format='u')
         ds.populate()
-        value = b"aaaaa" * 100
-
-        sessions = [0] * self.nsessions
-        cursors = [0] * self.nsessions
+        value = b"aaaaa" * 200
 
         # Create a checkpoint thread
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done)
         try:
-            self.pr("start checkpoint")
+            self.pr("start checkpoint thread")
             ckpt.start()
-            for j in range (0, self.nsessions):
-                sessions[j] = self.conn.open_session()
-                cursors[j] = sessions[j].open_cursor(self.uri)
-                sessions[j].begin_transaction('isolation=snapshot')
+            self.large_updates(self.uri, value, ds, self.nrows)
 
-                start = (j * self.nkeys)
-                end = start + self.nkeys
-
-                for i in range(start, end):
-                    cursors[j].set_key(ds.key(self.nrows + i))
-                    cursors[j].set_value(value)
-                    self.assertEquals(cursors[j].insert(),0)
         finally:
             done.set()
             ckpt.join()
-
-        session_p2 = self.conn.open_session()
-        session_p2.checkpoint()
 
         #Simulate a crash by copying to a new directory(RESTART).
         copy_wiredtiger_home(".", "RESTART")
