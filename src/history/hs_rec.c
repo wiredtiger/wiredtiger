@@ -128,7 +128,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      * timestamp. Otherwise the newly inserting history store record may fall behind the existing
      * one can lead to wrong order.
      */
-    cursor->set_key(cursor, 3, btree->id, key, start_time_point->ts);
+    cursor->set_key(cursor, 3, btree->id, key, start_time_point->ts, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(cursor->search_near(cursor, &cmp), true);
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
