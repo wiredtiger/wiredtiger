@@ -127,7 +127,7 @@ while :; do
 		shift ;;
         -r)
 		live_record_binary="$2"
-		if ! [ $(command -v "$live_record_binary") ]; then
+		if [ ! $(command -v "$live_record_binary") ]; then
 			echo "$name: -r option argument \"${live_record_binary}\" does not exist in path"
 			exit 1
 		fi
