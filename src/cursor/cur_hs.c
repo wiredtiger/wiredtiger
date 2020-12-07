@@ -28,7 +28,7 @@ __hs_cursor_open_int(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
     WT_RET(ret);
 
     /* History store cursors should always ignore tombstones. */
-    F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE | WT_CURSTD_HS_CURSOR);
+    F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE | WT_CURSTD_INTERNAL);
 
     *cursorp = cursor;
     return (0);

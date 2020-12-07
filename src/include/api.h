@@ -46,24 +46,25 @@
     (s)->name = __oldname
 
 /* Standard entry points to the API: declares/initializes local variables. */
-#define API_SESSION_INIT(s, cur, h, n, dh)                                       \
-    WT_TRACK_OP_DECL;                                                            \
-    API_SESSION_PUSH(s, h, n, dh);                                               \
-    /*                                                                           \
-     * No code before this line, otherwise error handling won't be               \
-     * correct.                                                                  \
-     */                                                                          \
-    WT_ERR(WT_SESSION_CHECK_PANIC(s));                                           \
-    WT_SINGLE_THREAD_CHECK_START(s);                                             \
-    WT_TRACK_OP_INIT(s);                                                         \
-    if ((__cursor = (cur)) == NULL || !F_ISSET(__cursor, WT_CURSTD_HS_CURSOR)) { \
-        __wt_op_timer_start(s);                                                  \
-        __op_timer_started = true;                                               \
-    }                                                                            \
-                                                                                 \
-    /* Reset wait time if this isn't an API reentry. */                          \
-    if (__oldname == NULL)                                                       \
-        (s)->cache_wait_us = 0;                                                  \
+#define API_SESSION_INIT(s, cur, h, n, dh)                                      \
+    WT_TRACK_OP_DECL;                                                           \
+    API_SESSION_PUSH(s, h, n, dh);                                              \
+    /*                                                                          \
+     * No code before this line, otherwise error handling won't be              \
+     * correct.                                                                 \
+     */                                                                         \
+    WT_ERR(WT_SESSION_CHECK_PANIC(s));                                          \
+    WT_SINGLE_THREAD_CHECK_START(s);                                            \
+    WT_TRACK_OP_INIT(s);                                                        \
+    if (!F_ISSET(s, WT_SESSION_INTERNAL) &&                                     \
+      ((__cursor = (cur)) == NULL || !F_ISSET(__cursor, WT_CURSTD_INTERNAL))) { \
+        __wt_op_timer_start(s);                                                 \
+        __op_timer_started = true;                                              \
+    }                                                                           \
+                                                                                \
+    /* Reset wait time if this isn't an API reentry. */                         \
+    if (__oldname == NULL)                                                      \
+        (s)->cache_wait_us = 0;                                                 \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #h ":" #n)
 
 #define API_CALL_NOCONF(s, cur, h, n, dh) \
