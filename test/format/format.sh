@@ -129,6 +129,7 @@ while :; do
 		live_record_binary="$2"
 		if [ ! $(command -v "$live_record_binary") ]; then
 			echo "$name: -r option argument \"${live_record_binary}\" does not exist in path"
+			echo "$name: Usage and setup instructions can be found at: https://wiki.corp.mongodb.com/display/KERNEL/UndoDB+Usage"
 			exit 1
 		fi
 		shift; shift ;;
