@@ -283,8 +283,9 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
             WT_STAT_CONN_DECR(session, block_cache_blocks);
 	    WT_STAT_CONN_INCR(session, block_cache_blocks_removed);
 	    __wt_verbose(session, WT_VERB_BLKCACHE, "block removed from cache: "
-		 "offset=%" PRIuMAX ", size=%" PRIu32,
-		 (uintmax_t)offset, (uint32_t)size);
+			 "offset=%" PRIuMAX ", size=%" PRIu32 ", "
+			 "checksum=%" PRIu32 ", hash=%" PRIu64,
+			 (uintmax_t)offset, (uint32_t)size, checksum, hash);
             return;
         }
     }
