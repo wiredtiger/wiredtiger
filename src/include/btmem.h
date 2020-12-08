@@ -1054,6 +1054,9 @@ struct __wt_update {
 
     wt_timestamp_t durable_ts; /* timestamps */
     wt_timestamp_t start_ts;
+#ifdef HAVE_DIAGNOSTIC
+    wt_timestamp_t prev_durable_ts;
+#endif
 
     WT_UPDATE *next; /* forward-linked list */
 
@@ -1088,9 +1091,6 @@ struct __wt_update {
                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 
-#ifdef HAVE_DIAGNOSTIC
-    wt_timestamp_t prev_durable_ts;
-#endif
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
      * a C99 flexible array member which has the semantics we want.
@@ -1103,7 +1103,7 @@ struct __wt_update {
  * to ensure the compiler hasn't inserted padding.
  */
 #ifdef HAVE_DIAGNOSTIC
-#define WT_UPDATE_SIZE 48
+#define WT_UPDATE_SIZE 47
 #else
 #define WT_UPDATE_SIZE 39
 #endif
