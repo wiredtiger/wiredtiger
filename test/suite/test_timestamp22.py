@@ -214,14 +214,14 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         if commit_ts < self.oldest_ts or commit_ts < self.stable_ts:
             ok_commit = False
 
-        # ODDITY: We don't have to move the commit_ts ahead, it only has to be more than the
+        # ODDITY: We don't have to move the commit_ts ahead, but it has to be
         # at least the value of the first commit timestamp set.
         if commit_ts < first_commit_ts:
             ok_commit = False
 
         # If a prepare fails or any setting of timestamp fails, the commit fails as well.
         # ODDITY: if setting the timestamp fails, then the transaction is doomed,
-        # so we could fail any subsequent operation.  But no, they are allowed to proceed.
+        # so we could fail any subsequent operation.  But we are allowed to proceed.
         if not ok_prepare or not ok_tstxn1 or not ok_tstxn2:
             ok_commit = False
 
