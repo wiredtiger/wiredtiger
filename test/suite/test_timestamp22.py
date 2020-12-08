@@ -38,8 +38,10 @@ def timestamp_str(t):
 class test_timestamp22(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
     session_config = 'isolation=snapshot'
-    iterations = 1000
-    nrows = 10
+
+    # Keep the number of rows low, as each additional row does
+    # not test any new code paths.
+    nrows = 3
     uri = "table:test_timestamp22"
     rand = suite_random.suite_random()
     oldest_ts = 0
@@ -51,8 +53,15 @@ class test_timestamp22(wttest.WiredTigerTestCase):
     # Usage:
     #  with self.expect(self.FAILURE, 'some operation'):
     #     some_operation()  # In this case, we expect it will fail
+    #
+    # "expected" argument can be self.SUCCESS, self.FAILURE, True, False, for convenience.
     @contextmanager
     def expect(self, expected, message):
+        if expected == True:
+            expected = self.SUCCESS
+        elif expected == False:
+            expected = self.FAILURE
+
         self.pr('TRYING: ' + message + ', expect ' + expected)
         got = None
         # If there are stray error messages from a previous operation,
@@ -83,8 +92,8 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         self.assertEquals(expected, got)
 
     # Create a predictable value based on the iteration number and timestamp.
-    def gen_value(self, iter, ts):
-        return str(iter) + '_' + str(ts) + '_' + 'x' * 1000
+    def gen_value(self, iternum, ts):
+        return str(iternum) + '_' + str(ts) + '_' + 'x' * 1000
 
     # Given a number representing an "approximate timestamp", generate a timestamp
     # that is near that number, either plus or minus.
@@ -105,33 +114,117 @@ class test_timestamp22(wttest.WiredTigerTestCase):
 
     # Insert a set of rows, each insert in its own transaction, with the
     # given timestamps.
-    def updates(self, value, ds, do_prepare, commit_ts, durable_ts):
+    def updates(self, value, ds, do_prepare, commit_ts, durable_ts, read_ts):
+
+        # Generate a configuration for a timestamp_transaction() call.
+        # Returns: 1) whether it expects success, 2) config 3) new running commit timestamp
+        def timestamp_txn_config(commit_ts, running_commit_ts):
+            ok = True
+            config = ''
+            this_commit_ts = -1
+            if self.do_illegal():
+                # setting durable timestamp must be after prepare call
+                config += ',durable_timestamp=' + timestamp_str(self.gen_ts(commit_ts))
+                ok = False
+
+            # ODDITY: if we set the durable timestamp (which is illegal at this point), and set a
+            # valid commit timestamp, the timestamp_transaction() call will fail, but apparently,
+            # only the durable part fails.  The evidence is that the commit timestamp is set,
+            # as we get a complaint to that effect at the prepare call.  The issue is described
+            # in WT-6995.  This seems wrong, and it's hard to work around the problem, so we'll just
+            # avoid testing that situation for now.  Hence the check for a blank configuration.
+            if self.rand.rand32() % 2 == 0 and config == '':
+                if self.do_illegal():
+                    this_commit_ts = self.oldest_ts - 1
+                elif self.do_illegal():
+                    this_commit_ts = self.stable_ts - 1
+                else:
+                    # It's possible this will succeed, we'll check below.
+                    this_commit_ts = self.gen_ts(commit_ts)
+                config += ',commit_timestamp=' + timestamp_str(this_commit_ts)
+
+            if this_commit_ts >= 0:
+                if this_commit_ts < running_commit_ts:
+                    ok = False
+                if this_commit_ts < self.stable_ts:
+                    ok = False
+                if this_commit_ts < self.oldest_ts:
+                    ok = False
+            if not ok:
+                this_commit_ts = -1
+            if this_commit_ts >= 0:
+                running_commit_ts = this_commit_ts
+            return (ok, config, running_commit_ts)
+
         session = self.session
         needs_rollback = False
         prepare_config = None
         commit_config = 'commit_timestamp=' + timestamp_str(commit_ts)
+        tstxn1_config = ''
+        tstxn2_config = ''
 
-        bad_commit = not do_prepare and self.do_illegal()
-        bad_prepare = False
+        ok_commit = do_prepare or not self.do_illegal()
+        ok_prepare = True
+        ok_tstxn1 = True
+        ok_tstxn2 = True
+
         # Occasionally put a durable timestamp on a commit without a prepare,
         # that will be an error.
-        if do_prepare or bad_commit:
+        if do_prepare or not ok_commit:
             commit_config += ',durable_timestamp=' + timestamp_str(durable_ts)
         cursor = session.open_cursor(self.uri)
         prepare_ts = self.gen_ts(commit_ts)
         prepare_config = 'prepare_timestamp=' + timestamp_str(prepare_ts)
+        begin_config = '' if read_ts < 0 else 'read_timestamp=' + timestamp_str(read_ts)
 
-        # Predict whether the commit and optional prepare will fail.
-        if commit_ts < self.oldest_ts or commit_ts < self.stable_ts:
-            bad_commit = True
+        # We might do a timestamp_transaction calls either before/after inserting
+        # values, or both.
+        do_tstxn1 = (self.rand.rand32() % 10 == 0)
+        do_tstxn2 = (self.rand.rand32() % 10 == 0)
+
+        # Keep track of the commit timestamp that we'll set through the transaction.
+        # If it decreases, it will trigger an error.  At the final commit_transaction
+        # operation, we'll use the commit_ts.
+        running_commit_ts = -1
+        first_commit_ts = -1
+
+        if do_tstxn1:
+            (ok_tstxn1, tstxn1_config, running_commit_ts) = \
+                timestamp_txn_config(commit_ts, running_commit_ts)
+            if first_commit_ts < 0:
+                first_commit_ts = running_commit_ts
+
+        if do_tstxn2:
+            (ok_tstxn2, tstxn2_config, running_commit_ts) = \
+                timestamp_txn_config(commit_ts, running_commit_ts)
+            if first_commit_ts < 0:
+                first_commit_ts = running_commit_ts
+
+        if running_commit_ts >= 0 and do_prepare:
+            # Cannot set prepare timestamp after commit timestamp is successfully set.
+            ok_prepare = False
+
         if do_prepare:
             if commit_ts < prepare_ts:
-                bad_commit = True
+                ok_commit = False
             if prepare_ts < self.oldest_ts:
-                bad_prepare = True
-            # If the prepare fails, the commit will as well.
-            if bad_prepare:
-                bad_commit = True
+                ok_prepare = False
+
+        # If the final commit is too old, we'll fail.
+        if commit_ts < self.oldest_ts or commit_ts < self.stable_ts:
+            ok_commit = False
+
+        # ODDITY: We don't have to move the commit_ts ahead, it only has to be more than the
+        # at least the value of the first commit timestamp set.
+        if commit_ts < first_commit_ts:
+            ok_commit = False
+
+        # If a prepare fails or any setting of timestamp fails, the commit fails as well.
+        # ODDITY: if setting the timestamp fails, then the transaction is doomed,
+        # so we could fail any subsequent operation.  But no, they are allowed to proceed.
+        if not ok_prepare or not ok_tstxn1 or not ok_tstxn2:
+            ok_commit = False
+
         msg = 'inserts with commit config(' + commit_config + ')'
 
         try:
@@ -140,29 +233,40 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                 if self.do_illegal():
                     # Illegal outside of transaction
                     self.report('prepare_transaction', prepare_config)
-                    with self.expect(self.FAILURE, 'prepare outside of transaction'):
+                    with self.expect(False, 'prepare outside of transaction'):
                         session.prepare_transaction(prepare_config)
 
-                with self.expect(self.SUCCESS, 'begin_transaction'):
+                with self.expect(True, 'begin_transaction(' + begin_config + ')'):
                     session.begin_transaction()
                     needs_rollback = True
 
+                if do_tstxn1:
+                    with self.expect(ok_tstxn1, 'timestamp_transaction(' + tstxn1_config + ')'):
+                        session.timestamp_transaction(tstxn1_config)
+
                 self.report('set key/value')
-                with self.expect(self.SUCCESS, 'cursor insert'):
+                with self.expect(True, 'cursor insert'):
                     cursor[ds.key(i)] = value
+
+                if do_tstxn2:
+                    with self.expect(ok_tstxn2, 'timestamp_transaction(' + tstxn2_config + ')'):
+                        session.timestamp_transaction(tstxn2_config)
 
                 if do_prepare:
                     self.report('prepare_transaction', prepare_config)
-                    with self.expect(self.FAILURE if bad_prepare else self.SUCCESS, 'prepare'):
+                    with self.expect(ok_prepare, 'prepare'):
                         session.prepare_transaction(prepare_config)
+
+                # Doing anything else after the prepare, like a timestamp_transaction(), will fail
+                # with a WT panic.  Don't do that, or else we can't do anything more in this test.
 
                 # If we did a successful prepare and are set up (by virtue of bad timestamps)
                 # to do a bad commit, WT will panic, and the test cannot continue.
                 # Only proceed with the commit if we have don't have that particular case.
-                if not bad_commit or not do_prepare or bad_prepare:
+                if ok_commit or not do_prepare or not ok_prepare:
                     needs_rollback = False
                     self.report('commit_transaction', commit_config)
-                    with self.expect(self.FAILURE if bad_commit else self.SUCCESS, 'commit'):
+                    with self.expect(ok_commit, 'commit'):
                         session.commit_transaction(commit_config)
                         self.commit_value = value
                 if needs_rollback:
@@ -179,32 +283,51 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             session.rollback_transaction()
         cursor.close()
 
-    def make_timestamp_config(self, oldest, stable):
-        config = ''
-        if oldest >= 0:
-            config = 'oldest_timestamp=' + timestamp_str(oldest)
-        if stable >= 0:
-            if config != '':
-                config += ','
-            config += 'stable_timestamp=' + timestamp_str(stable)
-        return config
+    def make_timestamp_config(self, oldest, stable, commit, durable):
+        configs = []
+        # Get list of 'oldest_timestamp=value' etc. that have non-negative values.
+        for ts_name in ['oldest', 'stable', 'commit', 'durable']:
+            val = eval(ts_name)
+            if val >= 0:
+                configs.append(ts_name + '_timestamp=' + timestamp_str(val))
+        return ','.join(configs)
 
     # Determine whether we expect the set_timestamp to succeed.
-    def expected_result_set_timestamp(self, oldest, stable):
+    def expected_result_set_timestamp(self, oldest, stable, commit, durable):
+
+        # Update the current expected value.  ts is the timestamp being set.
+        # If "ts" is negative, ignore it, it's not being set in this call.
+        # It is unexpected if "ts" is before the "before" timestamp.
+        # The "before" timestamp could be updated during this call
+        # with value "before_arg", if not, use the global value for "before".
+        def expected_newer(expected, ts, before_arg, before_global):
+            if expected and ts >= 0:
+                if before_arg >= 0:
+                    if before_arg > ts:
+                        expected = self.FAILURE
+                else:
+                    if before_global > ts:
+                        expected = self.FAILURE
+            return expected
+
         expected = self.SUCCESS
-        if oldest >= 0:
-            if stable >= 0:
-                if oldest > stable:
-                    expected = self.FAILURE
-            elif oldest > self.stable_ts:
-                expected = self.FAILURE
-        elif stable >= 0 and self.oldest_ts > stable:
-            expected = self.FAILURE
+        if oldest >= 0 and stable < 0:
+            expected = expected_newer(expected, self.stable_ts, oldest, self.oldest_ts)
+        expected = expected_newer(expected, stable, oldest, self.oldest_ts)
+        expected = expected_newer(expected, commit, oldest, self.oldest_ts)
+        expected = expected_newer(expected, commit, stable, self.stable_ts)
+
+        # If commit timestamp is set, durable timestamp is ignored.  This seems to be
+        # a temporary situation, see TODO in txn_timestamp.c.
+        if commit < 0:
+            expected = expected_newer(expected, durable, oldest, self.oldest_ts)
+            expected = expected_newer(expected, durable, stable, self.stable_ts)
+
         return expected
 
-    def set_global_timestamps(self, oldest, stable):
-        config = self.make_timestamp_config(oldest, stable)
-        expected = self.expected_result_set_timestamp(oldest, stable)
+    def set_global_timestamps(self, oldest, stable, commit, durable):
+        config = self.make_timestamp_config(oldest, stable, commit, durable)
+        expected = self.expected_result_set_timestamp(oldest, stable, commit, durable)
 
         with self.expect(expected, 'set_timestamp(' + config + ')'):
             self.conn.set_timestamp(config)
@@ -235,10 +358,22 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             self.cleanStderr()
 
     def test_timestamp(self):
+        # Local function to generate a random timestamp, or return -1
+        def maybe_ts(do_gen, iternum):
+            if do_gen:
+                return self.gen_ts(iternum)
+            else:
+                return -1
+
+        if wttest.islongtest():
+            iterations = 100000
+        else:
+            iterations = 1000
+
         create_params = 'value_format=S,key_format=i'
         self.session.create(self.uri, create_params)
 
-        self.set_global_timestamps(1, 1)
+        self.set_global_timestamps(1, 1, -1, -1)
 
         # Create tables with no entries
         ds = SimpleDataSet(
@@ -246,18 +381,22 @@ class test_timestamp22(wttest.WiredTigerTestCase):
 
         # We do a bunch of iterations, doing transactions, prepare, and global timestamp calls
         # with timestamps that are sometimes valid, sometimes not. We use the iteration number
-        # as a "approximate timestamp", and generate timestamps for our calls that are near
+        # as an "approximate timestamp", and generate timestamps for our calls that are near
         # that number (within 10).  Thus, as the test runs, the timestamps generally get larger.
         # We always know the state of global timestamps, so we can predict the success/failure
-        # or each call.
+        # on each call.
         self.commit_value = '<NOT_SET>'
-        for iter in range(1, self.iterations):
-            self.pr('\n===== ITERATION ' + str(iter) + '/' + str(self.iterations))
+        for iternum in range(1, iterations):
+            self.pr('\n===== ITERATION ' + str(iternum) + '/' + str(iterations))
             self.pr('RANDOM: ({0},{1})'.format(self.rand.seedw,self.rand.seedz))
             if self.rand.rand32() % 10 != 0:
-                commit_ts = self.gen_ts(iter)
-                durable_ts = self.gen_ts(iter)
+                commit_ts = self.gen_ts(iternum)
+                durable_ts = self.gen_ts(iternum)
                 do_prepare = (self.rand.rand32() % 20 == 0)
+                if self.rand.rand32() % 2 == 0:
+                    read_ts = self.gen_ts(iternum)
+                else:
+                    read_ts = -1   # no read_timestamp used in txn
                 if do_prepare:
                     # If we doing a prepare, we must abide by some additional rules.
                     # If we don't we'll immediately panic
@@ -265,19 +404,17 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                         commit_ts = self.oldest_ts
                     if durable_ts < commit_ts:
                         durable_ts = commit_ts
-                value = self.gen_value(iter, commit_ts)
-                self.updates(value, ds, do_prepare, commit_ts, durable_ts)
+                value = self.gen_value(iternum, commit_ts)
+                self.updates(value, ds, do_prepare, commit_ts, durable_ts, read_ts)
 
-            r = self.rand.rand32() % 5
-            if r == 0:
-                # Set both global timestamps
-                self.set_global_timestamps(self.gen_ts(iter), self.gen_ts(iter))
-            elif r == 1:
-                # Set oldest timestamp
-                self.set_global_timestamps(self.gen_ts(iter), -1)
-            elif r == 2:
-                # Set stable timestamp
-                self.set_global_timestamps(-1, self.gen_ts(iter))
+            if self.rand.rand32() % 2 == 0:
+                # Set some combination of the global timestamps
+                r = self.rand.rand32() % 16
+                oldest = maybe_ts((r & 0x1) != 0, iternum)
+                stable = maybe_ts((r & 0x2) != 0, iternum)
+                commit = maybe_ts((r & 0x4) != 0, iternum)
+                durable = maybe_ts((r & 0x8) != 0, iternum)
+                self.set_global_timestamps(oldest, stable, commit, durable)
 
         # Make sure the resulting rows are what we expect.
         cursor = self.session.open_cursor(self.uri)
