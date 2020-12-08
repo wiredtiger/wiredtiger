@@ -121,7 +121,7 @@ struct __wt_data_handle {
 #define WT_DHANDLE_TS_ALWAYS 0x010u                  /* Handle using always checking. */
 #define WT_DHANDLE_TS_KEY_CONSISTENT 0x020u          /* Handle using key consistency checking. */
 #define WT_DHANDLE_TS_MIXED_MODE 0x040u /* Handle using mixed mode timestamps checking. */
-#define WT_DHANDLE_TS_NEVER 0x080u      /* Handle not using timestamps checking. */
+#define WT_DHANDLE_TS_NEVER 0x080u      /* Handle never using timestamps checking. */
 #define WT_DHANDLE_TS_ORDERED 0x100u    /* Handle using ordered timestamps checking. */
 #define WT_DHANDLE_VERB_TS_WRITE 0x200u /* Handle verbose logging for timestamps usage. */
                                         /* AUTOMATIC FLAG VALUE GENERATION STOP */
