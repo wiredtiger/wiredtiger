@@ -24,8 +24,7 @@ typedef struct {
 static int __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   uint32_t btree_id, const WT_ITEM *key, bool reinsert);
 static int __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
-  WT_BTREE *btree, const WT_ITEM *key, wt_timestamp_t ts, uint64_t *hs_counter,
-  const WT_ITEM *srch_key);
+  WT_BTREE *btree, const WT_ITEM *key, wt_timestamp_t ts, uint64_t *hs_counter);
 
 /*
  * __hs_verbose_cache_stats --
@@ -86,7 +85,6 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     WT_CURSOR_BTREE *hs_cbt;
 #endif
     WT_DECL_ITEM(hs_key);
-    WT_DECL_ITEM(srch_key);
     WT_TIME_WINDOW hs_insert_tw;
 #ifdef HAVE_DIAGNOSTIC
     WT_DECL_ITEM(existing_val);
@@ -106,7 +104,6 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
 
     /* Allocate buffers for the history store and search key. */
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
-    WT_ERR(__wt_scr_alloc(session, 0, &srch_key));
 
 #ifdef HAVE_DIAGNOSTIC
     /* Allocate buffer for the existing history store value for the same key. */
@@ -168,7 +165,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
         WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
         if (ret == 0)
             WT_ERR(__hs_fixup_out_of_order_from_pos(
-              session, cursor, btree, key, start_time_point->ts, &counter, srch_key));
+              session, cursor, btree, key, start_time_point->ts, &counter));
     }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -207,7 +204,6 @@ err:
     __wt_scr_free(session, &existing_val);
 #endif
     __wt_scr_free(session, &hs_key);
-    __wt_scr_free(session, &srch_key);
     /* We did a row search, release the cursor so that the page doesn't continue being held. */
     cursor->reset(cursor);
 
@@ -707,7 +703,7 @@ err:
  */
 static int
 __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTREE *btree,
-  const WT_ITEM *key, wt_timestamp_t ts, uint64_t *counter, const WT_ITEM *srch_key)
+  const WT_ITEM *key, wt_timestamp_t ts, uint64_t *counter)
 {
     WT_CURSOR *insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
@@ -741,8 +737,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * next key and we'll break out of the first iteration in one of the conditions below.
          */
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
-        WT_ERR(__wt_compare(session, NULL, &hs_key, srch_key, &cmp));
-        if (cmp > 0)
+        if (hs_ts > ts)
             break;
     }
     if (ret == WT_NOTFOUND)
