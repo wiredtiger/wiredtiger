@@ -995,12 +995,9 @@ struct __wt_session {
 	 * object blocks from the system buffer cache after that many bytes from this object are
 	 * read or written into the buffer cache., an integer greater than or equal to 0; default \c
 	 * 0.}
-	 * @config{verbose = (, enable messages for various events., a set of related configuration
-	 * options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_timestamp, enable verify
-	 * that commit timestamps are used per the configured <code>write_timestamp</code> option
-	 * for this table., a boolean flag; default \c false.}
-	 * @config{ ),,}
+	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
+	 * as <code>"verbose=[write_timestamp]"</code>., a list\, with values chosen from the
+	 * following options: \c "write_timestamp"; default \c [].}
 	 * @config{write_timestamp, describe how timestamps are expected to be used on modifications
 	 * to the table.  The hint can be used to log verbose messages and/or enforce expected
 	 * usage.  The choices are <code>always</code> to ensure a timestamp is used for every
@@ -1234,12 +1231,9 @@ struct __wt_session {
 	 * applications use a WT_ITEM structure to manipulate raw byte arrays.  Value items of type
 	 * 't' are bitfields\, and when configured with record number type keys\, will be stored
 	 * using a fixed-length store., a format string; default \c u.}
-	 * @config{verbose = (, enable messages for various events., a set of related configuration
-	 * options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_timestamp, enable verify
-	 * that commit timestamps are used per the configured <code>write_timestamp</code> option
-	 * for this table., a boolean flag; default \c false.}
-	 * @config{ ),,}
+	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
+	 * as <code>"verbose=[write_timestamp]"</code>., a list\, with values chosen from the
+	 * following options: \c "write_timestamp"; default \c [].}
 	 * @config{write_timestamp, describe how timestamps are expected to be used on modifications
 	 * to the table.  The hint can be used to log verbose messages and/or enforce expected
 	 * usage.  The choices are <code>always</code> to ensure a timestamp is used for every
@@ -2164,7 +2158,7 @@ struct __wt_connection {
 	 * "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "overflow"\, \c "read"\, \c "reconcile"\,
 	 * \c "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c
 	 * "split"\, \c "temporary"\, \c "thread_group"\, \c "timestamp"\, \c "transaction"\, \c
-	 * "verify"\, \c "version"\, \c "write"; default empty.}
+	 * "verify"\, \c "version"\, \c "write"; default \c [].}
 	 * @configend
 	 * @errors
 	 */
@@ -2881,7 +2875,7 @@ struct __wt_connection {
  * "history_store"\, \c "history_store_activity"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c
  * "mutex"\, \c "overflow"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\,
  * \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c "thread_group"\,
- * \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default empty.}
+ * \c "timestamp"\, \c "transaction"\, \c "verify"\, \c "version"\, \c "write"; default \c [].}
  * @config{verify_metadata, open connection and verify any WiredTiger metadata.  This API allows
  * verification and detection of corruption in WiredTiger metadata., a boolean flag; default \c
  * false.}

@@ -416,8 +416,9 @@ err:
 static int
 __conn_dhandle_config_parse(WT_SESSION_IMPL *session)
 {
-    WT_CONFIG_ITEM cval;
+    WT_CONFIG_ITEM cval, sval;
     WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
     const char **cfg;
 
     dhandle = session->dhandle;
@@ -453,9 +454,10 @@ __conn_dhandle_config_parse(WT_SESSION_IMPL *session)
         FLD_SET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_READ_NEVER);
 
     /* Setup verbose options */
-    WT_RET(__wt_config_gets(session, cfg, "verbose.write_timestamp", &cval));
-    if (cval.val != 0)
+    WT_RET(__wt_config_gets(session, cfg, "verbose", &cval));
+    if ((ret = __wt_config_subgets(session, &cval, "write_timestamp", &sval)) == 0 && sval.val != 0)
         FLD_SET(dhandle->ts_flags, WT_DHANDLE_VERB_TS_WRITE);
+    WT_RET_NOTFOUND_OK(ret);
 
     return (0);
 }
