@@ -1007,7 +1007,8 @@ struct __wt_session {
 	 * <code>ordered</code> except that updates with no timestamp are allowed and have the
 	 * effect of resetting the chain of updates once transaction ID based snapshot is no longer
 	 * relevant., a string\, chosen from the following options: \c "always"\, \c
-	 * "key_consistent"\, \c "mixed_mode"\, \c "never"\, \c "ordered"; default \c never.}
+	 * "key_consistent"\, \c "mixed_mode"\, \c "never"\, \c "none"\, \c "ordered"; default \c
+	 * none.}
 	 * @configend
 	 * @errors
 	 */
@@ -1243,7 +1244,8 @@ struct __wt_session {
 	 * <code>ordered</code> except that updates with no timestamp are allowed and have the
 	 * effect of resetting the chain of updates once transaction ID based snapshot is no longer
 	 * relevant., a string\, chosen from the following options: \c "always"\, \c
-	 * "key_consistent"\, \c "mixed_mode"\, \c "never"\, \c "ordered"; default \c never.}
+	 * "key_consistent"\, \c "mixed_mode"\, \c "never"\, \c "none"\, \c "ordered"; default \c
+	 * none.}
 	 * @configend
 	 * @errors
 	 */

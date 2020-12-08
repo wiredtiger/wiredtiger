@@ -45,7 +45,7 @@ class Config:
 common_runtime_config = [
     Config('app_metadata', '', r'''
         application-owned metadata for this object'''),
-    Config('write_timestamp', 'never', r'''
+    Config('write_timestamp', 'none', r'''
         describe how timestamps are expected to be used on modifications
         to the table. The hint can be used to log verbose messages and/or
         enforce expected usage. The choices are <code>always</code> to ensure
@@ -56,7 +56,7 @@ common_runtime_config = [
         <code>mixed_mode</code> <code>ordered</code> except that updates with
         no timestamp are allowed and have the effect of resetting the chain of
         updates once transaction ID based snapshot is no longer relevant.''',
-        choices=['always', 'key_consistent', 'mixed_mode', 'never', 'ordered']),
+        choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none', 'ordered']),
     Config('assert', '', r'''
         enable enhanced checking. ''',
         type='category', subconfig= [
