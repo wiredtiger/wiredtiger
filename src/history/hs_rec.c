@@ -782,15 +782,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
         if (cmp != 0)
             break;
-        /*
-         * If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it.
-         */
-        if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw)) {
-            WT_STAT_CONN_INCR(session, cursor_next_hs_tombstone);
-            WT_STAT_DATA_INCR(session, cursor_next_hs_tombstone);
-            continue;
-        }
+
         /*
          * If we got here, we've got out-of-order updates in the history store.
          *
@@ -933,17 +925,6 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
         WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
         if (cmp != 0)
             break;
-
-        /*
-         * If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it.
-         */
-        if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw)) {
-            WT_STAT_CONN_INCR(session, cursor_next_hs_tombstone);
-            WT_STAT_DATA_INCR(session, cursor_next_hs_tombstone);
-            continue;
-        }
-
         if (reinsert) {
             WT_ERR(hs_cursor->get_value(
               hs_cursor, &hs_stop_durable_ts, &durable_timestamp, &hs_upd_type, &hs_value));
