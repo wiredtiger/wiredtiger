@@ -43,7 +43,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
     # Create a table.
     uri = "table:test_checkpoint_snapshot02"
-    nrows = 100
+    nrows = 200
 
     def conn_config(self):
         config = 'cache_size=5MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
@@ -71,6 +71,8 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         try:
             self.pr("start checkpoint thread")
             ckpt.start()
+            self.large_updates(self.uri, value, ds, self.nrows)
+            self.large_updates(self.uri, value, ds, self.nrows)
             self.large_updates(self.uri, value, ds, self.nrows)
 
         finally:
