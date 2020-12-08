@@ -357,7 +357,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         if expected == self.FAILURE:
             self.cleanStderr()
 
-    def test_timestamp(self):
+    def test_timestamp_randomizer(self):
         # Local function to generate a random timestamp, or return -1
         def maybe_ts(do_gen, iternum):
             if do_gen:
@@ -368,7 +368,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         if wttest.islongtest():
             iterations = 100000
         else:
-            iterations = 1000
+            iterations = 100
 
         create_params = 'value_format=S,key_format=i'
         self.session.create(self.uri, create_params)
