@@ -84,8 +84,8 @@ __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
     if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE_DIAGNOSTIC))
         return;
 #endif
-    if (!FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE_ALL) &&
-      !FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE_DIAGNOSTIC))
+    if (!FLD_ISSET(dhandle->ts_flags,
+          WT_DHANDLE_ASSERT_TS_WRITE_ALL | WT_DHANDLE_ASSERT_TS_WRITE_DIAGNOSTIC))
         return;
 
     if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_ALWAYS))
