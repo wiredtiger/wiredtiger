@@ -45,7 +45,7 @@ class Config:
 common_runtime_config = [
     Config('app_metadata', '', r'''
         application-owned metadata for this object'''),
-    Config('write_timestamp', 'none', r'''
+    Config('write_timestamp_usage', 'none', r'''
         describe how timestamps are expected to be used on modifications
         to the table. The hint can be used to log verbose messages and/or
         enforce expected usage. The choices are <code>always</code> to ensure
@@ -62,7 +62,7 @@ common_runtime_config = [
         type='category', subconfig= [
         Config('write_timestamp', 'none', r'''
             verify that commit timestamps are used per the configured
-            <code>write_timestamp</code> option for this table.''',
+            <code>write_timestamp_usage</code> option for this table.''',
             choices=['all', 'diagnostic', 'none']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should 'always' or 'never' be used

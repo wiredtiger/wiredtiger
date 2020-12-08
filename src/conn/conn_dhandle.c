@@ -428,7 +428,7 @@ __conn_dhandle_config_parse(WT_SESSION_IMPL *session)
     dhandle->ts_flags = 0;
 
     /* Setup timestamp usage hints */
-    WT_RET(__wt_config_gets(session, cfg, "write_timestamp", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "write_timestamp_usage", &cval));
     if (WT_STRING_MATCH("always", cval.str, cval.len))
         FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_ALWAYS);
     else if (WT_STRING_MATCH("key_consistent", cval.str, cval.len))

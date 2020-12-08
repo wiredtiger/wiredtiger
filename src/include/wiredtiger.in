@@ -998,12 +998,12 @@ struct __wt_session {
 	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
 	 * as <code>"verbose=[write_timestamp]"</code>., a list\, with values chosen from the
 	 * following options: \c "write_timestamp"; default \c [].}
-	 * @config{write_timestamp, describe how timestamps are expected to be used on modifications
-	 * to the table.  The hint can be used to log verbose messages and/or enforce expected
-	 * usage.  The choices are <code>always</code> to ensure a timestamp is used for every
-	 * operation on a table\, <code>key_consistent</code> to ensure that once timestamps are
-	 * used for a key they are always used\, <code>ordered</code> key_consistent plus subsequent
-	 * updates to each key must use increasing timestamps\, <code>mixed_mode</code>
+	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on
+	 * modifications to the table.  The hint can be used to log verbose messages and/or enforce
+	 * expected usage.  The choices are <code>always</code> to ensure a timestamp is used for
+	 * every operation on a table\, <code>key_consistent</code> to ensure that once timestamps
+	 * are used for a key they are always used\, <code>ordered</code> key_consistent plus
+	 * subsequent updates to each key must use increasing timestamps\, <code>mixed_mode</code>
 	 * <code>ordered</code> except that updates with no timestamp are allowed and have the
 	 * effect of resetting the chain of updates once transaction ID based snapshot is no longer
 	 * relevant., a string\, chosen from the following options: \c "always"\, \c
@@ -1235,12 +1235,12 @@ struct __wt_session {
 	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
 	 * as <code>"verbose=[write_timestamp]"</code>., a list\, with values chosen from the
 	 * following options: \c "write_timestamp"; default \c [].}
-	 * @config{write_timestamp, describe how timestamps are expected to be used on modifications
-	 * to the table.  The hint can be used to log verbose messages and/or enforce expected
-	 * usage.  The choices are <code>always</code> to ensure a timestamp is used for every
-	 * operation on a table\, <code>key_consistent</code> to ensure that once timestamps are
-	 * used for a key they are always used\, <code>ordered</code> key_consistent plus subsequent
-	 * updates to each key must use increasing timestamps\, <code>mixed_mode</code>
+	 * @config{write_timestamp_usage, describe how timestamps are expected to be used on
+	 * modifications to the table.  The hint can be used to log verbose messages and/or enforce
+	 * expected usage.  The choices are <code>always</code> to ensure a timestamp is used for
+	 * every operation on a table\, <code>key_consistent</code> to ensure that once timestamps
+	 * are used for a key they are always used\, <code>ordered</code> key_consistent plus
+	 * subsequent updates to each key must use increasing timestamps\, <code>mixed_mode</code>
 	 * <code>ordered</code> except that updates with no timestamp are allowed and have the
 	 * effect of resetting the chain of updates once transaction ID based snapshot is no longer
 	 * relevant., a string\, chosen from the following options: \c "always"\, \c
