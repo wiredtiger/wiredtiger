@@ -444,6 +444,8 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
         return (0);
     }
 
+    WT_RET(__wt_msg(session, "dumping the cursor page"));
+    WT_RET(__wt_debug_cursor_page(&cbt->iface, NULL));
     WT_RET_PANIC(session, EINVAL,
       "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64 " then key %" PRIu64,
       next ? "next" : "prev", cbt->lastrecno, cbt->recno);
