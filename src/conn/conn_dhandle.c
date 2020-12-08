@@ -442,8 +442,8 @@ __conn_dhandle_config_parse(WT_SESSION_IMPL *session)
 
     /* Debugging information */
     WT_RET(__wt_config_gets(session, cfg, "assert.write_timestamp", &cval));
-    if (WT_STRING_MATCH("all", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE_ALL);
+    if (WT_STRING_MATCH("on", cval.str, cval.len))
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE);
     else if (WT_STRING_MATCH("diagnostic", cval.str, cval.len))
         FLD_SET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE_DIAGNOSTIC);
 

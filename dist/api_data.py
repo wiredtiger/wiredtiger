@@ -60,10 +60,10 @@ common_runtime_config = [
     Config('assert', '', r'''
         enable enhanced checking. ''',
         type='category', subconfig= [
-        Config('write_timestamp', 'none', r'''
+        Config('write_timestamp', 'off', r'''
             verify that commit timestamps are used per the configured
-            <code>write_timestamp_usage</code> option for this table.''',
-            choices=['all', 'diagnostic', 'none']),
+            \c write_timestamp_usage option for this table.''',
+            choices=['diagnostic', 'off', 'on']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should 'always' or 'never' be used
             on reads with this table.  Verification is 'none'
