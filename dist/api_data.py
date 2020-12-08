@@ -51,8 +51,8 @@ common_runtime_config = [
         enforce expected usage. The choices are <code>always</code> to ensure
         a timestamp is used for every operation on a table,
         <code>key_consistent</code> to ensure that once timestamps are used for
-        a value they are always used, <code>ordered</code> key_consistent plus
-        subsequent updates to each value must use increasing timestamps,
+        a key they are always used, <code>ordered</code> key_consistent plus
+        subsequent updates to each key must use increasing timestamps,
         <code>mixed_mode</code> <code>ordered</code> except that updates with
         no timestamp are allowed and have the effect of resetting the chain of
         updates once transaction ID based snapshot is no longer relevant.''',
