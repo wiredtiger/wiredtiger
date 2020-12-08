@@ -150,7 +150,7 @@ err:
 
 /*
  * __rollback_check_if_txnid_non_committed --
- *     Check if the transaction id is committed.
+ *     Check if the transaction id is non committed.
  */
 static bool
 __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid)
@@ -1222,7 +1222,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     size_t addr_size;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
-    bool durable_ts_found, prepared_updates, rollback_recovery_txnid;
+    bool durable_ts_found, prepared_updates, has_txn_updates_gt_than_ckpt_snap;
 
     txn_global = &S2C(session)->txn_global;
     rollback_txnid = 0;
@@ -1256,7 +1256,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
 
         /* Find out the max durable timestamp of the object from checkpoint. */
         newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
-        durable_ts_found = prepared_updates = rollback_recovery_txnid = false;
+        durable_ts_found = prepared_updates = has_txn_updates_gt_than_ckpt_snap = false;
         WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
         __wt_config_subinit(session, &ckptconf, &cval);
         for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
@@ -1289,11 +1289,11 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             WT_ERR_NOTFOUND_OK(ret, false);
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
-        rollback_recovery_txnid = F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+        has_txn_updates_gt_than_ckpt_snap = F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
           rollback_txnid > S2C(session)->recovery_ckpt_snap_min;
 
         /* Increment the inconsistent checkpoint stats counter. */
-        if (rollback_recovery_txnid) {
+        if (has_txn_updates_gt_than_ckpt_snap) {
             WT_STAT_CONN_INCR(session, txn_rts_inconsistent_ckpt);
             WT_STAT_DATA_INCR(session, txn_rts_inconsistent_ckpt);
         }
@@ -1340,14 +1340,15 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * 4. The checkpoint newest txn is greater than snapshot min txn id
          */
         if (S2BT(session)->modified || max_durable_ts > rollback_timestamp || prepared_updates ||
-          !durable_ts_found || rollback_recovery_txnid) {
+          !durable_ts_found || has_txn_updates_gt_than_ckpt_snap) {
             __wt_verbose(session, WT_VERB_RTS,
               "tree rolled back with durable timestamp: %s, or when tree is modified: %s or "
               "prepared updates: %s or when durable time is not found: %s or txnid is greater than "
               "recovery checkpoint snap min: %s",
               __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
               S2BT(session)->modified ? "true" : "false", prepared_updates ? "true" : "false",
-              !durable_ts_found ? "true" : "false", rollback_recovery_txnid ? "true" : "false");
+              !durable_ts_found ? "true" : "false",
+              has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
             WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp));
         } else
             __wt_verbose(session, WT_VERB_RTS,

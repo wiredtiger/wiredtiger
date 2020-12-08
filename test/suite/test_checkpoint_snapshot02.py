@@ -59,11 +59,29 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             session.commit_transaction()
         cursor.close()
 
+    def check(self, check_value, uri, nrows):
+        session = self.session
+        session.begin_transaction()
+        cursor = session.open_cursor(uri)
+        count = 0
+        for k, v in cursor:
+            self.assertEqual(v, check_value)
+            count += 1
+        session.commit_transaction()
+        self.assertEqual(count, nrows)
+
     def test_checkpoint_snapshot(self):
 
-        ds = SimpleDataSet(self, self.uri, self.nrows, key_format="S", value_format='u')
+        #ds = SimpleDataSet(self, self.uri, self.nrows, key_format="S", value_format='u')
+        ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S")
         ds.populate()
-        value = b"aaaaa" * 200
+        valuea = "aaaaa" * 100
+        valueb = "bbbbb" * 100
+        valuec = "ccccc" * 100
+        valued = "ddddd" * 100
+
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
 
         # Create a checkpoint thread
         done = threading.Event()
@@ -71,9 +89,18 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         try:
             self.pr("start checkpoint thread")
             ckpt.start()
-            self.large_updates(self.uri, value, ds, self.nrows)
-            self.large_updates(self.uri, value, ds, self.nrows)
-            self.large_updates(self.uri, value, ds, self.nrows)
+
+            # Insert some data from the transaction which is running before
+            # checkpoint started
+            for i in range(0, self.nrows):
+                cursor.set_key(ds.key(i))
+                cursor.set_value(valuea)
+                self.assertEqual(cursor.insert(), 0)
+            self.session.commit_transaction()
+
+            self.large_updates(self.uri, valueb, ds, self.nrows)
+            self.large_updates(self.uri, valuec, ds, self.nrows)
+            self.large_updates(self.uri, valued, ds, self.nrows)
 
         finally:
             done.set()
@@ -86,11 +113,24 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen("RESTART")
         self.session = self.setUpSessionOpen(self.conn)
 
+        # Check the table contains the last checkpointed value.
+        self.check(valued, self.uri, self.nrows)
+
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
+        hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
+        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
+        keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
+        pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
+        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
         stat_cursor.close()
 
         self.assertGreater(inconsistent_ckpt, 0)
+        self.assertEqual(hs_removed, 0)
+        self.assertEqual(upd_aborted, 0)
+        self.assertEqual(keys_removed, 0)
+        self.assertEqual(keys_restored, 0)
+        self.assertGreaterEqual(pages_visited, 0)
 
 if __name__ == '__main__':
     wttest.run()
