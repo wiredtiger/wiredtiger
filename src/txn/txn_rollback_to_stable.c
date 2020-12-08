@@ -1362,8 +1362,11 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
     for (retries = 0; retries < WT_RTS_EVICT_MAX_RETRIES && F_ISSET(cache, WT_CACHE_EVICT_ALL);
          ++retries) {
         /* If we're retrying, pause for a second and let eviction make some progress. */
-        if (retries != 0)
+        if (retries != 0) {
+            WT_RET(
+              __wt_msg(session, "rollback_to_stable waiting for active evictions to complete"));
             __wt_sleep(1, 0);
+        }
         WT_RET(__rollback_evict_exclusive_toggle(session));
     }
 
