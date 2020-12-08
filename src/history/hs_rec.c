@@ -673,7 +673,7 @@ __wt_hs_delete_key_from_ts(
 
     hs_cursor = session->hs_cursor;
 
-    hs_cursor->set_key(hs_cursor, 2, btree_id, key, ts);
+    hs_cursor->set_key(hs_cursor, 3, btree_id, key, ts);
     WT_ERR_NOTFOUND_OK(hs_cursor->search_near(hs_cursor, &exact), true);
     /* Empty history store is fine. */
     if (ret == WT_NOTFOUND)
