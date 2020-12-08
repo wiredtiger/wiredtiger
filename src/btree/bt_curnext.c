@@ -476,7 +476,7 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     WT_ERR(__wt_scr_alloc(session, 512, &a));
     WT_ERR(__wt_scr_alloc(session, 512, &b));
 
-    WT_RET(__wt_msg(session, "dumping the cursor page"));
+    WT_ERR(__wt_msg(session, "dumping the cursor page"));
     WT_ERR(__wt_debug_cursor_page(&cbt->iface, NULL));
     WT_ERR_PANIC(session, EINVAL,
       "WT_CURSOR.%s out-of-order returns: returned key %.1024s then key %.1024s",
