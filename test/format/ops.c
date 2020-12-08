@@ -1355,6 +1355,7 @@ order_error_col:
             }
             if (0) {
 order_error_row:
+                testutil_check(__wt_debug_cursor_page(cursor, g.home_pagedump));
                 testutil_die(0, "%s returned {%.*s} then {%.*s}", which, (int)tinfo->key->size,
                   (char *)tinfo->key->data, (int)key.size, (char *)key.data);
             }
