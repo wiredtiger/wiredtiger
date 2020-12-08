@@ -737,7 +737,12 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * next key and we'll break out of the first iteration in one of the conditions below.
          */
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
+        if (hs_btree_id != btree->id)
+            break;
         if (hs_ts > ts)
+            break;
+        WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
+        if (cmp != 0)
             break;
     }
     if (ret == WT_NOTFOUND)
