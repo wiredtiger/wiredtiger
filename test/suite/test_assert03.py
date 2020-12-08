@@ -37,9 +37,9 @@ class test_assert03(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'log=(enabled)'
     base_uri = 'file:assert03.wt'
     cfg = 'key_format=S,value_format=S'
-    all = 'write_timestamp=always,assert=(write_timestamp=all)'
-    diagnostic = 'write_timestamp=never,assert=(write_timestamp=diagnostic)'
-    none = 'assert=(write_timestamp=none)'
+    all = 'write_timestamp_usage=always,assert=(write_timestamp=on)'
+    diagnostic = 'write_timestamp_usage=never,assert=(write_timestamp=diagnostic)'
+    none = 'assert=(write_timestamp=off)'
 
     def test_assert03(self):
         #if not wiredtiger.diagnostic_build():
