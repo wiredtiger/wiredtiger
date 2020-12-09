@@ -33,27 +33,47 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_rollback_to_stable14
-# Test history store operations conflicting with rollback to stable. We need to ensure that we're
-# blocking eviction prior to rollback to stable.
+# Test history store operations conflicting with rollback to stable. We're trying to trigger a
+# history store eviction concurrently to a rollback to stable call. We'll do this by limiting
+# the cache size to 100MB and performing 100MB worth of inserts while periodically calling rollback
+# to stable.
 class test_rollback_to_stable14(test_rollback_to_stable_base):
+    conn_config = 'cache_size=100MB'
     session_config = 'isolation=snapshot'
     prepare = False
 
     def test_rollback_to_stable(self):
         nrows = 1000
+        nds = 10
 
-        uri = 'table:rollback_to_stable14'
-        ds = SimpleDataSet(
-            self, uri, 0, key_format='i', value_format='S', config='log=(enabled=false)')
-        ds.populate()
+        # Create a few tables and populate them with some initial data.
+        #
+        # Our way of preventing history store operations from interfering with rollback to stable's
+        # transaction check is by draining active evictions from each open dhandle.
+        #
+        # It's important that we have a few different tables to work with so that it's
+        # representative of a real situation. But also don't make the number too high relative to
+        # the number of updates or we may not have history for any of the tables.
+        ds_list = list()
+        for i in range(0, nds):
+            uri = 'table:rollback_to_stable14_{}'.format(i)
+            ds = SimpleDataSet(
+                self, uri, 0, key_format='i', value_format='S', config='log=(enabled=false)')
+            ds.populate()
+            ds_list.append(ds)
+        self.assertEqual(len(ds_list), nds)
 
+        # 100 bytes of data are being inserted into 1000 rows.
+        # This happens 1000 iterations.
+        # Overall, that's 100MB of data which is guaranteed to kick start eviction.
         for i in range(1, 1000):
-            # Generate a value and timestamp based off the index.
-            value = str(i) * 100
+            # Generate a value, timestamp and table based off the index.
+            value = str(i)[0] * 100
             ts = i * 10
+            ds = ds_list[i % nds]
 
             # Perform updates.
-            self.large_updates(uri, value, ds, nrows, ts)
+            self.large_updates(ds.uri, value, ds, nrows, ts)
 
             # Every hundred updates, lets run rollback to stable. This is likely to happen during
             # a history store eviction at least once.
