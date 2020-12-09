@@ -427,19 +427,6 @@ __conn_dhandle_config_parse(WT_SESSION_IMPL *session)
     /* Clear all the flags. */
     dhandle->ts_flags = 0;
 
-    /* Setup timestamp usage hints */
-    WT_RET(__wt_config_gets(session, cfg, "write_timestamp_usage", &cval));
-    if (WT_STRING_MATCH("always", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_ALWAYS);
-    else if (WT_STRING_MATCH("key_consistent", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT);
-    else if (WT_STRING_MATCH("mixed_mode", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_MIXED_MODE);
-    else if (WT_STRING_MATCH("never", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_NEVER);
-    else if (WT_STRING_MATCH("ordered", cval.str, cval.len))
-        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_ORDERED);
-
     /* Debugging information */
     WT_RET(__wt_config_gets(session, cfg, "assert.write_timestamp", &cval));
     if (WT_STRING_MATCH("on", cval.str, cval.len))
@@ -458,6 +445,19 @@ __conn_dhandle_config_parse(WT_SESSION_IMPL *session)
     if ((ret = __wt_config_subgets(session, &cval, "write_timestamp", &sval)) == 0 && sval.val != 0)
         FLD_SET(dhandle->ts_flags, WT_DHANDLE_VERB_TS_WRITE);
     WT_RET_NOTFOUND_OK(ret);
+
+    /* Setup timestamp usage hints */
+    WT_RET(__wt_config_gets(session, cfg, "write_timestamp_usage", &cval));
+    if (WT_STRING_MATCH("always", cval.str, cval.len))
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_ALWAYS);
+    else if (WT_STRING_MATCH("key_consistent", cval.str, cval.len))
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT);
+    else if (WT_STRING_MATCH("mixed_mode", cval.str, cval.len))
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_MIXED_MODE);
+    else if (WT_STRING_MATCH("never", cval.str, cval.len))
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_NEVER);
+    else if (WT_STRING_MATCH("ordered", cval.str, cval.len))
+        FLD_SET(dhandle->ts_flags, WT_DHANDLE_TS_ORDERED);
 
     return (0);
 }
