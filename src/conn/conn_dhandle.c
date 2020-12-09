@@ -531,7 +531,6 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         dhandle->excl_session = session;
         dhandle->excl_ref = 1;
     }
-
     F_SET(dhandle, WT_DHANDLE_OPEN);
 
     /*
