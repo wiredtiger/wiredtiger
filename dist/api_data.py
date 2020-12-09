@@ -50,7 +50,9 @@ common_runtime_config = [
         type='category', subconfig= [
         Config('write_timestamp', 'off', r'''
             verify that commit timestamps are used per the configured
-            \c write_timestamp_usage option for this table.''',
+            \c write_timestamp_usage option for this table. The \c diagnostic
+            option only performs this enhanced checking for diagnostic builds
+            whereas, \c on performs it unconditionally.''',
             choices=['diagnostic', 'off', 'on']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should 'always' or 'never' be used
