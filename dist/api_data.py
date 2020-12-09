@@ -45,18 +45,6 @@ class Config:
 common_runtime_config = [
     Config('app_metadata', '', r'''
         application-owned metadata for this object'''),
-    Config('write_timestamp_usage', 'none', r'''
-        describe how timestamps are expected to be used on modifications
-        to the table. The hint can be used to log verbose messages and/or
-        enforce expected usage. The choices are <code>always</code> to ensure
-        a timestamp is used for every operation on a table,
-        <code>key_consistent</code> to ensure that once timestamps are used for
-        a key they are always used, <code>ordered</code> key_consistent plus
-        subsequent updates to each key must use increasing timestamps,
-        <code>mixed_mode</code> <code>ordered</code> except that updates with
-        no timestamp are allowed and have the effect of resetting the chain of
-        updates once transaction ID based snapshot is no longer relevant.''',
-        choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none', 'ordered']),
     Config('assert', '', r'''
         enable enhanced checking. ''',
         type='category', subconfig= [
@@ -76,6 +64,24 @@ common_runtime_config = [
         type='list', choices=[
             'write_timestamp',
         ]),
+    Config('write_timestamp_usage', 'none', r'''
+        describe how timestamps are expected to be used on modifications to
+        the table. This option should be used in conjunction with the
+        corresponding \c write_timestamp configuration under the \c assert and
+        \c verbose options to provide logging and assertions for incorrect
+        timestamp usage. The choices are \c always which ensures a timestamp is
+        used for every operation on a table, \c key_consistent to ensure that
+        once timestamps are used for a key, are always used, \c ordered is like
+        \c key_consistent except it also enforces that subsequent updates to
+        each key must use increasing timestamps, \c mixed_mode is like
+        \c ordered except that updates with no timestamp are allowed and have
+        the effect of resetting the chain of updates once the transaction ID
+        based snapshot is no longer relevant, \c never enforces that timestamps
+        are never used for a table and \c none does not enforce any expectation
+        on timestamp usage meaning that no log message or assertions will be
+        produced regardless of the corresponding \c assert and \c verbose
+        settings.''',
+        choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none', 'ordered']),
 ]
 
 # Metadata shared by all schema objects
