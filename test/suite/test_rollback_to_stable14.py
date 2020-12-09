@@ -38,7 +38,7 @@ def timestamp_str(t):
 # the cache size to 100MB and performing 100MB worth of inserts while periodically calling rollback
 # to stable.
 class test_rollback_to_stable14(test_rollback_to_stable_base):
-    conn_config = 'cache_size=100MB'
+    conn_config = 'cache_size=100MB,statistics=(fast),statistics_log=(wait=1,json)'
     session_config = 'isolation=snapshot'
     prepare = False
 
@@ -75,7 +75,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
             # Perform updates.
             self.large_updates(ds.uri, value, ds, nrows, ts)
 
-            # Every hundred updates, lets run rollback to stable. This is likely to happen during
+            # Every hundred updates, let's run rollback to stable. This is likely to happen during
             # a history store eviction at least once.
             if i % 100 == 0:
                 # Put the timestamp backwards so we can rollback the updates we just did.
