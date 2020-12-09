@@ -36,7 +36,7 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_timestamp22(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB,statistics=(all)'
+    conn_config = 'cache_size=100MB'
     session_config = 'isolation=snapshot'
 
     # Keep the number of rows low, as each additional row does
@@ -110,7 +110,8 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         return self.rand.rand32() % 20 == 0
 
     def report(self, func, arg = None):
-        self.pr('DOING: ' + func + ('' if arg == None else '(' + arg + ')'))
+        #self.pr('DOING: ' + func + ('' if arg == None else '(' + arg + ')'))
+        pass
 
     # Insert a set of rows, each insert in its own transaction, with the
     # given timestamps.
