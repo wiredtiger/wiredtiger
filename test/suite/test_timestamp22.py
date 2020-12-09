@@ -366,7 +366,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                 return -1
 
         if wttest.islongtest():
-            iterations = 100000
+            iterations = 1000
         else:
             iterations = 100
 
