@@ -880,7 +880,7 @@ done:
 
 /*
  * __txn_commit_timestamps_usage_check --
- *     Print warning messages when encountering surprise timestamp usage.
+ *     Print warning messages when encountering unexpected timestamp usage.
  */
 static inline int
 __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd)
@@ -896,7 +896,7 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
 
 #define WT_COMMIT_TS_VERB_PREFIX "Commit timestamp unexpected usage: "
 
-    /* Nothing to do if no tables this transaction touched were configured for verbose logging. */
+    /* If this transaction did not touch any table configured for verbose logging, we're done. */
     if (!F_ISSET(txn, WT_TXN_VERB_TS_WRITE))
         return (0);
 
