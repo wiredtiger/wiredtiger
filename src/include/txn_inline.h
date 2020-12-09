@@ -1293,8 +1293,8 @@ __wt_txn_update_check(
 
     if (prev_tsp != NULL && upd != NULL) {
         /*
-         * Durable timestamp must be greater or equal to the commit timestamp unless it is a
-         * in-progress prepared update.
+         * The durable timestamp must be greater than or equal to the commit timestamp unless it is
+         * an in-progress prepared update.
          */
         WT_ASSERT(
           session, upd->durable_ts >= upd->start_ts || upd->prepare_state == WT_PREPARE_INPROGRESS);
