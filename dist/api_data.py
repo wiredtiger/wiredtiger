@@ -52,12 +52,12 @@ common_runtime_config = [
             verify that commit timestamps are used per the configured
             \c write_timestamp_usage option for this table. The \c diagnostic
             option only performs this enhanced checking for diagnostic builds
-            whereas, \c on performs it unconditionally.''',
+            whereas, \c on performs it unconditionally''',
             choices=['diagnostic', 'off', 'on']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should \c always or \c never be used
             on reads with this table.  Verification is \c none
-            if mixed read use is allowed.''',
+            if mixed read use is allowed''',
             choices=['always', 'never', 'none'])
         ], undoc=True),
     Config('verbose', '[]', r'''
@@ -82,7 +82,7 @@ common_runtime_config = [
         are never used for a table and \c none does not enforce any expectation
         on timestamp usage meaning that no log message or assertions will be
         produced regardless of the corresponding \c assert and \c verbose
-        settings.''',
+        settings''',
         choices=['always', 'key_consistent', 'mixed_mode', 'never', 'none', 'ordered']),
 ]
 
