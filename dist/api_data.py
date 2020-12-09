@@ -55,8 +55,8 @@ common_runtime_config = [
             whereas, \c on performs it unconditionally.''',
             choices=['diagnostic', 'off', 'on']),
         Config('read_timestamp', 'none', r'''
-            verify that timestamps should 'always' or 'never' be used
-            on reads with this table.  Verification is 'none'
+            verify that timestamps should \c always or \c never be used
+            on reads with this table.  Verification is \c none
             if mixed read use is allowed.''',
             choices=['always', 'never', 'none'])
         ], undoc=True),
@@ -73,9 +73,9 @@ common_runtime_config = [
         \c verbose options to provide logging and assertions for incorrect
         timestamp usage. The choices are \c always which ensures a timestamp is
         used for every operation on a table, \c key_consistent to ensure that
-        once timestamps are used for a key, are always used, \c ordered is like
-        \c key_consistent except it also enforces that subsequent updates to
-        each key must use increasing timestamps, \c mixed_mode is like
+        once timestamps are used for a key, they are always used, \c ordered is
+        like \c key_consistent except it also enforces that subsequent updates
+        to each key must use increasing timestamps, \c mixed_mode is like
         \c ordered except that updates with no timestamp are allowed and have
         the effect of resetting the chain of updates once the transaction ID
         based snapshot is no longer relevant, \c never enforces that timestamps

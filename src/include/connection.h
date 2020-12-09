@@ -93,7 +93,7 @@ struct __wt_named_encryptor {
 
 /*
  * WT_NAMED_EXTRACTOR --
- *  An extractor list entry
+ *     An extractor list entry
  */
 struct __wt_named_extractor {
     const char *name;                    /* Name of extractor */
@@ -103,7 +103,7 @@ struct __wt_named_extractor {
 
 /*
  * WT_NAME_FLAG --
- *  Simple structure for name and flag configuration searches
+ *     Simple structure for name and flag configuration searches
  */
 struct __wt_name_flag {
     const char *name;

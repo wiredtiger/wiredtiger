@@ -892,7 +892,7 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
     bool txn_has_ts;
 
     txn = session->txn;
-    txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
+    txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_DURABLE);
 
 #define WT_COMMIT_TS_VERB_PREFIX "Commit timestamp unexpected usage: "
 
