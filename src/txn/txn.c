@@ -333,6 +333,10 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     oldest_session = NULL;
 
     /* The oldest ID cannot change while we are holding the scan lock. */
+
+    /* Extra sample comment
+     * crooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooss
+     */
     prev_oldest_id = txn_global->oldest_id;
     last_running = oldest_id = txn_global->current;
     if ((metadata_pinned = txn_global->checkpoint_txn_shared.id) == WT_TXN_NONE)
