@@ -970,6 +970,9 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
     WT_DECL_RET;
     WT_REF *child_ref, *ref;
 
+    /* Set this flag to return error instead of panic if file is corrupted. */
+    F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
+
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while ((ret = __wt_tree_walk_custom_skip(session, &ref, __wt_rts_page_skip, &rollback_timestamp,
@@ -983,6 +986,7 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
         } else
             WT_RET(__rollback_abort_newer_updates(session, ref, rollback_timestamp));
 
+    F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
     return (ret);
 }
 
@@ -1289,8 +1293,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             WT_ERR_NOTFOUND_OK(ret, false);
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
-        has_txn_updates_gt_than_ckpt_snap = F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
-          rollback_txnid > S2C(session)->recovery_ckpt_snap_min;
+        has_txn_updates_gt_than_ckpt_snap =
+          WT_ROLLBACK_CHECK_RECOVERYFLAG_TXNID(session, rollback_txnid);
 
         /* Increment the inconsistent checkpoint stats counter. */
         if (has_txn_updates_gt_than_ckpt_snap) {
@@ -1370,6 +1374,14 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             WT_TRET(__rollback_to_stable_btree_hs_truncate(session, S2BT(session)->id));
 
         WT_TRET(__wt_session_release_dhandle(session));
+
+        /*
+         * Continue when the table is corrupted and proceed to perform rollback to stable on other
+         * tables.
+         */
+        if (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))
+            continue;
+
         WT_ERR(ret);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
