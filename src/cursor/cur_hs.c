@@ -601,6 +601,11 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                 if (cmp <= 0)
                     break;
             }
+            /*
+             * No entries less than or equal to the key we searched for. Reset cursor if we get
+             * WT_NOTFOUND.
+             */
+            WT_ERR(ret);
 
             *exactp = cmp;
         } else
