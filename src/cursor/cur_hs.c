@@ -767,7 +767,6 @@ __curhs_insert(WT_CURSOR *cursor)
     if (hs_tombstone != NULL) {
         hs_tombstone->next = hs_upd;
         hs_upd = hs_tombstone;
-        hs_tombstone = NULL;
     }
 
 retry:
