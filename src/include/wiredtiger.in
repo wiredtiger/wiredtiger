@@ -1660,6 +1660,18 @@ struct __wt_session {
 	int __F(prepare_transaction)(WT_SESSION *session, const char *config);
 
 	/*!
+	 * Reset the snapshot.
+	 *
+	 * This method resets snapshots for snapshot isolation transactions to
+	 * update their existing snapshot. It raises an error for when this API
+	 * is used for read-committed isolation mode.
+	 *
+	 * @param session the session handle
+	 * @errors
+	 */
+	int __F(reset_snapshot)(WT_SESSION *session);
+
+	/*!
 	 * Roll back the current transaction.
 	 *
 	 * A transaction must be in progress when this method is called.
