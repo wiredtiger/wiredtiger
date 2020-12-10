@@ -836,7 +836,7 @@ __wt_txn_read_upd_list(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **prepare_updp)
 {
     WT_VISIBLE_TYPE upd_visible;
-    uint8_t type;
+    uint8_t prepare_state, type;
 
     if (prepare_updp != NULL)
         *prepare_updp = NULL;
@@ -848,6 +848,7 @@ __wt_txn_read_upd_list(
         if (type == WT_UPDATE_RESERVE)
             continue;
 
+        WT_ORDERED_READ(prepare_state, upd->prepare_state);
         /*
          * If the cursor is configured to ignore tombstones, copy the timestamps from the tombstones
          * to the stop time window of the update value being returned to the caller. Caller can
@@ -860,8 +861,8 @@ __wt_txn_read_upd_list(
             cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
             cbt->upd_value->tw.stop_ts = upd->start_ts;
             cbt->upd_value->tw.stop_txn = upd->txnid;
-            cbt->upd_value->tw.prepare = upd->prepare_state == WT_PREPARE_INPROGRESS ||
-              upd->prepare_state == WT_PREPARE_LOCKED;
+            cbt->upd_value->tw.prepare =
+              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
             continue;
         }
 
@@ -870,18 +871,20 @@ __wt_txn_read_upd_list(
         if (upd_visible == WT_VISIBLE_TRUE)
             break;
 
+        /*
+         * Save the prepared update to help us detect if we race with prepared commit or rollback
+         * irrespective of update visibility.
+         */
+        if ((prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
+          prepare_updp != NULL && *prepare_updp == NULL &&
+          F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS))
+            *prepare_updp = upd;
+
         if (upd_visible == WT_VISIBLE_PREPARE) {
             /* Ignore the prepared update, if transaction configuration says so. */
-            if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
-                /*
-                 * Save the prepared update to help us detect if we race with prepared commit or
-                 * rollback.
-                 */
-                if (prepare_updp != NULL && *prepare_updp == NULL &&
-                  F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS))
-                    *prepare_updp = upd;
+            if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
                 continue;
-            }
+
             return (WT_PREPARE_CONFLICT);
         }
     }
@@ -992,9 +995,11 @@ retry:
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS)) {
+        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
         WT_RET(__wt_hs_find_upd(session, key, cbt->iface.value_format, recno, cbt->upd_value, false,
           &cbt->upd_value->buf, &tw));
+    }
 
     /*
      * Retry if we race with prepared commit or rollback. If we race with prepared rollback, the
@@ -1236,8 +1241,7 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
 
-    /* Don't check if transaction isolation is not snapshot or the table is metadata. */
-    if (txn->isolation != WT_ISO_SNAPSHOT || (cbt != NULL && WT_IS_METADATA(cbt->dhandle)))
+    if (txn->isolation != WT_ISO_SNAPSHOT)
         return (0);
 
     if (txn_global->debug_rollback != 0 &&
