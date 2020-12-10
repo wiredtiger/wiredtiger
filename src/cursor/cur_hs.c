@@ -9,6 +9,9 @@
 
 #include "wt_internal.h"
 
+static int __curhs_prev_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
+static int __curhs_next_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
+
 /*
  * __hs_cursor_open_int --
  *     Open a new history store table cursor, internal function.
@@ -143,6 +146,68 @@ __wt_hs_cursor_search_near(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
 }
 
 /*
+ * __curhs_next --
+ *     WT_CURSOR->next method for the hs cursor type.
+ */
+static int
+__curhs_next(WT_CURSOR *cursor)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_HS *hs_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    file_cursor = hs_cursor->file_cursor;
+    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, next, CUR2BT(file_cursor));
+
+    WT_ERR(__wt_hs_cursor_next(session, file_cursor));
+    /*
+     * We need to check if the history store record is visible to the current session. If not, the
+     * __curhs_next_visible() will also keep iterating forward through the records until it finds a
+     * visible record or bail out if records stop satisfying the fields set in cursor.
+     */
+    WT_ERR(__curhs_next_visible(session, hs_cursor));
+
+    if (0) {
+err:
+        WT_TRET(cursor->reset(cursor));
+    }
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curhs_prev --
+ *     WT_CURSOR->prev method for the hs cursor type.
+ */
+static int
+__curhs_prev(WT_CURSOR *cursor)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_HS *hs_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    file_cursor = hs_cursor->file_cursor;
+    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, prev, CUR2BT(file_cursor));
+
+    WT_ERR(__wt_hs_cursor_prev(session, file_cursor));
+    /*
+     * We need to check if the history store record is visible to the current session. If not, the
+     * __curhs_prev_visible() will also keep iterating backwards through the records until it finds
+     * a visible record or bail out if records stop satisfying the fields set in cursor.
+     */
+    WT_ERR(__curhs_prev_visible(session, hs_cursor));
+
+    if (0) {
+err:
+        WT_TRET(cursor->reset(cursor));
+    }
+    API_END_RET(session, ret);
+}
+
+/*
  * __curhs_close --
  *     WT_CURSOR->close method for the hs cursor type.
  */
@@ -152,6 +217,7 @@ __curhs_close(WT_CURSOR *cursor)
     WT_CURSOR *file_cursor;
     WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
+    WT_ITEM *datastore_key;
     WT_SESSION_IMPL *session;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
@@ -161,6 +227,8 @@ __curhs_close(WT_CURSOR *cursor)
 err:
     if (file_cursor != NULL)
         WT_TRET(file_cursor->close(file_cursor));
+    datastore_key = &hs_cursor->datastore_key;
+    __wt_scr_free(session, &datastore_key);
     __wt_cursor_close(cursor);
 
     API_END_RET(session, ret);
@@ -183,8 +251,11 @@ __curhs_reset(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, CUR2BT(file_cursor));
 
     ret = file_cursor->reset(file_cursor);
-    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
+    hs_cursor->btree_id = 0;
+    hs_cursor->datastore_key.data = NULL;
+    hs_cursor->datastore_key.size = 0;
+    hs_cursor->flags = 0;
 
 err:
     API_END_RET(session, ret);
@@ -199,15 +270,326 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
 {
     WT_CURSOR *file_cursor;
     WT_CURSOR_HS *hs_cursor;
+    WT_ITEM *datastore_key;
+    WT_SESSION_IMPL *session;
+    wt_timestamp_t start_ts;
+    uint64_t counter;
+    uint32_t arg_count;
     va_list ap;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
+    session = CUR2S(cursor);
+    start_ts = WT_TS_NONE;
+    counter = 0;
 
     va_start(ap, cursor);
-    file_cursor->set_key(file_cursor, va_arg(ap, uint32_t), va_arg(ap, WT_ITEM *),
-      va_arg(ap, wt_timestamp_t), va_arg(ap, uint64_t));
+    arg_count = va_arg(ap, uint32_t);
+
+    WT_ASSERT(session, arg_count >= 1 && arg_count <= 4);
+
+    hs_cursor->btree_id = va_arg(ap, uint32_t);
+    F_SET(hs_cursor, WT_HS_CUR_BTREE_ID_SET);
+    if (arg_count > 1) {
+        datastore_key = va_arg(ap, WT_ITEM *);
+        WT_IGNORE_RET(__wt_buf_set(
+          session, &hs_cursor->datastore_key, datastore_key->data, datastore_key->size));
+        F_SET(hs_cursor, WT_HS_CUR_KEY_SET);
+    } else {
+        hs_cursor->datastore_key.data = NULL;
+        hs_cursor->datastore_key.size = 0;
+        F_CLR(hs_cursor, WT_HS_CUR_KEY_SET);
+    }
+
+    if (arg_count > 2) {
+        start_ts = va_arg(ap, wt_timestamp_t);
+        F_SET(hs_cursor, WT_HS_CUR_TS_SET);
+    } else
+        F_CLR(hs_cursor, WT_HS_CUR_TS_SET);
+
+    if (arg_count > 3) {
+        counter = va_arg(ap, uint64_t);
+        F_SET(hs_cursor, WT_HS_CUR_COUNTER_SET);
+    } else
+        F_CLR(hs_cursor, WT_HS_CUR_COUNTER_SET);
+
     va_end(ap);
+
+    file_cursor->set_key(
+      file_cursor, hs_cursor->btree_id, &hs_cursor->datastore_key, start_ts, counter);
+}
+
+/*
+ * __curhs_prev_visible --
+ *     Check the visibility of the current history store record. If it is not visible, find the
+ *     previous visible history store record.
+ */
+static int
+__curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR *std_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(datastore_key);
+    WT_DECL_RET;
+    wt_timestamp_t start_ts;
+    uint64_t counter;
+    uint32_t btree_id;
+    int cmp;
+
+    file_cursor = hs_cursor->file_cursor;
+    std_cursor = (WT_CURSOR *)hs_cursor;
+    cbt = (WT_CURSOR_BTREE *)file_cursor;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &datastore_key));
+
+    for (; ret == 0; ret = __wt_hs_cursor_prev(session, file_cursor)) {
+        WT_ERR(file_cursor->get_key(file_cursor, &btree_id, &datastore_key, &start_ts, &counter));
+
+        /* Stop before crossing over to the next btree. */
+        if (F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET) && btree_id != hs_cursor->btree_id) {
+            ret = WT_NOTFOUND;
+            goto err;
+        }
+
+        /*
+         * Keys are sorted in an order, skip the ones before the desired key, and bail out if we
+         * have crossed over the desired key and not found the record we are looking for.
+         */
+        if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
+            WT_ERR(__wt_compare(session, NULL, datastore_key, &hs_cursor->datastore_key, &cmp));
+            if (cmp != 0) {
+                ret = WT_NOTFOUND;
+                goto err;
+            }
+        }
+
+        /*
+         * If the stop time pair on the tombstone in the history store is already globally visible
+         * we can skip it.
+         */
+        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
+            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
+            WT_STAT_DATA_INCR(session, cursor_prev_hs_tombstone);
+            continue;
+        }
+
+        /*
+         * Don't check the visibility of the record if we want to read any history store record that
+         * is not obsolete.
+         */
+        if (F_ISSET(std_cursor, WT_CURSTD_HS_READ_COMMITTED))
+            break;
+
+        if (__wt_txn_tw_stop_visible(session, &cbt->upd_value->tw)) {
+            /*
+             * If the stop time point of a record is visible to us, we won't be able to see anything
+             * for this entire key.
+             */
+            if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
+                ret = WT_NOTFOUND;
+                goto err;
+            } else
+                continue;
+        }
+
+        /* If the start time point is visible to us, let's return that record. */
+        if (__wt_txn_tw_start_visible(session, &cbt->upd_value->tw))
+            break;
+    }
+
+err:
+    __wt_scr_free(session, &datastore_key);
+    return (ret);
+}
+
+/*
+ * __curhs_next_visible --
+ *     Check the visibility of the current history store record. If it is not visible, find the next
+ *     visible history store record.
+ */
+static int
+__curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR *std_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(datastore_key);
+    WT_DECL_RET;
+    wt_timestamp_t start_ts;
+    uint64_t counter;
+    uint32_t btree_id;
+    int cmp;
+
+    file_cursor = hs_cursor->file_cursor;
+    std_cursor = (WT_CURSOR *)hs_cursor;
+    cbt = (WT_CURSOR_BTREE *)file_cursor;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &datastore_key));
+
+    for (; ret == 0; ret = __wt_hs_cursor_next(session, file_cursor)) {
+        WT_ERR(file_cursor->get_key(file_cursor, &btree_id, &datastore_key, &start_ts, &counter));
+
+        /* Stop before crossing over to the next btree. */
+        if (F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET) && btree_id != hs_cursor->btree_id) {
+            ret = WT_NOTFOUND;
+            goto err;
+        }
+
+        /*
+         * Keys are sorted in an order, skip the ones before the desired key, and bail out if we
+         * have crossed over the desired key and not found the record we are looking for.
+         */
+        if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
+            WT_ERR(__wt_compare(session, NULL, datastore_key, &hs_cursor->datastore_key, &cmp));
+            if (cmp != 0) {
+                ret = WT_NOTFOUND;
+                goto err;
+            }
+        }
+
+        /*
+         * If the stop time pair on the tombstone in the history store is already globally visible
+         * we can skip it.
+         */
+        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
+            WT_STAT_CONN_INCR(session, cursor_next_hs_tombstone);
+            WT_STAT_DATA_INCR(session, cursor_next_hs_tombstone);
+            continue;
+        }
+
+        /*
+         * Don't check the visibility of the record if we want to read any history store record that
+         * is not obsolete.
+         */
+        if (F_ISSET(std_cursor, WT_CURSTD_HS_READ_COMMITTED))
+            break;
+
+        /*
+         * If the stop time point of a record is visible to us, check the next one.
+         */
+        if (__wt_txn_tw_stop_visible(session, &cbt->upd_value->tw))
+            continue;
+
+        /* If the start time point is visible to us, let's return that record. */
+        if (__wt_txn_tw_start_visible(session, &cbt->upd_value->tw))
+            break;
+    }
+
+err:
+    __wt_scr_free(session, &datastore_key);
+    return (ret);
+}
+
+/*
+ * __curhs_search_near --
+ *     WT_CURSOR->search_near method for the hs cursor type.
+ */
+static int
+__curhs_search_near(WT_CURSOR *cursor, int *exactp)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_HS *hs_cursor;
+    WT_DECL_ITEM(srch_key);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    int cmp;
+    int exact;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    file_cursor = hs_cursor->file_cursor;
+    *exactp = 0;
+    cmp = 0;
+
+    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, search_near, CUR2BT(file_cursor));
+
+    WT_ERR(__wt_scr_alloc(session, 0, &srch_key));
+    /* At least we have the btree id set. */
+    WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET));
+    WT_ERR(__wt_buf_set(session, srch_key, file_cursor->key.data, file_cursor->key.size));
+    /* Reset cursor if we get WT_NOTFOUND. */
+    WT_ERR(__wt_hs_cursor_search_near(session, file_cursor, &exact));
+
+    /*
+     * There are some key fields missing so we are searching a range of keys. Place the cursor at
+     * the start of the range.
+     */
+    if (!F_ISSET(hs_cursor, WT_HS_CUR_COUNTER_SET)) {
+        /*
+         * If we raced with a history store insert, we may be two or more records away from our
+         * target. Keep iterating forwards until we are on or past our target key.
+         *
+         * We can't use the cursor positioning helper that we use for regular reads since that will
+         * place us at the end of a particular key/timestamp range whereas we want to be placed at
+         * the beginning.
+         */
+        if (exact < 0) {
+            while ((ret = __wt_hs_cursor_next(session, file_cursor)) == 0) {
+                WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
+                if (cmp >= 0)
+                    break;
+            }
+            /*
+             * No entries greater than or equal to the key we searched for. Reset cursor if we get
+             * WT_NOTFOUND.
+             */
+            WT_ERR(ret);
+
+            *exactp = cmp;
+        } else
+            *exactp = 1;
+
+        WT_ERR(__curhs_next_visible(session, hs_cursor));
+    }
+    /* Search the closest match that is smaller or equal to the search key. */
+    else {
+        /*
+         * Because of the special visibility rules for the history store, a new key can appear in
+         * between our search and the set of updates that we're interested in. Keep trying until we
+         * find it.
+         *
+         * There may be no history store entries for the given btree id and record key if they have
+         * been removed by rollback to stable.
+         *
+         * Note that we need to compare the raw key off the cursor to determine where we are in the
+         * history store as opposed to comparing the embedded data store key since the ordering is
+         * not guaranteed to be the same.
+         */
+        if (exact > 0) {
+            /*
+             * It's possible that we may race with a history store insert for another key. So we may
+             * be more than one record away the end of our target key/timestamp range. Keep
+             * iterating backwards until we land on our key.
+             */
+            while ((ret = __wt_hs_cursor_prev(session, file_cursor)) == 0) {
+                WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
+                WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
+
+                WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
+                if (cmp <= 0)
+                    break;
+            }
+
+            *exactp = cmp;
+        } else
+            *exactp = -1;
+#ifdef HAVE_DIAGNOSTIC
+        if (ret == 0) {
+            WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
+            WT_ASSERT(session, cmp <= 0);
+        }
+#endif
+
+        WT_ERR(__curhs_prev_visible(session, hs_cursor));
+    }
+
+    if (0) {
+err:
+        WT_TRET(cursor->reset(cursor));
+    }
+
+    __wt_scr_free(session, &srch_key);
+    API_END_RET(session, ret);
 }
 
 /*
@@ -326,15 +708,171 @@ __curhs_insert(WT_CURSOR *cursor)
         hs_tombstone = NULL;
     }
 
+retry:
     /* Search the page and insert the updates. */
     WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, true));
     WT_ERR(ret);
-    WT_ERR(__wt_hs_modify(cbt, hs_upd));
+    ret = __wt_hs_modify(cbt, hs_upd);
+    if (ret == WT_RESTART)
+        goto retry;
+    WT_ERR(ret);
+
+    /* Insert doesn't maintain a position across calls, clear resources. */
+    if (0) {
+err:
+        __wt_free(session, hs_tombstone);
+        __wt_free(session, hs_upd);
+    }
+    WT_TRET(cursor->reset(cursor));
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curhs_remove --
+ *     WT_CURSOR->remove method for the hs cursor type.
+ */
+static int
+__curhs_remove(WT_CURSOR *cursor)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_CURSOR_HS *hs_cursor;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    WT_UPDATE *hs_tombstone;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    file_cursor = hs_cursor->file_cursor;
+    cbt = (WT_CURSOR_BTREE *)file_cursor;
+    hs_tombstone = NULL;
+
+    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, insert, CUR2BT(file_cursor));
+
+    /* Remove must be called with cursor positioned. */
+    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
+
+    /*
+     * Since we're using internal functions to modify the row structure, we need to manually set the
+     * comparison to an exact match.
+     */
+    cbt->compare = 0;
+    /* Add a tombstone with WT_TXN_NONE transaction id and WT_TS_NONE timestamps. */
+    WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
+    hs_tombstone->txnid = WT_TXN_NONE;
+    hs_tombstone->start_ts = hs_tombstone->durable_ts = WT_TS_NONE;
+    while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
+        WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
+        WT_ERR(ret);
+    }
+
+    WT_ERR(ret);
+
+    /* Invalidate the previous value but we will hold on to the position of the key. */
+    F_CLR(file_cursor, WT_CURSTD_VALUE_SET);
+
+    if (0) {
+err:
+        __wt_free(session, hs_tombstone);
+        WT_TRET(cursor->reset(cursor));
+    }
+
+    API_END_RET(session, ret);
+}
+
+/*
+ * __curhs_update --
+ *     WT_CURSOR->update method for the hs cursor type.
+ */
+static int
+__curhs_update(WT_CURSOR *cursor)
+{
+    WT_CURSOR *file_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_CURSOR_HS *hs_cursor;
+    WT_DECL_ITEM(hs_value);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    WT_UPDATE *hs_tombstone, *hs_upd;
+    bool retry;
+
+    uint64_t hs_upd_type;
+    wt_timestamp_t hs_durable_ts, hs_stop_durable_ts;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    file_cursor = hs_cursor->file_cursor;
+    cbt = (WT_CURSOR_BTREE *)file_cursor;
+    hs_tombstone = hs_upd = NULL;
+    retry = false;
+
+    CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, update, CUR2BT(file_cursor));
+
+    /* We are assuming that the caller has already searched and found the key. */
+    WT_ASSERT(
+      session, F_ISSET(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET | WT_CURSTD_VALUE_INT));
+    WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_COUNTER_SET | WT_HS_CUR_TS_SET));
+
+    /*
+     * Only valid scenario to update the history store is to add the stop timestamp. Any other case
+     * should fail.
+     */
+    WT_ASSERT(session, !WT_TIME_WINDOW_IS_EMPTY(&hs_cursor->time_window));
+    WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP(&hs_cursor->time_window));
+
+    /*
+     * Ideally we want to check if we are positioned on the newest value for user key. However, we
+     * can't check if the timestamp was set to WT_TS_MAX when we searched for the key. We can can a
+     * next() on cursor to confirm there is no newer value but that would disturb our cursor. A more
+     * expensive method would be to search again and verify.
+     */
+
+    /* The tombstone to represent the stop time window. */
+    WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
+    hs_tombstone->start_ts = hs_cursor->time_window.stop_ts;
+    hs_tombstone->durable_ts = hs_cursor->time_window.durable_stop_ts;
+    hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
+
+    /* Modify the existing value with a new stop timestamp. */
+
+    /* Allocate a buffer for the history store value. */
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
+
+    /* Retrieve the existing update value and stop timestamp. */
+    WT_ERR(file_cursor->get_value(
+      file_cursor, &hs_stop_durable_ts, &hs_durable_ts, &hs_upd_type, hs_value));
+    WT_ASSERT(session, hs_stop_durable_ts == WT_TS_MAX);
+    WT_ASSERT(session, (uint8_t)hs_upd_type == WT_UPDATE_STANDARD);
+
+    /* Use set_value method to pack the new value. */
+    file_cursor->set_value(
+      file_cursor, hs_cursor->time_window.stop_ts, hs_durable_ts, hs_upd_type, hs_value);
+
+    WT_ERR(__wt_upd_alloc(session, &file_cursor->value, WT_UPDATE_STANDARD, &hs_upd, NULL));
+    hs_upd->start_ts = hs_cursor->time_window.start_ts;
+    hs_upd->durable_ts = hs_cursor->time_window.durable_start_ts;
+    hs_upd->txnid = hs_cursor->time_window.start_txn;
+
+    /* Connect the tombstone to the update. */
+    hs_tombstone->next = hs_upd;
+
+    /* Make the updates and if we fail, search and try again. */
+    while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
+        WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
+        WT_ERR(ret);
+        retry = true;
+    }
+
+    /* If we retry, search again to point to the updated value. */
+    if (retry) {
+        WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
+        WT_TRET(ret);
+    }
 
     if (0) {
 err:
         __wt_free(session, hs_tombstone);
         __wt_free(session, hs_upd);
+        __wt_scr_free(session, &hs_value);
+        WT_TRET(cursor->reset(cursor));
     }
     API_END_RET(session, ret);
 }
@@ -352,15 +890,15 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
       __curhs_set_value,                          /* set-value */
       __wt_cursor_compare_notsup,                 /* compare */
       __wt_cursor_equals_notsup,                  /* equals */
-      __wt_cursor_notsup,                         /* next */
-      __wt_cursor_notsup,                         /* prev */
+      __curhs_next,                               /* next */
+      __curhs_prev,                               /* prev */
       __curhs_reset,                              /* reset */
       __wt_cursor_notsup,                         /* search */
-      __wt_cursor_search_near_notsup,             /* search-near */
+      __curhs_search_near,                        /* search-near */
       __curhs_insert,                             /* insert */
       __wt_cursor_modify_value_format_notsup,     /* modify */
-      __wt_cursor_notsup,                         /* update */
-      __wt_cursor_notsup,                         /* remove */
+      __curhs_update,                             /* update */
+      __curhs_remove,                             /* remove */
       __wt_cursor_notsup,                         /* reserve */
       __wt_cursor_reconfigure_notsup,             /* reconfigure */
       __wt_cursor_notsup,                         /* cache */
@@ -369,6 +907,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     WT_CURSOR *cursor;
     WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
+    WT_ITEM *datastore_key;
 
     WT_RET(__wt_calloc_one(session, &hs_cursor));
     cursor = (WT_CURSOR *)hs_cursor;
@@ -381,6 +920,11 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     WT_ERR(__hs_cursor_open_int(session, &hs_cursor->file_cursor));
 
     WT_ERR(__wt_cursor_init(cursor, WT_HS_URI, owner, NULL, cursorp));
+    WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
+    hs_cursor->btree_id = 0;
+    datastore_key = &hs_cursor->datastore_key;
+    WT_ERR(__wt_scr_alloc(session, 0, &datastore_key));
+    hs_cursor->flags = 0;
 
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
 
