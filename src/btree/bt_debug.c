@@ -1338,51 +1338,39 @@ static int
 __debug_page_row_leaf(WT_DBG *ds, WT_PAGE *page)
 {
     WT_CELL_UNPACK_KV *unpack, _unpack;
-    WT_DECL_RET;
     WT_INSERT_HEAD *insert;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
     uint32_t i;
-    bool page_locked;
 
     session = ds->session;
     unpack = &_unpack;
-    page_locked = false;
-
-    if (page->modify != NULL) {
-        WT_PAGE_LOCK(session, page);
-        page_locked = true;
-    }
 
     /*
      * Dump any K/V pairs inserted into the page before the first from-disk key on the page.
      */
     if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
-        WT_ERR(__debug_row_skip(ds, insert));
+        WT_RET(__debug_row_skip(ds, insert));
 
     /* Dump the page's K/V pairs. */
     WT_ROW_FOREACH (page, rip, i) {
-        WT_ERR(__wt_row_leaf_key(session, page, rip, ds->key, false));
-        WT_ERR(__debug_item_key(ds, "K", ds->key->data, ds->key->size));
+        WT_RET(__wt_row_leaf_key(session, page, rip, ds->key, false));
+        WT_RET(__debug_item_key(ds, "K", ds->key->data, ds->key->size));
 
         __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
-        WT_ERR(__debug_cell_kv(ds, page, WT_PAGE_ROW_LEAF, "V", unpack));
+        WT_RET(__debug_cell_kv(ds, page, WT_PAGE_ROW_LEAF, "V", unpack));
 
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)
-            WT_ERR(__debug_update(ds, upd, false));
+            WT_RET(__debug_update(ds, upd, false));
 
         if (!WT_IS_HS(S2BT(session)) && session->hs_cursor != NULL)
-            WT_ERR(__debug_hs_key(ds));
+            WT_RET(__debug_hs_key(ds));
 
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
-            WT_ERR(__debug_row_skip(ds, insert));
+            WT_RET(__debug_row_skip(ds, insert));
     }
-
-err:
-    if (page_locked)
-        WT_PAGE_UNLOCK(session, page);
-    return (ret);
+    return (0);
 }
 
 /*
