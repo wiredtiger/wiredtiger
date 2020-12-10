@@ -162,8 +162,8 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                     WT_IGNORE_RET(__wt_msg(session, "%s generation drain waited %u minutes",
                       __gen_name(which), minutes));
                     ++minutes;
+                    WT_ASSERT(session, minutes < 4);
                 }
-                WT_ASSERT(session, stop - start < 3 * WT_MINUTE);
             }
         }
     }
@@ -190,8 +190,7 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      * the sessions that could have been active when we started our check.
      */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (oldest = conn->generations[which] + 1, s = conn->sessions, i = 0; i < session_cnt;
-         ++s, ++i) {
+    for (oldest = conn->generations[which], s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;
 
@@ -237,6 +236,12 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
             return (true);
     }
 
+#ifdef HAVE_DIAGNOSTIC
+    {
+        uint64_t oldest = __gen_oldest(session, which);
+        WT_ASSERT(session, generation < oldest);
+    }
+#endif
     return (false);
 }
 
@@ -262,6 +267,8 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
      * protected by a generation running outside one.
      */
     WT_ASSERT(session, session->generations[which] == 0);
+    WT_ASSERT(session, session->active);
+    WT_ASSERT(session, session->id < S2C(session)->session_cnt);
 
     /*
      * Assign the thread's resource generation and publish it, ensuring threads waiting on a
@@ -282,6 +289,9 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
 void
 __wt_session_gen_leave(WT_SESSION_IMPL *session, int which)
 {
+    WT_ASSERT(session, session->active);
+    WT_ASSERT(session, session->id < S2C(session)->session_cnt);
+
     /* Ensure writes made by this thread are visible. */
     WT_PUBLISH(session->generations[which], 0);
 

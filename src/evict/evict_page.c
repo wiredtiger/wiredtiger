@@ -166,6 +166,20 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (inmem_split)
         goto done;
 
+        /*
+         * Check again that the page can be evicted. Something could have changed during
+         * reconciliation to prevent it such as an internal page split.
+         */
+#if 0
+    /* This is what I would like to do here but it causes a leak of leaf page images. */
+    if (!__wt_page_can_evict(session, ref, NULL))
+        WT_ERR(__wt_set_return(session, EBUSY));
+#elif 0
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !closing &&
+      __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen))
+        WT_ERR(__wt_set_return(session, EBUSY));
+#endif
+
     /* Count evictions of internal pages during normal operation. */
     if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
         WT_STAT_CONN_INCR(session, cache_eviction_internal);
@@ -712,17 +726,6 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         __wt_txn_release_snapshot(session);
 
     WT_RET(ret);
-
-    /*
-     * Give up on eviction during a checkpoint if the page splits.
-     *
-     * We get here if checkpoint reads a page with history store entries: if more of those entries
-     * are visible now than when the original eviction happened, the page could split. In most
-     * workloads, this is very unlikely. However, since checkpoint is partway through reconciling
-     * the parent page, a split can corrupt the checkpoint.
-     */
-    if (WT_SESSION_BTREE_SYNC(session) && page->modify->rec_result == WT_PM_REC_MULTIBLOCK)
-        return (__wt_set_return(session, EBUSY));
 
     /*
      * Success: assert that the page is clean or reconciliation was configured to save updates.
