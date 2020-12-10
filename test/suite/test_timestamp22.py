@@ -36,7 +36,7 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_timestamp22(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=100MB'
+    conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
     # Keep the number of rows low, as each additional row does
@@ -110,8 +110,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         return self.rand.rand32() % 20 == 0
 
     def report(self, func, arg = None):
-        #self.pr('DOING: ' + func + ('' if arg == None else '(' + arg + ')'))
-        pass
+        self.pr('DOING: ' + func + ('' if arg == None else '(' + arg + ')'))
 
     # Insert a set of rows, each insert in its own transaction, with the
     # given timestamps.
@@ -201,6 +200,15 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             if first_commit_ts < 0:
                 first_commit_ts = running_commit_ts
 
+        # ODDITY: If any setting of the timestamp fail, then an ASSERT will be hit in prepare.
+        # Avoid this, it will crash the test suite when diagnostic mode is enabled, and without
+        # diagnostic mode, the prepare will appear to succeed!  We should fix this to fail the
+        # prepare (and not assert), then we can change this to:
+        # if not ok_tstxn1 or not ok_tstxn2:
+        #   ok_prepare = False
+        if not ok_tstxn1 or not ok_tstxn2:
+            do_prepare = False
+
         if running_commit_ts >= 0 and do_prepare:
             # Cannot set prepare timestamp after commit timestamp is successfully set.
             ok_prepare = False
@@ -221,8 +229,6 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             ok_commit = False
 
         # If a prepare fails or any setting of timestamp fails, the commit fails as well.
-        # ODDITY: if setting the timestamp fails, then the transaction is doomed,
-        # so we could fail any subsequent operation.  But we are allowed to proceed.
         if not ok_prepare or not ok_tstxn1 or not ok_tstxn2:
             ok_commit = False
 
@@ -367,9 +373,9 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                 return -1
 
         if wttest.islongtest():
-            iterations = 1000
+            iterations = 100000
         else:
-            iterations = 100
+            iterations = 1000
 
         create_params = 'value_format=S,key_format=i'
         self.session.create(self.uri, create_params)
