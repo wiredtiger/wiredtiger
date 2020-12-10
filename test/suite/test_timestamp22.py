@@ -203,9 +203,9 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         # ODDITY: If any setting of the timestamp fail, then an ASSERT will be hit in prepare.
         # Avoid this, it will crash the test suite when diagnostic mode is enabled, and without
         # diagnostic mode, the prepare appears to succeed!  (Comment out the if to see it in action).
-        # We should fix this to not assert in prepare, and either fully succeed (forgiving the
-        # previous bad timestamp_transaction and allowing subsequent commit), or return an error.
-        # If the latter, then we can change this test to:
+        # This is reported in WT-7011.  We should fix this to not assert in prepare, and either
+        # fully succeed (forgiving the previous bad timestamp_transaction and allowing subsequent
+        # commit), or return an error.  If the latter, then we can change this test to:
         #    if not ok_tstxn1 or not ok_tstxn2:
         #        ok_prepare = False
         if not ok_tstxn1 or not ok_tstxn2:
