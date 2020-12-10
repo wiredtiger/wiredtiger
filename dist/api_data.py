@@ -48,12 +48,10 @@ common_runtime_config = [
     Config('assert', '', r'''
         enable enhanced checking. ''',
         type='category', subconfig= [
-        Config('write_timestamp', 'off', r'''
+        Config('write_timestamp', 'false', r'''
             verify that commit timestamps are used per the configured
-            \c write_timestamp_usage option for this table. The \c diagnostic
-            option only performs this enhanced checking for diagnostic builds
-            whereas, \c on performs it unconditionally''',
-            choices=['diagnostic', 'off', 'on']),
+            \c write_timestamp_usage option for this table''',
+            type='boolean'),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should \c always or \c never be used
             on reads with this table.  Verification is \c none

@@ -80,12 +80,7 @@ __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
     if (btree == NULL)
         return;
 
-#ifndef HAVE_DIAGNOSTIC
-    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE_DIAGNOSTIC))
-        return;
-#endif
-    if (!FLD_ISSET(
-          dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE | WT_DHANDLE_ASSERT_TS_WRITE_DIAGNOSTIC))
+    if (!FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE))
         return;
 
     if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_ALWAYS))

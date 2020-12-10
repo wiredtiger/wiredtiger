@@ -40,15 +40,15 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
     base = 'assert05'
     base_uri = 'file:' + base
     session_config = 'isolation=snapshot'
-    uri_all = base_uri + '.all.wt'
+    uri_always = base_uri + '.always.wt'
     uri_def = base_uri + '.def.wt'
-    uri_diagnostic = base_uri + '.diagnostic.wt'
+    uri_never = base_uri + '.never.wt'
     uri_none = base_uri + '.none.wt'
     cfg = 'key_format=S,value_format=S,'
-    cfg_all = 'verbose=(write_timestamp=true),write_timestamp_usage=always,assert=(write_timestamp=on)'
+    cfg_always = 'verbose=(write_timestamp=true),write_timestamp_usage=always,assert=(write_timestamp=true)'
     cfg_def = ''
-    cfg_diagnostic = 'write_timestamp_usage=never,assert=(write_timestamp=diagnostic)'
-    cfg_none = 'assert=(write_timestamp=off)'
+    cfg_never = 'write_timestamp_usage=never,assert=(write_timestamp=true)'
+    cfg_none = 'assert=(write_timestamp=false)'
 
     count = 1
     #
@@ -69,8 +69,8 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
             'commit_timestamp=' + timestamp_str(self.count))
         self.session.timestamp_transaction(
             'durable_timestamp=' + timestamp_str(self.count))
-        # All settings other than diagnostic should commit successfully
-        if (use_ts != 'diagnostic'):
+        # All settings other than never should commit successfully
+        if (use_ts != 'never'):
             self.session.commit_transaction()
         else:
             '''
@@ -91,14 +91,14 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
         c[key] = val
-        if (use_ts == 'all'):
+        if (use_ts == 'always'):
             self.session.prepare_transaction(
                 'prepare_timestamp=' + timestamp_str(self.count))
 
         self.session.timestamp_transaction(
             'commit_timestamp=' + timestamp_str(self.count))
-        # All settings other than all should commit successfully
-        if (use_ts != 'all' and use_ts != 'diagnostic'):
+        # All settings other than always should commit successfully
+        if (use_ts != 'always' and use_ts != 'never'):
             self.session.commit_transaction()
         else:
             '''
@@ -115,17 +115,15 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_durable_timestamp(self):
         # Create a data item at a timestamp
-        self.session.create(self.uri_all, self.cfg + self.cfg_all)
+        self.session.create(self.uri_always, self.cfg + self.cfg_always)
         self.session.create(self.uri_def, self.cfg + self.cfg_def)
-        if wiredtiger.diagnostic_build():
-            self.session.create(self.uri_diagnostic, self.cfg + self.cfg_diagnostic)
+        self.session.create(self.uri_never, self.cfg + self.cfg_never)
         self.session.create(self.uri_none, self.cfg + self.cfg_none)
 
         # Check inserting into each table
-        self.insert_check(self.uri_all, 'all')
+        self.insert_check(self.uri_always, 'always')
         self.insert_check(self.uri_def, 'none')
-        if wiredtiger.diagnostic_build():
-            self.insert_check(self.uri_diagnostic, 'diagnostic')
+        self.insert_check(self.uri_never, 'never')
         self.insert_check(self.uri_none, 'none')
 
 if __name__ == '__main__':
