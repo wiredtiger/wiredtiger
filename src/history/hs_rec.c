@@ -162,7 +162,16 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      * updates, we should remove them and reinsert them at the current timestamp.
      */
     if (start_time_point->ts != WT_TS_NONE) {
-        WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
+        /*
+         * If there were no keys equal to or less than our target key, we would have received
+         * WT_NOT_FOUND. In that case we need to search again with a higher timestamp.
+         */
+        if (ret == 0)
+            WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
+        else {
+            cursor->set_key(cursor, 3, btree->id, key, start_time_point->ts + 1);
+            WT_ERR_NOTFOUND_OK(cursor->search_near(cursor, &cmp), true);
+        }
         if (ret == 0)
             WT_ERR(__hs_fixup_out_of_order_from_pos(
               session, cursor, btree, key, start_time_point->ts, &counter));
