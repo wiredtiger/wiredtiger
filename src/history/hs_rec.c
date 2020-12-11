@@ -894,7 +894,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
          */
         WT_WITHOUT_DHANDLE(session, ret = __wt_curhs_open(session, NULL, &insert_cursor));
         WT_ERR(ret);
-        insert_cursor->set_key(insert_cursor, 3, btree_id, key, WT_TS_NONE);
+        insert_cursor->set_key(insert_cursor, 4, btree_id, key, WT_TS_NONE, UINT64_MAX);
         WT_ERR_NOTFOUND_OK(insert_cursor->search_near(insert_cursor, &cmp), true);
 
         if (ret == WT_NOTFOUND) {
