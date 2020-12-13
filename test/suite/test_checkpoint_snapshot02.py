@@ -73,7 +73,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
     def test_checkpoint_snapshot(self):
 
         #ds = SimpleDataSet(self, self.uri, self.nrows, key_format="S", value_format='u')
-        ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S")
+        ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S",config='log=(enabled=false)')
         ds.populate()
         valuea = "aaaaa" * 100
         valueb = "bbbbb" * 100
@@ -81,6 +81,8 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         valued = "ddddd" * 100
 
         cursor = self.session.open_cursor(self.uri)
+        self.large_updates(self.uri, valuea, ds, self.nrows)
+
         self.session.begin_transaction()
 
         # Create a checkpoint thread
@@ -94,11 +96,10 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             # checkpoint started
             for i in range(0, self.nrows):
                 cursor.set_key(ds.key(i))
-                cursor.set_value(valuea)
+                cursor.set_value(valueb)
                 self.assertEqual(cursor.insert(), 0)
             self.session.commit_transaction()
 
-            self.large_updates(self.uri, valueb, ds, self.nrows)
             self.large_updates(self.uri, valuec, ds, self.nrows)
             self.large_updates(self.uri, valued, ds, self.nrows)
 
