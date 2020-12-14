@@ -217,7 +217,6 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             ok_commit = False
             do_prepare = False      # AVOID ASSERT
 
-
         if running_commit_ts >= 0 and do_prepare:
             # Cannot set prepare timestamp after commit timestamp is successfully set.
             ok_prepare = False
