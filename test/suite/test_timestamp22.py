@@ -133,6 +133,8 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             # as we get a complaint to that effect at the prepare call.  The issue is described
             # in WT-6995.  This seems wrong, and it's hard to work around the problem, so we'll just
             # avoid testing that situation for now.  Hence the check for a blank configuration.
+            # When WT-6995 is fixed, remove the "and config = ''" part of the clause immediately
+            # below, and this entire comment.
             if self.rand.rand32() % 2 == 0 and config == '':
                 if self.do_illegal():
                     this_commit_ts = self.oldest_ts - 1
@@ -177,7 +179,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         prepare_config = 'prepare_timestamp=' + timestamp_str(prepare_ts)
         begin_config = '' if read_ts < 0 else 'read_timestamp=' + timestamp_str(read_ts)
 
-        # We might do a timestamp_transaction calls either before/after inserting
+        # We might do timestamp_transaction calls either before/after inserting
         # values, or both.
         do_tstxn1 = (self.rand.rand32() % 10 == 0)
         do_tstxn2 = (self.rand.rand32() % 10 == 0)
@@ -200,16 +202,21 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             if first_commit_ts < 0:
                 first_commit_ts = running_commit_ts
 
-        # ODDITY: If any setting of the timestamp fail, then an ASSERT will be hit in prepare.
+        # WT-7011:
+        # ODDITY: If any setting of the timestamp fails, then an ASSERT will be hit in prepare.
         # Avoid this, it will crash the test suite when diagnostic mode is enabled, and without
-        # diagnostic mode, the prepare appears to succeed!  (Comment out the if to see it in action).
-        # This is reported in WT-7011.  We should fix this to not assert in prepare, and either
-        # fully succeed (forgiving the previous bad timestamp_transaction and allowing subsequent
-        # commit), or return an error.  If the latter, then we can change this test to:
-        #    if not ok_tstxn1 or not ok_tstxn2:
-        #        ok_prepare = False
+        # diagnostic mode, the prepare appears to succeed!  Comment out the statement marked
+        # "AVOID ASSERT" below to see it happen. We should fix this to not assert in prepare,
+        # and either return an error in prepare, or fully succeed (forgiving the previous
+        # bad timestamp_transaction and allowing subsequent commit).  If the former,
+        # then just remove the "AVOID ASSERT" line below.  If the latter, then remove
+        # the entire if statement enclosing the "AVOID ASSERT".
         if not ok_tstxn1 or not ok_tstxn2:
-            do_prepare = False
+            # If a setting of the timestamp fails, the prepare and commit both fail.
+            ok_prepare = False
+            ok_commit = False
+            do_prepare = False      # AVOID ASSERT
+
 
         if running_commit_ts >= 0 and do_prepare:
             # Cannot set prepare timestamp after commit timestamp is successfully set.
@@ -230,8 +237,8 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         if commit_ts < first_commit_ts:
             ok_commit = False
 
-        # If a prepare fails or any setting of timestamp fails, the commit fails as well.
-        if not ok_prepare or not ok_tstxn1 or not ok_tstxn2:
+        # If a prepare fails, the commit fails as well.
+        if not ok_prepare:
             ok_commit = False
 
         msg = 'inserts with commit config(' + commit_config + ')'
@@ -279,6 +286,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                         session.commit_transaction(commit_config)
                         self.commit_value = value
                 if needs_rollback:
+                    # Rollback this one transaction, and continue the loop
                     self.report('rollback_transaction')
                     needs_rollback = False
                     session.rollback_transaction()
@@ -287,9 +295,6 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             self.pr(msg + 'UNEXPECTED EXCEPTION!')
             self.pr(msg + 'fail: ' + str(e))
             raise e
-        if needs_rollback:
-            self.report('rollback_transaction')
-            session.rollback_transaction()
         cursor.close()
 
     def make_timestamp_config(self, oldest, stable, commit, durable):
