@@ -742,6 +742,12 @@ __curhs_insert(WT_CURSOR *cursor)
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, insert, CUR2BT(file_cursor));
 
+    /*
+     * Disable bulk loads into history store. This would normally occur when updating a record with
+     * a cursor however the history store doesn't use cursor update, so we do it here.
+     */
+    __wt_cursor_disable_bulk(session);
+
     /* Allocate a tombstone only when there is a valid stop time point. */
     if (WT_TIME_WINDOW_HAS_STOP(&hs_cursor->time_window)) {
         /*
