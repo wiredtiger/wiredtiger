@@ -44,10 +44,10 @@ class test_assert01(wttest.WiredTigerTestCase, suite_subprocess):
     uri_never = base_uri + '.never.wt'
     uri_none = base_uri + '.none.wt'
     cfg = 'key_format=S,value_format=S,'
-    cfg_always = 'verbose=[write_timestamp],write_timestamp_usage=always,assert=(write_timestamp=true)'
+    cfg_always = 'verbose=[write_timestamp],write_timestamp_usage=always,assert=(write_timestamp=on)'
     cfg_def = ''
-    cfg_never = 'verbose=(write_timestamp=true),write_timestamp_usage=never,assert=(write_timestamp=true)'
-    cfg_none = 'assert=(write_timestamp=false)'
+    cfg_never = 'verbose=(write_timestamp=true),write_timestamp_usage=never,assert=(write_timestamp=on)'
+    cfg_none = 'assert=(write_timestamp=off)'
     session_config = 'isolation=snapshot'
 
     count = 1

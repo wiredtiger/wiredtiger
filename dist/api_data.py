@@ -48,10 +48,10 @@ common_runtime_config = [
     Config('assert', '', r'''
         enable enhanced checking. ''',
         type='category', subconfig= [
-        Config('write_timestamp', 'false', r'''
+        Config('write_timestamp', 'off', r'''
             verify that commit timestamps are used per the configured
             \c write_timestamp_usage option for this table''',
-            type='boolean'),
+            choices=['on', 'off']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should \c always or \c never be used
             on reads with this table.  Verification is \c none
