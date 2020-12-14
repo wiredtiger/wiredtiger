@@ -155,7 +155,7 @@ static const WT_CONFIG_CHECK confchk_WT_CURSOR_reconfigure[] = {
 
 static const WT_CONFIG_CHECK confchk_assert_subconfigs[] = {
   {"read_timestamp", "string", NULL, "choices=[\"always\",\"never\",\"none\"]", NULL, 0},
-  {"write_timestamp", "string", NULL, "choices=[\"on\",\"off\"]", NULL, 0},
+  {"write_timestamp", "string", NULL, "choices=[\"off\",\"on\"]", NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_create_log_subconfigs[] = {

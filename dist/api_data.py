@@ -51,7 +51,7 @@ common_runtime_config = [
         Config('write_timestamp', 'off', r'''
             verify that commit timestamps are used per the configured
             \c write_timestamp_usage option for this table''',
-            choices=['on', 'off']),
+            choices=['off', 'on']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should \c always or \c never be used
             on reads with this table.  Verification is \c none
