@@ -1,7 +1,7 @@
-AM_CPPFLAGS = -std=c++17 -I$(top_builddir) -I$(top_srcdir)/src/include \
+AM_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir)/src/include \
     -I$(top_srcdir)/test/utility
 LDADD = $(top_builddir)/test/utility/libtest_util.la \
-    $(top_builddir)/libwiredtiger.la -lstdc++fs
+    $(top_builddir)/libwiredtiger.la
 AM_LDFLAGS = -static
 
 all_TESTS=

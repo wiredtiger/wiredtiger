@@ -846,6 +846,16 @@ tasks:
         vars:
           directory: bench/wtperf
 
+ - name: cppsuite-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - func: "make check directory"
+        vars:
+          directory: test/cppsuite
   # End of normal make check test tasks
 
   - name: ubsan-test
