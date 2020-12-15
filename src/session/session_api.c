@@ -1700,7 +1700,6 @@ __session_reset_snapshot(WT_SESSION *wt_session)
 
     __wt_txn_release_snapshot(session);
     __wt_txn_get_snapshot(session);
-
 err:
     return (ret);
 }
