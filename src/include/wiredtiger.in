@@ -1666,6 +1666,10 @@ struct __wt_session {
 	 * update their existing snapshot. It raises an error when this API
 	 * is used for isolation other than snapshot isolation mode.
 	 *
+	 * @requires_transaction
+	 *
+	 * @snippet ex_all.c reset snapshot
+	 *
 	 * @param session the session handle
 	 * @errors
 	 */
