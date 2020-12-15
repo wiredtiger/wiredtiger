@@ -55,11 +55,11 @@ class test_isolation01(wttest.WiredTigerTestCase):
         self.session.begin_transaction('isolation=' + self.isolation)
         cursor[self.key] = self.value
 
-        if self.isolation == 'read-committed':
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.reset_snapshot(), "/read committed isolation cannot reset snapshot/")
-        else:
+        if self.isolation == 'snapshot':
             self.session.reset_snapshot()
+        else:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.reset_snapshot(), "/read committed/uncommitted isolation cannot reset snapshot/")
 
         self.session.commit_transaction()
 

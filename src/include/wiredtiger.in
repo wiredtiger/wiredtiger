@@ -1663,8 +1663,8 @@ struct __wt_session {
 	 * Reset the snapshot.
 	 *
 	 * This method resets snapshots for snapshot isolation transactions to
-	 * update their existing snapshot. It raises an error for when this API
-	 * is used for read-committed isolation mode.
+	 * update their existing snapshot. It raises an error when this API
+	 * is used for isolation other than snapshot isolation mode.
 	 *
 	 * @param session the session handle
 	 * @errors

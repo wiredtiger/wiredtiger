@@ -1689,19 +1689,17 @@ err:
 static int
 __session_reset_snapshot(WT_SESSION *wt_session)
 {
-    WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
     /* Return error if the isolation mode is read committed. */
-    if (session->txn->isolation == WT_ISO_READ_COMMITTED) {
-        WT_ERR_MSG(session, EPERM, "read committed isolation cannot reset snapshot.");
-    }
+    if (session->txn->isolation != WT_ISO_SNAPSHOT)
+        WT_RET_MSG(session, EPERM, "read committed/uncommitted isolation cannot reset snapshot.");
 
     __wt_txn_release_snapshot(session);
     __wt_txn_get_snapshot(session);
-err:
-    return (ret);
+
+    return (0);
 }
 
 /*
