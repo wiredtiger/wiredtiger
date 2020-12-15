@@ -858,6 +858,7 @@ transaction_ops(WT_SESSION *session_arg)
         cursor->set_key(cursor, "some-key");
         cursor->set_value(cursor, "some-value");
         error_check(session->reset_snapshot(session));
+        error_check(session->commit_transaction(session, NULL));
         /*! [reset snapshot] */
     }
 
