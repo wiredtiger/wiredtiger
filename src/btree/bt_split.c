@@ -261,6 +261,7 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         default:
             WT_ERR(__wt_illegal_value(session, unpack.raw));
         }
+        /* If the compare-and-swap is successful, clear addr to skip the free at the end. */
         if (__wt_atomic_cas_ptr(&ref->addr, ref_addr, addr))
             addr = NULL;
     }

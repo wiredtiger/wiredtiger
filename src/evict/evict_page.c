@@ -166,19 +166,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (inmem_split)
         goto done;
 
-        /*
-         * Check again that the page can be evicted. Something could have changed during
-         * reconciliation to prevent it such as an internal page split.
-         */
-#if 0
-    /* This is what I would like to do here but it causes a leak of leaf page images. */
-    if (!__wt_page_can_evict(session, ref, NULL))
-        WT_ERR(__wt_set_return(session, EBUSY));
-#elif 0
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !closing &&
-      __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen))
-        WT_ERR(__wt_set_return(session, EBUSY));
-#endif
+    /* For internal pages check, that it did not split and change generation. */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !closing)
+        WT_ASSERT(session, !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen));
 
     /* Count evictions of internal pages during normal operation. */
     if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
