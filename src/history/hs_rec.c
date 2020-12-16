@@ -880,7 +880,6 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
     WT_CURSOR *insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_RET;
-    WT_HS_TIME_POINT start_time_point, stop_time_point;
     WT_ITEM hs_key, hs_value;
     WT_TIME_WINDOW hs_insert_tw;
     wt_timestamp_t durable_timestamp, hs_start_ts, hs_stop_durable_ts;
@@ -940,19 +939,11 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
             WT_ERR(hs_cursor->get_value(
               hs_cursor, &hs_stop_durable_ts, &durable_timestamp, &hs_upd_type, &hs_value));
 
-            start_time_point.ts = start_time_point.durable_ts = WT_TS_NONE;
-            start_time_point.txnid = hs_cbt->upd_value->tw.start_txn;
-
-            stop_time_point.ts = stop_time_point.durable_ts = WT_TS_NONE;
-            stop_time_point.txnid = hs_cbt->upd_value->tw.stop_txn;
-
             /* Reinsert entry with zero timestamp. */
-            hs_insert_tw.start_ts = WT_TS_NONE;
-            hs_insert_tw.durable_start_ts = WT_TS_NONE;
+            hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts = WT_TS_NONE;
             hs_insert_tw.start_txn = hs_cbt->upd_value->tw.start_txn;
 
-            hs_insert_tw.stop_ts = WT_TS_NONE;
-            hs_insert_tw.durable_stop_ts = WT_TS_NONE;
+            hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts = WT_TS_NONE;
             hs_insert_tw.stop_txn = hs_cbt->upd_value->tw.stop_txn;
 
             insert_cursor->set_key(insert_cursor, 4, btree_id, key, WT_TS_NONE, hs_insert_counter);
