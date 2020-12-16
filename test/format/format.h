@@ -377,7 +377,7 @@ typedef struct {
 } TINFO;
 extern TINFO **tinfo_list;
 
-#define SNAP_LIST_SIZE 512
+#define SNAP_LIST_SIZE 20 * 1024
 
 WT_THREAD_RET alter(void *);
 WT_THREAD_RET backup(void *);
