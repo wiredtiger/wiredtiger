@@ -217,8 +217,12 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
     WT_STAT_CONN_INCRV(session, block_cache_bytes, size);
     WT_STAT_CONN_INCR(session, block_cache_blocks);
     if (write) {
-	WT_STAT_CONN_INCRV(session, block_cache_bytes_write, size);
-	WT_STAT_CONN_INCR(session, block_cache_blocks_write);
+	WT_STAT_CONN_INCRV(session, block_cache_bytes_insert_write, size);
+	WT_STAT_CONN_INCR(session, block_cache_blocks_insert_write);
+    }
+    else {
+	WT_STAT_CONN_INCRV(session, block_cache_bytes_insert_read, size);
+	WT_STAT_CONN_INCR(session, block_cache_blocks_insert_read);
     }
 
     __wt_verbose(session, WT_VERB_BLKCACHE, "block inserted in cache: "
@@ -378,6 +382,18 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     }
 
     WT_ASSERT(session, blkcache->bytes_used == blkcache->num_data_blocks == 0);
+    WT_STAT_CONN_SET(session, block_cache_blocks, 0);
+    WT_STAT_CONN_SET(session, block_cache_blocks_removed, 0);
+    WT_STAT_CONN_SET(session, block_cache_blocks_update, 0);
+    WT_STAT_CONN_SET(session, block_cache_blocks_insert_read, 0);
+    WT_STAT_CONN_SET(session, block_cache_blocks_insert_write, 0);
+    WT_STAT_CONN_SET(session, block_cache_bytes, 0);
+    WT_STAT_CONN_SET(session, block_cache_bytes_update, 0);
+    WT_STAT_CONN_SET(session, block_cache_bytes_insert_read, 0);
+    WT_STAT_CONN_SET(session, block_cache_bytes_insert_write, 0);
+    WT_STAT_CONN_SET(session, block_cache_data_refs, 0);
+    WT_STAT_CONN_SET(session, block_cache_hits, 0);
+    WT_STAT_CONN_SET(session, block_cache_misses, 0);
 
 done:
 #ifdef HAVE_LIBMEMKIND

@@ -893,8 +893,10 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: block cache number of misses, including existence checks",
   "block-manager: block cache removed blocks",
   "block-manager: block cache total blocks",
+  "block-manager: block cache total blocks inserted on read path",
   "block-manager: block cache total blocks inserted on write path",
   "block-manager: block cache total bytes",
+  "block-manager: block cache total bytes inserted on read path",
   "block-manager: block cache total bytes inserted on write path",
   "block-manager: blocks pre-loaded",
   "block-manager: blocks read",
@@ -1438,9 +1440,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_misses = 0;
     stats->block_cache_blocks_removed = 0;
     stats->block_cache_blocks = 0;
-    stats->block_cache_blocks_write = 0;
+    stats->block_cache_blocks_insert_read = 0;
+    stats->block_cache_blocks_insert_write = 0;
     stats->block_cache_bytes = 0;
-    stats->block_cache_bytes_write = 0;
+    stats->block_cache_bytes_insert_read = 0;
+    stats->block_cache_bytes_insert_write = 0;
     stats->block_preload = 0;
     stats->block_read = 0;
     stats->block_write = 0;
@@ -1949,9 +1953,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_misses += WT_STAT_READ(from, block_cache_misses);
     to->block_cache_blocks_removed += WT_STAT_READ(from, block_cache_blocks_removed);
     to->block_cache_blocks += WT_STAT_READ(from, block_cache_blocks);
-    to->block_cache_blocks_write += WT_STAT_READ(from, block_cache_blocks_write);
+    to->block_cache_blocks_insert_read += WT_STAT_READ(from, block_cache_blocks_insert_read);
+    to->block_cache_blocks_insert_write += WT_STAT_READ(from, block_cache_blocks_insert_write);
     to->block_cache_bytes += WT_STAT_READ(from, block_cache_bytes);
-    to->block_cache_bytes_write += WT_STAT_READ(from, block_cache_bytes_write);
+    to->block_cache_bytes_insert_read += WT_STAT_READ(from, block_cache_bytes_insert_read);
+    to->block_cache_bytes_insert_write += WT_STAT_READ(from, block_cache_bytes_insert_write);
     to->block_preload += WT_STAT_READ(from, block_preload);
     to->block_read += WT_STAT_READ(from, block_read);
     to->block_write += WT_STAT_READ(from, block_write);

@@ -344,9 +344,11 @@ struct __wt_connection_stats {
     int64_t block_cache_misses;
     int64_t block_cache_blocks_removed;
     int64_t block_cache_blocks;
-    int64_t block_cache_blocks_write;
+    int64_t block_cache_blocks_insert_read;
+    int64_t block_cache_blocks_insert_write;
     int64_t block_cache_bytes;
-    int64_t block_cache_bytes_write;
+    int64_t block_cache_bytes_insert_read;
+    int64_t block_cache_bytes_insert_write;
     int64_t block_preload;
     int64_t block_read;
     int64_t block_write;
