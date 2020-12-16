@@ -77,6 +77,7 @@ check_copy(void)
      */
     ret = session->verify(session, g.uri, NULL);
     testutil_assertfmt(ret == 0 || ret == EBUSY, "WT_SESSION.verify: %s: %s", path, g.uri);
+
     wts_close(&conn, &session);
 
     free(path);
