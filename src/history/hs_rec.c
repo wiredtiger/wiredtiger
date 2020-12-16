@@ -807,6 +807,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          */
         if (insert_cursor == NULL) {
             WT_WITHOUT_DHANDLE(session, ret = __wt_curhs_open(session, NULL, &insert_cursor));
+            F_SET(insert_cursor, WT_CURSTD_HS_READ_COMMITTED);
             WT_ERR(ret);
         }
 
@@ -902,6 +903,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
          * inserting.
          */
         WT_WITHOUT_DHANDLE(session, ret = __wt_curhs_open(session, NULL, &insert_cursor));
+        F_SET(insert_cursor, WT_CURSTD_HS_READ_COMMITTED);
         WT_ERR(ret);
         insert_cursor->set_key(insert_cursor, 4, btree_id, key, WT_TS_NONE, UINT64_MAX);
         WT_ERR_NOTFOUND_OK(insert_cursor->search_near(insert_cursor, &cmp), true);

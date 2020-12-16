@@ -2277,6 +2277,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         return (0);
 
     WT_RET(__wt_cursor_hs_open(session));
+    F_SET(session->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
