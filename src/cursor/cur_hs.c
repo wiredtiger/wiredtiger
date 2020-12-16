@@ -27,11 +27,8 @@ __hs_cursor_open_int(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
       session, ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &cursor));
     WT_RET(ret);
 
-    /*
-     * History store cursors should always ignore tombstones. Mark the history store cursor as
-     * internal to disarm the operation timer.
-     */
-    F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE | WT_CURSTD_INTERNAL);
+    /* History store cursors should always ignore tombstones. */
+    F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
 
     *cursorp = cursor;
     return (0);

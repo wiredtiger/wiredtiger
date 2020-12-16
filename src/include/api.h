@@ -33,48 +33,42 @@
 #endif
 
 #define API_SESSION_PUSH(s, h, n, dh)       \
-    WT_CURSOR *__cursor = NULL;             \
     WT_DATA_HANDLE *__olddh = (s)->dhandle; \
     const char *__oldname = (s)->name;      \
-    bool __op_timer_started = false;        \
+    ++s->api_call_counter;                  \
     (s)->dhandle = (dh);                    \
-    (s)->name = (s)->lastop = #h "." #n;    \
-    WT_UNUSED(__cursor);                    \
-    WT_UNUSED(__op_timer_started)
+    (s)->name = (s)->lastop = #h "." #n
 #define API_SESSION_POP(s)  \
     (s)->dhandle = __olddh; \
-    (s)->name = __oldname
+    (s)->name = __oldname;  \
+    --s->api_call_counter
 
 /* Standard entry points to the API: declares/initializes local variables. */
-#define API_SESSION_INIT(s, cur, h, n, dh)                                      \
-    WT_TRACK_OP_DECL;                                                           \
-    API_SESSION_PUSH(s, h, n, dh);                                              \
-    /*                                                                          \
-     * No code before this line, otherwise error handling won't be              \
-     * correct.                                                                 \
-     */                                                                         \
-    WT_ERR(WT_SESSION_CHECK_PANIC(s));                                          \
-    WT_SINGLE_THREAD_CHECK_START(s);                                            \
-    WT_TRACK_OP_INIT(s);                                                        \
-    if (!F_ISSET(s, WT_SESSION_INTERNAL) &&                                     \
-      ((__cursor = (cur)) == NULL || !F_ISSET(__cursor, WT_CURSTD_INTERNAL))) { \
-        __wt_op_timer_start(s);                                                 \
-        __op_timer_started = true;                                              \
-    }                                                                           \
-                                                                                \
-    /* Reset wait time if this isn't an API reentry. */                         \
-    if (__oldname == NULL)                                                      \
-        (s)->cache_wait_us = 0;                                                 \
+#define API_SESSION_INIT(s, h, n, dh)                                 \
+    WT_TRACK_OP_DECL;                                                 \
+    API_SESSION_PUSH(s, h, n, dh);                                    \
+    /*                                                                \
+     * No code before this line, otherwise error handling won't be    \
+     * correct.                                                       \
+     */                                                               \
+    WT_ERR(WT_SESSION_CHECK_PANIC(s));                                \
+    WT_SINGLE_THREAD_CHECK_START(s);                                  \
+    WT_TRACK_OP_INIT(s);                                              \
+    if (!F_ISSET(s, WT_SESSION_INTERNAL) && s->api_call_counter == 1) \
+        __wt_op_timer_start(s);                                       \
+    /* Reset wait time if this isn't an API reentry. */               \
+    if (__oldname == NULL)                                            \
+        (s)->cache_wait_us = 0;                                       \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #h ":" #n)
 
-#define API_CALL_NOCONF(s, cur, h, n, dh) \
-    do {                                  \
-    API_SESSION_INIT(s, cur, h, n, dh)
+#define API_CALL_NOCONF(s, h, n, dh) \
+    do {                             \
+    API_SESSION_INIT(s, h, n, dh)
 
-#define API_CALL(s, cur, h, n, dh, config, cfg)                           \
+#define API_CALL(s, h, n, dh, config, cfg)                                \
     do {                                                                  \
         const char *(cfg)[] = {WT_CONFIG_BASE(s, h##_##n), config, NULL}; \
-        API_SESSION_INIT(s, cur, h, n, dh);                               \
+        API_SESSION_INIT(s, h, n, dh);                                    \
         if ((config) != NULL)                                             \
     WT_ERR(__wt_config_check((s), WT_CONFIG_REF(session, h##_##n), (config), 0))
 
@@ -84,7 +78,7 @@
         WT_SINGLE_THREAD_CHECK_STOP(s);                      \
         if ((ret) != 0)                                      \
             __wt_txn_err_set(s, ret);                        \
-        if (__op_timer_started)                              \
+        if (s->api_call_counter == 1)                        \
             __wt_op_timer_stop(s);                           \
         /*                                                   \
          * No code after this line, otherwise error handling \
@@ -96,10 +90,10 @@
     while (0)
 
 /* An API call wrapped in a transaction if necessary. */
-#define TXN_API_CALL(s, cur, h, n, dh, config, cfg)                         \
+#define TXN_API_CALL(s, h, n, dh, config, cfg)                              \
     do {                                                                    \
         bool __autotxn = false, __update = false;                           \
-        API_CALL(s, cur, h, n, dh, config, cfg);                            \
+        API_CALL(s, h, n, dh, config, cfg);                                 \
         __wt_txn_timestamp_flags(s);                                        \
         __autotxn = !F_ISSET((s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING); \
         if (__autotxn)                                                      \
@@ -109,10 +103,10 @@
             F_SET((s)->txn, WT_TXN_UPDATE);
 
 /* An API call wrapped in a transaction if necessary. */
-#define TXN_API_CALL_NOCONF(s, cur, h, n, dh)                               \
+#define TXN_API_CALL_NOCONF(s, h, n, dh)                                    \
     do {                                                                    \
         bool __autotxn = false, __update = false;                           \
-        API_CALL_NOCONF(s, cur, h, n, dh);                                  \
+        API_CALL_NOCONF(s, h, n, dh);                                       \
         __wt_txn_timestamp_flags(s);                                        \
         __autotxn = !F_ISSET((s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING); \
         if (__autotxn)                                                      \
@@ -172,24 +166,24 @@
 
 #define CONNECTION_API_CALL(conn, s, n, config, cfg) \
     s = (conn)->default_session;                     \
-    API_CALL(s, NULL, WT_CONNECTION, n, NULL, config, cfg)
+    API_CALL(s, WT_CONNECTION, n, NULL, config, cfg)
 
 #define CONNECTION_API_CALL_NOCONF(conn, s, n) \
     s = (conn)->default_session;               \
-    API_CALL_NOCONF(s, NULL, WT_CONNECTION, n, NULL)
+    API_CALL_NOCONF(s, WT_CONNECTION, n, NULL)
 
 #define SESSION_API_CALL_PREPARE_ALLOWED(s, n, config, cfg) \
-    API_CALL(s, NULL, WT_SESSION, n, NULL, config, cfg)
+    API_CALL(s, WT_SESSION, n, NULL, config, cfg)
 
-#define SESSION_API_CALL_PREPARE_ALLOWED_NOCONF(s, n) API_CALL_NOCONF(s, NULL, WT_SESSION, n, NULL)
+#define SESSION_API_CALL_PREPARE_ALLOWED_NOCONF(s, n) API_CALL_NOCONF(s, WT_SESSION, n, NULL)
 
 #define SESSION_API_CALL_PREPARE_NOT_ALLOWED(s, n, config, cfg) \
     SESSION_API_PREPARE_CHECK(s, WT_SESSION, n);                \
-    API_CALL(s, NULL, WT_SESSION, n, NULL, config, cfg)
+    API_CALL(s, WT_SESSION, n, NULL, config, cfg)
 
 #define SESSION_API_CALL_PREPARE_NOT_ALLOWED_NOCONF(s, n) \
     SESSION_API_PREPARE_CHECK(s, WT_SESSION, n);          \
-    API_CALL_NOCONF(s, NULL, WT_SESSION, n, NULL)
+    API_CALL_NOCONF(s, WT_SESSION, n, NULL)
 
 #define SESSION_API_PREPARE_CHECK(s, h, n)                 \
     do {                                                   \
@@ -202,26 +196,26 @@
 
 #define SESSION_API_CALL(s, n, config, cfg)      \
     SESSION_API_PREPARE_CHECK(s, WT_SESSION, n); \
-    API_CALL(s, NULL, WT_SESSION, n, NULL, config, cfg)
+    API_CALL(s, WT_SESSION, n, NULL, config, cfg)
 
-#define SESSION_API_CALL_NOCONF(s, n) API_CALL_NOCONF(s, NULL, WT_SESSION, n, NULL)
+#define SESSION_API_CALL_NOCONF(s, n) API_CALL_NOCONF(s, WT_SESSION, n, NULL)
 
 #define SESSION_TXN_API_CALL(s, n, config, cfg)  \
     SESSION_API_PREPARE_CHECK(s, WT_SESSION, n); \
-    TXN_API_CALL(s, NULL, WT_SESSION, n, NULL, config, cfg)
+    TXN_API_CALL(s, WT_SESSION, n, NULL, config, cfg)
 
-#define CURSOR_API_CALL(cur, s, n, bt)                                                          \
-    (s) = (WT_SESSION_IMPL *)(cur)->session;                                                    \
-    if ((s)->hs_cursor == NULL)                                                                 \
-        SESSION_API_PREPARE_CHECK(s, WT_CURSOR, n);                                             \
-    API_CALL_NOCONF(s, cur, WT_CURSOR, n, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle); \
-    if (F_ISSET(cur, WT_CURSTD_CACHED))                                                         \
+#define CURSOR_API_CALL(cur, s, n, bt)                                                     \
+    (s) = (WT_SESSION_IMPL *)(cur)->session;                                               \
+    if ((s)->hs_cursor == NULL)                                                            \
+        SESSION_API_PREPARE_CHECK(s, WT_CURSOR, n);                                        \
+    API_CALL_NOCONF(s, WT_CURSOR, n, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle); \
+    if (F_ISSET(cur, WT_CURSTD_CACHED))                                                    \
     WT_ERR(__wt_cursor_cached(cur))
 
-#define CURSOR_API_CALL_PREPARE_ALLOWED(cur, s, n, bt)                                          \
-    (s) = (WT_SESSION_IMPL *)(cur)->session;                                                    \
-    API_CALL_NOCONF(s, cur, WT_CURSOR, n, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle); \
-    if (F_ISSET(cur, WT_CURSTD_CACHED))                                                         \
+#define CURSOR_API_CALL_PREPARE_ALLOWED(cur, s, n, bt)                                     \
+    (s) = (WT_SESSION_IMPL *)(cur)->session;                                               \
+    API_CALL_NOCONF(s, WT_CURSOR, n, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle); \
+    if (F_ISSET(cur, WT_CURSTD_CACHED))                                                    \
     WT_ERR(__wt_cursor_cached(cur))
 
 #define JOINABLE_CURSOR_CALL_CHECK(cur) \
@@ -239,8 +233,7 @@
 #define CURSOR_REMOVE_API_CALL(cur, s, bt)           \
     (s) = (WT_SESSION_IMPL *)(cur)->session;         \
     SESSION_API_PREPARE_CHECK(s, WT_CURSOR, remove); \
-    TXN_API_CALL_NOCONF(                             \
-      s, cur, WT_CURSOR, remove, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle)
+    TXN_API_CALL_NOCONF(s, WT_CURSOR, remove, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle)
 
 #define JOINABLE_CURSOR_REMOVE_API_CALL(cur, s, bt) \
     CURSOR_REMOVE_API_CALL(cur, s, bt);             \
@@ -249,7 +242,7 @@
 #define CURSOR_UPDATE_API_CALL_BTREE(cur, s, n)                                               \
     (s) = (WT_SESSION_IMPL *)(cur)->session;                                                  \
     SESSION_API_PREPARE_CHECK(s, WT_CURSOR, n);                                               \
-    TXN_API_CALL_NOCONF(s, cur, WT_CURSOR, n, ((WT_CURSOR_BTREE *)(cur))->dhandle);           \
+    TXN_API_CALL_NOCONF(s, WT_CURSOR, n, ((WT_CURSOR_BTREE *)(cur))->dhandle);                \
     if (F_ISSET(S2C(s), WT_CONN_IN_MEMORY) && !F_ISSET(CUR2BT(cur), WT_BTREE_IGNORE_CACHE) && \
       __wt_cache_full(s))                                                                     \
         WT_ERR(WT_CACHE_FULL);
@@ -257,7 +250,7 @@
 #define CURSOR_UPDATE_API_CALL(cur, s, n)       \
     (s) = (WT_SESSION_IMPL *)(cur)->session;    \
     SESSION_API_PREPARE_CHECK(s, WT_CURSOR, n); \
-    TXN_API_CALL_NOCONF(s, cur, WT_CURSOR, n, NULL)
+    TXN_API_CALL_NOCONF(s, WT_CURSOR, n, NULL)
 
 #define JOINABLE_CURSOR_UPDATE_API_CALL(cur, s, n) \
     CURSOR_UPDATE_API_CALL(cur, s, n);             \
