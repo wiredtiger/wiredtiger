@@ -556,7 +556,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
     __wt_cache_page_inmem_incr(session, root, root_incr);
     __wt_cache_page_inmem_decr(session, root, root_decr);
 
-    WT_IGNORE_RET(__wt_gen_next(session, WT_GEN_SPLIT));
+    __wt_gen_next(session, WT_GEN_SPLIT, NULL);
 err:
     __split_ref_final(session, 0, &locked);
 
@@ -846,7 +846,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
       "%p: split into parent, %" PRIu32 "->%" PRIu32 ", %" PRIu32 " deleted", (void *)ref,
       parent_entries, result_entries, deleted_entries);
 
-    WT_IGNORE_RET(__wt_gen_next(session, WT_GEN_SPLIT));
+    __wt_gen_next(session, WT_GEN_SPLIT, NULL);
 err:
     /*
      * A note on error handling: if we completed the split, return success, nothing really bad can
@@ -1093,7 +1093,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
     __wt_cache_page_inmem_incr(session, page, page_incr);
     __wt_cache_page_inmem_decr(session, page, page_decr);
 
-    WT_IGNORE_RET(__wt_gen_next(session, WT_GEN_SPLIT));
+    __wt_gen_next(session, WT_GEN_SPLIT, NULL);
 err:
     __split_ref_final(session, 0, &locked);
 

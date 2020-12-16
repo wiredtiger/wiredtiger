@@ -73,10 +73,14 @@ __wt_gen(WT_SESSION_IMPL *session, int which)
  * __wt_gen_next --
  *     Switch the resource to its next generation.
  */
-uint64_t
-__wt_gen_next(WT_SESSION_IMPL *session, int which)
+void
+__wt_gen_next(WT_SESSION_IMPL *session, int which, uint64_t *genp)
 {
-    return (__wt_atomic_addv64(&S2C(session)->generations[which], 1));
+    uint64_t gen;
+
+    gen = __wt_atomic_addv64(&S2C(session)->generations[which], 1);
+    if (genp != NULL)
+        *genp = gen;
 }
 
 /*
