@@ -972,39 +972,6 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 }
 
 /*
- * __rollback_evict_file_exclusive_toggle --
- *     Toggle exclusive eviction access on and off for the current file.
- */
-static int
-__rollback_evict_file_exclusive_toggle(WT_SESSION_IMPL *session, const char *cfg[])
-{
-    WT_UNUSED(cfg);
-    WT_ASSERT(session, cfg == NULL);
-
-    /* History store evictions won't cause writes to history store so no need to do this. */
-    if (WT_IS_HS(S2BT(session)))
-        return (0);
-
-    WT_RET(__wt_evict_file_exclusive_on(session));
-    __wt_evict_file_exclusive_off(session);
-
-    return (0);
-}
-
-/*
- * __rollback_evict_exclusive_toggle --
- *     Acquire and release exclusive eviction access to any files that may conflict with rollback to
- *     stable's preliminary check for active transactions. This will wait for any in-progress
- *     evictions to complete. Therefore, when we release, eviction is unlikely to be active.
- */
-static int
-__rollback_evict_exclusive_toggle(WT_SESSION_IMPL *session)
-{
-    return (
-      __wt_conn_btree_apply(session, NULL, __rollback_evict_file_exclusive_toggle, NULL, NULL));
-}
-
-/*
  * __rollback_to_stable_check --
  *     Ensure the rollback request is reasonable.
  */
@@ -1349,25 +1316,24 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     size_t retries;
+    uint32_t cache_flags;
 
     conn = S2C(session);
     cache = conn->cache;
 
     /*
-     * If eviction is active, toggle exclusive eviction access on and off. This will involve waiting
-     * for all active evictions to complete and give us a better chance of passing the rollback to
-     * stable check.
+     * We're about to run a check for active transactions in the system to stop users from shooting
+     * themselves in the foot. Eviction threads may interfere with this check if they involve writes
+     * to the history store so we need to wait until the system is no longer evicting content.
      */
 #define WT_RTS_EVICT_MAX_RETRIES 5
-    for (retries = 0; retries < WT_RTS_EVICT_MAX_RETRIES && F_ISSET(cache, WT_CACHE_EVICT_ALL);
-         ++retries) {
+    for (retries = 0; retries < WT_RTS_EVICT_MAX_RETRIES; ++retries) {
+        WT_ORDERED_READ(cache_flags, cache->flags);
+        if (!FLD_ISSET(cache_flags, WT_CACHE_EVICT_ALL))
+            break;
         /* If we're retrying, pause for a second and let eviction make some progress. */
-        if (retries != 0) {
-            WT_RET(
-              __wt_msg(session, "rollback_to_stable waiting for active evictions to complete"));
+        if (retries != 0)
             __wt_sleep(1, 0);
-        }
-        WT_RET(__rollback_evict_exclusive_toggle(session));
     }
 
     WT_RET(__rollback_to_stable_check(session));
