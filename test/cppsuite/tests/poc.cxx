@@ -1,4 +1,6 @@
 #include <iostream>
+#include <stdlib.h>
+
 extern "C" {
     #include "wiredtiger.h"
 }
