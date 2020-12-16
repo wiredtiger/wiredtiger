@@ -258,10 +258,6 @@ read:
                 WT_RET(__wt_cache_eviction_check(
                   session, true, !F_ISSET(session->txn, WT_TXN_HAS_ID), NULL));
 
-            /* Rollback the transaction if the operation timer fires. */
-            if (__wt_op_timer_fired(session))
-                return (WT_ROLLBACK);
-
             ret = __page_read(session, ref, flags);
 
             /*

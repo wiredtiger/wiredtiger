@@ -1060,6 +1060,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
         WT_WITHOUT_DHANDLE(session,
           ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &insert_cursor));
         WT_ERR(ret);
+        F_SET(insert_cursor, WT_CURSTD_IGNORE_TOMBSTONE);
         WT_ERR_NOTFOUND_OK(
           __wt_hs_cursor_position(session, insert_cursor, btree_id, key, WT_TS_NONE, NULL), true);
 

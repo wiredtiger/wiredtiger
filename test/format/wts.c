@@ -497,8 +497,8 @@ wts_verify(WT_CONNECTION *conn, const char *tag)
     /*
      * Verify can return EBUSY if the handle isn't available. Don't yield and retry, in the case of
      * LSM, the handle may not be available for a long time.
-     * 
-     * Overwrite the global timout setting which is too small for verify.
+     *
+     * Overwrite the global timeout setting which is too small for verify.
      */
     testutil_check(session->begin_transaction(session, "operation_timeout_ms=600000"));
     ret = session->verify(session, g.uri, "strict");
