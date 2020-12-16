@@ -45,7 +45,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
     # Create a table.
     uri = "table:test_checkpoint_snapshot02"
-    nrows = 200
+    nrows = 1000
 
     def conn_config(self):
         config = 'cache_size=5MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
