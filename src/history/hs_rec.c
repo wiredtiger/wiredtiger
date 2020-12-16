@@ -913,7 +913,6 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
         } else {
             WT_ERR(insert_cursor->get_key(
               insert_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_insert_counter));
-            WT_ASSERT(session, cmp == 0);
             WT_ASSERT(session, hs_start_ts == WT_TS_NONE);
             /*
              * Increment the hs counter that we'll be using to insert with to avoid overwriting the
