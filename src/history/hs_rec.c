@@ -838,12 +838,14 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * we should preserve the stop transaction id.
          */
         hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts = ts;
-        hs_insert_tw.start_txn = hs_cbt->upd_value->tw.start_txn;
+        hs_insert_tw.stop_txn = hs_cbt->upd_value->tw.start_txn;
 
         /* Extract the underlying value for reinsertion. */
         WT_ERR(hs_cursor->get_value(
           hs_cursor, &tw.durable_stop_ts, &tw.durable_start_ts, &hs_upd_type, &hs_value));
 
+        /* Insert the value back with different timestamps. */
+        insert_cursor->set_key(insert_cursor, 4, btree->id, &hs_key, ts, *counter);
         insert_cursor->set_value(insert_cursor, &hs_insert_tw, hs_insert_tw.durable_stop_ts,
           hs_insert_tw.durable_start_ts, (uint64_t)hs_upd_type, &hs_value);
         WT_ERR(insert_cursor->insert(insert_cursor));
@@ -851,7 +853,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         WT_ERR(ret);
         ++(*counter);
 
-        /* Delete entry with higher timestamp. */
+        /* Delete the entry with higher timestamp. */
         hs_cursor->remove(hs_cursor);
         WT_ERR(ret);
         WT_STAT_CONN_INCR(session, cache_hs_order_fixup_move);
