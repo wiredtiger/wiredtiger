@@ -886,7 +886,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
     uint32_t hs_btree_id;
     int cmp;
 
-    hs_cbt = WT_HS_CBT(hs_cursor); 
+    hs_cbt = WT_HS_CBT(hs_cursor);
     hs_insert_counter = 0;
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
