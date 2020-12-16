@@ -1327,10 +1327,10 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
      * to the history store so we need to wait until the system is no longer evicting content.
      *
      * If we detect active evictions, we should wait a millisecond and check again. If we're waiting
-     * for evictions to quiesce for more than 5 seconds, we should give up on waiting and try the
-     * transaction check anyway.
+     * for evictions to quiesce for more than 2 minutes, we should give up on waiting and proceed
+     * with the transaction check anyway.
      */
-#define WT_RTS_EVICT_MAX_RETRIES (5 * WT_THOUSAND)
+#define WT_RTS_EVICT_MAX_RETRIES (2 * WT_MINUTE * WT_THOUSAND)
     for (retries = 0; retries < WT_RTS_EVICT_MAX_RETRIES; ++retries) {
         WT_ORDERED_READ(cache_flags, cache->flags);
         if (!FLD_ISSET(cache_flags, WT_CACHE_EVICT_ALL))
