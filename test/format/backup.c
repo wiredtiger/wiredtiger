@@ -74,13 +74,9 @@ check_copy(void)
     /*
      * Verify can return EBUSY if the handle isn't available. Don't yield and retry, in the case of
      * LSM, the handle may not be available for a long time.
-     *
-     * Overwrite the global timeout setting which is too small for verify.
      */
-    testutil_check(session->begin_transaction(session, "operation_timeout_ms=600000"));
     ret = session->verify(session, g.uri, NULL);
     testutil_assertfmt(ret == 0 || ret == EBUSY, "WT_SESSION.verify: %s: %s", path, g.uri);
-    testutil_check(session->rollback_transaction(session, NULL));
     wts_close(&conn, &session);
 
     free(path);
