@@ -23,6 +23,11 @@ if [ $# -ne 1 ]; then
 	    -e '/checksum\/power8/d' \
 	    -e '/checksum\/zseries/d' |
 	xargs $xp -n 1 -I{} sh ./dist/s_style {}
+
+	# Checks source files for camel case formatting, variables should be separated by underscore instead.
+	if egrep -n -r '\b[a-z]+[A-Z]' src | egrep -v '/os_win/|/docs/|/tags|:[     ]+\*|"|hash_city|huffman|checksum|UNCHECKED_STRING'; then
+		echo "Styling requires variables that use underscores to separate parts of a name instead of camel casing."
+	fi
 else
 	# General style correction and cleanup for a single file
 	f=$1
