@@ -527,13 +527,11 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    int cmp;
     int exact;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
     *exactp = 0;
-    cmp = 0;
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, search_near, CUR2BT(file_cursor));
 
@@ -545,82 +543,32 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     WT_ERR(__wt_hs_cursor_search_near(session, file_cursor, &exact));
 
     /*
-     * There are some key fields missing so we are searching a range of keys. Place the cursor at
-     * the start of the range.
+     * If we have some missing fields in the key, try to walk forward first to increase the chance
+     * of placing the cursor at the key that is larger or equal to the search key. If nothing is
+     * found, walk backward.
      */
     if (!F_ISSET(hs_cursor, WT_HS_CUR_COUNTER_SET)) {
-        /*
-         * If we raced with a history store insert, we may be two or more records away from our
-         * target. Keep iterating forwards until we are on or past our target key.
-         *
-         * We can't use the cursor positioning helper that we use for regular reads since that will
-         * place us at the end of a particular key/timestamp range whereas we want to be placed at
-         * the beginning.
-         */
-        if (exact < 0) {
-            while ((ret = __wt_hs_cursor_next(session, file_cursor)) == 0) {
-                WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
-                if (cmp >= 0)
-                    break;
-            }
-            /*
-             * No entries greater than or equal to the key we searched for. Reset cursor if we get
-             * WT_NOTFOUND.
-             */
-            WT_ERR(ret);
-
-            *exactp = cmp;
+        WT_ERR_NOTFOUND_OK(__curhs_next_visible(session, hs_cursor), true);
+        if (ret == WT_NOTFOUND) {
+            WT_ERR(__wt_hs_cursor_prev(session, file_cursor));
+            WT_ERR(__curhs_prev_visible(session, hs_cursor));
         } else
-            *exactp = 1;
-
-        WT_ERR(__curhs_next_visible(session, hs_cursor));
+            WT_ERR(ret);
     }
-    /* Search the closest match that is smaller or equal to the search key. */
+    /*
+     * Walk backward first to try to increase the chance to place the cursor at the key that is
+     * smaller or equal to the search key.
+     */
     else {
-        /*
-         * Because of the special visibility rules for the history store, a new key can appear in
-         * between our search and the set of updates that we're interested in. Keep trying until we
-         * find it.
-         *
-         * There may be no history store entries for the given btree id and record key if they have
-         * been removed by rollback to stable.
-         *
-         * Note that we need to compare the raw key off the cursor to determine where we are in the
-         * history store as opposed to comparing the embedded data store key since the ordering is
-         * not guaranteed to be the same.
-         */
-        if (exact > 0) {
-            /*
-             * It's possible that we may race with a history store insert for another key. So we may
-             * be more than one record away the end of our target key/timestamp range. Keep
-             * iterating backwards until we land on our key.
-             */
-            while ((ret = __wt_hs_cursor_prev(session, file_cursor)) == 0) {
-                WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
-                WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
-
-                WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
-                if (cmp <= 0)
-                    break;
-            }
-            /*
-             * No entries less than or equal to the key we searched for. Reset cursor if we get
-             * WT_NOTFOUND.
-             */
-            WT_ERR(ret);
-
-            *exactp = cmp;
+        WT_ERR_NOTFOUND_OK(__curhs_prev_visible(session, hs_cursor), true);
+        if (ret == WT_NOTFOUND) {
+            WT_ERR(__wt_hs_cursor_next(session, file_cursor));
+            WT_ERR(__curhs_next_visible(session, hs_cursor));
         } else
-            *exactp = -1;
-#ifdef HAVE_DIAGNOSTIC
-        if (ret == 0) {
-            WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
-            WT_ASSERT(session, cmp <= 0);
-        }
-#endif
-
-        WT_ERR(__curhs_prev_visible(session, hs_cursor));
+            WT_ERR(ret);
     }
+
+    WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, exactp));
 
     if (0) {
 err:
