@@ -18,8 +18,7 @@ typedef struct {
     uint64_t txnid;
 } WT_HS_TIME_POINT;
 
-#define WT_HS_CBT(hs_cur, hs_cur_bt) \
-    (hs_cur_bt = (WT_CURSOR_BTREE *)(((WT_CURSOR_HS *)hs_cur)->file_cursor))
+#define WT_HS_CBT(std_cur) ((WT_CURSOR_BTREE *)(((WT_CURSOR_HS *)std_cur)->file_cursor))
 
 static int __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   uint32_t btree_id, const WT_ITEM *key, bool reinsert);
@@ -108,7 +107,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
 #ifdef HAVE_DIAGNOSTIC
     /* Allocate buffer for the existing history store value for the same key. */
     WT_ERR(__wt_scr_alloc(session, 0, &existing_val));
-    WT_HS_CBT(cursor, hs_cbt);
+    hs_cbt = WT_HS_CBT(cursor);
 #endif
 
     /* Sanity check that the btree is not a history store btree. */
@@ -726,7 +725,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     char ts_string[5][WT_TS_INT_STRING_SIZE];
 
     insert_cursor = NULL;
-    WT_HS_CBT(hs_cursor, hs_cbt);
+    hs_cbt = WT_HS_CBT(hs_cursor);
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
 
@@ -887,7 +886,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
     uint32_t hs_btree_id;
     int cmp;
 
-    WT_HS_CBT(hs_cursor, hs_cbt);
+    hs_cbt = WT_HS_CBT(hs_cursor); 
     hs_insert_counter = 0;
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
