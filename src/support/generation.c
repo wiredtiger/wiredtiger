@@ -178,7 +178,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
  *     Return the oldest generation in use for the resource.
  */
 static uint64_t
-__gen_oldest(WT_SESSION_IMPL *session, int which, uint64_t generation)
+__gen_oldest(WT_SESSION_IMPL *session, int which)
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
@@ -187,10 +187,41 @@ __gen_oldest(WT_SESSION_IMPL *session, int which, uint64_t generation)
 
     conn = S2C(session);
 
-    if (generation != 0)
-        oldest = generation;
-    else
-        oldest = conn->generations[which];
+    /*
+     * No lock is required because the session array is fixed size, but it may contain inactive
+     * entries. We must review any active session, so insert a read barrier after reading the active
+     * session count. That way, no matter what sessions come or go, we'll check the slots for all of
+     * the sessions that could have been active when we started our check.
+     */
+    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    for (oldest = conn->generations[which], s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
+        if (!s->active)
+            continue;
+
+        /* Ensure we only read the value once. */
+        WT_ORDERED_READ(v, s->generations[which]);
+
+        if (v != 0 && v < oldest)
+            oldest = v;
+    }
+
+    return (oldest);
+}
+
+/*
+ * __wt_gen_active --
+ *     Return if a specified generation is in use for the resource.
+ */
+bool
+__wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_SESSION_IMPL *s;
+    uint64_t v;
+    uint32_t i, session_cnt;
+
+    conn = S2C(session);
+
     /*
      * No lock is required because the session array is fixed size, but it may contain inactive
      * entries. We must review any active session, so insert a read barrier after reading the active
@@ -205,38 +236,17 @@ __gen_oldest(WT_SESSION_IMPL *session, int which, uint64_t generation)
         /* Ensure we only read the value once. */
         WT_ORDERED_READ(v, s->generations[which]);
 
-        /*
-         * If we're looking for a value older than a specific generation, return immediately if any
-         * are found. We want to short circuit walking the array if we already have an answer.
-         */
-        if (v != 0 && v < oldest) {
-            if (generation != 0)
-                return (v);
-            else
-                oldest = v;
-        }
+        if (v != 0 && generation >= v)
+            return (true);
     }
-    if (generation != 0)
-        return (0);
-    else
-        return (oldest);
-}
 
-/*
- * __wt_gen_active --
- *     Return if a specified generation is in use for the resource.
- */
-bool
-__wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
-{
-    /*
-     * We don't care what the actual older value is, but if one is found return that this generation
-     * is still currently active.
-     */
-    if (__gen_oldest(session, which, generation) != 0)
-        return (true);
-    else
-        return (false);
+#ifdef HAVE_DIAGNOSTIC
+    {
+        uint64_t oldest = __gen_oldest(session, which);
+        WT_ASSERT(session, generation < oldest);
+    }
+#endif
+    return (false);
 }
 
 /*
@@ -310,7 +320,7 @@ __stash_discard(WT_SESSION_IMPL *session, int which)
     session_stash = &session->stash[which];
 
     /* Get the resource's oldest generation. */
-    oldest = __gen_oldest(session, which, 0);
+    oldest = __gen_oldest(session, which);
 
     for (i = 0, stash = session_stash->list; i < session_stash->cnt; ++i, ++stash) {
         if (stash->p == NULL)
