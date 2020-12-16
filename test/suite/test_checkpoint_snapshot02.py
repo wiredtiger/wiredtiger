@@ -39,6 +39,8 @@ from wiredtiger import stat
 #   stress for checkpoint and let eviction write more data than checkpoint.
 #
 
+def timestamp_str(t):
+    return '%x' % t
 class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
     # Create a table.
@@ -49,14 +51,14 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         config = 'cache_size=5MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
         return config
 
-    def large_updates(self, uri, value, ds, nrows):
+    def large_updates(self, uri, value, ds, nrows, commit_ts):
         # Update a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
         for i in range(0, nrows):
             session.begin_transaction()
             cursor[ds.key(i)] = value
-            session.commit_transaction()
+            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
     def check(self, check_value, uri, nrows):
@@ -80,8 +82,10 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         valuec = "ccccc" * 100
         valued = "ddddd" * 100
 
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
+
         cursor = self.session.open_cursor(self.uri)
-        self.large_updates(self.uri, valuea, ds, self.nrows)
+        self.large_updates(self.uri, valuea, ds, self.nrows, 20)
 
         self.session.begin_transaction()
 
@@ -100,12 +104,14 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
                 self.assertEqual(cursor.insert(), 0)
             self.session.commit_transaction()
 
-            self.large_updates(self.uri, valuec, ds, self.nrows)
-            self.large_updates(self.uri, valued, ds, self.nrows)
+            self.large_updates(self.uri, valuec, ds, self.nrows, 30)
+            self.large_updates(self.uri, valued, ds, self.nrows, 40)
 
         finally:
             done.set()
             ckpt.join()
+
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(40))
 
         #Simulate a crash by copying to a new directory(RESTART).
         copy_wiredtiger_home(".", "RESTART")
@@ -115,7 +121,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         self.session = self.setUpSessionOpen(self.conn)
 
         # Check the table contains the last checkpointed value.
-        self.check(valued, self.uri, self.nrows)
+        self.check(valuea, self.uri, self.nrows)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
@@ -127,7 +133,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         stat_cursor.close()
 
         self.assertGreater(inconsistent_ckpt, 0)
-        self.assertEqual(hs_removed, 0)
+        self.assertGreater(hs_removed, 0)
         self.assertEqual(upd_aborted, 0)
         self.assertEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
