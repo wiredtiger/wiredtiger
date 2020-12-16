@@ -1325,15 +1325,19 @@ __rollback_to_stable(WT_SESSION_IMPL *session)
      * We're about to run a check for active transactions in the system to stop users from shooting
      * themselves in the foot. Eviction threads may interfere with this check if they involve writes
      * to the history store so we need to wait until the system is no longer evicting content.
+     *
+     * If we detect active evictions, we should wait a millisecond and check again. If we're waiting
+     * for evictions to quiesce for more than 5 seconds, we should give up on waiting and try the
+     * transaction check anyway.
      */
-#define WT_RTS_EVICT_MAX_RETRIES 5
+#define WT_RTS_EVICT_MAX_RETRIES (5 * WT_THOUSAND)
     for (retries = 0; retries < WT_RTS_EVICT_MAX_RETRIES; ++retries) {
         WT_ORDERED_READ(cache_flags, cache->flags);
         if (!FLD_ISSET(cache_flags, WT_CACHE_EVICT_ALL))
             break;
-        /* If we're retrying, pause for a second and let eviction make some progress. */
+        /* If we're retrying, pause for a millisecond and let eviction make some progress. */
         if (retries != 0)
-            __wt_sleep(1, 0);
+            __wt_sleep(0, WT_THOUSAND);
     }
 
     WT_RET(__rollback_to_stable_check(session));
