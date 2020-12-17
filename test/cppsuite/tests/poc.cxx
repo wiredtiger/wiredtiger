@@ -1,6 +1,6 @@
 #include "../test_harness/test_harness.hpp"
 
-class POCTest : TestHarness::Test {
+class POCTest : public TestHarness::Test {
     public:
     int Run() {
         WT_CONNECTION *conn;
