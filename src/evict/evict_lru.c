@@ -277,7 +277,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     conn = S2C(session);
     cache = conn->cache;
 
-    /* Mark the session as an eviction session. */
+    /* Mark the session as an eviction thread session. */
     F_SET(session, WT_SESSION_EVICTION);
 
     /*
@@ -354,7 +354,7 @@ __wt_evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
      */
     WT_ASSERT(session, F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_RECOVERING));
 
-    /* Clear the session eviction flag. */
+    /* Clear the eviction thread session flag. */
     F_CLR(session, WT_SESSION_EVICTION);
 
     __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "cache eviction thread exiting");
