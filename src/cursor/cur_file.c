@@ -560,14 +560,21 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    bool is_dead;
+    bool can_reopen, is_dead;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     dhandle = cbt->dhandle;
     session = CUR2S(cursor);
 
-    if (check_only)
-        return (WT_DHANDLE_CAN_REOPEN(dhandle) ? 0 : WT_NOTFOUND);
+    if (check_only) {
+        can_reopen = WT_DHANDLE_CAN_REOPEN(dhandle);
+        /*
+         * If the data handle can't be reopened, it is a candidate for sweep, and that
+         * should never happen if any session (including ours) is actively using it.
+         */
+        WT_ASSERT(session, can_reopen || dhandle != session->dhandle);
+        return (can_reopen ? 0 : WT_NOTFOUND);
+    }
 
     session->dhandle = dhandle;
 
