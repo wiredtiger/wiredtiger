@@ -39,9 +39,10 @@ class test_backup13(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
-    uri="table:test"
-    nops=1000
     mult=0
+    nops=1000
+    session_config='isolation=snapshot'
+    uri="table:test"
 
     pfx = 'test_backup'
     # Set the key and value big enough that we modify a few blocks.
