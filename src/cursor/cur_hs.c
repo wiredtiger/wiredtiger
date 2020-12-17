@@ -405,9 +405,10 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         if (F_ISSET(std_cursor, WT_CURSTD_HS_READ_COMMITTED))
             break;
 
-        /* If the we don't have a transaction snapshot, bail out from visibility checks. */
-        if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
-            break;
+        /*
+         * If we don't have a transaction snapshot, we should have already set the appropriate flag.
+         */
+        WT_ASSERT(session, F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
         if (__wt_txn_tw_stop_visible(session, &cbt->upd_value->tw)) {
             /*
@@ -493,9 +494,10 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         if (F_ISSET(std_cursor, WT_CURSTD_HS_READ_COMMITTED))
             break;
 
-        /* If the we don't have a transaction snapshot, bail out from visibility checks. */
-        if (!F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT))
-            break;
+        /*
+         * If we don't have a transaction snapshot, we should have already set the appropriate flag.
+         */
+        WT_ASSERT(session, F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
         /*
          * If the stop time point of a record is visible to us, check the next one.
