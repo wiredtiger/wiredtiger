@@ -1,4 +1,5 @@
 #include "../test_harness/test_harness.hpp"
+
 class POCTest : TestHarness::Test {
     public:
     int Run() {
