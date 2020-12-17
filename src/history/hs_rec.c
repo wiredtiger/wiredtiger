@@ -19,6 +19,7 @@ typedef struct {
 } WT_HS_TIME_POINT;
 
 #define WT_HS_CBT(std_cur) ((WT_CURSOR_BTREE *)(((WT_CURSOR_HS *)std_cur)->file_cursor))
+#define WT_HS_BT(std_cur) (CUR2BT(((WT_CURSOR_HS *)std_cur)->file_cursor))
 
 static int __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   uint32_t btree_id, const WT_ITEM *key, bool reinsert);
@@ -643,7 +644,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
     WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
-    max_hs_size = CUR2BT(cursor)->file_max;
+    max_hs_size = WT_HS_BT(cursor)->file_max;
     if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
         WT_ERR_PANIC(session, WT_PANIC,
           "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64, (uint64_t)hs_size,
