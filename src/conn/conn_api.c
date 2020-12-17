@@ -1834,12 +1834,6 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 }
 
-/* Simple structure for name and flag configuration searches. */
-typedef struct {
-    const char *name;
-    uint64_t flag;
-} WT_NAME_FLAG;
-
 /*
  * __wt_verbose_config --
  *     Set verbose configuration.
@@ -1993,6 +1987,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
       {"backup_rename", WT_TIMING_STRESS_BACKUP_RENAME},
       {"checkpoint_slow", WT_TIMING_STRESS_CHECKPOINT_SLOW},
       {"history_store_checkpoint_delay", WT_TIMING_STRESS_HS_CHECKPOINT_DELAY},
+      {"history_store_search", WT_TIMING_STRESS_HS_SEARCH},
       {"history_store_sweep_race", WT_TIMING_STRESS_HS_SWEEP},
       {"prepare_checkpoint_delay", WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY},
       {"split_1", WT_TIMING_STRESS_SPLIT_1}, {"split_2", WT_TIMING_STRESS_SPLIT_2},
@@ -2740,14 +2735,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
         WT_ERR(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
     }
 
-    /*
-     * Initialize the connection's base write generation.
-     *
-     * We'll write over this value after performing rollback to stable however, we need to set it
-     * here. The logic below will involve opening up the metadata file and if the connection-wide
-     * base write generation is uninitialized, we'll tag the btree with the wrong base write gen and
-     * incorrectly interpret transaction ids during rollback to stable.
-     */
+    /* Initialize the connection's base write generation. */
     WT_ERR(__wt_metadata_init_base_write_gen(session));
 
     WT_ERR(__wt_metadata_cursor(session, NULL));

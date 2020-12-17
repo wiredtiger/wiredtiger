@@ -36,8 +36,7 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
              * here.
              */
             WT_ASSERT(session,
-              !FLD_ISSET(S2BT(session)->assert_flags, WT_ASSERT_COMMIT_TS_KEYS) ||
-                upd == first_upd);
+              !F_ISSET(session->dhandle, WT_DHANDLE_TS_KEY_CONSISTENT) || upd == first_upd);
             first_upd = upd->next;
 
             __wt_verbose(session, WT_VERB_RTS,
@@ -333,16 +332,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         if (valid_update_found) {
             WT_ERR(__wt_upd_alloc(session, &full_value, WT_UPDATE_STANDARD, &upd, NULL));
 
-            /*
-             * Set the transaction id of updates to WT_TXN_NONE when called from recovery, because
-             * the connections write generation will be initialized after rollback to stable and the
-             * updates in the cache will be problematic. The transaction id of pages which are in
-             * disk will be automatically reset as part of unpacking cell when loaded to cache.
-             */
-            if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-                upd->txnid = WT_TXN_NONE;
-            else
-                upd->txnid = cbt->upd_value->tw.start_txn;
+            upd->txnid = cbt->upd_value->tw.start_txn;
             upd->durable_ts = cbt->upd_value->tw.durable_start_ts;
             upd->start_ts = cbt->upd_value->tw.start_ts;
             __wt_verbose(session, WT_VERB_RTS,
@@ -1234,11 +1224,13 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
 
         /*
-         * The rollback to stable will skip the tables during recovery in the following conditions
-         * 1. Empty table
+         * The rollback to stable will skip the tables during recovery and shutdown in the following
+         * conditions.
+         * 1. Empty table.
          * 2. Table has timestamped updates without a stable timestamp.
          */
-        if (F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+        if ((F_ISSET(S2C(session), WT_CONN_RECOVERING) ||
+              F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP)) &&
           (addr_size == 0 ||
             (txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
             __wt_verbose(session, WT_VERB_RTS, "Skip rollback to stable on file %s because %s", uri,
