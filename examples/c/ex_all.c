@@ -856,7 +856,7 @@ transaction_ops(WT_SESSION *session_arg)
         error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
         error_check(session->begin_transaction(session, "isolation=snapshot"));
         cursor->set_key(cursor, "some-key");
-        cursor->set_value(cursor, "some-value");
+        error_check(cursor->search(cursor));
         error_check(session->reset_snapshot(session));
         error_check(session->commit_transaction(session, NULL));
         /*! [reset snapshot] */

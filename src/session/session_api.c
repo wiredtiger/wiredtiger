@@ -1694,7 +1694,13 @@ __session_reset_snapshot(WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     /* Return error if the isolation mode is read committed. */
     if (session->txn->isolation != WT_ISO_SNAPSHOT)
-        WT_RET_MSG(session, EPERM, "read committed/uncommitted isolation cannot reset snapshot.");
+        WT_RET_MSG(session, EPERM,
+          "sessions with read committed/uncommitted isolation cannot reset snapshot.");
+
+    /* Return error if the session has performed any write operations. */
+    if (F_ISSET(session->txn, WT_TXN_HAS_ID))
+        WT_RET_MSG(session, EPERM,
+          "sessions with read committed/uncommitted isolation performed write operation.");
 
     __wt_txn_release_snapshot(session);
     __wt_txn_get_snapshot(session);

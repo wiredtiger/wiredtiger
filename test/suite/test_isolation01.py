@@ -28,7 +28,8 @@
 #
 # test_isolation01.py
 #   Transactions isolation mode: This test is to test for different isolation modes.
-#   The API reset_snapshot should return error when called withread committed isolation mode.
+#   The API reset_snapshot should return error when called withread committed isolation mode
+#   or when the session has performed any write operations.
 #
 
 import wiredtiger, wttest
@@ -49,19 +50,30 @@ class test_isolation01(wttest.WiredTigerTestCase):
     def test_isolation_level(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None)
-        cursor[self.key] = self.value
 
         # Begin a transaction with different isolation levels.
         self.session.begin_transaction('isolation=' + self.isolation)
-        cursor[self.key] = self.value
+        cursor.set_key(self.key)
+        cursor.set_value(self.value)
+        self.assertEqual(cursor.insert(), 0)
 
+        if self.isolation == 'snapshot':
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.reset_snapshot(), "/read committed/uncommitted isolation performed write operation/")
+        else:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.reset_snapshot(), "/read committed/uncommitted isolation cannot reset snapshot/")
+        self.session.commit_transaction()
+
+        cursor2 = self.session.open_cursor(self.uri, None)
+        self.session.begin_transaction('isolation=' + self.isolation)
+        cursor2.set_key(self.key)
+        cursor2.search()
         if self.isolation == 'snapshot':
             self.session.reset_snapshot()
         else:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.reset_snapshot(), "/read committed/uncommitted isolation cannot reset snapshot/")
-
-        self.session.commit_transaction()
 
 if __name__ == '__main__':
     wttest.run()
