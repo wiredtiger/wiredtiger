@@ -277,7 +277,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     conn = S2C(session);
     cache = conn->cache;
 
-    /* Mark the session as the eviction session. */
+    /* Mark the session as an eviction session. */
     F_SET(session, WT_SESSION_EVICTION);
 
     /*
