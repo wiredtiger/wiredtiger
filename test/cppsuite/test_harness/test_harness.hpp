@@ -12,6 +12,6 @@ namespace TestHarness {
          * All tests will implement this initially, the return value from it will indicate whether
          * the test was successful or not.
          */
-        virtual int Run();
+        virtual int Run() = 0;
     };
 }
